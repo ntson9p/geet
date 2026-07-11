@@ -1,5 +1,6 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
+import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { GitTreeApi } from '../../../src/extension';
 
 /**
@@ -22,9 +23,12 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     this.timeout(30_000);
     const c = await core();
     assert.strictEqual(c.repos.length, 2, `expected 2 repos, got ${c.repos.map((r) => r.root).join(', ')}`);
-    const names = c.repos.map((r) => r.root.toLowerCase());
-    assert.ok(names.some((n) => n.endsWith('repoa')), 'repoA missing');
-    assert.ok(names.some((n) => n.endsWith('repob')), 'repoB missing');
+    const keys = c.repos.map((r) => canonicalKey(r.root));
+    const repoA = process.env['GITTREE_TEST_REPO_A'];
+    const repoB = process.env['GITTREE_TEST_REPO_B'];
+    assert.ok(repoA && repoB, 'runner did not export fixture repo paths');
+    assert.ok(keys.includes(canonicalKey(repoA)), `repoA missing from ${keys.join(', ')}`);
+    assert.ok(keys.includes(canonicalKey(repoB)), `repoB missing from ${keys.join(', ')}`);
   });
 
   test('models are populated after discovery', async function () {

@@ -7,6 +7,7 @@
  *
  * vscode-free: the rev-parse probe is injected.
  */
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 export interface RepoDiscoveryDeps {
@@ -15,9 +16,19 @@ export interface RepoDiscoveryDeps {
   trace?(line: string): void;
 }
 
-/** Canonical comparison key: absolute, forward slashes, case-folded on win32. */
+/**
+ * Canonical comparison key: absolute, forward slashes, case-folded on win32.
+ * Existing paths are realpath'd — on Windows this expands 8.3 short names
+ * (`ADA~1.LOV`) so they compare equal to git's long-form output.
+ */
 export function canonicalKey(p: string, platform: NodeJS.Platform = process.platform): string {
-  let key = path.resolve(p).replace(/\\/g, '/');
+  let abs = path.resolve(p);
+  try {
+    abs = fs.realpathSync.native(abs);
+  } catch {
+    // Nonexistent path (e.g. a deleted file event) — resolve textually.
+  }
+  let key = abs.replace(/\\/g, '/');
   if (key.length > 1 && key.endsWith('/')) key = key.slice(0, -1);
   return platform === 'win32' ? key.toLowerCase() : key;
 }

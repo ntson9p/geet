@@ -113,7 +113,7 @@
 `gittree.debug.showState` command (hidden from palette via `when: config.gittree.trace`), OutputChannel "GitTree". Nothing else user-visible.
 
 ## Parity checklist
-- [ ] Infrastructure only — no FEATURES.md items land here, but §4 master invariants (queue, watcher, suppression, retry) all demonstrably work.
+- [x] Infrastructure only — no FEATURES.md items land here, but §4 master invariants (queue, watcher, suppression, retry) all demonstrably work. (Queue serialization + lock retry: `test/unit/core/ops/operationQueue.test.ts`; watcher → refresher → model incl. suppression: `test/unit/core/ops/statusRefresher.test.ts` + `test/integration/suite/watchRefresh.test.ts`.)
 
 ## Deviations
 - **P0-T1:** a minimal integration bootstrap (`test/integration/runTests.ts`, `suite/index.ts`, one activation test) lands in T1 rather than T10 so the CI `integration` job specified in T1 step 3 is actually runnable; T10 replaces the ad-hoc scratch workspace with the `FixtureRepo` builder. Also added `LICENSE` (manifest declares MIT; keeps `vsce package` non-interactive), `.gitignore`, and `.vscode/{launch,tasks}.json` (T1 acceptance requires F5 debug launch). The test runner scrubs an inherited `ELECTRON_RUN_AS_NODE` from its env — otherwise the downloaded VS Code starts as plain Node when tests are launched from a terminal inside VS Code/Electron.
