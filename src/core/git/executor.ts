@@ -34,8 +34,9 @@ export interface ExecOpts {
   allowNonZeroExit?: boolean;
   /** Working directory override for commands that must not run at the repo root. */
   cwd?: string;
-  /** stream(): frame delimiter, NUL for `-z` output (default) or LF. */
-  delimiter?: '\0' | '\n';
+  /** stream(): single-char frame delimiter — NUL (default), LF, or a custom
+   *  record separator such as \x1e used by the log format. */
+  delimiter?: string;
 }
 
 export interface GitResult {

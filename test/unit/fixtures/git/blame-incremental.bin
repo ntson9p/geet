@@ -1,0 +1,29 @@
+e09794300ba3e56a50f1cf5494ed9d971847ad2c 2 2 1
+author Åsa Ünicode
+author-mail <asa@example.com>
+author-time 1767323045
+author-tz +0000
+committer Committer Person
+committer-mail <committer@example.com>
+committer-time 1767323046
+committer-tz +0000
+summary change line two, add four
+previous 43cfc3e0c89fb1d6b8e73db80d3856553dc48c0a code.ts
+filename code.ts
+e09794300ba3e56a50f1cf5494ed9d971847ad2c 4 4 1
+previous 43cfc3e0c89fb1d6b8e73db80d3856553dc48c0a code.ts
+filename code.ts
+43cfc3e0c89fb1d6b8e73db80d3856553dc48c0a 1 1 1
+author Åsa Ünicode
+author-mail <asa@example.com>
+author-time 1767323045
+author-tz +0000
+committer Committer Person
+committer-mail <committer@example.com>
+committer-time 1767323046
+committer-tz +0000
+summary add code
+boundary
+filename code.ts
+43cfc3e0c89fb1d6b8e73db80d3856553dc48c0a 3 3 1
+filename code.ts
