@@ -39,6 +39,8 @@ const MODE_STATE_KEY = 'gittree.mode';
 export class Core implements vscode.Disposable {
   private readonly handles = new Map<string, RepoHandle>(); // canonical key → handle
   private readonly store = new DisposableStore();
+  /** Per-phase registries for integration tests (reachable via getCore()). */
+  readonly debugRegistry = new Map<string, unknown>();
   private readonly _onDidAddRepo = new Emitter<RepoHandle>();
   private readonly _onDidRemoveRepo = new Emitter<RepoHandle>();
   readonly onDidAddRepo: Event<RepoHandle> = this._onDidAddRepo.event;

@@ -75,6 +75,31 @@
         }
       },
       {
+        "title": "%gittree.config.scm.title%",
+        "properties": {
+          "gittree.quickDiff.base": {
+            "type": "string",
+            "enum": [
+              "index",
+              "head"
+            ],
+            "default": "index",
+            "description": "%gittree.config.quickDiff.base.description%"
+          },
+          "gittree.autofetch.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.autofetch.enabled.description%"
+          },
+          "gittree.autofetch.intervalSeconds": {
+            "type": "number",
+            "default": 180,
+            "minimum": 30,
+            "description": "%gittree.config.autofetch.intervalSeconds.description%"
+          }
+        }
+      },
+      {
         "title": "%gittree.config.localHistory.title%",
         "properties": {
           "gittree.localHistory.enabled": {
@@ -123,6 +148,108 @@
         "command": "gittree.debug.webviewDemo",
         "title": "%gittree.command.debug.webviewDemo.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.openDiff",
+        "title": "%gittree.command.openDiff.title%",
+        "category": "GitTree",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "gittree.openDiffHead",
+        "title": "%gittree.command.openDiffHead.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.openFile",
+        "title": "%gittree.command.openFile.title%",
+        "category": "GitTree",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "gittree.add",
+        "title": "%gittree.command.add.title%",
+        "category": "GitTree",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "gittree.unstage",
+        "title": "%gittree.command.unstage.title%",
+        "category": "GitTree",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "gittree.rollbackFile",
+        "title": "%gittree.command.rollbackFile.title%",
+        "category": "GitTree",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "gittree.cleanUntracked",
+        "title": "%gittree.command.cleanUntracked.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.refresh",
+        "title": "%gittree.command.refresh.title%",
+        "category": "GitTree",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gittree.fetch",
+        "title": "%gittree.command.fetch.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.pull",
+        "title": "%gittree.command.pull.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.push",
+        "title": "%gittree.command.push.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.pushForceWithLease",
+        "title": "%gittree.command.pushForceWithLease.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.sync",
+        "title": "%gittree.command.sync.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit",
+        "title": "%gittree.command.commit.title%",
+        "category": "GitTree",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gittree.commitAmend",
+        "title": "%gittree.command.commitAmend.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branches.open",
+        "title": "%gittree.command.branches.open.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.hunk.rollback",
+        "title": "%gittree.command.hunk.rollback.title%",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "gittree.hunk.stage",
+        "title": "%gittree.command.hunk.stage.title%",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "gittree.hunk.openCommitView",
+        "title": "%gittree.command.hunk.openCommitView.title%",
+        "icon": "$(git-commit)"
       }
     ],
     "menus": {
@@ -134,6 +261,151 @@
         {
           "command": "gittree.debug.webviewDemo",
           "when": "config.gittree.trace"
+        },
+        {
+          "command": "gittree.hunk.rollback",
+          "when": "false"
+        },
+        {
+          "command": "gittree.hunk.stage",
+          "when": "false"
+        },
+        {
+          "command": "gittree.hunk.openCommitView",
+          "when": "false"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "gittree.refresh",
+          "when": "scmProvider == gittree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.commit",
+          "when": "scmProvider == gittree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.pull",
+          "when": "scmProvider == gittree",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "gittree.push",
+          "when": "scmProvider == gittree",
+          "group": "1_sync@2"
+        },
+        {
+          "command": "gittree.fetch",
+          "when": "scmProvider == gittree",
+          "group": "1_sync@3"
+        },
+        {
+          "command": "gittree.pushForceWithLease",
+          "when": "scmProvider == gittree",
+          "group": "1_sync@4"
+        },
+        {
+          "command": "gittree.commitAmend",
+          "when": "scmProvider == gittree",
+          "group": "2_commit@1"
+        },
+        {
+          "command": "gittree.cleanUntracked",
+          "when": "scmProvider == gittree",
+          "group": "3_clean@1"
+        }
+      ],
+      "scm/resourceGroup/context": [
+        {
+          "command": "gittree.add",
+          "when": "scmProvider == gittree && scmResourceGroup == changes",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "gittree.rollbackFile",
+          "when": "scmProvider == gittree && scmResourceGroup == changes",
+          "group": "1_modification@2"
+        },
+        {
+          "command": "gittree.unstage",
+          "when": "scmProvider == gittree && scmResourceGroup == staged",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "gittree.add",
+          "when": "scmProvider == gittree && scmResourceGroup == untracked",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "gittree.cleanUntracked",
+          "when": "scmProvider == gittree && scmResourceGroup == untracked",
+          "group": "1_modification@2"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "gittree.add",
+          "when": "scmProvider == gittree && scmResourceGroup == changes",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.rollbackFile",
+          "when": "scmProvider == gittree && scmResourceGroup == changes",
+          "group": "inline@2"
+        },
+        {
+          "command": "gittree.unstage",
+          "when": "scmProvider == gittree && scmResourceGroup == staged",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.add",
+          "when": "scmProvider == gittree && scmResourceGroup == untracked",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.rollbackFile",
+          "when": "scmProvider == gittree && scmResourceGroup == untracked",
+          "group": "inline@2"
+        },
+        {
+          "command": "gittree.openFile",
+          "when": "scmProvider == gittree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.openDiff",
+          "when": "scmProvider == gittree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.openDiffHead",
+          "when": "scmProvider == gittree && scmResourceGroup == changes",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gittree.rollbackFile",
+          "when": "scmProvider == gittree && scmResourceGroup == staged",
+          "group": "1_modification@1"
+        }
+      ],
+      "scm/change/title": [
+        {
+          "command": "gittree.hunk.openCommitView",
+          "when": "originalResourceScheme == gittree-rev",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.hunk.stage",
+          "when": "originalResourceScheme == gittree-rev",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.hunk.rollback",
+          "when": "originalResourceScheme == gittree-rev",
+          "group": "navigation@3"
         }
       ]
     },

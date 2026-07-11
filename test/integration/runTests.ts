@@ -44,6 +44,7 @@ async function main(): Promise<void> {
       ],
       extensionTestsEnv: {
         GITTREE_TEST: '1',
+        GITTREE_TEST_AUTOCONFIRM: '1',
         GITTREE_TEST_REPO_A: repoA.root,
         GITTREE_TEST_REPO_B: repoB.root,
       },

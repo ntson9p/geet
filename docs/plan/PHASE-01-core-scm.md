@@ -73,9 +73,13 @@
 SCM provider "GitTree"; commands `gittree.{openDiff,openDiffHead,add,unstage,rollbackFile,cleanUntracked,refresh,openFile,fetch,pull,push,pushForceWithLease,sync,commit}`; hunk commands + `scm/change/title` menu; `scm/title`, `scm/resourceState/context`, `scm/resourceGroup/context` menus; file decoration provider; status-bar items via `statusBarCommands`.
 
 ## Parity checklist (FEATURES.md §1)
-- [ ] Green/blue/grey gutter bars for added/modified/deleted lines
-- [ ] Click bar → floating inline diff (peek)
-- [ ] Rollback hunk from the popup (undoable)
-- [ ] Stage / send-to-commit hunk from the popup
-- [ ] Status-bar widget: branch name + incoming/outgoing arrows with counts
-- [ ] Widget click opens Branches popup (stub until P2)
+- [x] Green/blue/grey gutter bars for added/modified/deleted lines (native quick diff over `gittree-rev:` index/HEAD base; takeover-mode only per §3)
+- [x] Click bar → floating inline diff (peek) (native behavior once quickDiffProvider is registered)
+- [x] Rollback hunk from the popup (undoable — full-doc WorkspaceEdit keeps the editor undo stack; P9-snapshotted)
+- [x] Stage / send-to-commit hunk from the popup (`PatchBuilder` zero-context patch → `git apply --cached --unidiff-zero`; verified against real git in 8 round-trip tests)
+- [x] Status-bar widget: branch name + incoming/outgoing arrows with counts (+ detached sha, REBASING/MERGING step suffix)
+- [x] Widget click opens Branches popup (stub QuickPick until P2; same command id `gittree.branches.open`)
+
+## Deviations
+- **P1-T4/T7:** modal confirmations go through `src/ui/confirm.ts`, which auto-accepts when `GITTREE_TEST_AUTOCONFIRM=1` — native dialogs cannot be driven by the integration harness. Production behavior is unchanged.
+- **P1-T1:** resource-state icons use codicon `ThemeIcon`s with `gitDecoration.*` theme colors instead of shipped SVG pairs — theme-correct in light/dark/HC without asset maintenance.

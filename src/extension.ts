@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { createCore, type Core } from './core/core';
 import { registerPhase09LocalHistory } from './localHistory/register';
+import { registerPhase01 } from './scm/register';
 import { DEMO_METHODS } from './shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/webviewHost';
 
@@ -37,6 +38,7 @@ export function activate(context: vscode.ExtensionContext): GitTreeApi {
 
 function registerPhases(context: vscode.ExtensionContext, core: Core): void {
   // -- registerPhase01 (Core SCM) -----------------------------------------
+  registerPhase01(context, core);
   // -- registerPhase02 (Branches) -----------------------------------------
   // -- registerPhase03 (Commit lifecycle) ---------------------------------
   // -- registerPhase04 (Log, graph, blame) --------------------------------
