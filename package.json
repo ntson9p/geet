@@ -1,0 +1,63 @@
+{
+  "name": "gittree",
+  "displayName": "GitTree",
+  "description": "IntelliJ-grade Git integration for VS Code: changelists, log graph, interactive rebase, 3-pane merge, shelve, code review, and local history.",
+  "version": "0.0.1",
+  "publisher": "gittree",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gittree/git-tree-vsix.git"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "keywords": [
+    "git",
+    "scm",
+    "changelists",
+    "rebase",
+    "merge"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:.git",
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": [],
+    "commands": [],
+    "menus": {},
+    "views": {},
+    "viewsContainers": {}
+  },
+  "scripts": {
+    "build": "node esbuild.mjs --production",
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:unit": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test:unit",
+    "pretest:integration": "node esbuild.mjs && tsc -p tsconfig.integration.json",
+    "test:integration": "node ./out/test/integration/runTests.js",
+    "package": "vsce package --pre-release"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.17.0",
+    "@types/vscode": "1.96.0",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.20.0",
+    "mocha": "^10.8.2",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.24.0",
+    "vitest": "^3.0.0"
+  }
+}

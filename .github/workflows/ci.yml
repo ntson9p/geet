@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: check (typecheck + lint + unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+
+  integration:
+    name: integration (${{ matrix.os }}, git ${{ matrix.git }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        git: [system, '2.36']
+        exclude:
+          # No practical pinned-git distribution channel for macOS runners;
+          # the floor lane is covered on windows + ubuntu.
+          - os: macos-latest
+            git: '2.36'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install git 2.36 (Windows)
+        if: matrix.git == '2.36' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/git-for-windows/git/releases/download/v2.36.1.windows.1/PortableGit-2.36.1-64-bit.7z.exe'
+          Invoke-WebRequest -Uri $url -OutFile portablegit.7z.exe
+          & 7z x portablegit.7z.exe -oC:\pinned-git | Out-Null
+          Add-Content $env:GITHUB_PATH 'C:\pinned-git\cmd'
+
+      - name: Install git 2.36 (Linux)
+        if: matrix.git == '2.36' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dh-autoreconf libcurl4-gnutls-dev libexpat1-dev gettext libz-dev libssl-dev
+          curl -fsSLO https://mirrors.edge.kernel.org/pub/software/scm/git/git-2.36.6.tar.gz
+          tar -xzf git-2.36.6.tar.gz
+          cd git-2.36.6
+          make -j"$(nproc)" prefix=/opt/pinned-git NO_TCLTK=1 NO_GETTEXT=1 install
+          echo '/opt/pinned-git/bin' >> "$GITHUB_PATH"
+
+      - name: Report git version
+        run: git --version
+
+      - run: npm ci
+      - name: Run integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration
+      - name: Run integration tests (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:integration
+
+  package:
+    name: package (vsce)
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gittree-vsix
+          path: '*.vsix'
