@@ -10,6 +10,8 @@ export default tseslint.config(
       '.vscode-test/**',
       'webview-ui/dist/**',
       'webview-ui/node_modules/**',
+      'webview-ui/test-results/**',
+      'webview-ui/playwright-report/**',
       '**/*.d.ts',
       'shims/**',
     ],

@@ -7,3 +7,6 @@ coverage/
 *.log
 .DS_Store
 Thumbs.db
+webview-ui/test-results/
+webview-ui/playwright-report/
+webview-ui/.vite/

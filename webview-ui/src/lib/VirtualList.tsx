@@ -1,0 +1,192 @@
+/**
+ * VirtualList (master §9): fixed row height, windowed rendering, ARIA row
+ * semantics, roving tabindex keyboard navigation, imperative scrollToIndex.
+ * The workhorse behind the 100k-commit log (P4) and other long lists.
+ */
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+
+export interface VirtualListHandle {
+  scrollToIndex(index: number, align?: 'auto' | 'center'): void;
+  focusIndex(index: number): void;
+}
+
+export interface VirtualListProps {
+  rowCount: number;
+  rowHeight: number;
+  height: number;
+  renderRow: (index: number) => ReactNode;
+  ariaLabel: string;
+  overscan?: number;
+  /** Fired when the focused row changes via keyboard or click. */
+  onFocusIndex?: (index: number) => void;
+  /** Enter/Space on a focused row. */
+  onActivate?: (index: number) => void;
+  /** Row context data for data-vscode-context (native menus). */
+  rowContext?: (index: number) => Record<string, unknown> | undefined;
+  className?: string;
+}
+
+export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(function VirtualList(
+  {
+    rowCount,
+    rowHeight,
+    height,
+    renderRow,
+    ariaLabel,
+    overscan = 6,
+    onFocusIndex,
+    onActivate,
+    rowContext,
+    className,
+  }: VirtualListProps,
+  ref,
+) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const pendingFocus = useRef<number | undefined>(undefined);
+
+  const clamp = useCallback(
+    (i: number) => Math.max(0, Math.min(rowCount - 1, i)),
+    [rowCount],
+  );
+
+  const scrollToIndex = useCallback(
+    (index: number, align: 'auto' | 'center' = 'auto') => {
+      const el = containerRef.current;
+      if (!el) return;
+      const i = clamp(index);
+      const top = i * rowHeight;
+      if (align === 'center') {
+        el.scrollTop = top - Math.max(0, (height - rowHeight) / 2);
+      } else if (top < el.scrollTop) {
+        el.scrollTop = top;
+      } else if (top + rowHeight > el.scrollTop + height) {
+        el.scrollTop = top + rowHeight - height;
+      }
+    },
+    [clamp, height, rowHeight],
+  );
+
+  const focusIndex = useCallback(
+    (index: number) => {
+      const i = clamp(index);
+      setFocusedIndex(i);
+      onFocusIndex?.(i);
+      scrollToIndex(i);
+      pendingFocus.current = i;
+      // After a long jump the target row renders only once the scroll event
+      // has re-windowed the list — retry across a few frames, and never let
+      // focus escape to <body> (that would kill keyboard navigation).
+      const tryFocus = (attempt: number): void => {
+        if (pendingFocus.current !== i) return; // superseded by a newer call
+        const row = containerRef.current?.querySelector<HTMLElement>(`[data-gt-row="${i}"]`);
+        if (row) {
+          pendingFocus.current = undefined;
+          row.focus();
+        } else if (attempt < 20) {
+          requestAnimationFrame(() => tryFocus(attempt + 1));
+        } else {
+          pendingFocus.current = undefined;
+          containerRef.current?.focus();
+        }
+      };
+      requestAnimationFrame(() => tryFocus(0));
+    },
+    [clamp, onFocusIndex, scrollToIndex],
+  );
+
+  useImperativeHandle(ref, () => ({ scrollToIndex, focusIndex }), [scrollToIndex, focusIndex]);
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    const page = Math.max(1, Math.floor(height / rowHeight) - 1);
+    let next: number | undefined;
+    switch (e.key) {
+      case 'ArrowDown':
+        next = focusedIndex + 1;
+        break;
+      case 'ArrowUp':
+        next = focusedIndex - 1;
+        break;
+      case 'PageDown':
+        next = focusedIndex + page;
+        break;
+      case 'PageUp':
+        next = focusedIndex - page;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = rowCount - 1;
+        break;
+      case 'Enter':
+      case ' ':
+        onActivate?.(focusedIndex);
+        e.preventDefault();
+        return;
+      default:
+        return;
+    }
+    e.preventDefault();
+    focusIndex(next);
+  };
+
+  const first = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const visible = Math.ceil(height / rowHeight) + overscan * 2;
+  const last = Math.min(rowCount - 1, first + visible);
+
+  const rows: ReactNode[] = [];
+  for (let i = first; i <= last; i++) {
+    const style: CSSProperties = {
+      position: 'absolute',
+      top: i * rowHeight,
+      height: rowHeight,
+      left: 0,
+      right: 0,
+    };
+    const ctx = rowContext?.(i);
+    rows.push(
+      <div
+        key={i}
+        role="option"
+        aria-posinset={i + 1}
+        aria-setsize={rowCount}
+        aria-selected={i === focusedIndex}
+        data-gt-row={i}
+        data-vscode-context={ctx ? JSON.stringify(ctx) : undefined}
+        tabIndex={i === focusedIndex ? 0 : -1}
+        className={`gt-virtual-row${i === focusedIndex ? ' gt-focused' : ''}`}
+        style={style}
+        onClick={() => focusIndex(i)}
+        onDoubleClick={() => onActivate?.(i)}
+      >
+        {renderRow(i)}
+      </div>,
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      role="listbox"
+      aria-label={ariaLabel}
+      tabIndex={-1}
+      className={`gt-virtual-list${className ? ` ${className}` : ''}`}
+      style={{ height, overflowY: 'auto', position: 'relative', outline: 'none' }}
+      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+      onKeyDown={onKeyDown}
+    >
+      <div style={{ height: rowCount * rowHeight, position: 'relative' }}>{rows}</div>
+    </div>
+  );
+});

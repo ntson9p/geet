@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { createCore, type Core } from './core/core';
+import { DEMO_METHODS } from './shared/protocol';
+import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/webviewHost';
 
 /**
  * GitTree entry point. Kept intentionally thin (master plan §7): P0-T7 builds
@@ -64,6 +66,39 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
         content: JSON.stringify(state, null, 2),
       });
       await vscode.window.showTextDocument(doc, { preview: true });
+    }),
+  );
+
+  // P0-T9 webview platform kit demo (theme + RPC + VirtualList showcase).
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gittree.debug.webviewDemo', () => {
+      const panel = vscode.window.createWebviewPanel(
+        'gittree.demo',
+        vscode.l10n.t('GitTree Webview Demo'),
+        vscode.ViewColumn.Active,
+        {
+          enableScripts: true,
+          localResourceRoots: webviewResourceRoots(context.extensionUri),
+        },
+      );
+      const rpc = new WebviewRpcHost(panel.webview);
+      rpc.on(DEMO_METHODS.echo, (params) => {
+        const text =
+          typeof params === 'object' && params !== null && 'text' in params
+            ? String(params.text)
+            : '';
+        return { echoed: text };
+      });
+      panel.onDidChangeViewState((e) => {
+        if (e.webviewPanel.visible) rpc.rehydrate();
+      });
+      panel.onDidDispose(() => rpc.dispose());
+      panel.webview.html = buildWebviewHtml({
+        app: 'demo',
+        webview: panel.webview,
+        extensionUri: context.extensionUri,
+        title: vscode.l10n.t('GitTree Webview Demo'),
+      });
     }),
   );
 }

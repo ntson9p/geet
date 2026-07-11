@@ -1,5 +1,6 @@
 {
   "gittree.command.debug.showState.title": "Show Repository State (Debug)",
+  "gittree.command.debug.webviewDemo.title": "Open Webview Demo (Debug)",
   "gittree.config.title": "GitTree",
   "gittree.config.gitPath.description": "Path to the git executable. Falls back to the built-in `git.path` setting, then PATH, then well-known install locations.",
   "gittree.config.trace.description": "Log every git invocation (argv, duration, exit code — never file contents) to the \"GitTree\" output channel, and reveal debug commands.",

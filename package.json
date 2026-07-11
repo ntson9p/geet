@@ -24,6 +24,9 @@
     "merge"
   ],
   "main": "./dist/extension.js",
+  "workspaces": [
+    "webview-ui"
+  ],
   "activationEvents": [
     "workspaceContains:.git",
     "onStartupFinished"
@@ -77,12 +80,21 @@
         "command": "gittree.debug.showState",
         "title": "%gittree.command.debug.showState.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.debug.webviewDemo",
+        "title": "%gittree.command.debug.webviewDemo.title%",
+        "category": "GitTree"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "gittree.debug.showState",
+          "when": "config.gittree.trace"
+        },
+        {
+          "command": "gittree.debug.webviewDemo",
           "when": "config.gittree.trace"
         }
       ]
@@ -91,14 +103,17 @@
     "viewsContainers": {}
   },
   "scripts": {
+    "vscode:prepublish": "npm run build && npm run build:webviews",
     "build": "node esbuild.mjs --production",
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit",
+    "build:webviews": "npm run build -w webview-ui",
+    "typecheck": "tsc --noEmit && tsc -p webview-ui/tsconfig.json --noEmit",
     "lint": "eslint .",
     "test:unit": "vitest run",
+    "test:webview": "npm run test -w webview-ui",
     "check": "npm run typecheck && npm run lint && npm run test:unit",
-    "pretest:integration": "node esbuild.mjs && tsc -p tsconfig.integration.json",
+    "pretest:integration": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
     "test:integration": "node ./out/test/integration/runTests.js",
     "package": "vsce package --pre-release"
   },

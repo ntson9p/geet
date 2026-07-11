@@ -17,6 +17,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - name: Webview component tests (Playwright)
+        run: |
+          npx playwright install chromium --with-deps
+          npm run test:webview
 
   integration:
     name: integration (${{ matrix.os }}, git ${{ matrix.git }})
