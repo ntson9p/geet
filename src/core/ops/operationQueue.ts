@@ -76,6 +76,10 @@ export class OperationQueue {
   private readonly _onWillRunDestructive = new Emitter<DestructiveOpEvent>();
   readonly onWillRunDestructive: Event<DestructiveOpEvent> = this._onWillRunDestructive.event;
 
+  /** Fires after each mutation settles — the StatusRefresher's post-op signal. */
+  private readonly _onDidFinishMutation = new Emitter<{ label: string }>();
+  readonly onDidFinishMutation: Event<{ label: string }> = this._onDidFinishMutation.event;
+
   constructor(
     readonly repo: RepoId,
     private readonly git: GitExecutor,
@@ -206,10 +210,12 @@ export class OperationQueue {
       this.finishMutation();
       job.source.dispose();
       job.resolve(result);
+      this._onDidFinishMutation.fire({ label: job.op.label });
     } catch (err) {
       this.finishMutation();
       job.source.dispose();
       job.reject(err);
+      this._onDidFinishMutation.fire({ label: job.op.label });
     }
   }
 
@@ -249,6 +255,7 @@ export class OperationQueue {
       job.source.cancel();
     }
     this._onWillRunDestructive.dispose();
+    this._onDidFinishMutation.dispose();
   }
 }
 
