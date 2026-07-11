@@ -1,37 +1,38 @@
 /**
- * Worktree watcher (master §4): one all-files workspace FileSystemWatcher per
- * repo — respects the user's files.watcherExclude. Thin vscode adapter; the
- * interesting logic (debounce, suppression, refresh) lives in StatusRefresher.
+ * Worktree watcher (master §4): one all-files workspace FileSystemWatcher for
+ * the window — respects the user's files.watcherExclude — routing each event
+ * to the owning repository. Thin vscode adapter; debounce/suppression/refresh
+ * logic lives in StatusRefresher.
  */
 import * as vscode from 'vscode';
 
-export interface WorkspaceWatcherDeps {
-  repoRoot: string;
-  /** Events under this dir are the GitDirWatcher's business — filtered out. */
+export interface WorktreeTarget {
+  root: string;
+  /** Events under the git dir are the GitDirWatcher's business — filtered out. */
   gitDir: string;
   onWorktreeEvent: (fsPath: string, ts: number) => void;
 }
 
-export function createWorkspaceWatcher(deps: WorkspaceWatcherDeps): vscode.Disposable {
+export function createWorkspaceWatcher(
+  resolveTarget: (fsPath: string) => WorktreeTarget | undefined,
+): vscode.Disposable {
   const watcher = vscode.workspace.createFileSystemWatcher('**/*');
-  const rootLower = normalize(deps.repoRoot);
-  const gitDirLower = normalize(deps.gitDir);
 
   const handle = (uri: vscode.Uri): void => {
     if (uri.scheme !== 'file') return;
+    const target = resolveTarget(uri.fsPath);
+    if (!target) return;
     const p = normalize(uri.fsPath);
-    if (!p.startsWith(rootLower)) return;
-    if (p.startsWith(gitDirLower) || p.includes('/.git/')) return;
-    deps.onWorktreeEvent(uri.fsPath, Date.now());
+    if (p.startsWith(normalize(target.gitDir)) || p.includes('/.git/')) return;
+    target.onWorktreeEvent(uri.fsPath, Date.now());
   };
 
-  const subs = [
+  return vscode.Disposable.from(
     watcher,
     watcher.onDidChange(handle),
     watcher.onDidCreate(handle),
     watcher.onDidDelete(handle),
-  ];
-  return vscode.Disposable.from(...subs);
+  );
 }
 
 function normalize(p: string): string {

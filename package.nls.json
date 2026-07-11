@@ -1,0 +1,10 @@
+{
+  "gittree.command.debug.showState.title": "Show Repository State (Debug)",
+  "gittree.config.title": "GitTree",
+  "gittree.config.gitPath.description": "Path to the git executable. Falls back to the built-in `git.path` setting, then PATH, then well-known install locations.",
+  "gittree.config.trace.description": "Log every git invocation (argv, duration, exit code — never file contents) to the \"GitTree\" output channel, and reveal debug commands.",
+  "gittree.config.mode.description": "How GitTree coexists with the built-in Git extension. \"auto\" asks once per workspace; \"takeover\" disables the built-in Git here (writes `git.enabled: false`); \"companion\" runs alongside it without overlapping decorations.",
+  "gittree.config.mode.auto": "Ask once per workspace.",
+  "gittree.config.mode.takeover": "GitTree provides all SCM UI; the built-in Git extension is disabled for this workspace.",
+  "gittree.config.mode.companion": "GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off."
+}

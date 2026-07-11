@@ -1,0 +1,69 @@
+import * as assert from 'node:assert';
+import * as vscode from 'vscode';
+import type { GitTreeApi } from '../../../src/extension';
+
+/**
+ * P0-T7 acceptance: the multi-root fixture workspace (two repos, wired in
+ * runTests.ts) is discovered; activation performs no consent side effects.
+ */
+suite('P0-T7 discovery, activation, ModeManager', () => {
+  async function core() {
+    const ext = vscode.extensions.getExtension<GitTreeApi>('gittree.gittree');
+    assert.ok(ext, 'extension missing');
+    const api = await ext.activate();
+    const corePromise = api.getCore();
+    assert.ok(corePromise, 'test hook getCore() unavailable — GITTREE_TEST not set?');
+    const c = await corePromise;
+    assert.ok(c, 'core failed to initialize (git missing?)');
+    return c;
+  }
+
+  test('discovers both workspace repos', async function () {
+    this.timeout(30_000);
+    const c = await core();
+    assert.strictEqual(c.repos.length, 2, `expected 2 repos, got ${c.repos.map((r) => r.root).join(', ')}`);
+    const names = c.repos.map((r) => r.root.toLowerCase());
+    assert.ok(names.some((n) => n.endsWith('repoa')), 'repoA missing');
+    assert.ok(names.some((n) => n.endsWith('repob')), 'repoB missing');
+  });
+
+  test('models are populated after discovery', async function () {
+    this.timeout(30_000);
+    const c = await core();
+    for (const repo of c.repos) {
+      assert.match(repo.model.snapshot.headSha ?? '', /^[0-9a-f]{40}$/, `no HEAD sha for ${repo.root}`);
+      assert.ok(repo.model.snapshot.refs.length > 0, `no refs for ${repo.root}`);
+      assert.strictEqual(repo.model.snapshot.statusEntries.length, 0, `dirty fixture ${repo.root}`);
+    }
+  });
+
+  test('repoForUri picks the owning repo', async function () {
+    this.timeout(30_000);
+    const c = await core();
+    const [a] = c.repos;
+    assert.ok(a);
+    const inner = vscode.Uri.joinPath(vscode.Uri.file(a.root), 'src', 'x.ts');
+    assert.strictEqual(c.repoForUri(inner)?.root, a.root);
+    assert.strictEqual(c.repoForUri(vscode.Uri.file('/nowhere/else')), undefined);
+  });
+
+  test('activation leaves the built-in git untouched (no consent in test env)', async function () {
+    this.timeout(30_000);
+    const c = await core();
+    assert.strictEqual(c.mode.mode, 'unset');
+    assert.strictEqual(c.mode.effectiveMode, 'companion');
+    const inspected = vscode.workspace.getConfiguration('git').inspect<boolean>('enabled');
+    assert.strictEqual(inspected?.workspaceValue, undefined, 'git.enabled was written without consent');
+  });
+
+  test('debug command dumps repository state as JSON', async function () {
+    this.timeout(30_000);
+    await core();
+    await vscode.commands.executeCommand('gittree.debug.showState');
+    const doc = vscode.window.activeTextEditor?.document;
+    assert.ok(doc, 'no active editor after debug command');
+    const parsed = JSON.parse(doc.getText()) as Array<{ root: string; snapshot: unknown }>;
+    assert.strictEqual(parsed.length, 2);
+    assert.ok(parsed[0]?.snapshot);
+  });
+});

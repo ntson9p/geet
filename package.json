@@ -29,9 +29,58 @@
     "onStartupFinished"
   ],
   "contributes": {
-    "configuration": [],
-    "commands": [],
-    "menus": {},
+    "configuration": [
+      {
+        "title": "%gittree.config.title%",
+        "properties": {
+          "gittree.gitPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "scope": "machine-overridable",
+            "description": "%gittree.config.gitPath.description%"
+          },
+          "gittree.trace": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.trace.description%"
+          },
+          "gittree.mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "takeover",
+              "companion"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.mode.auto%",
+              "%gittree.config.mode.takeover%",
+              "%gittree.config.mode.companion%"
+            ],
+            "default": "auto",
+            "scope": "window",
+            "description": "%gittree.config.mode.description%"
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "gittree.debug.showState",
+        "title": "%gittree.command.debug.showState.title%",
+        "category": "GitTree"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "gittree.debug.showState",
+          "when": "config.gittree.trace"
+        }
+      ]
+    },
     "views": {},
     "viewsContainers": {}
   },
