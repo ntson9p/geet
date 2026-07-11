@@ -10,3 +10,4 @@ Thumbs.db
 webview-ui/test-results/
 webview-ui/playwright-report/
 webview-ui/.vite/
+out-scratch/
