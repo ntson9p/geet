@@ -38,6 +38,16 @@ export class GitTreeResourceState implements vscode.SourceControlResourceState {
   }
 }
 
+/**
+ * P3-T1 hook: in the changelists paradigm the SCM view shows only the input
+ * box + merge conflicts; the Changelists TreeView carries the files. The
+ * phase-3 registration installs the provider and re-renders on switches.
+ */
+let hideGroupsProvider: () => boolean = () => false;
+export function setHideStagingGroupsProvider(provider: () => boolean): void {
+  hideGroupsProvider = provider;
+}
+
 export class GitTreeSourceControl implements vscode.Disposable {
   readonly sc: vscode.SourceControl;
   readonly mergeGroup: vscode.SourceControlResourceGroup;
@@ -89,11 +99,14 @@ export class GitTreeSourceControl implements vscode.Disposable {
       if (isUnstaged(entry)) changes.push(new GitTreeResourceState(this.repo.root, entry, 'changes'));
     }
 
+    const hideGroups = hideGroupsProvider();
     this.mergeGroup.resourceStates = merge;
-    this.stagedGroup.resourceStates = staged;
-    this.changesGroup.resourceStates = changes;
-    this.untrackedGroup.resourceStates = untracked;
+    this.stagedGroup.resourceStates = hideGroups ? [] : staged;
+    this.changesGroup.resourceStates = hideGroups ? [] : changes;
+    this.untrackedGroup.resourceStates = hideGroups ? [] : untracked;
+    this.changesGroup.hideWhenEmpty = hideGroups;
 
+    // The count badge always reflects reality, whichever surface shows files.
     this.sc.count = merge.length + staged.length + changes.length + untracked.length;
 
     const branch = snap.detached
