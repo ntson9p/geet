@@ -4,10 +4,10 @@
  * mode — the built-in git extension owns explorer decorations in companion
  * mode (§3).
  */
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core } from '../core/core';
 import { shortCode, type StatusEntry } from '../core/model/statusEntry';
+import { repoRelative } from '../core/util/paths';
 
 function decorationFor(entry: StatusEntry): vscode.FileDecoration {
   let badge: string;
@@ -76,8 +76,8 @@ export class GitTreeFileDecorationProvider implements vscode.FileDecorationProvi
     if (uri.scheme !== 'file') return undefined;
     const repo = this.core.repoForUri(uri);
     if (!repo) return undefined;
-    const rel = path.relative(repo.root, uri.fsPath).replace(/\\/g, '/');
-    if (rel.startsWith('..')) return undefined;
+    const rel = repoRelative(repo.root, uri.fsPath);
+    if (rel === undefined) return undefined;
     const entry = repo.model.snapshot.statusEntries.find(
       (e) => e.path === rel || e.origPath === rel,
     );

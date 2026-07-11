@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { applyLineChanges, buildPatch, complementChanges, type LineChange } from '../core/patch/patchBuilder';
+import { repoRelative } from '../core/util/paths';
 import { revObjectSpec } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { quickDiffBase } from './quickDiff';
@@ -33,8 +34,8 @@ function parseArgs(core: Core, args: unknown[]): HunkArgs | undefined {
   if (!(uri instanceof vscode.Uri) || !Array.isArray(changes)) return undefined;
   const repo = core.repoForUri(uri);
   if (!repo) return undefined;
-  const rel = path.relative(repo.root, uri.fsPath).replace(/\\/g, '/');
-  if (rel.startsWith('..')) return undefined;
+  const rel = repoRelative(repo.root, uri.fsPath);
+  if (rel === undefined) return undefined;
   const lineChanges = changes.filter(isLineChange);
   const i = typeof index === 'number' ? index : 0;
   if (lineChanges.length === 0 || i < 0 || i >= lineChanges.length) return undefined;

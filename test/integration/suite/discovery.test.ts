@@ -19,10 +19,10 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     return c;
   }
 
-  test('discovers both workspace repos', async function () {
+  test('discovers all workspace repos', async function () {
     this.timeout(30_000);
     const c = await core();
-    assert.strictEqual(c.repos.length, 2, `expected 2 repos, got ${c.repos.map((r) => r.root).join(', ')}`);
+    assert.strictEqual(c.repos.length, 3, `expected 3 repos, got ${c.repos.map((r) => r.root).join(', ')}`);
     const keys = c.repos.map((r) => canonicalKey(r.root));
     const repoA = process.env['GITTREE_TEST_REPO_A'];
     const repoB = process.env['GITTREE_TEST_REPO_B'];
@@ -67,7 +67,7 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     const doc = vscode.window.activeTextEditor?.document;
     assert.ok(doc, 'no active editor after debug command');
     const parsed = JSON.parse(doc.getText()) as Array<{ root: string; snapshot: unknown }>;
-    assert.strictEqual(parsed.length, 2);
+    assert.strictEqual(parsed.length, 3);
     assert.ok(parsed[0]?.snapshot);
   });
 });

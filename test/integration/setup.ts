@@ -37,6 +37,12 @@ export function workspaceRepoB(): string {
   return p;
 }
 
+export function workspaceRepoC(): string {
+  const p = process.env['GITTREE_TEST_REPO_C'];
+  assert.ok(p, 'GITTREE_TEST_REPO_C missing');
+  return p;
+}
+
 export async function waitFor(cond: () => boolean, timeoutMs = 5000, stepMs = 25): Promise<void> {
   const start = Date.now();
   while (!cond()) {

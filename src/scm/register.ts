@@ -8,7 +8,6 @@ import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { RevContentProvider, REV_SCHEME } from '../core/vdocs/revContentProvider';
 import { StatusBarController } from '../ui/statusBar';
-import { registerCommitMvp } from './commitMvp';
 import { wireFileDecorations } from './fileDecorations';
 import { registerFileOps } from './fileOps';
 import { registerHunkActions } from './hunkActions';
@@ -66,7 +65,8 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   registerHunkActions(context, core);
   registerFileOps(context, core);
   registerSyncOps(context, core, statusBars);
-  registerCommitMvp(context, core, (root) => sourceControls.get(canonicalKey(root)));
+  // gittree.commit + acceptInputCommand are owned by Phase 3 (commitFlow),
+  // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
 
   const registry: Phase01Registry = { sourceControls, statusBars, revProvider };

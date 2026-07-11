@@ -5,9 +5,9 @@
  * skipped in companion mode — the built-in git extension already provides
  * bars, and doubling them is the §3 anti-goal.
  */
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
+import { repoRelative } from '../core/util/paths';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 
 export type QuickDiffBase = 'index' | 'head';
@@ -24,8 +24,8 @@ export class GitTreeQuickDiffProvider implements vscode.QuickDiffProvider {
     if (uri.scheme !== 'file') return undefined;
     const repo = this.core.repoForUri(uri);
     if (!repo) return undefined;
-    const rel = path.relative(repo.root, uri.fsPath).replace(/\\/g, '/');
-    if (rel.startsWith('..')) return undefined;
+    const rel = repoRelative(repo.root, uri.fsPath);
+    if (rel === undefined) return undefined;
 
     const entry = repo.model.snapshot.statusEntries.find((e) => e.path === rel);
     // Untracked/ignored files have no original — no bars.

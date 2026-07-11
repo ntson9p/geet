@@ -93,10 +93,17 @@
 View `gittree.changelists`; commands `gittree.commit`, `gittree.commitAndPush`, `gittree.commit.{switchParadigm,toggleAmend,toggleSign,showMessageHistory,configureChecks}`, `gittree.changelist.{new,rename,delete,setActive,moveTo,commitList}`, `gittree.stage/unstage/revert.selectedRanges`; SCM title/gear menu entries; keybindings (`ctrl+up` history, `ctrl+alt+enter` stage-selected in diff).
 
 ## Parity checklist (FEATURES.md §3)
-- [ ] Changelists: multiple lists, default list, check/uncheck files, commit bypasses index
-- [ ] Staging: Staged/Unstaged split with stage-all/unstage-all
-- [ ] Hunk & line staging from the diff view (`>>` equivalents)
-- [ ] Pre-commit: Reformat (modified lines only) · Optimize Imports · Analyze with halt-and-review · TODO/FIXME warning on new comments · Cleanup
-- [ ] Commit message history dropdown
-- [ ] Amend checkbox loads previous message and folds changes in
-- [ ] GPG sign toggle
+- [x] Changelists: multiple lists, default list, check/uncheck files, commit bypasses index (`--only` + `add -N` for untracked members; integration proves other lists' work and the index stay untouched)
+- [x] Staging: Staged/Unstaged split with stage-all/unstage-all
+- [x] Hunk & line staging from the diff view (`>>` equivalents: selection commands + per-hunk CodeLenses; 2-of-3-hunks and CRLF byte-exactness verified)
+- [x] Pre-commit: Reformat (modified lines only) · Optimize Imports · Analyze with halt-and-review · TODO/FIXME warning on new comments · Cleanup — order reformat→imports→cleanup→analyze→todo, one Review/Commit-Anyway/Cancel modal
+- [x] Commit message history dropdown (50-entry ring per repo identity, ctrl+up + title button, template prefill)
+- [x] Amend checkbox loads previous message and folds changes in (pushed-HEAD guard)
+- [x] GPG sign toggle (tristate from commit.gpgsign, session override, gpg failure classification)
+
+## Deviations
+- **P3-T2 (per plan):** hunk-granularity moves between changelists are out of scope v1 — file granularity only.
+- **P3-T3:** `TreeItemCheckboxState` has no partial state in the stable API — a partially checked list renders unchecked (files keep their individual checkboxes).
+- **P3-T5:** the live `-S` signing path is exercised only where a signing key exists; argv assembly and gpg-failure classification are unit-tested. A throwaway-GPG-key CI test is deferred to the P10 CI-matrix work rather than shipping a locally unverifiable test.
+- **P3-T6:** the `ctrl+up` keybinding uses the `scmInputIsInFocused` context key; the `$(history)` SCM title button is the guaranteed path.
+- **Cross-cutting fix:** all repo-relative path math now goes through `core/util/paths.ts` (`realpath`-canonicalized) — mixed 8.3-short/long path spellings on Windows previously made stage/TODO/reformat/analyze silently no-op (found by this phase's integration tests).

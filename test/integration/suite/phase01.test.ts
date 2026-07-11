@@ -50,10 +50,30 @@ suite('P1 core SCM', () => {
     await core.repoForPath(repoRoot)!.refresher.refreshNow();
   }
 
+  let coreCache: Awaited<ReturnType<typeof activateGitTree>> | undefined;
+  const paradigmOf = (): string | undefined =>
+    (coreCache?.debugRegistry.get('phase03') as { paradigm: { paradigm: string } } | undefined)
+      ?.paradigm.paradigm;
+
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoA();
-    await activateGitTree();
+    coreCache = await activateGitTree();
+    // Phase 3's changelists paradigm (the default) hides the staging groups
+    // this suite asserts on — run it in staging mode.
+    await vscode.workspace
+      .getConfiguration('gittree')
+      .update('commit.paradigm', 'staging', vscode.ConfigurationTarget.Workspace);
+    await waitFor(() => paradigmOf() === 'staging', 10_000);
+  });
+
+  suiteTeardown(async function () {
+    this.timeout(30_000);
+    // Restore the default paradigm for the Phase 3 suite.
+    await vscode.workspace
+      .getConfiguration('gittree')
+      .update('commit.paradigm', undefined, vscode.ConfigurationTarget.Workspace);
+    await waitFor(() => paradigmOf() === 'changelists', 10_000);
   });
 
   test('T1: four groups populate with correct membership', async function () {

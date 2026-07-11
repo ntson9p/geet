@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import type { StatusEntry } from '../core/model/statusEntry';
+import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
@@ -48,7 +49,7 @@ function normalize(core: Core, args: unknown[]): Selection | undefined {
   if (!uri || uri.scheme !== 'file') return undefined;
   const repo = core.repoForUri(uri);
   if (!repo) return undefined;
-  const rel = path.relative(repo.root, uri.fsPath).replace(/\\/g, '/');
+  const rel = repoRelative(repo.root, uri.fsPath);
   const entry = repo.model.snapshot.statusEntries.find((e) => e.path === rel);
   return entry ? { repo, entries: [entry] } : { repo, entries: [] };
 }

@@ -1,0 +1,131 @@
+/**
+ * Pre-commit CheckPipeline (P3-T7): sequential, setting-gated, cancellable;
+ * aggregates results into one Review / Commit-Anyway / Cancel decision.
+ * Check order (IntelliJ parity): reformat → imports → cleanup → analyze → todo.
+ */
+import * as vscode from 'vscode';
+import type { RepoHandle } from '../../core/core';
+import type { CancelToken } from '../../core/git/executor';
+
+export interface CheckContext {
+  repo: RepoHandle;
+  files: vscode.Uri[];
+  token: CancelToken;
+  progress: (message: string) => void;
+}
+
+export type CheckResult =
+  | { ok: true }
+  | { ok: false; blocking: boolean; message: string; reveal?: () => Promise<void> };
+
+export interface CommitCheck {
+  id: string;
+  label: string;
+  /** Setting under gittree.commit.checks.* gating this check. */
+  configKey: string;
+  run(ctx: CheckContext): Promise<CheckResult>;
+}
+
+export interface PipelineOutcome {
+  /** false → abort the commit (user cancelled or reviewed a failure). */
+  proceed: boolean;
+  cancelled: boolean;
+  failures: Array<{ check: CommitCheck; result: Extract<CheckResult, { ok: false }> }>;
+}
+
+export function checksEnabled(configKey: string): boolean {
+  return vscode.workspace.getConfiguration('gittree.commit.checks').get<boolean>(configKey, false);
+}
+
+export class CheckPipeline {
+  constructor(private readonly checks: CommitCheck[]) {}
+
+  get all(): CommitCheck[] {
+    return [...this.checks];
+  }
+
+  async run(ctx: CheckContext): Promise<PipelineOutcome> {
+    const failures: PipelineOutcome['failures'] = [];
+    for (const check of this.checks) {
+      if (ctx.token.isCancellationRequested) {
+        return { proceed: false, cancelled: true, failures };
+      }
+      if (!checksEnabled(check.configKey)) continue;
+      ctx.progress(check.label);
+      try {
+        const result = await check.run(ctx);
+        if (!result.ok) failures.push({ check, result });
+      } catch (err) {
+        failures.push({
+          check,
+          result: {
+            ok: false,
+            blocking: false,
+            message: vscode.l10n.t('{0} failed: {1}', check.label, err instanceof Error ? err.message : String(err)),
+          },
+        });
+      }
+    }
+    if (ctx.token.isCancellationRequested) return { proceed: false, cancelled: true, failures };
+    if (failures.length === 0) return { proceed: true, cancelled: false, failures };
+
+    const decision = await presentFailures(failures);
+    return { proceed: decision === 'commit-anyway', cancelled: decision === 'cancel', failures };
+  }
+}
+
+type Decision = 'review' | 'commit-anyway' | 'cancel';
+
+async function presentFailures(
+  failures: PipelineOutcome['failures'],
+): Promise<Decision> {
+  const anyBlocking = failures.some((f) => f.result.blocking);
+  const detail = failures.map((f) => `• ${f.check.label}: ${f.result.message}`).join('\n');
+  const review = vscode.l10n.t('Review…');
+  const anyway = vscode.l10n.t('Commit Anyway');
+
+  const testChoice = process.env['GITTREE_TEST_CHECKS_CHOICE'];
+  let picked: string | undefined;
+  if (testChoice === 'review') picked = review;
+  else if (testChoice === 'anyway') picked = anyway;
+  else if (testChoice === 'cancel') picked = undefined;
+  else {
+    picked = await vscode.window.showWarningMessage(
+      vscode.l10n.t('Pre-commit checks found problems ({0}).', failures.length),
+      { modal: true, detail },
+      review,
+      ...(anyBlocking ? [] : [anyway]),
+    );
+  }
+
+  if (picked === review) {
+    const first = failures.find((f) => f.result.reveal !== undefined);
+    await first?.result.reveal?.();
+    return 'review';
+  }
+  if (picked === anyway && !anyBlocking) return 'commit-anyway';
+  return 'cancel';
+}
+
+/** Gear UI (P3-T7 step 7): multi-select QuickPick persisted to settings. */
+export async function configureChecks(pipeline: CheckPipeline): Promise<void> {
+  const config = vscode.workspace.getConfiguration('gittree.commit.checks');
+  const items = pipeline.all.map((check) => ({
+    label: check.label,
+    check,
+    picked: config.get<boolean>(check.configKey, false),
+  }));
+  const picked = await vscode.window.showQuickPick(items, {
+    canPickMany: true,
+    placeHolder: vscode.l10n.t('Pre-commit checks to run'),
+  });
+  if (picked === undefined) return;
+  const enabled = new Set(picked.map((p) => p.check.id));
+  for (const check of pipeline.all) {
+    await config.update(
+      check.configKey,
+      enabled.has(check.id),
+      vscode.ConfigurationTarget.Workspace,
+    );
+  }
+}

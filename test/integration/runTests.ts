@@ -24,12 +24,19 @@ async function main(): Promise<void> {
   repoA.commit('initial', { 'README.md': '# repoA\n', 'src/a.ts': 'export const a = 1;\n' });
   const repoB = FixtureRepo.create({ prefix: 'gittree-ws-repoB-' });
   repoB.commit('initial', { 'README.md': '# repoB\n' });
+  // repoC belongs to the Phase 3 commit-lifecycle suite.
+  const repoC = FixtureRepo.create({ prefix: 'gittree-ws-repoC-' });
+  repoC.commit('initial', { 'README.md': '# repoC\n', 'src/code.ts': 'export const one = 1;\n' });
 
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-itest-'));
   const workspaceFile = path.join(scratch, 'gittree-itest.code-workspace');
   fs.writeFileSync(
     workspaceFile,
-    JSON.stringify({ folders: [{ path: repoA.root }, { path: repoB.root }] }, null, 2),
+    JSON.stringify(
+      { folders: [{ path: repoA.root }, { path: repoB.root }, { path: repoC.root }] },
+      null,
+      2,
+    ),
   );
 
   try {
@@ -47,11 +54,13 @@ async function main(): Promise<void> {
         GITTREE_TEST_AUTOCONFIRM: '1',
         GITTREE_TEST_REPO_A: repoA.root,
         GITTREE_TEST_REPO_B: repoB.root,
+        GITTREE_TEST_REPO_C: repoC.root,
       },
     });
   } finally {
     repoA.dispose();
     repoB.dispose();
+    repoC.dispose();
     try {
       fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
     } catch {

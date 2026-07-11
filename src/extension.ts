@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { registerPhase02 } from './branches/register';
+import { registerPhase03 } from './commit/register';
 import { createCore, type Core } from './core/core';
 import { registerPhase09LocalHistory } from './localHistory/register';
 import { registerPhase01 } from './scm/register';
@@ -43,6 +44,7 @@ function registerPhases(context: vscode.ExtensionContext, core: Core): void {
   // -- registerPhase02 (Branches) -----------------------------------------
   registerPhase02(context, core);
   // -- registerPhase03 (Commit lifecycle) ---------------------------------
+  registerPhase03(context, core);
   // -- registerPhase04 (Log, graph, blame) --------------------------------
   // -- registerPhase05 (History rewriting) --------------------------------
   // -- registerPhase06 (Merge engine) -------------------------------------
