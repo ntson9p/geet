@@ -70,8 +70,12 @@
 Commands `gittree.branches.{open,new,checkout,checkoutRemote,rename,delete,push,rebaseOntoCurrent,compareWithCurrent,diffWithWorkingTree,toggleFavorite}`; views `gittree.branches`, `gittree.compare`; `view/item/context` + `view/title` menus.
 
 ## Parity checklist (FEATURES.md §2)
-- [ ] Instant search filter over all branch sections
-- [ ] Categories: Current / Recent (frequency-based) / Local / Remote
-- [ ] Favorites star pinning
-- [ ] Smart Checkout (auto stash → checkout → unstash → conflict resolution path)
-- [ ] Context actions: Checkout · Checkout and Rebase onto Current · New Branch from Selected · Compare with Current (commits + file diffs) · Show Diff with Working Tree · Rename · Delete · Push
+- [x] Instant search filter over all branch sections (QuickPick native type-to-filter, matchOnDescription for sha/subject)
+- [x] Categories: Current / Recent (frequency×recency-decay reflog scoring) / Local / Remote (per remote) — plus Favorites
+- [x] Favorites star pinning (item buttons; persisted per remote-URL hash so favorites survive re-clones)
+- [x] Smart Checkout (stash -u → checkout → pop; conflicting pop keeps the stash and reports; force path snapshotted by P9 — verified recoverable byte-exact in the integration test)
+- [x] Context actions: Checkout · Checkout and Rebase onto Current · New Branch from Selected · Compare with Current (commits + file diffs) · Show Diff with Working Tree · Rename (w/ remote update offer) · Delete (w/ force fallback + remote delete offer) · Push — in both the popup actions QuickPick and the Branches view context menus
+
+## Deviations
+- **P2-T5:** the commits list uses `--left-right A...B` per plan; the *file* diff compares branch tips directly (`git diff A B`) instead of three-dot — IntelliJ's "Compare with Current" file semantics. Command ids stay as specified for the P4-T5 upgrade.
+- **P2-T2/T3/T6:** input boxes / QuickPick choices have env-var test seams (`GITTREE_TEST_BRANCH_NAME`, `GITTREE_TEST_BRANCH_MODE`, `GITTREE_TEST_SMART_CHOICE`, `GITTREE_TEST_DROP_CHOICE`) because native dialogs cannot be driven by the harness; production behavior unchanged.

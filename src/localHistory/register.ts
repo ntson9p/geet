@@ -78,6 +78,9 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
   for (const repo of core.repos) attach(repo);
   const addSub = core.onDidAddRepo((repo) => attach(repo));
   context.subscriptions.push(new vscode.Disposable(() => addSub.dispose()));
+  core.debugRegistry.set('phase09', {
+    getStore: (repoRoot: string) => getSnapshotStore(repoRoot),
+  });
 
   // Task-end labels (test/build groups only, cheap label snapshots).
   context.subscriptions.push(

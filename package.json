@@ -96,6 +96,31 @@
             "default": 180,
             "minimum": 30,
             "description": "%gittree.config.autofetch.intervalSeconds.description%"
+          },
+          "gittree.branches.recentCount": {
+            "type": "number",
+            "default": 5,
+            "minimum": 0,
+            "description": "%gittree.config.branches.recentCount.description%"
+          },
+          "gittree.branches.defaultAction": {
+            "type": "string",
+            "enum": [
+              "checkout",
+              "showActions"
+            ],
+            "default": "checkout",
+            "description": "%gittree.config.branches.defaultAction.description%"
+          },
+          "gittree.smartCheckout.behavior": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "auto",
+              "never"
+            ],
+            "default": "ask",
+            "description": "%gittree.config.smartCheckout.behavior.description%"
           }
         }
       },
@@ -250,6 +275,69 @@
         "command": "gittree.hunk.openCommitView",
         "title": "%gittree.command.hunk.openCommitView.title%",
         "icon": "$(git-commit)"
+      },
+      {
+        "command": "gittree.branches.new",
+        "title": "%gittree.command.branches.new.title%",
+        "category": "GitTree",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.branches.checkout",
+        "title": "%gittree.command.branches.checkout.title%",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "gittree.branches.rename",
+        "title": "%gittree.command.branches.rename.title%"
+      },
+      {
+        "command": "gittree.branches.delete",
+        "title": "%gittree.command.branches.delete.title%"
+      },
+      {
+        "command": "gittree.branches.push",
+        "title": "%gittree.command.branches.push.title%"
+      },
+      {
+        "command": "gittree.branches.rebaseOntoCurrent",
+        "title": "%gittree.command.branches.rebaseOntoCurrent.title%"
+      },
+      {
+        "command": "gittree.branches.newFrom",
+        "title": "%gittree.command.branches.newFrom.title%"
+      },
+      {
+        "command": "gittree.branches.toggleFavorite",
+        "title": "%gittree.command.branches.toggleFavorite.title%",
+        "icon": "$(star-empty)"
+      },
+      {
+        "command": "gittree.branches.compareWithCurrentNode",
+        "title": "%gittree.command.branches.compareWithCurrent.title%"
+      },
+      {
+        "command": "gittree.branches.diffWithWorkingTreeNode",
+        "title": "%gittree.command.branches.diffWithWorkingTree.title%"
+      },
+      {
+        "command": "gittree.branches.compareWithCurrent",
+        "title": "%gittree.command.branches.compareWithCurrent.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branches.diffWithWorkingTree",
+        "title": "%gittree.command.branches.diffWithWorkingTree.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.compare.showFileDiff",
+        "title": "%gittree.command.compare.showFileDiff.title%",
+        "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "gittree.compare.showCommit",
+        "title": "%gittree.command.compare.showCommit.title%"
       }
     ],
     "menus": {
@@ -391,6 +479,80 @@
           "group": "1_modification@1"
         }
       ],
+      "view/title": [
+        {
+          "command": "gittree.branches.new",
+          "when": "view == gittree.branches",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.refresh",
+          "when": "view == gittree.branches",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.compare.showFileDiff",
+          "when": "view == gittree.compare",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gittree.branches.checkout",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.branches.toggleFavorite",
+          "when": "view == gittree.branches && viewItem == branch:local",
+          "group": "inline@2"
+        },
+        {
+          "command": "gittree.branches.checkout",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "1_checkout@1"
+        },
+        {
+          "command": "gittree.branches.rebaseOntoCurrent",
+          "when": "view == gittree.branches && viewItem == branch:local",
+          "group": "1_checkout@2"
+        },
+        {
+          "command": "gittree.branches.newFrom",
+          "when": "view == gittree.branches && viewItem =~ /^branch:/",
+          "group": "1_checkout@3"
+        },
+        {
+          "command": "gittree.branches.compareWithCurrentNode",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "2_compare@1"
+        },
+        {
+          "command": "gittree.branches.diffWithWorkingTreeNode",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "2_compare@2"
+        },
+        {
+          "command": "gittree.branches.rename",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
+          "group": "3_modify@1"
+        },
+        {
+          "command": "gittree.branches.push",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
+          "group": "3_modify@2"
+        },
+        {
+          "command": "gittree.branches.delete",
+          "when": "view == gittree.branches && viewItem == branch:local",
+          "group": "3_modify@3"
+        },
+        {
+          "command": "gittree.branches.toggleFavorite",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
+          "group": "4_favorite@1"
+        }
+      ],
       "scm/change/title": [
         {
           "command": "gittree.hunk.openCommitView",
@@ -409,7 +571,25 @@
         }
       ]
     },
-    "views": {},
+    "views": {
+      "scm": [
+        {
+          "id": "gittree.branches",
+          "name": "%gittree.view.branches.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(git-branch)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "gittree.compare",
+          "name": "%gittree.view.compare.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(diff)",
+          "visibility": "hidden",
+          "when": "gittree.compare.active"
+        }
+      ]
+    },
     "viewsContainers": {}
   },
   "scripts": {
