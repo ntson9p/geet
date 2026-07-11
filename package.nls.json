@@ -6,5 +6,6 @@
   "gittree.config.mode.description": "How GitTree coexists with the built-in Git extension. \"auto\" asks once per workspace; \"takeover\" disables the built-in Git here (writes `git.enabled: false`); \"companion\" runs alongside it without overlapping decorations.",
   "gittree.config.mode.auto": "Ask once per workspace.",
   "gittree.config.mode.takeover": "GitTree provides all SCM UI; the built-in Git extension is disabled for this workspace.",
-  "gittree.config.mode.companion": "GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off."
+  "gittree.config.mode.companion": "GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off.",
+  "gittree.config.terminalAuth.description": "Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code."
 }

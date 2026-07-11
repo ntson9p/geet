@@ -4,8 +4,11 @@
  * (model + queue + refresher + watchers) per repository. Later phases receive
  * this object through their registerPhaseXX(context, core) entry points.
  */
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { createCredentialResolver } from './git/askpass/credentialResolver';
+import { AskpassServer } from './git/askpass/server';
 import {
   createGitExecutor,
   type GitExecutorImpl,
@@ -211,6 +214,36 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
     if (traceEnabled()) output.appendLine(`[${new Date().toISOString()}] ${line}`);
   };
 
+  // Askpass bridge (P0-T8): best-effort — auth degrades to GitError('auth')
+  // if the pipe server cannot start.
+  let askpass: AskpassServer | undefined;
+  try {
+    askpass = await AskpassServer.start(createCredentialResolver(context, trace), {
+      shimDir: resolveShimDir(context),
+      trace,
+    });
+    context.subscriptions.push(askpass);
+  } catch (err) {
+    trace(`askpass server failed to start: ${String(err)}`);
+  }
+  const applyTerminalAuth = (): void => {
+    const enabled = vscode.workspace.getConfiguration('gittree').get<boolean>('terminalAuth', false);
+    const collection = context.environmentVariableCollection;
+    collection.clear();
+    if (enabled && askpass) {
+      collection.description = vscode.l10n.t('GitTree git authentication');
+      for (const [key, value] of Object.entries(askpass.env)) {
+        collection.replace(key, value);
+      }
+    }
+  };
+  applyTerminalAuth();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gittree.terminalAuth')) applyTerminalAuth();
+    }),
+  );
+
   const cfg = vscode.workspace.getConfiguration();
   const builtinGitPath = cfg.get<string | string[] | null>('git.path');
   const executor = await createGitExecutor(
@@ -220,7 +253,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
         ? builtinGitPath[0]
         : (builtinGitPath ?? undefined),
     },
-    { trace },
+    { trace, baseEnv: () => askpass?.env ?? {} },
   );
   if (!executor) {
     void vscode.window.showErrorMessage(
@@ -260,6 +293,13 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
     void mode.ensurePrompted();
   }
   return core;
+}
+
+/** Packaged builds carry shims in dist/shims (esbuild copy); dev falls back to source. */
+function resolveShimDir(context: vscode.ExtensionContext): string {
+  const packaged = path.join(context.extensionPath, 'dist', 'shims');
+  if (fs.existsSync(path.join(packaged, 'askpass.cjs'))) return packaged;
+  return path.join(context.extensionPath, 'shims');
 }
 
 async function showConsentDialog(): Promise<ConsentChoice> {
