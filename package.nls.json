@@ -8,5 +8,12 @@
   "gittree.config.mode.auto": "Ask once per workspace.",
   "gittree.config.mode.takeover": "GitTree provides all SCM UI; the built-in Git extension is disabled for this workspace.",
   "gittree.config.mode.companion": "GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off.",
-  "gittree.config.terminalAuth.description": "Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code."
+  "gittree.config.terminalAuth.description": "Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code.",
+  "gittree.config.localHistory.title": "GitTree Local History",
+  "gittree.config.localHistory.enabled.description": "Record Local History snapshots around destructive git operations (the failsafe for reset --hard, rebase, checkout over dirty files, …).",
+  "gittree.config.localHistory.maxSizeMb.description": "Storage budget for Local History blobs. Oldest snapshots are garbage-collected first when over budget.",
+  "gittree.config.localHistory.retentionDays.description": "Snapshots older than this are garbage-collected (the most recent snapshot is always kept).",
+  "gittree.config.localHistory.maxFileSizeKb.description": "Files larger than this are recorded as metadata-only stubs instead of full content.",
+  "gittree.config.localHistory.snapshotOnSave.description": "Also record a snapshot on file save (debounced 30s per file). Off by default — VS Code's native Local History already covers saves.",
+  "gittree.config.localHistory.taskLabels.description": "Record a labeled snapshot when a build/test task finishes, so states like \"after the last green test run\" are easy to find."
 }

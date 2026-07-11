@@ -73,6 +73,44 @@
             "description": "%gittree.config.terminalAuth.description%"
           }
         }
+      },
+      {
+        "title": "%gittree.config.localHistory.title%",
+        "properties": {
+          "gittree.localHistory.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.localHistory.enabled.description%"
+          },
+          "gittree.localHistory.maxSizeMb": {
+            "type": "number",
+            "default": 500,
+            "minimum": 10,
+            "description": "%gittree.config.localHistory.maxSizeMb.description%"
+          },
+          "gittree.localHistory.retentionDays": {
+            "type": "number",
+            "default": 30,
+            "minimum": 1,
+            "description": "%gittree.config.localHistory.retentionDays.description%"
+          },
+          "gittree.localHistory.maxFileSizeKb": {
+            "type": "number",
+            "default": 1024,
+            "minimum": 1,
+            "description": "%gittree.config.localHistory.maxFileSizeKb.description%"
+          },
+          "gittree.localHistory.snapshotOnSave": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.localHistory.snapshotOnSave.description%"
+          },
+          "gittree.localHistory.taskLabels": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.localHistory.taskLabels.description%"
+          }
+        }
       }
     ],
     "commands": [

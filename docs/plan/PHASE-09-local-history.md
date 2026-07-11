@@ -59,8 +59,8 @@
 View `gittree.localHistory`; commands `gittree.history.{show,showForPath,compareSnapshot,restoreSnapshot,restoreFiles,deleteSnapshot,clearAll,gcNow}`; explorer/editor context submenu "Local History"; settings `gittree.localHistory.{enabled,maxSizeMb,retentionDays,maxFileSizeKb,snapshotOnSave,taskLabels}`.
 
 ## Parity checklist (FEATURES.md §8)
-- [ ] Automatic recording around every destructive git operation (+ test-run labels, optional save snapshots)
-- [ ] Completely git-independent storage (survives `.git` deletion; lives in globalStorage)
+- [x] Automatic recording around every destructive git operation (+ test-run labels, optional save snapshots) — hook mechanism + binding SNAPSHOT_LABELS matrix landed (T2); each later phase's destructive ops must declare these labels (asserted by the table-driven test).
+- [x] Completely git-independent storage (survives `.git` deletion; lives in globalStorage)
 - [ ] Right-click → Local History → Show History at file, folder and repo scope
 - [ ] Compare any recorded state with current, then restore exact file states selectively
 - [ ] Bad `reset --hard` / deleted uncommitted file is recoverable; external destruction is detected and prompts recovery

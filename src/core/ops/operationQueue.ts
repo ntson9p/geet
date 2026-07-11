@@ -16,6 +16,10 @@ export interface Operation<T> {
   kind: 'read' | 'mutate';
   isDestructive?: boolean;
   snapshotLabel?: string;
+  /** Extra absolute paths the P9 snapshot must include (e.g. rollback targets). */
+  snapshotPaths?: readonly string[];
+  /** Take a paired "After: …" snapshot on success (worktree-mutating ops). */
+  snapshotAfter?: boolean;
   run(git: GitExecutor, token: CancelToken): Promise<T>;
 }
 
@@ -23,8 +27,17 @@ export interface DestructiveOpEvent {
   repo: RepoId;
   label: string;
   snapshotLabel?: string;
+  extraPaths?: readonly string[];
   /** Delays the operation until the thenable settles (P9 snapshot hook). */
   waitUntil(t: Promise<unknown>): void;
+}
+
+export interface FinishedMutationEvent {
+  label: string;
+  isDestructive: boolean;
+  snapshotLabel?: string;
+  snapshotAfter: boolean;
+  succeeded: boolean;
 }
 
 /** Injected by the bootstrap; wraps mutations in vscode progress UI. */
@@ -76,9 +89,9 @@ export class OperationQueue {
   private readonly _onWillRunDestructive = new Emitter<DestructiveOpEvent>();
   readonly onWillRunDestructive: Event<DestructiveOpEvent> = this._onWillRunDestructive.event;
 
-  /** Fires after each mutation settles — the StatusRefresher's post-op signal. */
-  private readonly _onDidFinishMutation = new Emitter<{ label: string }>();
-  readonly onDidFinishMutation: Event<{ label: string }> = this._onDidFinishMutation.event;
+  /** Fires after each mutation settles — post-op refresh + P9 After-snapshots. */
+  private readonly _onDidFinishMutation = new Emitter<FinishedMutationEvent>();
+  readonly onDidFinishMutation: Event<FinishedMutationEvent> = this._onDidFinishMutation.event;
 
   constructor(
     readonly repo: RepoId,
@@ -193,6 +206,7 @@ export class OperationQueue {
           waitUntil: (t) => waits.push(t),
         };
         if (job.op.snapshotLabel !== undefined) evt.snapshotLabel = job.op.snapshotLabel;
+        if (job.op.snapshotPaths !== undefined) evt.extraPaths = job.op.snapshotPaths;
         this._onWillRunDestructive.fire(evt);
         // A failed snapshot hook must not block the user's operation — the
         // failure is logged; the op proceeds without its safety net.
@@ -210,12 +224,12 @@ export class OperationQueue {
       this.finishMutation();
       job.source.dispose();
       job.resolve(result);
-      this._onDidFinishMutation.fire({ label: job.op.label });
+      this._onDidFinishMutation.fire(finishedEvent(job.op, true));
     } catch (err) {
       this.finishMutation();
       job.source.dispose();
       job.reject(err);
-      this._onDidFinishMutation.fire({ label: job.op.label });
+      this._onDidFinishMutation.fire(finishedEvent(job.op, false));
     }
   }
 
@@ -261,4 +275,15 @@ export class OperationQueue {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function finishedEvent(op: Operation<unknown>, succeeded: boolean): FinishedMutationEvent {
+  const evt: FinishedMutationEvent = {
+    label: op.label,
+    isDestructive: op.isDestructive === true,
+    snapshotAfter: op.snapshotAfter === true,
+    succeeded,
+  };
+  if (op.snapshotLabel !== undefined) evt.snapshotLabel = op.snapshotLabel;
+  return evt;
 }
