@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest';
+import { buildLogArgs, filterKey, DEFAULT_FILTER, type LogFilter } from '../../../src/log/logFilter';
+
+const FMT = 'FMT';
+const PAGE = { skip: 0, maxCount: 2000 };
+
+function args(f: Partial<LogFilter>): string[] {
+  return buildLogArgs({ ...DEFAULT_FILTER, ...f }, FMT, PAGE);
+}
+
+describe('buildLogArgs', () => {
+  it('default filter: HEAD history, topo order, paging', () => {
+    expect(args({})).toEqual([
+      'log',
+      `--format=${FMT}`,
+      '--parents',
+      '--topo-order',
+      '--skip=0',
+      '--max-count=2000',
+    ]);
+  });
+
+  it('sort modes map to git orderings (intelli reorders client-side over topo)', () => {
+    expect(args({ sort: 'date' })).toContain('--date-order');
+    expect(args({ sort: 'topo' })).toContain('--topo-order');
+    expect(args({ sort: 'intelli' })).toContain('--topo-order');
+  });
+
+  it('refs: ALL → --all; list → refs; HEAD → nothing', () => {
+    expect(args({ refs: 'ALL' })).toContain('--all');
+    const withRefs = args({ refs: ['main', 'feature/x'] });
+    expect(withRefs).toContain('main');
+    expect(withRefs).toContain('feature/x');
+    expect(withRefs).not.toContain('--all');
+    expect(args({ refs: 'HEAD' })).not.toContain('--all');
+  });
+
+  it('range mode wins over refs and adds --left-right', () => {
+    const a = args({ range: { a: 'feature', b: 'main' }, refs: 'ALL' });
+    expect(a).toContain('--left-right');
+    expect(a).toContain('feature...main');
+    expect(a).not.toContain('--all');
+  });
+
+  it('authors repeat --author (OR within, intersects across kinds)', () => {
+    const a = args({ authors: ['Alice', 'bob@x.dev'] });
+    expect(a).toContain('--author=Alice');
+    expect(a).toContain('--author=bob@x.dev');
+  });
+
+  it('date range maps to --since/--until', () => {
+    const a = args({ dateRange: { from: '2026-01-01', to: '2026-02-01' } });
+    expect(a).toContain('--since=2026-01-01');
+    expect(a).toContain('--until=2026-02-01');
+    expect(args({ dateRange: { from: '2026-01-01' } })).not.toContain('--until=undefined');
+  });
+
+  it('text search: literal vs regex, case toggles', () => {
+    const literal = args({ text: { q: 'fix bug', regex: false, matchCase: false } });
+    expect(literal).toContain('--grep=fix bug');
+    expect(literal).toContain('-i');
+    expect(literal).toContain('--fixed-strings');
+
+    const rx = args({ text: { q: 'fix(es)?', regex: true, matchCase: true } });
+    expect(rx).toContain('--extended-regexp');
+    expect(rx).not.toContain('-i');
+  });
+
+  it('paths go after --, with --follow only in single-path follow mode', () => {
+    const a = args({ paths: ['src/a.ts', 'docs'] });
+    const sep = a.indexOf('--');
+    expect(sep).toBeGreaterThan(-1);
+    expect(a.slice(sep + 1)).toEqual(['src/a.ts', 'docs']);
+    expect(a).not.toContain('--follow');
+
+    const follow = args({ paths: ['src/a.ts'], follow: true });
+    expect(follow).toContain('--follow');
+    const noFollow = args({ paths: ['a', 'b'], follow: true });
+    expect(noFollow).not.toContain('--follow');
+  });
+
+  it('intersecting filter combines every kind', () => {
+    const a = args({
+      refs: ['main'],
+      authors: ['Alice'],
+      dateRange: { from: '2026-01-01' },
+      paths: ['src'],
+      text: { q: 'refactor', regex: false, matchCase: false },
+    });
+    for (const expected of ['main', '--author=Alice', '--since=2026-01-01', '--grep=refactor', '--']) {
+      expect(a).toContain(expected);
+    }
+    // paging stays before the pathspec separator
+    expect(a.indexOf('--skip=0')).toBeLessThan(a.indexOf('--'));
+  });
+
+  it('paging arguments reflect the page', () => {
+    const a = buildLogArgs(DEFAULT_FILTER, FMT, { skip: 4000, maxCount: 2000 });
+    expect(a).toContain('--skip=4000');
+    expect(a).toContain('--max-count=2000');
+  });
+});
+
+describe('filterKey', () => {
+  it('is order-insensitive for sets and stable', () => {
+    expect(filterKey({ sort: 'topo', refs: ['b', 'a'], authors: ['y', 'x'] })).toBe(
+      filterKey({ sort: 'topo', refs: ['a', 'b'], authors: ['x', 'y'] }),
+    );
+  });
+
+  it('distinguishes different filters', () => {
+    expect(filterKey({ sort: 'topo' })).not.toBe(filterKey({ sort: 'date' }));
+    expect(filterKey({ sort: 'topo', refs: 'ALL' })).not.toBe(filterKey({ sort: 'topo', refs: 'HEAD' }));
+    expect(filterKey({ sort: 'topo', text: { q: 'a', regex: false, matchCase: false } })).not.toBe(
+      filterKey({ sort: 'topo', text: { q: 'a', regex: true, matchCase: false } }),
+    );
+  });
+
+  it('treats undefined refs as HEAD', () => {
+    expect(filterKey({ sort: 'topo' })).toBe(filterKey({ sort: 'topo', refs: 'HEAD' }));
+  });
+});
