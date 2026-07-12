@@ -176,6 +176,10 @@ export class GitExecutorImpl implements GitExecutor {
     let cancelled = false;
     const stderrChunks: Buffer[] = [];
     child.stderr.on('data', (c: Buffer) => stderrChunks.push(c));
+    if (o.stdin !== undefined) {
+      child.stdin.on('error', () => undefined); // EPIPE if git exits early
+      child.stdin.write(o.stdin);
+    }
     child.stdin.end();
 
     let finished = false;

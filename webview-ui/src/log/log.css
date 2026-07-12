@@ -1,0 +1,218 @@
+/* Log tool window styles — --vscode-* variables only. */
+.gt-log-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.gt-log-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  flex-wrap: wrap;
+}
+
+.gt-filter-chipset {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.gt-filter-chipset.gt-active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.gt-chip-main,
+.gt-chip-clear {
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.gt-chip-clear {
+  padding: 2px 6px;
+  border-left: 1px solid var(--vscode-contrastBorder, rgba(128, 128, 128, 0.35));
+}
+
+.gt-log-search {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+
+.gt-log-sort {
+  min-width: 90px;
+}
+
+.gt-log-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.gt-log-rows {
+  position: relative;
+  flex: 1 1 60%;
+  min-width: 0;
+}
+
+.gt-log-rows .gt-virtual-list {
+  border: none;
+}
+
+.gt-log-graph-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.gt-log-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.gt-log-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gt-log-meta {
+  margin-left: auto;
+  padding-left: 12px;
+  flex-shrink: 0;
+  font-size: 0.9em;
+}
+
+.gt-muted {
+  color: var(--vscode-descriptionForeground);
+}
+
+.gt-ref-chip {
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.gt-ref-branch {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+
+.gt-ref-remote-branch {
+  color: var(--vscode-charts-purple, #b180d7);
+}
+
+.gt-ref-tag {
+  color: var(--vscode-charts-yellow, #cca700);
+}
+
+.gt-ref-head,
+.gt-ref-headTarget {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.gt-side-badge {
+  font-size: 0.8em;
+}
+
+.gt-side-left {
+  color: var(--vscode-charts-orange, #d18616);
+}
+
+.gt-side-right {
+  color: var(--vscode-charts-green, #89d185);
+}
+
+/* details panel */
+.gt-log-details {
+  flex: 1 1 40%;
+  min-width: 220px;
+  max-width: 45%;
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gt-details-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gt-details-sha {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-weight: 600;
+}
+
+.gt-details-refs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.gt-details-body {
+  white-space: pre-wrap;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.95em;
+  margin: 4px 0;
+  max-height: 30%;
+  overflow: auto;
+}
+
+.gt-details-files {
+  display: flex;
+  flex-direction: column;
+}
+
+.gt-details-folder {
+  padding: 4px 0 2px;
+  font-size: 0.85em;
+}
+
+.gt-details-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  padding: 2px 4px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  overflow: hidden;
+}
+
+.gt-details-file:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gt-details-file.gt-indent {
+  padding-left: 18px;
+}
+
+.gt-details-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

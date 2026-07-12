@@ -94,12 +94,18 @@
 Panel container `gittree-panel` with webview view `gittree.log`; commands `gittree.log.{refresh,revealCommit,copySha,createBranchHere,createTagHere,checkoutRevision,resetHere,compareWithLocal,openOnRemote,setFilter}`, `gittree.blame.toggle`, `gittree.showFileHistory`; `editor/lineNumber/context`, `webview/context`, `editor/title/context`, `explorer/context` menu entries.
 
 ## Parity checklist (FEATURES.md §4 + §1.2)
-- [ ] Color-coded topological graph, virtualized and fast
-- [ ] Sort modes: Date, Topo, IntelliSort (contiguous merged-branch blocks)
-- [ ] Intersecting filters: Branch, User (autocomplete), Date (ranges), Path (file/folder)
-- [ ] Free-text message search
-- [ ] Commit context menu with branch/tag/checkout/reset/compare actions (rewrite actions arrive in P5)
-- [ ] Toggleable gutter blame from gutter right-click
-- [ ] Per-line author + date + hash column
-- [ ] Age heat-map fading
-- [ ] Blame click-through opens the commit in the log tool window
+- [x] Color-coded topological graph, virtualized and fast (canvas layer over VirtualList; 100k layout < 400 ms measured; windowed DOM verified in Playwright)
+- [x] Sort modes: Date, Topo, IntelliSort (contiguous merged-branch blocks — golden-tested DFS reorder)
+- [x] Intersecting filters: Branch, User (autocomplete + "me"), Date (presets + validated custom range), Path (picker + glob)
+- [x] Free-text message search (literal/regex, match-case)
+- [x] Commit context menu with branch/tag/checkout/reset/compare/open-on-remote actions via native webview/context menus (multi-select rewrite entries reserved for P5)
+- [x] Toggleable gutter blame from gutter right-click (`editor/lineNumber/context`)
+- [x] Per-line author + date + hash column (configurable format, run-collapsed like IntelliJ)
+- [x] Age heat-map fading (decile buckets, uncommitted brightest, theme-rebuilt)
+- [x] Blame click-through opens the commit in the log tool window (hover command links + cursor status-bar item → revealCommit)
+
+## Deviations
+- **P4-T3:** "60 fps trace-asserted" is realized as Playwright assertions that the DOM stays windowed (< 80 rows) across 100k-row scrolling plus the unit-level 100k-commit layout benchmark — headless traces don't expose a direct fps counter.
+- **P4-T3:** webview CSP allows `script-src ${cspSource}` alongside the nonce — vite emits shared module chunks whose imports can't carry the entry nonce; the origin only serves `localResourceRoots`.
+- **P4-T5:** "Open in Browser" builds github/gitlab commit URLs and reports unknown hosts instead of hiding (capability data for other hosts arrives with P8 providers).
+- **Race fix (product):** stream-based queue reads (log pages, authors, blame) now THROW on cancellation — `stream()` resolves with partial output when cancelled, which the OperationQueue treated as success and cached truncated results when a mutation interrupted a read.

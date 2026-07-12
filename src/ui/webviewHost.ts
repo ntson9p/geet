@@ -4,6 +4,8 @@
  * through these two pieces; no webview ever loads remote resources.
  */
 import * as crypto from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { EVT_REHYDRATE, isMsg, PROTOCOL_VERSION, type Msg, type RpcError } from '../shared/protocol';
 
@@ -24,13 +26,33 @@ export function webviewResourceRoots(extensionUri: vscode.Uri): vscode.Uri[] {
 export function buildWebviewHtml(options: WebviewHtmlOptions): string {
   const { app, webview, extensionUri, title } = options;
   const nonce = crypto.randomBytes(16).toString('base64');
-  const appRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'webviews', app);
+  const webviewsRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'webviews');
+  const appRoot = vscode.Uri.joinPath(webviewsRoot, app);
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(appRoot, 'index.js'));
-  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(appRoot, 'index.css'));
+  // Vite may hoist shared imports (base.css) into hashed chunk assets —
+  // link every stylesheet that actually exists: the app's own + shared ones.
+  const styleUris: vscode.Uri[] = [];
+  const appCss = path.join(webviewsRoot.fsPath, app, 'index.css');
+  if (fs.existsSync(appCss)) {
+    styleUris.push(webview.asWebviewUri(vscode.Uri.joinPath(appRoot, 'index.css')));
+  }
+  const assetsDir = path.join(webviewsRoot.fsPath, 'assets');
+  try {
+    for (const name of fs.readdirSync(assetsDir)) {
+      if (name.endsWith('.css')) {
+        styleUris.push(webview.asWebviewUri(vscode.Uri.joinPath(webviewsRoot, 'assets', name)));
+      }
+    }
+  } catch {
+    // no shared assets
+  }
   const csp = [
     "default-src 'none'",
     `img-src ${webview.cspSource} data:`,
-    `script-src 'nonce-${nonce}'`,
+    // The entry script carries the nonce; its module-graph imports (shared
+    // vite chunks) load from the extension's webview origin — still no
+    // remote code, the origin only serves localResourceRoots.
+    `script-src 'nonce-${nonce}' ${webview.cspSource}`,
     // React needs inline style attributes (virtual list transforms).
     `style-src ${webview.cspSource} 'unsafe-inline'`,
     `font-src ${webview.cspSource}`,
@@ -40,13 +62,16 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
       ? 'undefined'
       : JSON.stringify(options.initialState).replace(/</g, '\\u003c');
 
+  const styleLinks = styleUris
+    .map((u) => `  <link rel="stylesheet" href="${u.toString()}">`)
+    .join('\n');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="${styleUri.toString()}">
+${styleLinks}
   <title>${escapeHtml(title)}</title>
 </head>
 <body>

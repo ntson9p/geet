@@ -6,6 +6,7 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -32,6 +33,10 @@ export interface VirtualListProps {
   onActivate?: (index: number) => void;
   /** Row context data for data-vscode-context (native menus). */
   rowContext?: (index: number) => Record<string, unknown> | undefined;
+  /** Click with modifier info (multi-selection models live above the list). */
+  onRowClick?: (index: number, e: { ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => void;
+  /** Viewport tracker for overlay layers (log graph canvas) + infinite scroll. */
+  onViewport?: (view: { scrollTop: number; first: number; last: number }) => void;
   className?: string;
 }
 
@@ -46,6 +51,8 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     onFocusIndex,
     onActivate,
     rowContext,
+    onRowClick,
+    onViewport,
     className,
   }: VirtualListProps,
   ref,
@@ -144,6 +151,9 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   const first = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
   const visible = Math.ceil(height / rowHeight) + overscan * 2;
   const last = Math.min(rowCount - 1, first + visible);
+  useEffect(() => {
+    onViewport?.({ scrollTop, first, last });
+  }, [scrollTop, first, last, onViewport]);
 
   const rows: ReactNode[] = [];
   for (let i = first; i <= last; i++) {
@@ -167,7 +177,12 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
         tabIndex={i === focusedIndex ? 0 : -1}
         className={`gt-virtual-row${i === focusedIndex ? ' gt-focused' : ''}`}
         style={style}
-        onClick={() => focusIndex(i)}
+        onClick={(e) => {
+          // Modifier clicks are selection gestures owned by the consumer —
+          // moving focus would fire onFocusIndex and reset multi-selection.
+          if (!e.ctrlKey && !e.metaKey && !e.shiftKey) focusIndex(i);
+          onRowClick?.(i, { ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, metaKey: e.metaKey });
+        }}
         onDoubleClick={() => onActivate?.(i)}
       >
         {renderRow(i)}

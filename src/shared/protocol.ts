@@ -38,3 +38,107 @@ export const DEMO_METHODS = {
   echo: 'demo/echo',
   rows: 'demo/rows',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Log view (P4-T3/T4) — host ⇄ webview DTOs
+// ---------------------------------------------------------------------------
+
+export interface LogFilterDto {
+  refs?: string[] | 'ALL' | 'HEAD';
+  range?: { a: string; b: string };
+  authors?: string[];
+  dateRange?: { from?: string; to?: string };
+  paths?: string[];
+  text?: { q: string; regex: boolean; matchCase: boolean };
+  sort: 'topo' | 'date' | 'intelli';
+  follow?: boolean;
+}
+
+export interface GraphLaneDto {
+  lane: number;
+  colorIdx: number;
+}
+
+export interface GraphForkDto extends GraphLaneDto {
+  kind: 'first' | 'extra';
+  joinsExisting?: boolean;
+}
+
+export interface GraphRowDto {
+  nodeLane: number;
+  colorIdx: number;
+  lanesBefore: GraphLaneDto[];
+  joins: GraphLaneDto[];
+  forks: GraphForkDto[];
+  continues: GraphLaneDto[];
+}
+
+export interface RefChipDto {
+  name: string;
+  type: 'branch' | 'remote-branch' | 'tag' | 'head';
+  isHeadTarget?: boolean;
+}
+
+export interface LogRowDto {
+  sha: string;
+  subject: string;
+  authorName: string;
+  /** Unix seconds. */
+  authorTime: number;
+  parents: string[];
+  refs: RefChipDto[];
+  side?: 'left' | 'right';
+  graph: GraphRowDto;
+}
+
+export interface LogPageDto {
+  page: number;
+  rows: LogRowDto[];
+  eof: boolean;
+}
+
+export interface LogInitDto {
+  repoRoot: string;
+  repoLabel: string;
+  filter: LogFilterDto;
+  laneWidth: number;
+}
+
+export interface CommitFileDto {
+  status: string;
+  path: string;
+  origPath?: string;
+}
+
+export interface CommitDetailsDto {
+  sha: string;
+  parents: string[];
+  authorName: string;
+  authorEmail: string;
+  authorTime: number;
+  committerName: string;
+  committerEmail: string;
+  committerTime: number;
+  refs: string[];
+  body: string;
+  files: CommitFileDto[];
+}
+
+export const LOG_METHODS = {
+  /** webview → host */
+  init: 'log/init',
+  page: 'log/page',
+  details: 'log/details',
+  setFilter: 'log/setFilter',
+  pickBranches: 'log/pickBranches',
+  pickAuthors: 'log/pickAuthors',
+  pickDates: 'log/pickDates',
+  pickPaths: 'log/pickPaths',
+  openFileDiff: 'log/openFileDiff',
+  openAllDiffs: 'log/openAllDiffs',
+  copy: 'log/copy',
+  /** host → webview events */
+  evtRows: 'log/rows',
+  evtReset: 'log/reset',
+  evtReveal: 'log/reveal',
+} as const;

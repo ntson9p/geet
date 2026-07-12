@@ -10,9 +10,8 @@ import { defineConfig } from 'vite';
  */
 const apps: Record<string, string> = {
   demo: path.resolve(__dirname, 'src/demo/main.tsx'),
-  // log:    added in P4
+  log: path.resolve(__dirname, 'src/log/main.tsx'),
   // rebase: added in P5
-  // compare:added in P4/P2 upgrade
   // pr:     added in P8
 };
 

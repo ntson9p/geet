@@ -179,6 +179,31 @@
         }
       },
       {
+        "title": "%gittree.config.log.title%",
+        "properties": {
+          "gittree.log.sort": {
+            "type": "string",
+            "enum": [
+              "date",
+              "topo",
+              "intelli"
+            ],
+            "default": "topo",
+            "description": "%gittree.config.log.sort.description%"
+          },
+          "gittree.blame.heatmap": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.blame.heatmap.description%"
+          },
+          "gittree.blame.format": {
+            "type": "string",
+            "default": "${author|12} ${date|relative} ${sha|7}",
+            "description": "%gittree.config.blame.format.description%"
+          }
+        }
+      },
+      {
         "title": "%gittree.config.localHistory.title%",
         "properties": {
           "gittree.localHistory.enabled": {
@@ -486,6 +511,75 @@
       {
         "command": "gittree.revert.hunkAt",
         "title": "%gittree.command.revert.hunkAt.title%"
+      },
+      {
+        "command": "gittree.log.refresh",
+        "title": "%gittree.command.log.refresh.title%",
+        "category": "GitTree",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gittree.log.revealCommit",
+        "title": "%gittree.command.log.revealCommit.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.log.copySha",
+        "title": "%gittree.command.log.copySha.title%"
+      },
+      {
+        "command": "gittree.log.createBranchHere",
+        "title": "%gittree.command.log.createBranchHere.title%"
+      },
+      {
+        "command": "gittree.log.createTagHere",
+        "title": "%gittree.command.log.createTagHere.title%"
+      },
+      {
+        "command": "gittree.log.checkoutRevision",
+        "title": "%gittree.command.log.checkoutRevision.title%"
+      },
+      {
+        "command": "gittree.log.resetHere",
+        "title": "%gittree.command.log.resetHere.title%"
+      },
+      {
+        "command": "gittree.log.compareWithLocal",
+        "title": "%gittree.command.log.compareWithLocal.title%"
+      },
+      {
+        "command": "gittree.log.openOnRemote",
+        "title": "%gittree.command.log.openOnRemote.title%"
+      },
+      {
+        "command": "gittree.log.setFilter",
+        "title": "%gittree.command.log.setFilter.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.blame.toggle",
+        "title": "%gittree.command.blame.toggle.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.blame.showDiff",
+        "title": "%gittree.command.blame.showDiff.title%"
+      },
+      {
+        "command": "gittree.blame.revealCursorCommit",
+        "title": "%gittree.command.blame.revealCursorCommit.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.showFileHistory",
+        "title": "%gittree.command.showFileHistory.title%",
+        "category": "GitTree",
+        "icon": "$(history)"
+      },
+      {
+        "command": "gittree.branches.compareInLog",
+        "title": "%gittree.command.branches.compareInLog.title%",
+        "category": "GitTree"
       }
     ],
     "menus": {
@@ -669,6 +763,11 @@
       ],
       "view/title": [
         {
+          "command": "gittree.log.refresh",
+          "when": "view == gittree.log",
+          "group": "navigation@1"
+        },
+        {
           "command": "gittree.changelist.new",
           "when": "view == gittree.changelists",
           "group": "navigation@1"
@@ -801,6 +900,69 @@
           "group": "4_favorite@1"
         }
       ],
+      "webview/context": [
+        {
+          "command": "gittree.log.copySha",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "1_nav@1"
+        },
+        {
+          "command": "gittree.log.createBranchHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "2_refs@1"
+        },
+        {
+          "command": "gittree.log.createTagHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "2_refs@2"
+        },
+        {
+          "command": "gittree.log.checkoutRevision",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "3_move@1"
+        },
+        {
+          "command": "gittree.log.resetHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "3_move@2"
+        },
+        {
+          "command": "gittree.log.compareWithLocal",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "4_diff@1"
+        },
+        {
+          "command": "gittree.log.openOnRemote",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "5_remote@1"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "gittree.blame.toggle",
+          "when": "resourceScheme == file && !gittree.blameOn",
+          "group": "gittree@1"
+        },
+        {
+          "command": "gittree.blame.toggle",
+          "when": "resourceScheme == file && gittree.blameOn",
+          "group": "gittree@1"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "gittree.showFileHistory",
+          "when": "resourceScheme == file",
+          "group": "1_gittree@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "gittree.showFileHistory",
+          "when": "resourceScheme == file",
+          "group": "7_gittree@1"
+        }
+      ],
       "editor/context": [
         {
           "command": "gittree.stage.selectedRanges",
@@ -850,6 +1012,14 @@
       }
     ],
     "views": {
+      "gittree-panel": [
+        {
+          "id": "gittree.log",
+          "type": "webview",
+          "name": "%gittree.view.log.name%",
+          "icon": "$(git-commit)"
+        }
+      ],
       "scm": [
         {
           "id": "gittree.changelists",
@@ -875,7 +1045,15 @@
         }
       ]
     },
-    "viewsContainers": {}
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "gittree-panel",
+          "title": "%gittree.panel.title%",
+          "icon": "$(git-branch)"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run build && npm run build:webviews",

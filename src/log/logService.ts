@@ -94,7 +94,9 @@ export class LogService {
     await this.repo.queue.enqueue({
       label: `log page ${page}`,
       kind: 'read',
-      run: (git, token) => {
+      run: async (git, token) => {
+        rows.length = 0; // requeued reruns start clean
+        pendingChunk = [];
         const handle = git.stream(
           this.repo.root,
           args,
@@ -111,7 +113,15 @@ export class LogService {
           },
           { structured: true, noOptionalLocks: true, delimiter: LOG_RECORD_SEPARATOR, token },
         );
-        return handle.done;
+        await handle.done;
+        // stream() RESOLVES on cancellation (partial output) — a cancelled
+        // read must THROW so the OperationQueue requeues it after the
+        // mutation instead of caching a truncated page.
+        if (token.isCancellationRequested) {
+          rows.length = 0;
+          pendingChunk = [];
+          throw new Error('log page read cancelled');
+        }
       },
     });
     if (pendingChunk.length > 0) onChunk?.(pendingChunk);
@@ -168,8 +178,9 @@ export class LogService {
     if (sep === -1) return undefined;
     const meta = result.stdout.slice(0, sep).split('\0');
     if (meta.length < 10) return undefined;
-    // After \x1e git emits a newline then the -z name-status stream.
-    const filesRaw = result.stdout.slice(sep + 1).replace(/^\n+/, '');
+    // After \x1e git emits a NUL and a newline before the -z name-status
+    // stream (measured: `…\x1e\0\nR100\0old\0new\0`).
+    const filesRaw = result.stdout.slice(sep + 1).replace(/^[\0\n]+/, '');
     return {
       sha: meta[0] as string,
       parents: (meta[1] as string).length > 0 ? (meta[1] as string).split(' ') : [],
@@ -195,7 +206,7 @@ export class LogService {
     await this.repo.queue.enqueue({
       label: 'author list',
       kind: 'read',
-      run: (git, token) => {
+      run: async (git, token) => {
         const handle = git.stream(
           this.repo.root,
           ['log', '--all', '--format=%aN <%aE>', '--use-mailmap'],
@@ -204,7 +215,11 @@ export class LogService {
           },
           { structured: true, noOptionalLocks: true, delimiter: '\n', token },
         );
-        return handle.done;
+        await handle.done;
+        if (token.isCancellationRequested) {
+          seen.clear();
+          throw new Error('author list read cancelled');
+        }
       },
     });
     const authors = [...seen].sort((a, b) => a.localeCompare(b));
