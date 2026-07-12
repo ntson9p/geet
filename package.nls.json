@@ -122,5 +122,8 @@
   "gittree.command.rebase.continue.title": "Rebase: Continue",
   "gittree.command.rebase.skip.title": "Rebase: Skip Current Commit",
   "gittree.command.rebase.abort.title": "Rebase: Abort",
-  "gittree.command.rebase.actions.title": "Rebase Actions…"
+  "gittree.command.rebase.actions.title": "Rebase Actions…",
+  "gittree.command.rebase.interactive.title": "Interactively Rebase from Here…",
+  "gittree.command.rebase.row.resetAction.title": "Reset Action to Pick",
+  "gittree.command.rebase.row.showInLog.title": "Show Commit in Log"
 }

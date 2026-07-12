@@ -142,3 +142,63 @@ export const LOG_METHODS = {
   evtReset: 'log/reset',
   evtReveal: 'log/reveal',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Interactive rebase editor (P5-T2) — host ⇄ webview DTOs
+// ---------------------------------------------------------------------------
+
+export type RebaseActionDto = 'pick' | 'reword' | 'squash' | 'fixup' | 'drop';
+
+export interface RebaseRowDto {
+  /** Full sha. */
+  sha: string;
+  shortSha: string;
+  subject: string;
+  authorName: string;
+  /** Unix seconds. */
+  authorTime: number;
+  /** Full original commit message (reword prefill / squash concatenation). */
+  message: string;
+  action: RebaseActionDto;
+  /** Custom message set in the dialog (reword / squash-with-message). */
+  newMessage?: string;
+}
+
+export type RebasePhaseDto = 'edit' | 'running' | 'paused' | 'done';
+
+export interface RebaseStateDto {
+  repoRoot: string;
+  branch: string;
+  baseSha: string;
+  baseShort: string;
+  /** Oldest first — exactly the todo order. */
+  rows: RebaseRowDto[];
+  /** Range reaches published history — Start requires acknowledgement. */
+  published: boolean;
+  phase: RebasePhaseDto;
+  progress?: { step?: number; total?: number };
+  /** Per-step log lines shown in progress mode. */
+  log: string[];
+  outcome?: 'completed' | 'failed' | 'aborted' | 'refused-merges';
+  /** Conflicted paths while paused. */
+  conflicts?: string[];
+}
+
+export interface RebaseStartParamsDto {
+  entries: Array<{ sha: string; action: RebaseActionDto; message?: string }>;
+  forceAcknowledged: boolean;
+}
+
+export const REBASE_METHODS = {
+  /** webview → host */
+  init: 'rebase/init',
+  start: 'rebase/start',
+  cancel: 'rebase/cancel',
+  continue: 'rebase/continue',
+  skip: 'rebase/skip',
+  abort: 'rebase/abort',
+  /** host → webview events */
+  evtState: 'rebase/state',
+  /** Context-menu "Reset Action" on a row → back to pick. */
+  evtResetAction: 'rebase/resetAction',
+} as const;

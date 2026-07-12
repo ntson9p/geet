@@ -1,13 +1,13 @@
 /**
- * Phase 5 registration (T1 slice — rebase engine, state monitors and the
- * continue/skip/abort commands; T2..T6 extend this file with the rebase
- * dialog, undo/drop, revert/cherry-pick, reword and push safety).
+ * Phase 5 registration (T1 engine + T2 dialog slice; T3..T6 extend this file
+ * with undo/drop, revert/cherry-pick, reword and push safety).
  */
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { resolveShimDir } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { RebaseEngine } from './rebase/rebaseEngine';
+import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
 
 export function registerPhase05HistoryRewriting(
@@ -130,8 +130,55 @@ export function registerPhase05HistoryRewriting(
     if (picked) await vscode.commands.executeCommand(picked.cmd, repo.root);
   });
 
+  // ---- T2: interactive rebase dialog ---------------------------------------
+  const rebaseView = new RebaseViewController(
+    context,
+    core,
+    (repo) => engines.get(canonicalKey(repo.root)),
+    (repo) => monitors.get(canonicalKey(repo.root)),
+  );
+  context.subscriptions.push(rebaseView);
+
+  /** The log panel's repo (same seam commitActions uses), else fallbacks. */
+  const logRepo = (): RepoHandle | undefined => {
+    const p4 = core.debugRegistry.get('phase04') as
+      | { logView?: { currentSession?: { repoRoot?: string } } }
+      | undefined;
+    const root = p4?.logView?.currentSession?.repoRoot;
+    return (root !== undefined ? core.getRepo(root) : undefined) ?? pickRepo();
+  };
+
+  register('gittree.rebase.interactive', async (arg) => {
+    const ctx = (typeof arg === 'object' && arg !== null ? arg : {}) as {
+      sha?: string;
+      shas?: string[];
+    };
+    const repo = logRepo();
+    if (!repo) return;
+    const candidates =
+      ctx.shas !== undefined && ctx.shas.length > 0
+        ? ctx.shas
+        : typeof ctx.sha === 'string'
+          ? [ctx.sha]
+          : [];
+    if (candidates.length === 0) return;
+    const anchor = await oldestOf(repo, candidates);
+    if (anchor !== undefined) await rebaseView.open(repo, anchor);
+  });
+  register('gittree.rebase.row.showInLog', async (arg) => {
+    const sha = (arg as { sha?: string } | undefined)?.sha;
+    if (typeof sha === 'string') {
+      await vscode.commands.executeCommand('gittree.log.revealCommit', sha);
+    }
+  });
+  register('gittree.rebase.row.resetAction', (arg) => {
+    const sha = (arg as { sha?: string } | undefined)?.sha;
+    if (typeof sha === 'string') rebaseView.resetRowAction(sha);
+  });
+
   core.debugRegistry.set('phase05', {
     getEngine: (repoRoot: string) => engines.get(canonicalKey(repoRoot)),
     getMonitor: (repoRoot: string) => monitors.get(canonicalKey(repoRoot)),
+    rebaseView,
   });
 }

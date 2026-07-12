@@ -2,9 +2,11 @@ import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as vscode from 'vscode';
 import type { RepoHandle } from '../../../src/core/core';
 import type { SnapshotManifest } from '../../../src/localHistory/snapshotStore';
 import type { RebaseEngine } from '../../../src/rewrite/rebase/rebaseEngine';
+import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseView';
 import type { RebasePausedEvent, RebaseStateMonitor } from '../../../src/rewrite/rebase/stateMonitor';
 import type { RebasePlan, RebasePlanEntry } from '../../../src/rewrite/rebase/planSerializer';
 import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
@@ -12,6 +14,7 @@ import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
 interface Phase05RegistryShape {
   getEngine(repoRoot: string): RebaseEngine | undefined;
   getMonitor(repoRoot: string): RebaseStateMonitor | undefined;
+  rebaseView: RebaseViewController;
 }
 interface Phase09RegistryShape {
   getStore(repoRoot: string): { list(): SnapshotManifest[] } | undefined;
@@ -312,6 +315,57 @@ suite('P5 history rewriting — rebase engine', () => {
     } finally {
       sub.dispose();
     }
+  });
+
+  test('T2: dialog-built plan (reorder + squash + reword) produces the expected log', async function () {
+    this.timeout(90_000);
+    const base = onBranch('dialog');
+    const a = commit('p5a.txt', 'a\n', 'A');
+    const b = commit('p5b.txt', 'b\n', 'B');
+    const c = commit('p5c.txt', 'c\n', 'C');
+    const preHeadTree = git('rev-parse', 'HEAD^{tree}').trim();
+    const [treeA] = trees(base);
+
+    const view = (await activateGitTree()).debugRegistry.get('phase05') as Phase05RegistryShape;
+    const controller = view.rebaseView;
+    const opened = await controller.open(repo, a);
+    assert.strictEqual(opened, true, 'dialog should open');
+    const state = controller.currentState;
+    assert.ok(state, 'controller state missing');
+    assert.strictEqual(state.phase, 'edit');
+    assert.strictEqual(state.baseSha, base);
+    assert.deepStrictEqual(
+      state.rows.map((r) => [r.sha, r.subject]),
+      [
+        [a, 'A'],
+        [b, 'B'],
+        [c, 'C'],
+      ],
+      'rows must cover the range oldest-first',
+    );
+    assert.strictEqual(state.published, false, 'unpushed branch must not be flagged published');
+
+    // Exactly what the webview Start button posts after the user reworded A,
+    // dragged C above B, and squashed B into C with a custom message.
+    const result = await controller.startRebase({
+      entries: [
+        { sha: a, action: 'reword', message: 'A reworded\n\nby the dialog' },
+        { sha: c, action: 'pick' },
+        { sha: b, action: 'squash', message: 'C and B combined\n\nvia dialog' },
+      ],
+      forceAcknowledged: false,
+    });
+    assert.strictEqual(result.ok, true, result.error);
+    assert.strictEqual(controller.currentState?.phase, 'done');
+    assert.strictEqual(controller.currentState.outcome, 'completed');
+
+    assert.deepStrictEqual(subjects(base), ['A reworded', 'C and B combined']);
+    assert.ok(git('log', '--format=%B', '-1', 'HEAD').includes('via dialog'));
+    assert.ok(git('log', '--format=%B', '-1', 'HEAD^').includes('by the dialog'));
+    // Trees: reworded A keeps its tree; the squashed head holds all files.
+    assert.deepStrictEqual(trees(base), [treeA, preHeadTree]);
+
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   });
 
   test('pre-flight refuses ranges containing merge commits', async function () {

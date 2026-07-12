@@ -72,9 +72,13 @@ Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,cont
 - **T1 (stopped-sha):** `.git/rebase-merge/stopped-sha` contains a unique *abbreviation*, not the full oid; `RebasePausedEvent.stoppedSha` documents this and the test prefix-matches.
 - **T1 (status segment):** while a rebase is in progress the status widget gains one `$(list-selection) Rebase…` command opening a Continue/Skip/Abort QuickPick (IntelliJ-style chip) instead of three separate status-bar buttons; all three commands stay individually palette-visible via the `gittree.rebase.active` context key.
 - **T1 (continue pre-check):** unresolved paths are read straight from `git diff --name-only --diff-filter=U` rather than the model — a just-staged resolution can be a few hundred ms ahead of the debounced refresh pipeline.
+- **T2 (e2e composition):** the acceptance e2e is proven in two halves joined by the thin typed RPC handler: Playwright asserts the dialog emits the exact `rebase/start` entries for a DnD-reordered/squashed/reworded plan, and the integration suite drives `RebaseViewController.startRebase` (the same handler body) with those entries against real git, asserting messages and tree ids. Headless Electron cannot click inside a production webview.
+- **T2 (repo resolution):** `gittree.rebase.interactive` resolves its repo through the phase04 registry seam (the log view's current session), matching how P4's commit actions resolve theirs.
+- **T2 (keyboard):** alt+↑/↓, p/r/s/f/d and Enter/F2 are DOM-level handlers inside the webview (they only apply while the dialog has focus), so no `keybindings` contribution is required; `aria-grabbed` is retained as specified even though ARIA 1.1 deprecates it.
+- **T2 (squash editor):** squash rows open the inline editor immediately with the IntelliJ-style concatenated group prefill; leaving it unedited still squashes with that combined message (fixup remains the discard path).
 
 ## Parity checklist (FEATURES.md §4 context-menu actions)
-- [ ] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns
+- [x] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns
 - [ ] Undo Commit → changes back into a (new) changelist, message restored
 - [ ] Revert Commit (`git revert`, merge-aware)
 - [ ] Cherry-Pick with clean auto-commit and conflict sequencing

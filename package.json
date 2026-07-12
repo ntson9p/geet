@@ -654,6 +654,19 @@
         "command": "gittree.rebase.actions",
         "title": "%gittree.command.rebase.actions.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.rebase.interactive",
+        "title": "%gittree.command.rebase.interactive.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.rebase.row.resetAction",
+        "title": "%gittree.command.rebase.row.resetAction.title%"
+      },
+      {
+        "command": "gittree.rebase.row.showInLog",
+        "title": "%gittree.command.rebase.row.showInLog.title%"
       }
     ],
     "submenus": [
@@ -733,6 +746,18 @@
         {
           "command": "gittree.rebase.actions",
           "when": "gittree.rebase.active"
+        },
+        {
+          "command": "gittree.rebase.interactive",
+          "when": "false"
+        },
+        {
+          "command": "gittree.rebase.row.resetAction",
+          "when": "false"
+        },
+        {
+          "command": "gittree.rebase.row.showInLog",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1125,6 +1150,21 @@
           "command": "gittree.log.openOnRemote",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
           "group": "5_remote@1"
+        },
+        {
+          "command": "gittree.rebase.interactive",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@1"
+        },
+        {
+          "command": "gittree.rebase.row.resetAction",
+          "when": "webviewId == 'gittree.rebaseEditor' && webviewSection == 'rebaseRow'",
+          "group": "1_row@1"
+        },
+        {
+          "command": "gittree.rebase.row.showInLog",
+          "when": "webviewId == 'gittree.rebaseEditor' && webviewSection == 'rebaseRow'",
+          "group": "1_row@2"
         }
       ],
       "editor/lineNumber/context": [
