@@ -634,6 +634,26 @@
         "command": "gittree.history.recoverCommit",
         "title": "%gittree.command.history.recoverCommit.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.rebase.continue",
+        "title": "%gittree.command.rebase.continue.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.rebase.skip",
+        "title": "%gittree.command.rebase.skip.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.rebase.abort",
+        "title": "%gittree.command.rebase.abort.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.rebase.actions",
+        "title": "%gittree.command.rebase.actions.title%",
+        "category": "GitTree"
       }
     ],
     "submenus": [
@@ -697,6 +717,22 @@
         {
           "command": "gittree.history.recoverCommit",
           "when": "false"
+        },
+        {
+          "command": "gittree.rebase.continue",
+          "when": "gittree.rebase.active"
+        },
+        {
+          "command": "gittree.rebase.skip",
+          "when": "gittree.rebase.active"
+        },
+        {
+          "command": "gittree.rebase.abort",
+          "when": "gittree.rebase.active"
+        },
+        {
+          "command": "gittree.rebase.actions",
+          "when": "gittree.rebase.active"
         }
       ],
       "scm/title": [

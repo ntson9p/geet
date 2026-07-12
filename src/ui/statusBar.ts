@@ -77,8 +77,9 @@ export class StatusBarController implements vscode.Disposable {
   }
 
   update(): void {
-    const state = renderStatusBar(this.repo.model.snapshot, this.fetching);
-    this.sc.statusBarCommands = [
+    const snap = this.repo.model.snapshot;
+    const state = renderStatusBar(snap, this.fetching);
+    const commands: vscode.Command[] = [
       {
         command: 'gittree.branches.open',
         title: state.checkoutText,
@@ -92,6 +93,17 @@ export class StatusBarController implements vscode.Disposable {
         arguments: [this.repo.root],
       },
     ];
+    // P5-T1: rebase actions stay one click away while a rebase is running.
+    const opKind = snap.inProgressOp?.kind;
+    if (opKind === 'rebase-interactive' || opKind === 'rebase-apply') {
+      commands.push({
+        command: 'gittree.rebase.actions',
+        title: '$(list-selection) ' + vscode.l10n.t('Rebase…'),
+        tooltip: vscode.l10n.t('Continue, skip or abort the rebase'),
+        arguments: [this.repo.root],
+      });
+    }
+    this.sc.statusBarCommands = commands;
   }
 
   dispose(): void {

@@ -298,7 +298,8 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
 }
 
 /** Packaged builds carry shims in dist/shims (esbuild copy); dev falls back to source. */
-function resolveShimDir(context: vscode.ExtensionContext): string {
+/** Packaged shims in dist/shims; source checkout falls back to shims/. */
+export function resolveShimDir(context: vscode.ExtensionContext): string {
   const packaged = path.join(context.extensionPath, 'dist', 'shims');
   if (fs.existsSync(path.join(packaged, 'askpass.cjs'))) return packaged;
   return path.join(context.extensionPath, 'shims');

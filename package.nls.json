@@ -118,5 +118,9 @@
   "gittree.command.history.clearAll.title": "Local History: Clear All",
   "gittree.command.history.gcNow.title": "Local History: Run Garbage Collection",
   "gittree.command.history.clearFilter.title": "Clear Path Filter",
-  "gittree.command.history.recoverCommit.title": "Local History: Recover Commit as Branch"
+  "gittree.command.history.recoverCommit.title": "Local History: Recover Commit as Branch",
+  "gittree.command.rebase.continue.title": "Rebase: Continue",
+  "gittree.command.rebase.skip.title": "Rebase: Skip Current Commit",
+  "gittree.command.rebase.abort.title": "Rebase: Abort",
+  "gittree.command.rebase.actions.title": "Rebase Actions…"
 }

@@ -66,6 +66,13 @@
 ## Contributions added this phase
 Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,continue,skip,abort}`, `gittree.commit.{undo,drop,revert,cherryPick,reword}`; `webview/context` multi-select menu entries (`gittree:rewriteReady` group from P4-T5); keybindings inside rebase view.
 
+## Deviations
+
+- **T1 (ORIG_HEAD assert):** git's merge backend only writes `ORIG_HEAD` when a rebase *finishes* — while paused it still holds a previous operation's value. The paused-state pre-rebase anchor (and what `--abort` restores from) is `.git/rebase-merge/orig-head`; the abort test asserts that file plus the post-abort `HEAD`, worktree bytes, and autostash round-trip.
+- **T1 (stopped-sha):** `.git/rebase-merge/stopped-sha` contains a unique *abbreviation*, not the full oid; `RebasePausedEvent.stoppedSha` documents this and the test prefix-matches.
+- **T1 (status segment):** while a rebase is in progress the status widget gains one `$(list-selection) Rebase…` command opening a Continue/Skip/Abort QuickPick (IntelliJ-style chip) instead of three separate status-bar buttons; all three commands stay individually palette-visible via the `gittree.rebase.active` context key.
+- **T1 (continue pre-check):** unresolved paths are read straight from `git diff --name-only --diff-filter=U` rather than the model — a just-staged resolution can be a few hundred ms ahead of the debounced refresh pipeline.
+
 ## Parity checklist (FEATURES.md §4 context-menu actions)
 - [ ] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns
 - [ ] Undo Commit → changes back into a (new) changelist, message restored
