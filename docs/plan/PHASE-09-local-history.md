@@ -61,7 +61,16 @@ View `gittree.localHistory`; commands `gittree.history.{show,showForPath,compare
 ## Parity checklist (FEATURES.md §8)
 - [x] Automatic recording around every destructive git operation (+ test-run labels, optional save snapshots) — hook mechanism + binding SNAPSHOT_LABELS matrix landed (T2); each later phase's destructive ops must declare these labels (asserted by the table-driven test).
 - [x] Completely git-independent storage (survives `.git` deletion; lives in globalStorage)
-- [ ] Right-click → Local History → Show History at file, folder and repo scope
-- [ ] Compare any recorded state with current, then restore exact file states selectively
-- [ ] Bad `reset --hard` / deleted uncommitted file is recoverable; external destruction is detected and prompts recovery
-- [ ] Bridges to VS Code's native Timeline for per-save file history
+- [x] Right-click → Local History → Show History at file, folder and repo scope
+- [x] Compare any recorded state with current, then restore exact file states selectively
+- [x] Bad `reset --hard` / deleted uncommitted file is recoverable; external destruction is detected and prompts recovery
+- [x] Bridges to VS Code's native Timeline for per-save file history
+
+## Deviations
+
+- **T3 (pure-helper placement):** the day-grouping helpers live in `src/localHistory/grouping.ts` and the reflog subject parsing in `src/localHistory/reflogParse.ts` — two small vscode-free sibling modules not named in the output-file lists — so vitest can cover them without a vscode shim (same pattern as `branches/parsing.ts`). `restoreUx.ts`/`recoveryWatch.ts` remain the feature modules and import them.
+- **T3 step 4 (Timeline bridge command):** the spec's `workbench.view.timeline` is not a real command id; the bridge row invokes `timeline.focus`, the stable auto-generated focus command for the native Timeline view.
+- **T3 accept (compare both directions):** asserted through the `gittree-snap:` provider text plus a live `vscode.changes` invocation. VS Code's TextDocument normalizes mixed-EOL content to the detected dominant EOL, so the mixed-EOL fixture is compared EOL-insensitively at the document layer; byte-exactness (incl. CRLF and unicode) is asserted on raw fs bytes after restore — the layer users actually recover through.
+- **T3 accept (undo):** the toast's "Undo restore" cannot be clicked headlessly; the test drives the identical code path (re-restoring the paranoia manifest) directly and verifies the paranoia snapshot recorded pre-restore contents.
+- **T4 accept (toast + hint):** destruction detection is asserted via the test-observable `onDidDetectDestruction` emitter (which the toast is driven from), recover-branch by calling `recoverCommit` (the toast action's handler), and the frequency cap via the `hintCount` getter — native toasts/status bar are not inspectable from the extension host.
+- **Restore semantics note:** a file *created* by a restore is not covered by the paranoia snapshot (it records only files that existed pre-restore); undoing its creation is served by the in-session `WorkspaceEdit` undo stack instead.

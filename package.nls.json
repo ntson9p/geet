@@ -105,5 +105,18 @@
   "gittree.config.localHistory.retentionDays.description": "Snapshots older than this are garbage-collected (the most recent snapshot is always kept).",
   "gittree.config.localHistory.maxFileSizeKb.description": "Files larger than this are recorded as metadata-only stubs instead of full content.",
   "gittree.config.localHistory.snapshotOnSave.description": "Also record a snapshot on file save (debounced 30s per file). Off by default — VS Code's native Local History already covers saves.",
-  "gittree.config.localHistory.taskLabels.description": "Record a labeled snapshot when a build/test task finishes, so states like \"after the last green test run\" are easy to find."
+  "gittree.config.localHistory.taskLabels.description": "Record a labeled snapshot when a build/test task finishes, so states like \"after the last green test run\" are easy to find.",
+  "gittree.view.localHistory.name": "Local History",
+  "gittree.command.history.show.title": "Show Local History",
+  "gittree.command.history.showForPath.title": "Show History",
+  "gittree.submenu.localHistory.label": "Local History",
+  "gittree.command.history.compareSnapshot.title": "Compare with Current",
+  "gittree.command.history.diffFile.title": "Diff with Current",
+  "gittree.command.history.restoreSnapshot.title": "Restore All Files",
+  "gittree.command.history.restoreFiles.title": "Restore Selected Files…",
+  "gittree.command.history.deleteSnapshot.title": "Delete Snapshot",
+  "gittree.command.history.clearAll.title": "Local History: Clear All",
+  "gittree.command.history.gcNow.title": "Local History: Run Garbage Collection",
+  "gittree.command.history.clearFilter.title": "Clear Path Filter",
+  "gittree.command.history.recoverCommit.title": "Local History: Recover Commit as Branch"
 }
