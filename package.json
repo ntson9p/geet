@@ -667,6 +667,15 @@
       {
         "command": "gittree.rebase.row.showInLog",
         "title": "%gittree.command.rebase.row.showInLog.title%"
+      },
+      {
+        "command": "gittree.commit.undo",
+        "title": "%gittree.command.commit.undo.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.drop",
+        "title": "%gittree.command.commit.drop.title%"
       }
     ],
     "submenus": [
@@ -758,6 +767,10 @@
         {
           "command": "gittree.rebase.row.showInLog",
           "when": "false"
+        },
+        {
+          "command": "gittree.commit.drop",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -795,6 +808,11 @@
           "command": "gittree.commitAmend",
           "when": "scmProvider == gittree",
           "group": "2_commit@1"
+        },
+        {
+          "command": "gittree.commit.undo",
+          "when": "scmProvider == gittree",
+          "group": "2_commit@4"
         },
         {
           "command": "gittree.cleanUntracked",
@@ -1155,6 +1173,16 @@
           "command": "gittree.rebase.interactive",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
           "group": "6_rewrite@1"
+        },
+        {
+          "command": "gittree.commit.undo",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@2"
+        },
+        {
+          "command": "gittree.commit.drop",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@3"
         },
         {
           "command": "gittree.rebase.row.resetAction",

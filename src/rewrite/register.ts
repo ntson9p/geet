@@ -9,6 +9,7 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { RebaseEngine } from './rebase/rebaseEngine';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
+import { UndoDropService } from './undoDrop';
 
 export function registerPhase05HistoryRewriting(
   context: vscode.ExtensionContext,
@@ -176,9 +177,43 @@ export function registerPhase05HistoryRewriting(
     if (typeof sha === 'string') rebaseView.resetRowAction(sha);
   });
 
+  // ---- T3: Undo Commit & Drop Commit ---------------------------------------
+  const undoDrop = new UndoDropService(core, (repo) => engines.get(canonicalKey(repo.root)));
+
+  const shaOf = (arg: unknown): string | undefined => {
+    if (typeof arg === 'object' && arg !== null && 'sha' in arg) {
+      const sha = (arg as { sha?: unknown }).sha;
+      if (typeof sha === 'string' && /^[0-9a-f]{7,64}$/i.test(sha)) return sha;
+    }
+    if (typeof arg === 'string' && /^[0-9a-f]{7,64}$/i.test(arg)) return arg;
+    return undefined;
+  };
+  register('gittree.commit.undo', async (arg) => {
+    const repo = logRepo();
+    if (!repo) return;
+    // HEAD only — from the log menu the handler validates the clicked sha.
+    const sha = shaOf(arg);
+    const head = repo.model.snapshot.headSha;
+    if (sha !== undefined && head !== undefined && !head.startsWith(sha)) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('Undo Commit only applies to the latest commit (HEAD). Use Drop Commit for older ones.'),
+      );
+      return;
+    }
+    await undoDrop.undoCommit(repo);
+  });
+  register('gittree.commit.drop', async (arg) => {
+    const repo = logRepo();
+    const sha = shaOf(arg);
+    if (repo && sha !== undefined) {
+      await undoDrop.dropCommit(repo, sha);
+    }
+  });
+
   core.debugRegistry.set('phase05', {
     getEngine: (repoRoot: string) => engines.get(canonicalKey(repoRoot)),
     getMonitor: (repoRoot: string) => monitors.get(canonicalKey(repoRoot)),
     rebaseView,
+    undoDrop,
   });
 }

@@ -1,20 +1,33 @@
 import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../../src/core/core';
 import type { SnapshotManifest } from '../../../src/localHistory/snapshotStore';
+import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RebaseEngine } from '../../../src/rewrite/rebase/rebaseEngine';
 import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseView';
 import type { RebasePausedEvent, RebaseStateMonitor } from '../../../src/rewrite/rebase/stateMonitor';
 import type { RebasePlan, RebasePlanEntry } from '../../../src/rewrite/rebase/planSerializer';
+import type { UndoDropService } from '../../../src/rewrite/undoDrop';
 import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
 
 interface Phase05RegistryShape {
   getEngine(repoRoot: string): RebaseEngine | undefined;
   getMonitor(repoRoot: string): RebaseStateMonitor | undefined;
   rebaseView: RebaseViewController;
+  undoDrop: UndoDropService;
+}
+interface Phase01Shape {
+  sourceControls: Map<string, { sc: { inputBox: { value: string } } }>;
+}
+interface Phase03Shape {
+  paradigm: { paradigm: string; switch(): Promise<void> };
+  changelistsFor(repo: RepoHandle): {
+    getLists(): Array<{ id: string; name: string; files: string[] }>;
+  };
 }
 interface Phase09RegistryShape {
   getStore(repoRoot: string): { list(): SnapshotManifest[] } | undefined;
@@ -41,14 +54,14 @@ suite('P5 history rewriting — rebase engine', () => {
    */
   const git = (...args: string[]): string => {
     let lastErr: unknown;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       try {
         return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
       } catch (err) {
         lastErr = err;
         const text = String(err);
         if (!/Permission denied|Another git process|unable to write/i.test(text)) throw err;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150 * (attempt + 1));
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 * (attempt + 1));
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -113,6 +126,22 @@ suite('P5 history rewriting — rebase engine', () => {
     fs.rmSync(abs('p5-dirty.txt'), { force: true });
     await repo.refresher.refreshNow();
   });
+
+  /** Bare repos hold read-only object files — clear the flag before rm. */
+  function rmrfGitDir(dir: string): void {
+    try {
+      for (const entry of fs.readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
+        try {
+          fs.chmodSync(path.join(dir, entry), 0o666);
+        } catch {
+          // directories / already gone
+        }
+      }
+    } catch {
+      // dir missing
+    }
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+  }
 
   /** Branch + base sha for one matrix case. */
   function onBranch(name: string): string {
@@ -366,6 +395,136 @@ suite('P5 history rewriting — rebase engine', () => {
     assert.deepStrictEqual(trees(base), [treeA, preHeadTree]);
 
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  });
+
+  test('T3: undo commit files paths into a named changelist and prefills the input', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    const p3 = core.debugRegistry.get('phase03') as Phase03Shape;
+    const p1 = core.debugRegistry.get('phase01') as Phase01Shape;
+    // The P3 suite leaves the window on the staging paradigm; undo's
+    // changelist filing is a changelists-paradigm behavior.
+    const originalParadigm = p3.paradigm.paradigm;
+    if (p3.paradigm.paradigm !== 'changelists') {
+      await p3.paradigm.switch();
+      await waitFor(() => p3.paradigm.paradigm === 'changelists', 10_000);
+    }
+
+    onBranch('undo');
+    write('p5undo-a.txt', 'alpha\n');
+    write('p5undo-b.txt', 'beta\n');
+    git('add', '--', 'p5undo-a.txt', 'p5undo-b.txt');
+    git('commit', '-m', 'Fix parser bug', '-m', 'details body');
+    const committed = git('rev-parse', 'HEAD').trim();
+    const parent = git('rev-parse', 'HEAD^').trim();
+    await repo.refresher.refreshNow();
+
+    try {
+      const result = await reg.undoDrop.undoCommit(repo);
+      assert.strictEqual(result.status, 'done');
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), parent, 'HEAD must move to the parent');
+
+      // Files are back as unstaged worktree changes (changelists paradigm).
+      const status = git('status', '--porcelain');
+      assert.ok(/\?\?\s+p5undo-a\.txt/.test(status), `expected untracked a: ${status}`);
+      assert.ok(/\?\?\s+p5undo-b\.txt/.test(status), `expected untracked b: ${status}`);
+
+      const list = p3.changelistsFor(repo).getLists().find((l) => l.name === 'Fix parser bug');
+      assert.ok(list, 'changelist named after the subject missing');
+      assert.deepStrictEqual([...list.files].sort(), ['p5undo-a.txt', 'p5undo-b.txt']);
+
+      const input = p1.sourceControls.get(canonicalKey(repoRoot))?.sc.inputBox;
+      assert.ok(input, 'input box missing');
+      assert.ok(input.value.includes('Fix parser bug'), `input: ${input.value}`);
+      assert.ok(input.value.includes('details body'), 'full message (body) must be restored');
+      assert.notStrictEqual(git('rev-parse', 'HEAD').trim(), committed);
+    } finally {
+      fs.rmSync(abs('p5undo-a.txt'), { force: true });
+      fs.rmSync(abs('p5undo-b.txt'), { force: true });
+      const input = p1.sourceControls.get(canonicalKey(repoRoot))?.sc.inputBox;
+      if (input) input.value = '';
+      if (p3.paradigm.paradigm !== originalParadigm) {
+        await p3.paradigm.switch();
+        await waitFor(() => p3.paradigm.paradigm === originalParadigm, 10_000);
+      }
+      await repo.refresher.refreshNow();
+    }
+  });
+
+  test('T3: drop of a mid commit preserves descendant content and is undoable in-session', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    const base = onBranch('dropcmd');
+    commit('p5a.txt', 'a1\n', 'A');
+    const b = commit('p5b.txt', 'b\n', 'B dropped');
+    write('p5a.txt', 'a2\n');
+    write('p5c.txt', 'c\n');
+    git('add', '--', 'p5a.txt', 'p5c.txt');
+    git('commit', '-m', 'C');
+    const preHead = git('rev-parse', 'HEAD').trim();
+    const preBlobA = git('rev-parse', 'HEAD:p5a.txt').trim();
+    const preBlobC = git('rev-parse', 'HEAD:p5c.txt').trim();
+
+    const result = await reg.undoDrop.dropCommit(repo, b);
+    assert.strictEqual(result.status, 'completed', 'stderr' in result ? result.stderr : undefined);
+    assert.deepStrictEqual(subjects(base), ['A', 'C']);
+    assert.ok(!fs.existsSync(abs('p5b.txt')), 'dropped file must be gone');
+    assert.strictEqual(git('rev-parse', 'HEAD:p5a.txt').trim(), preBlobA, 'descendant blob A changed');
+    assert.strictEqual(git('rev-parse', 'HEAD:p5c.txt').trim(), preBlobC, 'descendant blob C changed');
+
+    // In-session Undo (the toast action) restores the pre-drop head.
+    const undone = await reg.undoDrop.undoLastDrop(repo);
+    assert.strictEqual(undone, true);
+    assert.strictEqual(git('rev-parse', 'HEAD').trim(), preHead);
+    assert.deepStrictEqual(subjects(base), ['A', 'B dropped', 'C']);
+  });
+
+  test('T3: undo and drop refuse published commits unless forced', async function () {
+    this.timeout(90_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('published');
+    const a = commit('p5a.txt', 'a\n', 'A published');
+    commit('p5b.txt', 'b\n', 'B published');
+    const head = git('rev-parse', 'HEAD').trim();
+
+    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-remote-'));
+    execFileSync('git', ['init', '--bare', remoteDir]);
+    git('remote', 'add', 'p5origin', remoteDir);
+    try {
+      git('push', '-u', 'p5origin', 'p5/published');
+      await repo.refresher.refreshNow();
+
+      // Auto-decline the warn modal → both operations must refuse.
+      process.env['GITTREE_TEST_AUTOCONFIRM'] = '0';
+      const undoRefused = await reg.undoDrop.undoCommit(repo);
+      assert.strictEqual(undoRefused.status, 'refused-published');
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'refused undo must not move HEAD');
+      const dropRefused = await reg.undoDrop.dropCommit(repo, a);
+      assert.strictEqual(dropRefused.status, 'refused-published');
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'refused drop must not move HEAD');
+
+      // Forced (acknowledged modal) → the drop proceeds.
+      process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
+      const forced = await reg.undoDrop.dropCommit(repo, a);
+      assert.strictEqual(forced.status, 'completed', 'stderr' in forced ? forced.stderr : undefined);
+      assert.deepStrictEqual(
+        git('log', '--format=%s', '-1').trim(),
+        'B published',
+        'forced drop must remove the published commit',
+      );
+    } finally {
+      // The runner sets '1' globally — restore it, never delete.
+      process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
+      try {
+        git('remote', 'remove', 'p5origin');
+      } catch {
+        // best effort
+      }
+      rmrfGitDir(remoteDir);
+    }
   });
 
   test('pre-flight refuses ranges containing merge commits', async function () {

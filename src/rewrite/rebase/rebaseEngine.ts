@@ -91,6 +91,20 @@ export class RebaseEngine {
     );
   }
 
+  /**
+   * Drop Commit (P5-T3): background `git rebase --autostash --onto <sha>^
+   * <sha>` — replays everything above the commit onto its parent. No todo
+   * UI; conflicts land in the standard paused flow.
+   */
+  async dropOnto(sha: string): Promise<RebaseOutcome> {
+    return this.runStep(
+      vscode.l10n.t('Drop commit {0}', sha.slice(0, 7)),
+      SNAPSHOT_LABELS.rebaseStart,
+      ['rebase', '--autostash', '--onto', `${sha}^`, sha],
+      { GIT_EDITOR: 'true' },
+    );
+  }
+
   /** `git rebase --continue`; refuses while conflicted paths remain. */
   async continueRebase(): Promise<RebaseOutcome> {
     // Authoritative unmerged check straight from git — the model may lag a

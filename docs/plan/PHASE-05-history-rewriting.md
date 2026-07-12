@@ -76,11 +76,14 @@ Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,cont
 - **T2 (repo resolution):** `gittree.rebase.interactive` resolves its repo through the phase04 registry seam (the log view's current session), matching how P4's commit actions resolve theirs.
 - **T2 (keyboard):** alt+↑/↓, p/r/s/f/d and Enter/F2 are DOM-level handlers inside the webview (they only apply while the dialog has focus), so no `keybindings` contribution is required; `aria-grabbed` is retained as specified even though ARIA 1.1 deprecates it.
 - **T2 (squash editor):** squash rows open the inline editor immediately with the IntelliJ-style concatenated group prefill; leaving it unedited still squashes with that combined message (fixup remains the discard path).
+- **T3 (HEAD-only menu visibility):** VS Code menu when-clauses cannot inspect the clicked row's sha, so "Undo Commit" stays visible in the log context menu and its handler validates HEAD-ness (informing the user to use Drop Commit otherwise); the `scm/title` entry is inherently HEAD-scoped. Spec said "menu hidden otherwise" — not expressible without a per-row context key.
+- **T3 (refusal seam):** `confirmModal` gained a `GITTREE_TEST_AUTOCONFIRM=0` auto-decline branch so published-refusal paths are testable headlessly (the runner keeps `1` globally).
+- **T3 (authoritative HEAD):** undo/drop read HEAD via `rev-parse` rather than the model snapshot — CLI-created commits can be ahead of the debounced refresh (found by the drop-undo test resetting to a stale sha).
 
 ## Parity checklist (FEATURES.md §4 context-menu actions)
 - [x] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns
-- [ ] Undo Commit → changes back into a (new) changelist, message restored
+- [x] Undo Commit → changes back into a (new) changelist, message restored
 - [ ] Revert Commit (`git revert`, merge-aware)
 - [ ] Cherry-Pick with clean auto-commit and conflict sequencing
-- [ ] Drop Commit via background rebase
+- [x] Drop Commit via background rebase
 - [ ] Guard rails: published-history warnings, snapshots before every rewrite, force-with-lease flow
