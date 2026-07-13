@@ -11,6 +11,7 @@ import type { RebaseEngine } from '../../../src/rewrite/rebase/rebaseEngine';
 import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseView';
 import type { RebasePausedEvent, RebaseStateMonitor } from '../../../src/rewrite/rebase/stateMonitor';
 import type { RebasePlan, RebasePlanEntry } from '../../../src/rewrite/rebase/planSerializer';
+import type { RevertCherryPickService } from '../../../src/rewrite/revertCherryPick';
 import type { UndoDropService } from '../../../src/rewrite/undoDrop';
 import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
 
@@ -19,6 +20,7 @@ interface Phase05RegistryShape {
   getMonitor(repoRoot: string): RebaseStateMonitor | undefined;
   rebaseView: RebaseViewController;
   undoDrop: UndoDropService;
+  revertPick: RevertCherryPickService;
 }
 interface Phase01Shape {
   sourceControls: Map<string, { sc: { inputBox: { value: string } } }>;
@@ -48,20 +50,21 @@ suite('P5 history rewriting — rebase engine', () => {
   let p9: Phase09RegistryShape;
 
   /**
-   * Raw CLI with Windows lock-retries: ref writes can transiently collide
-   * with the extension's own background readers (EPERM on symref rename),
-   * exactly the AV/file-lock class git itself retries.
+   * Raw CLI with Windows lock-retries: ref writes can collide with the
+   * extension's background readers or AV scans holding `.git/HEAD` for
+   * seconds after heavy churn (EPERM on the symref rename) — the file-lock
+   * class the master plan calls out for Windows. Budget covers AV holds.
    */
   const git = (...args: string[]): string => {
     let lastErr: unknown;
-    for (let attempt = 0; attempt < 8; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       try {
         return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
       } catch (err) {
         lastErr = err;
         const text = String(err);
         if (!/Permission denied|Another git process|unable to write/i.test(text)) throw err;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 * (attempt + 1));
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400 * (attempt + 1));
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -125,6 +128,9 @@ suite('P5 history rewriting — rebase engine', () => {
     }
     fs.rmSync(abs('p5-dirty.txt'), { force: true });
     await repo.refresher.refreshNow();
+    // Let watcher-poked follow-up refreshes drain before the next test's
+    // checkout churn — less pressure on .git/HEAD.
+    await new Promise((r) => setTimeout(r, 300));
   });
 
   /** Bare repos hold read-only object files — clear the flag before rm. */
@@ -524,6 +530,97 @@ suite('P5 history rewriting — rebase engine', () => {
         // best effort
       }
       rmrfGitDir(remoteDir);
+    }
+  });
+
+  test('T4: revert of a merge commit uses -m 1 and undoes the merged branch', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('revmerge');
+    commit('p5m.txt', 'mainline\n', 'M base');
+    git('checkout', '-b', 'p5/revmerge-side');
+    commit('p5s.txt', 'side\n', 'S side');
+    write('p5m.txt', 'side changed\n');
+    git('add', '--', 'p5m.txt');
+    git('commit', '-m', 'S modifies m');
+    git('checkout', 'p5/revmerge');
+    git('merge', '--no-ff', '-m', 'M merge side', 'p5/revmerge-side');
+    const mergeSha = git('rev-parse', 'HEAD').trim();
+    await repo.refresher.refreshNow();
+
+    const outcome = await reg.revertPick.revert(repo, [mergeSha]);
+    assert.strictEqual(outcome.status, 'completed', outcome.stderr);
+    assert.strictEqual(outcome.newShas?.length, 1);
+    assert.ok(!fs.existsSync(abs('p5s.txt')), 'side-branch file must be undone');
+    assert.strictEqual(fs.readFileSync(abs('p5m.txt'), 'utf8'), 'mainline\n', 'mainline content restored');
+    assert.ok(
+      git('log', '--format=%s', '-1').trim().startsWith('Revert "M merge side"'),
+      'default revert message template must be preserved',
+    );
+  });
+
+  test('T4: multi-pick with a mid-sequence conflict → skip → completes the rest', async function () {
+    this.timeout(90_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    // Source branch: three picks, the middle one conflicting with the target.
+    onBranch('picksrc');
+    commit('p5conflict.txt', 'base\n', 'seed');
+    const seed = git('rev-parse', 'HEAD').trim();
+    const s1 = commit('p5f1.txt', 'f1\n', 'S1 clean');
+    write('p5conflict.txt', 'source\n');
+    git('add', '--', 'p5conflict.txt');
+    git('commit', '-m', 'S2 conflicts');
+    const s2 = git('rev-parse', 'HEAD').trim();
+    const s3 = commit('p5f3.txt', 'f3\n', 'S3 clean');
+
+    // Target diverges on the same file.
+    git('checkout', '-b', 'p5/picktarget', seed);
+    write('p5conflict.txt', 'target\n');
+    git('add', '--', 'p5conflict.txt');
+    git('commit', '-m', 'T1 target');
+    await repo.refresher.refreshNow();
+
+    const outcome = await reg.revertPick.cherryPick(repo, [s1, s2, s3]);
+    assert.strictEqual(outcome.status, 'paused', outcome.stderr);
+    assert.strictEqual(outcome.step, 2, 'paused at the 2nd of 3 picks');
+    assert.strictEqual(outcome.total, 3);
+    assert.ok(fs.existsSync(path.join(repo.dirs.gitDir, 'CHERRY_PICK_HEAD')), 'CHERRY_PICK_HEAD expected');
+
+    const done = await reg.revertPick.skipSequence(repo, 'cherry-pick');
+    assert.strictEqual(done.status, 'completed', done.stderr);
+    assert.deepStrictEqual(done.newShas?.length, 2, 'S1 and S3 picked, S2 skipped');
+    const log = git('log', '--format=%s', `${seed}..HEAD`);
+    assert.ok(log.includes('S1 clean') && log.includes('S3 clean'), `log: ${log}`);
+    assert.ok(!log.includes('S2 conflicts'), 'skipped commit must not appear');
+    assert.strictEqual(fs.readFileSync(abs('p5conflict.txt'), 'utf8'), 'target\n');
+    assert.ok(fs.existsSync(abs('p5f1.txt')) && fs.existsSync(abs('p5f3.txt')));
+  });
+
+  test('T4: recordOrigin setting adds the -x trailer', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('picksrc2');
+    commit('p5seed2.txt', 'seed\n', 'seed2');
+    const seed = git('rev-parse', 'HEAD').trim();
+    const src = commit('p5x.txt', 'x\n', 'X picked with origin');
+    git('checkout', '-b', 'p5/picktarget2', seed);
+    await repo.refresher.refreshNow();
+
+    const config = vscode.workspace.getConfiguration('gittree.cherryPick');
+    await config.update('recordOrigin', true, vscode.ConfigurationTarget.Global);
+    try {
+      const outcome = await reg.revertPick.cherryPick(repo, [src]);
+      assert.strictEqual(outcome.status, 'completed', outcome.stderr);
+      const body = git('log', '--format=%B', '-1');
+      assert.ok(
+        body.includes(`(cherry picked from commit ${src})`),
+        `-x trailer missing in: ${body}`,
+      );
+    } finally {
+      await config.update('recordOrigin', undefined, vscode.ConfigurationTarget.Global);
     }
   });
 

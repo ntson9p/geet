@@ -127,5 +127,8 @@
   "gittree.command.rebase.row.resetAction.title": "Reset Action to Pick",
   "gittree.command.rebase.row.showInLog.title": "Show Commit in Log",
   "gittree.command.commit.undo.title": "Undo Commit",
-  "gittree.command.commit.drop.title": "Drop Commit"
+  "gittree.command.commit.drop.title": "Drop Commit",
+  "gittree.command.commit.revert.title": "Revert Commit",
+  "gittree.command.commit.cherryPick.title": "Cherry-Pick Commit",
+  "gittree.config.cherryPick.recordOrigin.description": "Append the \"(cherry picked from commit …)\" trailer (-x) to cherry-picked commit messages."
 }

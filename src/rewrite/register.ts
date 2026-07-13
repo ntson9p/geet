@@ -9,6 +9,7 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { RebaseEngine } from './rebase/rebaseEngine';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
+import { RevertCherryPickService } from './revertCherryPick';
 import { UndoDropService } from './undoDrop';
 
 export function registerPhase05HistoryRewriting(
@@ -210,10 +211,49 @@ export function registerPhase05HistoryRewriting(
     }
   });
 
+  // ---- T4: Revert & Cherry-Pick ---------------------------------------------
+  const revertPick = new RevertCherryPickService(core);
+
+  /** {sha, shas} from the log webview, or a Compare view commit node. */
+  const shasOf = (arg: unknown): string[] => {
+    if (typeof arg === 'object' && arg !== null) {
+      const ctx = arg as { sha?: unknown; shas?: unknown; commit?: { sha?: unknown } };
+      if (Array.isArray(ctx.shas) && ctx.shas.length > 0) {
+        return ctx.shas.filter((s): s is string => typeof s === 'string');
+      }
+      if (typeof ctx.sha === 'string') return [ctx.sha];
+      if (typeof ctx.commit?.sha === 'string') return [ctx.commit.sha];
+    }
+    const single = shaOf(arg);
+    return single !== undefined ? [single] : [];
+  };
+  /** Compare-view invocations act on the compare session's repo. */
+  const repoForArg = (arg: unknown): RepoHandle | undefined => {
+    if (typeof arg === 'object' && arg !== null && 'commit' in arg) {
+      const p2 = core.debugRegistry.get('phase02') as
+        | { compare?: { provider?: { state?: { repo?: RepoHandle } } } }
+        | undefined;
+      const repo = p2?.compare?.provider?.state?.repo;
+      if (repo) return repo;
+    }
+    return logRepo();
+  };
+  register('gittree.commit.revert', async (arg) => {
+    const repo = repoForArg(arg);
+    const shas = shasOf(arg);
+    if (repo && shas.length > 0) await revertPick.revert(repo, shas);
+  });
+  register('gittree.commit.cherryPick', async (arg) => {
+    const repo = repoForArg(arg);
+    const shas = shasOf(arg);
+    if (repo && shas.length > 0) await revertPick.cherryPick(repo, shas);
+  });
+
   core.debugRegistry.set('phase05', {
     getEngine: (repoRoot: string) => engines.get(canonicalKey(repoRoot)),
     getMonitor: (repoRoot: string) => monitors.get(canonicalKey(repoRoot)),
     rebaseView,
     undoDrop,
+    revertPick,
   });
 }

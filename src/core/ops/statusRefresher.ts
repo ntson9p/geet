@@ -104,25 +104,23 @@ export class StatusRefresher implements Disposable {
   ): Promise<Partial<RepoSnapshot> | undefined> {
     const { repo, gitDir } = this.deps;
 
-    const statusResult = await git.exec(
-      repo,
-      ['status', '--porcelain=v2', '-z', '--branch', '--untracked-files=all'],
-      { structured: true, noOptionalLocks: true },
-    );
-    if (token.isCancellationRequested) return undefined;
-
-    const refsResult = await git.exec(
-      repo,
-      ['for-each-ref', `--format=${FOR_EACH_REF_FORMAT}`, ...FOR_EACH_REF_PATTERNS],
-      { structured: true, noOptionalLocks: true },
-    );
-    if (token.isCancellationRequested) return undefined;
-
-    const stashResult = await git.exec(repo, ['stash', 'list', `--format=${STASH_LIST_FORMAT}`], {
-      structured: true,
-      noOptionalLocks: true,
-      allowNonZeroExit: true, // empty/odd stash states must not fail the refresh
-    });
+    // Three independent read-only spawns — run concurrently so the refresh
+    // latency is the slowest of them, not their sum (P0-T6's <500ms budget).
+    const [statusResult, refsResult, stashResult] = await Promise.all([
+      git.exec(repo, ['status', '--porcelain=v2', '-z', '--branch', '--untracked-files=all'], {
+        structured: true,
+        noOptionalLocks: true,
+      }),
+      git.exec(repo, ['for-each-ref', `--format=${FOR_EACH_REF_FORMAT}`, ...FOR_EACH_REF_PATTERNS], {
+        structured: true,
+        noOptionalLocks: true,
+      }),
+      git.exec(repo, ['stash', 'list', `--format=${STASH_LIST_FORMAT}`], {
+        structured: true,
+        noOptionalLocks: true,
+        allowNonZeroExit: true, // empty/odd stash states must not fail the refresh
+      }),
+    ]);
     if (token.isCancellationRequested) return undefined;
 
     const { header, entries } = parseStatusV2(statusResult.stdout);

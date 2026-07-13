@@ -121,6 +121,11 @@
             ],
             "default": "ask",
             "description": "%gittree.config.smartCheckout.behavior.description%"
+          },
+          "gittree.cherryPick.recordOrigin": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.cherryPick.recordOrigin.description%"
           }
         }
       },
@@ -676,6 +681,14 @@
       {
         "command": "gittree.commit.drop",
         "title": "%gittree.command.commit.drop.title%"
+      },
+      {
+        "command": "gittree.commit.revert",
+        "title": "%gittree.command.commit.revert.title%"
+      },
+      {
+        "command": "gittree.commit.cherryPick",
+        "title": "%gittree.command.commit.cherryPick.title%"
       }
     ],
     "submenus": [
@@ -770,6 +783,14 @@
         },
         {
           "command": "gittree.commit.drop",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.revert",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.cherryPick",
           "when": "false"
         }
       ],
@@ -1131,6 +1152,11 @@
           "command": "gittree.branches.toggleFavorite",
           "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
           "group": "4_favorite@1"
+        },
+        {
+          "command": "gittree.commit.cherryPick",
+          "when": "view == gittree.compare && viewItem == compare:commit:left",
+          "group": "1_pick@1"
         }
       ],
       "webview/context": [
@@ -1183,6 +1209,16 @@
           "command": "gittree.commit.drop",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
           "group": "6_rewrite@3"
+        },
+        {
+          "command": "gittree.commit.revert",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@4"
+        },
+        {
+          "command": "gittree.commit.cherryPick",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@5"
         },
         {
           "command": "gittree.rebase.row.resetAction",

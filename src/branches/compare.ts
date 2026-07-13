@@ -46,7 +46,8 @@ export class CompareViewProvider implements vscode.TreeDataProvider<CompareNode>
     item.description = `${c.sha.slice(0, 7)} · ${c.author}`;
     item.tooltip = new Date(c.time * 1000).toLocaleString();
     item.iconPath = new vscode.ThemeIcon('git-commit');
-    item.contextValue = 'compare:commit';
+    // Side-suffixed so P5's cherry-pick shows only on the other branch's side.
+    item.contextValue = `compare:commit:${c.side}`;
     item.command = {
       command: 'gittree.compare.showCommit',
       title: vscode.l10n.t('Show Commit'),

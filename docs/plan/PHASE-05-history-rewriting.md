@@ -79,11 +79,16 @@ Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,cont
 - **T3 (HEAD-only menu visibility):** VS Code menu when-clauses cannot inspect the clicked row's sha, so "Undo Commit" stays visible in the log context menu and its handler validates HEAD-ness (informing the user to use Drop Commit otherwise); the `scm/title` entry is inherently HEAD-scoped. Spec said "menu hidden otherwise" — not expressible without a per-row context key.
 - **T3 (refusal seam):** `confirmModal` gained a `GITTREE_TEST_AUTOCONFIRM=0` auto-decline branch so published-refusal paths are testable headlessly (the runner keeps `1` globally).
 - **T3 (authoritative HEAD):** undo/drop read HEAD via `rev-parse` rather than the model snapshot — CLI-created commits can be ahead of the debounced refresh (found by the drop-undo test resetting to a stale sha).
+- **T4 (pause lifecycle commands):** the sequencer Continue/Skip/Abort live as service methods behind the interim pause toast; dedicated commands/views arrive with P6's conflict lifecycle per the contributions list. Step 1's "continue/abort commands" are therefore toast-actions in this phase.
+- **T4 (per-commit progress source):** `k/n` derives from `rev-list --count <preHead>..HEAD` + 1 — git does not reliably prune completed entries from `sequencer/todo` at stop time (observed 2 vs 3 remaining across identical runs), so the todo file cannot anchor progress.
+- **T4 (mixed multi-revert):** selections mixing merge and non-merge commits are refused with guidance — git applies `-m 1` to the whole revert invocation, which errors on the non-merges.
+- **T4 (Compare-view scope):** cherry-pick shows only on the *other* branch's rows via a side-suffixed contextValue (`compare:commit:left`) — picking commits already on HEAD's side is meaningless.
+- **T4 (P0 touch-up):** `StatusRefresher.readRepoState` now runs its three independent read-only spawns (status / for-each-ref / stash list) concurrently. The P5 suite's added runtime pushed the serial pipeline over P0-T6's <500 ms budget on a loaded host; parallelizing restores honest headroom without touching the budget.
 
 ## Parity checklist (FEATURES.md §4 context-menu actions)
 - [x] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns
 - [x] Undo Commit → changes back into a (new) changelist, message restored
-- [ ] Revert Commit (`git revert`, merge-aware)
-- [ ] Cherry-Pick with clean auto-commit and conflict sequencing
+- [x] Revert Commit (`git revert`, merge-aware)
+- [x] Cherry-Pick with clean auto-commit and conflict sequencing
 - [x] Drop Commit via background rebase
 - [ ] Guard rails: published-history warnings, snapshots before every rewrite, force-with-lease flow
