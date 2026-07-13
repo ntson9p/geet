@@ -86,6 +86,9 @@ Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,cont
 - **T4 (P0 touch-up):** `StatusRefresher.readRepoState` now runs its three independent read-only spawns (status / for-each-ref / stash list) concurrently. The P5 suite's added runtime pushed the serial pipeline over P0-T6's <500 ms budget on a loaded host; parallelizing restores honest headroom without touching the budget.
 - **T5 (HEAD reword mechanics):** message-only amend is `git commit --amend --only --no-verify -F -` (message over stdin) — `--only` without paths keeps staged changes out of the amend (asserted). Like P3-T5's amend it is not P9-destructive: the worktree is untouched and the old commit stays reflog-reachable.
 - **T5 (editor seam):** the untitled git-commit editor with Accept/Cancel CodeLenses resolves through `GITTREE_TEST_REWORD_MESSAGE` in tests — headless hosts cannot click CodeLenses.
+- **T6 (rewrite signal):** "after any successful rewrite" is the engine's `onDidCompleteRewrite` (interactive start/continue/skip + drop) plus explicit notifies on the amend-path rewrites (Undo Commit, HEAD reword); revert and cherry-pick are additive history, not rewrites, and never offer. The offered-set dedupes per (repo, upstream tip) so engine + command double-signals collapse to one toast.
+- **T6 (headless seams):** the offer toast is observable via `onDidOffer` and drivable via `GITTREE_TEST_PUSHSAFETY_CHOICE`; the stale-lease fetch-suggestion toast is asserted behaviorally (remote tip provably intact) since native toasts cannot be inspected in tests.
+- **T6 (stale-lease placement):** the fetch suggestion lives in P1's `syncOps.push` behind a `--force-with-lease` + `not-fast-forward` match, so every invocation path of `gittree.pushForceWithLease` benefits, not just the post-rewrite toast.
 
 ## Parity checklist (FEATURES.md §4 context-menu actions)
 - [x] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns
@@ -93,4 +96,4 @@ Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,cont
 - [x] Revert Commit (`git revert`, merge-aware)
 - [x] Cherry-Pick with clean auto-commit and conflict sequencing
 - [x] Drop Commit via background rebase
-- [ ] Guard rails: published-history warnings, snapshots before every rewrite, force-with-lease flow
+- [x] Guard rails: published-history warnings, snapshots before every rewrite, force-with-lease flow

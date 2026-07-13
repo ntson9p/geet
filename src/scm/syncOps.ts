@@ -64,6 +64,29 @@ export function registerSyncOps(
     try {
       await mutate(repo, vscode.l10n.t('Push'), ['push', ...extraArgs]);
     } catch (err) {
+      // P5-T6: a stale lease means the remote moved since our last fetch —
+      // never force through it; suggest fetching and re-inspecting instead.
+      if (
+        err instanceof GitError &&
+        err.kind === 'not-fast-forward' &&
+        extraArgs.some((a) => a.startsWith('--force-with-lease'))
+      ) {
+        const fetchAction = vscode.l10n.t('Fetch');
+        void vscode.window
+          .showErrorMessage(
+            vscode.l10n.t(
+              'Force-with-lease was refused: the remote moved since your last fetch. Fetch, inspect the new commits, then decide again.',
+            ),
+            fetchAction,
+          )
+          .then((choice) => {
+            if (choice === fetchAction) {
+              return vscode.commands.executeCommand('gittree.fetch', repo.root);
+            }
+            return undefined;
+          });
+        return;
+      }
       if (err instanceof GitError && err.kind === 'no-upstream') {
         const branch = repo.model.snapshot.headRef;
         const publish = vscode.l10n.t('Publish Branch');

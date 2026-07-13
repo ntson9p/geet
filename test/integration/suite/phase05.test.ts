@@ -11,6 +11,7 @@ import type { RebaseEngine } from '../../../src/rewrite/rebase/rebaseEngine';
 import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseView';
 import type { RebasePausedEvent, RebaseStateMonitor } from '../../../src/rewrite/rebase/stateMonitor';
 import type { RebasePlan, RebasePlanEntry } from '../../../src/rewrite/rebase/planSerializer';
+import type { PushSafetyService } from '../../../src/rewrite/pushSafety';
 import type { RevertCherryPickService } from '../../../src/rewrite/revertCherryPick';
 import type { RewordService } from '../../../src/rewrite/reword';
 import type { UndoDropService } from '../../../src/rewrite/undoDrop';
@@ -23,6 +24,7 @@ interface Phase05RegistryShape {
   undoDrop: UndoDropService;
   revertPick: RevertCherryPickService;
   reword: RewordService;
+  pushSafety: PushSafetyService;
 }
 interface Phase01Shape {
   sourceControls: Map<string, { sc: { inputBox: { value: string } } }>;
@@ -675,6 +677,112 @@ suite('P5 history rewriting — rebase engine', () => {
         // nothing staged
       }
       fs.rmSync(abs('p5staged.txt'), { force: true });
+    }
+  });
+
+  test('T6: rewrite on a published branch offers force-with-lease and it updates the remote', async function () {
+    this.timeout(90_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('pushsafety');
+    // Mid-history commit: its reword runs through the engine, whose
+    // completion event drives the push-safety offer.
+    const a = commit('p5a.txt', 'a\n', 'A to reword');
+    commit('p5b.txt', 'b\n', 'B');
+    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-lease-'));
+    execFileSync('git', ['init', '--bare', remoteDir]);
+    git('remote', 'add', 'p5safety', remoteDir);
+
+    const offers: string[] = [];
+    const sub = reg.pushSafety.onDidOffer((e) => offers.push(e.upstream));
+    process.env['GITTREE_TEST_PUSHSAFETY_CHOICE'] = 'push';
+    try {
+      git('push', '-u', 'p5safety', 'p5/pushsafety');
+      await repo.refresher.refreshNow();
+
+      // Rewrite a published commit (autoconfirm accepts the published modal).
+      process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'A reworded after publish';
+      const result = await reg.reword.reword(repo, a);
+      assert.strictEqual(result, 'done');
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+
+      // The engine fires the rewrite event → offer → seam chooses push.
+      await waitFor(() => offers.length > 0, 15_000);
+      assert.strictEqual(offers[0], 'p5safety/p5/pushsafety');
+      const localHead = git('rev-parse', 'HEAD').trim();
+      await waitFor(
+        () =>
+          execFileSync('git', ['rev-parse', 'refs/heads/p5/pushsafety'], {
+            cwd: remoteDir,
+            encoding: 'utf8',
+          }).trim() === localHead,
+        20_000,
+      );
+    } finally {
+      delete process.env['GITTREE_TEST_PUSHSAFETY_CHOICE'];
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      sub.dispose();
+      try {
+        git('remote', 'remove', 'p5safety');
+      } catch {
+        // best effort
+      }
+      rmrfGitDir(remoteDir);
+    }
+  });
+
+  test('T6: a stale lease refuses the force push and the remote stays intact', async function () {
+    this.timeout(90_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('stalelease');
+    commit('p5a.txt', 'a\n', 'A');
+    const b = commit('p5b.txt', 'b\n', 'B stale');
+    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-stale-'));
+    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-clone-'));
+    execFileSync('git', ['init', '--bare', remoteDir]);
+    git('remote', 'add', 'p5stale', remoteDir);
+    try {
+      git('push', '-u', 'p5stale', 'p5/stalelease');
+
+      // Someone else advances the remote after our last fetch…
+      execFileSync('git', ['clone', '--branch', 'p5/stalelease', remoteDir, path.join(cloneDir, 'c')]);
+      const c = path.join(cloneDir, 'c');
+      execFileSync('git', ['config', 'user.email', 't@t.dev'], { cwd: c });
+      execFileSync('git', ['config', 'user.name', 'T'], { cwd: c });
+      fs.writeFileSync(path.join(c, 'other.txt'), 'other\n');
+      execFileSync('git', ['add', '.'], { cwd: c });
+      execFileSync('git', ['commit', '-m', 'remote moved'], { cwd: c });
+      execFileSync('git', ['push'], { cwd: c });
+      const remoteTip = execFileSync('git', ['rev-parse', 'refs/heads/p5/stalelease'], {
+        cwd: remoteDir,
+        encoding: 'utf8',
+      }).trim();
+
+      // …meanwhile we rewrite locally and force-with-lease against stale info.
+      process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'B reworded stale';
+      const result = await reg.reword.reword(repo, b);
+      assert.strictEqual(result, 'done');
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+
+      await vscode.commands.executeCommand('gittree.pushForceWithLease', repo.root);
+
+      // The lease must refuse: remote tip unchanged, no crash surfaced.
+      const after = execFileSync('git', ['rev-parse', 'refs/heads/p5/stalelease'], {
+        cwd: remoteDir,
+        encoding: 'utf8',
+      }).trim();
+      assert.strictEqual(after, remoteTip, 'stale lease must not overwrite the remote');
+      assert.notStrictEqual(after, git('rev-parse', 'HEAD').trim());
+    } finally {
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      try {
+        git('remote', 'remove', 'p5stale');
+      } catch {
+        // best effort
+      }
+      rmrfGitDir(remoteDir);
+      rmrfGitDir(cloneDir);
     }
   });
 

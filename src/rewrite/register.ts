@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { resolveShimDir } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
+import { PushSafetyService } from './pushSafety';
 import { RebaseEngine } from './rebase/rebaseEngine';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
@@ -21,6 +22,9 @@ export function registerPhase05HistoryRewriting(
   const shimDir = resolveShimDir(context);
   const engines = new Map<string, RebaseEngine>();
   const monitors = new Map<string, RebaseStateMonitor>();
+  // T6: one-time force-with-lease offer after successful rewrites.
+  const pushSafety = new PushSafetyService(core);
+  context.subscriptions.push(pushSafety);
 
   const updateContextKey = (): void => {
     const active = core.repos.some((r) => monitors.get(canonicalKey(r.root))?.isRebasing === true);
@@ -36,6 +40,7 @@ export function registerPhase05HistoryRewriting(
     monitors.set(key, monitor);
     repo.disposables.add(engine);
     repo.disposables.add(monitor);
+    repo.disposables.add(engine.onDidCompleteRewrite(() => void pushSafety.maybeOffer(repo)));
     repo.disposables.add({
       dispose: () => {
         engines.delete(key);
@@ -202,7 +207,8 @@ export function registerPhase05HistoryRewriting(
       );
       return;
     }
-    await undoDrop.undoCommit(repo);
+    const result = await undoDrop.undoCommit(repo);
+    if (result.status === 'done') void pushSafety.maybeOffer(repo);
   });
   register('gittree.commit.drop', async (arg) => {
     const repo = logRepo();
@@ -257,7 +263,10 @@ export function registerPhase05HistoryRewriting(
     const repo = logRepo();
     const sha = shaOf(arg);
     if (repo && sha !== undefined) {
-      await reword.reword(repo, sha);
+      const result = await reword.reword(repo, sha);
+      // HEAD rewords bypass the engine; mid-history ones fire its event and
+      // the offered-set dedupes the double call.
+      if (result === 'done') void pushSafety.maybeOffer(repo);
     }
   });
 
@@ -268,5 +277,6 @@ export function registerPhase05HistoryRewriting(
     undoDrop,
     revertPick,
     reword,
+    pushSafety,
   });
 }

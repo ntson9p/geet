@@ -126,6 +126,15 @@
             "type": "boolean",
             "default": false,
             "description": "%gittree.config.cherryPick.recordOrigin.description%"
+          },
+          "gittree.pushSafety.afterRewrite": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "never"
+            ],
+            "default": "ask",
+            "description": "%gittree.config.pushSafety.afterRewrite.description%"
           }
         }
       },

@@ -9,6 +9,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../core/core';
+import { Emitter, type Event } from '../../core/util/events';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import { serializePlan, type RebasePlan } from './planSerializer';
 
@@ -33,6 +34,9 @@ function toPosix(p: string): string {
 export class RebaseEngine {
   /** Message files must outlive `start()` — exec lines read them later. */
   private sessionTmpDir: string | undefined;
+  /** Fires when any rebase-family rewrite finishes successfully (P5-T6). */
+  private readonly _onDidCompleteRewrite = new Emitter<void>();
+  readonly onDidCompleteRewrite: Event<void> = this._onDidCompleteRewrite.event;
 
   constructor(
     private readonly repo: RepoHandle,
@@ -178,6 +182,7 @@ export class RebaseEngine {
     });
     if (result.exitCode === 0) {
       this.disposeSessionTmp();
+      this._onDidCompleteRewrite.fire();
       return { status: 'completed' };
     }
     if (this.isRebaseInProgress()) {
@@ -209,5 +214,6 @@ export class RebaseEngine {
 
   dispose(): void {
     this.disposeSessionTmp();
+    this._onDidCompleteRewrite.dispose();
   }
 }
