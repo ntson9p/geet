@@ -84,6 +84,8 @@ Webview panel `gittree.rebaseEditor`; commands `gittree.rebase.{interactive,cont
 - **T4 (mixed multi-revert):** selections mixing merge and non-merge commits are refused with guidance — git applies `-m 1` to the whole revert invocation, which errors on the non-merges.
 - **T4 (Compare-view scope):** cherry-pick shows only on the *other* branch's rows via a side-suffixed contextValue (`compare:commit:left`) — picking commits already on HEAD's side is meaningless.
 - **T4 (P0 touch-up):** `StatusRefresher.readRepoState` now runs its three independent read-only spawns (status / for-each-ref / stash list) concurrently. The P5 suite's added runtime pushed the serial pipeline over P0-T6's <500 ms budget on a loaded host; parallelizing restores honest headroom without touching the budget.
+- **T5 (HEAD reword mechanics):** message-only amend is `git commit --amend --only --no-verify -F -` (message over stdin) — `--only` without paths keeps staged changes out of the amend (asserted). Like P3-T5's amend it is not P9-destructive: the worktree is untouched and the old commit stays reflog-reachable.
+- **T5 (editor seam):** the untitled git-commit editor with Accept/Cancel CodeLenses resolves through `GITTREE_TEST_REWORD_MESSAGE` in tests — headless hosts cannot click CodeLenses.
 
 ## Parity checklist (FEATURES.md §4 context-menu actions)
 - [x] Interactive rebase: drag-and-drop reorder + Pick/Squash/Reword/Fixup/Drop dropdowns

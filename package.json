@@ -689,6 +689,18 @@
       {
         "command": "gittree.commit.cherryPick",
         "title": "%gittree.command.commit.cherryPick.title%"
+      },
+      {
+        "command": "gittree.commit.reword",
+        "title": "%gittree.command.commit.reword.title%"
+      },
+      {
+        "command": "gittree.reword.accept",
+        "title": "%gittree.command.reword.accept.title%"
+      },
+      {
+        "command": "gittree.reword.cancel",
+        "title": "%gittree.command.reword.cancel.title%"
       }
     ],
     "submenus": [
@@ -791,6 +803,18 @@
         },
         {
           "command": "gittree.commit.cherryPick",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.reword",
+          "when": "false"
+        },
+        {
+          "command": "gittree.reword.accept",
+          "when": "false"
+        },
+        {
+          "command": "gittree.reword.cancel",
           "when": "false"
         }
       ],
@@ -1219,6 +1243,11 @@
           "command": "gittree.commit.cherryPick",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
           "group": "6_rewrite@5"
+        },
+        {
+          "command": "gittree.commit.reword",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@6"
         },
         {
           "command": "gittree.rebase.row.resetAction",

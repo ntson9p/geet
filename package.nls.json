@@ -130,5 +130,8 @@
   "gittree.command.commit.drop.title": "Drop Commit",
   "gittree.command.commit.revert.title": "Revert Commit",
   "gittree.command.commit.cherryPick.title": "Cherry-Pick Commit",
+  "gittree.command.commit.reword.title": "Edit Commit Message…",
+  "gittree.command.reword.accept.title": "Accept: Rewrite Commit Message",
+  "gittree.command.reword.cancel.title": "Cancel Reword",
   "gittree.config.cherryPick.recordOrigin.description": "Append the \"(cherry picked from commit …)\" trailer (-x) to cherry-picked commit messages."
 }

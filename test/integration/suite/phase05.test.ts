@@ -12,6 +12,7 @@ import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseVie
 import type { RebasePausedEvent, RebaseStateMonitor } from '../../../src/rewrite/rebase/stateMonitor';
 import type { RebasePlan, RebasePlanEntry } from '../../../src/rewrite/rebase/planSerializer';
 import type { RevertCherryPickService } from '../../../src/rewrite/revertCherryPick';
+import type { RewordService } from '../../../src/rewrite/reword';
 import type { UndoDropService } from '../../../src/rewrite/undoDrop';
 import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
 
@@ -21,6 +22,7 @@ interface Phase05RegistryShape {
   rebaseView: RebaseViewController;
   undoDrop: UndoDropService;
   revertPick: RevertCherryPickService;
+  reword: RewordService;
 }
 interface Phase01Shape {
   sourceControls: Map<string, { sc: { inputBox: { value: string } } }>;
@@ -621,6 +623,58 @@ suite('P5 history rewriting — rebase engine', () => {
       );
     } finally {
       await config.update('recordOrigin', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test('T5: reword mid-history rewrites only messages (tree ids unchanged across the range)', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    const base = onBranch('reword2');
+    commit('p5a.txt', 'a\n', 'A');
+    const b = commit('p5b.txt', 'b\n', 'B original');
+    commit('p5c.txt', 'c\n', 'C');
+    const preTrees = trees(base);
+
+    process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'B message rewritten\n\nwith a new body';
+    try {
+      const result = await reg.reword.reword(repo, b);
+      assert.strictEqual(result, 'done');
+    } finally {
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+    }
+    assert.deepStrictEqual(subjects(base), ['A', 'B message rewritten', 'C']);
+    assert.ok(git('log', '--format=%B', '-1', 'HEAD^').includes('with a new body'));
+    assert.deepStrictEqual(trees(base), preTrees, 'reword must not change any tree in the range');
+  });
+
+  test('T5: reword of HEAD amends the message only — staged changes stay staged', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('rewordhead');
+    const head = commit('p5a.txt', 'a\n', 'A head original');
+    const preTree = git('rev-parse', 'HEAD^{tree}').trim();
+    // A staged-but-uncommitted file must NOT be swept into the amend.
+    write('p5staged.txt', 'staged only\n');
+    git('add', '--', 'p5staged.txt');
+
+    process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'A head reworded';
+    try {
+      const result = await reg.reword.reword(repo, head);
+      assert.strictEqual(result, 'done');
+      assert.strictEqual(git('log', '--format=%s', '-1').trim(), 'A head reworded');
+      assert.strictEqual(git('rev-parse', 'HEAD^{tree}').trim(), preTree, 'tree must be untouched');
+      const status = git('status', '--porcelain');
+      assert.ok(/^A\s+p5staged\.txt/m.test(status), `staged file must remain staged: ${status}`);
+    } finally {
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      try {
+        git('reset', '--', 'p5staged.txt');
+      } catch {
+        // nothing staged
+      }
+      fs.rmSync(abs('p5staged.txt'), { force: true });
     }
   });
 

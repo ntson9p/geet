@@ -10,6 +10,7 @@ import { RebaseEngine } from './rebase/rebaseEngine';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
 import { RevertCherryPickService } from './revertCherryPick';
+import { RewordService } from './reword';
 import { UndoDropService } from './undoDrop';
 
 export function registerPhase05HistoryRewriting(
@@ -249,11 +250,23 @@ export function registerPhase05HistoryRewriting(
     if (repo && shas.length > 0) await revertPick.cherryPick(repo, shas);
   });
 
+  // ---- T5: Reword from log --------------------------------------------------
+  const reword = new RewordService((repo) => engines.get(canonicalKey(repo.root)));
+  context.subscriptions.push(reword);
+  register('gittree.commit.reword', async (arg) => {
+    const repo = logRepo();
+    const sha = shaOf(arg);
+    if (repo && sha !== undefined) {
+      await reword.reword(repo, sha);
+    }
+  });
+
   core.debugRegistry.set('phase05', {
     getEngine: (repoRoot: string) => engines.get(canonicalKey(repoRoot)),
     getMonitor: (repoRoot: string) => monitors.get(canonicalKey(repoRoot)),
     rebaseView,
     undoDrop,
     revertPick,
+    reword,
   });
 }
