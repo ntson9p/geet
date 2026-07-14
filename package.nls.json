@@ -150,5 +150,14 @@
   "gittree.config.merge.title": "GitTree Merge",
   "gittree.config.merge.resultMode.description": "Where the center Result pane lives during a 3-pane merge.",
   "gittree.config.merge.resultMode.virtual": "A virtual result document — the conflicted file on disk stays untouched until Apply.",
-  "gittree.config.merge.resultMode.markers": "Edit the real conflicted file in place (fallback for language servers that require on-disk files)."
+  "gittree.config.merge.resultMode.markers": "Edit the real conflicted file in place (fallback for language servers that require on-disk files).",
+  "gittree.command.merge.acceptYours.title": "Accept Yours (Block)",
+  "gittree.command.merge.acceptTheirs.title": "Accept Theirs (Block)",
+  "gittree.command.merge.acceptBoth.title": "Accept Both (Yours First)",
+  "gittree.command.merge.ignoreBlock.title": "Ignore Conflict (Keep Base)",
+  "gittree.command.merge.revertBlock.title": "Revert Conflict Block",
+  "gittree.command.merge.acceptFocusedSide.title": "Accept Side at Cursor",
+  "gittree.command.merge.acceptFileYours.title": "Accept All Yours (File)",
+  "gittree.command.merge.acceptFileTheirs.title": "Accept All Theirs (File)",
+  "gittree.command.merge.abortFile.title": "Abort File Merge"
 }

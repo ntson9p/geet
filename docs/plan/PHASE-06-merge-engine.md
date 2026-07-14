@@ -99,12 +99,17 @@ View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs
 - **T3 (pane titles):** tab labels are not settable for provider-backed documents; the pane role is baked into the side documents' URI *path* (`f (Yours).ts` — extension kept last so language detection still works) while the provider reads only the URI query.
 - **T3 (close prompt):** both prompt choices currently behave identically (nothing is ever written to the worktree before Apply, so "Abort File" has nothing extra to discard); dirty result documents are reverted before their tabs close so no save dialog can block a headless host. `GITTREE_TEST_TRIEDITOR_CLOSE` seeds the choice.
 - **T3 (Apply lands early):** `gittree.merge.apply` ships in T3 because T3's acceptance requires the Apply write+add path; T4 adds the CodeLens/editor-title surfaces on top of the same `TriMergeEditor.apply()`/`applyBlockResolution()` primitives.
+- **T4 (file-level accept-all names):** the result-doc editor-title accept-alls are `gittree.merge.acceptFile{Yours,Theirs}` — `acceptAllYours/acceptAllTheirs` were taken by T1's session-level (all files) view-title actions, and the two operate at different scopes.
+- **T4 (Ignore = manual-with-base):** §8 has no `base` resolution value, so "Ignore (keep base)" resolves the block as `manual` with `resolvedLines = base` — text is already base, nothing is edited, and the serializer/reconciliation treat it uniformly.
+- **T4 (undo semantics):** undo works through the document's own undo stack; the reconciliation pass classifies the block's post-undo region text back to base/ours/theirs/both (base → *unresolved*), rather than tracking a parallel resolution-history — one source of truth, asserted by the undo e2e.
+- **T4 (editor-title scope):** the title-bar actions contribute against `resourceScheme == gittree-merge`; in `markers` resultMode (center = real file) the same commands remain reachable via palette, keybindings and CodeLenses — a `file`-scheme title contribution would leak onto every editor.
+- **T4 (P3-T6 scaffold fix):** the template test's `git config` writes rewrite `.git/config` via rename-over, which needs delete-share on the target and lost to AV/indexer readers under the grown suite's load even across a 20 s retry budget; the test now edits the config file in place with fs (append + restore), which needs no rename.
 
 ## Parity checklist (FEATURES.md §5)
 - [x] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file
 - [x] 3-pane window: Left = yours, Right = theirs, Center = result being built
 - [ ] Magic Wand resolves all simple (non-overlapping) conflicts in one click
-- [ ] Chevron `≫`/`≪` per-conflict pulls from either side into the center
+- [x] Chevron `≫`/`≪` per-conflict pulls from either side into the center
+- [x] Accept Left / Accept Right global overwrite buttons
 - [x] Center pane is a full editor: syntax highlighting **and working autocompletion**, free manual rewriting
-- [ ] Accept Left / Accept Right global overwrite buttons
 - [ ] Resolution feeds back into the originating operation (merge/rebase/cherry-pick/… continues)

@@ -259,6 +259,85 @@ suite('P6 merge engine — conflict sessions & view', () => {
     await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
   });
 
+  test('T4: chevron commands, ignore/revert, undo reconciliation, blocked Apply', async function () {
+    this.timeout(120_000);
+    const session = await buildTwoBlockConflict('chev', 'p6chev.txt');
+    const node = { session, path: 'p6chev.txt', kind: 'both-modified' as const };
+    await vscode.commands.executeCommand('gittree.merge.open', node);
+    const tri = reg.triEditors.get(repoRoot, 'p6chev.txt');
+    assert.ok(tri, 'tri-editor must open');
+    const b0 = tri.blocks[0]!.block.id;
+    const b1 = tri.blocks[1]!.block.id;
+    const centerUri = makeMergeUri(repoRoot, 'p6chev.txt');
+
+    // CodeLenses: center offers Accept Both / Ignore per unresolved block,
+    // the side panes offer their chevrons.
+    let centerTitles: string[] = [];
+    await waitFor(() => {
+      void vscode.commands
+        .executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', centerUri)
+        .then((ls) => {
+          centerTitles = ls.map((l) => l.command?.title ?? '');
+        });
+      return centerTitles.includes('Accept Both (Yours First)');
+    }, 10_000);
+    assert.ok(centerTitles.includes('Ignore (Keep Base)'), `center lenses: ${centerTitles.join(',')}`);
+    const leftEd = vscode.window.visibleTextEditors.find(
+      (e) => e.document.uri.scheme === 'gittree-rev' && e.document.uri.path.includes('(Yours)'),
+    );
+    assert.ok(leftEd, 'left pane expected');
+    const leftLenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      'vscode.executeCodeLensProvider',
+      leftEd.document.uri,
+    );
+    assert.ok(
+      leftLenses.some((l) => l.command?.command === 'gittree.merge.acceptYours'),
+      'left pane must offer Accept Yours ≫',
+    );
+
+    // Accept Both on block 0 → ours then theirs.
+    await vscode.commands.executeCommand('gittree.merge.acceptBoth', repoRoot, 'p6chev.txt', b0);
+    assert.strictEqual(tri.resultText(), 'a\nB1\nB2\nc\nd\ne\n');
+    assert.strictEqual(tri.blocks[0]!.block.resolution, 'both');
+
+    // Undo restores base text AND the unresolved state (reconciliation).
+    const centerDoc = await vscode.workspace.openTextDocument(centerUri);
+    await vscode.window.showTextDocument(centerDoc, { viewColumn: vscode.ViewColumn.Two });
+    await vscode.commands.executeCommand('undo');
+    await waitFor(() => tri.resultText() === 'a\nb\nc\nd\ne\n', 5_000);
+    assert.strictEqual(tri.blocks[0]!.block.resolution, undefined, 'undo → unresolved again');
+
+    // Ignore keeps base but resolves the block.
+    await vscode.commands.executeCommand('gittree.merge.ignoreBlock', repoRoot, 'p6chev.txt', b0);
+    assert.strictEqual(tri.blocks[0]!.block.resolution, 'manual');
+    assert.strictEqual(tri.resultText(), 'a\nb\nc\nd\ne\n');
+
+    // Apply is blocked while block 1 is unresolved — and jumps to it.
+    assert.strictEqual(await tri.apply(), false);
+    const centerEd = vscode.window.visibleTextEditors.find(
+      (e) => e.document.uri.toString() === centerUri.toString(),
+    );
+    assert.ok(centerEd, 'center editor expected');
+    assert.strictEqual(centerEd.selection.active.line, tri.blocks[1]!.startLine, 'jumped to first conflict');
+
+    // Chevron theirs, revert it, then file-level Accept All Theirs.
+    await vscode.commands.executeCommand('gittree.merge.acceptTheirs', repoRoot, 'p6chev.txt', b1);
+    assert.strictEqual(tri.resultText(), 'a\nb\nc\nD2\ne\n');
+    await vscode.commands.executeCommand('gittree.merge.revertBlock', repoRoot, 'p6chev.txt', b1);
+    assert.strictEqual(tri.blocks[1]!.block.resolution, undefined);
+    assert.strictEqual(tri.resultText(), 'a\nb\nc\nd\ne\n');
+    await vscode.commands.executeCommand('gittree.merge.acceptFileTheirs');
+    assert.strictEqual(tri.resultText(), 'a\nb\nc\nD2\ne\n');
+    assert.strictEqual(tri.blocks[0]!.block.resolution, 'manual', 'ignored block untouched by accept-all');
+
+    // Apply now succeeds and the merge completes.
+    assert.strictEqual(await tri.apply(), true);
+    assert.strictEqual(fs.readFileSync(abs('p6chev.txt'), 'utf8'), 'a\nb\nc\nD2\ne\n');
+    await waitFor(() => session.remaining === 0, 10_000);
+    assert.strictEqual(await session.continueOp(), true);
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+  });
+
   test('T3: center pane serves TypeScript completions (resultMode: markers)', async function () {
     this.timeout(120_000);
     const config = vscode.workspace.getConfiguration('gittree.merge');

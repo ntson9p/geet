@@ -321,14 +321,22 @@ suite('P3 commit lifecycle', () => {
       'second commit missing from history',
     );
 
-    // Template prefill.
+    // Template prefill. The config edit is written in place with fs — `git
+    // config` rewrites via rename-over, which needs delete-share on
+    // .git/config and loses to AV/indexer readers under suite load (EPERM
+    // even across a 20s retry budget); append/truncate-in-place does not.
     write('.gittemplate', 'PROJ-000: \n# comment line\n');
-    git('config', 'commit.template', '.gittemplate');
-    scmInput.value = '';
-    await reg.history.applyTemplate(repo, scmInput);
-    assert.strictEqual(scmInput.value, 'PROJ-000: ');
-    git('config', '--unset', 'commit.template');
-    scmInput.value = '';
+    const cfgPath = path.join(repo.dirs.gitDir, 'config');
+    const originalCfg = fs.readFileSync(cfgPath, 'utf8');
+    fs.appendFileSync(cfgPath, '\n[commit]\n\ttemplate = .gittemplate\n');
+    try {
+      scmInput.value = '';
+      await reg.history.applyTemplate(repo, scmInput);
+      assert.strictEqual(scmInput.value, 'PROJ-000: ');
+    } finally {
+      fs.writeFileSync(cfgPath, originalCfg);
+      scmInput.value = '';
+    }
   });
 
   test('T5: amend toggle loads previous message and rewrites HEAD', async function () {

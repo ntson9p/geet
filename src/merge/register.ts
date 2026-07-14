@@ -11,6 +11,7 @@ import { confirmModal } from '../ui/confirm';
 import { ConflictSession, isSpecialConflict, type ConflictSource } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
 import { MergeComputer, type MergeExec } from './mergeCompute';
+import { registerResolutionActions } from './resolutionActions';
 import { TriEditorManager } from './triEditor';
 
 export function registerPhase06MergeEngine(context: vscode.ExtensionContext, core: Core): void {
@@ -23,6 +24,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   );
   const triEditors = new TriEditorManager(mergeFs);
   context.subscriptions.push(triEditors);
+  registerResolutionActions(context, triEditors);
   const view = vscode.window.createTreeView('gittree.conflicts', {
     treeDataProvider: viewProvider,
   });

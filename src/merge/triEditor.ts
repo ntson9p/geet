@@ -173,6 +173,7 @@ export class TriMergeEditor {
   private onCenterEdit(e: vscode.TextDocumentChangeEvent): void {
     if (e.document.uri.toString() !== this.centerUri.toString()) return;
     if (this.selfEdit || e.contentChanges.length === 0) return;
+    const touched = new Set<TrackedBlock>();
     for (const change of e.contentChanges) {
       const delta =
         splitKeepEol(change.text).filter((l) => l.endsWith('\n')).length -
@@ -182,15 +183,40 @@ export class TriMergeEditor {
           tracked.startLine += delta;
           tracked.endLine += delta;
         } else if (change.range.start.line < tracked.endLine) {
-          // Intersects the block region → the user rewrote it by hand.
+          // Intersects the block region — reconcile below.
           tracked.endLine = Math.max(tracked.startLine, tracked.endLine + delta);
-          tracked.block.resolution = 'manual';
+          touched.add(tracked);
         }
         // Entirely after the block: nothing moves.
       }
     }
+    // Reconciliation (undo restores prior state): classify the region's text
+    // back to a known resolution instead of blindly calling it manual.
+    for (const tracked of touched) this.reconcileBlock(tracked);
     this.paint();
     this._onDidChangeState.fire();
+  }
+
+  /** Compare a block's live region against its known side texts. */
+  private reconcileBlock(tracked: TrackedBlock): void {
+    const b = tracked.block;
+    const text = this.centerDoc.getText(
+      new vscode.Range(tracked.startLine, 0, tracked.endLine, 0),
+    );
+    const joined = (lines: string[]): string => lines.join('');
+    if (text === joined(b.base)) {
+      b.resolution = undefined; // undo of a chevron → back to unresolved
+      b.resolvedLines = undefined;
+    } else if (text === joined(b.ours)) {
+      b.resolution = 'ours';
+    } else if (text === joined(b.theirs)) {
+      b.resolution = 'theirs';
+    } else if (text === joined([...b.ours, ...b.theirs])) {
+      b.resolution = 'both';
+    } else {
+      b.resolution = 'manual';
+      b.resolvedLines = splitKeepEol(text);
+    }
   }
 
   /** Chevron primitive (T4 puts CodeLenses on it): resolve one block. */
@@ -224,6 +250,66 @@ export class TriMergeEditor {
     b.resolution = side;
     this.paint();
     this._onDidChangeState.fire();
+  }
+
+  /** "Ignore (keep base)": resolves the block without changing its text. */
+  ignoreBlock(blockId: number): void {
+    const tracked = this.blocks.find((t) => t.block.id === blockId);
+    if (!tracked) return;
+    tracked.block.resolution = 'manual';
+    tracked.block.resolvedLines = [...tracked.block.base];
+    this.paint();
+    this._onDidChangeState.fire();
+  }
+
+  /** Revert Block: back to base text and the unresolved state. */
+  async revertBlock(blockId: number): Promise<void> {
+    const tracked = this.blocks.find((t) => t.block.id === blockId);
+    if (!tracked) return;
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      this.centerUri,
+      new vscode.Range(tracked.startLine, 0, tracked.endLine, 0),
+      tracked.block.base.join(''),
+    );
+    this.selfEdit = true;
+    try {
+      await vscode.workspace.applyEdit(edit);
+    } finally {
+      this.selfEdit = false;
+    }
+    const shift = tracked.block.base.length - (tracked.endLine - tracked.startLine);
+    const oldEnd = tracked.endLine;
+    tracked.endLine = tracked.startLine + tracked.block.base.length;
+    for (const other of this.blocks) {
+      if (other !== tracked && other.startLine >= oldEnd) {
+        other.startLine += shift;
+        other.endLine += shift;
+      }
+    }
+    tracked.block.resolution = undefined;
+    tracked.block.resolvedLines = undefined;
+    this.paint();
+    this._onDidChangeState.fire();
+  }
+
+  /** The block whose region in `pane` contains (or starts at) `line`. */
+  blockAt(pane: 'left' | 'center' | 'right', line: number): TrackedBlock | undefined {
+    for (const t of this.blocks) {
+      const start = this.anchorLine(t, pane);
+      const len =
+        pane === 'left'
+          ? t.block.ours.length
+          : pane === 'right'
+            ? t.block.theirs.length
+            : t.endLine - t.startLine;
+      if (len === 0) {
+        if (line === start) return t;
+        continue;
+      }
+      if (line >= start && line < start + len) return t;
+    }
+    return undefined;
   }
 
   // ---- rendering ---------------------------------------------------------------
@@ -502,6 +588,9 @@ export class TriEditorManager implements vscode.Disposable {
   private readonly open = new Map<string, TriMergeEditor>();
   private readonly statusBar: vscode.StatusBarItem;
   readonly decorations: TriEditorDecorations;
+  private readonly _onDidChangeState = new vscode.EventEmitter<void>();
+  /** Any open tri-editor changed (open/close/resolution) — CodeLens refresh. */
+  readonly onDidChangeState = this._onDidChangeState.event;
 
   constructor(private readonly mergeFs: MergeFsProvider) {
     this.decorations = createTriEditorDecorations();
@@ -547,10 +636,24 @@ export class TriEditorManager implements vscode.Disposable {
     editor.onDidClose(() => {
       this.open.delete(key);
       this.refreshUi();
+      this._onDidChangeState.fire();
     });
-    editor.onDidChangeState(() => this.refreshUi());
+    editor.onDidChangeState(() => {
+      this.refreshUi();
+      this._onDidChangeState.fire();
+    });
     this.refreshUi();
+    this._onDidChangeState.fire();
     return editor;
+  }
+
+  /** The tri-editor owning `uri` as one of its panes. */
+  owner(uri: vscode.Uri): { editor: TriMergeEditor; pane: 'left' | 'center' | 'right' } | undefined {
+    for (const t of this.open.values()) {
+      const pane = t.paneOf(uri);
+      if (pane) return { editor: t, pane };
+    }
+    return undefined;
   }
 
   private refreshUi(): void {
@@ -581,6 +684,7 @@ export class TriEditorManager implements vscode.Disposable {
     for (const t of this.open.values()) void t.close();
     this.open.clear();
     this.statusBar.dispose();
+    this._onDidChangeState.dispose();
     const d = this.decorations;
     for (const type of [d.unresolved, d.ours, d.theirs, d.both, d.manual]) type.dispose();
   }

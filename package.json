@@ -778,6 +778,45 @@
       {
         "command": "gittree.merge.toggleSyncScroll",
         "title": "%gittree.command.merge.toggleSyncScroll.title%"
+      },
+      {
+        "command": "gittree.merge.acceptYours",
+        "title": "%gittree.command.merge.acceptYours.title%"
+      },
+      {
+        "command": "gittree.merge.acceptTheirs",
+        "title": "%gittree.command.merge.acceptTheirs.title%"
+      },
+      {
+        "command": "gittree.merge.acceptBoth",
+        "title": "%gittree.command.merge.acceptBoth.title%"
+      },
+      {
+        "command": "gittree.merge.ignoreBlock",
+        "title": "%gittree.command.merge.ignoreBlock.title%"
+      },
+      {
+        "command": "gittree.merge.revertBlock",
+        "title": "%gittree.command.merge.revertBlock.title%"
+      },
+      {
+        "command": "gittree.merge.acceptFocusedSide",
+        "title": "%gittree.command.merge.acceptFocusedSide.title%"
+      },
+      {
+        "command": "gittree.merge.acceptFileYours",
+        "title": "%gittree.command.merge.acceptFileYours.title%",
+        "icon": "$(arrow-left)"
+      },
+      {
+        "command": "gittree.merge.acceptFileTheirs",
+        "title": "%gittree.command.merge.acceptFileTheirs.title%",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "gittree.merge.abortFile",
+        "title": "%gittree.command.merge.abortFile.title%",
+        "icon": "$(discard)"
       }
     ],
     "submenus": [
@@ -937,6 +976,64 @@
         {
           "command": "gittree.merge.toggleSyncScroll",
           "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.acceptYours",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.acceptTheirs",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.acceptBoth",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.ignoreBlock",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.revertBlock",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.acceptFocusedSide",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.acceptFileYours",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.acceptFileTheirs",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.abortFile",
+          "when": "gittree.merge.triEditorActive"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "gittree.merge.apply",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.merge.acceptFileYours",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.merge.acceptFileTheirs",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gittree.merge.abortFile",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@4"
         }
       ],
       "scm/title": [
@@ -1523,6 +1620,16 @@
         "command": "gittree.merge.prevConflict",
         "key": "shift+f7",
         "when": "gittree.merge.triEditorActive && editorTextFocus"
+      },
+      {
+        "command": "gittree.merge.acceptFocusedSide",
+        "key": "alt+enter",
+        "when": "gittree.merge.triEditorActive && editorTextFocus && !suggestWidgetVisible"
+      },
+      {
+        "command": "gittree.merge.apply",
+        "key": "ctrl+alt+enter",
+        "when": "gittree.merge.triEditorActive && editorTextFocus && !isInDiffEditor"
       }
     ],
     "views": {
