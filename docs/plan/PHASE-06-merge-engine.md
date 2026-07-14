@@ -89,6 +89,11 @@ View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs
 - **T1 (AU/UA classification):** porcelain XY `AU` maps to *deleted-by-them* and `UA` to *deleted-by-us* — in both states one side has no stage-2/3 entry to merge against, so they behave exactly like their D counterparts in the resolution QuickPick.
 - **T1 (headless seam):** the special-conflict QuickPick resolves through `GITTREE_TEST_SPECIAL_CHOICE` (index into the offered choices) — headless hosts cannot click QuickPicks.
 - **T1 (P5-T4 fix surfaced by this suite):** running the new conflict fixtures alongside P5's exposed the unstable timestamp tie-break in `orderOldestFirst` (see PHASE-05 Deviations) — fixed with ancestry-based ordering.
+- **T2 (marker size):** the canonical re-merge runs with `--marker-size=32` and fixed `-L ours/base/theirs` labels — content containing ordinary 7-char marker lines can never confuse the parser (asserted).
+- **T2 (conflictStyle independence):** `--diff3` outranks any *parseable* `merge.conflictstyle`; an unparseable value (e.g. `zdiff3` on git < 2.35) dies inside git's config validation itself — shadowing via `-c` does not skip per-entry validation — but such a setup breaks the user's own merges first. The unit test probes which styles the local git supports and asserts identical segments across all of them.
+- **T2 (line model):** lines carry their terminators end-to-end, so CRLF content and missing final newlines survive byte-exact and serialization is plain concatenation; reconstruction of a side that lacks a trailing newline is *modulo the final EOL* (the plan's stated invariant). §8's `ConflictBlock` gains `resolvedLines?` to carry auto/manual content; `resultRange` attaches in T3 (the compute module stays vscode-free so the heavy suite runs under vitest against real git).
+- **T2 (size guard):** the 10 MB cap is checked with `cat-file -s` per stage *before* any blob is pulled into memory; the cap is injectable for tests.
+- **T2 (binary QuickPick placement):** `gittree.merge.open` computes first and routes `binary`/`too-large` inputs to a whole-file side QuickPick (same `GITTREE_TEST_SPECIAL_CHOICE` seam); only text inputs still hit the T3 placeholder.
 
 ## Parity checklist (FEATURES.md §5)
 - [ ] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file

@@ -9,6 +9,7 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { confirmModal } from '../ui/confirm';
 import { ConflictSession, isSpecialConflict, type ConflictSource } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
+import { MergeComputer, type MergeExec } from './mergeCompute';
 
 export function registerPhase06MergeEngine(context: vscode.ExtensionContext, core: Core): void {
   const sessions = new Map<string, ConflictSession>();
@@ -152,11 +153,53 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     if (picked) await node.session.resolveSpecial(node.path, picked.keep, picked.side);
   };
 
+  /** Queue-routed read seam for the merge computer (P6-T2). */
+  const mergeExecFor = (repo: RepoHandle): MergeExec => (args) =>
+    repo.queue.enqueue({
+      label: 'merge compute read',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(repo.root, args, {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+
+  /** Binary / oversized conflicts: whole-file side pick instead of an editor. */
+  const resolveBinary = async (node: ConflictNode, why: 'binary' | 'too-large'): Promise<void> => {
+    interface Choice extends vscode.QuickPickItem {
+      side: 'ours' | 'theirs';
+    }
+    const choices: Choice[] = [
+      { label: vscode.l10n.t('$(arrow-left) Keep your version'), side: 'ours' },
+      { label: vscode.l10n.t('$(arrow-right) Keep their version'), side: 'theirs' },
+    ];
+    const seeded = process.env['GITTREE_TEST_SPECIAL_CHOICE'];
+    const picked =
+      seeded !== undefined
+        ? choices[Number.parseInt(seeded, 10)]
+        : await vscode.window.showQuickPick(choices, {
+            placeHolder:
+              why === 'binary'
+                ? vscode.l10n.t('{0} is binary — pick the version to keep', node.path)
+                : vscode.l10n.t('{0} is too large to merge in the editor — pick a version', node.path),
+          });
+    if (picked) await node.session.acceptSide([node.path], picked.side);
+  };
+
   register('gittree.merge.open', async (arg) => {
     const node = arg as ConflictNode | undefined;
     if (!node || !('path' in node)) return;
     if (isSpecialConflict(node.kind)) {
       await resolveSpecial(node);
+      return;
+    }
+    const computer = new MergeComputer(mergeExecFor(node.session.repo));
+    const input = await computer.compute(node.path);
+    if (input.kind === 'binary' || input.kind === 'too-large') {
+      await resolveBinary(node, input.kind);
       return;
     }
     // T3 replaces this placeholder with the tri-editor.

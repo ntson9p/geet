@@ -155,6 +155,45 @@ suite('P6 merge engine — conflict sessions & view', () => {
     assert.ok(!fs.existsSync(path.join(repo.dirs.gitDir, 'MERGE_HEAD')));
   });
 
+  test('T2: binary conflicts route to the whole-file side QuickPick', async function () {
+    this.timeout(90_000);
+    const oursBytes = [0x6f, 0x00, 0x03, 0x6f];
+    const theirsBytes = [0x74, 0x00, 0x02, 0x74];
+    git('checkout', '-f', 'main');
+    git('checkout', '-b', 'p6/bin');
+    fs.writeFileSync(abs('p6bin.dat'), Buffer.from([0x62, 0x00, 0x01, 0x62]));
+    commitAll('p6 bin base');
+    git('checkout', '-b', 'p6/bin-side');
+    fs.writeFileSync(abs('p6bin.dat'), Buffer.from(theirsBytes));
+    commitAll('p6 bin theirs');
+    git('checkout', 'p6/bin');
+    fs.writeFileSync(abs('p6bin.dat'), Buffer.from(oursBytes));
+    commitAll('p6 bin ours');
+    try {
+      git('merge', 'p6/bin-side');
+      assert.fail('merge should conflict');
+    } catch {
+      // expected — binary conflict
+    }
+    await repo.refresher.refreshNow();
+    await waitFor(() => reg.getSession(repoRoot) !== undefined, 15_000);
+    const session = reg.getSession(repoRoot)!;
+
+    // Classified as a text-kind conflict (both-modified), but compute()
+    // detects binary content and opens the side QuickPick instead of T3.
+    process.env['GITTREE_TEST_SPECIAL_CHOICE'] = '1'; // keep THEIR version
+    try {
+      const node = { session, path: 'p6bin.dat', kind: 'both-modified' as const };
+      await vscode.commands.executeCommand('gittree.merge.open', node);
+    } finally {
+      delete process.env['GITTREE_TEST_SPECIAL_CHOICE'];
+    }
+    await waitFor(() => session.remaining === 0, 10_000);
+    assert.deepStrictEqual([...fs.readFileSync(abs('p6bin.dat'))], theirsBytes);
+    assert.strictEqual(await session.continueOp(), true);
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+  });
+
   test('T1: abort restores the pre-merge state and closes the session', async function () {
     this.timeout(90_000);
     buildConflict('abort');
