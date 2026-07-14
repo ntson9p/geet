@@ -1,4 +1,4 @@
-import * as assert from 'node:assert';
+﻿import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -7,7 +7,7 @@ import type { Phase03Registry } from '../../../src/commit/register';
 import type { Phase01Registry } from '../../../src/scm/register';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, waitFor, workspaceRepoC } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /** Phase 3 acceptance on workspace repoC (dedicated to this suite). */
 suite('P3 commit lifecycle', () => {
@@ -20,8 +20,7 @@ suite('P3 commit lifecycle', () => {
   let reg: Phase03Registry;
   let scmInput: vscode.SourceControlInputBox;
 
-  const git = (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const write = (rel: string, content: string): void => {
     const p = path.join(repoRoot, rel);
     fs.mkdirSync(path.dirname(p), { recursive: true });

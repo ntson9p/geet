@@ -142,5 +142,13 @@
   "gittree.command.merge.acceptAllYours.title": "Accept All Yours",
   "gittree.command.merge.acceptAllTheirs.title": "Accept All Theirs",
   "gittree.command.merge.continueOp.title": "Continue Operation",
-  "gittree.command.merge.abortOp.title": "Abort Operation"
+  "gittree.command.merge.abortOp.title": "Abort Operation",
+  "gittree.command.merge.apply.title": "Apply Merge Result",
+  "gittree.command.merge.nextConflict.title": "Next Conflict",
+  "gittree.command.merge.prevConflict.title": "Previous Conflict",
+  "gittree.command.merge.toggleSyncScroll.title": "Toggle Synchronized Scrolling (Merge)",
+  "gittree.config.merge.title": "GitTree Merge",
+  "gittree.config.merge.resultMode.description": "Where the center Result pane lives during a 3-pane merge.",
+  "gittree.config.merge.resultMode.virtual": "A virtual result document — the conflicted file on disk stays untouched until Apply.",
+  "gittree.config.merge.resultMode.markers": "Edit the real conflicted file in place (fallback for language servers that require on-disk files)."
 }

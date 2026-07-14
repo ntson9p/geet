@@ -6,14 +6,23 @@
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
+import { MERGE_SCHEME, MergeFsProvider } from '../core/vdocs/mergeFs';
 import { confirmModal } from '../ui/confirm';
 import { ConflictSession, isSpecialConflict, type ConflictSource } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
 import { MergeComputer, type MergeExec } from './mergeCompute';
+import { TriEditorManager } from './triEditor';
 
 export function registerPhase06MergeEngine(context: vscode.ExtensionContext, core: Core): void {
   const sessions = new Map<string, ConflictSession>();
   const viewProvider = new ConflictsViewProvider();
+  const mergeFs = new MergeFsProvider();
+  context.subscriptions.push(
+    vscode.workspace.registerFileSystemProvider(MERGE_SCHEME, mergeFs, { isCaseSensitive: true }),
+    mergeFs,
+  );
+  const triEditors = new TriEditorManager(mergeFs);
+  context.subscriptions.push(triEditors);
   const view = vscode.window.createTreeView('gittree.conflicts', {
     treeDataProvider: viewProvider,
   });
@@ -202,10 +211,19 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
       await resolveBinary(node, input.kind);
       return;
     }
-    // T3 replaces this placeholder with the tri-editor.
-    void vscode.window.showInformationMessage(
-      vscode.l10n.t('The 3-pane merge editor for {0} lands with P6-T3.', node.path),
-    );
+    await triEditors.openEditor(node.session.repo, node.path, node.session, input.merge);
+  });
+  register('gittree.merge.apply', async () => {
+    await triEditors.active()?.apply();
+  });
+  register('gittree.merge.nextConflict', () => {
+    triEditors.active()?.jumpToConflict(1);
+  });
+  register('gittree.merge.prevConflict', () => {
+    triEditors.active()?.jumpToConflict(-1);
+  });
+  register('gittree.merge.toggleSyncScroll', () => {
+    triEditors.active()?.toggleSyncScroll();
   });
   register('gittree.merge.acceptYoursFile', async (arg) => {
     const node = arg as ConflictNode | undefined;
@@ -251,5 +269,6 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   core.debugRegistry.set('phase06', {
     getSession: (repoRoot: string) => sessions.get(canonicalKey(repoRoot)),
     viewProvider,
+    triEditors,
   });
 }

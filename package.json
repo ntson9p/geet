@@ -139,6 +139,24 @@
         }
       },
       {
+        "title": "%gittree.config.merge.title%",
+        "properties": {
+          "gittree.merge.resultMode": {
+            "type": "string",
+            "enum": [
+              "virtual",
+              "markers"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.merge.resultMode.virtual%",
+              "%gittree.config.merge.resultMode.markers%"
+            ],
+            "default": "virtual",
+            "description": "%gittree.config.merge.resultMode.description%"
+          }
+        }
+      },
+      {
         "title": "%gittree.config.commit.title%",
         "properties": {
           "gittree.commit.paradigm": {
@@ -743,6 +761,23 @@
         "command": "gittree.merge.abortOp",
         "title": "%gittree.command.merge.abortOp.title%",
         "icon": "$(discard)"
+      },
+      {
+        "command": "gittree.merge.apply",
+        "title": "%gittree.command.merge.apply.title%",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gittree.merge.nextConflict",
+        "title": "%gittree.command.merge.nextConflict.title%"
+      },
+      {
+        "command": "gittree.merge.prevConflict",
+        "title": "%gittree.command.merge.prevConflict.title%"
+      },
+      {
+        "command": "gittree.merge.toggleSyncScroll",
+        "title": "%gittree.command.merge.toggleSyncScroll.title%"
       }
     ],
     "submenus": [
@@ -886,6 +921,22 @@
         {
           "command": "gittree.merge.abortOp",
           "when": "gittree.hasConflicts"
+        },
+        {
+          "command": "gittree.merge.apply",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.nextConflict",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.prevConflict",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.toggleSyncScroll",
+          "when": "gittree.merge.triEditorActive"
         }
       ],
       "scm/title": [
@@ -1462,6 +1513,16 @@
         "command": "gittree.stage.selectedRanges",
         "key": "ctrl+alt+enter",
         "when": "editorTextFocus && isInDiffEditor"
+      },
+      {
+        "command": "gittree.merge.nextConflict",
+        "key": "f7",
+        "when": "gittree.merge.triEditorActive && editorTextFocus"
+      },
+      {
+        "command": "gittree.merge.prevConflict",
+        "key": "shift+f7",
+        "when": "gittree.merge.triEditorActive && editorTextFocus"
       }
     ],
     "views": {

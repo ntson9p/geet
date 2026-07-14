@@ -1,10 +1,10 @@
-import * as assert from 'node:assert';
+﻿import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase04Registry } from '../../../src/log/register';
-import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 /** Phase 4 host-side acceptance (webview internals covered by Playwright). */
 suite('P4 log & blame host', () => {
@@ -12,8 +12,7 @@ suite('P4 log & blame host', () => {
   let fsRoot: string;
   let reg: Phase04Registry;
 
-  const git = (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
 
   suiteSetup(async function () {
     this.timeout(60_000);

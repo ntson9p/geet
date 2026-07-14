@@ -1,16 +1,18 @@
 import * as assert from 'node:assert';
-import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../../src/core/core';
+import { makeMergeUri } from '../../../src/core/vdocs/mergeFs';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import type { ConflictsViewProvider } from '../../../src/merge/conflictsView';
-import { activateGitTree, waitFor, workspaceRepoC } from '../setup';
+import type { TriEditorManager } from '../../../src/merge/triEditor';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 interface Phase06RegistryShape {
   getSession(repoRoot: string): ConflictSession | undefined;
   viewProvider: ConflictsViewProvider;
+  triEditors: TriEditorManager;
 }
 
 /** P6-T1 acceptance on workspace repoC (the P3 suite ran there long before). */
@@ -19,20 +21,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
   let repo: RepoHandle;
   let reg: Phase06RegistryShape;
 
-  const git = (...args: string[]): string => {
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      try {
-        return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
-      } catch (err) {
-        lastErr = err;
-        const text = String(err);
-        if (!/Permission denied|Another git process|unable to write/i.test(text)) throw err;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400 * (attempt + 1));
-      }
-    }
-    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-  };
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const abs = (rel: string): string => path.join(repoRoot, rel);
   const write = (rel: string, content: string): void => fs.writeFileSync(abs(rel), content);
   const commitAll = (subject: string): string => {
@@ -192,6 +181,144 @@ suite('P6 merge engine — conflict sessions & view', () => {
     assert.deepStrictEqual([...fs.readFileSync(abs('p6bin.dat'))], theirsBytes);
     assert.strictEqual(await session.continueOp(), true);
     await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+  });
+
+  /** Two-block conflict on one file; returns the session once live. */
+  async function buildTwoBlockConflict(name: string, rel: string): Promise<ConflictSession> {
+    git('checkout', '-f', 'main');
+    git('checkout', '-b', `p6/${name}`);
+    write(rel, 'a\nb\nc\nd\ne\n');
+    commitAll(`p6 ${name} base`);
+    git('checkout', '-b', `p6/${name}-side`);
+    write(rel, 'a\nB2\nc\nD2\ne\n');
+    commitAll(`p6 ${name} theirs`);
+    git('checkout', `p6/${name}`);
+    write(rel, 'a\nB1\nc\nD1\ne\n');
+    commitAll(`p6 ${name} ours`);
+    try {
+      git('merge', `p6/${name}-side`);
+      assert.fail('merge should conflict');
+    } catch {
+      // expected
+    }
+    await repo.refresher.refreshNow();
+    await waitFor(() => reg.getSession(repoRoot) !== undefined, 15_000);
+    return reg.getSession(repoRoot)!;
+  }
+
+  test('T3: tri-editor — chevrons, manual-edit anchors, gated Apply, layout restore', async function () {
+    this.timeout(120_000);
+    interface EditorLayout {
+      orientation: number;
+      groups: unknown[];
+    }
+    const layoutBefore = await vscode.commands.executeCommand<EditorLayout>('vscode.getEditorLayout');
+    const session = await buildTwoBlockConflict('tri', 'p6tri.txt');
+
+    const node = { session, path: 'p6tri.txt', kind: 'both-modified' as const };
+    await vscode.commands.executeCommand('gittree.merge.open', node);
+    const tri = reg.triEditors.get(repoRoot, 'p6tri.txt');
+    assert.ok(tri, 'tri-editor must register itself');
+    assert.strictEqual(tri.blocks.length, 2, 'two conflict blocks expected');
+    // Unresolved regions render BASE text.
+    assert.strictEqual(tri.resultText(), 'a\nb\nc\nd\ne\n');
+
+    // Apply is gated while conflicts remain.
+    assert.strictEqual(await tri.apply(), false);
+
+    // Chevron: first block takes OURS.
+    await tri.applyBlockResolution(tri.blocks[0]!.block.id, 'ours');
+    assert.strictEqual(tri.resultText(), 'a\nB1\nc\nd\ne\n');
+
+    // Manual edit inside the COMMON segment between the blocks…
+    const centerUri = makeMergeUri(repoRoot, 'p6tri.txt');
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(centerUri, new vscode.Position(2, 0), 'manual-line\n');
+    assert.ok(await vscode.workspace.applyEdit(edit), 'manual edit must apply');
+
+    // …must not disturb the second block's anchor: chevron THEIRS after it.
+    await tri.applyBlockResolution(tri.blocks[1]!.block.id, 'theirs');
+    assert.strictEqual(tri.resultText(), 'a\nB1\nmanual-line\nc\nD2\ne\n');
+    assert.strictEqual(tri.unresolvedCount, 0);
+
+    // Apply: exact serialized content in the worktree, staged at stage 0.
+    assert.strictEqual(await tri.apply(), true);
+    assert.strictEqual(fs.readFileSync(abs('p6tri.txt'), 'utf8'), 'a\nB1\nmanual-line\nc\nD2\ne\n');
+    const staged = git('ls-files', '-s', '--', 'p6tri.txt').trim().split('\n');
+    assert.strictEqual(staged.length, 1, `single index entry expected: ${staged.join(' | ')}`);
+    assert.match(staged[0]!, /\s0\tp6tri\.txt$/, 'stage 0 (resolved) expected');
+
+    // The tri-editor closed itself and restored the editor layout.
+    assert.strictEqual(reg.triEditors.get(repoRoot, 'p6tri.txt'), undefined);
+    const layoutAfter = await vscode.commands.executeCommand<EditorLayout>('vscode.getEditorLayout');
+    assert.strictEqual(layoutAfter.orientation, layoutBefore.orientation);
+    assert.strictEqual(layoutAfter.groups.length, layoutBefore.groups.length, 'layout restored');
+
+    await waitFor(() => session.remaining === 0, 10_000);
+    assert.strictEqual(await session.continueOp(), true);
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+  });
+
+  test('T3: center pane serves TypeScript completions (resultMode: markers)', async function () {
+    this.timeout(120_000);
+    const config = vscode.workspace.getConfiguration('gittree.merge');
+    await config.update('resultMode', 'markers', vscode.ConfigurationTarget.Global);
+    try {
+      git('checkout', '-f', 'main');
+      git('checkout', '-b', 'p6/comp');
+      const common = 'const obj = { alpha: 1, beta: 2 };\nconst tail = obj.alpha;\n';
+      write('p6comp.ts', `${common}const v = 1;\n`);
+      commitAll('p6 comp base');
+      git('checkout', '-b', 'p6/comp-side');
+      write('p6comp.ts', `${common}const v = 2;\n`);
+      commitAll('p6 comp theirs');
+      git('checkout', 'p6/comp');
+      write('p6comp.ts', `${common}const v = 3;\n`);
+      commitAll('p6 comp ours');
+      try {
+        git('merge', 'p6/comp-side');
+        assert.fail('merge should conflict');
+      } catch {
+        // expected
+      }
+      await repo.refresher.refreshNow();
+      await waitFor(() => reg.getSession(repoRoot) !== undefined, 15_000);
+      const session = reg.getSession(repoRoot)!;
+
+      const node = { session, path: 'p6comp.ts', kind: 'both-modified' as const };
+      await vscode.commands.executeCommand('gittree.merge.open', node);
+      const tri = reg.triEditors.get(repoRoot, 'p6comp.ts');
+      assert.ok(tri, 'tri-editor must open');
+
+      // markers mode: the center pane is the real file (language: typescript).
+      const centerUri = vscode.Uri.file(abs('p6comp.ts'));
+      const doc = await vscode.workspace.openTextDocument(centerUri);
+      assert.strictEqual(doc.languageId, 'typescript');
+      // Completion after `obj.` on line 1 → member items from the LSP.
+      const pos = new vscode.Position(1, 'const tail = obj.'.length);
+      let labels: string[] = [];
+      const deadline = Date.now() + 60_000;
+      // Poll: the TS server needs time to boot in a cold test host.
+      while (Date.now() < deadline) {
+        const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+          'vscode.executeCompletionItemProvider',
+          centerUri,
+          pos,
+        );
+        labels = (list?.items ?? []).map((i) =>
+          typeof i.label === 'string' ? i.label : i.label.label,
+        );
+        if (labels.includes('alpha') && labels.includes('beta')) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      assert.ok(labels.includes('alpha'), `completions must include 'alpha': ${labels.slice(0, 10).join(',')}`);
+
+      await tri.close();
+      await session.abortOp();
+      await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+    } finally {
+      await config.update('resultMode', undefined, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test('T1: abort restores the pre-merge state and closes the session', async function () {

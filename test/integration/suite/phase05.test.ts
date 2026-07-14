@@ -15,7 +15,7 @@ import type { PushSafetyService } from '../../../src/rewrite/pushSafety';
 import type { RevertCherryPickService } from '../../../src/rewrite/revertCherryPick';
 import type { RewordService } from '../../../src/rewrite/reword';
 import type { UndoDropService } from '../../../src/rewrite/undoDrop';
-import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 interface Phase05RegistryShape {
   getEngine(repoRoot: string): RebaseEngine | undefined;
@@ -59,20 +59,7 @@ suite('P5 history rewriting — rebase engine', () => {
    * seconds after heavy churn (EPERM on the symref rename) — the file-lock
    * class the master plan calls out for Windows. Budget covers AV holds.
    */
-  const git = (...args: string[]): string => {
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      try {
-        return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
-      } catch (err) {
-        lastErr = err;
-        const text = String(err);
-        if (!/Permission denied|Another git process|unable to write/i.test(text)) throw err;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400 * (attempt + 1));
-      }
-    }
-    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-  };
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const abs = (rel: string): string => path.join(repoRoot, rel);
   const write = (rel: string, content: string | Buffer): void =>
     fs.writeFileSync(abs(rel), content);

@@ -94,12 +94,17 @@ View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs
 - **T2 (line model):** lines carry their terminators end-to-end, so CRLF content and missing final newlines survive byte-exact and serialization is plain concatenation; reconstruction of a side that lacks a trailing newline is *modulo the final EOL* (the plan's stated invariant). §8's `ConflictBlock` gains `resolvedLines?` to carry auto/manual content; `resultRange` attaches in T3 (the compute module stays vscode-free so the heavy suite runs under vitest against real git).
 - **T2 (size guard):** the 10 MB cap is checked with `cat-file -s` per stage *before* any blob is pulled into memory; the cap is injectable for tests.
 - **T2 (binary QuickPick placement):** `gittree.merge.open` computes first and routes `binary`/`too-large` inputs to a whole-file side QuickPick (same `GITTREE_TEST_SPECIAL_CHOICE` seam); only text inputs still hit the T3 placeholder.
+- **T3 (anchor mechanics):** the stable API cannot read adjusted decoration ranges back — decorations render state only; the block anchors are maintained by mapping `onDidChangeTextDocument` deltas (edits before a block shift it; edits intersecting it mark it `manual`). The spec's "decoration ranges are the anchor source of truth" is realized as "tracked line ranges that the same edit deltas VS Code applies to decorations are applied to".
+- **T3 (TS completions require `markers` mode):** the TypeScript language features attach only to `file`/`untitled` schemes, so the TS-fixture completions acceptance runs with `gittree.merge.resultMode: markers` (center pane = the real file, seeded with the canonical initial result via an undoable WorkspaceEdit). Scheme-agnostic language servers (JSON/CSS/HTML and most LSP extensions matching on language only) get completions in the default `virtual` mode too — this split is precisely why the plan specifies the `resultMode` fallback.
+- **T3 (pane titles):** tab labels are not settable for provider-backed documents; the pane role is baked into the side documents' URI *path* (`f (Yours).ts` — extension kept last so language detection still works) while the provider reads only the URI query.
+- **T3 (close prompt):** both prompt choices currently behave identically (nothing is ever written to the worktree before Apply, so "Abort File" has nothing extra to discard); dirty result documents are reverted before their tabs close so no save dialog can block a headless host. `GITTREE_TEST_TRIEDITOR_CLOSE` seeds the choice.
+- **T3 (Apply lands early):** `gittree.merge.apply` ships in T3 because T3's acceptance requires the Apply write+add path; T4 adds the CodeLens/editor-title surfaces on top of the same `TriMergeEditor.apply()`/`applyBlockResolution()` primitives.
 
 ## Parity checklist (FEATURES.md §5)
-- [ ] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file
-- [ ] 3-pane window: Left = yours, Right = theirs, Center = result being built
+- [x] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file
+- [x] 3-pane window: Left = yours, Right = theirs, Center = result being built
 - [ ] Magic Wand resolves all simple (non-overlapping) conflicts in one click
 - [ ] Chevron `≫`/`≪` per-conflict pulls from either side into the center
-- [ ] Center pane is a full editor: syntax highlighting **and working autocompletion**, free manual rewriting
+- [x] Center pane is a full editor: syntax highlighting **and working autocompletion**, free manual rewriting
 - [ ] Accept Left / Accept Right global overwrite buttons
 - [ ] Resolution feeds back into the originating operation (merge/rebase/cherry-pick/… continues)

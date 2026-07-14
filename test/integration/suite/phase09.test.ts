@@ -1,5 +1,4 @@
-import * as assert from 'node:assert';
-import { execFileSync } from 'node:child_process';
+﻿import * as assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -8,7 +7,7 @@ import { makeSnapUri } from '../../../src/core/vdocs/snapFs';
 import type { DestructionEvent, RecoveryWatch } from '../../../src/localHistory/recoveryWatch';
 import type { HistoryNode, LocalHistoryViewProvider, RestoreUx } from '../../../src/localHistory/restoreUx';
 import type { SnapshotManifest, SnapshotStore } from '../../../src/localHistory/snapshotStore';
-import { activateGitTree, waitFor, workspaceRepoB } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 interface Phase09RegistryShape {
   getStore(repoRoot: string): SnapshotStore | undefined;
@@ -28,8 +27,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
   let reg: Phase09RegistryShape;
   let store: SnapshotStore;
 
-  const git = (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const abs = (rel: string): string => path.join(repoRoot, rel);
   const write = (rel: string, content: string | Buffer): void => {
     fs.mkdirSync(path.dirname(abs(rel)), { recursive: true });

@@ -1,4 +1,4 @@
-import * as assert from 'node:assert';
+﻿import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -10,7 +10,7 @@ import type { RefService } from '../../../src/branches/refService';
 import { buildPopupItems } from '../../../src/branches/branchesPopup';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, waitFor, workspaceRepoB } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 interface Phase02RegistryShape {
   refServices: Map<string, RefService>;
@@ -25,8 +25,7 @@ suite('P2 branches', () => {
   let repo: RepoHandle;
   let reg: Phase02RegistryShape;
 
-  const git = (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const write = (rel: string, content: string): void =>
     fs.writeFileSync(path.join(repoRoot, rel), content);
 

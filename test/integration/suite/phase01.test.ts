@@ -1,11 +1,11 @@
-import * as assert from 'node:assert';
+﻿import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 /**
  * Phase 1 acceptance: SCM groups, rev provider, file ops, commit MVP,
@@ -16,8 +16,7 @@ import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
 suite('P1 core SCM', () => {
   let repoRoot: string;
 
-  const git = (...args: string[]): string =>
-    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
 
   const write = (rel: string, content: string): void =>
     fs.writeFileSync(path.join(repoRoot, rel), content);
