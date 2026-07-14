@@ -18,3 +18,4 @@ IMPLEMENTATION_PLAN.md
 .gitattributes
 .gitignore
 **/*.vsix
+*.log

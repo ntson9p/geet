@@ -134,5 +134,13 @@
   "gittree.command.reword.accept.title": "Accept: Rewrite Commit Message",
   "gittree.command.reword.cancel.title": "Cancel Reword",
   "gittree.config.cherryPick.recordOrigin.description": "Append the \"(cherry picked from commit …)\" trailer (-x) to cherry-picked commit messages.",
-  "gittree.config.pushSafety.afterRewrite.description": "After a successful history rewrite on a branch with an upstream: offer Push --force-with-lease (ask) or stay quiet (never). Plain --force is never used."
+  "gittree.config.pushSafety.afterRewrite.description": "After a successful history rewrite on a branch with an upstream: offer Push --force-with-lease (ask) or stay quiet (never). Plain --force is never used.",
+  "gittree.view.conflicts.name": "Conflicts",
+  "gittree.command.merge.open.title": "Merge…",
+  "gittree.command.merge.acceptYoursFile.title": "Accept Yours",
+  "gittree.command.merge.acceptTheirsFile.title": "Accept Theirs",
+  "gittree.command.merge.acceptAllYours.title": "Accept All Yours",
+  "gittree.command.merge.acceptAllTheirs.title": "Accept All Theirs",
+  "gittree.command.merge.continueOp.title": "Continue Operation",
+  "gittree.command.merge.abortOp.title": "Abort Operation"
 }

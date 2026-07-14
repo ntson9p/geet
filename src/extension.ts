@@ -3,6 +3,7 @@ import { registerPhase02 } from './branches/register';
 import { registerPhase03 } from './commit/register';
 import { createCore, type Core } from './core/core';
 import { registerPhase04 } from './log/register';
+import { registerPhase06MergeEngine } from './merge/register';
 import { registerPhase09LocalHistory } from './localHistory/register';
 import { registerPhase05HistoryRewriting } from './rewrite/register';
 import { registerPhase01 } from './scm/register';
@@ -52,6 +53,7 @@ function registerPhases(context: vscode.ExtensionContext, core: Core): void {
   // -- registerPhase05 (History rewriting) --------------------------------
   registerPhase05HistoryRewriting(context, core);
   // -- registerPhase06 (Merge engine) -------------------------------------
+  registerPhase06MergeEngine(context, core);
   // -- registerPhase07 (Stash & shelve) -----------------------------------
   // -- registerPhase08 (Provider integrations) ----------------------------
   // -- registerPhase09 (Local History) -------------------------------------

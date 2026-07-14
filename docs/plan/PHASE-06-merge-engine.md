@@ -81,6 +81,15 @@ Command applies cascade to all unresolved blocks in current file (toolbar `$(wan
 ## Contributions added this phase
 View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs,acceptBoth,ignoreBlock,revertBlock,acceptAllYours,acceptAllTheirs,magicWand,apply,abortFile,nextConflict,prevConflict,toggleSyncScroll}` + per-op `continue/abort` surface reuse; CodeLens providers on `gittree-rev:`/`gittree-merge:` docs; keybindings (`F7`, `shift+F7`, `alt+enter`, `ctrl+alt+enter`); settings `gittree.merge.{ui,resultMode,autoResolveWhitespace}`.
 
+## Deviations
+
+- **T1 (file-level command names):** the per-row accept commands are `gittree.merge.acceptYoursFile`/`acceptTheirsFile` — the contributions list's `acceptYours`/`acceptTheirs` ids are reserved for T4's block-level chevron commands (the plan names both surfaces; identical ids would collide).
+- **T1 (Merge… placeholder):** `gittree.merge.open` routes delete/mode conflicts to their tailored QuickPick (step 3) today; text conflicts show an informational message until T3 lands the tri-editor, per the plan's own "`Merge…` (→ T3)" pointer. The parity-checklist line stays unticked until then.
+- **T1 (op-less sources):** sessions born without an `inProgressOp` marker (stash-pop, `checkout -m`, unshelve) classify as `checkout-merge` for now — T7's lifecycle routing refines producer detection; their continue hook is the plan's "plain done" no-op.
+- **T1 (AU/UA classification):** porcelain XY `AU` maps to *deleted-by-them* and `UA` to *deleted-by-us* — in both states one side has no stage-2/3 entry to merge against, so they behave exactly like their D counterparts in the resolution QuickPick.
+- **T1 (headless seam):** the special-conflict QuickPick resolves through `GITTREE_TEST_SPECIAL_CHOICE` (index into the offered choices) — headless hosts cannot click QuickPicks.
+- **T1 (P5-T4 fix surfaced by this suite):** running the new conflict fixtures alongside P5's exposed the unstable timestamp tie-break in `orderOldestFirst` (see PHASE-05 Deviations) — fixed with ancestry-based ordering.
+
 ## Parity checklist (FEATURES.md §5)
 - [ ] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file
 - [ ] 3-pane window: Left = yours, Right = theirs, Center = result being built

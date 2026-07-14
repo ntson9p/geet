@@ -710,6 +710,39 @@
       {
         "command": "gittree.reword.cancel",
         "title": "%gittree.command.reword.cancel.title%"
+      },
+      {
+        "command": "gittree.merge.open",
+        "title": "%gittree.command.merge.open.title%",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "gittree.merge.acceptYoursFile",
+        "title": "%gittree.command.merge.acceptYoursFile.title%",
+        "icon": "$(arrow-left)"
+      },
+      {
+        "command": "gittree.merge.acceptTheirsFile",
+        "title": "%gittree.command.merge.acceptTheirsFile.title%",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "gittree.merge.acceptAllYours",
+        "title": "%gittree.command.merge.acceptAllYours.title%"
+      },
+      {
+        "command": "gittree.merge.acceptAllTheirs",
+        "title": "%gittree.command.merge.acceptAllTheirs.title%"
+      },
+      {
+        "command": "gittree.merge.continueOp",
+        "title": "%gittree.command.merge.continueOp.title%",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "gittree.merge.abortOp",
+        "title": "%gittree.command.merge.abortOp.title%",
+        "icon": "$(discard)"
       }
     ],
     "submenus": [
@@ -825,6 +858,34 @@
         {
           "command": "gittree.reword.cancel",
           "when": "false"
+        },
+        {
+          "command": "gittree.merge.open",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.acceptYoursFile",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.acceptTheirsFile",
+          "when": "false"
+        },
+        {
+          "command": "gittree.merge.acceptAllYours",
+          "when": "gittree.hasConflicts"
+        },
+        {
+          "command": "gittree.merge.acceptAllTheirs",
+          "when": "gittree.hasConflicts"
+        },
+        {
+          "command": "gittree.merge.continueOp",
+          "when": "gittree.hasConflicts"
+        },
+        {
+          "command": "gittree.merge.abortOp",
+          "when": "gittree.hasConflicts"
         }
       ],
       "scm/title": [
@@ -1043,6 +1104,26 @@
           "command": "gittree.history.clearAll",
           "when": "view == gittree.localHistory",
           "group": "1_manage@2"
+        },
+        {
+          "command": "gittree.merge.continueOp",
+          "when": "view == gittree.conflicts && gittree.conflicts.canContinue",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.merge.abortOp",
+          "when": "view == gittree.conflicts",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.merge.acceptAllYours",
+          "when": "view == gittree.conflicts",
+          "group": "1_accept@1"
+        },
+        {
+          "command": "gittree.merge.acceptAllTheirs",
+          "when": "view == gittree.conflicts",
+          "group": "1_accept@2"
         }
       ],
       "view/item/context": [
@@ -1190,6 +1271,36 @@
           "command": "gittree.commit.cherryPick",
           "when": "view == gittree.compare && viewItem == compare:commit:left",
           "group": "1_pick@1"
+        },
+        {
+          "command": "gittree.merge.acceptYoursFile",
+          "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.merge.acceptTheirsFile",
+          "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
+          "group": "inline@2"
+        },
+        {
+          "command": "gittree.merge.open",
+          "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
+          "group": "inline@3"
+        },
+        {
+          "command": "gittree.merge.acceptYoursFile",
+          "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
+          "group": "1_resolve@1"
+        },
+        {
+          "command": "gittree.merge.acceptTheirsFile",
+          "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
+          "group": "1_resolve@2"
+        },
+        {
+          "command": "gittree.merge.open",
+          "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
+          "group": "1_resolve@3"
         }
       ],
       "webview/context": [
@@ -1391,6 +1502,13 @@
           "contextualTitle": "GitTree",
           "icon": "$(history)",
           "visibility": "collapsed"
+        },
+        {
+          "id": "gittree.conflicts",
+          "name": "%gittree.view.conflicts.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(git-merge)",
+          "when": "gittree.hasConflicts"
         }
       ]
     },
