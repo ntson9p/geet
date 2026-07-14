@@ -254,11 +254,44 @@ export class RevertCherryPickService {
   }
 
   /** Sorts full shas oldest-first regardless of selection order. */
+  /**
+   * `rev-list --no-walk` sorts by commit time, which is ambiguous for
+   * same-second commits (rapid or scripted histories) — the tie-break is
+   * unstable and can scramble a chain. Order by ancestry instead: insert each
+   * sha before its first descendant already placed (an entry never precedes
+   * its ancestor, by induction). Unrelated commits keep their input order.
+   * O(n²) merge-base calls, fine for log-view-sized selections.
+   */
   private async orderOldestFirst(repo: RepoHandle, shas: readonly string[]): Promise<string[]> {
-    if (shas.length <= 1) return [...shas];
-    const raw = await this.read(repo, ['rev-list', '--no-walk', '--reverse', ...shas]);
-    const ordered = raw.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-    return ordered.length === shas.length ? ordered : [...shas];
+    const unique = [...new Set(shas)];
+    if (unique.length <= 1) return unique;
+    const ordered: string[] = [];
+    for (const sha of unique) {
+      let at = ordered.length;
+      for (const [i, placed] of ordered.entries()) {
+        if (await this.isAncestor(repo, sha, placed)) {
+          at = i;
+          break;
+        }
+      }
+      ordered.splice(at, 0, sha);
+    }
+    return ordered;
+  }
+
+  private async isAncestor(repo: RepoHandle, ancestor: string, descendant: string): Promise<boolean> {
+    const result = await repo.queue.enqueue({
+      label: 'revert/cherry-pick read',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(repo.root, ['merge-base', '--is-ancestor', ancestor, descendant], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    return result.exitCode === 0;
   }
 
   private async isMerge(repo: RepoHandle, sha: string): Promise<boolean> {
