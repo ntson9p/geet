@@ -1,3 +1,6 @@
 * text=auto eol=lf
 *.png binary
 *.woff2 binary
+# P6-T5 golden merge fixtures assert byte-exact CRLF / missing-final-EOL
+# content — any EOL conversion silently invalidates them.
+test/fixtures/merge/** -text
