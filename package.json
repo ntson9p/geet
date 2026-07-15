@@ -175,6 +175,16 @@
         }
       },
       {
+        "title": "%gittree.config.stash.title%",
+        "properties": {
+          "gittree.stash.includeUntrackedDefault": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.stash.includeUntrackedDefault.description%"
+          }
+        }
+      },
+      {
         "title": "%gittree.config.commit.title%",
         "properties": {
           "gittree.commit.paradigm": {
@@ -845,6 +855,46 @@
         "command": "gittree.merge.magicWandSession",
         "title": "%gittree.command.merge.magicWandSession.title%",
         "icon": "$(wand)"
+      },
+      {
+        "command": "gittree.stash.push",
+        "title": "%gittree.command.stash.push.title%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.stash.apply",
+        "title": "%gittree.command.stash.apply.title%",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "gittree.stash.pop",
+        "title": "%gittree.command.stash.pop.title%",
+        "icon": "$(arrow-circle-up)"
+      },
+      {
+        "command": "gittree.stash.drop",
+        "title": "%gittree.command.stash.drop.title%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "gittree.stash.branch",
+        "title": "%gittree.command.stash.branch.title%",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "gittree.stash.clear",
+        "title": "%gittree.command.stash.clear.title%",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "gittree.stash.copyMessage",
+        "title": "%gittree.command.stash.copyMessage.title%",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gittree.stash.diffAll",
+        "title": "%gittree.command.stash.diffAll.title%",
+        "icon": "$(diff-multiple)"
       }
     ],
     "submenus": [
@@ -1240,6 +1290,16 @@
       ],
       "view/title": [
         {
+          "command": "gittree.stash.push",
+          "when": "view == gittree.stashes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.stash.clear",
+          "when": "view == gittree.stashes",
+          "group": "1_manage@1"
+        },
+        {
           "command": "gittree.log.refresh",
           "when": "view == gittree.log",
           "group": "navigation@1"
@@ -1321,6 +1381,46 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "gittree.stash.apply",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.stash.pop",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "inline@2"
+        },
+        {
+          "command": "gittree.stash.apply",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "1_apply@1"
+        },
+        {
+          "command": "gittree.stash.pop",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "1_apply@2"
+        },
+        {
+          "command": "gittree.stash.branch",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "1_apply@3"
+        },
+        {
+          "command": "gittree.stash.diffAll",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "2_inspect@1"
+        },
+        {
+          "command": "gittree.stash.copyMessage",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "2_inspect@2"
+        },
+        {
+          "command": "gittree.stash.drop",
+          "when": "view == gittree.stashes && viewItem == stash:entry",
+          "group": "3_manage@1"
+        },
         {
           "command": "gittree.history.compareSnapshot",
           "when": "view == gittree.localHistory && viewItem == lh:snapshot",
@@ -1723,6 +1823,13 @@
           "contextualTitle": "GitTree",
           "icon": "$(git-merge)",
           "when": "gittree.hasConflicts"
+        },
+        {
+          "id": "gittree.stashes",
+          "name": "%gittree.view.stashes.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(archive)",
+          "visibility": "collapsed"
         }
       ]
     },

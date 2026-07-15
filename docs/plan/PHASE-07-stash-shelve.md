@@ -67,10 +67,13 @@ Views `gittree.stashes`, `gittree.shelf`; commands `gittree.stash.{push,pop,appl
 - **T1 (conflict handoff):** a failed pop/apply registers P6-T7's `expectConflict(root, 'stash-pop')` producer hint *before* the refresh that creates the session; apply-conflicts classify as `stash-pop` too (the `ConflictSource` union deliberately has no separate apply value — abort guidance is identical).
 - **T1 (`--staged` guard):** gated on `caps.stashStaged` (git ≥ 2.35) with a friendly error thrown inside the queued op before any git invocation; the e2e asserts the guard leaves no stash entry on old git and the full round-trip on new git.
 - **T1 (push not snapshot-flagged):** `stash push` itself is the safety copy — P9's binding label matrix (pop/apply/drop/clear) is followed as-is; push runs as a plain mutation.
+- **T2 (untracked diff right side):** a stashed-away untracked file has no working-tree counterpart, and `vscode.diff` errors on a missing `file:` side — the diff falls back to `gittree-rev:HEAD` for the right side (guaranteed empty for a file that was untracked), titled "… ↔ not in working tree".
+- **T2 (palette fallback):** every `gittree.stash.*` command accepts an optional tree node and otherwise QuickPicks across all repos' stashes (`GITTREE_TEST_STASH_PICK`/`_PUSH`/`_BRANCH` seams for headless flows); Clear All uses a typed-confirmation input (`typedConfirm`, added to `ui/confirm.ts`, honoring the existing `GITTREE_TEST_AUTOCONFIRM` seam).
+- **T2 (apply/pop restore the index):** the row/palette Apply and Pop pass `--index` — IntelliJ restores staged state on unstash; the service keeps it optional for callers that want git's default.
 
 ## Parity checklist (FEATURES.md §6)
-- [ ] Stash GUI: save (with message/options), list, apply, pop, drop, branch-from-stash
-- [ ] Diff any stash (incl. untracked contents) against the current working tree
+- [x] Stash GUI: save (with message/options), list, apply, pop, drop, branch-from-stash
+- [x] Diff any stash (incl. untracked contents) against the current working tree
 - [ ] Shelve stores `.patch` files on local disk entirely outside `.git`
 - [ ] Shelf survives deleting/re-initializing the repository
 - [ ] Shelf tab: view patches, edit them (validated), unshelve to working tree (full/partial, conflict-safe)

@@ -165,5 +165,16 @@
   "gittree.config.merge.autoResolveWhitespace.description": "Magic Wand: when one side changed only whitespace, take the substantive side automatically.",
   "gittree.config.merge.ui.description": "Which merge UI opens for text conflicts. The native VS Code merge editor rides on an internal command and silently falls back to the GitTree tri-editor when unavailable.",
   "gittree.config.merge.ui.triEditor": "GitTree's three-pane merge editor (yours | result | theirs) with chevrons and the Magic Wand.",
-  "gittree.config.merge.ui.native": "VS Code's built-in merge editor (internal command — falls back to the tri-editor if it is missing or fails)."
+  "gittree.config.merge.ui.native": "VS Code's built-in merge editor (internal command — falls back to the tri-editor if it is missing or fails).",
+  "gittree.view.stashes.name": "Stashes",
+  "gittree.command.stash.push.title": "Stash Changes…",
+  "gittree.command.stash.apply.title": "Apply Stash",
+  "gittree.command.stash.pop.title": "Pop Stash",
+  "gittree.command.stash.drop.title": "Drop Stash…",
+  "gittree.command.stash.branch.title": "Branch from Stash…",
+  "gittree.command.stash.clear.title": "Clear All Stashes…",
+  "gittree.command.stash.copyMessage.title": "Copy Stash Message",
+  "gittree.command.stash.diffAll.title": "Compare All vs Working Tree",
+  "gittree.config.stash.title": "GitTree: Stash",
+  "gittree.config.stash.includeUntrackedDefault.description": "Pre-select \"Include untracked files\" in the Stash Changes flow."
 }

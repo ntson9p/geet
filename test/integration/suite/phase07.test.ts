@@ -1,13 +1,16 @@
 import * as assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as vscode from 'vscode';
 import type { RepoHandle } from '../../../src/core/core';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import type { StashService } from '../../../src/stash/stashService';
+import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 interface Phase07RegistryShape {
   getStashService(repoRoot: string): StashService | undefined;
+  stashViewProvider: StashViewProvider;
 }
 interface Phase06RegistryShape {
   getSession(repoRoot: string): ConflictSession | undefined;
@@ -24,13 +27,15 @@ suite('P7 stash & shelve — StashService', () => {
   const abs = (rel: string): string => path.join(repoRoot, rel);
   const write = (rel: string, content: string | Buffer): void => fs.writeFileSync(abs(rel), content);
 
+  let reg07: Phase07RegistryShape;
+
   suiteSetup(async function () {
     this.timeout(60_000);
     const core = await activateGitTree();
     repo = core.repoForPath(workspaceRepoB())!;
     assert.ok(repo, 'repoB not discovered');
     repoRoot = repo.root;
-    const reg07 = core.debugRegistry.get('phase07') as Phase07RegistryShape;
+    reg07 = core.debugRegistry.get('phase07') as Phase07RegistryShape;
     assert.ok(reg07, 'phase07 registry missing');
     stash = reg07.getStashService(repoRoot)!;
     assert.ok(stash, 'stash service missing');
@@ -196,5 +201,60 @@ suite('P7 stash & shelve — StashService', () => {
     assert.strictEqual(git('show', 'stash@{0}:p7m.txt'), 'after\n');
 
     await stash.drop(0);
+  });
+
+  test('T2: view reflects external CLI stashes within 500 ms; rows expand to diffable files', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/view');
+    write('p7v.txt', 'base\n');
+    commitAll('p7 view base');
+    write('p7v.txt', 'changed\n');
+    write('p7vu.txt', 'untracked view file\n');
+
+    // External CLI stash → tree row within the 500 ms acceptance bound.
+    git('stash', 'push', '--include-untracked', '-m', 'p7 external');
+    const start = Date.now();
+    await waitFor(() => stash.list().some((s) => s.message.includes('p7 external')), 5_000);
+    const elapsed = Date.now() - start;
+    assert.ok(elapsed <= 500, `view model refreshed in ${elapsed}ms (bound 500ms)`);
+
+    const roots = await reg07.stashViewProvider.getChildren();
+    const row = roots.find(
+      (n) => n.kind === 'stash' && n.info.message.includes('p7 external'),
+    ) as StashNode & { kind: 'stash' };
+    assert.ok(row, 'stash row rendered');
+    const rowItem = reg07.stashViewProvider.getTreeItem(row);
+    assert.strictEqual(rowItem.contextValue, 'stash:entry');
+
+    // File children: tracked + untracked both carry a vscode.diff command.
+    const children = await reg07.stashViewProvider.getChildren(row);
+    assert.strictEqual(children.length, 2, 'tracked + untracked children');
+    for (const child of children) {
+      const item = reg07.stashViewProvider.getTreeItem(child);
+      assert.strictEqual(item.command?.command, 'vscode.diff');
+      // The diff actually opens (both sides resolvable, headless-safe).
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        ...(item.command.arguments as [vscode.Uri, vscode.Uri, string]),
+      );
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      assert.ok(tab?.input instanceof vscode.TabInputTextDiff, `diff tab for ${child.kind}`);
+      await vscode.window.tabGroups.close(tab);
+    }
+
+    // Palette mirrors every verb.
+    const all = await vscode.commands.getCommands(true);
+    for (const verb of ['push', 'apply', 'pop', 'drop', 'branch', 'clear', 'copyMessage', 'diffAll']) {
+      assert.ok(all.includes(`gittree.stash.${verb}`), `gittree.stash.${verb} registered`);
+    }
+
+    // Drop via the command path (auto-confirmed modal), node-targeted.
+    process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
+    try {
+      await vscode.commands.executeCommand('gittree.stash.drop', row);
+    } finally {
+      delete process.env['GITTREE_TEST_AUTOCONFIRM'];
+    }
+    await waitFor(() => stash.list().length === 0, 10_000);
   });
 });
