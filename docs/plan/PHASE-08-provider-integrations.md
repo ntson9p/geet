@@ -7,6 +7,57 @@
 
 ---
 
+## Status: SKIPPED (project-owner decision, 2026-07-16)
+
+This phase was **not implemented**. The project owner decided to skip it because its exit
+criteria require live github.com / gitlab.com accounts, seeded test repositories, PATs/OAuth
+apps, and remote actions (pushing, creating PRs, merging) — none of which were available or
+permitted for this build. No code under `src/review/**` exists; none of this phase's
+contributions (`gittree-review` container, `gittree.pr.*` commands, `gittree.{github,gitlab}.hosts`
+settings) are in `package.json`. FEATURES.md §7 is therefore intentionally unshipped, and the
+P10 parity audit records it as *skipped by decision*, not as a gap that was missed.
+
+Downstream adjustments made because of this skip:
+- P10-T3's walkthrough omits the "connect GitHub/GitLab" step.
+- The README parity matrix marks §7 as "not shipped (see PHASE-08 skip note)".
+- P0-T8's askpass/auth bridge and the P0-T9 webview kit — this phase's two platform
+  dependencies — are complete and tested, so nothing here was blocked on other phases.
+
+### Getting started (guide for a future implementer)
+
+The task specs below (T1–T7) remain the binding blueprint — implement them as written, in
+dependency order. Practical notes from the rest of the codebase:
+
+1. **Read first:** `IMPLEMENTATION_PLAN.md` §0 (agent rules), §4 (state/concurrency), §8
+   (shared contracts — the `ReviewProvider` interface T2/T3 must implement is specified
+   there), §9–10 (standards). Then this file top to bottom.
+2. **Wire-up pattern:** create `src/review/register.ts` exporting `registerPhase08Review(core, context)`
+   and append one call in `src/extension.ts` (append-only rule). Register debug internals via
+   `core.debugRegistry.set('phase08', {...})` — integration tests reach internals only that way
+   (never `instanceof` across the registry: module identity differs between the test compile
+   and the dist bundle; compare `err.name` / use structural types).
+3. **Existing platform pieces to reuse, not rebuild:**
+   - Auth: `vscode.authentication.getSession('github', …)` for GitHub; for GitLab register the
+     `gittree-gitlab` `AuthenticationProvider` per T1. SecretStorage only — never log tokens.
+   - Webviews: the P0-T9 kit (`webview-ui/` Vite workspace, `protocol.ts` Msg v1, `WebviewRpcHost`,
+     `RpcClient`, `VirtualList`, theme hooks). Add a `pr` entry alongside `log`/`rebaseEditor`.
+   - Diff plumbing: `gittree-rev:` content provider + `makeRevUri` for local shas;
+     `vscode.changes` for multi-diffs (see P2-T5/P4-T5 call sites).
+   - Position mapping (T6): reuse `src/core/patch/patchParser.ts` (section split + hunk model)
+     and P1's PatchBuilder line-diff for anchor→current-line mapping.
+   - Commit cross-links (T7): P4's `revealCommit` command.
+4. **Test strategy that works without accounts:** recorded-fixture tests (captured or
+   hand-authored JSON payloads behind a fake fetch layer) cover every client method in CI;
+   only the final smoke script needs live repos. Native auth dialogs can't be driven in
+   integration tests — follow the existing `GITTREE_TEST_*` env-seam convention.
+5. **What you must provision for the live exit criteria:** a GitHub test repo with a PR
+   authored by a second account (GitHub forbids self-approval) and a CI workflow; a gitlab.com
+   project + PAT (`api, read_repository`); optionally a GitLab OAuth app for the device flow
+   (PAT-first is acceptable); GHES/self-managed GitLab can stay fixture-only with a deviation
+   note.
+
+---
+
 ## Tasks
 
 ### P8-T1 · Accounts, auth & host detection
@@ -84,7 +135,7 @@
 ## Contributions added this phase
 Activity-bar container `gittree-review` (view `gittree.pullRequests`); commands `gittree.pr.{refresh,filter,checkout,openTimeline,openInBrowser,startReview,submitReview,approve,merge,close,signIn,signOut}`; comment controller + `comments/*` menus; settings `gittree.{github,gitlab}.hosts`, `gittree.pr.{pollIntervalSeconds,customQueries,deleteBranchOnMerge}`.
 
-## Parity checklist (FEATURES.md §7)
+## Parity checklist (FEATURES.md §7) — all intentionally unshipped, see Status at top
 - [ ] PR/MR tool window listing open items, filterable by assignee, author, state
 - [ ] Click a PR → its diffs open in-IDE (no checkout required)
 - [ ] Line comments on code inside the IDE, batched into reviews
