@@ -1,19 +1,27 @@
 import * as assert from 'node:assert';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { RepoHandle } from '../../../src/core/core';
+import type { Core, RepoHandle } from '../../../src/core/core';
+import { OperationQueue } from '../../../src/core/ops/operationQueue';
+import type { SnapshotStore } from '../../../src/localHistory/snapshotStore';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
+import { ShelfStore } from '../../../src/shelf/shelfStore';
 import type { StashService } from '../../../src/stash/stashService';
 import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 interface Phase07RegistryShape {
   getStashService(repoRoot: string): StashService | undefined;
+  getShelfStore(repoRoot: string): ShelfStore | undefined;
   stashViewProvider: StashViewProvider;
 }
 interface Phase06RegistryShape {
   getSession(repoRoot: string): ConflictSession | undefined;
+}
+interface Phase09RegistryShape {
+  getStore(repoRoot: string): SnapshotStore | undefined;
 }
 
 /** P7-T1 acceptance on workspace repoB. */
@@ -256,5 +264,237 @@ suite('P7 stash & shelve — StashService', () => {
       delete process.env['GITTREE_TEST_AUTOCONFIRM'];
     }
     await waitFor(() => stash.list().length === 0, 10_000);
+  });
+});
+
+/** Removes a directory whose files may carry the readonly bit (.git objects). */
+function rmrfHard(dir: string): void {
+  const clearReadonly = (d: string): void => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) clearReadonly(full);
+      else fs.chmodSync(full, 0o666);
+    }
+  };
+  clearReadonly(dir);
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
+}
+
+/** P7-T3 acceptance on workspace repoB + an ephemeral throwaway repo. */
+suite('P7 stash & shelve — ShelfStore', () => {
+  let core: Core;
+  let repoRoot: string;
+  let repo: RepoHandle;
+  let shelf: ShelfStore;
+  let reg09: Phase09RegistryShape;
+
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
+  const abs = (rel: string): string => path.join(repoRoot, rel);
+  const write = (rel: string, content: string | Buffer): void => fs.writeFileSync(abs(rel), content);
+  const commitAll = (subject: string): void => {
+    git('add', '-A');
+    git('commit', '-m', subject);
+  };
+
+  suiteSetup(async function () {
+    this.timeout(60_000);
+    core = await activateGitTree();
+    repo = core.repoForPath(workspaceRepoB())!;
+    assert.ok(repo, 'repoB not discovered');
+    repoRoot = repo.root;
+    const reg07 = core.debugRegistry.get('phase07') as Phase07RegistryShape;
+    shelf = reg07.getShelfStore(repoRoot)!;
+    assert.ok(shelf, 'shelf store missing');
+    reg09 = core.debugRegistry.get('phase09') as Phase09RegistryShape;
+    git('checkout', '-f', 'main');
+  });
+
+  teardown(async function () {
+    this.timeout(30_000);
+    for (const m of shelf.list()) shelf.delete(m.id);
+    try {
+      git('checkout', '-f', 'main');
+    } catch {
+      // already there
+    }
+    try {
+      git('clean', '-fd');
+    } catch {
+      // nothing to clean
+    }
+    const branches = git('branch', '--list', 'p7/*', '--format=%(refname:short)')
+      .split('\n')
+      .map((b) => b.trim())
+      .filter((b) => b.length > 0);
+    for (const b of branches) {
+      try {
+        git('branch', '-D', b);
+      } catch {
+        // best effort
+      }
+    }
+    await repo.refresher.refreshNow();
+    await new Promise((r) => setTimeout(r, 300));
+  });
+
+  test('T3: shelve(remove) of modified/added/deleted/binary/CRLF-untracked cleans the worktree; the patch restores byte-identical', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/shelf');
+    write('s7m.txt', 'before\n');
+    write('s7d.txt', 'doomed\n');
+    write('s7b.bin', Buffer.from([0x00, 0x01, 0x02]));
+    commitAll('p7 shelf base');
+
+    // Dirty in all five flavors the acceptance names.
+    write('s7m.txt', 'after edit\n');
+    fs.rmSync(abs('s7d.txt'));
+    const binBytes = Buffer.from([0xff, 0x00, 0x42, 0x0d, 0x0a]);
+    write('s7b.bin', binBytes);
+    write('s7a.txt', 'staged new\n');
+    git('add', '--', 's7a.txt');
+    const crlf = 'untracked\r\nCRLF file\r\n';
+    write('s7u.txt', crlf);
+    await repo.refresher.refreshNow(); // the P9 snapshot collects dirty files from the model
+
+    const res = await shelf.shelve({
+      name: 'p7 shelve test',
+      comment: 'from the T3 acceptance',
+      removeFromWorktree: true,
+    });
+    assert.strictEqual(res.removed, true, `removal skipped: ${res.removalSkippedReason ?? ''}`);
+    assert.strictEqual(git('status', '--porcelain').trim(), '', 'worktree clean after shelve(remove)');
+    assert.strictEqual(fs.readFileSync(abs('s7m.txt'), 'utf8'), 'before\n');
+    assert.strictEqual(fs.readFileSync(abs('s7d.txt'), 'utf8'), 'doomed\n', 'deletion reverted');
+    assert.deepStrictEqual([...fs.readFileSync(abs('s7b.bin'))], [0x00, 0x01, 0x02]);
+    assert.ok(!fs.existsSync(abs('s7a.txt')), 'staged add removed');
+    assert.ok(!fs.existsSync(abs('s7u.txt')), 'untracked file removed');
+
+    // Metadata: file table, base, branch, embedded untracked marker.
+    const meta = res.meta;
+    const byPath = new Map(meta.files.map((f) => [f.relPath, f]));
+    assert.strictEqual(byPath.get('s7m.txt')?.status, 'modified');
+    assert.strictEqual(byPath.get('s7d.txt')?.status, 'deleted');
+    assert.strictEqual(byPath.get('s7a.txt')?.status, 'added');
+    assert.strictEqual(byPath.get('s7u.txt')?.status, 'untracked');
+    assert.strictEqual(byPath.get('s7b.bin')?.status, 'modified');
+    assert.strictEqual(byPath.get('s7b.bin')?.isBinary, true, 'binary flagged');
+    assert.strictEqual(byPath.get('s7m.txt')?.isBinary, false);
+    assert.strictEqual(meta.untrackedSnapshots, 'embedded');
+    assert.strictEqual(meta.baseSha, git('rev-parse', 'HEAD').trim());
+    assert.strictEqual(meta.branch, 'p7/shelf');
+
+    // Storage lives entirely outside the repository (and therefore .git).
+    const patchFile = shelf.patchPath(meta.id);
+    assert.ok(!patchFile.startsWith(repoRoot), `patch inside the repo: ${patchFile}`);
+    assert.ok(fs.existsSync(patchFile), 'changes.patch on disk');
+    assert.ok(fs.existsSync(path.join(shelf.entryDir(meta.id), 'meta.json')), 'meta.json on disk');
+    assert.ok(shelf.verify(meta.id), 'sha256 integrity holds');
+
+    // The destructive leg was gated behind a P9 snapshot.
+    const labels = (reg09.getStore(repoRoot)?.list() ?? []).map((m) => m.label);
+    assert.ok(labels.includes('Before: shelve (remove)'), `P9 labels: ${labels.join(', ')}`);
+
+    // The stored patch restores every byte (T5 builds its engine on this).
+    git('apply', '--index', patchFile);
+    assert.strictEqual(fs.readFileSync(abs('s7m.txt'), 'utf8'), 'after edit\n');
+    assert.deepStrictEqual([...fs.readFileSync(abs('s7b.bin'))], [...binBytes], 'binary byte-identical');
+    assert.strictEqual(fs.readFileSync(abs('s7a.txt'), 'utf8'), 'staged new\n');
+    assert.strictEqual(fs.readFileSync(abs('s7u.txt'), 'utf8'), crlf, 'CRLF byte-identical');
+    assert.ok(!fs.existsSync(abs('s7d.txt')), 'deletion re-applied');
+    shelf.delete(meta.id);
+  });
+
+  test('T3: shelve without remove leaves worktree and index untouched; corruption is detected before use', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/shelfkeep');
+    write('s7k.txt', 'base\n');
+    commitAll('p7 keep base');
+    write('s7k.txt', 'keep me dirty\n');
+    write('s7ku.txt', 'untracked stays\r\n');
+    const statusBefore = git('status', '--porcelain');
+
+    const res = await shelf.shelve({ name: 'keep worktree' });
+    assert.strictEqual(res.removed, false);
+    assert.strictEqual(
+      git('status', '--porcelain'),
+      statusBefore,
+      'worktree/index untouched — the add -N dance fully reverted',
+    );
+    assert.ok(shelf.verify(res.meta.id));
+
+    // Flip one byte in the stored patch: entry still lists, use is refused.
+    const patchFile = shelf.patchPath(res.meta.id);
+    const bytes = fs.readFileSync(patchFile);
+    const at = Math.floor(bytes.length / 2);
+    bytes[at] = (bytes[at] as number) ^ 0xff;
+    fs.writeFileSync(patchFile, bytes);
+    assert.ok(
+      shelf.list().some((m) => m.id === res.meta.id),
+      'corrupted entry still listed',
+    );
+    assert.strictEqual(shelf.verify(res.meta.id), false);
+    // Name check, not instanceof: the store instance comes from the extension
+    // bundle while the test compiles against out/src — two class identities.
+    assert.throws(
+      () => shelf.readPatch(res.meta.id),
+      (err: unknown) => err instanceof Error && err.name === 'ShelfIntegrityError',
+      'readPatch must refuse a tampered patch',
+    );
+    shelf.delete(res.meta.id);
+  });
+
+  test('T3: shelf survives rm -rf .git + re-init — still lists and unshelves', async function () {
+    this.timeout(90_000);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p7t3-repo-'));
+    const shelfDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p7t3-shelf-'));
+    const tgit = (...args: string[]): string => gitWithRetry(tmp, args);
+    const configure = (): void => {
+      tgit('config', 'user.name', 'P7 T3');
+      tgit('config', 'user.email', 'p7t3@gittree.test');
+      tgit('config', 'commit.gpgsign', 'false');
+      tgit('config', 'core.autocrlf', 'false');
+    };
+    try {
+      tgit('init');
+      configure();
+      fs.writeFileSync(path.join(tmp, 'base.txt'), 'base\n');
+      tgit('add', '-A');
+      tgit('commit', '-m', 'base');
+      fs.writeFileSync(path.join(tmp, 'base.txt'), 'shelved change\n');
+      fs.writeFileSync(path.join(tmp, 'u.txt'), 'u one\r\nu two\r\n');
+
+      const store = new ShelfStore({ storeDir: shelfDir, repoRoot: tmp, queue: new OperationQueue(tmp, core.git) });
+      const res = await store.shelve({ name: 'survivor', removeFromWorktree: true });
+      assert.strictEqual(res.removed, true);
+      assert.strictEqual(tgit('status', '--porcelain').trim(), '', 'worktree clean');
+
+      // Destroy the repository outright — the spec's survival scenario.
+      rmrfHard(path.join(tmp, '.git'));
+      assert.ok(!fs.existsSync(path.join(tmp, '.git')));
+
+      // Listing needs no git at all: a fresh store over the same dir works.
+      const reborn = new ShelfStore({ storeDir: shelfDir, repoRoot: tmp, queue: new OperationQueue(tmp, core.git) });
+      const listed = reborn.list();
+      assert.strictEqual(listed.length, 1);
+      assert.strictEqual(listed[0]!.name, 'survivor');
+      assert.strictEqual(listed[0]!.files.length, 2);
+
+      // Re-init and unshelve into the reborn repository.
+      tgit('init');
+      configure();
+      tgit('add', '-A');
+      tgit('commit', '-m', 'reborn');
+      assert.ok(reborn.readPatch(listed[0]!.id).length > 0, 'integrity-checked read');
+      tgit('apply', '--index', reborn.patchPath(listed[0]!.id));
+      assert.strictEqual(fs.readFileSync(path.join(tmp, 'base.txt'), 'utf8'), 'shelved change\n');
+      assert.strictEqual(fs.readFileSync(path.join(tmp, 'u.txt'), 'utf8'), 'u one\r\nu two\r\n');
+    } finally {
+      try {
+        rmrfHard(tmp);
+        fs.rmSync(shelfDir, { recursive: true, force: true, maxRetries: 5 });
+      } catch {
+        // temp dirs — the OS reclaims them eventually
+      }
+    }
   });
 });

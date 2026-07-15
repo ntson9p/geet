@@ -185,6 +185,16 @@
         }
       },
       {
+        "title": "%gittree.config.shelf.title%",
+        "properties": {
+          "gittree.shelf.path": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.shelf.path.description%"
+          }
+        }
+      },
+      {
         "title": "%gittree.config.commit.title%",
         "properties": {
           "gittree.commit.paradigm": {

@@ -37,6 +37,7 @@ export const SNAPSHOT_LABELS = {
   stashDrop: 'Before: stash drop',
   stashClear: 'Before: stash clear',
   unshelveWithRemove: 'Before: unshelve (remove)',
+  shelveWithRemove: 'Before: shelve (remove)',
   rollback: 'Before: rollback',
   cleanUntracked: 'Before: clean untracked',
   branchForceDelete: 'Before: branch force-delete',

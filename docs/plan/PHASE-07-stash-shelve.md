@@ -70,10 +70,18 @@ Views `gittree.stashes`, `gittree.shelf`; commands `gittree.stash.{push,pop,appl
 - **T2 (untracked diff right side):** a stashed-away untracked file has no working-tree counterpart, and `vscode.diff` errors on a missing `file:` side — the diff falls back to `gittree-rev:HEAD` for the right side (guaranteed empty for a file that was untracked), titled "… ↔ not in working tree".
 - **T2 (palette fallback):** every `gittree.stash.*` command accepts an optional tree node and otherwise QuickPicks across all repos' stashes (`GITTREE_TEST_STASH_PICK`/`_PUSH`/`_BRANCH` seams for headless flows); Clear All uses a typed-confirmation input (`typedConfirm`, added to `ui/confirm.ts`, honoring the existing `GITTREE_TEST_AUTOCONFIRM` seam).
 - **T2 (apply/pop restore the index):** the row/palette Apply and Pop pass `--index` — IntelliJ restores staged state on unstash; the service keeps it optional for callers that want git's default.
+- **T3 (patch bytes never cross a string decode):** `GitExecutor` stdout is utf8-decoded, which is not byte-safe for arbitrary file content — the patch is written by git itself via `--output=<file>`, and sha256/reads use raw `Buffer`s throughout.
+- **T3 (renames disabled):** the capture diff runs `--no-renames`, so every entry is a plain add/delete/modify — the meta schema stays exactly `{relPath, status, isBinary}` and removal stays uniform. A rename shelves as delete+add, byte-faithful either way.
+- **T3 (added-file removal):** `git restore --source=HEAD` errors on paths absent from HEAD, so removal splits: modified/deleted → `restore --worktree --staged`; added/untracked → `reset -q` + fs delete.
+- **T3 (snapshot placement + new label):** the P9 snapshot rides the binding `onWillRunDestructive` hook, so it fires before the whole capture mutation rather than between verify and restore as step 3 orders it — strictly earlier, superset coverage. `SNAPSHOT_LABELS.shelveWithRemove` ('Before: shelve (remove)') was added; the §10 matrix named only unshelve-with-remove, and the label-matrix unit test iterates the const so the new label is covered automatically.
+- **T3 (single-mutation capture):** the whole classify → `add -N` → diff → `reset` → verify → remove pipeline is ONE queued mutation (index safety by construction; the `reset` undo sits in a `finally`); the non-remove e2e asserts `git status --porcelain` is byte-identical before/after, proving the ita dance never leaks.
+- **T3 ("unshelve restores" acceptance):** T5 owns the unshelve engine, so the T3 round-trips apply the stored patch via raw `git apply --index` — proving the stored bytes restore the worktree byte-identically (the exact primitive T5 builds on).
+- **T3 (repo-deletion e2e isolation):** the `rm -rf .git` + re-init scenario runs on an ephemeral temp repo with a directly-constructed `OperationQueue` over the extension's executor — destroying a shared workspace fixture repo would poison later suites (phase09 also runs on repoB).
+- **T3 (store is vscode-free):** mirrors SnapshotStore — the register layer injects the store dir (per-repo `repoStoreKey` under `<globalStorage>/shelf`, `gittree.shelf.path` override validated by an actual write probe), the queue and a localized progress label; T4/T5 localize errors when surfacing them.
 
 ## Parity checklist (FEATURES.md §6)
 - [x] Stash GUI: save (with message/options), list, apply, pop, drop, branch-from-stash
 - [x] Diff any stash (incl. untracked contents) against the current working tree
-- [ ] Shelve stores `.patch` files on local disk entirely outside `.git`
-- [ ] Shelf survives deleting/re-initializing the repository
+- [x] Shelve stores `.patch` files on local disk entirely outside `.git`
+- [x] Shelf survives deleting/re-initializing the repository
 - [ ] Shelf tab: view patches, edit them (validated), unshelve to working tree (full/partial, conflict-safe)

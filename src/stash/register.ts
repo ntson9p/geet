@@ -1,14 +1,45 @@
 /**
- * Phase 7 registration (T1 service + T2 stashes view/commands; T3..T5 add
- * the shelf engine, view and unshelve).
+ * Phase 7 registration (T1 service + T2 stashes view/commands + T3 shelf
+ * store; T4/T5 add the shelf view and unshelve engine).
  */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
+import { repoStoreKey } from '../localHistory/snapshotStore';
 import { confirmModal, typedConfirm } from '../ui/confirm';
 import type { ConflictSource } from '../merge/conflictSession';
+import { ShelfStore } from '../shelf/shelfStore';
 import { StashService, type StashPushOptions } from './stashService';
 import { relativeTime, stashDiffSides, StashViewProvider, type StashNode } from './stashView';
+
+/**
+ * P7-T3: shelf root — `gittree.shelf.path` when set AND write-probe passes,
+ * else `<globalStorage>/shelf`. Both live outside `.git` and the workspace,
+ * so shelves survive repo deletion. Read once per repo attach; changing the
+ * setting applies to repos attached afterwards (reload for existing ones).
+ */
+function shelfRootDir(context: vscode.ExtensionContext): string {
+  const override = vscode.workspace.getConfiguration('gittree.shelf').get<string>('path', '').trim();
+  if (override.length > 0) {
+    try {
+      fs.mkdirSync(override, { recursive: true });
+      const probe = path.join(override, `.gittree-write-probe-${process.pid}`);
+      fs.writeFileSync(probe, '');
+      fs.rmSync(probe, { force: true });
+      return override;
+    } catch {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          'The configured shelf location "{0}" is not writable — using the default location instead.',
+          override,
+        ),
+      );
+    }
+  }
+  return path.join(context.globalStorageUri.fsPath, 'shelf');
+}
 
 interface Phase06LifecycleShape {
   lifecycle: { expectConflict(repoRoot: string, source: ConflictSource): void };
@@ -29,10 +60,23 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       core.repos.map((repo) => ({ repo, service: services.get(canonicalKey(repo.root))! })),
     );
   };
+  // ---- P7-T3: one ShelfStore per repo, outside .git and the workspace ----
+  const shelves = new Map<string, ShelfStore>();
+  const trace = (l: string): void => core.output.appendLine(`[shelf] ${l}`);
+
   const attach = (repo: RepoHandle): void => {
     const service = new StashService(repo, expectConflict);
     services.set(canonicalKey(repo.root), service);
     repo.disposables.add(service.onDidChange(() => viewProvider.refresh()));
+    const shelf = new ShelfStore({
+      storeDir: path.join(shelfRootDir(context), repoStoreKey(canonicalKey(repo.root))),
+      repoRoot: repo.root,
+      queue: repo.queue,
+      progressLabel: (name) => vscode.l10n.t('Shelve: {0}', name),
+      trace,
+    });
+    shelves.set(canonicalKey(repo.root), shelf);
+    repo.disposables.add(shelf);
     pushRepos();
   };
   for (const repo of core.repos) attach(repo);
@@ -225,6 +269,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
 
   core.debugRegistry.set('phase07', {
     getStashService: (repoRoot: string) => services.get(canonicalKey(repoRoot)),
+    getShelfStore: (repoRoot: string) => shelves.get(canonicalKey(repoRoot)),
     stashViewProvider: viewProvider,
   });
 }
