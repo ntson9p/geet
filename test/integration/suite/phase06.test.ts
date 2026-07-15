@@ -43,6 +43,20 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
   teardown(async function () {
     this.timeout(30_000);
+    // A native merge tab left open (e.g. after an assertion failure) keeps
+    // re-reading index stages of later tests' conflicts — close it first.
+    for (const group of vscode.window.tabGroups.all) {
+      for (const t of group.tabs) {
+        const i = t.input;
+        if (typeof i === 'object' && i !== null && 'result' in i && 'input1' in i) {
+          try {
+            await vscode.window.tabGroups.close(t);
+          } catch {
+            // stale tab handle
+          }
+        }
+      }
+    }
     try {
       git('merge', '--abort');
     } catch {
@@ -467,6 +481,77 @@ suite('P6 merge engine — conflict sessions & view', () => {
       await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
     } finally {
       await config.update('resultMode', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test('T6: native merge bridge — native editor opens, save resolves; removal falls back', async function () {
+    this.timeout(120_000);
+    const config = vscode.workspace.getConfiguration('gittree.merge');
+    await config.update('ui', 'native', vscode.ConfigurationTarget.Global);
+    try {
+      const session = await buildTwoBlockConflict('native', 'p6nat.txt');
+      const node = { session, path: 'p6nat.txt', kind: 'both-modified' as const };
+      await vscode.commands.executeCommand('gittree.merge.open', node);
+
+      // The native merge editor owns the tab; no tri-editor registered.
+      // TabInputTextMerge is not in the stable typings — duck-type the shape.
+      interface MergeTabInputShape {
+        base: vscode.Uri;
+        input1: vscode.Uri;
+        input2: vscode.Uri;
+        result: vscode.Uri;
+      }
+      const asMergeInput = (i: unknown): MergeTabInputShape | undefined =>
+        typeof i === 'object' && i !== null && 'result' in i && 'input1' in i && 'input2' in i
+          ? (i as MergeTabInputShape)
+          : undefined;
+      await waitFor(
+        () => asMergeInput(vscode.window.tabGroups.activeTabGroup.activeTab?.input) !== undefined,
+        10_000,
+      );
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab!;
+      const input = asMergeInput(tab.input)!;
+      // Uri.file lowercases the drive letter — normalize the expectation too.
+      assert.strictEqual(
+        input.result.fsPath,
+        vscode.Uri.file(abs('p6nat.txt')).fsPath,
+        'output must be the worktree file',
+      );
+      assert.strictEqual(reg.triEditors.get(repoRoot, 'p6nat.txt'), undefined, 'no tri-editor expected');
+      assert.strictEqual(session.usedTriEditorFallback, false);
+
+      // Saving the output (the native "Complete Merge" path) stages the file.
+      const fileUri = vscode.Uri.file(abs('p6nat.txt'));
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(fileUri, new vscode.Range(0, 0, doc.lineCount, 0), 'a\nB1\nc\nD2\ne\n');
+      assert.ok(await vscode.workspace.applyEdit(edit));
+      assert.ok(await doc.save(), 'output save expected');
+      await waitFor(() => session.remaining === 0, 15_000);
+      const staged = git('ls-files', '-s', '--', 'p6nat.txt').trim().split('\n');
+      assert.strictEqual(staged.length, 1, `single index entry expected: ${staged.join(' | ')}`);
+      assert.match(staged[0]!, /\s0\tp6nat\.txt$/, 'stage 0 (resolved) expected');
+      await vscode.window.tabGroups.close(tab);
+      assert.strictEqual(await session.continueOp(), true);
+      await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+
+      // Simulated command removal: silent fallback to the tri-editor.
+      process.env['GITTREE_TEST_NATIVE_UNAVAILABLE'] = '1';
+      try {
+        const session2 = await buildTwoBlockConflict('native2', 'p6nat2.txt');
+        const node2 = { session: session2, path: 'p6nat2.txt', kind: 'both-modified' as const };
+        await vscode.commands.executeCommand('gittree.merge.open', node2);
+        const tri = reg.triEditors.get(repoRoot, 'p6nat2.txt');
+        assert.ok(tri, 'fallback tri-editor expected');
+        assert.strictEqual(session2.usedTriEditorFallback, true, 'session flag must record the fallback');
+        await tri.close();
+        await session2.abortOp();
+        await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+      } finally {
+        delete process.env['GITTREE_TEST_NATIVE_UNAVAILABLE'];
+      }
+    } finally {
+      await config.update('ui', undefined, vscode.ConfigurationTarget.Global);
     }
   });
 

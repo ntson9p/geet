@@ -71,6 +71,9 @@ export class ConflictSession {
   readonly onDidResolveAll: Event<void> = this._onDidResolveAll.event;
   /** Paths seen unmerged in this session that have since left that state. */
   readonly resolved = new Set<string>();
+  /** T6: native merge UI was requested but unavailable — the tri-editor
+   *  served instead. Surfaced in the trace log only, never in UI. */
+  usedTriEditorFallback = false;
   private readonly seen = new Set<string>();
   private readonly sub: { dispose(): void };
   private lastRemaining = -1;

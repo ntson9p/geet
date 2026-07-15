@@ -11,6 +11,7 @@ import { confirmModal } from '../ui/confirm';
 import { ConflictSession, isSpecialConflict, type ConflictSource } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
 import { MergeComputer, serializeResult, type MergeExec } from './mergeCompute';
+import { mergeUiSetting, NativeMergeBridge } from './nativeBridge';
 import { registerResolutionActions, wandOptions } from './resolutionActions';
 import { resolveAllBlocks } from './resolver/autoResolver';
 import { TriEditorManager } from './triEditor';
@@ -26,6 +27,9 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   const triEditors = new TriEditorManager(mergeFs);
   context.subscriptions.push(triEditors);
   registerResolutionActions(context, triEditors);
+  const trace = (l: string): void => core.output.appendLine(`[merge] ${l}`);
+  const nativeBridge = new NativeMergeBridge(trace);
+  context.subscriptions.push(nativeBridge);
   const view = vscode.window.createTreeView('gittree.conflicts', {
     treeDataProvider: viewProvider,
   });
@@ -213,6 +217,12 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     if (input.kind === 'binary' || input.kind === 'too-large') {
       await resolveBinary(node, input.kind);
       return;
+    }
+    // T6: optional native path — silent tri-editor fallback on any failure.
+    if (mergeUiSetting() === 'native') {
+      if (await nativeBridge.open(node.session.repo, node.path, node.session)) return;
+      node.session.usedTriEditorFallback = true;
+      trace(`native merge UI unavailable — tri-editor fallback for ${node.path}`);
     }
     await triEditors.openEditor(node.session.repo, node.path, node.session, input.merge);
   });

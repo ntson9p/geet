@@ -158,6 +158,19 @@
             "type": "boolean",
             "default": true,
             "description": "%gittree.config.merge.autoResolveWhitespace.description%"
+          },
+          "gittree.merge.ui": {
+            "type": "string",
+            "enum": [
+              "triEditor",
+              "native"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.merge.ui.triEditor%",
+              "%gittree.config.merge.ui.native%"
+            ],
+            "default": "triEditor",
+            "description": "%gittree.config.merge.ui.description%"
           }
         }
       },
