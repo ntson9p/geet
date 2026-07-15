@@ -74,6 +74,28 @@ jobs:
         if: runner.os != 'Linux'
         run: npm run test:integration
 
+  perf:
+    name: perf (${{ matrix.os }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run perf benchmarks (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:perf
+      - name: Run perf benchmarks (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:perf
+
   package:
     name: package (vsce)
     needs: check

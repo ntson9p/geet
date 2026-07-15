@@ -10,8 +10,13 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { promisify } from 'node:util';
 import * as zlib from 'node:zlib';
 import { ulid } from '../core/util/ulid';
+
+const gzipAsync = promisify(zlib.gzip);
+/** P10-T1: capture pipeline fan-out — gzip runs on the libuv threadpool. */
+const CAPTURE_CONCURRENCY = 8;
 
 export type SnapshotTrigger = 'operation' | 'task' | 'save' | 'manual';
 
@@ -95,36 +100,28 @@ export class SnapshotStore {
    * when nothing was recordable.
    */
   snapshot(label: string, trigger: SnapshotTrigger, files: readonly PathLike[]): Promise<string | undefined> {
-    return this.locked(() => {
-      const entries: SnapshotFileEntry[] = [];
+    return this.locked(async () => {
       const capBytes = this.maxFileSizeKb * 1024;
-      for (const f of files) {
-        const abs = typeof f === 'string' ? f : f.fsPath;
-        const rel = path.relative(this.options.repoRoot, abs);
-        if (rel.startsWith('..') || path.isAbsolute(rel)) continue; // outside repo
-        let stat: fs.Stats;
-        try {
-          stat = fs.statSync(longPath(abs));
-        } catch {
-          continue; // vanished — fine
+      // Bounded-concurrency async capture (P10-T1): the previous fully-sync
+      // per-file stat→read→gzip→write loop blocked the extension host for
+      // seconds at a few thousand dirty files. Slots keep manifest order
+      // deterministic (input order) regardless of completion order.
+      const slots: Array<SnapshotFileEntry | undefined> = new Array<SnapshotFileEntry | undefined>(
+        files.length,
+      ).fill(undefined);
+      let cursor = 0;
+      const worker = async (): Promise<void> => {
+        for (;;) {
+          const i = cursor++;
+          const item = files[i];
+          if (item === undefined) return;
+          slots[i] = await this.captureOne(item, capBytes);
         }
-        if (!stat.isFile()) continue;
-        const relPath = rel.replace(/\\/g, '/');
-        if (stat.size > capBytes) {
-          entries.push({ relPath, blobSha: '', mode: stat.mode, size: stat.size, tooLarge: true });
-          continue;
-        }
-        let content: Buffer;
-        try {
-          content = fs.readFileSync(longPath(abs));
-        } catch (err) {
-          this.trace(`snapshot: unreadable ${relPath}: ${String(err)}`);
-          continue;
-        }
-        const sha = crypto.createHash('sha256').update(content).digest('hex');
-        this.writeBlobIfMissing(sha, content);
-        entries.push({ relPath, blobSha: sha, mode: stat.mode, size: stat.size });
-      }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(CAPTURE_CONCURRENCY, Math.max(files.length, 1)) }, worker),
+      );
+      const entries = slots.filter((e): e is SnapshotFileEntry => e !== undefined);
       if (entries.length === 0) return undefined;
 
       const manifest: SnapshotManifest = {
@@ -144,18 +141,51 @@ export class SnapshotStore {
     });
   }
 
-  private writeBlobIfMissing(sha: string, content: Buffer): void {
+  /** One file of the capture: stat → read → sha → gzip blob. All async. */
+  private async captureOne(f: PathLike, capBytes: number): Promise<SnapshotFileEntry | undefined> {
+    const abs = typeof f === 'string' ? f : f.fsPath;
+    const rel = path.relative(this.options.repoRoot, abs);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return undefined; // outside repo
+    let stat: fs.Stats;
+    try {
+      stat = await fs.promises.stat(longPath(abs));
+    } catch {
+      return undefined; // vanished — fine
+    }
+    if (!stat.isFile()) return undefined;
+    const relPath = rel.replace(/\\/g, '/');
+    if (stat.size > capBytes) {
+      return { relPath, blobSha: '', mode: stat.mode, size: stat.size, tooLarge: true };
+    }
+    let content: Buffer;
+    try {
+      content = await fs.promises.readFile(longPath(abs));
+    } catch (err) {
+      this.trace(`snapshot: unreadable ${relPath}: ${String(err)}`);
+      return undefined;
+    }
+    const sha = crypto.createHash('sha256').update(content).digest('hex');
+    await this.writeBlobIfMissing(sha, content);
+    return { relPath, blobSha: sha, mode: stat.mode, size: stat.size };
+  }
+
+  private async writeBlobIfMissing(sha: string, content: Buffer): Promise<void> {
     const dir = path.join(this.blobsDir, sha.slice(0, 2));
     const file = path.join(dir, `${sha}.gz`);
-    if (fs.existsSync(longPath(file))) return; // dedupe
-    fs.mkdirSync(longPath(dir), { recursive: true });
-    const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`;
-    fs.writeFileSync(longPath(tmp), zlib.gzipSync(content));
     try {
-      fs.renameSync(longPath(tmp), longPath(file));
+      await fs.promises.access(longPath(file));
+      return; // dedupe
+    } catch {
+      // missing — write it
+    }
+    await fs.promises.mkdir(longPath(dir), { recursive: true });
+    const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`;
+    await fs.promises.writeFile(longPath(tmp), await gzipAsync(content));
+    try {
+      await fs.promises.rename(longPath(tmp), longPath(file));
     } catch {
       // Concurrent writer won the race — the tmp file is redundant.
-      fs.rmSync(longPath(tmp), { force: true });
+      await fs.promises.rm(longPath(tmp), { force: true });
     }
   }
 

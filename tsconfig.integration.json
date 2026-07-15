@@ -6,5 +6,5 @@
     "rootDir": ".",
     "declaration": false
   },
-  "include": ["test/integration/**/*.ts", "test/fixtures/**/*.ts"]
+  "include": ["test/integration/**/*.ts", "test/perf/**/*.ts", "test/fixtures/**/*.ts"]
 }

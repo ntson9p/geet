@@ -6,6 +6,7 @@ import { registerPhase04 } from './log/register';
 import { registerPhase06MergeEngine } from './merge/register';
 import { registerPhase09LocalHistory } from './localHistory/register';
 import { registerPhase05HistoryRewriting } from './rewrite/register';
+import { registerPhase10Hardening } from './hardening/register';
 import { registerPhase01 } from './scm/register';
 import { registerPhase07StashShelve } from './stash/register';
 import { DEMO_METHODS } from './shared/protocol';
@@ -23,9 +24,12 @@ let corePromise: Promise<Core | undefined> | undefined;
 export interface GitTreeApi {
   /** Test-only hook (P0-T10): resolves once discovery completed. */
   getCore(): Promise<Core | undefined> | undefined;
+  /** P10-T1: duration of activate()'s synchronous path, for the perf harness. */
+  perf?: { activationSyncMs: number };
 }
 
 export function activate(context: vscode.ExtensionContext): GitTreeApi {
+  const activationStart = performance.now();
   // -- Core bootstrap (P0-T7) ---------------------------------------------
   // Async on purpose: activation's sync path stays within budget; consumers
   // await the promise.
@@ -39,6 +43,7 @@ export function activate(context: vscode.ExtensionContext): GitTreeApi {
 
   return {
     getCore: () => (process.env['GITTREE_TEST'] === '1' ? corePromise : undefined),
+    perf: { activationSyncMs: performance.now() - activationStart },
   };
 }
 
@@ -61,6 +66,7 @@ function registerPhases(context: vscode.ExtensionContext, core: Core): void {
   // -- registerPhase09 (Local History) -------------------------------------
   registerPhase09LocalHistory(context, core);
   // -- registerPhase10 (Hardening) -----------------------------------------
+  registerPhase10Hardening(context, core);
 }
 
 /** P0 contribution: `gittree.debug.showState` dumps model JSON to an untitled doc. */
