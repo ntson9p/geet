@@ -63,6 +63,11 @@ suite('P6 merge engine — conflict sessions & view', () => {
       // no merge in progress
     }
     try {
+      git('cherry-pick', '--abort');
+    } catch {
+      // no cherry-pick in progress
+    }
+    try {
       git('checkout', '-f', 'main');
     } catch {
       // already there
@@ -553,6 +558,72 @@ suite('P6 merge engine — conflict sessions & view', () => {
     } finally {
       await config.update('ui', undefined, vscode.ConfigurationTarget.Global);
     }
+  });
+
+  test('T7: mutation lane held during pause — queued mutation runs only after continue', async function () {
+    this.timeout(120_000);
+    const session = await buildTwoBlockConflict('hold', 'p6hold.txt');
+
+    // An unrelated mutation queues behind the held lane…
+    let ran = false;
+    const queued = repo.queue.enqueue({
+      label: 'unrelated mutation',
+      kind: 'mutate',
+      run: () => {
+        ran = true;
+        return Promise.resolve();
+      },
+    });
+    // …while reads still flow.
+    const read = await repo.queue.enqueue({
+      label: 'read probe',
+      kind: 'read',
+      run: () => Promise.resolve('ok'),
+    });
+    assert.strictEqual(read, 'ok', 'reads must flow during the hold');
+    assert.strictEqual(ran, false, 'held mutation must not run during the pause');
+
+    // Resolution ops bypass the hold; the hold itself persists until continue.
+    await session.acceptSide(['p6hold.txt'], 'ours');
+    await waitFor(() => session.remaining === 0, 10_000);
+    assert.strictEqual(ran, false, 'held mutation still queued after resolve, before continue');
+
+    assert.strictEqual(await session.continueOp(), true);
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+    await queued;
+    assert.strictEqual(ran, true, 'held mutation runs once the pause ends');
+  });
+
+  test('T7: cherry-pick conflict auto-creates a session; continue completes the pick', async function () {
+    this.timeout(120_000);
+    git('checkout', '-f', 'main');
+    git('checkout', '-b', 'p6/cp');
+    write('p6cp.txt', 'base\n');
+    commitAll('p6 cp base');
+    git('checkout', '-b', 'p6/cp-side');
+    write('p6cp.txt', 'picked\n');
+    commitAll('p6 cp side change');
+    const pick = git('rev-parse', 'HEAD').trim();
+    git('checkout', 'p6/cp');
+    write('p6cp.txt', 'ours\n');
+    commitAll('p6 cp ours');
+    try {
+      git('cherry-pick', pick);
+      assert.fail('cherry-pick should conflict');
+    } catch {
+      // expected
+    }
+    await repo.refresher.refreshNow();
+    await waitFor(() => reg.getSession(repoRoot) !== undefined, 15_000);
+    const session = reg.getSession(repoRoot)!;
+    assert.strictEqual(session.source, 'cherry-pick', 'producer detection from sequencer marker');
+
+    await session.acceptSide(['p6cp.txt'], 'theirs');
+    await waitFor(() => session.remaining === 0, 10_000);
+    assert.strictEqual(await session.continueOp(), true);
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+    assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p6 cp side change');
+    assert.strictEqual(fs.readFileSync(abs('p6cp.txt'), 'utf8'), 'picked\n');
   });
 
   test('T1: abort restores the pre-merge state and closes the session', async function () {

@@ -109,6 +109,7 @@ export class RevertCherryPickService {
       label: vscode.l10n.t('{0}: abort', kind),
       kind: 'mutate',
       isDestructive: true,
+      bypassHold: true,
       snapshotLabel: kind === 'revert' ? SNAPSHOT_LABELS.revert : SNAPSHOT_LABELS.cherryPick,
       run: async (git, token) => {
         await git.exec(repo.root, [kind, '--abort'], { token });
@@ -148,6 +149,8 @@ export class RevertCherryPickService {
       label: vscode.l10n.t('{0} ({1})', kind === 'revert' ? 'Revert' : 'Cherry-pick', args.length - 1),
       kind: 'mutate',
       isDestructive: true,
+      // P6-T7: --continue/--skip resolve the pause that holds the lane.
+      bypassHold: true,
       snapshotLabel,
       snapshotAfter: true,
       run: (git, token) =>

@@ -113,6 +113,10 @@ View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs
 - **T6 (save→resolve plumbing):** the native merge editor writes its output on save but never stages it, so "its save marks the file resolved" is realized by the bridge: one `onDidSaveTextDocument` listener with a pending-output map stages the file via `session.markResolved` on the first save. Inputs ride `gittree-rev:` index-stage URIs (`:1/:2/:3`); the probe calls `getCommands(false)` because the default filter hides underscore-internal commands.
 - **T6 (fallback flag):** the "session flag" is `ConflictSession.usedTriEditorFallback` (public, trace-log only, never surfaced in UI); the fallback path also logs `[merge] native merge UI unavailable…` to the GitTree output channel. `GITTREE_TEST_NATIVE_UNAVAILABLE=1` seeds simulated command removal for the e2e.
 - **T6 (e2e tab detection):** `TabInputTextMerge` is still not in the stable typings, so the e2e duck-types the merge tab's input shape (`base/input1/input2/result`) and compares the output path through `vscode.Uri.file` normalization (URI fsPaths lowercase the Windows drive letter).
+- **T7 (pause-event source):** sessions are created from model transitions (`status`+`op` sections — the same signal `RebaseStateMonitor` itself consumes) plus a `merge-conflict` `errorKind` fast-path added to `FinishedMutationEvent`; there is no direct subscription to P5's `RebasePausedEvent`, which would couple phase registration order for no extra information.
+- **T7 (producer hints):** op-less sources (stash-pop, unshelve, checkout -m) classify through the `MergeLifecycle.expectConflict(root, source)` one-shot seam — P2-T4/P7 producers call it just before their conflict lands; without a hint the T1 default (`checkout-merge`) stands.
+- **T7 (lane hold mechanics):** `OperationQueue.holdMutations()` + `Operation.bypassHold` realize the "paused op token": the lifecycle holds the lane while a session lives, and every resolution op (session accept/resolve/mark/continue/abort, rebase engine steps/abort, sequencer steps/abort) bypasses so the pause can end. Non-bypass mutations wait FIFO; readers flow throughout.
+- **T7 ("Commit Merge…" CTA):** the merge CTA opens the SCM view with `MERGE_MSG` (comments stripped) prefilled into the input box per the plan; the Conflicts-view Continue button keeps the T1 `merge --continue` path — both conclude the merge, one interactive, one direct.
 
 ## Parity checklist (FEATURES.md §5)
 - [x] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file
@@ -121,4 +125,4 @@ View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs
 - [x] Chevron `≫`/`≪` per-conflict pulls from either side into the center
 - [x] Accept Left / Accept Right global overwrite buttons
 - [x] Center pane is a full editor: syntax highlighting **and working autocompletion**, free manual rewriting
-- [ ] Resolution feeds back into the originating operation (merge/rebase/cherry-pick/… continues)
+- [x] Resolution feeds back into the originating operation (merge/rebase/cherry-pick/… continues)

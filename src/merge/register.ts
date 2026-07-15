@@ -5,11 +5,11 @@
  */
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
-import { canonicalKey } from '../core/repoDiscovery';
 import { MERGE_SCHEME, MergeFsProvider } from '../core/vdocs/mergeFs';
 import { confirmModal } from '../ui/confirm';
-import { ConflictSession, isSpecialConflict, type ConflictSource } from './conflictSession';
+import { isSpecialConflict, type ConflictSession } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
+import { MergeLifecycle } from './lifecycle';
 import { MergeComputer, serializeResult, type MergeExec } from './mergeCompute';
 import { mergeUiSetting, NativeMergeBridge } from './nativeBridge';
 import { registerResolutionActions, wandOptions } from './resolutionActions';
@@ -17,7 +17,6 @@ import { resolveAllBlocks } from './resolver/autoResolver';
 import { TriEditorManager } from './triEditor';
 
 export function registerPhase06MergeEngine(context: vscode.ExtensionContext, core: Core): void {
-  const sessions = new Map<string, ConflictSession>();
   const viewProvider = new ConflictsViewProvider();
   const mergeFs = new MergeFsProvider();
   context.subscriptions.push(
@@ -35,103 +34,31 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   });
   context.subscriptions.push(view);
 
+  // T7: session creation, lane holds, producer hints and completion CTAs
+  // live in the lifecycle; this file keeps the view + command surfaces.
+  const lifecycle = new MergeLifecycle(core, trace);
+  context.subscriptions.push(lifecycle);
   const pushSessions = (): void => {
-    viewProvider.setSessions([...sessions.values()]);
-    const any = [...sessions.values()].some((s) => s.remaining > 0);
-    const canContinue = [...sessions.values()].some((s) => s.remaining === 0);
-    void vscode.commands.executeCommand('setContext', 'gittree.hasConflicts', any || sessions.size > 0);
+    const all = lifecycle.all();
+    viewProvider.setSessions(all);
+    const any = all.some((s) => s.remaining > 0);
+    const canContinue = all.some((s) => s.remaining === 0);
+    void vscode.commands.executeCommand('setContext', 'gittree.hasConflicts', any || all.length > 0);
     void vscode.commands.executeCommand('setContext', 'gittree.conflicts.canContinue', canContinue);
   };
-
-  const sourceOf = (repo: RepoHandle): ConflictSource => {
-    switch (repo.model.snapshot.inProgressOp?.kind) {
-      case 'merge':
-        return 'merge';
-      case 'rebase-interactive':
-      case 'rebase-apply':
-        return 'rebase';
-      case 'cherry-pick':
-        return 'cherry-pick';
-      case 'revert':
-        return 'revert';
-      case undefined:
-      default:
-        // No op marker: stash-pop / checkout -m style conflicts (T7 refines).
-        return 'checkout-merge';
-    }
-  };
-
-  const evaluate = (repo: RepoHandle): void => {
-    const key = canonicalKey(repo.root);
-    const existing = sessions.get(key);
-    const unmerged = repo.model.snapshot.statusEntries.filter((e) => e.kind === 'unmerged').length;
-    if (!existing && unmerged > 0) {
-      const session = new ConflictSession(repo, sourceOf(repo));
-      sessions.set(key, session);
-      pushSessions();
-      // IntelliJ Conflicts-dialog parity: reveal + one-shot toast.
-      void vscode.commands.executeCommand('gittree.conflicts.focus');
-      const show = vscode.l10n.t('Show Conflicts');
-      void vscode.window
-        .showWarningMessage(
-          vscode.l10n.t('{0} produced {1} conflicted file(s).', session.source, unmerged),
-          show,
-        )
-        .then((choice) => {
-          if (choice === show) return vscode.commands.executeCommand('gittree.conflicts.focus');
-          return undefined;
-        });
-      session.onDidChange(() => pushSessions());
-      session.onDidResolveAll(() => {
-        pushSessions();
-        if (session.source === 'checkout-merge') return;
-        const cont = vscode.l10n.t('Continue {0}', session.source);
-        void vscode.window
-          .showInformationMessage(vscode.l10n.t('All conflicts resolved.'), cont)
-          .then((choice) => {
-            if (choice === cont) return session.continueOp();
-            return undefined;
-          });
-      });
-      return;
-    }
-    if (existing && unmerged === 0 && repo.model.snapshot.inProgressOp === undefined) {
-      existing.dispose();
-      sessions.delete(key);
-      pushSessions();
-      return;
-    }
-    if (existing) pushSessions();
-  };
-
-  const attach = (repo: RepoHandle): void => {
-    repo.disposables.add(
-      repo.model.onDidChange((sections) => {
-        if (sections.has('status') || sections.has('op')) evaluate(repo);
-      }),
-    );
-    evaluate(repo);
-  };
-  for (const repo of core.repos) attach(repo);
-  const addSub = core.onDidAddRepo((repo) => attach(repo));
-  context.subscriptions.push(new vscode.Disposable(() => addSub.dispose()));
-  context.subscriptions.push(
-    new vscode.Disposable(() => {
-      for (const s of sessions.values()) s.dispose();
-      sessions.clear();
-    }),
-  );
+  context.subscriptions.push(lifecycle.onDidChangeSessions(() => pushSessions()));
+  pushSessions();
 
   // ---- commands -------------------------------------------------------------
   const register = (id: string, fn: (...args: unknown[]) => Promise<void> | void): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
   const sessionFor = (arg?: unknown): ConflictSession | undefined => {
-    if (typeof arg === 'string') return sessions.get(canonicalKey(arg));
+    if (typeof arg === 'string') return lifecycle.get(arg);
     if (typeof arg === 'object' && arg !== null && 'session' in arg) {
       return (arg as ConflictNode).session;
     }
-    return [...sessions.values()][0];
+    return lifecycle.all()[0];
   };
 
   /** Delete/mode conflicts: tailored QuickPick instead of the tri-editor. */
@@ -324,8 +251,9 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   });
 
   core.debugRegistry.set('phase06', {
-    getSession: (repoRoot: string) => sessions.get(canonicalKey(repoRoot)),
+    getSession: (repoRoot: string) => lifecycle.get(repoRoot),
     viewProvider,
     triEditors,
+    lifecycle,
   });
 }

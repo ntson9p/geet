@@ -157,6 +157,7 @@ export class RebaseEngine {
       label: vscode.l10n.t('Rebase: abort'),
       kind: 'mutate',
       isDestructive: true,
+      bypassHold: true,
       snapshotLabel: SNAPSHOT_LABELS.rebaseAbort,
       run: async (git, token) => {
         await git.exec(this.repo.root, ['rebase', '--abort'], { token });
@@ -177,6 +178,8 @@ export class RebaseEngine {
       isDestructive: true,
       snapshotLabel,
       snapshotAfter: true,
+      // P6-T7: continue/skip resolve the very pause that holds the lane.
+      bypassHold: true,
       run: (git, token) =>
         git.exec(this.repo.root, args, { env, allowNonZeroExit: true, token }),
     });

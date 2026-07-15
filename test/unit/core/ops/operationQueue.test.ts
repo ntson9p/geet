@@ -306,3 +306,76 @@ describe('OperationQueue progress adapter', () => {
     expect(result).toBe('cancelled-by-progress');
   });
 });
+
+describe('P6-T7 mutation lane holds', () => {
+  it('holds block plain mutations; reads and bypass ops flow; release pumps', async () => {
+    const q = makeQueue();
+    const order: string[] = [];
+    const hold = q.holdMutations('conflict pause');
+
+    const plain = q.enqueue(
+      op('plain', 'mutate', () => {
+        order.push('plain');
+        return Promise.resolve();
+      }),
+    );
+    expect(await q.enqueue(op('read', 'read', () => Promise.resolve('r')))).toBe('r');
+
+    await q.enqueue(
+      op(
+        'bypass',
+        'mutate',
+        () => {
+          order.push('bypass');
+          return Promise.resolve();
+        },
+        { bypassHold: true },
+      ),
+    );
+    expect(order).toEqual(['bypass']);
+
+    hold.dispose();
+    await plain;
+    expect(order).toEqual(['bypass', 'plain']);
+  });
+
+  it('nested holds: the lane stays held until the last hold releases', async () => {
+    const q = makeQueue();
+    const h1 = q.holdMutations('a');
+    const h2 = q.holdMutations('b');
+    let ran = false;
+    const plain = q.enqueue(
+      op('m', 'mutate', () => {
+        ran = true;
+        return Promise.resolve();
+      }),
+    );
+    h1.dispose();
+    await q.enqueue(op('read', 'read', () => Promise.resolve(undefined)));
+    expect(ran).toBe(false);
+    h2.dispose();
+    await plain;
+    expect(ran).toBe(true);
+  });
+
+  it('failed mutations report the classified GitError kind', async () => {
+    const q = makeQueue();
+    const kinds: Array<string | undefined> = [];
+    q.onDidFinishMutation((e) => kinds.push(e.errorKind));
+    await q
+      .enqueue(
+        op('conflicting', 'mutate', () =>
+          Promise.reject(
+            new GitError('merge-conflict', 'CONFLICT (content)', {
+              args: ['merge'],
+              exitCode: 1,
+              stdout: '',
+              stderr: 'CONFLICT (content)',
+            }),
+          ),
+        ),
+      )
+      .catch(() => undefined);
+    expect(kinds).toEqual(['merge-conflict']);
+  });
+});

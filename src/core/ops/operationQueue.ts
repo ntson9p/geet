@@ -7,7 +7,7 @@
  * lets the watchers fold self-inflicted events into one post-op refresh.
  */
 import type { CancelToken, GitExecutor, RepoId } from '../git/executor';
-import { GitError } from '../git/errors';
+import { GitError, type GitErrorKind } from '../git/errors';
 import { CancellationSource } from '../util/cancellation';
 import { Emitter, type Event } from '../util/events';
 
@@ -20,6 +20,9 @@ export interface Operation<T> {
   snapshotPaths?: readonly string[];
   /** Take a paired "After: …" snapshot on success (worktree-mutating ops). */
   snapshotAfter?: boolean;
+  /** P6-T7: runs even while the mutation lane is held (conflict-resolution
+   *  ops — accept/stage/continue/abort — must not queue behind themselves). */
+  bypassHold?: boolean;
   run(git: GitExecutor, token: CancelToken): Promise<T>;
 }
 
@@ -38,6 +41,9 @@ export interface FinishedMutationEvent {
   snapshotLabel?: string;
   snapshotAfter: boolean;
   succeeded: boolean;
+  /** Classified kind when the mutation failed with a GitError (P6-T7 routes
+   *  'merge-conflict' into conflict-session creation). */
+  errorKind?: GitErrorKind;
 }
 
 /** Injected by the bootstrap; wraps mutations in vscode progress UI. */
@@ -81,6 +87,7 @@ export class OperationQueue {
   private readonly mutationQueue: Job<unknown>[] = [];
   private readonly readerQueue: Job<unknown>[] = [];
   private readonly runningReaders = new Set<Job<unknown>>();
+  private readonly holds = new Set<symbol>();
   private mutationRunning = false;
   private mutationSince: number | undefined;
   private lastMutationEnd = 0;
@@ -130,6 +137,25 @@ export class OperationQueue {
   }
 
   /**
+   * P6-T7: hold the mutation lane while a conflict pause is being resolved.
+   * Non-bypass mutations queue behind the hold; readers keep flowing, and
+   * resolution ops (`bypassHold`) run so the pause can actually end.
+   */
+  holdMutations(label: string): { dispose(): void } {
+    const token = Symbol(label);
+    this.holds.add(token);
+    this.trace(`mutation lane held: ${label}`);
+    return {
+      dispose: (): void => {
+        if (this.holds.delete(token)) {
+          this.trace(`mutation lane released: ${label}`);
+          this.pump();
+        }
+      },
+    };
+  }
+
+  /**
    * Watcher suppression test (master §4): events timestamped inside a
    * mutation, or within the grace window after one, are self-inflicted.
    */
@@ -144,14 +170,21 @@ export class OperationQueue {
     if (this.disposed) return;
     if (this.mutationRunning) return;
 
-    const mutation = this.mutationQueue.length > 0 ? this.mutationQueue[0] : undefined;
-    if (mutation) {
+    // While the lane is held (P6-T7 conflict pause), only bypass-flagged
+    // mutations are eligible; everything else waits, FIFO among eligible.
+    const at =
+      this.holds.size === 0
+        ? this.mutationQueue.length > 0
+          ? 0
+          : -1
+        : this.mutationQueue.findIndex((j) => j.op.bypassHold === true);
+    if (at >= 0) {
       // Wait for the reader pool to drain (they were cancelled on enqueue).
       if (this.runningReaders.size > 0) return;
-      this.mutationQueue.shift();
+      const [mutation] = this.mutationQueue.splice(at, 1);
       this.mutationRunning = true;
       this.mutationSince = Date.now();
-      void this.runMutation(mutation).finally(() => this.pump());
+      void this.runMutation(mutation as Job<unknown>).finally(() => this.pump());
       return;
     }
 
@@ -229,7 +262,9 @@ export class OperationQueue {
       this.finishMutation();
       job.source.dispose();
       job.reject(err);
-      this._onDidFinishMutation.fire(finishedEvent(job.op, false));
+      this._onDidFinishMutation.fire(
+        finishedEvent(job.op, false, err instanceof GitError ? err.kind : undefined),
+      );
     }
   }
 
@@ -277,7 +312,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function finishedEvent(op: Operation<unknown>, succeeded: boolean): FinishedMutationEvent {
+function finishedEvent(
+  op: Operation<unknown>,
+  succeeded: boolean,
+  errorKind?: GitErrorKind,
+): FinishedMutationEvent {
   const evt: FinishedMutationEvent = {
     label: op.label,
     isDestructive: op.isDestructive === true,
@@ -285,5 +324,6 @@ function finishedEvent(op: Operation<unknown>, succeeded: boolean): FinishedMuta
     succeeded,
   };
   if (op.snapshotLabel !== undefined) evt.snapshotLabel = op.snapshotLabel;
+  if (errorKind !== undefined) evt.errorKind = errorKind;
   return evt;
 }

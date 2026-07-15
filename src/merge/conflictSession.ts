@@ -132,6 +132,7 @@ export class ConflictSession {
           ? vscode.l10n.t('Accept yours ({0} file(s))', paths.length)
           : vscode.l10n.t('Accept theirs ({0} file(s))', paths.length),
       kind: 'mutate',
+      bypassHold: true,
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.rollback,
       snapshotPaths: paths.map((p) => vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), p).fsPath),
@@ -150,6 +151,7 @@ export class ConflictSession {
     await this.repo.queue.enqueue({
       label: vscode.l10n.t('Resolve {0}', path),
       kind: 'mutate',
+      bypassHold: true,
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.rollback,
       snapshotPaths: [vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), path).fsPath],
@@ -174,6 +176,7 @@ export class ConflictSession {
     await this.repo.queue.enqueue({
       label: vscode.l10n.t('Mark {0} resolved', path),
       kind: 'mutate',
+      bypassHold: true,
       run: async (git, token) => {
         await git.exec(this.repo.root, ['add', '--', path], { token });
       },
@@ -205,6 +208,7 @@ export class ConflictSession {
         await this.repo.queue.enqueue({
           label: vscode.l10n.t('Continue {0}', op),
           kind: 'mutate',
+          bypassHold: true,
           run: async (git, token) => {
             await git.exec(this.repo.root, [op, '--continue'], {
               env: { GIT_EDITOR: 'true' },
@@ -246,6 +250,7 @@ export class ConflictSession {
         await this.repo.queue.enqueue({
           label: vscode.l10n.t('Abort {0}', op),
           kind: 'mutate',
+          bypassHold: true,
           isDestructive: true,
           snapshotLabel: label,
           run: async (git, token) => {
