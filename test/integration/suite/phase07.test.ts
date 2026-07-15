@@ -8,6 +8,7 @@ import { OperationQueue } from '../../../src/core/ops/operationQueue';
 import type { SnapshotStore } from '../../../src/localHistory/snapshotStore';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import { ShelfStore } from '../../../src/shelf/shelfStore';
+import type { ShelfNode, ShelfViewProvider } from '../../../src/shelf/shelfView';
 import type { StashService } from '../../../src/stash/stashService';
 import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
@@ -22,6 +23,10 @@ interface Phase06RegistryShape {
 }
 interface Phase09RegistryShape {
   getStore(repoRoot: string): SnapshotStore | undefined;
+}
+interface Phase07ShelfUiShape {
+  getShelfStore(repoRoot: string): ShelfStore | undefined;
+  shelfViewProvider: ShelfViewProvider;
 }
 
 /** P7-T1 acceptance on workspace repoB. */
@@ -220,9 +225,11 @@ suite('P7 stash & shelve — StashService', () => {
     write('p7vu.txt', 'untracked view file\n');
 
     // External CLI stash → tree row within the 500 ms acceptance bound.
+    // 10 ms poll: the default 25 ms step quantizes the measurement upward
+    // (a 501 ms flake at full-suite load was pure poll granularity).
     git('stash', 'push', '--include-untracked', '-m', 'p7 external');
     const start = Date.now();
-    await waitFor(() => stash.list().some((s) => s.message.includes('p7 external')), 5_000);
+    await waitFor(() => stash.list().some((s) => s.message.includes('p7 external')), 5_000, 10);
     const elapsed = Date.now() - start;
     assert.ok(elapsed <= 500, `view model refreshed in ${elapsed}ms (bound 500ms)`);
 
@@ -496,5 +503,166 @@ suite('P7 stash & shelve — ShelfStore', () => {
         // temp dirs — the OS reclaims them eventually
       }
     }
+  });
+});
+
+/** P7-T4 acceptance: shelf view, per-file diff reconstruction, patch edit. */
+suite('P7 stash & shelve — Shelf UI', () => {
+  let repoRoot: string;
+  let repo: RepoHandle;
+  let shelf: ShelfStore;
+  let ui: Phase07ShelfUiShape;
+
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
+  const abs = (rel: string): string => path.join(repoRoot, rel);
+  const write = (rel: string, content: string | Buffer): void => fs.writeFileSync(abs(rel), content);
+  const commitAll = (subject: string): void => {
+    git('add', '-A');
+    git('commit', '-m', subject);
+  };
+
+  suiteSetup(async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    repo = core.repoForPath(workspaceRepoB())!;
+    repoRoot = repo.root;
+    ui = core.debugRegistry.get('phase07') as Phase07ShelfUiShape;
+    shelf = ui.getShelfStore(repoRoot)!;
+    assert.ok(ui.shelfViewProvider, 'shelf view provider missing');
+    git('checkout', '-f', 'main');
+  });
+
+  teardown(async function () {
+    this.timeout(30_000);
+    for (const m of shelf.list()) shelf.delete(m.id);
+    try {
+      git('checkout', '-f', 'main');
+      git('clean', '-fd');
+    } catch {
+      // best effort
+    }
+    for (const b of git('branch', '--list', 'p7/*', '--format=%(refname:short)')
+      .split('\n')
+      .map((x) => x.trim())
+      .filter((x) => x.length > 0)) {
+      try {
+        git('branch', '-D', b);
+      } catch {
+        // best effort
+      }
+    }
+    await repo.refresher.refreshNow();
+  });
+
+  test('T4: entry rows render; per-file diffs reconstruct modified/added/deleted content in memory', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/shelfui');
+    write('u7m.txt', 'alpha\nbeta\ngamma\n');
+    write('u7d.txt', 'bye\n');
+    commitAll('p7 ui base');
+    write('u7m.txt', 'alpha\nBETA\ngamma\n');
+    fs.rmSync(abs('u7d.txt'));
+    write('u7a.txt', 'fresh\r\nuntracked\r\n');
+    await repo.refresher.refreshNow();
+
+    const res = await shelf.shelve({ name: 'ui entry', removeFromWorktree: true });
+    assert.strictEqual(res.removed, true);
+
+    const roots = ui.shelfViewProvider.getChildren();
+    const entry = roots.find((n) => n.kind === 'entry' && n.meta.name === 'ui entry') as Extract<
+      ShelfNode,
+      { kind: 'entry' }
+    >;
+    assert.ok(entry, 'entry row rendered');
+    const entryItem = ui.shelfViewProvider.getTreeItem(entry);
+    assert.strictEqual(entryItem.contextValue, 'shelf:entry');
+    assert.match(String(entryItem.description), /3 file\(s\).*from p7\/shelfui/u);
+
+    // Every file child carries a vscode.diff whose sides resolve to the
+    // exact base and reconstructed contents — worktree untouched throughout.
+    const expected: Record<string, { left: string; right: string }> = {
+      'u7m.txt': { left: 'alpha\nbeta\ngamma\n', right: 'alpha\nBETA\ngamma\n' },
+      'u7d.txt': { left: 'bye\n', right: '' },
+      'u7a.txt': { left: '', right: 'fresh\r\nuntracked\r\n' },
+    };
+    const children = ui.shelfViewProvider.getChildren(entry);
+    assert.strictEqual(children.length, 3);
+    for (const child of children) {
+      assert.ok(child.kind === 'file');
+      const item = ui.shelfViewProvider.getTreeItem(child);
+      assert.strictEqual(item.command?.command, 'vscode.diff', child.file.relPath);
+      const [left, right] = item.command.arguments as [vscode.Uri, vscode.Uri, string];
+      const want = expected[child.file.relPath]!;
+      const leftDoc = await vscode.workspace.openTextDocument(left);
+      const rightDoc = await vscode.workspace.openTextDocument(right);
+      assert.strictEqual(leftDoc.getText(), want.left, `${child.file.relPath} base side`);
+      assert.strictEqual(rightDoc.getText(), want.right, `${child.file.relPath} shelved side`);
+    }
+    // One real diff tab opens end-to-end.
+    const first = ui.shelfViewProvider.getTreeItem(children[0]!);
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      ...(first.command!.arguments as [vscode.Uri, vscode.Uri, string]),
+    );
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    assert.ok(tab?.input instanceof vscode.TabInputTextDiff, 'diff tab opened');
+    await vscode.window.tabGroups.close(tab);
+
+    // Palette surface: every T4 verb registered.
+    const all = await vscode.commands.getCommands(true);
+    for (const verb of ['shelve', 'rename', 'delete', 'export', 'import', 'showPatch']) {
+      assert.ok(all.includes(`gittree.shelf.${verb}`), `gittree.shelf.${verb} registered`);
+    }
+    shelf.delete(res.meta.id);
+  });
+
+  test('T4: a hand-edited hunk that still applies unshelves with the edit; a broken edit is blocked', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/shelfedit');
+    write('e7.txt', 'one\ntwo\nthree\n');
+    commitAll('p7 edit base');
+    write('e7.txt', 'one\nTWO\nthree\n');
+    await repo.refresher.refreshNow();
+    const res = await shelf.shelve({ name: 'editable', removeFromWorktree: true });
+    assert.strictEqual(res.removed, true);
+    const patchFile = shelf.patchPath(res.meta.id);
+
+    // Valid edit: change only the added line's payload — context intact.
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(patchFile));
+    const editValid = new vscode.WorkspaceEdit();
+    const text = doc.getText();
+    const at = doc.positionAt(text.indexOf('+TWO'));
+    editValid.replace(doc.uri, new vscode.Range(at, at.translate(0, 4)), '+TWO-EDITED');
+    assert.ok(await vscode.workspace.applyEdit(editValid));
+    assert.ok(await doc.save());
+    // The save watcher revalidates against the base tree and re-consecrates.
+    await waitFor(() => shelf.verify(res.meta.id), 15_000);
+
+    git('apply', '--index', patchFile);
+    assert.strictEqual(
+      fs.readFileSync(abs('e7.txt'), 'utf8'),
+      'one\nTWO-EDITED\nthree\n',
+      'edited hunk unshelved with the edit',
+    );
+    git('checkout', '-f', 'p7/shelfedit');
+    git('clean', '-fd');
+
+    // Broken edit: corrupt a context line — apply --check must fail and the
+    // entry must NOT be re-consecrated (sha mismatch keeps use blocked).
+    const doc2 = await vscode.workspace.openTextDocument(vscode.Uri.file(patchFile));
+    const text2 = doc2.getText();
+    const brk = new vscode.WorkspaceEdit();
+    const ctx = doc2.positionAt(text2.indexOf(' three'));
+    brk.replace(doc2.uri, new vscode.Range(ctx, ctx.translate(0, 6)), ' MISMATCH');
+    assert.ok(await vscode.workspace.applyEdit(brk));
+    assert.ok(await doc2.save());
+    await new Promise((r) => setTimeout(r, 2500)); // give the watcher its chance
+    assert.strictEqual(shelf.verify(res.meta.id), false, 'broken edit must stay unconsecrated');
+    assert.throws(
+      () => shelf.readPatch(res.meta.id),
+      (err: unknown) => err instanceof Error && err.name === 'ShelfIntegrityError',
+      'unshelve/edit paths refuse the broken patch',
+    );
+    shelf.delete(res.meta.id);
   });
 });

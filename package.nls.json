@@ -177,6 +177,13 @@
   "gittree.command.stash.diffAll.title": "Compare All vs Working Tree",
   "gittree.config.stash.title": "GitTree: Stash",
   "gittree.config.stash.includeUntrackedDefault.description": "Pre-select \"Include untracked files\" in the Stash Changes flow.",
+  "gittree.view.shelf.name": "Shelf",
+  "gittree.command.shelf.shelve.title": "Shelve Changes…",
+  "gittree.command.shelf.rename.title": "Rename/Comment Shelved Change…",
+  "gittree.command.shelf.delete.title": "Delete Shelved Change…",
+  "gittree.command.shelf.export.title": "Export as Patch…",
+  "gittree.command.shelf.import.title": "Import Patch…",
+  "gittree.command.shelf.showPatch.title": "Show Patch File",
   "gittree.config.shelf.title": "GitTree: Shelf",
   "gittree.config.shelf.path.description": "Custom directory for shelved patches (must be writable). Empty = the extension's global storage. Shelves always live outside the repository, so they survive deleting or re-initializing it."
 }

@@ -218,6 +218,48 @@ export class ShelfStore implements Disposable {
     this._onDidChange.fire();
   }
 
+  /** T4 Import Patch…: wrap externally-produced patch bytes with meta. */
+  importPatch(
+    name: string,
+    bytes: Buffer,
+    info: { baseSha: string; branch: string; comment?: string },
+    files: ShelfFileMeta[],
+  ): ShelfMeta {
+    const createdAt = Date.now();
+    const id = `${new Date(createdAt).toISOString().replace(/[-:T]/gu, '').slice(0, 14)}-${crypto
+      .randomBytes(3)
+      .toString('hex')}`;
+    fs.mkdirSync(this.entryDir(id), { recursive: true });
+    fs.writeFileSync(this.patchPath(id), bytes);
+    const meta: ShelfMeta = {
+      id,
+      name,
+      comment: info.comment ?? '',
+      createdAt,
+      baseSha: info.baseSha,
+      branch: info.branch,
+      files,
+      untrackedSnapshots: 'embedded',
+      patchSha256: sha256(bytes),
+    };
+    this.writeMeta(meta);
+    this._onDidChange.fire();
+    return meta;
+  }
+
+  /**
+   * T4 edit-patch: after the caller VALIDATED the edited bytes on disk,
+   * re-consecrate the entry — new sha256 + refreshed file table.
+   */
+  updateAfterEdit(id: string, files: ShelfFileMeta[]): void {
+    const meta = this.readMeta(id);
+    if (!meta) throw new Error(`shelf entry ${id} not found`);
+    meta.files = files;
+    meta.patchSha256 = sha256(fs.readFileSync(this.patchPath(id)));
+    this.writeMeta(meta);
+    this._onDidChange.fire();
+  }
+
   /**
    * Capture (and optionally remove) as one queued mutation. Tracked changes:
    * `git diff --binary --full-index HEAD`; untracked join via a temporary

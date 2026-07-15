@@ -3,14 +3,18 @@
  * store; T4/T5 add the shelf view and unshelve engine).
  */
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { ChangelistNode } from '../commit/changelists/changelistsView';
 import type { Core, RepoHandle } from '../core/core';
+import { splitPatchFiles } from '../core/patch/patchParser';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoStoreKey } from '../localHistory/snapshotStore';
 import { confirmModal, typedConfirm } from '../ui/confirm';
 import type { ConflictSource } from '../merge/conflictSession';
-import { ShelfStore } from '../shelf/shelfStore';
+import { ShelfStore, type ShelfMeta, type ShelveOptions } from '../shelf/shelfStore';
+import { SHELF_SCHEME, ShelfContentProvider, ShelfViewProvider, type ShelfNode } from '../shelf/shelfView';
 import { StashService, type StashPushOptions } from './stashService';
 import { relativeTime, stashDiffSides, StashViewProvider, type StashNode } from './stashView';
 
@@ -267,9 +271,281 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     );
   });
 
+  // ---- P7-T4: shelf view, per-file diffs, patch edit/import/export --------
+  const shelfViewProvider = new ShelfViewProvider();
+  const shelfView = vscode.window.createTreeView('gittree.shelf', {
+    treeDataProvider: shelfViewProvider,
+  });
+  context.subscriptions.push(shelfView);
+  const shelfContent = new ShelfContentProvider(
+    (repoRoot) => shelves.get(canonicalKey(repoRoot)),
+    (repoRoot) => core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot)),
+  );
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(SHELF_SCHEME, shelfContent),
+  );
+  const pushShelves = (): void => {
+    shelfViewProvider.setRepos(
+      core.repos.map((repo) => ({ repo, store: shelves.get(canonicalKey(repo.root))! })),
+    );
+  };
+  for (const repo of core.repos) {
+    repo.disposables.add(shelves.get(canonicalKey(repo.root))!.onDidChange(() => pushShelves()));
+  }
+  const shelfAddSub = core.onDidAddRepo((repo) => {
+    repo.disposables.add(shelves.get(canonicalKey(repo.root))!.onDidChange(() => pushShelves()));
+    pushShelves();
+  });
+  context.subscriptions.push(new vscode.Disposable(() => shelfAddSub.dispose()));
+  pushShelves();
+
+  /** Resolve the acted-on shelf entry: tree node, else QuickPick. */
+  const pickShelf = async (
+    arg: unknown,
+  ): Promise<{ repo: RepoHandle; store: ShelfStore; meta: ShelfMeta } | undefined> => {
+    const node = arg as ShelfNode | undefined;
+    if (node && typeof node === 'object' && 'kind' in node && node.kind === 'entry') {
+      return { repo: node.repo, store: node.store, meta: node.meta };
+    }
+    interface Choice extends vscode.QuickPickItem {
+      repo: RepoHandle;
+      store: ShelfStore;
+      meta: ShelfMeta;
+    }
+    const choices: Choice[] = [];
+    for (const repo of core.repos) {
+      const store = shelves.get(canonicalKey(repo.root))!;
+      for (const meta of store.list()) {
+        choices.push({
+          label: meta.name,
+          description: `${relativeTime(Math.floor(meta.createdAt / 1000))} · ${meta.files.length}`,
+          repo,
+          store,
+          meta,
+        });
+      }
+    }
+    if (choices.length === 0) {
+      void vscode.window.showInformationMessage(vscode.l10n.t('There are no shelved changes.'));
+      return undefined;
+    }
+    const seeded = process.env['GITTREE_TEST_SHELF_PICK'];
+    if (seeded !== undefined) return choices[Number.parseInt(seeded, 10)];
+    return vscode.window.showQuickPick(choices, {
+      placeHolder: vscode.l10n.t('Select a shelved change'),
+    });
+  };
+
+  /** Shelve flow — view `+`, changelist context and palette all land here. */
+  register('gittree.shelf.shelve', async (arg) => {
+    const node = arg as ChangelistNode | undefined;
+    const fromList = node && typeof node === 'object' && 'kind' in node && node.kind === 'list';
+    const repo = fromList ? node.repo : repoForNew();
+    if (!repo) return;
+    const store = shelves.get(canonicalKey(repo.root))!;
+    const listPaths = fromList && node.list.files.length > 0 ? node.list.files : undefined;
+
+    const seeded = process.env['GITTREE_TEST_SHELVE'];
+    if (seeded !== undefined) {
+      const opts = JSON.parse(seeded) as ShelveOptions;
+      await store.shelve(fromList ? { paths: listPaths, ...opts } : opts);
+      return;
+    }
+    // IntelliJ default name: the changelist name, else the SCM input draft.
+    const p1 = core.debugRegistry.get('phase01') as
+      | { sourceControls: Map<string, { sc: vscode.SourceControl }> }
+      | undefined;
+    const draft = p1?.sourceControls.get(canonicalKey(repo.root))?.sc.inputBox.value.trim();
+    const name = await vscode.window.showInputBox({
+      prompt: vscode.l10n.t('Shelf name'),
+      value: fromList ? node.list.name : draft && draft.length > 0 ? draft.split('\n')[0] : '',
+      validateInput: (v) => (v.trim().length === 0 ? vscode.l10n.t('Name required') : undefined),
+    });
+    if (name === undefined || name.trim().length === 0) return;
+    const remove = await vscode.window.showQuickPick(
+      [
+        { label: vscode.l10n.t('Shelve and remove from worktree'), remove: true },
+        { label: vscode.l10n.t('Shelve and keep changes'), remove: false },
+      ],
+      { placeHolder: vscode.l10n.t('IntelliJ shelves remove the changes by default') },
+    );
+    if (remove === undefined) return;
+    const opts: ShelveOptions = { name: name.trim(), removeFromWorktree: remove.remove };
+    if (listPaths) opts.paths = listPaths;
+    const res = await store.shelve(opts);
+    if (res.removalSkippedReason !== undefined) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          'Shelved, but the changes stay in the worktree: the patch failed its re-apply check ({0}).',
+          res.removalSkippedReason,
+        ),
+      );
+    }
+  });
+
+  register('gittree.shelf.rename', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    const seeded = process.env['GITTREE_TEST_SHELF_RENAME'];
+    const name =
+      seeded ??
+      (await vscode.window.showInputBox({ prompt: vscode.l10n.t('Shelf name'), value: t.meta.name }));
+    if (name === undefined || name.trim().length === 0) return;
+    const comment = seeded !== undefined ? t.meta.comment : await vscode.window.showInputBox({
+      prompt: vscode.l10n.t('Comment (optional)'),
+      value: t.meta.comment,
+    });
+    t.store.rename(t.meta.id, name.trim(), comment);
+  });
+
+  register('gittree.shelf.delete', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    const ok = await confirmModal(
+      vscode.l10n.t('Delete shelved change "{0}"?', t.meta.name),
+      vscode.l10n.t('{0} file(s) will be lost. This cannot be undone.', t.meta.files.length),
+      vscode.l10n.t('Delete'),
+    );
+    if (ok) t.store.delete(t.meta.id);
+  });
+
+  register('gittree.shelf.export', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    const seeded = process.env['GITTREE_TEST_SHELF_EXPORT'];
+    const target =
+      seeded !== undefined
+        ? vscode.Uri.file(seeded)
+        : await vscode.window.showSaveDialog({
+            filters: { [vscode.l10n.t('Patch files')]: ['patch', 'diff'] },
+            defaultUri: vscode.Uri.file(`${t.meta.name.replace(/[^\w.-]+/gu, '_')}.patch`),
+          });
+    if (!target) return;
+    await vscode.workspace.fs.writeFile(target, t.store.readPatch(t.meta.id));
+  });
+
+  register('gittree.shelf.import', async () => {
+    const repo = repoForNew();
+    if (!repo) return;
+    const store = shelves.get(canonicalKey(repo.root))!;
+    const seeded = process.env['GITTREE_TEST_SHELF_IMPORT'];
+    const picked =
+      seeded !== undefined
+        ? [vscode.Uri.file(seeded)]
+        : await vscode.window.showOpenDialog({
+            filters: { [vscode.l10n.t('Patch files')]: ['patch', 'diff'] },
+            canSelectMany: false,
+          });
+    if (!picked || picked.length === 0) return;
+    const bytes = Buffer.from(await vscode.workspace.fs.readFile(picked[0]!));
+    const sections = splitPatchFiles(bytes.toString('utf8'));
+    if (sections.length === 0) {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('"{0}" is not a git patch (no file sections found).', picked[0]!.fsPath),
+      );
+      return;
+    }
+    const read = (args: string[]): Promise<{ stdout: string }> =>
+      repo.queue.enqueue({
+        label: 'shelf import read',
+        kind: 'read',
+        run: (git, token) => git.exec(repo.root, args, { structured: true, token }),
+      });
+    const baseSha = (await read(['rev-parse', 'HEAD'])).stdout.trim();
+    const branch = (await read(['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim();
+    const name = picked[0]!.path.split('/').pop()?.replace(/\.(patch|diff)$/u, '') ?? 'imported';
+    store.importPatch(name, bytes, { baseSha, branch, comment: vscode.l10n.t('Imported patch') }, sections.map((s) => ({ relPath: s.relPath, status: s.status === 'modified' ? 'modified' as const : s.status, isBinary: s.isBinary })));
+  });
+
+  // Pristine bytes cached at open time so a broken edit can be reverted.
+  const pristinePatches = new Map<
+    string,
+    { store: ShelfStore; id: string; repo: RepoHandle; bytes: Buffer | undefined }
+  >();
+
+  register('gittree.shelf.showPatch', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    pristinePatches.set(t.store.patchPath(t.meta.id), {
+      store: t.store,
+      id: t.meta.id,
+      repo: t.repo,
+      bytes: t.store.readPatch(t.meta.id),
+    });
+    await vscode.window.showTextDocument(vscode.Uri.file(t.store.patchPath(t.meta.id)));
+  });
+
+  // ---- T4 step 3: revalidate edited shelf patches on save -----------------
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(async (doc) => {
+      if (doc.uri.scheme !== 'file' || !doc.uri.fsPath.endsWith('changes.patch')) return;
+      const known = pristinePatches.get(doc.uri.fsPath);
+      const owner =
+        known ??
+        [...shelves.entries()]
+          .map(([key, store]) => {
+            const meta = store
+              .list()
+              .find((m) => store.patchPath(m.id) === doc.uri.fsPath);
+            return meta
+              ? { store, id: meta.id, repo: core.repos.find((r) => canonicalKey(r.root) === key)!, bytes: undefined }
+              : undefined;
+          })
+          .find((x) => x !== undefined);
+      if (!owner) return;
+      const meta = owner.store.get(owner.id);
+      if (!meta) return;
+      // Validate against the BASE tree through a throwaway index — the real
+      // index and worktree stay untouched whatever the verdict.
+      const tmpIndex = path.join(os.tmpdir(), `gittree-shelf-check-${process.pid}-${Date.now()}`);
+      const verdict = await owner.repo.queue.enqueue({
+        label: vscode.l10n.t('Validate shelf patch'),
+        kind: 'read',
+        run: async (git, token) => {
+          const env = { GIT_INDEX_FILE: tmpIndex };
+          await git.exec(owner.repo.root, ['read-tree', meta.baseSha], { env, token });
+          return git.exec(owner.repo.root, ['apply', '--check', '--cached', doc.uri.fsPath], {
+            env,
+            structured: true,
+            allowNonZeroExit: true,
+            token,
+          });
+        },
+      });
+      try {
+        fs.rmSync(tmpIndex, { force: true });
+      } catch {
+        // temp index — best effort
+      }
+      if (verdict.exitCode === 0) {
+        owner.store.updateAfterEdit(
+          owner.id,
+          splitPatchFiles(doc.getText()).map((s) => ({
+            relPath: s.relPath,
+            status: s.status,
+            isBinary: s.isBinary,
+          })),
+        );
+        return;
+      }
+      const revert = vscode.l10n.t('Revert Edit');
+      const detail = verdict.stderr.split('\n')[0] ?? '';
+      const choice = await vscode.window.showErrorMessage(
+        vscode.l10n.t('Edited patch no longer applies to its base: {0}', detail),
+        ...(owner.bytes ? [revert] : []),
+      );
+      if (choice === revert && owner.bytes) {
+        fs.writeFileSync(doc.uri.fsPath, owner.bytes);
+        owner.store.updateAfterEdit(owner.id, meta.files);
+      }
+    }),
+  );
+
   core.debugRegistry.set('phase07', {
     getStashService: (repoRoot: string) => services.get(canonicalKey(repoRoot)),
     getShelfStore: (repoRoot: string) => shelves.get(canonicalKey(repoRoot)),
     stashViewProvider: viewProvider,
+    shelfViewProvider,
+    shelfContent,
   });
 }

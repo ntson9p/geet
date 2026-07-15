@@ -905,6 +905,36 @@
         "command": "gittree.stash.diffAll",
         "title": "%gittree.command.stash.diffAll.title%",
         "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "gittree.shelf.shelve",
+        "title": "%gittree.command.shelf.shelve.title%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.shelf.rename",
+        "title": "%gittree.command.shelf.rename.title%",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "gittree.shelf.delete",
+        "title": "%gittree.command.shelf.delete.title%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "gittree.shelf.export",
+        "title": "%gittree.command.shelf.export.title%",
+        "icon": "$(export)"
+      },
+      {
+        "command": "gittree.shelf.import",
+        "title": "%gittree.command.shelf.import.title%",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "gittree.shelf.showPatch",
+        "title": "%gittree.command.shelf.showPatch.title%",
+        "icon": "$(file-code)"
       }
     ],
     "submenus": [
@@ -1310,6 +1340,16 @@
           "group": "1_manage@1"
         },
         {
+          "command": "gittree.shelf.shelve",
+          "when": "view == gittree.shelf",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.shelf.import",
+          "when": "view == gittree.shelf",
+          "group": "1_manage@1"
+        },
+        {
           "command": "gittree.log.refresh",
           "when": "view == gittree.log",
           "group": "navigation@1"
@@ -1500,6 +1540,31 @@
           "command": "gittree.changelist.commitList",
           "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
           "group": "1_list@4"
+        },
+        {
+          "command": "gittree.shelf.shelve",
+          "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
+          "group": "1_list@5"
+        },
+        {
+          "command": "gittree.shelf.rename",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "gittree.shelf.export",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "2_inspect@1"
+        },
+        {
+          "command": "gittree.shelf.showPatch",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "2_inspect@2"
+        },
+        {
+          "command": "gittree.shelf.delete",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "3_manage@1"
         },
         {
           "command": "gittree.changelist.moveTo",
@@ -1839,6 +1904,13 @@
           "name": "%gittree.view.stashes.name%",
           "contextualTitle": "GitTree",
           "icon": "$(archive)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "gittree.shelf",
+          "name": "%gittree.view.shelf.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(package)",
           "visibility": "collapsed"
         }
       ]
