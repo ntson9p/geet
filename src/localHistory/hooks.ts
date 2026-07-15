@@ -36,6 +36,7 @@ export const SNAPSHOT_LABELS = {
   stashApply: 'Before: stash apply',
   stashDrop: 'Before: stash drop',
   stashClear: 'Before: stash clear',
+  unshelve: 'Before: unshelve',
   unshelveWithRemove: 'Before: unshelve (remove)',
   shelveWithRemove: 'Before: shelve (remove)',
   rollback: 'Before: rollback',

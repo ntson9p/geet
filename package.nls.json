@@ -184,6 +184,8 @@
   "gittree.command.shelf.export.title": "Export as Patch…",
   "gittree.command.shelf.import.title": "Import Patch…",
   "gittree.command.shelf.showPatch.title": "Show Patch File",
+  "gittree.command.shelf.unshelve.title": "Unshelve Changes",
+  "gittree.command.shelf.unshelvePartial.title": "Unshelve Files…",
   "gittree.config.shelf.title": "GitTree: Shelf",
   "gittree.config.shelf.path.description": "Custom directory for shelved patches (must be writable). Empty = the extension's global storage. Shelves always live outside the repository, so they survive deleting or re-initializing it."
 }

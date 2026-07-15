@@ -935,6 +935,16 @@
         "command": "gittree.shelf.showPatch",
         "title": "%gittree.command.shelf.showPatch.title%",
         "icon": "$(file-code)"
+      },
+      {
+        "command": "gittree.shelf.unshelve",
+        "title": "%gittree.command.shelf.unshelve.title%",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "gittree.shelf.unshelvePartial",
+        "title": "%gittree.command.shelf.unshelvePartial.title%",
+        "icon": "$(checklist)"
       }
     ],
     "submenus": [
@@ -1545,6 +1555,21 @@
           "command": "gittree.shelf.shelve",
           "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
           "group": "1_list@5"
+        },
+        {
+          "command": "gittree.shelf.unshelve",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.shelf.unshelve",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "0_apply@1"
+        },
+        {
+          "command": "gittree.shelf.unshelvePartial",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "0_apply@2"
         },
         {
           "command": "gittree.shelf.rename",

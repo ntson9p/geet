@@ -9,6 +9,7 @@ import type { SnapshotStore } from '../../../src/localHistory/snapshotStore';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import { ShelfStore } from '../../../src/shelf/shelfStore';
 import type { ShelfNode, ShelfViewProvider } from '../../../src/shelf/shelfView';
+import type { UnshelveEngine } from '../../../src/shelf/unshelve';
 import type { StashService } from '../../../src/stash/stashService';
 import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
@@ -27,6 +28,16 @@ interface Phase09RegistryShape {
 interface Phase07ShelfUiShape {
   getShelfStore(repoRoot: string): ShelfStore | undefined;
   shelfViewProvider: ShelfViewProvider;
+}
+interface Phase07UnshelveShape {
+  getShelfStore(repoRoot: string): ShelfStore | undefined;
+  makeUnshelveEngine(repoRoot: string): UnshelveEngine | undefined;
+}
+interface Phase03CommitShape {
+  paradigm: { paradigm: 'changelists' | 'staging'; switch(): Promise<void> };
+  changelistsFor: (repo: RepoHandle) => {
+    getLists(): Array<{ id: string; name: string; files: string[] }>;
+  };
 }
 
 /** P7-T1 acceptance on workspace repoB. */
@@ -664,5 +675,198 @@ suite('P7 stash & shelve — Shelf UI', () => {
       'unshelve/edit paths refuse the broken patch',
     );
     shelf.delete(res.meta.id);
+  });
+});
+
+/** P7-T5 acceptance: clean / conflicting / partial unshelve on workspace repoB. */
+suite('P7 stash & shelve — Unshelve engine', () => {
+  let core: Core;
+  let repoRoot: string;
+  let repo: RepoHandle;
+  let shelf: ShelfStore;
+  let reg: Phase07UnshelveShape;
+  let reg06: Phase06RegistryShape;
+
+  const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
+  const abs = (rel: string): string => path.join(repoRoot, rel);
+  const write = (rel: string, content: string | Buffer): void => fs.writeFileSync(abs(rel), content);
+  const commitAll = (subject: string): void => {
+    git('add', '-A');
+    git('commit', '-m', subject);
+  };
+  /** Drive a shelf command through the env seams, restoring them afterwards. */
+  const drive = async (command: string, seams: Record<string, string>): Promise<void> => {
+    for (const [k, v] of Object.entries(seams)) process.env[k] = v;
+    try {
+      await vscode.commands.executeCommand(command);
+    } finally {
+      for (const k of Object.keys(seams)) delete process.env[k];
+    }
+  };
+
+  suiteSetup(async function () {
+    this.timeout(60_000);
+    core = await activateGitTree();
+    repo = core.repoForPath(workspaceRepoB())!;
+    assert.ok(repo, 'repoB not discovered');
+    repoRoot = repo.root;
+    reg = core.debugRegistry.get('phase07') as Phase07UnshelveShape;
+    shelf = reg.getShelfStore(repoRoot)!;
+    assert.ok(shelf, 'shelf store missing');
+    assert.ok(reg.makeUnshelveEngine(repoRoot), 'unshelve engine factory missing');
+    reg06 = core.debugRegistry.get('phase06') as Phase06RegistryShape;
+    git('checkout', '-f', 'main');
+  });
+
+  teardown(async function () {
+    this.timeout(30_000);
+    for (const m of shelf.list()) shelf.delete(m.id);
+    try {
+      git('checkout', '-f', 'main');
+      git('clean', '-fd');
+    } catch {
+      // best effort
+    }
+    for (const b of git('branch', '--list', 'p7/*', '--format=%(refname:short)')
+      .split('\n')
+      .map((x) => x.trim())
+      .filter((x) => x.length > 0)) {
+      try {
+        git('branch', '-D', b);
+      } catch {
+        // best effort
+      }
+    }
+    await repo.refresher.refreshNow();
+    await new Promise((r) => setTimeout(r, 300));
+  });
+
+  test('T5: clean unshelve on the same base restores files, deletes the entry, files a changelist', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/unclean');
+    write('u5a.txt', 'one\n');
+    commitAll('p7 unshelve base');
+
+    write('u5a.txt', 'one edited\n');
+    write('u5n.txt', 'brand new\n');
+    const res = await shelf.shelve({ name: 'p7 clean unshelve', removeFromWorktree: true });
+    assert.strictEqual(res.removed, true, 'shelve(remove) must clean the worktree');
+    assert.strictEqual(fs.readFileSync(abs('u5a.txt'), 'utf8'), 'one\n');
+    assert.ok(!fs.existsSync(abs('u5n.txt')), 'untracked file removed by shelve');
+
+    // phase03's suite deliberately leaves the shared window in the staging
+    // paradigm — flip to changelists for the filing assertions, restore after.
+    const p3 = core.debugRegistry.get('phase03') as Phase03CommitShape;
+    const startedStaging = p3.paradigm.paradigm === 'staging';
+    if (startedStaging) {
+      await p3.paradigm.switch();
+      await waitFor(() => p3.paradigm.paradigm === 'changelists', 10_000);
+    }
+    try {
+      await drive('gittree.shelf.unshelve', {
+        GITTREE_TEST_SHELF_PICK: 'p7 clean unshelve',
+        GITTREE_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
+      });
+
+      assert.strictEqual(fs.readFileSync(abs('u5a.txt'), 'utf8'), 'one edited\n');
+      assert.strictEqual(fs.readFileSync(abs('u5n.txt'), 'utf8'), 'brand new\n');
+      await waitFor(() => shelf.list().every((m) => m.name !== 'p7 clean unshelve'), 10_000);
+      // Changelists paradigm: nothing stays staged; the files land in a
+      // changelist named after the entry (untracked one included).
+      assert.strictEqual(git('diff', '--cached', '--name-only').trim(), '');
+      const lists = p3.changelistsFor(repo).getLists();
+      const target = lists.find((l) => l.name === 'p7 clean unshelve');
+      assert.ok(target, 'changelist named after the shelf entry exists');
+      assert.ok(target.files.includes('u5a.txt'), 'modified file filed into the changelist');
+      assert.ok(target.files.includes('u5n.txt'), 'untracked file filed into the changelist');
+    } finally {
+      if (startedStaging) {
+        await p3.paradigm.switch();
+        await waitFor(() => p3.paradigm.paradigm === 'staging', 10_000);
+      }
+    }
+  });
+
+  test('T5: conflicting unshelve after a divergent commit resolves via P6; entry auto-deleted post-completion', async function () {
+    this.timeout(120_000);
+    git('checkout', '-b', 'p7/unconflict');
+    write('u5c.txt', 'base\n');
+    commitAll('p7 conflict base');
+    write('u5c.txt', 'shelved edit\n');
+    await shelf.shelve({ name: 'p7 conflict unshelve', removeFromWorktree: true });
+    write('u5c.txt', 'rival\n');
+    commitAll('p7 rival');
+
+    await drive('gittree.shelf.unshelve', {
+      GITTREE_TEST_SHELF_PICK: 'p7 conflict unshelve',
+      GITTREE_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
+    });
+
+    // apply --index refused, --3way left staged conflicts → unshelve session.
+    await waitFor(() => reg06.getSession(repoRoot) !== undefined, 15_000);
+    const session = reg06.getSession(repoRoot)!;
+    assert.strictEqual(session.source, 'unshelve', 'producer hint classifies the session');
+    assert.ok(
+      session.files().some((f) => f.path === 'u5c.txt'),
+      'conflicts view lists the file',
+    );
+    assert.strictEqual(
+      shelf.list().some((m) => m.name === 'p7 conflict unshelve'),
+      true,
+      'delete-after is deferred while the session lives',
+    );
+
+    await session.acceptSide(['u5c.txt'], 'theirs');
+    await waitFor(() => reg06.getSession(repoRoot) === undefined, 15_000);
+    assert.strictEqual(fs.readFileSync(abs('u5c.txt'), 'utf8'), 'shelved edit\n');
+    // Entry auto-deleted once the session completed.
+    await waitFor(() => shelf.list().every((m) => m.name !== 'p7 conflict unshelve'), 15_000);
+  });
+
+  test('T5: partial unshelve applies the subset and leaves the remaining files shelved', async function () {
+    this.timeout(90_000);
+    git('checkout', '-b', 'p7/unpartial');
+    write('u5p1.txt', 'p1\n');
+    write('u5p2.txt', 'p2\n');
+    write('u5p3.txt', 'p3\n');
+    commitAll('p7 partial base');
+    write('u5p1.txt', 'p1 edited\n');
+    write('u5p2.txt', 'p2 edited\n');
+    write('u5p3.txt', 'p3 edited\n');
+    const res = await shelf.shelve({ name: 'p7 partial unshelve', removeFromWorktree: true });
+
+    const engine = reg.makeUnshelveEngine(repoRoot)!;
+    const sections = engine.sectionsOf(res.meta);
+    assert.strictEqual(sections.length, 3);
+    const idx = sections.findIndex((s) => s.relPath === 'u5p2.txt');
+    assert.ok(idx >= 0, 'target section located');
+
+    await drive('gittree.shelf.unshelvePartial', {
+      GITTREE_TEST_SHELF_PICK: 'p7 partial unshelve',
+      GITTREE_TEST_UNSHELVE_PARTIAL: JSON.stringify({ indexes: [idx], deleteAfter: true }),
+    });
+
+    assert.strictEqual(fs.readFileSync(abs('u5p2.txt'), 'utf8'), 'p2 edited\n');
+    assert.strictEqual(fs.readFileSync(abs('u5p1.txt'), 'utf8'), 'p1\n', 'unpicked file untouched');
+    assert.strictEqual(fs.readFileSync(abs('u5p3.txt'), 'utf8'), 'p3\n', 'unpicked file untouched');
+
+    // Entry survives with exactly the remaining files, still consistent.
+    const remaining = shelf.list().find((m) => m.name === 'p7 partial unshelve');
+    assert.ok(remaining, 'partial unshelve keeps the entry');
+    assert.deepStrictEqual(
+      remaining.files.map((f) => f.relPath).sort(),
+      ['u5p1.txt', 'u5p3.txt'],
+      'applied section pruned from the file table',
+    );
+    assert.strictEqual(shelf.verify(remaining.id), true, 'pruned patch re-consecrated');
+
+    // Unshelving the remainder drains and deletes the entry.
+    await drive('gittree.shelf.unshelve', {
+      GITTREE_TEST_SHELF_PICK: 'p7 partial unshelve',
+      GITTREE_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
+    });
+    assert.strictEqual(fs.readFileSync(abs('u5p1.txt'), 'utf8'), 'p1 edited\n');
+    assert.strictEqual(fs.readFileSync(abs('u5p3.txt'), 'utf8'), 'p3 edited\n');
+    await waitFor(() => shelf.list().every((m) => m.name !== 'p7 partial unshelve'), 10_000);
   });
 });

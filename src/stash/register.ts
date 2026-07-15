@@ -15,6 +15,7 @@ import { confirmModal, typedConfirm } from '../ui/confirm';
 import type { ConflictSource } from '../merge/conflictSession';
 import { ShelfStore, type ShelfMeta, type ShelveOptions } from '../shelf/shelfStore';
 import { SHELF_SCHEME, ShelfContentProvider, ShelfViewProvider, type ShelfNode } from '../shelf/shelfView';
+import { UnshelveEngine } from '../shelf/unshelve';
 import { StashService, type StashPushOptions } from './stashService';
 import { relativeTime, stashDiffSides, StashViewProvider, type StashNode } from './stashView';
 
@@ -46,7 +47,21 @@ function shelfRootDir(context: vscode.ExtensionContext): string {
 }
 
 interface Phase06LifecycleShape {
-  lifecycle: { expectConflict(repoRoot: string, source: ConflictSource): void };
+  getSession?(repoRoot: string): unknown;
+  lifecycle: {
+    expectConflict(repoRoot: string, source: ConflictSource): void;
+    onDidChangeSessions?: vscode.Event<void>;
+  };
+}
+
+/** P3 registry slice for the post-unshelve changelist filing (P5-T3 shape). */
+interface CommitShape {
+  paradigm: { paradigm: 'changelists' | 'staging' };
+  changelistsFor: (repo: RepoHandle) => {
+    getLists(): Array<{ id: string; name: string }>;
+    create(name: string, comment?: string, makeActive?: boolean): { id: string };
+    moveFiles(relPaths: readonly string[], targetId: string): void;
+  };
 }
 
 export function registerPhase07StashShelve(context: vscode.ExtensionContext, core: Core): void {
@@ -330,7 +345,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       return undefined;
     }
     const seeded = process.env['GITTREE_TEST_SHELF_PICK'];
-    if (seeded !== undefined) return choices[Number.parseInt(seeded, 10)];
+    if (seeded !== undefined) {
+      // Name match first (stable under leftover entries), index fallback.
+      return choices.find((c) => c.meta.name === seeded) ?? choices[Number.parseInt(seeded, 10)];
+    }
     return vscode.window.showQuickPick(choices, {
       placeHolder: vscode.l10n.t('Select a shelved change'),
     });
@@ -541,9 +559,182 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     }),
   );
 
+  // ---- T5: unshelve engine + commands --------------------------------------
+  const engineFor = (t: { repo: RepoHandle; store: ShelfStore }): UnshelveEngine =>
+    new UnshelveEngine(t.repo, t.store, expectConflict, trace);
+
+  /**
+   * Delete/prune the entry once the conflict session this unshelve produced
+   * completes (spec: delete-after is "skipped automatically when conflicts
+   * occurred until session completes"). The lifecycle ends a session only
+   * when zero unmerged paths remain, so session-end ≙ resolution.
+   */
+  const finalizeAfterSession = (
+    t: { repo: RepoHandle; store: ShelfStore; meta: ShelfMeta },
+    indexes: readonly number[] | undefined,
+  ): void => {
+    const p6 = core.debugRegistry.get('phase06') as Phase06LifecycleShape | undefined;
+    if (!p6?.getSession || !p6.lifecycle.onDidChangeSessions) return;
+    // The session already exists by now (the engine's refresh created it
+    // synchronously) — seed from live state so an end-event with no
+    // intermediate fires still triggers the finalize.
+    let seen = p6.getSession(t.repo.root) !== undefined;
+    const sub = p6.lifecycle.onDidChangeSessions(() => {
+      const session = p6.getSession!(t.repo.root);
+      if (session !== undefined) {
+        seen = true;
+        return;
+      }
+      if (!seen) return;
+      sub.dispose();
+      engineFor(t).finalize(t.meta.id, indexes);
+    });
+    context.subscriptions.push(sub);
+  };
+
+  const runUnshelve = async (
+    t: { repo: RepoHandle; store: ShelfStore; meta: ShelfMeta },
+    indexes: readonly number[] | undefined,
+    deleteAfter: boolean,
+  ): Promise<void> => {
+    const p3 = core.debugRegistry.get('phase03') as CommitShape | undefined;
+    const changelists = p3?.paradigm.paradigm === 'changelists';
+    const engine = engineFor(t);
+    let res;
+    try {
+      res = await engine.unshelve(t.meta, {
+        ...(indexes === undefined ? {} : { sectionIndexes: indexes }),
+        deleteAfter,
+        unstageAfterApply: changelists,
+      });
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('Cannot unshelve "{0}": {1}', t.meta.name, String((err as Error).message)),
+      );
+      return;
+    }
+    if (res.status === 'failed') {
+      const exportAction = vscode.l10n.t('Export Patch…');
+      const choice = await vscode.window.showErrorMessage(
+        vscode.l10n.t('Unshelve failed: {0}. No files were changed.', res.reason),
+        exportAction,
+      );
+      if (choice === exportAction) {
+        await vscode.commands.executeCommand('gittree.shelf.export', {
+          kind: 'entry',
+          repo: t.repo,
+          store: t.store,
+          meta: t.meta,
+        });
+      }
+      return;
+    }
+    if (res.status === 'clean') {
+      // IntelliJ parity: unshelved files land in a changelist named after
+      // the entry (the model's active-list adoption is superseded by the
+      // explicit move, which also files untracked files).
+      if (changelists && res.relPaths.length > 0) {
+        const service = p3?.changelistsFor(t.repo);
+        if (service) {
+          const existing = service.getLists().find((l) => l.name === t.meta.name);
+          const target = existing ?? service.create(t.meta.name);
+          service.moveFiles(res.relPaths, target.id);
+        }
+      }
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('Unshelved "{0}" ({1} file(s)).', t.meta.name, res.relPaths.length),
+      );
+      return;
+    }
+    // conflicts: the P6 session toast has already fired.
+    if (deleteAfter) {
+      finalizeAfterSession(t, indexes);
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t(
+          'Unshelve of "{0}" produced conflicts — the shelf entry is kept until they are resolved.',
+          t.meta.name,
+        ),
+      );
+    }
+  };
+
+  /** Two-item remove/keep choice, drift note in the placeholder (step 3). */
+  const pickDeleteAfter = async (
+    engine: UnshelveEngine,
+    meta: ShelfMeta,
+  ): Promise<boolean | undefined> => {
+    const drifted = await engine.baseDrifted(meta);
+    const note = drifted
+      ? vscode.l10n.t(
+          ' Note: the shelf base {0} is not an ancestor of HEAD — conflicts are possible.',
+          meta.baseSha.slice(0, 7),
+        )
+      : '';
+    const choice = await vscode.window.showQuickPick(
+      [
+        { label: vscode.l10n.t('Unshelve and remove from shelf'), deleteAfter: true },
+        { label: vscode.l10n.t('Unshelve keeping the shelf entry'), deleteAfter: false },
+      ],
+      { placeHolder: vscode.l10n.t('Apply "{0}" to the working tree.', meta.name) + note },
+    );
+    return choice?.deleteAfter;
+  };
+
+  register('gittree.shelf.unshelve', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    const seeded = process.env['GITTREE_TEST_UNSHELVE'];
+    let deleteAfter: boolean | undefined;
+    if (seeded !== undefined) {
+      deleteAfter = (JSON.parse(seeded) as { deleteAfter?: boolean }).deleteAfter ?? true;
+    } else {
+      deleteAfter = await pickDeleteAfter(engineFor(t), t.meta);
+    }
+    if (deleteAfter === undefined) return;
+    await runUnshelve(t, undefined, deleteAfter);
+  });
+
+  register('gittree.shelf.unshelvePartial', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    const engine = engineFor(t);
+    const seeded = process.env['GITTREE_TEST_UNSHELVE_PARTIAL'];
+    if (seeded !== undefined) {
+      const opts = JSON.parse(seeded) as { indexes: number[]; deleteAfter?: boolean };
+      await runUnshelve(t, opts.indexes, opts.deleteAfter ?? true);
+      return;
+    }
+    const sections = engine.sectionsOf(t.meta);
+    interface FileChoice extends vscode.QuickPickItem {
+      index: number;
+    }
+    const picked = await vscode.window.showQuickPick<FileChoice>(
+      sections.map((s, index) => ({
+        label: s.relPath,
+        description: s.isBinary ? `${s.status} · binary` : s.status,
+        picked: true,
+        index,
+      })),
+      { canPickMany: true, placeHolder: vscode.l10n.t('Files to unshelve from "{0}"', t.meta.name) },
+    );
+    if (picked === undefined || picked.length === 0) return;
+    const deleteAfter = await pickDeleteAfter(engine, t.meta);
+    if (deleteAfter === undefined) return;
+    await runUnshelve(
+      t,
+      picked.map((c) => c.index),
+      deleteAfter,
+    );
+  });
+
   core.debugRegistry.set('phase07', {
     getStashService: (repoRoot: string) => services.get(canonicalKey(repoRoot)),
     getShelfStore: (repoRoot: string) => shelves.get(canonicalKey(repoRoot)),
+    makeUnshelveEngine: (repoRoot: string) => {
+      const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot));
+      const store = shelves.get(canonicalKey(repoRoot));
+      return repo && store ? new UnshelveEngine(repo, store, expectConflict, trace) : undefined;
+    },
     stashViewProvider: viewProvider,
     shelfViewProvider,
     shelfContent,

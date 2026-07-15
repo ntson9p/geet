@@ -55,6 +55,9 @@ async function main(): Promise<void> {
         GITTREE_TEST_REPO_A: repoA.root,
         GITTREE_TEST_REPO_B: repoB.root,
         GITTREE_TEST_REPO_C: repoC.root,
+        // Local-iteration filter (mocha grep on suite/test titles). The full
+        // suite remains the gate; this only narrows ad-hoc runs.
+        ...(process.env['GITTREE_TEST_ONLY'] ? { GITTREE_TEST_ONLY: process.env['GITTREE_TEST_ONLY'] } : {}),
       },
     });
   } finally {
