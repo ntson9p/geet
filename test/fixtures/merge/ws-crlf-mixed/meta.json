@@ -1,0 +1,4 @@
+{
+  "description": "ours converts b to CRLF (ws-only); theirs edits content",
+  "expect": "auto"
+}

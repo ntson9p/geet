@@ -1,0 +1,4 @@
+{
+  "description": "ours inserts before the line theirs edits — insertion-point ownership ambiguous",
+  "expect": "manual"
+}

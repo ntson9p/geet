@@ -104,11 +104,16 @@ View `gittree.conflicts`; commands `gittree.merge.{open,acceptYours,acceptTheirs
 - **T4 (undo semantics):** undo works through the document's own undo stack; the reconciliation pass classifies the block's post-undo region text back to base/ours/theirs/both (base → *unresolved*), rather than tracking a parallel resolution-history — one source of truth, asserted by the undo e2e.
 - **T4 (editor-title scope):** the title-bar actions contribute against `resourceScheme == gittree-merge`; in `markers` resultMode (center = real file) the same commands remain reachable via palette, keybindings and CodeLenses — a `file`-scheme title contribution would leak onto every editor.
 - **T4 (P3-T6 scaffold fix):** the template test's `git config` writes rewrite `.git/config` via rename-over, which needs delete-share on the target and lost to AV/indexer readers under the grown suite's load even across a 20 s retry budget; the test now edits the config file in place with fs (append + restore), which needs no rename.
+- **T5 (rule 1 lands as `auto`):** identical-on-both-sides regions normally merge clean before the wand ever sees them (`git merge-file` resolves them itself — the fixture suite's `identical-clean` documents this); rule 1 still guards the block level because reconciliation and hand-seeded stages can produce such blocks.
+- **T5 (same-start edits refuse to weave):** a pure insertion anchored at the base line where the other side's edit starts stays `manual` — the base order between "insert before line N" and "replace line N" is undefined, and reorder-vs-edit degenerates to exactly this shape under the LCS delete-first tie-break. Insertions at the *end* boundary of the other side's range weave fine (`edit-vs-insert-after`, `delete-vs-insert-boundary` fixtures).
+- **T5 (fixture `expected` provenance):** `auto` fixtures carry hand-written golden results; `manual`/`clean` fixtures carry the *initial result* (base inside conflict regions) derived in the generator by an independent JS diff3 parse — the test cross-checks `serializeResult` against it, so parser and generator validate each other. The `eof-no-newline` fixture's expected carries a final EOL: `git merge-file` terminates unterminated lines inside conflict sections (T2's "modulo the final EOL" invariant).
+- **T5 (whitespace tie):** when BOTH sides are whitespace-only edits of the base, the wand takes ours (deterministic; IntelliJ picks a side too) rather than leaving noise-only conflicts manual.
+- **T5 (session wand placement):** the session-wide wand (`gittree.merge.magicWandSession`, Conflicts-view title) writes and stages only files whose blocks ALL fall to the cascade; partially resolvable files are left untouched for the tri-editor, where the file-level wand (`gittree.merge.magicWand`) tags its blocks `auto` and leaves them individually revertible until Apply.
 
 ## Parity checklist (FEATURES.md §5)
 - [x] Conflicts dialog: file list + Accept Yours / Accept Theirs / Merge per file
 - [x] 3-pane window: Left = yours, Right = theirs, Center = result being built
-- [ ] Magic Wand resolves all simple (non-overlapping) conflicts in one click
+- [x] Magic Wand resolves all simple (non-overlapping) conflicts in one click
 - [x] Chevron `≫`/`≪` per-conflict pulls from either side into the center
 - [x] Accept Left / Accept Right global overwrite buttons
 - [x] Center pane is a full editor: syntax highlighting **and working autocompletion**, free manual rewriting

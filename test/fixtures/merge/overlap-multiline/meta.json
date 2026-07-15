@@ -1,0 +1,4 @@
+{
+  "description": "overlapping multi-line rewrites",
+  "expect": "manual"
+}

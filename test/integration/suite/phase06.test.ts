@@ -338,6 +338,76 @@ suite('P6 merge engine — conflict sessions & view', () => {
     await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
   });
 
+  test('T5: magic wand — file cascade with undoable auto tags, session wand completes fully-auto files', async function () {
+    this.timeout(120_000);
+    // p6wand.txt: block 0 = adjacent-edit interleave (auto), block 1 =
+    // same-line divergence (must stay manual). p6wauto.txt: fully auto.
+    git('checkout', '-f', 'main');
+    git('checkout', '-b', 'p6/wand');
+    write('p6wand.txt', 'a\nb\nc\nSEP\nm\nn\no\n');
+    write('p6wauto.txt', 'x\ny\nz\nw\n');
+    commitAll('p6 wand base');
+    git('checkout', '-b', 'p6/wand-side');
+    write('p6wand.txt', 'a\nb\nC!\nSEP\nm\nN2\no\n');
+    write('p6wauto.txt', 'x\ny\nZ!\nw\n');
+    commitAll('p6 wand theirs');
+    git('checkout', 'p6/wand');
+    write('p6wand.txt', 'a\nB!\nc\nSEP\nm\nN1\no\n');
+    write('p6wauto.txt', 'x\nY!\nz\nw\n');
+    commitAll('p6 wand ours');
+    try {
+      git('merge', 'p6/wand-side');
+      assert.fail('merge should conflict');
+    } catch {
+      // expected
+    }
+    await repo.refresher.refreshNow();
+    await waitFor(() => reg.getSession(repoRoot) !== undefined, 15_000);
+    const session = reg.getSession(repoRoot)!;
+    await waitFor(() => session.files().length === 2, 10_000);
+
+    // File-level wand inside the tri-editor.
+    const node = { session, path: 'p6wand.txt', kind: 'both-modified' as const };
+    await vscode.commands.executeCommand('gittree.merge.open', node);
+    const tri = reg.triEditors.get(repoRoot, 'p6wand.txt');
+    assert.ok(tri, 'tri-editor must open');
+    assert.strictEqual(tri.blocks.length, 2, 'two conflict blocks expected');
+    await vscode.commands.executeCommand('gittree.merge.magicWand');
+    assert.strictEqual(tri.blocks[0]!.block.resolution, 'auto', 'interleave block auto-resolved');
+    assert.deepStrictEqual(tri.blocks[0]!.block.resolvedLines, ['B!\n', 'C!\n']);
+    assert.strictEqual(tri.blocks[1]!.block.resolution, undefined, 'adversarial block stays manual');
+    assert.strictEqual(tri.resultText(), 'a\nB!\nC!\nSEP\nm\nn\no\n');
+
+    // Every auto-resolution is individually undoable until Apply.
+    const b0 = tri.blocks[0]!.block.id;
+    await vscode.commands.executeCommand('gittree.merge.revertBlock', repoRoot, 'p6wand.txt', b0);
+    assert.strictEqual(tri.blocks[0]!.block.resolution, undefined, 'auto block reverts to unresolved');
+    assert.strictEqual(tri.resultText(), 'a\nb\nc\nSEP\nm\nn\no\n');
+
+    // Wand again, chevron the manual block, Apply.
+    await vscode.commands.executeCommand('gittree.merge.magicWand');
+    assert.strictEqual(tri.blocks[0]!.block.resolution, 'auto');
+    await vscode.commands.executeCommand(
+      'gittree.merge.acceptYours',
+      repoRoot,
+      'p6wand.txt',
+      tri.blocks[1]!.block.id,
+    );
+    assert.strictEqual(await tri.apply(), true);
+    assert.strictEqual(fs.readFileSync(abs('p6wand.txt'), 'utf8'), 'a\nB!\nC!\nSEP\nm\nN1\no\n');
+    await waitFor(() => !session.files().some((f) => f.path === 'p6wand.txt'), 10_000);
+
+    // Session-wide wand: writes + stages the fully-auto file.
+    await vscode.commands.executeCommand('gittree.merge.magicWandSession', repoRoot);
+    assert.strictEqual(fs.readFileSync(abs('p6wauto.txt'), 'utf8'), 'x\nY!\nZ!\nw\n');
+    await waitFor(() => session.remaining === 0, 10_000);
+    const staged = git('ls-files', '-s', '--', 'p6wauto.txt').trim().split('\n');
+    assert.strictEqual(staged.length, 1, `single index entry expected: ${staged.join(' | ')}`);
+    assert.match(staged[0]!, /\s0\tp6wauto\.txt$/, 'stage 0 (resolved) expected');
+    assert.strictEqual(await session.continueOp(), true);
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+  });
+
   test('T3: center pane serves TypeScript completions (resultMode: markers)', async function () {
     this.timeout(120_000);
     const config = vscode.workspace.getConfiguration('gittree.merge');

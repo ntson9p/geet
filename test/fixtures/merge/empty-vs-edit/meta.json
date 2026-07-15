@@ -1,0 +1,4 @@
+{
+  "description": "ours empties the region theirs edits",
+  "expect": "manual"
+}

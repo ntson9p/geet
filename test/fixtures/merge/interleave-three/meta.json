@@ -1,0 +1,4 @@
+{
+  "description": "ours edits b and d, theirs edits c — three disjoint edits",
+  "expect": "auto"
+}

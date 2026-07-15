@@ -8,7 +8,16 @@ import * as vscode from 'vscode';
 import { MERGE_SCHEME } from '../core/vdocs/mergeFs';
 import { REV_SCHEME } from '../core/vdocs/revContentProvider';
 import { confirmModal } from '../ui/confirm';
+import { resolveBlock, type WandOptions } from './resolver/autoResolver';
 import type { TriEditorManager, TriMergeEditor } from './triEditor';
+
+export function wandOptions(): WandOptions {
+  return {
+    whitespace: vscode.workspace
+      .getConfiguration('gittree.merge')
+      .get<boolean>('autoResolveWhitespace', true),
+  };
+}
 
 /** CodeLens rows on the tri-editor panes: chevrons left/right, state center. */
 export class MergeCodeLensProvider implements vscode.CodeLensProvider {
@@ -168,5 +177,22 @@ export function registerResolutionActions(
   /** Abort file: discard the partial result, keep the file unmerged. */
   register('gittree.merge.abortFile', async () => {
     await manager.active()?.close();
+  });
+
+  /** Magic Wand over the current file's unresolved blocks (toolbar $(wand)). */
+  register('gittree.merge.magicWand', async () => {
+    const editor = manager.active();
+    if (!editor) return;
+    const opts = wandOptions();
+    const before = editor.unresolvedCount;
+    for (const t of editor.blocks) {
+      if (t.block.resolution !== undefined) continue;
+      const outcome = resolveBlock(t.block, opts);
+      if (outcome.resolved) await editor.applyAutoResolution(t.block.id, outcome.lines);
+    }
+    const resolved = before - editor.unresolvedCount;
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t('Resolved {0} of {1} conflicts automatically.', resolved, before),
+    );
   });
 }

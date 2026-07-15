@@ -1,0 +1,4 @@
+{
+  "description": "ours deletes b, theirs inserts after b",
+  "expect": "auto"
+}

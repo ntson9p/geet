@@ -1,0 +1,4 @@
+{
+  "description": "adjacent edits at unterminated EOF — result modulo final EOL (T2 invariant: merge-file terminates conflict-section lines)",
+  "expect": "auto"
+}

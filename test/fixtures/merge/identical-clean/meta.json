@@ -1,0 +1,4 @@
+{
+  "description": "identical change on both sides merges without conflict",
+  "expect": "clean"
+}

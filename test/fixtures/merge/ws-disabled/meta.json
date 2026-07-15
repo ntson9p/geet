@@ -1,0 +1,7 @@
+{
+  "description": "ws-only vs substantive with the whitespace rule off",
+  "expect": "manual",
+  "options": {
+    "whitespace": false
+  }
+}

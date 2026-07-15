@@ -153,6 +153,11 @@
             ],
             "default": "virtual",
             "description": "%gittree.config.merge.resultMode.description%"
+          },
+          "gittree.merge.autoResolveWhitespace": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.merge.autoResolveWhitespace.description%"
           }
         }
       },
@@ -817,6 +822,16 @@
         "command": "gittree.merge.abortFile",
         "title": "%gittree.command.merge.abortFile.title%",
         "icon": "$(discard)"
+      },
+      {
+        "command": "gittree.merge.magicWand",
+        "title": "%gittree.command.merge.magicWand.title%",
+        "icon": "$(wand)"
+      },
+      {
+        "command": "gittree.merge.magicWandSession",
+        "title": "%gittree.command.merge.magicWandSession.title%",
+        "icon": "$(wand)"
       }
     ],
     "submenus": [
@@ -1012,6 +1027,14 @@
         {
           "command": "gittree.merge.abortFile",
           "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.magicWand",
+          "when": "gittree.merge.triEditorActive"
+        },
+        {
+          "command": "gittree.merge.magicWandSession",
+          "when": "gittree.hasConflicts"
         }
       ],
       "editor/title": [
@@ -1021,19 +1044,24 @@
           "group": "navigation@1"
         },
         {
-          "command": "gittree.merge.acceptFileYours",
+          "command": "gittree.merge.magicWand",
           "when": "resourceScheme == gittree-merge",
           "group": "navigation@2"
         },
         {
-          "command": "gittree.merge.acceptFileTheirs",
+          "command": "gittree.merge.acceptFileYours",
           "when": "resourceScheme == gittree-merge",
           "group": "navigation@3"
         },
         {
-          "command": "gittree.merge.abortFile",
+          "command": "gittree.merge.acceptFileTheirs",
           "when": "resourceScheme == gittree-merge",
           "group": "navigation@4"
+        },
+        {
+          "command": "gittree.merge.abortFile",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@5"
         }
       ],
       "scm/title": [
@@ -1252,6 +1280,11 @@
           "command": "gittree.history.clearAll",
           "when": "view == gittree.localHistory",
           "group": "1_manage@2"
+        },
+        {
+          "command": "gittree.merge.magicWandSession",
+          "when": "view == gittree.conflicts",
+          "group": "navigation@0"
         },
         {
           "command": "gittree.merge.continueOp",

@@ -159,5 +159,8 @@
   "gittree.command.merge.acceptFocusedSide.title": "Accept Side at Cursor",
   "gittree.command.merge.acceptFileYours.title": "Accept All Yours (File)",
   "gittree.command.merge.acceptFileTheirs.title": "Accept All Theirs (File)",
-  "gittree.command.merge.abortFile.title": "Abort File Merge"
+  "gittree.command.merge.abortFile.title": "Abort File Merge",
+  "gittree.command.merge.magicWand.title": "Magic Wand: Auto-Resolve Simple Conflicts (File)",
+  "gittree.command.merge.magicWandSession.title": "Magic Wand: Auto-Resolve Simple Conflicts (All Files)",
+  "gittree.config.merge.autoResolveWhitespace.description": "Magic Wand: when one side changed only whitespace, take the substantive side automatically."
 }

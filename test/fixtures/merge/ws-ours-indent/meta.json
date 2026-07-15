@@ -1,0 +1,4 @@
+{
+  "description": "ours reindents only; theirs rewrites — take theirs",
+  "expect": "auto"
+}

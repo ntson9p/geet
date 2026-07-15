@@ -1,0 +1,4 @@
+{
+  "description": "adjacent edits, CRLF endings preserved byte-exact",
+  "expect": "auto"
+}

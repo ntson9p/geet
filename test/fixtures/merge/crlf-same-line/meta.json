@@ -1,0 +1,4 @@
+{
+  "description": "CRLF adversarial: same line, different content",
+  "expect": "manual"
+}

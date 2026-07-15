@@ -1,0 +1,4 @@
+{
+  "description": "ours edits b, theirs deletes adjacent c",
+  "expect": "auto"
+}

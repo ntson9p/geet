@@ -10,8 +10,9 @@ import { MERGE_SCHEME, MergeFsProvider } from '../core/vdocs/mergeFs';
 import { confirmModal } from '../ui/confirm';
 import { ConflictSession, isSpecialConflict, type ConflictSource } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
-import { MergeComputer, type MergeExec } from './mergeCompute';
-import { registerResolutionActions } from './resolutionActions';
+import { MergeComputer, serializeResult, type MergeExec } from './mergeCompute';
+import { registerResolutionActions, wandOptions } from './resolutionActions';
+import { resolveAllBlocks } from './resolver/autoResolver';
 import { TriEditorManager } from './triEditor';
 
 export function registerPhase06MergeEngine(context: vscode.ExtensionContext, core: Core): void {
@@ -261,6 +262,50 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     );
     if (ok) await session.acceptSide(paths, 'theirs');
   });
+  /**
+   * Session-wide Magic Wand (Conflicts-view title): auto-resolve every text
+   * conflict whose blocks ALL fall to the cascade; partially resolvable
+   * files stay untouched for the tri-editor.
+   */
+  register('gittree.merge.magicWandSession', async (arg) => {
+    const session = sessionFor(arg);
+    if (!session) return;
+    const computer = new MergeComputer(mergeExecFor(session.repo));
+    const opts = wandOptions();
+    let filesResolved = 0;
+    let blocksResolved = 0;
+    let blocksTotal = 0;
+    for (const file of session.files()) {
+      if (isSpecialConflict(file.kind)) continue;
+      const input = await computer.compute(file.path);
+      if (input.kind !== 'text') continue;
+      const blocks = input.merge.blocks;
+      blocksTotal += blocks.length;
+      const resolved = resolveAllBlocks(blocks, opts, (block, lines) => {
+        block.resolution = 'auto';
+        block.resolvedLines = lines;
+      });
+      if (resolved === blocks.length && blocks.length > 0) {
+        const text = serializeResult(input.merge.segments);
+        await vscode.workspace.fs.writeFile(
+          vscode.Uri.joinPath(vscode.Uri.file(session.repo.root), file.path),
+          new TextEncoder().encode(text),
+        );
+        await session.markResolved(file.path);
+        filesResolved++;
+        blocksResolved += resolved;
+      }
+    }
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t(
+        'Resolved {0} of {1} conflicts automatically ({2} file(s) completed).',
+        blocksResolved,
+        blocksTotal,
+        filesResolved,
+      ),
+    );
+  });
+
   register('gittree.merge.continueOp', async (arg) => {
     await sessionFor(arg)?.continueOp();
   });

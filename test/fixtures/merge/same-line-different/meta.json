@@ -1,0 +1,4 @@
+{
+  "description": "both edit the same line differently",
+  "expect": "manual"
+}

@@ -1,0 +1,4 @@
+{
+  "description": "ours reorders b/c, theirs edits b",
+  "expect": "manual"
+}

@@ -252,6 +252,37 @@ export class TriMergeEditor {
     this._onDidChangeState.fire();
   }
 
+  /** Magic Wand application: arbitrary woven lines, tagged 'auto' (T5). */
+  async applyAutoResolution(blockId: number, lines: string[]): Promise<void> {
+    const tracked = this.blocks.find((t) => t.block.id === blockId);
+    if (!tracked) return;
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      this.centerUri,
+      new vscode.Range(tracked.startLine, 0, tracked.endLine, 0),
+      lines.join(''),
+    );
+    this.selfEdit = true;
+    try {
+      await vscode.workspace.applyEdit(edit);
+    } finally {
+      this.selfEdit = false;
+    }
+    const oldEnd = tracked.endLine;
+    const shift = lines.length - (tracked.endLine - tracked.startLine);
+    tracked.endLine = tracked.startLine + lines.length;
+    for (const other of this.blocks) {
+      if (other !== tracked && other.startLine >= oldEnd) {
+        other.startLine += shift;
+        other.endLine += shift;
+      }
+    }
+    tracked.block.resolution = 'auto';
+    tracked.block.resolvedLines = [...lines];
+    this.paint();
+    this._onDidChangeState.fire();
+  }
+
   /** "Ignore (keep base)": resolves the block without changing its text. */
   ignoreBlock(blockId: number): void {
     const tracked = this.blocks.find((t) => t.block.id === blockId);

@@ -22,7 +22,8 @@ function splitLines(text: string): { lines: string[]; hadFinalNewline: boolean }
  */
 const LCS_CELL_CAP = 4_000_000;
 
-function lcsBlocks(a: string[], b: string[]): Array<[number, number, number, number]> {
+/** Exported for P6-T5's base-anchored diff3 weave (same exact-diff contract). */
+export function lcsBlocks(a: string[], b: string[]): Array<[number, number, number, number]> {
   const n = a.length;
   const m = b.length;
   if (n === 0 && m === 0) return [];
