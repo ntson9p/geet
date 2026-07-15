@@ -61,6 +61,13 @@
 ## Contributions added this phase
 Views `gittree.stashes`, `gittree.shelf`; commands `gittree.stash.{push,pop,apply,drop,branch,clear,diffAll}`, `gittree.shelf.{shelve,unshelve,unshelvePartial,rename,delete,export,import,showPatch}`; changelist-context "Shelve Changes…"; settings `gittree.shelf.path`, `gittree.stash.includeUntrackedDefault`.
 
+## Deviations
+
+- **T1 (list model):** the service reads `repo.model.snapshot.stashes` and filters the model's `'stashes'` change section — the P0-T3 parser and P0-T6 git-dir watcher already cover `refs/stash` + its reflog, so no additional watcher exists.
+- **T1 (conflict handoff):** a failed pop/apply registers P6-T7's `expectConflict(root, 'stash-pop')` producer hint *before* the refresh that creates the session; apply-conflicts classify as `stash-pop` too (the `ConflictSource` union deliberately has no separate apply value — abort guidance is identical).
+- **T1 (`--staged` guard):** gated on `caps.stashStaged` (git ≥ 2.35) with a friendly error thrown inside the queued op before any git invocation; the e2e asserts the guard leaves no stash entry on old git and the full round-trip on new git.
+- **T1 (push not snapshot-flagged):** `stash push` itself is the safety copy — P9's binding label matrix (pop/apply/drop/clear) is followed as-is; push runs as a plain mutation.
+
 ## Parity checklist (FEATURES.md §6)
 - [ ] Stash GUI: save (with message/options), list, apply, pop, drop, branch-from-stash
 - [ ] Diff any stash (incl. untracked contents) against the current working tree

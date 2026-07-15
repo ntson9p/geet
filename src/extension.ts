@@ -7,6 +7,7 @@ import { registerPhase06MergeEngine } from './merge/register';
 import { registerPhase09LocalHistory } from './localHistory/register';
 import { registerPhase05HistoryRewriting } from './rewrite/register';
 import { registerPhase01 } from './scm/register';
+import { registerPhase07StashShelve } from './stash/register';
 import { DEMO_METHODS } from './shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/webviewHost';
 
@@ -55,6 +56,7 @@ function registerPhases(context: vscode.ExtensionContext, core: Core): void {
   // -- registerPhase06 (Merge engine) -------------------------------------
   registerPhase06MergeEngine(context, core);
   // -- registerPhase07 (Stash & shelve) -----------------------------------
+  registerPhase07StashShelve(context, core);
   // -- registerPhase08 (Provider integrations) ----------------------------
   // -- registerPhase09 (Local History) -------------------------------------
   registerPhase09LocalHistory(context, core);
