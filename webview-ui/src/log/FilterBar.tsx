@@ -4,6 +4,7 @@
  * Chip pickers run HOST-side (QuickPicks); the bar shows active values and
  * clears with ×. All filters intersect in one LogFilter.
  */
+import type { RefObject } from 'react';
 import type { LogFilterDto } from '../../../src/shared/protocol';
 import { ToolbarButton } from '../lib/Toolbar';
 
@@ -37,6 +38,8 @@ export interface FilterBarProps {
   onPickAuthors: () => void;
   onPickDates: () => void;
   onPickPaths: () => void;
+  /** P10-T2: lets the host's focus-filter command reach the search box. */
+  searchInputRef?: RefObject<HTMLInputElement>;
 }
 
 function refsLabel(f: LogFilterDto): string | undefined {
@@ -51,7 +54,7 @@ function datesLabel(f: LogFilterDto): string | undefined {
   return `${f.dateRange.from ?? '…'} → ${f.dateRange.to ?? '…'}`;
 }
 
-export function FilterBar({ filter, onChange, onPickBranches, onPickAuthors, onPickDates, onPickPaths }: FilterBarProps) {
+export function FilterBar({ filter, onChange, onPickBranches, onPickAuthors, onPickDates, onPickPaths, searchInputRef }: FilterBarProps) {
   const text = filter.text ?? { q: '', regex: false, matchCase: false };
   const anyActive =
     refsLabel(filter) !== undefined ||
@@ -105,6 +108,7 @@ export function FilterBar({ filter, onChange, onPickBranches, onPickAuthors, onP
       />
 
       <input
+        ref={searchInputRef}
         type="text"
         className="gt-input gt-log-search"
         placeholder="Search messages"

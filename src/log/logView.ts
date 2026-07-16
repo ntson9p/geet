@@ -140,10 +140,26 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   // ---- session -------------------------------------------------------------
 
+  private graphPalette(): 'default' | 'colorBlind' {
+    const v = vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette', 'default');
+    return v === 'colorBlind' ? 'colorBlind' : 'default';
+  }
+
+  /** P10-T2: keyboard parity — move focus into the filter search box. */
+  focusFilter(): void {
+    this.rpc?.notify(LOG_METHODS.evtFocusFilter, {});
+  }
+
   private startSession(filterDto: LogFilterDto): LogInitDto {
     const repo = this.activeRepo();
     if (!repo) {
-      return { repoRoot: '', repoLabel: vscode.l10n.t('No repository'), filter: filterDto, laneWidth: LANE_WIDTH };
+      return {
+        repoRoot: '',
+        repoLabel: vscode.l10n.t('No repository'),
+        filter: filterDto,
+        laneWidth: LANE_WIDTH,
+        graphPalette: this.graphPalette(),
+      };
     }
     this.debugTrail.push(`session repo=${repo.root}`);
     this.session = {
@@ -161,6 +177,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       repoLabel: path.basename(repo.root),
       filter: filterDto,
       laneWidth: LANE_WIDTH,
+      graphPalette: this.graphPalette(),
     };
   }
 
@@ -226,6 +243,12 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private applyFilter(filterDto: LogFilterDto): void {
     const init = this.startSession(filterDto);
     this.rpc?.notify(LOG_METHODS.evtReset, init);
+  }
+
+  /** P10-T2: re-init with the current filter (palette/config changes). */
+  refreshInit(): void {
+    const session = this.session;
+    if (session) this.applyFilter(session.filter);
   }
 
   private async getDetails(sha: string): Promise<CommitDetailsDto | undefined> {

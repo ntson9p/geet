@@ -26,6 +26,55 @@ button {
   outline-offset: -1px;
 }
 
+/* P10-T2: screen-reader-only text (aria-live regions). Not display:none —
+   that would silence announcements. */
+.gt-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* P10-T2: reduced-motion — kill transitions/animations globally; scrolling
+   initiated by scripts falls back to instant jumps. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* P10-T2: forced-colors (Windows High Contrast) — let the system palette
+   drive chrome; keep focus and selection visible via system keywords. */
+@media (forced-colors: active) {
+  .gt-toolbar-button.gt-toggled {
+    forced-color-adjust: none;
+    background: SelectedItem;
+    color: SelectedItemText;
+    border-color: SelectedItem;
+  }
+  .gt-virtual-row.gt-focused {
+    forced-color-adjust: none;
+    background: SelectedItem;
+    color: SelectedItemText;
+  }
+  .gt-filter-chip.gt-active {
+    forced-color-adjust: none;
+    background: SelectedItem;
+    color: SelectedItemText;
+  }
+}
+
 /* ---- Toolbar ---- */
 .gt-toolbar {
   display: flex;

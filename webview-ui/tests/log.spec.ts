@@ -117,4 +117,43 @@ test.describe('P4-T3/T4 log webview', () => {
       .poll(async () => (await posted(page)).some((m) => m.method === 'log/copy'))
       .toBe(true);
   });
+
+  test('P10-T2: focusFilter event moves focus into the search box', async ({ page }) => {
+    await openLog(page);
+    await page.evaluate(() => {
+      window.postMessage({ v: 1, id: 'evtff', kind: 'evt', method: 'log/focusFilter', params: {} }, '*');
+    });
+    await expect(page.getByLabel('Search commit messages')).toBeFocused();
+  });
+
+  test('P10-T2: aria-live region announces loaded commits', async ({ page }) => {
+    await openLog(page);
+    const status = page.getByTestId('log-status');
+    await expect(status).toHaveAttribute('aria-live', 'polite');
+    await expect(status).toContainText('2000 commits loaded');
+  });
+
+  test('P10-T2: rows carry IntelliJ-style screen-reader labels', async ({ page }) => {
+    await openLog(page);
+    const label = await page.locator('[data-gt-row="0"]').getAttribute('aria-label');
+    expect(label).toContain('commit commit 0 by Alice');
+    expect(label).toContain('branch main');
+    const plain = await page.locator('[data-gt-row="1"]').getAttribute('aria-label');
+    expect(plain).toContain('commit commit 1 by Bob');
+    expect(plain).not.toContain('branch');
+  });
+
+  test('P10-T2: colorBlind palette drives ref-chip and graph colors', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockGraphPalette?: string }).__mockGraphPalette = 'colorBlind';
+    });
+    await openLog(page);
+    // Okabe–Ito lane 0: #0072b2 light / #56b4e9 dark — either proves the
+    // palette reached the renderer (theme depends on the harness page).
+    const border = await page
+      .locator('.gt-ref-chip')
+      .first()
+      .evaluate((el) => getComputedStyle(el).borderColor);
+    expect(['rgb(0, 114, 178)', 'rgb(86, 180, 233)']).toContain(border);
+  });
 });

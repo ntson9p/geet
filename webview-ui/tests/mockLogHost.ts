@@ -33,7 +33,7 @@ export const mockLogHostScript = `
       const res = (result) => post({ v: 1, id: msg.id, kind: 'res', result });
       switch (msg.method) {
         case 'log/init':
-          res({ repoRoot: '/repo', repoLabel: 'repo', filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12 });
+          res({ repoRoot: '/repo', repoLabel: 'repo', filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, graphPalette: window.__mockGraphPalette });
           break;
         case 'log/page': {
           const page = msg.params.page;

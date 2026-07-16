@@ -94,13 +94,38 @@
   `core.fsmonitor=true`, which pre-2.37 git misreads as a hook path — the gate exists for
   exactly this). The enable-path e2e runs wherever `caps.fsmonitor` holds, e.g. the CI
   system-git lane (authored, never executed — no remote).
+- **T2 (HC screenshots "attached to PR"):** no PRs exist (no remote, owner decision), so the
+  high-contrast evidence is the `forced-colors`/theme-variable audit recorded in
+  `docs/keyboard.md` plus a manual pass over log/rebase/merge under both HC themes and a
+  Windows Contrast Theme. The `aria-live`/label/focus behaviors are Playwright-asserted
+  instead of screenshotted.
+- **T2 (audit scope):** the spec's webview list includes "PR timeline" (P8 — skipped by owner
+  decision) and "compare" (shipped as native VS Code diff/tree UI, which inherits workbench
+  accessibility); the shipped webviews are log and rebase, both audited. The demo webview is a
+  debug-only surface (`gittree.debug.webviewDemo`) and was left out of scope.
+- **T2 (IntelliJ keymap as when-gated bindings):** "toggles a contributed keybindings JSON
+  users can import" is implemented as `contributes.keybindings` entries `when`-gated on
+  `config.gittree.keymap.intellij` — VS Code cannot contribute keybindings conditionally, and
+  when-gated bindings behave identically to an imported set while remaining rebindable and
+  uninstallable via one setting. Known shadowings (Ctrl+K chord prefix, Ctrl+Shift+K delete
+  line, Ctrl+T symbol search) are deliberate IntelliJ flavor, documented in docs/keyboard.md,
+  and off by default.
+- **T2 (stage hunk keybinding):** `gittree.stage.hunkAt` is a CodeLens target that requires a
+  hunk argument, so it cannot be bound to a key directly; keyboard hunk staging is the
+  already-bound `Ctrl+Alt+Enter` → `gittree.stage.selectedRanges` (select the hunk's lines
+  first), which the audit records as the parity route.
+- **T2 (graphPalette is a new setting):** the phase's "no new feature surfaces" note lists
+  only `gittree.telemetry.enabled` and `gittree.keymap.intellij`, but T2's step 3 explicitly
+  requires a "color-blind-safe graph palette variant setting" — shipped as
+  `gittree.log.graphPalette` (`default`/`colorBlind`, Okabe–Ito), applied live on config
+  change via a session re-init.
 
 ## Contributions added this phase
 Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportIssue,generatePlayground}`; settings `gittree.telemetry.enabled`, `gittree.keymap.intellij`; no new feature surfaces.
 
 ## Parity checklist
 - [x] Master §13 budgets enforced in CI (job authored + all budgets green locally; CI itself has never executed — no remote, see Deviations)
-- [ ] Keyboard/a11y walkthrough passes end-to-end
+- [x] Keyboard/a11y walkthrough passes end-to-end (docs/keyboard.md: audit checklist + recorded walkthrough; HC evidence local — no PR, see Deviations)
 - [ ] Onboarding reaches first commit + first resolved conflict unaided
 - [ ] Telemetry opt-in and content-free
 - [ ] FEATURES.md line-by-line audit merged — the 100%-parity sign-off artifact

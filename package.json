@@ -71,6 +71,11 @@
             "default": false,
             "scope": "window",
             "description": "%gittree.config.terminalAuth.description%"
+          },
+          "gittree.keymap.intellij": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.keymap.intellij.description%"
           }
         }
       },
@@ -260,6 +265,19 @@
             ],
             "default": "topo",
             "description": "%gittree.config.log.sort.description%"
+          },
+          "gittree.log.graphPalette": {
+            "type": "string",
+            "enum": [
+              "default",
+              "colorBlind"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.log.graphPalette.default%",
+              "%gittree.config.log.graphPalette.colorBlind%"
+            ],
+            "default": "default",
+            "description": "%gittree.config.log.graphPalette.description%"
           },
           "gittree.blame.heatmap": {
             "type": "boolean",
@@ -624,6 +642,11 @@
       {
         "command": "gittree.log.setFilter",
         "title": "%gittree.command.log.setFilter.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.log.focusFilter",
+        "title": "%gittree.command.log.focusFilter.title%",
         "category": "GitTree"
       },
       {
@@ -1876,6 +1899,47 @@
         "command": "gittree.merge.apply",
         "key": "ctrl+alt+enter",
         "when": "gittree.merge.triEditorActive && editorTextFocus && !isInDiffEditor"
+      },
+      {
+        "command": "gittree.log.focusFilter",
+        "key": "ctrl+alt+g f",
+        "mac": "cmd+alt+g f"
+      },
+      {
+        "command": "gittree.blame.toggle",
+        "key": "ctrl+alt+g b",
+        "mac": "cmd+alt+g b",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "gittree.commit",
+        "key": "ctrl+k",
+        "mac": "cmd+k",
+        "when": "config.gittree.keymap.intellij && !terminalFocus"
+      },
+      {
+        "command": "gittree.push",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k",
+        "when": "config.gittree.keymap.intellij && !terminalFocus"
+      },
+      {
+        "command": "gittree.pull",
+        "key": "ctrl+t",
+        "mac": "cmd+t",
+        "when": "config.gittree.keymap.intellij && !terminalFocus"
+      },
+      {
+        "command": "gittree.log.focus",
+        "key": "alt+9",
+        "mac": "cmd+9",
+        "when": "config.gittree.keymap.intellij"
+      },
+      {
+        "command": "gittree.rollbackFile",
+        "key": "ctrl+alt+z",
+        "mac": "cmd+alt+z",
+        "when": "config.gittree.keymap.intellij && editorTextFocus"
       }
     ],
     "views": {

@@ -55,6 +55,8 @@ export function App() {
   const [selected, setSelected] = useState<string[]>([]);
   const [details, setDetails] = useState<CommitDetailsDto | undefined>();
   const [detailsLoading, setDetailsLoading] = useState(false);
+  // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const filter = init?.filter ?? { sort: 'topo', refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
@@ -119,6 +121,10 @@ export function App() {
         void loadDetails(sha);
       }
     });
+    const offFocusFilter = rpc.onEvent(LOG_METHODS.evtFocusFilter, () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
 
     const saved = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
     restoreShaRef.current = saved.focusSha;
@@ -130,6 +136,7 @@ export function App() {
       offRows();
       offReset();
       offReveal();
+      offFocusFilter();
     };
     // Boot effect: intentionally runs once per rpc instance.
   }, [rpc]); // requestPage/loadDetails are stable enough for the boot path
@@ -241,7 +248,12 @@ export function App() {
         onPickAuthors={() => void rpc.request(LOG_METHODS.pickAuthors)}
         onPickDates={() => void rpc.request(LOG_METHODS.pickDates)}
         onPickPaths={() => void rpc.request(LOG_METHODS.pickPaths)}
+        searchInputRef={searchInputRef}
       />
+      {/* P10-T2: async loads announced to screen readers. */}
+      <div className="gt-visually-hidden" aria-live="polite" data-testid="log-status">
+        {loading ? 'Loading commits…' : `${rows.length} commits loaded${eof ? ', end of history' : ''}`}
+      </div>
       <div className="gt-log-main">
         <div className="gt-log-rows" ref={containerRef} data-testid="log-rows">
           <GraphCanvas
@@ -251,6 +263,7 @@ export function App() {
             laneWidth={laneWidth}
             width={graphWidth}
             height={listHeight}
+            palette={init.graphPalette ?? 'default'}
           />
           <VirtualList
             ref={listRef}
@@ -261,6 +274,12 @@ export function App() {
             onFocusIndex={onFocusIndex}
             onRowClick={onRowClick}
             onViewport={onViewport}
+            rowAriaLabel={(i) => {
+              const row = rows[i];
+              if (!row) return loading ? 'Loading…' : 'Load more';
+              const refs = row.refs.length > 0 ? `, branch ${row.refs.map((r) => r.name).join(', ')}` : '';
+              return `commit ${row.subject} by ${row.authorName}, ${relativeDate(row.authorTime)}${refs}`;
+            }}
             rowContext={(i) => {
               const row = rows[i];
               if (!row) return undefined;
@@ -302,7 +321,7 @@ export function App() {
                     <span
                       key={`${r.type}:${r.name}`}
                       className={`gt-ref-chip gt-ref-${r.type}${r.isHeadTarget === true ? ' gt-ref-headTarget' : ''}`}
-                      style={{ borderColor: laneColor(row.graph.colorIdx, dark) }}
+                      style={{ borderColor: laneColor(row.graph.colorIdx, dark, init.graphPalette ?? 'default') }}
                     >
                       {r.name}
                     </span>

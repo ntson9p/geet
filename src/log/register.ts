@@ -41,6 +41,14 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
         await logView.revealCommit(lb.sha);
       }
     }),
+    // P10-T2: keyboard parity — reveal the log and focus its filter box.
+    vscode.commands.registerCommand('gittree.log.focusFilter', async () => {
+      await vscode.commands.executeCommand('gittree.log.focus');
+      logView.focusFilter();
+    }),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gittree.log.graphPalette')) logView.refreshInit();
+    }),
   );
 
   const registry: Phase04Registry = { logView, blameUi };

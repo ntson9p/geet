@@ -102,6 +102,8 @@ export interface LogInitDto {
   repoLabel: string;
   filter: LogFilterDto;
   laneWidth: number;
+  /** P10-T2: graph palette variant (`gittree.log.graphPalette`). */
+  graphPalette?: 'default' | 'colorBlind';
 }
 
 export interface CommitFileDto {
@@ -141,6 +143,8 @@ export const LOG_METHODS = {
   evtRows: 'log/rows',
   evtReset: 'log/reset',
   evtReveal: 'log/reveal',
+  /** P10-T2: keyboard parity — move focus into the filter search box. */
+  evtFocusFilter: 'log/focusFilter',
 } as const;
 
 // ---------------------------------------------------------------------------

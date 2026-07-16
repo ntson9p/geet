@@ -33,6 +33,8 @@ export interface VirtualListProps {
   onActivate?: (index: number) => void;
   /** Row context data for data-vscode-context (native menus). */
   rowContext?: (index: number) => Record<string, unknown> | undefined;
+  /** P10-T2: screen-reader label per row (falls back to text content). */
+  rowAriaLabel?: (index: number) => string | undefined;
   /** Click with modifier info (multi-selection models live above the list). */
   onRowClick?: (index: number, e: { ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => void;
   /** Viewport tracker for overlay layers (log graph canvas) + infinite scroll. */
@@ -51,6 +53,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     onFocusIndex,
     onActivate,
     rowContext,
+    rowAriaLabel,
     onRowClick,
     onViewport,
     className,
@@ -172,6 +175,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
         aria-posinset={i + 1}
         aria-setsize={rowCount}
         aria-selected={i === focusedIndex}
+        aria-label={rowAriaLabel?.(i)}
         data-gt-row={i}
         data-vscode-context={ctx ? JSON.stringify(ctx) : undefined}
         tabIndex={i === focusedIndex ? 0 : -1}

@@ -14,7 +14,21 @@ export interface GraphViewport {
   last: number;
 }
 
-export function laneColor(colorIdx: number, dark: boolean): string {
+export type GraphPalette = 'default' | 'colorBlind';
+
+/**
+ * P10-T2: color-blind-safe variant — Okabe–Ito palette (distinct under
+ * deutan/protan/tritan vision), cycled like the hue palette. The light/dark
+ * split keeps contrast against the editor background.
+ */
+const OKABE_ITO_LIGHT = ['#0072b2', '#e69f00', '#009e73', '#cc79a7', '#d55e00', '#56b4e9', '#a6761d', '#666666'];
+const OKABE_ITO_DARK = ['#56b4e9', '#f5c342', '#34c799', '#e39ac1', '#f28e2b', '#86ccf5', '#c9964a', '#a3a3a3'];
+
+export function laneColor(colorIdx: number, dark: boolean, palette: GraphPalette = 'default'): string {
+  if (palette === 'colorBlind') {
+    const set = dark ? OKABE_ITO_DARK : OKABE_ITO_LIGHT;
+    return set[colorIdx % set.length] ?? set[0]!;
+  }
   const hue = GRAPH_HUES[colorIdx % GRAPH_HUES.length] ?? 210;
   return dark ? `hsl(${hue} 65% 65%)` : `hsl(${hue} 70% 40%)`;
 }
@@ -26,10 +40,12 @@ export function GraphCanvas(props: {
   laneWidth: number;
   width: number;
   height: number;
+  palette?: GraphPalette;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const theme = useVsCodeTheme();
   const dark = theme === 'dark' || theme === 'high-contrast';
+  const palette = props.palette ?? 'default';
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,7 +75,7 @@ export function GraphCanvas(props: {
       // Verticals entering the row: uninvolved lanes run straight through;
       // the node lane and join lanes run to the node center.
       for (const l of row.lanesBefore) {
-        ctx.strokeStyle = laneColor(l.colorIdx, dark);
+        ctx.strokeStyle = laneColor(l.colorIdx, dark, palette);
         ctx.beginPath();
         if (l.lane === row.nodeLane) {
           ctx.moveTo(x(l.lane), yTop);
@@ -75,14 +91,14 @@ export function GraphCanvas(props: {
       }
       // Below the node: forks + continues.
       for (const c of row.continues) {
-        ctx.strokeStyle = laneColor(c.colorIdx, dark);
+        ctx.strokeStyle = laneColor(c.colorIdx, dark, palette);
         ctx.beginPath();
         ctx.moveTo(x(c.lane), yMid);
         ctx.lineTo(x(c.lane), yBottom);
         ctx.stroke();
       }
       for (const f of row.forks) {
-        ctx.strokeStyle = laneColor(f.colorIdx, dark);
+        ctx.strokeStyle = laneColor(f.colorIdx, dark, palette);
         ctx.beginPath();
         if (f.lane === row.nodeLane) {
           ctx.moveTo(x(f.lane), yMid);
@@ -94,7 +110,7 @@ export function GraphCanvas(props: {
         ctx.stroke();
       }
       // Node dot.
-      ctx.fillStyle = laneColor(row.colorIdx, dark);
+      ctx.fillStyle = laneColor(row.colorIdx, dark, palette);
       ctx.beginPath();
       ctx.arc(x(row.nodeLane), yMid, 3.5, 0, Math.PI * 2);
       ctx.fill();
