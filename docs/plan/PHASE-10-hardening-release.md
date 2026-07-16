@@ -147,6 +147,35 @@
 - **T3 (marketplace gallery assets):** icon.png (Playwright-rendered from SVG) and
   galleryBanner are in package.json and the VSIX; there is no marketplace listing to verify
   them against (no publisher account — owner constraint, see T5).
+- **T4 (no telemetry backend → no `@vscode/extension-telemetry`):** the spec names the
+  library, but it requires an Application Insights connection string and the owner ruled out
+  any telemetry backend. `src/core/telemetry.ts` implements the same double-gate semantics
+  (VS Code telemetry level via `vscode.env.isTelemetryEnabled` AND `gittree.telemetry.enabled`,
+  default OFF), the schema-allowlisted serializer (unit-tested: unknown events refused,
+  unknown keys stripped, non-slug strings — paths/shas/messages — rejected by shape), and a
+  pluggable `TelemetrySender` whose shipped implementation is a deliberate no-op. Wiring a
+  real reporter is a drop-in sender replacement for whoever provisions a backend. Nothing is
+  transmitted today regardless of settings, and the setting description says so.
+- **T4 (feature-first-use coverage is partial):** the schema and deduping API exist
+  (`featureFirstUse`), wired for the onboarding commands; retrofitting a first-use call into
+  every feature entry point across P1–P9 modules would violate the append-only discipline for
+  a metric with no backend — future call sites are one-liners. Activation timing, op-duration
+  histograms (new `durationMs` on `FinishedMutationEvent`) and error kinds are wired centrally.
+- **T4 ("Report issue" targets an unverifiable URL):** the pre-filled GitHub new-issue URL
+  points at the package.json repository, which has no live remote (owner constraint). The
+  command, sanitizer (paths → sha256#8 stand-ins) and URL builder are unit- and e2e-tested;
+  opening the URL in a browser is the user's action and transmits nothing by itself.
+- **T4 (trace levels stay boolean):** the spec's "off/messages/verbose" maps onto existing
+  semantics rather than a new enum setting: always-on categorized `appendLine` lines are the
+  "messages" level, `gittree.trace: true` is "verbose" (timestamped per-call tracing), false
+  is "off" for the verbose stream. Changing the setting's type would break existing values
+  for no behavioral gain. Categories normalized: `[exec] [queue] [watch] [webview] [sync]
+  [branches] [log] [merge] [rewrite] [shelf] [local-history] [perf] [onboarding] [telemetry]`.
+- **T4 (dialog acceptance):** "forced failure of each kind shows its dialog" is verified as:
+  per-kind copy asserted distinct + actionable for all 7 `GitErrorKind`s (e2e via the
+  debugRegistry seam), and the generic presenter wired into the sync-command path (kinds with
+  richer flows — smart checkout, conflict sessions, lease refusal, publish-upstream — keep
+  their dedicated UX and never reach it).
 
 ## Contributions added this phase
 Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportIssue,generatePlayground}`; settings `gittree.telemetry.enabled`, `gittree.keymap.intellij`; no new feature surfaces.
@@ -155,5 +184,5 @@ Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportI
 - [x] Master §13 budgets enforced in CI (job authored + all budgets green locally; CI itself has never executed — no remote, see Deviations)
 - [x] Keyboard/a11y walkthrough passes end-to-end (docs/keyboard.md: audit checklist + recorded walkthrough; HC evidence local — no PR, see Deviations)
 - [x] Onboarding reaches first commit + first resolved conflict unaided (walkthrough + playground; e2e-verified repo shape, no human tester — see Deviations)
-- [ ] Telemetry opt-in and content-free
+- [x] Telemetry opt-in and content-free (double-gated, schema-allowlisted, no-op sender — no backend by owner decision, see Deviations)
 - [ ] FEATURES.md line-by-line audit merged — the 100%-parity sign-off artifact

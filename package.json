@@ -86,6 +86,11 @@
             "type": "boolean",
             "default": true,
             "description": "%gittree.config.whatsNew.enabled.description%"
+          },
+          "gittree.telemetry.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.telemetry.enabled.description%"
           }
         }
       },
@@ -987,6 +992,11 @@
       {
         "command": "gittree.generatePlayground",
         "title": "%gittree.command.generatePlayground.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.reportIssue",
+        "title": "%gittree.command.reportIssue.title%",
         "category": "GitTree"
       }
     ],

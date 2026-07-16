@@ -44,6 +44,8 @@ export interface FinishedMutationEvent {
   /** Classified kind when the mutation failed with a GitError (P6-T7 routes
    *  'merge-conflict' into conflict-session creation). */
   errorKind?: GitErrorKind;
+  /** P10-T4: wall time of the mutation (telemetry duration histograms). */
+  durationMs?: number;
 }
 
 /** Injected by the bootstrap; wraps mutations in vscode progress UI. */
@@ -230,6 +232,7 @@ export class OperationQueue {
   }
 
   private async runMutation(job: Job<unknown>): Promise<void> {
+    const startedAt = Date.now();
     try {
       if (job.op.isDestructive) {
         const waits: Promise<unknown>[] = [];
@@ -257,13 +260,18 @@ export class OperationQueue {
       this.finishMutation();
       job.source.dispose();
       job.resolve(result);
-      this._onDidFinishMutation.fire(finishedEvent(job.op, true));
+      this._onDidFinishMutation.fire(finishedEvent(job.op, true, Date.now() - startedAt));
     } catch (err) {
       this.finishMutation();
       job.source.dispose();
       job.reject(err);
       this._onDidFinishMutation.fire(
-        finishedEvent(job.op, false, err instanceof GitError ? err.kind : undefined),
+        finishedEvent(
+          job.op,
+          false,
+          Date.now() - startedAt,
+          err instanceof GitError ? err.kind : undefined,
+        ),
       );
     }
   }
@@ -315,6 +323,7 @@ function sleep(ms: number): Promise<void> {
 function finishedEvent(
   op: Operation<unknown>,
   succeeded: boolean,
+  durationMs?: number,
   errorKind?: GitErrorKind,
 ): FinishedMutationEvent {
   const evt: FinishedMutationEvent = {
@@ -325,5 +334,6 @@ function finishedEvent(
   };
   if (op.snapshotLabel !== undefined) evt.snapshotLabel = op.snapshotLabel;
   if (errorKind !== undefined) evt.errorKind = errorKind;
+  if (durationMs !== undefined) evt.durationMs = durationMs;
   return evt;
 }

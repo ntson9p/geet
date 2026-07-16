@@ -12,8 +12,18 @@
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
+import {
+  durationBucket,
+  NOOP_SENDER,
+  Telemetry,
+  type TelemetryEventName,
+  type TelemetrySender,
+} from '../core/telemetry';
 import { repoStoreKey } from '../localHistory/snapshotStore';
 import { registerOnboarding } from '../onboarding/register';
+import { collectIssueInfo, errorCopy, presentGitError, registerErrorReporting } from './errorUx';
+import { newIssueUrl } from '../core/errorUx';
+import type { GitErrorKind } from '../core/git/errors';
 
 /** Tracked-file threshold above which the playbook prompt appears. */
 const LARGE_REPO_FILES = 50_000;
@@ -27,9 +37,47 @@ function threshold(): number {
   return LARGE_REPO_FILES;
 }
 
-export function registerPhase10Hardening(context: vscode.ExtensionContext, core: Core): void {
+export function registerPhase10Hardening(
+  context: vscode.ExtensionContext,
+  core: Core,
+  perf?: { activationSyncMs: number },
+): void {
   const promptedKey = (repo: RepoHandle): string =>
     `gittree.perfPlaybook.${repoStoreKey(canonicalKey(repo.root))}`;
+
+  // ---- P10-T4: telemetry (double-gated, content-free, NO backend) ----------
+  // The shipped sender is a no-op by owner decision — there is no service to
+  // receive events. Tests swap in a buffering sender via the env seam.
+  const testEvents: { name: string; props: Record<string, string> }[] = [];
+  const sender: TelemetrySender =
+    process.env['GITTREE_TEST'] === '1'
+      ? { send: (name, props) => void testEvents.push({ name, props }) }
+      : NOOP_SENDER;
+  const telemetry = new Telemetry({
+    envEnabled: () =>
+      process.env['GITTREE_TEST_TELEMETRY_ENV'] === '1' || vscode.env.isTelemetryEnabled,
+    settingEnabled: () =>
+      vscode.workspace.getConfiguration('gittree').get<boolean>('telemetry.enabled', false),
+    sender,
+  });
+  telemetry.event('activation', { syncBucket: durationBucket(perf?.activationSyncMs ?? 0) });
+
+  const instrumentRepo = (repo: RepoHandle): void => {
+    const sub = repo.queue.onDidFinishMutation((e) => {
+      telemetry.event('op.duration', {
+        bucket: durationBucket(e.durationMs ?? 0),
+        destructive: e.isDestructive,
+      });
+      if (!e.succeeded && e.errorKind !== undefined) {
+        telemetry.event('op.errorKind', { kind: e.errorKind });
+      }
+    });
+    context.subscriptions.push(new vscode.Disposable(() => sub.dispose()));
+  };
+  for (const repo of core.repos) instrumentRepo(repo);
+
+  // ---- P10-T4: error UX (report command; presenter exported for features) --
+  registerErrorReporting(context, core);
 
   const maybeOffer = async (repo: RepoHandle): Promise<void> => {
     if (context.globalState.get<boolean>(promptedKey(repo)) === true) return;
@@ -85,11 +133,14 @@ export function registerPhase10Hardening(context: vscode.ExtensionContext, core:
   };
 
   for (const repo of core.repos) void maybeOffer(repo);
-  const sub = core.onDidAddRepo((repo) => void maybeOffer(repo));
+  const sub = core.onDidAddRepo((repo) => {
+    instrumentRepo(repo);
+    void maybeOffer(repo);
+  });
   context.subscriptions.push(new vscode.Disposable(() => sub.dispose()));
 
   // P10-T3: onboarding (walkthrough command, playground generator, what's new).
-  const onboarding = registerOnboarding(context, core);
+  const onboarding = registerOnboarding(context, core, telemetry);
 
   core.debugRegistry.set('phase10', {
     offerPlaybook: (repoRoot: string) => {
@@ -97,5 +148,13 @@ export function registerPhase10Hardening(context: vscode.ExtensionContext, core:
       return repo ? maybeOffer(repo) : Promise.resolve();
     },
     ...onboarding,
+    // P10-T4 seams: schema-gated telemetry buffer + error UX inspection.
+    telemetryEvents: () => [...testEvents],
+    sendTelemetry: (name: string, props: Record<string, string | number | boolean>) =>
+      telemetry.event(name as TelemetryEventName, props),
+    errorCopy: (kind: string) => errorCopy(kind as GitErrorKind),
+    presentError: (err: unknown) => presentGitError(context, core, err),
+    buildIssueUrl: (kind?: string) =>
+      newIssueUrl(collectIssueInfo(context, core, kind as GitErrorKind | undefined)),
   });
 }

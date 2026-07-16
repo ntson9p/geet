@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { GitError } from '../core/git/errors';
+import { presentGitError } from '../hardening/errorUx';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import type { StatusBarController } from '../ui/statusBar';
@@ -41,8 +42,22 @@ export function registerSyncOps(
   core: Core,
   statusBars: Map<string, StatusBarController>,
 ): void {
+  // P10-T4: classified failures that no richer flow claimed get the
+  // actionable dialog (copy per kind + Help deep-link + Report Issue).
   const register = (id: string, fn: (...args: unknown[]) => Promise<void> | void): void => {
-    context.subscriptions.push(vscode.commands.registerCommand(id, fn));
+    context.subscriptions.push(
+      vscode.commands.registerCommand(id, async (...args: unknown[]) => {
+        try {
+          await fn(...args);
+        } catch (err) {
+          if (err instanceof GitError) {
+            await presentGitError(context, core, err);
+            return;
+          }
+          throw err;
+        }
+      }),
+    );
   };
   const bar = (repo: RepoHandle): StatusBarController | undefined =>
     statusBars.get(canonicalKey(repo.root));
@@ -54,7 +69,7 @@ export function registerSyncOps(
       repo.model.update({ lastFetchAt: Date.now() });
     } catch (err) {
       if (!quiet) throw err;
-      core.output.appendLine(`auto-fetch failed: ${String(err)}`);
+      core.output.appendLine(`[sync] auto-fetch failed: ${String(err)}`);
     } finally {
       bar(repo)?.setFetching(false);
     }

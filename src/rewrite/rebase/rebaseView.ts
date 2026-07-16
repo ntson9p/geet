@@ -224,7 +224,7 @@ export class RebaseViewController implements vscode.Disposable {
       extensionUri: this.context.extensionUri,
       title: vscode.l10n.t('Interactive Rebase'),
     });
-    const rpc = new WebviewRpcHost(panel.webview, (l) => this.core.output.appendLine(l));
+    const rpc = new WebviewRpcHost(panel.webview, (l) => this.core.output.appendLine(`[webview] ${l}`));
     this.rpc = rpc;
     rpc.on(REBASE_METHODS.init, () => this.session?.state);
     rpc.on(REBASE_METHODS.start, (params) => this.startRebase(params as RebaseStartParamsDto));

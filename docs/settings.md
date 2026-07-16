@@ -52,6 +52,12 @@ Show a one-time notification with the changelog when GitTree updates to a new mi
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.telemetry.enabled`
+
+Allow GitTree usage telemetry (activation timing, operation duration buckets, error kinds — never repository names, paths, shas or content). Both this AND VS Code's telemetry.telemetryLevel must allow. No telemetry backend is currently configured, so nothing is transmitted either way.
+
+- Type: `boolean` · Default: `false`
+
 ## GitTree Source Control
 
 ### `gittree.quickDiff.base`

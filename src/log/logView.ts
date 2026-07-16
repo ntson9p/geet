@@ -57,7 +57,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const key = canonicalKey(repo.root);
     let s = this.services.get(key);
     if (!s) {
-      s = new LogService(repo, this.context.workspaceState, (l) => this.core.output.appendLine(l));
+      s = new LogService(repo, this.context.workspaceState, (l) => this.core.output.appendLine(`[log] ${l}`));
       this.services.set(key, s);
       repo.disposables.add({ dispose: () => this.services.delete(key) });
     }
@@ -88,7 +88,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       if (view.visible) this.rpc?.rehydrate();
     });
 
-    const rpc = new WebviewRpcHost(view.webview, (l) => this.core.output.appendLine(l));
+    const rpc = new WebviewRpcHost(view.webview, (l) => this.core.output.appendLine(`[webview] ${l}`));
     this.rpc = rpc;
 
     rpc.on(LOG_METHODS.init, (params) => {

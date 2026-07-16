@@ -41,6 +41,8 @@ export class Core implements vscode.Disposable {
   private readonly store = new DisposableStore();
   /** Per-phase registries for integration tests (reachable via getCore()). */
   readonly debugRegistry = new Map<string, unknown>();
+  /** P10-T4: recent trace lines — feeds the sanitized issue report. */
+  getTraceTail: () => readonly string[] = () => [];
   private readonly _onDidAddRepo = new Emitter<RepoHandle>();
   private readonly _onDidRemoveRepo = new Emitter<RepoHandle>();
   readonly onDidAddRepo: Event<RepoHandle> = this._onDidAddRepo.event;
@@ -160,7 +162,7 @@ export class Core implements vscode.Disposable {
     const queue = disposables.add(
       new OperationQueue(root, this.git, {
         progress: vscodeProgressAdapter(),
-        trace: this.trace,
+        trace: (l) => this.trace(`[queue] ${l}`),
       }),
     );
     const refresher = disposables.add(
@@ -170,7 +172,7 @@ export class Core implements vscode.Disposable {
         git: this.git,
         model,
         queue,
-        trace: this.trace,
+        trace: (l) => this.trace(`[watch] ${l}`),
       }),
     );
     const watcher = disposables.add(new GitDirWatcher(dirs));
@@ -212,7 +214,12 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   context.subscriptions.push(output);
   const traceEnabled = (): boolean =>
     vscode.workspace.getConfiguration('gittree').get<boolean>('trace', false);
+  // P10-T4: ring buffer of recent trace lines (kept even with tracing off) —
+  // feeds the sanitized "Report issue" body; paths are hashed at report time.
+  const traceTail: string[] = [];
   const trace = (line: string): void => {
+    traceTail.push(line);
+    if (traceTail.length > 50) traceTail.shift();
     if (traceEnabled()) output.appendLine(`[${new Date().toISOString()}] ${line}`);
   };
 
@@ -255,7 +262,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
         ? builtinGitPath[0]
         : (builtinGitPath ?? undefined),
     },
-    { trace, baseEnv: () => askpass?.env ?? {} },
+    { trace: (l) => trace(`[exec] ${l}`), baseEnv: () => askpass?.env ?? {} },
   );
   if (!executor) {
     void vscode.window.showErrorMessage(
@@ -265,7 +272,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
     );
     return undefined;
   }
-  output.appendLine(`GitTree using git ${executor.version} at ${executor.gitPath}`);
+  output.appendLine(`[exec] GitTree using git ${executor.version} at ${executor.gitPath}`);
 
   const mode = new ModeManager({
     getPersisted: () =>
@@ -287,6 +294,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   });
 
   const core = new Core(executor, mode, output, trace);
+  core.getTraceTail = () => [...traceTail];
   context.subscriptions.push(core);
   await core.initialize(context);
 

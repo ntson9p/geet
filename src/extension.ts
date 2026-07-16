@@ -30,24 +30,32 @@ export interface GitTreeApi {
 
 export function activate(context: vscode.ExtensionContext): GitTreeApi {
   const activationStart = performance.now();
+  // P10-T4: shared with registerPhases (async, runs after the sync path) so
+  // the activation telemetry event reports the real sync-path duration.
+  const perf = { activationSyncMs: 0 };
   // -- Core bootstrap (P0-T7) ---------------------------------------------
   // Async on purpose: activation's sync path stays within budget; consumers
   // await the promise.
   corePromise = createCore(context).then((core) => {
     if (core) {
-      registerPhases(context, core);
+      registerPhases(context, core, perf);
     }
     return core;
   });
   registerPhase00Debug(context);
 
+  perf.activationSyncMs = performance.now() - activationStart;
   return {
     getCore: () => (process.env['GITTREE_TEST'] === '1' ? corePromise : undefined),
-    perf: { activationSyncMs: performance.now() - activationStart },
+    perf,
   };
 }
 
-function registerPhases(context: vscode.ExtensionContext, core: Core): void {
+function registerPhases(
+  context: vscode.ExtensionContext,
+  core: Core,
+  perf: { activationSyncMs: number },
+): void {
   // -- registerPhase01 (Core SCM) -----------------------------------------
   registerPhase01(context, core);
   // -- registerPhase02 (Branches) -----------------------------------------
@@ -66,7 +74,7 @@ function registerPhases(context: vscode.ExtensionContext, core: Core): void {
   // -- registerPhase09 (Local History) -------------------------------------
   registerPhase09LocalHistory(context, core);
   // -- registerPhase10 (Hardening) -----------------------------------------
-  registerPhase10Hardening(context, core);
+  registerPhase10Hardening(context, core, perf);
 }
 
 /** P0 contribution: `gittree.debug.showState` dumps model JSON to an untitled doc. */

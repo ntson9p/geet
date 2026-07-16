@@ -147,7 +147,7 @@ async function smartCheckout(core: Core, repo: RepoHandle, target: string): Prom
         await git.exec(repo.root, ['stash', 'pop'], { token });
       },
     });
-    core.output.appendLine(`smart checkout to ${target} completed with changes restored`);
+    core.output.appendLine(`[branches] smart checkout to ${target} completed with changes restored`);
   } catch (err) {
     if (err instanceof GitError && err.kind === 'merge-conflict') {
       void vscode.window.showWarningMessage(

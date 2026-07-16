@@ -9,6 +9,10 @@ import { activateGitTree, gitWithRetry, workspaceRepoA } from '../setup';
 interface Phase10RegistryShape {
   offerPlaybook(repoRoot: string): Promise<void>;
   generatePlayground(): Promise<string | undefined>;
+  telemetryEvents(): { name: string; props: Record<string, string> }[];
+  sendTelemetry(name: string, props: Record<string, string | number | boolean>): boolean;
+  errorCopy(kind: string): string;
+  buildIssueUrl(kind?: string): string;
 }
 
 /** P10-T1 step 4: large-repo playbook prompt (threshold + choice seams). */
@@ -151,3 +155,99 @@ suite('P10 onboarding — playground generator', () => {
     }
   });
 });
+
+/** P10-T4: telemetry gates + queue instrumentation + error UX. */
+suite('P10 telemetry & error UX', () => {
+  let core: Core;
+  let repo: RepoHandle;
+  let reg: Phase10RegistryShape;
+
+  const KINDS = [
+    'index-lock',
+    'would-overwrite-checkout',
+    'merge-conflict',
+    'auth',
+    'not-fast-forward',
+    'no-upstream',
+    'unknown',
+  ];
+
+  suiteSetup(async function () {
+    this.timeout(60_000);
+    core = await activateGitTree();
+    repo = core.repoForPath(workspaceRepoA())!;
+    reg = core.debugRegistry.get('phase10') as Phase10RegistryShape;
+    assert.ok(typeof reg.telemetryEvents === 'function', 'T4 registry hooks missing');
+  });
+
+  test('T4: double gate — nothing sends until env AND setting allow; schema strips leaks', async function () {
+    this.timeout(30_000);
+    const cfg = vscode.workspace.getConfiguration('gittree');
+    try {
+      // Setting off (default): blocked even with the env gate forced open.
+      process.env['GITTREE_TEST_TELEMETRY_ENV'] = '1';
+      assert.strictEqual(reg.sendTelemetry('activation', { syncBucket: 'lt100ms' }), false);
+
+      await cfg.update('telemetry.enabled', true, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(reg.sendTelemetry('activation', { syncBucket: 'lt100ms' }), true);
+
+      // Schema: unknown events refused, path-shaped values stripped.
+      assert.strictEqual(reg.sendTelemetry('made.up.event', { x: 1 }), false);
+      assert.strictEqual(
+        reg.sendTelemetry('op.errorKind', { kind: 'C:\\Users\\alice\\repo' }),
+        true,
+      );
+      const events = reg.telemetryEvents();
+      const last = events[events.length - 1]!;
+      assert.strictEqual(last.name, 'op.errorKind');
+      assert.strictEqual(last.props['kind'], undefined, 'path value must be stripped');
+
+      // Queue instrumentation: a real mutation lands an op.duration event.
+      const before = reg.telemetryEvents().length;
+      await repo.queue.enqueue({
+        label: 'telemetry probe',
+        kind: 'mutate',
+        run: () => Promise.resolve(),
+      });
+      const after = reg.telemetryEvents();
+      const durations = after.slice(before).filter((e) => e.name === 'op.duration');
+      assert.strictEqual(durations.length, 1);
+      assert.match(durations[0]!.props['bucket'] ?? '', /^(lt100ms|lt400ms|lt1s|lt5s|ge5s)$/);
+
+      // Env gate closes → blocked again despite the setting.
+      delete process.env['GITTREE_TEST_TELEMETRY_ENV'];
+      if (!vscode.env.isTelemetryEnabled) {
+        assert.strictEqual(reg.sendTelemetry('activation', { syncBucket: 'lt100ms' }), false);
+      }
+    } finally {
+      delete process.env['GITTREE_TEST_TELEMETRY_ENV'];
+      await cfg.update('telemetry.enabled', undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test('T4: every GitError kind has distinct, actionable dialog copy', () => {
+    const copies = KINDS.map((k) => reg.errorCopy(k));
+    for (const [i, copy] of copies.entries()) {
+      assert.ok(copy.length > 40, `${KINDS[i]} copy too thin: "${copy}"`);
+    }
+    assert.strictEqual(new Set(copies).size, KINDS.length, 'copies must be distinct');
+  });
+
+  test('T4: pre-filled issue URL carries environment but no raw paths', async () => {
+    const url = reg.buildIssueUrl('auth');
+    assert.ok(url.startsWith('https://github.com/gittree/git-tree-vsix/issues/new?'));
+    const decoded = decodeURIComponent(url).replaceAll('+', ' ');
+    assert.ok(decoded.includes('error kind: auth'));
+    assert.ok(decoded.includes('GitTree: '));
+    assert.ok(decoded.includes('capabilities: '));
+    // The trace tail references workspace repos by absolute path — all of
+    // that must have been hashed away.
+    assert.ok(!decoded.includes(repo.root), 'repo root leaked');
+    assert.ok(!/gittree-ws-/i.test(decoded), 'fixture workspace path leaked');
+    assert.ok(await isCommandRegistered('gittree.reportIssue'));
+  });
+});
+
+async function isCommandRegistered(id: string): Promise<boolean> {
+  return (await vscode.commands.getCommands(true)).includes(id);
+}
