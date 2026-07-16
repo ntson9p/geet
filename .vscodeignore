@@ -13,6 +13,7 @@ out/**
 esbuild.mjs
 eslint.config.mjs
 vitest.config.ts
+scripts/**
 FEATURES.md
 IMPLEMENTATION_PLAN.md
 .gitattributes

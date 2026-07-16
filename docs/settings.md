@@ -1,0 +1,291 @@
+# GitTree settings
+
+<!-- GENERATED FILE — do not edit by hand. Derived from package.json
+     `contributes.configuration`; regenerate with `npm run docs:settings`.
+     test/unit/docs/settingsDoc.test.ts fails when this file is stale. -->
+
+All settings live under the `gittree.` namespace. Defaults are chosen to
+coexist with the built-in git extension until you opt into takeover mode.
+
+## GitTree
+
+### `gittree.gitPath`
+
+Path to the git executable. Falls back to the built-in `git.path` setting, then PATH, then well-known install locations.
+
+- Type: `string \| null` · Default: `null`
+- Scope: `machine-overridable`
+
+### `gittree.trace`
+
+Log every git invocation (argv, duration, exit code — never file contents) to the "GitTree" output channel, and reveal debug commands.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.mode`
+
+How GitTree coexists with the built-in Git extension. "auto" asks once per workspace; "takeover" disables the built-in Git here (writes `git.enabled: false`); "companion" runs alongside it without overlapping decorations.
+
+- Type: `string` · Default: `"auto"`
+- Scope: `window`
+- Values:
+  - `auto` — Ask once per workspace.
+  - `takeover` — GitTree provides all SCM UI; the built-in Git extension is disabled for this workspace.
+  - `companion` — GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off.
+
+### `gittree.terminalAuth`
+
+Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code.
+
+- Type: `boolean` · Default: `false`
+- Scope: `window`
+
+### `gittree.keymap.intellij`
+
+Enable the optional IntelliJ-flavored keybinding set (Ctrl+K commit, Ctrl+Shift+K push, Ctrl+T update, Alt+9 log, Ctrl+Alt+Z rollback). See docs/keyboard.md for conflicts with VS Code defaults.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.whatsNew.enabled`
+
+Show a one-time notification with the changelog when GitTree updates to a new minor version.
+
+- Type: `boolean` · Default: `true`
+
+## GitTree Source Control
+
+### `gittree.quickDiff.base`
+
+What the editor gutter bars compare against: the index (IntelliJ behavior — bars show unstaged edits) or HEAD (bars show all uncommitted edits).
+
+- Type: `string` · Default: `"index"`
+- Values:
+  - `index`
+  - `head`
+
+### `gittree.autofetch.enabled`
+
+Periodically run `git fetch` in the background so incoming/outgoing counts stay fresh.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.autofetch.intervalSeconds`
+
+Auto-fetch interval in seconds.
+
+- Type: `number` · Default: `180`
+- Minimum: `30`
+
+### `gittree.branches.recentCount`
+
+How many recent branches (by checkout frequency and recency) the Branches popup shows.
+
+- Type: `number` · Default: `5`
+- Minimum: `0`
+
+### `gittree.branches.defaultAction`
+
+What pressing Enter on a branch in the Branches popup does.
+
+- Type: `string` · Default: `"checkout"`
+- Values:
+  - `checkout`
+  - `showActions`
+
+### `gittree.smartCheckout.behavior`
+
+When a checkout is blocked by local changes: ask (IntelliJ-style dialog), auto (always smart-checkout via stash), or never (just report).
+
+- Type: `string` · Default: `"ask"`
+- Values:
+  - `ask`
+  - `auto`
+  - `never`
+
+### `gittree.cherryPick.recordOrigin`
+
+Append the "(cherry picked from commit …)" trailer (-x) to cherry-picked commit messages.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.pushSafety.afterRewrite`
+
+After a successful history rewrite on a branch with an upstream: offer Push --force-with-lease (ask) or stay quiet (never). Plain --force is never used.
+
+- Type: `string` · Default: `"ask"`
+- Values:
+  - `ask`
+  - `never`
+
+## GitTree Merge
+
+### `gittree.merge.resultMode`
+
+Where the center Result pane lives during a 3-pane merge.
+
+- Type: `string` · Default: `"virtual"`
+- Values:
+  - `virtual` — A virtual result document — the conflicted file on disk stays untouched until Apply.
+  - `markers` — Edit the real conflicted file in place (fallback for language servers that require on-disk files).
+
+### `gittree.merge.autoResolveWhitespace`
+
+Magic Wand: when one side changed only whitespace, take the substantive side automatically.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.merge.ui`
+
+Which merge UI opens for text conflicts. The native VS Code merge editor rides on an internal command and silently falls back to the GitTree tri-editor when unavailable.
+
+- Type: `string` · Default: `"triEditor"`
+- Values:
+  - `triEditor` — GitTree's three-pane merge editor (yours | result | theirs) with chevrons and the Magic Wand.
+  - `native` — VS Code's built-in merge editor (internal command — falls back to the tri-editor if it is missing or fails).
+
+## GitTree: Stash
+
+### `gittree.stash.includeUntrackedDefault`
+
+Pre-select "Include untracked files" in the Stash Changes flow.
+
+- Type: `boolean` · Default: `true`
+
+## GitTree: Shelf
+
+### `gittree.shelf.path`
+
+Custom directory for shelved patches (must be writable). Empty = the extension's global storage. Shelves always live outside the repository, so they survive deleting or re-initializing it.
+
+- Type: `string` · Default: `""`
+
+## GitTree Commit
+
+### `gittree.commit.paradigm`
+
+How commits are assembled: IntelliJ-style changelists (index-bypassing checked-file commits) or native git staging.
+
+- Type: `string` · Default: `"changelists"`
+- Scope: `window`
+- Values:
+  - `changelists`
+  - `staging`
+
+### `gittree.commit.checks.reformat`
+
+Pre-commit: reformat only the modified line ranges of committed files.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.commit.checks.optimizeImports`
+
+Pre-commit: organize imports in committed files.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.commit.checks.cleanup`
+
+Pre-commit: run source.fixAll code actions on committed files.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.commit.checks.analyze`
+
+Pre-commit: wait for diagnostics and warn when committed files have problems.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.commit.checks.analyzeSeverity`
+
+Diagnostic severity that triggers the analyze warning.
+
+- Type: `string` · Default: `"error"`
+- Values:
+  - `error`
+  - `warning`
+
+### `gittree.commit.checks.todo`
+
+Pre-commit: warn about TODO-like markers on newly added lines.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.commit.checks.todoPattern`
+
+Regular expression for the TODO check (applied per added line).
+
+- Type: `string` · Default: `"\\b(TODO|FIXME)\\b"`
+
+## GitTree Log & Blame
+
+### `gittree.log.sort`
+
+Default sort for the Git log tool window.
+
+- Type: `string` · Default: `"topo"`
+- Values:
+  - `date`
+  - `topo`
+  - `intelli`
+
+### `gittree.log.graphPalette`
+
+Color palette for the commit graph lanes.
+
+- Type: `string` · Default: `"default"`
+- Values:
+  - `default` — Hue-cycled palette matching the editor theme.
+  - `colorBlind` — Okabe–Ito color-blind-safe palette (distinct under deutan, protan and tritan vision).
+
+### `gittree.blame.heatmap`
+
+Fade blame annotations by commit age (newest brightest).
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.blame.format`
+
+Blame column format. Placeholders: ${author|N}, ${date|relative}, ${sha|N}.
+
+- Type: `string` · Default: `"${author|12} ${date|relative} ${sha|7}"`
+
+## GitTree Local History
+
+### `gittree.localHistory.enabled`
+
+Record Local History snapshots around destructive git operations (the failsafe for reset --hard, rebase, checkout over dirty files, …).
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.localHistory.maxSizeMb`
+
+Storage budget for Local History blobs. Oldest snapshots are garbage-collected first when over budget.
+
+- Type: `number` · Default: `500`
+- Minimum: `10`
+
+### `gittree.localHistory.retentionDays`
+
+Snapshots older than this are garbage-collected (the most recent snapshot is always kept).
+
+- Type: `number` · Default: `30`
+- Minimum: `1`
+
+### `gittree.localHistory.maxFileSizeKb`
+
+Files larger than this are recorded as metadata-only stubs instead of full content.
+
+- Type: `number` · Default: `1024`
+- Minimum: `1`
+
+### `gittree.localHistory.snapshotOnSave`
+
+Also record a snapshot on file save (debounced 30s per file). Off by default — VS Code's native Local History already covers saves.
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.localHistory.taskLabels`
+
+Record a labeled snapshot when a build/test task finishes, so states like "after the last green test run" are easy to find.
+
+- Type: `boolean` · Default: `true`

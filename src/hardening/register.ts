@@ -13,6 +13,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoStoreKey } from '../localHistory/snapshotStore';
+import { registerOnboarding } from '../onboarding/register';
 
 /** Tracked-file threshold above which the playbook prompt appears. */
 const LARGE_REPO_FILES = 50_000;
@@ -87,10 +88,14 @@ export function registerPhase10Hardening(context: vscode.ExtensionContext, core:
   const sub = core.onDidAddRepo((repo) => void maybeOffer(repo));
   context.subscriptions.push(new vscode.Disposable(() => sub.dispose()));
 
+  // P10-T3: onboarding (walkthrough command, playground generator, what's new).
+  const onboarding = registerOnboarding(context, core);
+
   core.debugRegistry.set('phase10', {
     offerPlaybook: (repoRoot: string) => {
       const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot));
       return repo ? maybeOffer(repo) : Promise.resolve();
     },
+    ...onboarding,
   });
 }

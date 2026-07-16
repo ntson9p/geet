@@ -119,6 +119,34 @@
   requires a "color-blind-safe graph palette variant setting" — shipped as
   `gittree.log.graphPalette` (`default`/`colorBlind`, Okabe–Ito), applied live on config
   change via a session re-init.
+- **T3 (no provider step in the walkthrough):** the spec's step list ends with "connect
+  GitHub/GitLab" — P8 is skipped by owner decision, so the walkthrough ships the other six
+  concerns as seven steps (mode, paradigm, playground, first commit, conflict, log, blame)
+  and no provider step exists to connect.
+- **T3 ("user-tested script" acceptance):** no second user or fresh-profile tester is
+  available in this environment. Evidence instead: the playground e2e
+  (`phase10.test.ts` — pending edit commits cleanly, `feature/polish` rebase conflicts
+  exactly on `src/greeting.js`, non-empty target refused), walkthrough completionEvents wired
+  to the real commands, and the recorded keyboard-only walkthrough in docs/keyboard.md which
+  follows the same route.
+- **T3 (README matrix "zero unshipped ✅"):** satisfied by marking FEATURES.md §7 as
+  "⏭️ skipped by decision" rather than ✅ — the matrix contains no ✅ that is not shipped,
+  and no shipped pillar is unticked.
+- **T3 (screenshots, no gifs):** README/marketplace images are captured from the real
+  webview bundles rendered against the mock hosts (webview-ui/tests/capture.spec.ts, manual
+  `GITTREE_CAPTURE=1` run — excluded from the test gate) under a Dark-Modern variable set;
+  full-window VS Code recordings/gifs are not produced (no screen-recording pipeline in this
+  environment).
+- **T3 (whatsNew is a new setting):** step 4 requires the notification to be
+  "setting-gated"; shipped as `gittree.whatsNew.enabled` (default on) — same
+  contributions-note deviation as T2's graphPalette.
+- **T3 ("changelog webview reusing markdown renderer"):** implemented as VS Code's own
+  markdown preview opened on the packaged CHANGELOG.md (`markdown.showPreview`) — the same
+  renderer every changelog view uses, without shipping a bespoke webview; notification fires
+  once per minor (globalState), never on fresh installs.
+- **T3 (marketplace gallery assets):** icon.png (Playwright-rendered from SVG) and
+  galleryBanner are in package.json and the VSIX; there is no marketplace listing to verify
+  them against (no publisher account — owner constraint, see T5).
 
 ## Contributions added this phase
 Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportIssue,generatePlayground}`; settings `gittree.telemetry.enabled`, `gittree.keymap.intellij`; no new feature surfaces.
@@ -126,6 +154,6 @@ Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportI
 ## Parity checklist
 - [x] Master §13 budgets enforced in CI (job authored + all budgets green locally; CI itself has never executed — no remote, see Deviations)
 - [x] Keyboard/a11y walkthrough passes end-to-end (docs/keyboard.md: audit checklist + recorded walkthrough; HC evidence local — no PR, see Deviations)
-- [ ] Onboarding reaches first commit + first resolved conflict unaided
+- [x] Onboarding reaches first commit + first resolved conflict unaided (walkthrough + playground; e2e-verified repo shape, no human tester — see Deviations)
 - [ ] Telemetry opt-in and content-free
 - [ ] FEATURES.md line-by-line audit merged — the 100%-parity sign-off artifact

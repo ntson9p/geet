@@ -6,6 +6,11 @@
   "publisher": "gittree",
   "license": "MIT",
   "private": true,
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1e2227",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/gittree/git-tree-vsix.git"
@@ -76,6 +81,11 @@
             "type": "boolean",
             "default": false,
             "description": "%gittree.config.keymap.intellij.description%"
+          },
+          "gittree.whatsNew.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.whatsNew.enabled.description%"
           }
         }
       },
@@ -968,6 +978,16 @@
         "command": "gittree.shelf.unshelvePartial",
         "title": "%gittree.command.shelf.unshelvePartial.title%",
         "icon": "$(checklist)"
+      },
+      {
+        "command": "gittree.openWalkthrough",
+        "title": "%gittree.command.openWalkthrough.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.generatePlayground",
+        "title": "%gittree.command.generatePlayground.title%",
+        "category": "GitTree"
       }
     ],
     "submenus": [
@@ -1942,6 +1962,99 @@
         "when": "config.gittree.keymap.intellij && editorTextFocus"
       }
     ],
+    "walkthroughs": [
+      {
+        "id": "gittree.gettingStarted",
+        "title": "%gittree.walkthrough.title%",
+        "description": "%gittree.walkthrough.description%",
+        "steps": [
+          {
+            "id": "pickMode",
+            "title": "%gittree.walkthrough.pickMode.title%",
+            "description": "%gittree.walkthrough.pickMode.description%",
+            "media": {
+              "svg": "media/walkthrough/mode.svg",
+              "altText": "Takeover and companion mode side by side"
+            },
+            "completionEvents": [
+              "onSettingChanged:gittree.mode"
+            ]
+          },
+          {
+            "id": "pickParadigm",
+            "title": "%gittree.walkthrough.pickParadigm.title%",
+            "description": "%gittree.walkthrough.pickParadigm.description%",
+            "media": {
+              "svg": "media/walkthrough/paradigm.svg",
+              "altText": "Changelists versus staging paradigms"
+            },
+            "completionEvents": [
+              "onCommand:gittree.commit.switchParadigm"
+            ]
+          },
+          {
+            "id": "playground",
+            "title": "%gittree.walkthrough.playground.title%",
+            "description": "%gittree.walkthrough.playground.description%",
+            "media": {
+              "svg": "media/walkthrough/playground.svg",
+              "altText": "A disposable practice repository"
+            },
+            "completionEvents": [
+              "onCommand:gittree.generatePlayground"
+            ]
+          },
+          {
+            "id": "firstCommit",
+            "title": "%gittree.walkthrough.firstCommit.title%",
+            "description": "%gittree.walkthrough.firstCommit.description%",
+            "media": {
+              "svg": "media/walkthrough/commit.svg",
+              "altText": "The commit tool window with pre-commit checks"
+            },
+            "completionEvents": [
+              "onCommand:gittree.commit"
+            ]
+          },
+          {
+            "id": "resolveConflict",
+            "title": "%gittree.walkthrough.resolveConflict.title%",
+            "description": "%gittree.walkthrough.resolveConflict.description%",
+            "media": {
+              "svg": "media/walkthrough/conflict.svg",
+              "altText": "The three-pane merge editor"
+            },
+            "completionEvents": [
+              "onCommand:gittree.merge.open"
+            ]
+          },
+          {
+            "id": "tourLog",
+            "title": "%gittree.walkthrough.tourLog.title%",
+            "description": "%gittree.walkthrough.tourLog.description%",
+            "media": {
+              "svg": "media/walkthrough/log.svg",
+              "altText": "The commit graph with filter chips"
+            },
+            "completionEvents": [
+              "onView:gittree.log"
+            ]
+          },
+          {
+            "id": "enableBlame",
+            "title": "%gittree.walkthrough.enableBlame.title%",
+            "description": "%gittree.walkthrough.enableBlame.description%",
+            "media": {
+              "svg": "media/walkthrough/blame.svg",
+              "altText": "Blame annotations with an age heat-map"
+            },
+            "completionEvents": [
+              "onCommand:gittree.blame.toggle"
+            ]
+          }
+        ]
+      }
+    ],
     "views": {
       "gittree-panel": [
         {
@@ -2027,6 +2140,7 @@
     "check": "npm run typecheck && npm run lint && npm run test:unit",
     "pretest:integration": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
     "test:integration": "node ./out/test/integration/runTests.js",
+    "docs:settings": "node scripts/genSettingsDoc.mjs",
     "pretest:perf": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
     "test:perf": "node ./out/test/perf/runPerf.js",
     "package": "vsce package --pre-release"

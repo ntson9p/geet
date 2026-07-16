@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" font-family="'Segoe UI',sans-serif">
+  <rect x="50" y="40" width="300" height="220" rx="10" fill="#808080" opacity="0.08"/>
+  <rect x="50" y="40" width="300" height="220" rx="10" fill="none" stroke="#888" stroke-width="1.5"/>
+  <rect x="66" y="58" width="268" height="52" rx="6" fill="#0072b2" opacity="0.12"/>
+  <text x="78" y="80" font-size="12" fill="#888">Fix greeting punctuation</text>
+  <text x="78" y="98" font-size="10" fill="#666">Ctrl+Up recalls message history</text>
+  <rect x="66" y="122" width="12" height="12" rx="3" fill="#009e73"/>
+  <text x="86" y="132" font-size="11" fill="#888">NOTES.md</text>
+  <text x="66" y="163" font-size="11" fill="#888" font-weight="600">Pre-commit checks</text>
+  <g font-size="10.5" fill="#888">
+    <rect x="66" y="172" width="10" height="10" rx="2" fill="#e69f00"/><text x="82" y="181">Reformat changed lines</text>
+    <rect x="66" y="188" width="10" height="10" rx="2" fill="#e69f00"/><text x="82" y="197">Optimize imports</text>
+    <rect x="66" y="204" width="10" height="10" rx="2" fill="#e69f00"/><text x="82" y="213">Analyze code · Check TODOs</text>
+  </g>
+  <rect x="240" y="220" width="94" height="26" rx="6" fill="#0072b2"/>
+  <text x="287" y="237" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">Commit</text>
+  <text x="200" y="27" text-anchor="middle" font-size="14" fill="#888">Amend, sign-off and GPG signing included</text>
+</svg>

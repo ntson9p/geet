@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" font-family="'Segoe UI',sans-serif">
+  <rect x="30" y="40" width="340" height="220" rx="8" fill="#808080" opacity="0.07"/>
+  <g font-size="10" font-family="Consolas,monospace">
+    <g opacity="0.95"><rect x="42" y="60" width="120" height="16" rx="3" fill="#0072b2" opacity="0.35"/><text x="48" y="72" fill="#888">alice  2h ago  8f2c1d</text></g>
+    <g opacity="0.85"><rect x="42" y="82" width="120" height="16" rx="3" fill="#0072b2" opacity="0.28"/><text x="48" y="94" fill="#888">alice  2h ago  8f2c1d</text></g>
+    <g opacity="0.7"><rect x="42" y="104" width="120" height="16" rx="3" fill="#0072b2" opacity="0.18"/><text x="48" y="116" fill="#888">bob    3d ago  4711aa</text></g>
+    <g opacity="0.55"><rect x="42" y="126" width="120" height="16" rx="3" fill="#0072b2" opacity="0.12"/><text x="48" y="138" fill="#888">bob    2w ago  91d2f0</text></g>
+    <g opacity="0.4"><rect x="42" y="148" width="120" height="16" rx="3" fill="#0072b2" opacity="0.07"/><text x="48" y="160" fill="#888">carol  1y ago  0be411</text></g>
+  </g>
+  <g font-size="10" font-family="Consolas,monospace" fill="#888">
+    <text x="180" y="72">function greeting(name) {</text>
+    <text x="188" y="94">return `Hello, ${name}!`;</text>
+    <text x="180" y="116">}</text>
+    <text x="180" y="138">function farewell(name) {</text>
+    <text x="188" y="160">return 'Bye, ' + name;</text>
+  </g>
+  <path d="M162 66l10 0" stroke="#e69f00" stroke-width="2"/>
+  <text x="200" y="230" text-anchor="middle" font-size="12" fill="#888">Newest lines glow brightest — an age heat-map</text>
+  <text x="200" y="250" text-anchor="middle" font-size="12" fill="#888">Click an annotation to reveal the commit in the log</text>
+</svg>

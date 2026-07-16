@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" font-family="'Segoe UI',sans-serif">
+  <path d="M60 90h80l20 18h180a12 12 0 0 1 12 12v100a12 12 0 0 1-12 12H60a12 12 0 0 1-12-12V102a12 12 0 0 1 12-12z" fill="#e69f00" opacity="0.15"/>
+  <path d="M60 90h80l20 18h180a12 12 0 0 1 12 12v100a12 12 0 0 1-12 12H60a12 12 0 0 1-12-12V102a12 12 0 0 1 12-12z" fill="none" stroke="#e69f00" stroke-width="2"/>
+  <circle cx="120" cy="176" r="8" fill="#0072b2"/>
+  <circle cx="170" cy="176" r="8" fill="#0072b2"/>
+  <circle cx="220" cy="176" r="8" fill="#0072b2"/>
+  <circle cx="270" cy="146" r="8" fill="#cc79a7"/>
+  <path d="M128 176h34M178 176h34M228 172c18-8 18-22 34-26" fill="none" stroke="#888" stroke-width="2.5"/>
+  <text x="296" y="151" font-size="11" fill="#cc79a7">feature/polish</text>
+  <text x="120" y="205" font-size="11" fill="#888">main</text>
+  <text x="200" y="55" text-anchor="middle" font-size="14" fill="#888">A disposable repo, generated locally</text>
+  <text x="200" y="250" text-anchor="middle" font-size="12" fill="#888">History + a pending edit + a conflict, ready to practice on</text>
+</svg>

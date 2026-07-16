@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" font-family="'Segoe UI',sans-serif">
+  <g font-size="10.5">
+    <rect x="30" y="30" width="64" height="20" rx="10" fill="#0072b2" opacity="0.25"/><text x="62" y="44" text-anchor="middle" fill="#888">Branch</text>
+    <rect x="102" y="30" width="52" height="20" rx="10" fill="#808080" opacity="0.15"/><text x="128" y="44" text-anchor="middle" fill="#888">User</text>
+    <rect x="162" y="30" width="52" height="20" rx="10" fill="#808080" opacity="0.15"/><text x="188" y="44" text-anchor="middle" fill="#888">Date</text>
+    <rect x="222" y="30" width="52" height="20" rx="10" fill="#808080" opacity="0.15"/><text x="248" y="44" text-anchor="middle" fill="#888">Path</text>
+    <rect x="282" y="30" width="88" height="20" rx="4" fill="none" stroke="#888" opacity="0.6"/><text x="326" y="44" text-anchor="middle" fill="#666">Search</text>
+  </g>
+  <g stroke-width="2.5" fill="none">
+    <path d="M60 70v170" stroke="#0072b2"/>
+    <path d="M60 110c0 20 30 12 30 34v56c0 22-30 14-30 30" stroke="#e69f00"/>
+    <path d="M60 150c0 18 52 10 52 30v30" stroke="#009e73"/>
+  </g>
+  <g>
+    <circle cx="60" cy="82" r="6" fill="#0072b2"/>
+    <circle cx="60" cy="110" r="6" fill="#0072b2"/>
+    <circle cx="90" cy="146" r="6" fill="#e69f00"/>
+    <circle cx="60" cy="150" r="6" fill="#0072b2"/>
+    <circle cx="112" cy="182" r="6" fill="#009e73"/>
+    <circle cx="90" cy="200" r="6" fill="#e69f00"/>
+    <circle cx="60" cy="240" r="6" fill="#0072b2"/>
+  </g>
+  <g font-size="11" fill="#888">
+    <text x="140" y="86">Release 2.4 — merge</text>
+    <text x="140" y="114">Fix status flood on branch switch</text>
+    <text x="140" y="150">polish: extract salutation</text>
+    <text x="140" y="186">Add farewell()</text>
+    <text x="140" y="244">Initial commit</text>
+  </g>
+  <rect x="132" y="72" width="180" height="20" rx="3" fill="#0072b2" opacity="0.12"/>
+  <text x="200" y="278" text-anchor="middle" font-size="12" fill="#888">100k commits, 60 fps · Date, Topo and IntelliSort</text>
+</svg>
