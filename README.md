@@ -26,6 +26,8 @@ keyboard reference (including the optional IntelliJ keymap):
 ## Feature parity with IntelliJ IDEA Ultimate
 
 Derived from [FEATURES.md](FEATURES.md), the project's parity specification.
+The line-by-line sign-off audit lives in
+[docs/parity-audit.md](docs/parity-audit.md).
 
 ### 1 · Editor integration ✅
 

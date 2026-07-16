@@ -176,6 +176,21 @@
   debugRegistry seam), and the generic presenter wired into the sync-command path (kinds with
   richer flows — smart checkout, conflict sessions, lease refusal, publish-upstream — keep
   their dedicated UX and never reach it).
+- **T5 (release pipeline authored, never executed; no dry-run publish):** the acceptance
+  criterion "dry-run publish to a test publisher succeeds from CI" requires a remote, CI
+  execution and a marketplace publisher — all ruled out by owner decision. release.yml is
+  fully authored (tag→verify→gates→package→pre-release→approval-gated stable + GitHub
+  Release), third-party actions are pinned to commit shas resolved from the public GitHub
+  API at authoring time (noted inline for re-verification), and docs/releasing.md carries
+  the go-live checklist. Locally verifiable pieces ARE verified: bundle budget asserted on
+  every `npm run package` (postpackage hook), changelog extraction + current-version
+  section presence unit-tested, tag/version/odd-minor logic authored as plain shell.
+- **T5 ("filed as issues"):** the parity audit's instruction to file material deviations as
+  issues has no tracker to file into (no remote); deviations live in the phase docs'
+  Deviations sections and the audit's ⏭️ rows instead.
+- **T5 (publisher id is a placeholder):** `package.json#publisher: "gittree"` cannot be
+  validated against a real marketplace publisher; docs/releasing.md step 3 requires
+  reconciling it at go-live.
 
 ## Contributions added this phase
 Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportIssue,generatePlayground}`; settings `gittree.telemetry.enabled`, `gittree.keymap.intellij`; no new feature surfaces.
@@ -185,4 +200,4 @@ Walkthrough `gittree.gettingStarted`; commands `gittree.{openWalkthrough,reportI
 - [x] Keyboard/a11y walkthrough passes end-to-end (docs/keyboard.md: audit checklist + recorded walkthrough; HC evidence local — no PR, see Deviations)
 - [x] Onboarding reaches first commit + first resolved conflict unaided (walkthrough + playground; e2e-verified repo shape, no human tester — see Deviations)
 - [x] Telemetry opt-in and content-free (double-gated, schema-allowlisted, no-op sender — no backend by owner decision, see Deviations)
-- [ ] FEATURES.md line-by-line audit merged — the 100%-parity sign-off artifact
+- [x] FEATURES.md line-by-line audit merged — the 100%-parity sign-off artifact (docs/parity-audit.md: every line ✅ with evidence or ⏭️ owner-decision, zero unexplained gaps)

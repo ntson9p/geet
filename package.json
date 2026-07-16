@@ -2153,7 +2153,8 @@
     "docs:settings": "node scripts/genSettingsDoc.mjs",
     "pretest:perf": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
     "test:perf": "node ./out/test/perf/runPerf.js",
-    "package": "vsce package --pre-release"
+    "package": "vsce package --pre-release",
+    "postpackage": "node scripts/checkBundleSize.mjs"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

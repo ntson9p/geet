@@ -1,0 +1,170 @@
+# Release pipeline (P10-T5). AUTHORED, NEVER EXECUTED: this repository has no
+# remote and no marketplace publisher by project-owner decision — see
+# docs/plan/PHASE-10-hardening-release.md → Deviations and docs/releasing.md
+# for the go-live checklist (secrets, environments, first-run steps).
+#
+# Flow: tag v* → full test + perf matrix → package (bundle budget asserted)
+# → publish PRE-RELEASE channel → manual approval (environment "stable" with
+# required reviewers) → stable publish + GitHub Release with the changelog
+# extract. Provenance: third-party actions are pinned to commit shas;
+# dependencies install via `npm ci` and are signature-audited.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # GitHub Release creation in publish-stable
+
+jobs:
+  verify:
+    name: verify tag ↔ version ↔ channel
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - id: meta
+        name: Tag must equal package.json version; odd minor = pre-release
+        run: |
+          ver="$(node -p "require('./package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$ver" != "$tag" ]; then
+            echo "tag v$tag does not match package.json version $ver" >&2
+            exit 1
+          fi
+          minor="$(node -p "require('./package.json').version.split('.')[1]")"
+          if [ $((minor % 2)) -eq 1 ]; then pre=true; else pre=false; fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: check (typecheck + lint + unit + webview)
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lockfile provenance audit
+        run: npm audit signatures
+      - run: npm run check
+      - name: Webview component tests (Playwright)
+        run: |
+          npx playwright install chromium --with-deps
+          npm run test:webview
+
+  integration:
+    name: integration (${{ matrix.os }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration
+      - name: Run integration tests (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:integration
+
+  perf:
+    name: perf budgets (${{ matrix.os }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run perf benchmarks (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:perf
+      - name: Run perf benchmarks (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:perf
+
+  package:
+    name: package (bundle budget asserted)
+    needs: [verify, integration, perf]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # postpackage runs scripts/checkBundleSize.mjs (< 2.5 MB sans images).
+      - run: npm run package
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: gittree-vsix
+          path: '*.vsix'
+
+  publish-prerelease:
+    name: publish → pre-release channel
+    needs: [verify, package]
+    runs-on: ubuntu-latest
+    # Configure this environment with the VSCE_PAT secret when going live.
+    environment: pre-release
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: vsce publish (pre-release)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --pre-release -p "$VSCE_PAT"
+
+  publish-stable:
+    name: publish → stable + GitHub Release
+    needs: [verify, publish-prerelease]
+    # Even-minor tags only; the "stable" environment must be configured with
+    # required reviewers — that reviewer approval IS the manual gate.
+    if: needs.verify.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    environment: stable
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: vsce publish (stable)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish -p "$VSCE_PAT"
+      - name: Extract changelog section
+        run: node scripts/extractChangelog.mjs "${{ needs.verify.outputs.version }}" > release-notes.md
+      - name: GitHub Release with vsix + notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm run package
+          gh release create "$GITHUB_REF_NAME" *.vsix \
+            --title "GitTree ${{ needs.verify.outputs.version }}" \
+            --notes-file release-notes.md
