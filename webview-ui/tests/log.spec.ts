@@ -66,7 +66,7 @@ test.describe('P4-T3/T4 log webview', () => {
     expect(parsedMulti.shas.length).toBe(2);
   });
 
-  test('selection fills Commit Details and Changed Files; file click posts openFileDiff', async ({ page }) => {
+  test('selection fills Commit Details and Changed Files; activate posts openFileDiff', async ({ page }) => {
     await openLog(page);
     await commitRow(page).locator('[data-gt-row="1"]').click();
     // P12-T1: the right column is two panes — meta in Details, files in
@@ -74,12 +74,91 @@ test.describe('P4-T3/T4 log webview', () => {
     const details = page.getByTestId('details-panel');
     await expect(details).toContainText('Alice');
     const files = page.getByTestId('changed-files');
-    await expect(files).toContainText('src/app.ts');
+    await expect(files).toContainText('app.ts');
     await expect(files).toContainText('src/old.ts'); // rename pair visible
 
-    await files.getByRole('listitem').first().click();
+    await files.getByRole('treeitem', { name: /app\.ts/ }).dblclick();
     const msgs = await posted(page);
     expect(msgs.some((m) => m.method === 'log/openFileDiff')).toBe(true);
+  });
+
+  test('P12-T3: the tree carries the repo row, folder counts and status colors', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+    // The §2A repo row: name, count, dim repo path.
+    await expect(files.getByRole('treeitem', { name: /repo, 2 files · \/repo/ })).toBeVisible();
+    await expect(files.getByRole('treeitem', { name: /^src, 2 files$/ })).toBeVisible();
+    // Status colors ride the P11-T8 palette (theme variables by default).
+    const style = await files
+      .getByRole('treeitem', { name: /app\.ts/ })
+      .locator('.gt-tree-name')
+      .getAttribute('style');
+    expect(style).toContain('gitDecoration-modifiedResourceForeground');
+
+    // Flat mode lists full paths under the repo row.
+    await page.getByRole('button', { name: 'Flat file list' }).click();
+    await expect(files.getByRole('treeitem', { name: /^src\/app\.ts$/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Group by folder' }).click();
+  });
+
+  test('P12-T3: a multi-selection shows the aggregate and range-scoped diffs', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="2"]').click();
+    await commitRow(page).locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const p = m.params as { shas?: string[] } | undefined;
+          return m.method === 'log/changedFiles' && p?.shas?.length === 2;
+        }),
+      )
+      .toBe(true);
+    const files = page.getByTestId('changed-files');
+    await expect(files).toContainText('agg-added.ts');
+
+    // The multi-diff button has one-commit semantics and disables on a range.
+    await expect(page.getByRole('button', { name: 'Show all files in multi-diff' })).toBeDisabled();
+
+    await files.getByRole('treeitem', { name: /agg-added\.ts/ }).dblclick();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const p = m.params as { base?: string } | undefined;
+          return m.method === 'log/openFileDiff' && p?.base === 'basebasebase';
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('P12-T3: preview-on-click and Show History for Revision', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+
+    // History needs a selected file row.
+    const history = page.getByRole('button', { name: 'Show History for Revision' });
+    await expect(history).toBeDisabled();
+    await files.getByRole('treeitem', { name: /app\.ts/ }).click();
+    await expect(history).toBeEnabled();
+    await history.click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some(
+          (m) =>
+            m.method === 'log/showFileHistory' &&
+            (m.params as { path?: string } | undefined)?.path === 'src/app.ts',
+        ),
+      )
+      .toBe(true);
+
+    // Preview mode: a single click opens the diff.
+    const before = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').length;
+    await page.getByRole('button', { name: 'Preview diff on click' }).click();
+    await files.getByRole('treeitem', { name: /new\.ts/ }).click();
+    await expect
+      .poll(async () => (await posted(page)).filter((m) => m.method === 'log/openFileDiff').length)
+      .toBeGreaterThan(before);
   });
 
   test('filter bar round-trips: search text and sort produce setFilter', async ({ page }) => {
@@ -190,7 +269,7 @@ test.describe('P4-T3/T4 log webview', () => {
     await openLog(page);
     // Select a commit so the panes hold state worth keeping.
     await commitRow(page).locator('[data-gt-row="1"]').click();
-    await expect(page.getByTestId('changed-files')).toContainText('src/app.ts');
+    await expect(page.getByTestId('changed-files')).toContainText('app.ts');
 
     await page
       .getByTestId('pane-details')
@@ -199,7 +278,7 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(page.getByTestId('pane-details')).toHaveCount(0);
     await expect(page.getByTestId('pane-details-collapsed')).toBeVisible();
     // The sibling keeps working while its neighbour is folded.
-    await expect(page.getByTestId('changed-files')).toContainText('src/app.ts');
+    await expect(page.getByTestId('changed-files')).toContainText('app.ts');
 
     await page.getByRole('button', { name: 'Expand Commit Details' }).click();
     await expect(page.getByTestId('details-panel')).toContainText('Alice');

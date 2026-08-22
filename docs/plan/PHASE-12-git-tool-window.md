@@ -214,6 +214,13 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - **P12-T2 — the pane's context menu is native (`webview/context`, static labels), the same
   D3-related split as the Shelf tab; the rail's `Q`/`★` are webview-local filters and `@`
   round-trips through the author filter (`user.email`).**
+- **P12-T3 — `by-module` grouping is omitted.** IntelliJ modules have no VS Code analogue;
+  the directory tree (with the repo row on top) is the honest grouping, and `flat` remains as
+  the alternative. The multi-diff button keeps single-commit semantics and disables on a
+  range selection rather than faking an aggregate multi-diff.
+- **P12-T3 — a clean merge shows no per-file rows, because `git show --name-status` shows
+  none** (combined-diff semantics). Matching git here is deliberate; first-parent diffs of
+  merges are what the P12-T7 context menu's compare actions are for.
 
 ## Planned deviations
 - **`Show Repository at Revision` opens a tree view, not a second project window.** IntelliJ

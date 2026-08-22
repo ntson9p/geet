@@ -160,6 +160,51 @@ export class LogService {
     return map;
   }
 
+  /**
+   * P12-T3 — the aggregate change set of a multi-commit selection, which is
+   * how IntelliJ's "Compare Versions" reads: `git diff <oldest>^..<newest>`.
+   * A root commit has no parent; the empty tree stands in so the aggregate
+   * still means "everything these commits introduced".
+   */
+  async getAggregateFiles(
+    oldest: string,
+    newest: string,
+  ): Promise<{ base: string; files: Array<{ status: string; path: string; origPath?: string }> }> {
+    const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+    const base = await this.repo.queue.enqueue({
+      label: 'aggregate base',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(this.repo.root, ['rev-parse', '--verify', `${oldest}^`], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    const from = base.exitCode === 0 ? base.stdout.trim() : EMPTY_TREE;
+    const result = await this.repo.queue.enqueue({
+      label: `aggregate diff ${oldest.slice(0, 7)}..${newest.slice(0, 7)}`,
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(this.repo.root, ['diff', '--name-status', '-z', '-M', from, newest], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    if (result.exitCode !== 0) return { base: from, files: [] };
+    return {
+      base: from,
+      files: parseNameStatusZ(result.stdout).map((e) => ({
+        status: e.status,
+        path: e.path,
+        ...(e.origPath !== undefined ? { origPath: e.origPath } : {}),
+      })),
+    };
+  }
+
   async getCommitDetails(sha: string): Promise<CommitDetails | undefined> {
     const format = '%H%x00%P%x00%an%x00%ae%x00%at%x00%cn%x00%ce%x00%ct%x00%D%x00%B%x1e';
     const result = await this.repo.queue.enqueue({

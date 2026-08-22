@@ -175,6 +175,13 @@
   padding: 10px;
 }
 
+/* ---- P12-T3: Changed Files pane ---- */
+.gt-changed-files {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
 /* ---- P12-T2: Branches pane + vertical icon rail ---- */
 .gt-branches-pane {
   display: flex;

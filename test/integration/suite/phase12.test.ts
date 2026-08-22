@@ -141,4 +141,89 @@ suite('P12 git tool window', () => {
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     fs.rmSync(path.join(repoRoot, 'p12/anchor.txt'), { force: true });
   });
+
+  test('T3: single-commit files match git show — rename pair and merge semantics', async function () {
+    this.timeout(90_000);
+    const service = reg.logView.logServiceFor(repo);
+
+    write('p12/mv-src.txt', 'move me\n');
+    git('add', 'p12/mv-src.txt');
+    git('commit', '-m', 'p12 rename base');
+    git('mv', 'p12/mv-src.txt', 'p12/mv-dst.txt');
+    git('commit', '-m', 'p12 rename move');
+    const renameSha = git('rev-parse', 'HEAD').trim();
+
+    const rename = await service.getCommitDetails(renameSha);
+    assert.ok(rename, 'rename commit details missing');
+    assert.strictEqual(rename.files.length, 1);
+    assert.ok(rename.files[0]!.status.startsWith('R'), rename.files[0]!.status);
+    assert.strictEqual(rename.files[0]!.path, 'p12/mv-dst.txt');
+    assert.strictEqual(rename.files[0]!.origPath, 'p12/mv-src.txt');
+
+    // A clean merge: `git show --name-status` prints no per-file rows for
+    // merges (combined-diff semantics) — matching git IS the acceptance.
+    const base = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+    git('checkout', '-b', 'p12/merge-side');
+    write('p12/merge-side.txt', 'side\n');
+    git('add', 'p12/merge-side.txt');
+    git('commit', '-m', 'p12 side commit');
+    git('checkout', base);
+    git('merge', '--no-ff', '-m', 'p12 merge commit', 'p12/merge-side');
+    const mergeSha = git('rev-parse', 'HEAD').trim();
+    const merge = await service.getCommitDetails(mergeSha);
+    assert.ok(merge, 'merge details missing');
+    const gitShown = git('show', '--name-status', '--format=', mergeSha).trim();
+    assert.strictEqual(
+      merge.files.length,
+      gitShown.length === 0 ? 0 : gitShown.split('\n').length,
+      `files must match git show (git said: ${JSON.stringify(gitShown)})`,
+    );
+    git('branch', '-D', 'p12/merge-side');
+  });
+
+  test('T3: a 500-file commit reports all 500 files', async function () {
+    this.timeout(120_000);
+    for (let i = 0; i < 500; i++) {
+      write(`p12bulk/f${String(i).padStart(3, '0')}.txt`, `${i}\n`);
+    }
+    git('add', 'p12bulk');
+    git('commit', '-m', 'p12 bulk 500');
+    const sha = git('rev-parse', 'HEAD').trim();
+    const details = await reg.logView.logServiceFor(repo).getCommitDetails(sha);
+    assert.strictEqual(details?.files.length, 500);
+    assert.ok(details.files.every((f) => f.status === 'A'));
+  });
+
+  test('T3: the 3-commit aggregate matches git diff, and a root commit falls back to the empty tree', async function () {
+    this.timeout(90_000);
+    const mk = (n: number): string => {
+      write(`p12/agg-${n}.txt`, `${n}\n`);
+      git('add', `p12/agg-${n}.txt`);
+      git('commit', '-m', `p12 agg ${n}`);
+      return git('rev-parse', 'HEAD').trim();
+    };
+    const c1 = mk(1);
+    mk(2);
+    const c3 = mk(3);
+
+    const service = reg.logView.logServiceFor(repo);
+    const aggregate = await service.getAggregateFiles(c1, c3);
+    const expected = git('diff', '--name-status', `${c1}^..${c3}`)
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0)
+      .map((l) => l.split('\t')[1]!)
+      .sort();
+    assert.deepStrictEqual(
+      aggregate.files.map((f) => f.path).sort(),
+      expected,
+      'the aggregate must be exactly `git diff <oldest>^..<newest>`',
+    );
+
+    // Root commit: no parent — the empty tree stands in.
+    const root = git('rev-list', '--max-parents=0', 'HEAD').trim().split('\n')[0]!;
+    const rootAgg = await service.getAggregateFiles(root, root);
+    assert.strictEqual(rootAgg.base, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+    assert.ok(rootAgg.files.length > 0, 'the root commit introduces its own files');
+  });
 });

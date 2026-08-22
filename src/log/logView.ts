@@ -21,6 +21,7 @@ import {
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
+import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
@@ -134,8 +135,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     rpc.on(LOG_METHODS.pickDates, () => this.pickDates());
     rpc.on(LOG_METHODS.pickPaths, () => this.pickPaths());
     rpc.on(LOG_METHODS.openFileDiff, async (params) => {
-      const { sha, file } = params as { sha: string; file: CommitFileDto };
-      await this.openFileDiff(sha, file);
+      const { sha, file, base } = params as { sha: string; file: CommitFileDto; base?: string };
+      await this.openFileDiff(sha, file, base);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.openAllDiffs, async (params) => {
@@ -155,6 +156,44 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.selected = Array.isArray(shas) ? shas.filter((s) => typeof s === 'string') : [];
       return { ok: true };
     });
+    // P12-T3: the Changed Files pane — one commit's files, or the aggregate
+    // change set of a multi-selection (how "Compare Versions" reads).
+    rpc.on(LOG_METHODS.changedFiles, async (params) => {
+      const { shas } = params as { shas: string[] };
+      const session = this.session;
+      if (!session || !Array.isArray(shas) || shas.length === 0) return { files: [] };
+      if (shas.length === 1) {
+        const details = await session.service.getCommitDetails(shas[0]!);
+        return {
+          files:
+            details?.files.map((f) => ({
+              status: f.status,
+              path: f.path,
+              ...(f.origPath !== undefined ? { origPath: f.origPath } : {}),
+            })) ?? [],
+          newest: shas[0]!,
+        };
+      }
+      // Selection order is click order; the range is graph order.
+      const order = new Map(session.rows.map((r, i) => [r.sha, i] as const));
+      const sorted = [...shas].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+      const newest = sorted[0]!;
+      const oldest = sorted[sorted.length - 1]!;
+      const aggregate = await session.service.getAggregateFiles(oldest, newest);
+      return { files: aggregate.files, newest, base: aggregate.base };
+    });
+
+    rpc.on(LOG_METHODS.showFileHistory, async (params) => {
+      const { path: relPath } = params as { path: string };
+      const session = this.session;
+      if (!session || typeof relPath !== 'string') return { ok: false };
+      await vscode.commands.executeCommand(
+        'gittree.showFileHistory',
+        vscode.Uri.file(path.join(session.repo.root, relPath)),
+      );
+      return { ok: true };
+    });
+
     // P12-T2: the Branches pane.
     rpc.on(LOG_METHODS.branches, async () => {
       const repo = this.session?.repo ?? this.activeRepo();
@@ -201,6 +240,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         filter: filterDto,
         laneWidth: LANE_WIDTH,
         graphPalette: this.graphPalette(),
+        colors: statusColorOverrides(),
       };
     }
     this.debugTrail.push(`session repo=${repo.root}`);
@@ -231,7 +271,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       filter: filterDto,
       laneWidth: LANE_WIDTH,
       graphPalette: this.graphPalette(),
+      colors: statusColorOverrides(),
     };
+  }
+
+  /** Test seam (P12-T3): the per-repo LogService the session pages through. */
+  logServiceFor(repo: RepoHandle): LogService {
+    return this.serviceFor(repo);
   }
 
   private toDto(row: LogRow, session: Session): LogRowDto {
@@ -524,12 +570,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   // ---- diffs ----------------------------------------------------------------
 
-  private async openFileDiff(sha: string, file: CommitFileDto): Promise<void> {
+  private async openFileDiff(sha: string, file: CommitFileDto, baseRev?: string): Promise<void> {
     const session = this.session;
     if (!session) return;
     const repoRoot = session.repo.root;
-    const base = `${sha}^`;
-    const title = `${path.posix.basename(file.path)} (${sha.slice(0, 7)})`;
+    // P12-T3: an aggregate selection diffs the whole range, not one commit.
+    const base = baseRev ?? `${sha}^`;
+    const title = `${path.posix.basename(file.path)} (${
+      baseRev !== undefined ? `${baseRev.slice(0, 7)}..` : ''
+    }${sha.slice(0, 7)})`;
     if (file.status.startsWith('A')) {
       await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, sha), { preview: true });
       return;

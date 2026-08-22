@@ -57,6 +57,29 @@ export const mockLogHostScript = `
           });
           break;
         }
+        case 'log/changedFiles': {
+          const shas = msg.params.shas || [];
+          if (shas.length <= 1) {
+            res({
+              files: [
+                { status: 'M', path: 'src/app.ts' },
+                { status: 'R', path: 'src/new.ts', origPath: 'src/old.ts' },
+              ],
+              newest: shas[0],
+            });
+          } else {
+            res({
+              files: [
+                { status: 'M', path: 'src/app.ts' },
+                { status: 'A', path: 'src/agg-added.ts' },
+                { status: 'D', path: 'docs/agg-gone.md' },
+              ],
+              newest: shas[0],
+              base: 'basebasebase',
+            });
+          }
+          break;
+        }
         case 'log/branches': {
           res({
             current: 'main', detached: false,

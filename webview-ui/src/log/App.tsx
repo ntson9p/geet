@@ -12,6 +12,7 @@ import {
   LOG_METHODS,
   type CommitDetailsDto,
   type CommitFileDto,
+  type LogChangedFilesDto,
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
@@ -38,6 +39,7 @@ interface PersistedState {
   /** P12-T1: pane ratios + collapse flags, restored exactly across reload. */
   layout?: ShellLayout;
   filesRollup?: boolean;
+  previewOnClick?: boolean;
 }
 
 function relativeDate(unixSeconds: number): string {
@@ -72,6 +74,11 @@ export function App() {
   const boot = useMemo(() => (getVsCodeApi().getState() as PersistedState | undefined) ?? {}, []);
   const [layout, setLayout] = useState<ShellLayout>(boot.layout ?? DEFAULT_LAYOUT);
   const [filesRollup, setFilesRollup] = useState(boot.filesRollup ?? true);
+  // P12-T3: the Changed Files pane's own data (single commit or aggregate).
+  const [changed, setChanged] = useState<LogChangedFilesDto | undefined>(undefined);
+  const [changedLoading, setChangedLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<CommitFileDto | undefined>(undefined);
+  const [previewOnClick, setPreviewOnClick] = useState(boot.previewOnClick ?? false);
 
   const filter = init?.filter ?? { sort: 'topo', refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
@@ -85,8 +92,34 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    persist({ layout, filesRollup });
-  }, [filesRollup, layout, persist]);
+    persist({ layout, filesRollup, previewOnClick });
+  }, [filesRollup, layout, persist, previewOnClick]);
+
+  // P12-T3: the pane follows the selection — one commit's files, or the
+  // aggregate change set of a multi-select.
+  useEffect(() => {
+    if (selected.length === 0) {
+      setChanged(undefined);
+      return;
+    }
+    let cancelled = false;
+    setChangedLoading(true);
+    rpc.request<LogChangedFilesDto>(LOG_METHODS.changedFiles, { shas: selected }).then(
+      (next) => {
+        if (cancelled) return;
+        setChanged(next ?? { files: [] });
+        setChangedLoading(false);
+      },
+      () => {
+        if (cancelled) return;
+        setChanged({ files: [] });
+        setChangedLoading(false);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [rpc, selected]);
 
   // P12-T1: the selection is one host-side model — every pane and every
   // command reads the same list, pushed here on each change.
@@ -395,12 +428,22 @@ export function App() {
           commits={commitsPane}
           files={
             <ChangedFilesPane
-              details={details}
-              loading={detailsLoading}
-              rollup={filesRollup}
+              data={changed}
+              loading={changedLoading}
+              repoLabel={init.repoLabel}
+              repoRoot={init.repoRoot}
+              grouped={filesRollup}
+              colors={init.colors}
+              previewOnClick={previewOnClick}
               onOpenFile={(file: CommitFileDto) => {
-                if (details) void rpc.request(LOG_METHODS.openFileDiff, { sha: details.sha, file });
+                if (changed?.newest === undefined) return;
+                void rpc.request(LOG_METHODS.openFileDiff, {
+                  sha: changed.newest,
+                  file,
+                  ...(changed.base !== undefined ? { base: changed.base } : {}),
+                });
               }}
+              onSelectedFileChange={setSelectedFile}
             />
           }
           details={
@@ -413,19 +456,37 @@ export function App() {
           toolbars={{
             files: (
               <>
-                <span className="gt-pane-count gt-muted">{changedFilesLabel(details)}</span>
+                <span className="gt-pane-count gt-muted">{changedFilesLabel(changed)}</span>
                 <ToolbarButton
                   icon="diff-multiple"
                   label="Show all files in multi-diff"
-                  disabled={!details}
+                  disabled={changed?.newest === undefined || changed.base !== undefined}
                   onClick={() => {
-                    if (details) void rpc.request(LOG_METHODS.openAllDiffs, { sha: details.sha });
+                    if (changed?.newest !== undefined) {
+                      void rpc.request(LOG_METHODS.openAllDiffs, { sha: changed.newest });
+                    }
                   }}
                 />
                 <ToolbarButton
                   icon={filesRollup ? 'list-tree' : 'list-flat'}
                   label={filesRollup ? 'Flat file list' : 'Group by folder'}
                   onClick={() => setFilesRollup((v) => !v)}
+                />
+                <ToolbarButton
+                  icon="open-preview"
+                  label="Preview diff on click"
+                  toggled={previewOnClick}
+                  onClick={() => setPreviewOnClick((v) => !v)}
+                />
+                <ToolbarButton
+                  icon="history"
+                  label="Show History for Revision"
+                  disabled={selectedFile === undefined}
+                  onClick={() => {
+                    if (selectedFile !== undefined) {
+                      void rpc.request(LOG_METHODS.showFileHistory, { path: selectedFile.path });
+                    }
+                  }}
                 />
               </>
             ),

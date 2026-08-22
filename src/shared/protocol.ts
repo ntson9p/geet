@@ -459,12 +459,26 @@ export interface LogInitDto {
   laneWidth: number;
   /** P10-T2: graph palette variant (`gittree.log.graphPalette`). */
   graphPalette?: 'default' | 'colorBlind';
+  /** P11-T8 palette overrides, same contract as `CommitStateDto.colors`. */
+  colors?: Record<string, string>;
 }
 
 export interface CommitFileDto {
   status: string;
   path: string;
   origPath?: string;
+}
+
+/**
+ * P12-T3 — the Changed Files pane's data. One commit ships its own files;
+ * a multi-select ships the aggregate (`git diff <oldest>^..<newest>`), with
+ * `base`/`newest` so a file click can open the range-scoped diff.
+ */
+export interface LogChangedFilesDto {
+  files: CommitFileDto[];
+  newest?: string;
+  /** Present only for aggregates: the diff base (oldest^ or the empty tree). */
+  base?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -522,6 +536,10 @@ export const LOG_METHODS = {
   branches: 'log/branches',
   /** P12-T2: one rail/context action on a ref, run through the shared registry. */
   branchAction: 'log/branchAction',
+  /** P12-T3: the Changed Files pane — single commit or a multi-select aggregate. */
+  changedFiles: 'log/changedFiles',
+  /** P12-T3: `Show History for Revision` on a file row. */
+  showFileHistory: 'log/showFileHistory',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',
