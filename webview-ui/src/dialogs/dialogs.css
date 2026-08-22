@@ -1,0 +1,73 @@
+/* Dialogs app (P11-T7). The Dialog frame itself is styled by base.css; these
+   are the Shelve Changes internals per gap analysis §2A. */
+
+.gt-shelve-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.gt-shelve-row label {
+  flex: 0 0 auto;
+}
+
+.gt-shelve-list-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The tree region: a fixed-height scroller so the dialog keeps its shape. */
+.gt-shelve-tree {
+  height: 220px;
+  min-height: 120px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-shelve-count {
+  padding: 2px 0 6px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-shelve-message {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 4.5em;
+  font-family: var(--vscode-font-family);
+}
+
+/* Collapsible ∨ Diff section. */
+.gt-shelve-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gt-shelve-diff-header:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.gt-shelve-diff {
+  height: 240px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-shelve-diff-empty {
+  padding: 10px;
+  color: var(--vscode-descriptionForeground);
+}

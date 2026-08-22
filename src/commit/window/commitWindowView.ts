@@ -491,8 +491,11 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const p = raw as { repoRoot: string };
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return;
+      // P11-T7: opens the Shelve Changes dialog. (Until T7 this executed
+      // 'gittree.shelve' — a command id that has never existed, so the
+      // toolbar button errored since T2. The dialog is also the fix.)
       await this.guard('shelve', async () => {
-        await vscode.commands.executeCommand('gittree.shelve', repo.root);
+        await vscode.commands.executeCommand('gittree.shelve.dialog', repo.root);
       });
     });
 

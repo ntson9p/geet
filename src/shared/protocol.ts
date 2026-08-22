@@ -320,6 +320,62 @@ export function isValidAuthor(value: string): boolean {
   return /^[^<>]*[^<>\s][^<>]*\s<[^<>\s@]+@[^<>\s]+>$/.test(value);
 }
 
+// ---------------------------------------------------------------------------
+// Shelve Changes dialog (P11-T7)
+// ---------------------------------------------------------------------------
+
+/** One selectable group in the `Changelist:` dropdown. */
+export interface ShelveDialogListDto {
+  id: string;
+  name: string;
+  isActive: boolean;
+  files: CommitChangeDto[];
+}
+
+export interface ShelveDialogParamsDto {
+  repoRoot: string;
+  repoLabel: string;
+  lists: ShelveDialogListDto[];
+  /** Initially selected list (the active one, or the invoking node's). */
+  listId: string;
+  /** Prefill: the commit-window draft, else the selected list's name. */
+  message: string;
+}
+
+/** Lazy per-file diff for the collapsible `∨ Diff` section. */
+export interface ShelveFileDiffDto {
+  path: string;
+  originalText: string;
+  modifiedText: string;
+  changes: LineChangeDto[];
+  /** Untracked / deleted / binary: shelves whole, no per-change checkboxes. */
+  wholeFileOnly: boolean;
+  signature: string;
+}
+
+export interface ShelveDialogPartialDto {
+  relPath: string;
+  included: number[];
+  /** Guards staleness — the host re-diffs and falls back to whole-file. */
+  signature: string;
+}
+
+export interface ShelveDialogResultDto {
+  listId: string;
+  message: string;
+  /** Ticked files shelving whole (partially-included files are NOT in here). */
+  paths: string[];
+  partials: ShelveDialogPartialDto[];
+  removeFromWorktree: boolean;
+}
+
+export const SHELVE_DIALOG_METHODS = {
+  /** webview → host request: one file's HEAD↔worktree diff. */
+  fileDiff: 'shelveDialog/fileDiff',
+  /** webview → host request: fresh params (the toolbar's refresh). */
+  refresh: 'shelveDialog/refresh',
+} as const;
+
 export const DIALOG_METHODS = {
   /** webview→host, request: returns the dialog's initial params. */
   init: 'dialog/init',

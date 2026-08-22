@@ -11,6 +11,7 @@ import { defineConfig } from 'vite';
 const apps: Record<string, string> = {
   commit: path.resolve(__dirname, 'src/commit/main.tsx'),
   demo: path.resolve(__dirname, 'src/demo/main.tsx'),
+  dialogs: path.resolve(__dirname, 'src/dialogs/main.tsx'),
   log: path.resolve(__dirname, 'src/log/main.tsx'),
   rebase: path.resolve(__dirname, 'src/rebase/main.tsx'),
   // pr:     added in P8

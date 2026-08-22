@@ -7,7 +7,11 @@ import { recentCommitMessages } from '../../../src/commit/messageHistory';
 import { computeFileDiff } from '../../../src/commit/window/fileDiff';
 import { applyOption, readOptions } from '../../../src/commit/window/options';
 import type { ShelfBridge } from '../../../src/commit/window/shelfBridge';
+import { signChanges } from '../../../src/commit/window/inclusion';
+import type { Core } from '../../../src/core/core';
+import { applyShelveResult, type ShelveDialogDeps } from '../../../src/shelf/shelveDialog';
 import type { ShelfStore } from '../../../src/shelf/shelfStore';
+import { UnshelveEngine } from '../../../src/shelf/unshelve';
 import type { RepoHandle } from '../../../src/core/core';
 import type { LineChange } from '../../../src/core/patch/patchBuilder';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
@@ -35,6 +39,7 @@ suite('P11 commit tool window', () => {
   let scmInput: vscode.SourceControlInputBox;
   let shelfStore: ShelfStore;
   let shelfBridge: ShelfBridge;
+  let coreRef: Core;
 
   const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const write = (rel: string, content: string): void => {
@@ -60,6 +65,7 @@ suite('P11 commit tool window', () => {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
     const core = await activateGitTree();
+    coreRef = core;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
     fsRoot = repo.root;
@@ -704,6 +710,141 @@ suite('P11 commit tool window', () => {
 
     shelfStore.delete(id);
     restoreChecked();
+  });
+
+  /** Deps for driving the dialog's accept path with a synthetic result. */
+  const shelveDeps = (): ShelveDialogDeps => ({
+    core: coreRef,
+    extensionUri: vscode.Uri.file(repoRoot),
+    changelistsFor: (r) => reg.changelistsFor(r),
+    storeFor: (root) =>
+      canonicalKey(root) === canonicalKey(fsRoot) ? shelfStore : undefined,
+    draftMessage: () => '',
+  });
+
+  test('T7: shelving one ticked change stores exactly it; unshelve restores it onto the residue', async function () {
+    this.timeout(120_000);
+    const rel = 'p11/shelve-partial.txt';
+    const { modified, changes } = await seedThreeChanges(rel, '\n');
+
+    const ok = await applyShelveResult(shelveDeps(), repo, {
+      listId: 'default',
+      message: 'p11 partial shelf\nbody line',
+      paths: [],
+      partials: [{ relPath: rel, included: [1], signature: signChanges(changes) }],
+      removeFromWorktree: true,
+    });
+    assert.ok(ok, 'the shelve must report success');
+
+    // The worktree keeps the two unticked changes, byte-identically.
+    assert.strictEqual(
+      fs.readFileSync(path.join(repoRoot, rel), 'utf8'),
+      ['l1', 'X2', 'l3', 'l4', 'l5', 'X6', 'l7'].join('\n') + '\n',
+      'removal must take only the shelved change out of the worktree',
+    );
+
+    const meta = shelfStore.list().find((m) => m.name === 'p11 partial shelf');
+    assert.ok(meta, 'the entry must exist under the message subject');
+    assert.strictEqual(meta.comment, 'body line');
+    assert.deepStrictEqual(
+      meta.files.map((f) => f.relPath),
+      [rel],
+    );
+
+    // Unshelving onto the residue: apply --index fails on context (the file
+    // moved around the hunk) and the --3way ladder must merge it back — this
+    // is exactly the adjacent-changes case the whole capability exists for.
+    const engine = new UnshelveEngine(repo, shelfStore, () => undefined, () => undefined);
+    const res = await engine.unshelve(meta, { deleteAfter: true, unstageAfterApply: true });
+    assert.strictEqual(res.status, 'clean', JSON.stringify(res));
+    assert.strictEqual(
+      fs.readFileSync(path.join(repoRoot, rel), 'utf8'),
+      modified,
+      'residue + unshelved change must reassemble the full modified content',
+    );
+    assert.strictEqual(shelfStore.get(meta.id), undefined, 'deleteAfter removes the entry');
+
+    git('checkout', '--', rel);
+    await refresh();
+    restoreChecked();
+  });
+
+  test('T7: a CRLF partial shelve round-trips with no EOL damage', async function () {
+    this.timeout(120_000);
+    git('config', 'core.autocrlf', 'false');
+    const rel = 'p11/shelve-crlf.txt';
+    const { modified, changes } = await seedThreeChanges(rel, '\r\n');
+
+    const ok = await applyShelveResult(shelveDeps(), repo, {
+      listId: 'default',
+      message: 'p11 crlf shelf',
+      paths: [],
+      partials: [{ relPath: rel, included: [1], signature: signChanges(changes) }],
+      removeFromWorktree: true,
+    });
+    assert.ok(ok);
+    assert.strictEqual(
+      fs.readFileSync(path.join(repoRoot, rel), 'utf8'),
+      ['l1', 'X2', 'l3', 'l4', 'l5', 'X6', 'l7'].join('\r\n') + '\r\n',
+      'the residue must keep CRLF byte-exactly',
+    );
+
+    const meta = shelfStore.list().find((m) => m.name === 'p11 crlf shelf')!;
+    const engine = new UnshelveEngine(repo, shelfStore, () => undefined, () => undefined);
+    const res = await engine.unshelve(meta, { deleteAfter: true, unstageAfterApply: true });
+    assert.strictEqual(res.status, 'clean', JSON.stringify(res));
+    assert.strictEqual(
+      fs.readFileSync(path.join(repoRoot, rel), 'utf8'),
+      modified,
+      'CRLF must survive shelve + unshelve untouched',
+    );
+
+    git('checkout', '--', rel);
+    await refresh();
+    restoreChecked();
+  });
+
+  test('T7: a stale selection shelves the whole file instead of renumbered hunks', async function () {
+    this.timeout(120_000);
+    const rel = 'p11/shelve-stale.txt';
+    const { changes } = await seedThreeChanges(rel, '\n');
+    const staleSignature = signChanges(changes);
+
+    // External edit above the hunks renumbers every change.
+    write(rel, ['inserted', 'l1', 'X2', 'l3', 'X4', 'l5', 'X6', 'l7'].join('\n') + '\n');
+    await refresh();
+
+    const ok = await applyShelveResult(shelveDeps(), repo, {
+      listId: 'default',
+      message: 'p11 stale shelf',
+      paths: [],
+      partials: [{ relPath: rel, included: [1], signature: staleSignature }],
+      removeFromWorktree: true,
+    });
+    assert.ok(ok);
+    // Whole-file fallback: the worktree reverts to HEAD entirely.
+    assert.strictEqual(
+      fs.readFileSync(path.join(repoRoot, rel), 'utf8'),
+      ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7'].join('\n') + '\n',
+    );
+    const meta = shelfStore.list().find((m) => m.name === 'p11 stale shelf')!;
+    shelfStore.delete(meta.id);
+    await refresh();
+    restoreChecked();
+  });
+
+  test('T7: an empty result is a no-op — worktree and shelf untouched', async function () {
+    this.timeout(30_000);
+    const before = shelfStore.list().length;
+    const ok = await applyShelveResult(shelveDeps(), repo, {
+      listId: 'default',
+      message: 'never used',
+      paths: [],
+      partials: [],
+      removeFromWorktree: true,
+    });
+    assert.strictEqual(ok, false);
+    assert.strictEqual(shelfStore.list().length, before);
   });
 
   test('T2: switching to native restores the SCM input box without a reload', async function () {

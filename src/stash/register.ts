@@ -13,7 +13,9 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { repoStoreKey } from '../localHistory/snapshotStore';
 import { confirmModal, typedConfirm } from '../ui/confirm';
 import type { ConflictSource } from '../merge/conflictSession';
+import type { Phase03Registry } from '../commit/register';
 import { ShelfBridge } from '../commit/window/shelfBridge';
+import { showShelveDialog } from '../shelf/shelveDialog';
 import { ShelfStore, type ShelfFileMeta, type ShelfMeta, type ShelveOptions } from '../shelf/shelfStore';
 import {
   makeShelfUri,
@@ -824,6 +826,37 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       t,
       picked.map((c) => c.index),
       deleteAfter,
+    );
+  });
+
+  // P11-T7: the Shelve Changes dialog — the IntelliJ-shaped surface. The
+  // QuickPick flow above (`gittree.shelf.shelve`) remains for native mode and
+  // for tests that seed it via env.
+  register('gittree.shelve.dialog', async (arg) => {
+    const p3full = core.debugRegistry.get('phase03') as Phase03Registry | undefined;
+    if (!p3full) return;
+    let repo: RepoHandle | undefined;
+    let listId: string | undefined;
+    if (typeof arg === 'string') {
+      repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(arg));
+    } else if (arg && typeof arg === 'object' && 'kind' in arg && arg.kind === 'list') {
+      const node = arg as Extract<ChangelistNode, { kind: 'list' }>;
+      repo = node.repo;
+      listId = node.list.id;
+    }
+    repo ??= repoForNew();
+    if (!repo) return;
+    await showShelveDialog(
+      {
+        core,
+        extensionUri: context.extensionUri,
+        changelistsFor: (r) => p3full.changelistsFor(r),
+        storeFor: (root) => shelves.get(canonicalKey(root)),
+        draftMessage: (r) => p3full.commitWindow.getMessage(r),
+        trace,
+      },
+      repo,
+      listId,
     );
   });
 

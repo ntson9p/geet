@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Dev/Playwright harness page for the dialogs app. Production webviews get
+     their HTML from src/ui/webviewHost.ts / dialogHost.ts, never from here. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GitTree dialogs (dev harness)</title>
+  </head>
+  <body class="vscode-dark">
+    <div id="root"></div>
+    <script type="module" src="/src/dialogs/main.tsx"></script>
+  </body>
+</html>

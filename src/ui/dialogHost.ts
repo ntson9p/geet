@@ -31,6 +31,12 @@ export interface DialogOptions<TParams> {
   /** Served to the webview from `dialog/init`; must be JSON-serializable. */
   params: TParams;
   extensionUri: vscode.Uri;
+  /**
+   * P11-T7: extra request handlers for data too large or too lazy for the init
+   * payload — the Shelve dialog's per-file diffs, the Push dialog's per-branch
+   * commit lists (P13). Registered on the dialog's RPC host verbatim.
+   */
+  handlers?: Record<string, (params: unknown) => unknown>;
   /** Optional docs target for the footer's `?`. */
   onHelp?: () => void;
   /** Diagnostics sink — wired to the GitTree output channel by callers. */
@@ -91,6 +97,9 @@ export function createDialog<TParams, TResult>(
 
   const rpc = new WebviewRpcHost(panel.webview, options.trace);
   rpc.on(DIALOG_METHODS.init, () => ({ dialog: options.dialog, params: options.params }));
+  for (const [method, handler] of Object.entries(options.handlers ?? {})) {
+    rpc.on(method, handler);
+  }
   const subs = [
     rpc.onEvent(DIALOG_METHODS.accept, (params) => {
       finish(params as TResult);

@@ -19,9 +19,10 @@ export interface DialogApi<TParams, TResult> {
   /** Undefined until `dialog/init` resolves. */
   readonly init: DialogInit<TParams> | undefined;
   readonly error: string | undefined;
-  accept(result: TResult): void;
-  cancel(): void;
-  help(): void;
+  /** Function properties (not methods) so callers can destructure them. */
+  readonly accept: (result: TResult) => void;
+  readonly cancel: () => void;
+  readonly help: () => void;
   readonly rpc: RpcClient;
 }
 

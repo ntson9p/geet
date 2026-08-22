@@ -26,6 +26,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { OperationQueue } from '../core/ops/operationQueue';
+import { splitPatchFiles } from '../core/patch/patchParser';
 import { Emitter, type Disposable, type Event } from '../core/util/events';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 
@@ -273,6 +274,249 @@ export class ShelfStore implements Disposable {
     meta.patchSha256 = sha256(fs.readFileSync(this.patchPath(id)));
     this.writeMeta(meta);
     this._onDidChange.fire();
+  }
+
+  /**
+   * P11-T7 — shelve where some files contribute only selected changes.
+   *
+   * The shelved state is assembled in a scratch index (the P11-T3 partial-
+   * commit technique): seed from HEAD, `git add` the whole files (untracked
+   * included — the scratch index is not the real one, so no `add -N` dance is
+   * needed), and write each partial file's *included text* as a blob via
+   * `hash-object -w` + `update-index --cacheinfo` with the mode HEAD records.
+   * `git diff --cached HEAD` then emits a completely ordinary patch — real
+   * context lines, `--binary --full-index` — indistinguishable from a plain
+   * shelve's, so the unshelve engine's `--index`/`--3way` ladder needs no
+   * special casing.
+   *
+   * Removal (plan step 3): whole files keep the verify-then-remove contract
+   * (`git apply --check --reverse` over their sections, then restore/delete);
+   * a partial file's worktree is rewritten to its *residue text* — HEAD plus
+   * the excluded changes, computed byte-exactly by `applyLineChanges` over the
+   * complement. The plan sketched reverse-applying a complement patch instead;
+   * with default context that fails exactly when hunks sit close together,
+   * which is the adjacent-changes case this feature exists for. Recorded as a
+   * deviation.
+   */
+  async shelveSelected(opts: {
+    name: string;
+    comment?: string;
+    /** Whole-file members; may include untracked paths. */
+    wholePaths: readonly string[];
+    partials: ReadonlyArray<{
+      relPath: string;
+      /** HEAD + included changes — the state that goes into the shelf. */
+      includedText: string;
+      /** HEAD + excluded changes — the worktree after removal. */
+      residueText: string;
+    }>;
+    removeFromWorktree?: boolean;
+  }): Promise<ShelveResult> {
+    const name = opts.name.trim();
+    if (name.length === 0) throw new Error('shelf name required');
+    if (opts.wholePaths.length === 0 && opts.partials.length === 0) {
+      throw new Error('nothing to shelve');
+    }
+    const remove = opts.removeFromWorktree === true;
+    const createdAt = Date.now();
+    const id = `${new Date(createdAt).toISOString().replace(/[-:T]/gu, '').slice(0, 14)}-${crypto
+      .randomBytes(3)
+      .toString('hex')}`;
+    const dir = this.entryDir(id);
+    const patchFile = this.patchPath(id);
+    const { repoRoot } = this.deps;
+    const scratchIndex = path.join(dir, 'scratch-index');
+
+    const result = await this.deps.queue.enqueue<ShelveResult>({
+      label: this.deps.progressLabel?.(name) ?? `Shelve: ${name}`,
+      kind: 'mutate',
+      ...(remove
+        ? { isDestructive: true, snapshotLabel: SNAPSHOT_LABELS.shelveWithRemove }
+        : {}),
+      run: async (git, token) => {
+        // Untracked classification BEFORE anything else (file table statuses).
+        const st = await git.exec(
+          repoRoot,
+          ['status', '--porcelain', '-z', '--untracked-files=all'],
+          { structured: true, noOptionalLocks: true, token },
+        );
+        const untrackedSet = new Set<string>();
+        const stEntries = st.stdout.split('\0');
+        for (let i = 0; i < stEntries.length; i++) {
+          const entry = stEntries[i] as string;
+          if (entry.length < 4) continue;
+          if (entry.startsWith('??')) untrackedSet.add(entry.slice(3));
+          if (entry.startsWith('R') || entry.startsWith('C')) i++;
+        }
+
+        fs.mkdirSync(dir, { recursive: true });
+        const env = { GIT_INDEX_FILE: scratchIndex };
+        let files: ShelfFileMeta[];
+        try {
+          await git.exec(repoRoot, ['read-tree', 'HEAD'], { env, token });
+          if (opts.wholePaths.length > 0) {
+            await git.exec(repoRoot, ['add', '--', ...opts.wholePaths], { env, token });
+          }
+          for (const partial of opts.partials) {
+            // Partial inclusion needs both sides, so the path exists in HEAD —
+            // take its mode from there (100644/100755). Plain ls-tree output:
+            // `<mode> blob <oid>\t<path>` — no --format, which needs git 2.36.
+            const lsTree = (
+              await git.exec(repoRoot, ['ls-tree', 'HEAD', '--', partial.relPath], {
+                structured: true,
+                token,
+              })
+            ).stdout.trim();
+            const mode = lsTree.split(' ')[0] ?? '';
+            const oid = (
+              await git.exec(repoRoot, ['hash-object', '-w', '--stdin'], {
+                structured: true,
+                stdin: partial.includedText,
+                token,
+              })
+            ).stdout.trim();
+            await git.exec(
+              repoRoot,
+              [
+                'update-index',
+                '--cacheinfo',
+                `${mode.length > 0 ? mode : '100644'},${oid},${partial.relPath}`,
+              ],
+              { env, token },
+            );
+          }
+          const names = await git.exec(
+            repoRoot,
+            ['diff', '--no-renames', '--name-status', '-z', '--cached', 'HEAD'],
+            { structured: true, env, token },
+          );
+          const nums = await git.exec(
+            repoRoot,
+            ['diff', '--no-renames', '--numstat', '-z', '--cached', 'HEAD'],
+            { structured: true, env, token },
+          );
+          files = buildShelfFiles(names.stdout, nums.stdout, untrackedSet);
+          if (files.length === 0) throw new Error('nothing to shelve');
+          await git.exec(
+            repoRoot,
+            [
+              'diff',
+              '--binary',
+              '--full-index',
+              '--no-renames',
+              `--output=${patchFile}`,
+              '--cached',
+              'HEAD',
+            ],
+            { env, token },
+          );
+        } catch (err) {
+          fs.rmSync(dir, { recursive: true, force: true });
+          throw err;
+        } finally {
+          fs.rmSync(scratchIndex, { force: true });
+          fs.rmSync(`${scratchIndex}.lock`, { force: true });
+        }
+
+        const patchBytes = fs.readFileSync(patchFile);
+        if (patchBytes.length === 0) {
+          fs.rmSync(dir, { recursive: true, force: true });
+          throw new Error('nothing to shelve');
+        }
+        const baseSha = (
+          await git.exec(repoRoot, ['rev-parse', 'HEAD'], { structured: true, token })
+        ).stdout.trim();
+        const branch = (
+          await git.exec(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'], { structured: true, token })
+        ).stdout.trim();
+        const meta: ShelfMeta = {
+          id,
+          name,
+          comment: opts.comment ?? '',
+          createdAt,
+          baseSha,
+          branch,
+          files,
+          untrackedSnapshots: 'embedded',
+          patchSha256: sha256(patchBytes),
+        };
+        this.writeMeta(meta);
+        this.trace(
+          `shelved "${name}" (${files.length} file(s), ${opts.partials.length} partial) → ${dir}`,
+        );
+
+        if (!remove) return { meta, removed: false };
+
+        // Verify-then-remove for the whole-file half: their sections must
+        // provably reverse-apply before any worktree byte is touched. Partial
+        // sections are excluded from the check — their reverse cannot match a
+        // worktree that still holds the excluded changes; their removal is the
+        // deterministic residue write below.
+        const wholeSet = new Set(opts.wholePaths.map((p) => p.replace(/\\/gu, '/')));
+        if (wholeSet.size > 0) {
+          const wholeSections = splitPatchFiles(patchBytes.toString('latin1'))
+            .filter((s) => wholeSet.has(s.relPath))
+            .map((s) => s.text)
+            .join('');
+          const tmp = path.join(dir, 'whole-check.patch');
+          fs.writeFileSync(tmp, Buffer.from(wholeSections, 'latin1'));
+          const check = await git.exec(repoRoot, ['apply', '--check', '--reverse', tmp], {
+            structured: true,
+            allowNonZeroExit: true,
+            token,
+          });
+          fs.rmSync(tmp, { force: true });
+          if (check.exitCode !== 0) {
+            const reason = check.stderr.split('\n')[0] ?? 'git apply --check --reverse failed';
+            this.trace(`shelveSelected "${name}": reverse check failed — removal skipped (${reason})`);
+            return { meta, removed: false, removalSkippedReason: reason };
+          }
+        }
+
+        const wholeMeta = files.filter((f) => wholeSet.has(f.relPath));
+        const restorable = wholeMeta
+          .filter((f) => f.status === 'modified' || f.status === 'deleted')
+          .map((f) => f.relPath);
+        const added = wholeMeta
+          .filter((f) => f.status === 'added' || f.status === 'untracked')
+          .map((f) => f.relPath);
+        if (restorable.length > 0) {
+          await git.exec(
+            repoRoot,
+            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...restorable],
+            { token },
+          );
+        }
+        if (added.length > 0) {
+          await git.exec(repoRoot, ['reset', '-q', '--', ...added], {
+            allowNonZeroExit: true,
+            token,
+          });
+          for (const rel of added) fs.rmSync(path.join(repoRoot, rel), { force: true });
+        }
+        for (const partial of opts.partials) {
+          // Byte-exact residue (CR intact): HEAD + the excluded changes.
+          fs.writeFileSync(path.join(repoRoot, partial.relPath), partial.residueText);
+        }
+        if (opts.partials.length > 0) {
+          // Stage the residue rather than resetting to HEAD: `git apply --3way`
+          // implies `--index` and refuses outright when index ≠ worktree
+          // ("does not match index") — which would break unshelving back onto
+          // the residue, the very case this capability exists for. With
+          // index == worktree the ladder falls through to the recorded-blob
+          // merge; unshelve's `unstageAfterApply` unstages afterwards, and the
+          // changelists paradigm reads staged and unstaged alike.
+          await git.exec(
+            repoRoot,
+            ['add', '--', ...opts.partials.map((p) => p.relPath)],
+            { allowNonZeroExit: true, token },
+          );
+        }
+        return { meta, removed: true };
+      },
+    });
+    this._onDidChange.fire();
+    return result;
   }
 
   /**

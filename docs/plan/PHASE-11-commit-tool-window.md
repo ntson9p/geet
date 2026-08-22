@@ -236,7 +236,7 @@ View `gittree.commit` (webview, `scm` container). Commands
 - [x] S11b — unversioned files are checkable and commit correctly (P11-T3)
 - [x] S12 — `N files` badge on every group and folder node (P11-T2)
 - [x] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees (P11-T6)
-- [ ] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion
+- [x] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion (P11-T7)
 - [x] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities) (P11-T5)
 - [x] Multi-line message editor with working IME, undo, history clock and amend dropdown (P11-T4)
 
@@ -322,6 +322,25 @@ View `gittree.commit` (webview, `scm` container). Commands
   consumed by both surfaces, so they can never disagree about what is listed.
 - **P11-T6 — `Unshelve Silently` uses `deleteAfter: true`,** this codebase's stated IntelliJ
   default (the P7-T5 QuickPick labels), rather than re-litigating P7's semantics.
+- **P11-T7 — the partial patch is produced by git, not by `buildPatch`.** Step 2 says to store
+  a caller-supplied `buildPatch` body; that emits zero-context hunks, which the unshelve
+  engine's `apply --index`/`--3way` ladder cannot consume without `--unidiff-zero`. Instead the
+  shelved state is assembled in a scratch index (the P11-T3 technique: `read-tree HEAD`, `add`
+  whole files, `hash-object`+`update-index` for each partial file's included text) and
+  `git diff --cached HEAD --binary --full-index` writes the patch — ordinary context, ordinary
+  headers, indistinguishable from a plain shelve's, so unshelve needs no special casing.
+- **P11-T7 — removal writes the computed residue instead of reverse-applying a complement
+  patch.** Step 3 names `complementChanges` + `git apply --reverse`; with default context that
+  fails exactly when hunks sit close together — the adjacent-changes case the feature exists
+  for. `complementChanges` still selects the excluded changes; `applyLineChanges` renders
+  HEAD+excluded byte-exactly (CR intact) and the file is written directly. The residue is left
+  **staged**: `git apply --3way` implies `--index` and refuses when index ≠ worktree, which
+  would break unshelving back onto the residue; the changelists paradigm reads staged and
+  unstaged alike, and unshelve's `unstageAfterApply` returns the file to unstaged.
+- **P11-T7 — verify-then-remove is scoped to the whole-file sections.** A partial section's
+  reverse cannot match a worktree that still holds the excluded changes, so the
+  `apply --check --reverse` gate runs over the whole-file sections only; partial removal is the
+  deterministic residue write above, sealed by the same `patchSha256`.
 - **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
   rendering a dead tab that says "coming later" would be a worse affordance than none.
 - **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`

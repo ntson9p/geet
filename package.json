@@ -1038,6 +1038,11 @@
         "icon": "$(eye)"
       },
       {
+        "command": "gittree.shelve.dialog",
+        "title": "%gittree.command.shelve.dialog.title%",
+        "icon": "$(archive)"
+      },
+      {
         "command": "gittree.openWalkthrough",
         "title": "%gittree.command.openWalkthrough.title%",
         "category": "GitTree"
