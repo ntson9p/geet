@@ -494,6 +494,8 @@ export const LOG_METHODS = {
   openFileDiff: 'log/openFileDiff',
   openAllDiffs: 'log/openAllDiffs',
   copy: 'log/copy',
+  /** P12-T1: the one host-side selection model every pane and command reads. */
+  select: 'log/select',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',

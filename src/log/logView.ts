@@ -45,8 +45,20 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private rpc: WebviewRpcHost | undefined;
   private session: Session | undefined;
   private readonly services = new Map<string, LogService>();
+  /** P12-T1: the host-side selection model (`log/select`). */
+  private selected: string[] = [];
   /** Boot breadcrumbs (integration-test observability). */
   readonly debugTrail: string[] = [];
+
+  /** Multi-select in webview order — what commit actions operate on. */
+  get selectedCommits(): readonly string[] {
+    return this.selected;
+  }
+
+  /** Test seam: whether the host answers this webview→host method (P11-T3 pattern). */
+  hasHandler(method: string): boolean {
+    return this.rpc?.hasHandler(method) ?? false;
+  }
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -128,6 +140,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     rpc.on(LOG_METHODS.copy, async (params) => {
       const { text } = params as { text: string };
       await vscode.env.clipboard.writeText(text);
+      return { ok: true };
+    });
+    // P12-T1: the selection lives host-side so "Compare", "Squash", "Push all
+    // up to here" and the panes all read one model instead of racing copies.
+    rpc.on(LOG_METHODS.select, (params) => {
+      const { shas } = params as { shas: string[] };
+      this.selected = Array.isArray(shas) ? shas.filter((s) => typeof s === 'string') : [];
       return { ok: true };
     });
 

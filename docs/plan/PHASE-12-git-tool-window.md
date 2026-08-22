@@ -195,6 +195,15 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - [ ] `Reset → Keep` alongside Soft/Mixed/Hard
 - [ ] §3.9 patches: `format-patch` create + `am`/`apply --3way` apply, round-trip verified
 
+## Deviations (recorded as tasks land)
+- **P12-T1 — the tab strip ships with `Log` only.** The `Console` tab arrives with T8; a dead
+  tab would be a worse affordance than none (the P11-T2 precedent, applied again).
+- **P12-T1 — the Commits pane does not collapse.** It is the window's centre (IntelliJ's centre
+  has no collapse either), and folding it would unmount the sized graph container. The other
+  three panes fold to slim bars, IntelliJ-style, and keep their state because they only hide.
+- **P12-T1 — `gittree.log.focus` (`alt+9`) focuses the window; the "last active tab" half of
+  step 1 becomes meaningful when a second tab exists (T8).**
+
 ## Planned deviations
 - **`Show Repository at Revision` opens a tree view, not a second project window.** IntelliJ
   opens a full project frame at that revision; VS Code has no equivalent, and mutating

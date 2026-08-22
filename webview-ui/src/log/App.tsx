@@ -1,8 +1,11 @@
 /**
- * Log tool window (P4-T3): filter bar · graph+rows · details panel.
- * Rows in VirtualList with a canvas graph layer; infinite scroll pages over
- * RPC; selection feeds data-vscode-context for native menus; state persists
- * via getState/setState with host rehydrate.
+ * Git tool window (P12-T1, over the P4 machinery): `Log` tab → filter bar →
+ * the §2A four-pane layout `[Branches | Commits] | [Changed Files / Commit
+ * Details]`, every ratio and collapse persisted. Rows stay in a VirtualList
+ * with the canvas graph layer; infinite scroll pages over RPC; the selection
+ * is mirrored host-side (`log/select`) so multi-commit actions read one model.
+ * The `Console` tab arrives with P12-T8 — a dead tab is a worse affordance
+ * than none (the P11-T2 precedent).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -15,18 +18,25 @@ import {
   type LogRowDto,
 } from '../../../src/shared/protocol';
 import { RpcClient } from '../lib/rpc';
+import { TabPanel, Tabs } from '../lib/Tabs';
+import { ToolbarButton } from '../lib/Toolbar';
 import { useVsCodeTheme } from '../lib/useVsCodeTheme';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import { getVsCodeApi } from '../lib/vscodeApi';
+import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
 import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
 import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
+import { DEFAULT_LAYOUT, Shell, type ShellLayout } from './Shell';
 
 const ROW_HEIGHT = 24;
 
 interface PersistedState {
   filter?: LogFilterDto;
   focusSha?: string;
+  /** P12-T1: pane ratios + collapse flags, restored exactly across reload. */
+  layout?: ShellLayout;
+  filesRollup?: boolean;
 }
 
 function relativeDate(unixSeconds: number): string {
@@ -57,11 +67,31 @@ export function App() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  // P12-T1: layout + pane preferences, persisted with the filter.
+  const boot = useMemo(() => (getVsCodeApi().getState() as PersistedState | undefined) ?? {}, []);
+  const [layout, setLayout] = useState<ShellLayout>(boot.layout ?? DEFAULT_LAYOUT);
+  const [filesRollup, setFilesRollup] = useState(boot.filesRollup ?? true);
 
   const filter = init?.filter ?? { sort: 'topo', refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const pageRef = useRef({ next: 0, loading: false, eof: false });
+
+  /** Merge-persist: layout, filter and focus share one state bag. */
+  const persist = useCallback((patch: Partial<PersistedState>) => {
+    const prev = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
+    getVsCodeApi().setState({ ...prev, ...patch });
+  }, []);
+
+  useEffect(() => {
+    persist({ layout, filesRollup });
+  }, [filesRollup, layout, persist]);
+
+  // P12-T1: the selection is one host-side model — every pane and every
+  // command reads the same list, pushed here on each change.
+  useEffect(() => {
+    void rpc.request(LOG_METHODS.select, { shas: selected }).catch(() => undefined);
+  }, [rpc, selected]);
 
   // ---- container sizing ----
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -185,10 +215,10 @@ export function App() {
       const row = rowsRef.current[index];
       if (!row) return;
       setSelected([row.sha]);
-      getVsCodeApi().setState({ filter, focusSha: row.sha } satisfies PersistedState);
+      persist({ filter, focusSha: row.sha });
       void loadDetails(row.sha);
     },
-    [filter, loadDetails],
+    [filter, loadDetails, persist],
   );
 
   const onRowClick = useCallback(
@@ -224,10 +254,10 @@ export function App() {
 
   const applyFilter = useCallback(
     (next: LogFilterDto) => {
-      getVsCodeApi().setState({ filter: next } satisfies PersistedState);
+      persist({ filter: next });
       void rpc.request(LOG_METHODS.setFilter, { filter: next });
     },
-    [rpc],
+    [persist, rpc],
   );
 
   if (!init) {
@@ -239,33 +269,18 @@ export function App() {
   const graphWidth = Math.min((maxLane + 1) * laneWidth + 8, 220);
   const listHeight = Math.max(size.height, 100);
 
-  return (
-    <div className="gt-log-root">
-      <FilterBar
-        filter={filter}
-        onChange={applyFilter}
-        onPickBranches={() => void rpc.request(LOG_METHODS.pickBranches)}
-        onPickAuthors={() => void rpc.request(LOG_METHODS.pickAuthors)}
-        onPickDates={() => void rpc.request(LOG_METHODS.pickDates)}
-        onPickPaths={() => void rpc.request(LOG_METHODS.pickPaths)}
-        searchInputRef={searchInputRef}
+  const commitsPane = (
+    <div className="gt-log-rows" ref={containerRef} data-testid="log-rows">
+      <GraphCanvas
+        rows={rows}
+        viewport={viewport}
+        rowHeight={ROW_HEIGHT}
+        laneWidth={laneWidth}
+        width={graphWidth}
+        height={listHeight}
+        palette={init.graphPalette ?? 'default'}
       />
-      {/* P10-T2: async loads announced to screen readers. */}
-      <div className="gt-visually-hidden" aria-live="polite" data-testid="log-status">
-        {loading ? 'Loading commits…' : `${rows.length} commits loaded${eof ? ', end of history' : ''}`}
-      </div>
-      <div className="gt-log-main">
-        <div className="gt-log-rows" ref={containerRef} data-testid="log-rows">
-          <GraphCanvas
-            rows={rows}
-            viewport={viewport}
-            rowHeight={ROW_HEIGHT}
-            laneWidth={laneWidth}
-            width={graphWidth}
-            height={listHeight}
-            palette={init.graphPalette ?? 'default'}
-          />
-          <VirtualList
+      <VirtualList
             ref={listRef}
             rowCount={rows.length + (eof ? 0 : 1)}
             rowHeight={ROW_HEIGHT}
@@ -334,37 +349,79 @@ export function App() {
               );
             }}
           />
-        </div>
-        <DetailsPanelHost
-          rpc={rpc}
-          details={details}
-          loading={detailsLoading}
-        />
-      </div>
     </div>
   );
-}
 
-function DetailsPanelHost({
-  rpc,
-  details,
-  loading,
-}: {
-  rpc: RpcClient;
-  details: CommitDetailsDto | undefined;
-  loading: boolean;
-}) {
   return (
-    <DetailsPanel
-      details={details}
-      loading={loading}
-      onOpenFile={(file: CommitFileDto) => {
-        if (details) void rpc.request(LOG_METHODS.openFileDiff, { sha: details.sha, file });
-      }}
-      onOpenAll={() => {
-        if (details) void rpc.request(LOG_METHODS.openAllDiffs, { sha: details.sha });
-      }}
-      onCopySha={(sha: string) => void rpc.request(LOG_METHODS.copy, { text: sha })}
-    />
+    <div className="gt-log-root">
+      <Tabs
+        ariaLabel="Git tool window"
+        active="log"
+        onChange={() => undefined}
+        tabs={[{ id: 'log', label: 'Log' }]}
+      />
+      <TabPanel id="log" active="log" className="gt-log-tabpanel">
+        <FilterBar
+          filter={filter}
+          onChange={applyFilter}
+          onPickBranches={() => void rpc.request(LOG_METHODS.pickBranches)}
+          onPickAuthors={() => void rpc.request(LOG_METHODS.pickAuthors)}
+          onPickDates={() => void rpc.request(LOG_METHODS.pickDates)}
+          onPickPaths={() => void rpc.request(LOG_METHODS.pickPaths)}
+          searchInputRef={searchInputRef}
+        />
+        {/* P10-T2: async loads announced to screen readers. */}
+        <div className="gt-visually-hidden" aria-live="polite" data-testid="log-status">
+          {loading ? 'Loading commits…' : `${rows.length} commits loaded${eof ? ', end of history' : ''}`}
+        </div>
+        <Shell
+          layout={layout}
+          onLayoutChange={setLayout}
+          branches={
+            <div className="gt-pane-empty gt-muted" data-testid="branches-stub">
+              Branch filtering arrives with the Branches pane (P12-T2).
+            </div>
+          }
+          commits={commitsPane}
+          files={
+            <ChangedFilesPane
+              details={details}
+              loading={detailsLoading}
+              rollup={filesRollup}
+              onOpenFile={(file: CommitFileDto) => {
+                if (details) void rpc.request(LOG_METHODS.openFileDiff, { sha: details.sha, file });
+              }}
+            />
+          }
+          details={
+            <DetailsPanel
+              details={details}
+              loading={detailsLoading}
+              onCopySha={(sha: string) => void rpc.request(LOG_METHODS.copy, { text: sha })}
+            />
+          }
+          toolbars={{
+            files: (
+              <>
+                <span className="gt-pane-count gt-muted">{changedFilesLabel(details)}</span>
+                <ToolbarButton
+                  icon="diff-multiple"
+                  label="Show all files in multi-diff"
+                  disabled={!details}
+                  onClick={() => {
+                    if (details) void rpc.request(LOG_METHODS.openAllDiffs, { sha: details.sha });
+                  }}
+                />
+                <ToolbarButton
+                  icon={filesRollup ? 'list-tree' : 'list-flat'}
+                  label={filesRollup ? 'Flat file list' : 'Group by folder'}
+                  onClick={() => setFilesRollup((v) => !v)}
+                />
+              </>
+            ),
+          }}
+        />
+      </TabPanel>
+    </div>
   );
 }

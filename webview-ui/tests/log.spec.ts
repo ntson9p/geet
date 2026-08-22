@@ -61,15 +61,18 @@ test.describe('P4-T3/T4 log webview', () => {
     expect(parsedMulti.shas.length).toBe(2);
   });
 
-  test('details panel loads on selection; file click posts openFileDiff', async ({ page }) => {
+  test('selection fills Commit Details and Changed Files; file click posts openFileDiff', async ({ page }) => {
     await openLog(page);
     await page.locator('[data-gt-row="1"]').click();
+    // P12-T1: the right column is two panes — meta in Details, files in
+    // Changed Files — both fed by the same selection.
     const details = page.getByTestId('details-panel');
     await expect(details).toContainText('Alice');
-    await expect(details).toContainText('src/app.ts');
-    await expect(details).toContainText('src/old.ts'); // rename pair visible
+    const files = page.getByTestId('changed-files');
+    await expect(files).toContainText('src/app.ts');
+    await expect(files).toContainText('src/old.ts'); // rename pair visible
 
-    await details.getByRole('listitem').first().click();
+    await files.getByRole('listitem').first().click();
     const msgs = await posted(page);
     expect(msgs.some((m) => m.method === 'log/openFileDiff')).toBe(true);
   });
@@ -101,8 +104,8 @@ test.describe('P4-T3/T4 log webview', () => {
 
   test('chip pickers delegate to the host', async ({ page }) => {
     await openLog(page);
-    await page.getByRole('button', { name: 'Branch' }).click();
-    await page.getByRole('button', { name: 'User' }).click();
+    await page.getByRole('button', { name: 'Branch', exact: true }).click();
+    await page.getByRole('button', { name: 'User', exact: true }).click();
     const msgs = await posted(page);
     expect(msgs.some((m) => m.method === 'log/pickBranches')).toBe(true);
     expect(msgs.some((m) => m.method === 'log/pickAuthors')).toBe(true);
@@ -141,6 +144,89 @@ test.describe('P4-T3/T4 log webview', () => {
     const plain = await page.locator('[data-gt-row="1"]').getAttribute('aria-label');
     expect(plain).toContain('commit commit 1 by Bob');
     expect(plain).not.toContain('branch');
+  });
+
+  test('P12-T1: four named panes render inside the Log tab', async ({ page }) => {
+    await openLog(page);
+    await expect(page.getByRole('tab', { name: 'Log' })).toBeVisible();
+    for (const id of ['branches', 'commits', 'files', 'details']) {
+      await expect(page.getByTestId(`pane-${id}`)).toBeVisible();
+    }
+    // Screen readers hear the pane names from the headers.
+    await expect(page.locator('[data-pane-header="branches"]')).toHaveAttribute(
+      'aria-label',
+      'Branches pane',
+    );
+    // The centre pane never collapses; the side panes carry the chevron.
+    await expect(
+      page.getByTestId('pane-commits').getByRole('button', { name: /Collapse/ }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId('pane-branches').getByRole('button', { name: 'Collapse Branches' }),
+    ).toHaveCount(1);
+  });
+
+  test('P12-T1: Tab cycles the pane headers with a visible focus model', async ({ page }) => {
+    await openLog(page);
+    await page.locator('[data-pane-header="branches"]').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-pane-header="commits"]')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-pane-header="files"]')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-pane-header="details"]')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-pane-header="branches"]')).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.locator('[data-pane-header="details"]')).toBeFocused();
+  });
+
+  test('P12-T1: collapsing a pane folds it to a bar and keeps its state', async ({ page }) => {
+    await openLog(page);
+    // Select a commit so the panes hold state worth keeping.
+    await page.locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('changed-files')).toContainText('src/app.ts');
+
+    await page
+      .getByTestId('pane-details')
+      .getByRole('button', { name: 'Collapse Commit Details' })
+      .click();
+    await expect(page.getByTestId('pane-details')).toHaveCount(0);
+    await expect(page.getByTestId('pane-details-collapsed')).toBeVisible();
+    // The sibling keeps working while its neighbour is folded.
+    await expect(page.getByTestId('changed-files')).toContainText('src/app.ts');
+
+    await page.getByRole('button', { name: 'Expand Commit Details' }).click();
+    await expect(page.getByTestId('details-panel')).toContainText('Alice');
+  });
+
+  test('P12-T1: layout ratios and collapse flags survive a reload', async ({ page }) => {
+    await openLog(page);
+    await page
+      .getByTestId('pane-branches')
+      .getByRole('button', { name: 'Collapse Branches' })
+      .click();
+    await expect(page.getByTestId('pane-branches-collapsed')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByTestId('log-row-0')).toBeVisible();
+    // The collapse came back from persisted state, not from defaults.
+    await expect(page.getByTestId('pane-branches-collapsed')).toBeVisible();
+    await page.getByRole('button', { name: 'Expand Branches' }).click();
+    await expect(page.getByTestId('pane-branches')).toBeVisible();
+  });
+
+  test('P12-T1: the selection is mirrored to the host as one model', async ({ page }) => {
+    await openLog(page);
+    await page.locator('[data-gt-row="2"]').click();
+    await page.locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
+    await expect
+      .poll(async () => {
+        const selects = (await posted(page)).filter((m) => m.method === 'log/select');
+        const last = selects.at(-1)?.params as { shas?: string[] } | undefined;
+        return last?.shas?.length;
+      })
+      .toBe(2);
   });
 
   test('P10-T2: colorBlind palette drives ref-chip and graph colors', async ({ page }) => {

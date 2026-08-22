@@ -66,8 +66,19 @@ export const mockLogHostScript = `
           res({ ok: true });
       }
     },
-    getState() { return state; },
-    setState(s) { state = s; },
+    // Webview state survives a reload in the product; the mock stores it where
+    // a reload can find it, or layout-persistence tests prove nothing.
+    getState() {
+      if (state === undefined) {
+        const raw = sessionStorage.getItem('gt-mock-log-state');
+        state = raw ? JSON.parse(raw) : undefined;
+      }
+      return state;
+    },
+    setState(s) {
+      state = s;
+      sessionStorage.setItem('gt-mock-log-state', JSON.stringify(s));
+    },
   };
   window.acquireVsCodeApi = () => api;
 })();
