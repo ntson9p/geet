@@ -217,7 +217,20 @@
       {
         "title": "%gittree.config.commit.title%",
         "properties": {
-          "gittree.commit.paradigm": {
+          "gittree.commit.window": {
+          "type": "string",
+          "enum": [
+            "webview",
+            "native"
+          ],
+          "enumDescriptions": [
+            "%gittree.config.commit.window.webview%",
+            "%gittree.config.commit.window.native%"
+          ],
+          "default": "webview",
+          "description": "%gittree.config.commit.window.description%"
+        },
+        "gittree.commit.paradigm": {
             "type": "string",
             "enum": [
               "changelists",
@@ -2076,11 +2089,19 @@
       ],
       "scm": [
         {
+          "id": "gittree.commit",
+          "type": "webview",
+          "name": "%gittree.view.commit.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(check-all)",
+          "when": "gittree.commitWindow == webview"
+        },
+        {
           "id": "gittree.changelists",
           "name": "%gittree.view.changelists.name%",
           "contextualTitle": "GitTree",
           "icon": "$(checklist)",
-          "when": "gittree.paradigm == changelists"
+          "when": "gittree.paradigm == changelists && gittree.commitWindow == native"
         },
         {
           "id": "gittree.branches",

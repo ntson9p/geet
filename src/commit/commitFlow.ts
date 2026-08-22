@@ -13,6 +13,7 @@ import { confirmModal } from '../ui/confirm';
 import type { ChangelistService } from './changelists/changelistService';
 import type { CheckPipeline } from './checks/pipeline';
 import { CommitService, describeGpgFailure } from './commitService';
+import type { CommitMessageBox } from './messageBox';
 import type { MessageHistory } from './messageHistory';
 import type { ParadigmManager } from './paradigmManager';
 import { GitError } from '../core/git/errors';
@@ -24,7 +25,8 @@ export interface CommitFlowDeps {
   pipeline: CheckPipeline;
   history: MessageHistory;
   changelistsFor: (repo: RepoHandle) => ChangelistService;
-  inputBoxFor: (repo: RepoHandle) => vscode.SourceControlInputBox | undefined;
+  /** P11-T2: widened from SourceControlInputBox so the commit window can own it. */
+  inputBoxFor: (repo: RepoHandle) => CommitMessageBox | undefined;
 }
 
 interface CommitTarget {

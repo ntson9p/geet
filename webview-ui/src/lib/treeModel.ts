@@ -41,6 +41,12 @@ export interface BuildTreeOptions {
   readonly root?: { readonly path: string; readonly name: string };
   /** Collapse single-child directory chains. IntelliJ does; default true. */
   readonly collapseChains?: boolean;
+  /**
+   * Namespace applied to every node's `path` — identity only, never the label.
+   * Two changelists in one repo can both contain `api/`, and without this their
+   * directory rows would share an expansion key and a rollup.
+   */
+  readonly pathPrefix?: string;
 }
 
 /** Path→segments, tolerant of Windows separators and redundant slashes. */
@@ -67,12 +73,15 @@ function compareNames(a: string, b: string): number {
 
 interface Trie {
   readonly dirs: Map<string, Trie>;
-  /** Leaf name → full normalized path. */
-  readonly files: Map<string, string>;
+  readonly files: Set<string>;
 }
 
 function emptyTrie(): Trie {
-  return { dirs: new Map(), files: new Map() };
+  return { dirs: new Map(), files: new Set() };
+}
+
+function join(prefix: string, name: string): string {
+  return prefix === '' ? name : `${prefix}/${name}`;
 }
 
 /**
@@ -97,10 +106,10 @@ export function buildTree(paths: readonly string[], options: BuildTreeOptions = 
       }
       node = next;
     }
-    node.files.set(fileName, parts.join('/'));
+    node.files.add(fileName);
   }
 
-  const top = toNodes(trie, '', options.root ? 1 : 0, collapse);
+  const top = toNodes(trie, options.pathPrefix ?? '', options.root ? 1 : 0, collapse);
   if (!options.root) return top;
   return [
     {
@@ -118,7 +127,7 @@ function toNodes(trie: Trie, prefix: string, depth: number, collapse: boolean): 
   const dirs: TreeDirNode[] = [];
   for (const name of [...trie.dirs.keys()].sort(compareNames)) {
     let label = name;
-    let path = prefix === '' ? name : `${prefix}/${name}`;
+    let path = join(prefix, name);
     let sub = trie.dirs.get(name) as Trie;
     // Collapse `a` → `a/b` → `a/b/c` while each level holds exactly one
     // directory and no files of its own.
@@ -139,9 +148,9 @@ function toNodes(trie: Trie, prefix: string, depth: number, collapse: boolean): 
     });
   }
 
-  const files: TreeFileNode[] = [...trie.files.keys()].sort(compareNames).map((name) => ({
+  const files: TreeFileNode[] = [...trie.files].sort(compareNames).map((name) => ({
     kind: 'file' as const,
-    path: trie.files.get(name) as string,
+    path: join(prefix, name),
     name,
     depth,
   }));

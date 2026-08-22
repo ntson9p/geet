@@ -9,10 +9,13 @@ import { defineConfig } from 'vite';
  * required for vscode-webview resource URIs. No CDN resources, ever.
  */
 const apps: Record<string, string> = {
+  commit: path.resolve(__dirname, 'src/commit/main.tsx'),
   demo: path.resolve(__dirname, 'src/demo/main.tsx'),
   log: path.resolve(__dirname, 'src/log/main.tsx'),
   rebase: path.resolve(__dirname, 'src/rebase/main.tsx'),
   // pr:     added in P8
+  // NOTE: `kit` is deliberately absent — kit.html is a dev/Playwright harness
+  // for the P11-T1 shared components and must never enter dist/webviews.
 };
 
 export default defineConfig({

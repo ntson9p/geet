@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { repoIdentityHash } from '../core/util/repoIdentity';
+import type { CommitMessageBox } from './messageBox';
 
 const RING_SIZE = 50;
 
@@ -40,7 +41,7 @@ export class MessageHistory {
     await this.globalState.update(key, entries.slice(0, RING_SIZE));
   }
 
-  async showPicker(repo: RepoHandle, inputBox: vscode.SourceControlInputBox): Promise<void> {
+  async showPicker(repo: RepoHandle, inputBox: CommitMessageBox): Promise<void> {
     const entries = await this.entries(repo);
     if (entries.length === 0) {
       void vscode.window.showInformationMessage(vscode.l10n.t('No commit message history yet.'));
@@ -58,7 +59,7 @@ export class MessageHistory {
   }
 
   /** commit.template prefill when the input is empty (P3-T6 step 3). */
-  async applyTemplate(repo: RepoHandle, inputBox: vscode.SourceControlInputBox): Promise<void> {
+  async applyTemplate(repo: RepoHandle, inputBox: CommitMessageBox): Promise<void> {
     if (inputBox.value.trim().length > 0) return;
     const result = await repo.queue.enqueue({
       label: 'read commit.template',

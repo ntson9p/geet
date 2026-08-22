@@ -19,9 +19,11 @@ import { reformatCheck } from './checks/reformat';
 import { todoCheck } from './checks/todo';
 import { runCommitFlow, type CommitFlowDeps } from './commitFlow';
 import { CommitService } from './commitService';
+import type { CommitMessageBox } from './messageBox';
 import { MessageHistory } from './messageHistory';
 import { ParadigmManager } from './paradigmManager';
 import { registerStagingOps } from './staging/stagingOps';
+import { CommitWindowViewProvider } from './window/commitWindowView';
 
 export interface Phase03Registry {
   paradigm: ParadigmManager;
@@ -30,6 +32,10 @@ export interface Phase03Registry {
   history: MessageHistory;
   changelistsFor: (repo: RepoHandle) => ChangelistService;
   viewProvider: ChangelistsViewProvider;
+  /** P11-T2 — the commit tool window; undefined has no meaning, it is always built. */
+  commitWindow: CommitWindowViewProvider;
+  /** P11-T2 — resolved commit surface (`gittree.commit.window`). */
+  commitWindowMode: () => 'webview' | 'native';
 }
 
 export function registerPhase03(context: vscode.ExtensionContext, core: Core): Phase03Registry {
@@ -92,6 +98,32 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   ]);
   const history = new MessageHistory(core, context.globalState);
 
+  // ---- P11-T2: commit tool window -----------------------------------------
+  // `webview` is the default surface; `native` restores the P3 SCM view + input
+  // box untouched, which is the escape hatch for the master §6 objection.
+  const commitWindowMode = (): 'webview' | 'native' =>
+    vscode.workspace.getConfiguration('gittree').get<string>('commit.window') === 'native'
+      ? 'native'
+      : 'webview';
+
+  const commitWindow = new CommitWindowViewProvider({
+    context,
+    core,
+    changelistsFor,
+    commitService,
+    history,
+    paradigm,
+    runCommit: (repo, options) => runCommitFlow(flowDeps, repo, options),
+  });
+  context.subscriptions.push(commitWindow);
+
+  /**
+   * One accessor for "where the commit message lives". Everything that reads or
+   * writes a message goes through it, so the two surfaces cannot diverge.
+   */
+  const messageBoxFor = (repo: RepoHandle): CommitMessageBox | undefined =>
+    commitWindowMode() === 'webview' ? commitWindow.messageBoxFor(repo) : scFor(repo)?.sc.inputBox;
+
   const flowDeps: CommitFlowDeps = {
     core,
     paradigm,
@@ -99,8 +131,35 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     pipeline,
     history,
     changelistsFor,
-    inputBoxFor: (repo) => scFor(repo)?.sc.inputBox,
+    inputBoxFor: messageBoxFor,
   };
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(CommitWindowViewProvider.viewType, commitWindow, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  );
+
+  /** Drives the `when` clauses and hides the now-redundant SCM input box. */
+  const applyWindowMode = (): void => {
+    const mode = commitWindowMode();
+    void vscode.commands.executeCommand('setContext', 'gittree.commitWindow', mode);
+    for (const repo of core.repos) {
+      const box = scFor(repo)?.sc.inputBox;
+      if (box) box.visible = mode === 'native';
+    }
+  };
+  applyWindowMode();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gittree.commit.window')) {
+        applyWindowMode();
+        commitWindow.push();
+      }
+    }),
+  );
+  const modeSub = core.onDidAddRepo(() => applyWindowMode());
+  context.subscriptions.push(new vscode.Disposable(() => modeSub.dispose()));
 
   const pickRepo = (arg?: unknown): RepoHandle | undefined => {
     if (typeof arg === 'string') return core.getRepo(arg);
@@ -126,7 +185,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     if (!commitService.isAmend(repo)) {
       const result = await commitService.toggleAmend(repo);
       if (!result.amend) return;
-      const input = scFor(repo)?.sc.inputBox;
+      const input = messageBoxFor(repo);
       if (input && input.value.trim().length === 0 && result.previousMessage !== undefined) {
         input.value = result.previousMessage;
       }
@@ -137,10 +196,11 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const repo = pickRepo(repoRoot);
     if (!repo) return;
     const result = await commitService.toggleAmend(repo);
-    const input = scFor(repo)?.sc.inputBox;
+    const input = messageBoxFor(repo);
     if (result.amend && input && input.value.trim().length === 0 && result.previousMessage !== undefined) {
       input.value = result.previousMessage;
     }
+    commitWindow.push();
   });
   register('gittree.commit.toggleSign', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
@@ -155,7 +215,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   register('gittree.commit.configureChecks', () => configureChecks(pipeline));
   register('gittree.commit.showMessageHistory', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
-    const input = repo ? scFor(repo)?.sc.inputBox : undefined;
+    const input = repo ? messageBoxFor(repo) : undefined;
     if (repo && input) await history.showPicker(repo, input);
   });
 
@@ -275,12 +335,19 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
         title: vscode.l10n.t('Commit'),
         arguments: [repo.root],
       };
-      void history.applyTemplate(repo, sc.sc.inputBox);
     }
+    const box = messageBoxFor(repo);
+    if (box) void history.applyTemplate(repo, box);
   };
   for (const repo of core.repos) attach(repo);
   const addSub2 = core.onDidAddRepo((repo) => attach(repo));
   context.subscriptions.push(new vscode.Disposable(() => addSub2.dispose()));
+
+  register('gittree.commit.window.toggle', async () => {
+    const config = vscode.workspace.getConfiguration('gittree');
+    const next = commitWindowMode() === 'webview' ? 'native' : 'webview';
+    await config.update('commit.window', next, vscode.ConfigurationTarget.Global);
+  });
 
   const registry: Phase03Registry = {
     paradigm,
@@ -289,6 +356,8 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     history,
     changelistsFor,
     viewProvider,
+    commitWindow,
+    commitWindowMode,
   };
   core.debugRegistry.set('phase03', registry);
   return registry;

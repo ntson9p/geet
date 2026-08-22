@@ -1,0 +1,78 @@
+/* Commit tool window (P11-T2) — the left-docked panel from gap analysis §2A.
+   The whole window is one flex column: tabs, toolbar, a tree that takes all
+   remaining height, and a fixed bottom block. Only --vscode-* colors. */
+
+.gt-commit {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
+.gt-commit-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The tree owns the slack so the message editor never scrolls off. */
+.gt-commit-tree {
+  flex: 1 1 auto;
+  min-height: 60px;
+  overflow: hidden;
+}
+
+.gt-commit-empty {
+  padding: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.gt-commit-error {
+  padding: 6px 10px;
+  border-top: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
+  background: var(--vscode-inputValidation-errorBackground, transparent);
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+  white-space: pre-wrap;
+}
+
+.gt-commit-bottom {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-commit-amend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gt-muted {
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Right-aligned, mirroring IntelliJ's "1 modified" readout. */
+.gt-commit-counter {
+  margin-left: auto;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/* Multi-line by default — the single-line SCM input box is exactly what the
+   commit window exists to replace. */
+.gt-commit-message {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 5.5em;
+  font-family: var(--vscode-font-family);
+}
+
+.gt-commit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

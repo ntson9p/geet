@@ -44,6 +44,24 @@ export function workspaceRepoC(): string {
   return p;
 }
 
+/**
+ * Pins the commit surface for a suite (P11-T2). The shared window carries one
+ * setting across every suite, so any suite that reads or writes a commit
+ * message must say which surface it means:
+ *   - `native`  — the P1/P3/P5 SCM input box (`sc.inputBox.value`);
+ *   - `webview` — the commit tool window's own editor.
+ * Both are supported product modes, so both stay covered.
+ */
+export async function useCommitWindow(mode: 'webview' | 'native'): Promise<void> {
+  const config = vscode.workspace.getConfiguration('gittree');
+  if (config.get<string>('commit.window') === mode) return;
+  await config.update('commit.window', mode, vscode.ConfigurationTarget.Global);
+  await waitFor(
+    () => vscode.workspace.getConfiguration('gittree').get<string>('commit.window') === mode,
+    10_000,
+  );
+}
+
 export async function waitFor(cond: () => boolean, timeoutMs = 5000, stepMs = 25): Promise<void> {
   const start = Date.now();
   while (!cond()) {

@@ -116,20 +116,32 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
       onFocusIndex?.(i);
       scrollToIndex(i);
       pendingFocus.current = i;
+      // A jump outside the rendered window unmounts the row that currently
+      // holds focus, and focus falls to <body> for the frames it takes the
+      // list to re-window — every keystroke in that gap is swallowed. Park
+      // focus on the container synchronously, before that re-render happens.
+      const host = containerRef.current;
+      if (host && !host.querySelector(`[data-gt-row="${i}"]`)) host.focus();
       // After a long jump the target row renders only once the scroll event
       // has re-windowed the list — retry across a few frames, and never let
       // focus escape to <body> (that would kill keyboard navigation).
       const tryFocus = (attempt: number): void => {
         if (pendingFocus.current !== i) return; // superseded by a newer call
-        const row = containerRef.current?.querySelector<HTMLElement>(`[data-gt-row="${i}"]`);
+        const el = containerRef.current;
+        const row = el?.querySelector<HTMLElement>(`[data-gt-row="${i}"]`);
         if (row) {
           pendingFocus.current = undefined;
           row.focus();
-        } else if (attempt < 20) {
+          return;
+        }
+        // Still windowing in. Focus was parked on the container synchronously
+        // above; re-park only if something knocked it out to <body>.
+        if (el && document.activeElement === document.body) el.focus();
+        if (attempt < 20) {
           requestAnimationFrame(() => tryFocus(attempt + 1));
         } else {
           pendingFocus.current = undefined;
-          containerRef.current?.focus();
+          el?.focus();
         }
       };
       requestAnimationFrame(() => tryFocus(0));

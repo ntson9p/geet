@@ -7,7 +7,7 @@ import type { Phase03Registry } from '../../../src/commit/register';
 import type { Phase01Registry } from '../../../src/scm/register';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGitTree, gitWithRetry, useCommitWindow, waitFor, workspaceRepoC } from '../setup';
 
 /** Phase 3 acceptance on workspace repoC (dedicated to this suite). */
 suite('P3 commit lifecycle', () => {
@@ -32,6 +32,10 @@ suite('P3 commit lifecycle', () => {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
     const core = await activateGitTree();
+    // P11-T2: this suite asserts against the native SCM input box, so pin the
+    // native commit surface. The webview surface has its own suite (phase11).
+    await useCommitWindow('native');
+
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
     fsRoot = repo.root;

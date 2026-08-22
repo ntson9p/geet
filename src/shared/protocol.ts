@@ -56,6 +56,88 @@ export interface LineChangeDto {
   modifiedEndLineNumber: number;
 }
 
+// ---------------------------------------------------------------------------
+// Commit tool window (P11-T2) — host ⇄ webview DTOs
+// ---------------------------------------------------------------------------
+
+export interface CommitChangeDto {
+  /** Repo-relative, forward slashes — the identity for checked/selected sets. */
+  path: string;
+  /** Two-char porcelain code (`M.`, `.M`, `??`, `R.`, `UU`). */
+  code: string;
+  /** Coarse class driving the row colour. */
+  kind: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
+  checked: boolean;
+  origPath?: string;
+}
+
+export interface CommitGroupDto {
+  /** Changelist id, or the sentinel for the Unversioned Files group. */
+  id: string;
+  name: string;
+  comment?: string;
+  isActive: boolean;
+  isDefault: boolean;
+  /**
+   * False for Unversioned Files until P11-T3 makes untracked files tickable —
+   * rendering an inert checkbox would be worse than rendering none.
+   */
+  checkable: boolean;
+  changes: CommitChangeDto[];
+}
+
+export interface CommitRepoDto {
+  root: string;
+  label: string;
+  groups: CommitGroupDto[];
+}
+
+export interface CommitStateDto {
+  repos: CommitRepoDto[];
+  /** Repo the message box and buttons act on. */
+  activeRepo?: string;
+  message: string;
+  amend: boolean;
+  /** Subject of the commit being amended, shown beside the checkbox. */
+  amendSubject?: string;
+  signing: boolean;
+  /** A mutation is running — the action buttons disable rather than queue. */
+  busy: boolean;
+  /** The `N modified` counter above the message editor. */
+  modifiedCount: number;
+  checkedCount: number;
+  paradigm: 'changelists' | 'staging';
+  error?: string;
+}
+
+export const COMMIT_METHODS = {
+  /** webview → host */
+  init: 'commit/init',
+  setChecked: 'commit/setChecked',
+  setMessage: 'commit/setMessage',
+  commit: 'commit/commit',
+  toggleAmend: 'commit/toggleAmend',
+  refresh: 'commit/refresh',
+  openDiff: 'commit/openDiff',
+  rollback: 'commit/rollback',
+  shelve: 'commit/shelve',
+  showOptions: 'commit/showOptions',
+  showHistory: 'commit/showHistory',
+  /** host → webview */
+  evtState: 'commit/state',
+} as const;
+
+export interface CommitSetCheckedParamsDto {
+  repoRoot: string;
+  paths: string[];
+  checked: boolean;
+}
+
+export interface CommitRunParamsDto {
+  repoRoot: string;
+  andPush: boolean;
+}
+
 export const DIALOG_METHODS = {
   /** webview→host, request: returns the dialog's initial params. */
   init: 'dialog/init',

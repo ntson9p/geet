@@ -231,16 +231,24 @@ View `gittree.commit` (webview, `scm` container). Commands
 `gittree.commitWindow == native` added to `gittree.changelists` and `gittree.shelf`.
 
 ## Parity checklist (gap-analysis S1, S11, S12, S13, S14 · FEATURES.md §3)
-- [ ] S1 — one panel holding tree + toolbar + message editor + amend + gear + action buttons
+- [x] S1 — one panel holding tree + toolbar + message editor + amend + gear + action buttons (P11-T2; the gear still opens the P3 QuickPick until T5)
 - [ ] S11 — tri-state checkboxes on group, folder **and** file rows; per-change checkboxes with `N differences, M included`
 - [ ] S11b — unversioned files are checkable and commit correctly (current blocker)
-- [ ] S12 — `N files` badge on every group and folder node
+- [x] S12 — `N files` badge on every group and folder node (P11-T2)
 - [ ] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees
 - [ ] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion
 - [ ] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities)
 - [ ] Multi-line message editor with working IME, undo, history clock and amend dropdown
 
 ## Deviations (recorded as tasks land)
+- **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
+  rendering a dead tab that says "coming later" would be a worse affordance than none.
+- **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`
+  is async and the gear popup that surfaces it is T5, so reporting a guessed value would be
+  worse than reporting none.
+- **P11-T2:** integration suites phase01/03/05 now call `useCommitWindow('native')` in their
+  setup. They assert against the SCM input box, which is the fallback surface; phase11 pins
+  `webview`. Both product modes stay covered rather than one silently losing its tests.
 - **P11-T1:** menus inside webviews are rendered by the kit's own `Menu`, not by VS Code's
   native context menu. `data-vscode-context` can only raise statically-contributed
   `webview/context` items, which cannot carry per-row interpolated labels such as

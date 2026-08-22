@@ -3,14 +3,14 @@
  * pane is a flex box that resizes with the sidebar and the splitters. This
  * observes the host element so the tree fills its pane instead of guessing.
  */
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 export interface Size {
   readonly width: number;
   readonly height: number;
 }
 
-export function useElementSize<T extends HTMLElement>(): [RefObject<T | null>, Size] {
+export function useElementSize<T extends HTMLElement>(): [MutableRefObject<T | null>, Size] {
   const ref = useRef<T | null>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
 

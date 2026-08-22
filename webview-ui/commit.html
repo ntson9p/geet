@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Dev/Playwright harness page for the commit tool window. Production webviews
+     get their HTML from src/ui/webviewHost.ts, never from this file. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GitTree commit tool window (dev harness)</title>
+  </head>
+  <body class="vscode-dark">
+    <div id="root"></div>
+    <script type="module" src="/src/commit/main.tsx"></script>
+  </body>
+</html>

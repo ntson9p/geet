@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
+import { activateGitTree, gitWithRetry, useCommitWindow, waitFor, workspaceRepoA } from '../setup';
 
 /**
  * Phase 1 acceptance: SCM groups, rev provider, file ops, commit MVP,
@@ -58,6 +58,10 @@ suite('P1 core SCM', () => {
     this.timeout(60_000);
     repoRoot = workspaceRepoA();
     coreCache = await activateGitTree();
+    // P11-T2: this suite asserts against the native SCM input box, so pin the
+    // native commit surface. The webview surface has its own suite (phase11).
+    await useCommitWindow('native');
+
     // Phase 3's changelists paradigm (the default) hides the staging groups
     // this suite asserts on — run it in staging mode.
     await vscode.workspace
