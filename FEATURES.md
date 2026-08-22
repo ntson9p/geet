@@ -1,3 +1,12 @@
+> **⚠️ Obsolete contract — do not cite as a parity standard.** A 2026-08-20 review
+> against JetBrains' documentation and a live IntelliJ install found this document
+> undercounts IntelliJ's real Git surface by roughly 6–8×, and specifies
+> *capabilities* without the *containers* they live in — the two root causes behind
+> [docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md). It is scheduled for
+> rewrite by P13-T9 (see [docs/plan/PHASE-13-dialogs-and-popups.md](docs/plan/PHASE-13-dialogs-and-popups.md)),
+> after which every item will carry a *shape* criterion alongside its behaviour.
+> Until then, treat the gap analysis as the parity standard.
+
 Below is the exhaustive, structured specification of IntelliJ IDEA Ultimate’s Git features, broken down by UI/UX components and underlying functionalities.
 
 ---

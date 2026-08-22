@@ -29,6 +29,14 @@ Derived from [FEATURES.md](FEATURES.md), the project's parity specification.
 The line-by-line sign-off audit lives in
 [docs/parity-audit.md](docs/parity-audit.md).
 
+> **Read this first.** The ✅ marks below are scored against `FEATURES.md`, which a
+> 2026-08-20 review found undercounts IntelliJ's real Git surface by roughly 6–8×.
+> They mean "matches the spec", **not** "matches IntelliJ". The measured gap is in
+> [docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md); the accepted
+> rebuild is [P11](docs/plan/PHASE-11-commit-tool-window.md)–[P13](docs/plan/PHASE-13-dialogs-and-popups.md);
+> divergences kept on purpose are in [docs/deviations.md](docs/deviations.md).
+> This section and the audit are rewritten by P13-T9.
+
 ### 1 · Editor integration ✅
 
 Color-coded gutter line tracking with click-to-diff popup, inline hunk

@@ -1,5 +1,13 @@
 # FEATURES.md parity audit — definition of done (P10-T5)
 
+> **⚠️ Superseded.** This audit certifies parity against [FEATURES.md](../FEATURES.md),
+> which a 2026-08-20 review found to be an obsolete contract. Its ✅ marks are accurate
+> as "matches the spec" and misleading as "matches IntelliJ" — the measured gap is 122
+> absent / 36 partial / 75 at parity. See
+> [intellij-gap-analysis.md](intellij-gap-analysis.md), the accepted rebuild in
+> [PHASE-11](plan/PHASE-11-commit-tool-window.md)–[PHASE-13](plan/PHASE-13-dialogs-and-popups.md),
+> and the deviation register in [deviations.md](deviations.md). Replaced by P13-T9.
+
 Line-by-line walk of [FEATURES.md](../FEATURES.md) against the shipped build
 (`gittree-0.0.1.vsix`, 2026-07-16). Legend: ✅ shipped and verified by the
 referenced tests · ⏭️ intentionally unshipped by project-owner decision.
