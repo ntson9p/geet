@@ -200,9 +200,18 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     };
   }
 
+  /** True once the view has been made visible and the webview exists. */
+  get isResolved(): boolean {
+    return this.view !== undefined;
+  }
+
   push(): void {
     if (!this.view) return;
-    this.rpc?.notify(COMMIT_METHODS.evtState, this.buildState());
+    const state = this.buildState();
+    this.rpc?.notify(COMMIT_METHODS.evtState, state);
+    // Bounded — this is test observability, not a log.
+    if (this.debugTrail.length > 50) this.debugTrail.shift();
+    this.debugTrail.push(`push ${state.repos.length} repo(s), ${state.checkedCount} checked`);
   }
 
   private repoFor(root: string): RepoHandle | undefined {

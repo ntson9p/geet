@@ -66,6 +66,21 @@ suite('P11 commit tool window', () => {
     await waitFor(() => scmInput.visible === false, 10_000);
   });
 
+  test('T2: the view actually resolves in the SCM container', async function () {
+    this.timeout(30_000);
+    // Registration alone proves nothing — a WebviewViewProvider only resolves
+    // when its view becomes visible, and that is the one seam the mocked
+    // Playwright suite cannot cover.
+    await vscode.commands.executeCommand('gittree.commit.focus');
+    await waitFor(() => reg.commitWindow.isResolved, 15_000);
+    // A push with a live view must reach the webview instead of no-opping.
+    reg.commitWindow.push();
+    assert.ok(
+      reg.commitWindow.debugTrail.some((l) => l.startsWith('push ')),
+      `expected a push to reach the webview, trail: ${reg.commitWindow.debugTrail.join(' | ')}`,
+    );
+  });
+
   test('T2: state carries changelist groups, counts and checked flags', async function () {
     this.timeout(60_000);
     write('p11/alpha.txt', 'alpha\n');
