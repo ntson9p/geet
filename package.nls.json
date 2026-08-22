@@ -21,6 +21,8 @@
   "gittree.walkthrough.pickMode.description": "Takeover replaces the built-in git extension for this workspace (you can leave anytime); companion runs both side by side. GitTree never changes the built-in extension without your explicit consent.\n[Choose Mode](command:workbench.action.openSettings?%5B%22gittree.mode%22%5D)",
   "gittree.walkthrough.pickParadigm.title": "Pick your commit paradigm",
   "gittree.walkthrough.pickParadigm.description": "Changelists group work into IDE-managed buckets and bypass the index — IntelliJ's default. Staging mirrors native git add with hunk- and line-level staging. Switch whenever you like.\n[Switch Paradigm](command:gittree.commit.switchParadigm)",
+  "gittree.walkthrough.commitWindow.title": "Meet the Commit tool window",
+  "gittree.walkthrough.commitWindow.description": "One panel, first in Source Control: Commit | Shelf tabs, a folder tree with tri-state checkboxes, per-change inclusion behind the Preview Diff toggle, the message editor with history and amend dropdowns, and the options gear.\nPrefer the classic surface? Set ``gittree.commit.window`` to ``native`` to bring back the changelists tree and the SCM input box — no reload needed.\n[Open Source Control](command:workbench.view.scm)",
   "gittree.walkthrough.playground.title": "Create a practice playground",
   "gittree.walkthrough.playground.description": "Generate a disposable local repository with history, a pending change and a branch that conflicts on purpose — practice safely, then delete the folder. Its README walks you through each exercise.\n[Generate Playground](command:gittree.generatePlayground)",
   "gittree.walkthrough.firstCommit.title": "Make your first commit",

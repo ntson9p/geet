@@ -58,34 +58,92 @@ IntelliJ abandons command-line branch switching for a highly categorized, search
 
 ## 3. The Commit Lifecycle (Commit Tool Window)
 
-IntelliJ offers two distinct paradigms for staging, configurable in the settings. Your extension must support both to achieve parity.
+The gap analysis (§1) found the old form of this section listed behaviours without their
+**shape**, and the audit passed while the product looked nothing like IntelliJ. Every item
+below therefore carries a shape criterion — which container, which toolbar, which menu —
+next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 
-### Paradigm A: Changelists (The Default)
+### The window itself (shape)
 
-* **Concept:** Bypasses the Git index (staging area) entirely. Changes are grouped into logical, IDE-managed buckets called "Changelists" (e.g., "Default Changelist", "Refactoring Database").
-* **Function:** Users can check/uncheck files within these lists to commit. This is ideal for working on multiple distinct tasks simultaneously without branching.
+* **One tool window**, not stacked sidebar trees: webview view `gittree.commit`, placed
+  **first in the SCM container**, holding tabs `Commit | Shelf`, a toolbar strip, the change
+  tree, and a bottom block (amend row · message editor · action buttons · options gear) — all
+  in a single panel. The native SCM input box is hidden while this window owns the message.
+* **Toolbar** (icon buttons with tooltips): Refresh · Rollback · Show Diff · Shelve Changes ·
+  Preview Diff toggle · Expand all · Collapse all.
+* **Escape hatch:** `gittree.commit.window: "native"` restores the pre-P11 surface (the
+  `gittree.changelists` tree + SCM input box + `gittree.shelf` tree) without a reload.
+
+### The change tree (shape + behaviour)
+
+* Group rows per changelist (plus **Unversioned Files**), IntelliJ **folder rows** beneath
+  with single-child chains collapsed (`src/main/java` is one row), files at the leaves.
+* **Tri-state checkboxes on group, folder and file rows** — ticking a folder resolves to its
+  leaf set; a partially ticked folder renders the mixed state `TreeItemCheckboxState` cannot.
+* **Unversioned files are tickable** and start unticked; a ticked untracked file joins a
+  whole-repo commit but never a "commit this changelist".
+* **Per-change inclusion:** selecting one file with Preview Diff on shows its changes with an
+  include checkbox each and an `N differences, M included` counter; the tree row says
+  `M of N changes`. Excluding the last change unticks the file. Stale selections (the file
+  moved) fall back to whole-file, loudly — renumbered hunks are never committed.
+* **Density:** `N files` badge on every group and folder node; status-colored file **names**
+  and icons (theme `gitDecoration-*` colors, `gittree.colors.<status>` overrides); a folder
+  whose descendants share one status wears it, mixed folders read as modified.
+
+### Paradigm A: Changelists (the default)
+
+* Bypasses the index entirely; changes live in IDE-managed lists (default list, active list,
+  auto-adoption of new changes). Commit = tick what you want — group, folder, file, or an
+  individual change inside a file.
+* Partial commits build the target tree in a scratch index (`GIT_INDEX_FILE`); the working
+  tree is never written, so an interrupted commit cannot damage a file.
 
 ### Paradigm B: Git Staging Area
 
-* **Concept:** Mirrors the native `git add` workflow.
-* **UI Layout:** The window splits into **Staged** and **Unstaged** changes.
-* **Hunk/Line Level Staging:** Selecting a file opens a diff viewer directly below it. Users can select specific lines or hunks and click `>>` to move them to the Staged area.
+* Mirrors native `git add`: Staged/Unstaged groups, hunk/line staging from the diff editor.
+  Switchable via `gittree.commit.paradigm` / `gittree.commit.switchParadigm`.
 
-### Pre-Commit Checks (Crucial Differentiator)
+### The message editor (shape + behaviour)
 
-Before executing a commit, the UI offers a checklist of operations that the IDE performs automatically:
+* Multi-line, autogrowing from 6 rows, in the window's bottom block — with a working native
+  **undo stack** (programmatic inserts are undoable) and **IME-safe** composition (nothing
+  round-trips mid-composition).
+* **Amend row:** `[ ] Amend  last commit ▾  🕘  N of M files` — the checkbox keeps the P3
+  semantics (loads the previous message, pushed-HEAD guard); the `▾` lists recent commits so
+  their message can be reused; the 🕘 clock opens the 50-entry **message history** dropdown
+  (first line + relative time) in place.
+* Soft subject hint: a right-aligned counter past 72 characters; never blocks.
 
-1. **Reformat Code:** Runs the IDE's code formatter on the modified lines only.
-2. **Optimize Imports:** Removes unused imports.
-3. **Analyze Code:** Runs static analysis/linting and halts the commit if warnings or errors are found (prompts the user to review or commit anyway).
-4. **Check TODOs:** Warns if new `TODO` or `FIXME` comments were introduced.
-5. **Cleanup:** Applies safe code cleanups.
+### Commit options gear popup (shape)
+
+The `⚙` beside the action buttons opens the §2A popup inside the window:
+
+* **Git** — `Author:` field (`Name <email>`, completion from recent authors, validated,
+  `×` to clear; lands as `--author=`) · `[ ] Sign-off commit` (`-s`).
+* **Commit Checks** — `Reformat code` (modified lines only) · `Optimize imports` ·
+  `Cleanup` + `Choose profile` (the code-action kind it applies).
+* **Advanced Commit Checks** — `Analyze code` + severity picker · `Check TODO` + pattern ·
+  `[x] Run advanced checks after a commit is done` with the caption *"Failed checks will not
+  prevent a commit"* — the IntelliJ default: Analyze/TODO run **after** the commit and report
+  via notification; untick to restore pre-commit gating.
+
+### Shelf (shape + behaviour)
+
+* The **Shelf tab** lists entries (name · relative time · `N files` · origin branch)
+  expanding to their files; toolbar: Unshelve… · Unshelve Silently · Unshelve Files… ·
+  Rename… · Delete · Import Patch… · Show-already-unshelved eye toggle. Context menus are
+  native per row (entry and file). Damaged entries (sha256 mismatch) render inline with a
+  warning and refuse to unshelve. Applied-but-kept entries grey out behind the eye toggle.
+* **Shelve Changes dialog** (`gittree.shelve.dialog`, also the toolbar's Shelve button):
+  toolbar → `Changelist: ▾` selector → checkbox tree → `N modified` → message → collapsible
+  `∨ Diff` section with **per-change include checkboxes** → `[Shelve Changes] [Cancel]`, plus
+  `[x] Remove shelved changes from the worktree`. Shelving selected changes stores exactly
+  them and leaves the residue in the worktree byte-identically.
 
 ### Commit Actions
 
-* **Commit Message History:** A dropdown remembers previous commit messages.
-* **Amend:** A simple checkbox merges the current staged files into the previous commit and loads the previous message into the text area.
-* **Sign Commit:** GPG signature integration via a toggleable icon.
+* `[Commit]` `[Commit and Push…]` in the bottom block; amend alone commits without a new
+  message; GPG sign toggle (`-S`) kept from P3.
 
 ---
 

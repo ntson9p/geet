@@ -133,6 +133,12 @@ commit webview.
 **Why:** no API to position a QuickPick or a webview relative to a UI element.
 **Revisitable:** no.
 
+**Related (P11):** context menus *inside webviews* with per-row interpolated labels
+(`Merge 'feature/f1' into 'master'`) render via the UI kit's own `Menu` component —
+`data-vscode-context` can only raise statically-contributed `webview/context` items. Where the
+labels are static (the Shelf tab's rows), the native `webview/context` route is used, and
+native menus stay in use for all tree views.
+
 ## D4 · VCS widget location
 
 **IntelliJ (New UI):** `<project> ▾  ⑂ <branch> ▾` in the **top-left main toolbar**, with

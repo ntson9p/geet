@@ -2164,6 +2164,18 @@
             ]
           },
           {
+            "id": "commitWindow",
+            "title": "%gittree.walkthrough.commitWindow.title%",
+            "description": "%gittree.walkthrough.commitWindow.description%",
+            "media": {
+              "svg": "media/walkthrough/commit.svg",
+              "altText": "The Commit tool window: Commit and Shelf tabs, folder tree with tri-state checkboxes, message editor"
+            },
+            "completionEvents": [
+              "onView:gittree.commit"
+            ]
+          },
+          {
             "id": "playground",
             "title": "%gittree.walkthrough.playground.title%",
             "description": "%gittree.walkthrough.playground.description%",
