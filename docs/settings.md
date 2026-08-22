@@ -326,6 +326,12 @@ URL template for matched issue keys; $0 is replaced with the match (e.g. https:/
 
 - Type: `string` · Default: `""`
 
+### `gittree.log.filterPresets`
+
+Saved log filter presets (managed by the Saved filters toolbar menu).
+
+- Type: `array` · Default: `[]`
+
 ### `gittree.blame.heatmap`
 
 Fade blame annotations by commit age (newest brightest).

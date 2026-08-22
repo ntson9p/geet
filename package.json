@@ -372,6 +372,26 @@
             "default": "",
             "description": "%gittree.config.log.issueUrl.description%"
           },
+          "gittree.log.filterPresets": {
+            "type": "array",
+            "default": [],
+            "description": "%gittree.config.log.filterPresets.description%",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "filter"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "filter": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "gittree.blame.heatmap": {
             "type": "boolean",
             "default": true,

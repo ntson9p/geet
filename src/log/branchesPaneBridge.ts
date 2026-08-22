@@ -25,6 +25,7 @@ export class BranchesPaneBridge {
   private actionsCache: BranchAction[] | undefined;
   /** user.email per repo — read once, not on every refs push. */
   private readonly myAuthorCache = new Map<string, string | undefined>();
+  private readonly myNameCache = new Map<string, string | undefined>();
 
   constructor(private readonly core: Core) {}
 
@@ -82,6 +83,22 @@ export class BranchesPaneBridge {
       myAuthor = me.exitCode === 0 && me.stdout.trim().length > 0 ? me.stdout.trim() : undefined;
       this.myAuthorCache.set(cacheKey, myAuthor);
     }
+    let myName = this.myNameCache.get(cacheKey);
+    if (!this.myNameCache.has(cacheKey)) {
+      const name = await repo.queue.enqueue({
+        label: 'read user.name',
+        kind: 'read',
+        run: (git, token) =>
+          git.exec(repo.root, ['config', '--get', 'user.name'], {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            token,
+          }),
+      });
+      myName = name.exitCode === 0 && name.stdout.trim().length > 0 ? name.stdout.trim() : undefined;
+      this.myNameCache.set(cacheKey, myName);
+    }
     return {
       ...(current !== undefined ? { current: current.name } : {}),
       detached: current === undefined,
@@ -94,6 +111,7 @@ export class BranchesPaneBridge {
         .map(([remote, branches]) => ({ remote, branches: branches.sort() })),
       tags: service.tags.map((t) => t.name),
       ...(myAuthor !== undefined ? { myAuthor } : {}),
+      ...(myName !== undefined ? { myName } : {}),
     };
   }
 

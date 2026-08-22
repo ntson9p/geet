@@ -6,7 +6,7 @@
  * additive with Ctrl. Context menus are native (`data-vscode-context` →
  * `gittree.log.branch.*`), dispatching the same registry as the tree view.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   LOG_METHODS,
   type LogBranchesDto,
@@ -29,6 +29,8 @@ interface RefEntry {
 
 export interface BranchesPaneProps {
   rpc: RpcClient;
+  /** P12-T5: the refs snapshot is fetched once in App and shared with the filter row. */
+  data: LogBranchesDto | null;
   repoRoot: string | undefined;
   filter: LogFilterDto;
   onFilterChange: (next: LogFilterDto) => void;
@@ -48,8 +50,7 @@ function section(path: string, name: string, children: TreeNode[], fileCount: nu
   return { kind: 'dir', path, name, depth: 0, children, fileCount };
 }
 
-export function BranchesPane({ rpc, repoRoot, filter, onFilterChange, onCollapsePane }: BranchesPaneProps) {
-  const [data, setData] = useState<LogBranchesDto | null>(null);
+export function BranchesPane({ rpc, data, repoRoot, filter, onFilterChange, onCollapsePane }: BranchesPaneProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(['@local', '@remotes']),
   );
@@ -58,18 +59,6 @@ export function BranchesPane({ rpc, repoRoot, filter, onFilterChange, onCollapse
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [paneRef, paneSize] = useElementSize<HTMLDivElement>();
-
-  const reload = useCallback(() => {
-    rpc.request<LogBranchesDto>(LOG_METHODS.branches).then(
-      (next) => setData(next),
-      () => setData(null),
-    );
-  }, [rpc]);
-
-  useEffect(() => {
-    reload();
-    return rpc.onEvent(LOG_METHODS.evtBranches, reload);
-  }, [reload, rpc]);
 
   const { nodes, refs } = useMemo(() => {
     const lookup = new Map<string, RefEntry>();

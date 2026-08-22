@@ -147,6 +147,7 @@
   "gittree.command.log.branch.toggleFavorite.title": "Toggle Favorite",
   "gittree.config.log.issuePattern.description": "Regular expression for issue keys in commit messages (e.g. [A-Z]+-\\d+). Empty disables issue linkification.",
   "gittree.config.log.issueUrl.description": "URL template for matched issue keys; $0 is replaced with the match (e.g. https://tracker.example.com/browse/$0).",
+  "gittree.config.log.filterPresets.description": "Saved log filter presets (managed by the Saved filters toolbar menu).",
   "gittree.config.commit.checks.cleanupKind.description": "Code-action kind the Cleanup check applies — the \"profile\": source.fixAll runs every provider, source.fixAll.eslint only ESLint.",
   "gittree.config.commit.checks.deferAdvanced.description": "Run the advanced checks (Analyze code, TODO) after the commit and report via notification instead of gating the commit — IntelliJ's default. Failed checks will not prevent a commit.",
   "gittree.view.branches.name": "Branches",

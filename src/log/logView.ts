@@ -198,6 +198,81 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: true };
     });
 
+    // P12-T5: the rewritten filter row's data + toolbar actions.
+    rpc.on(LOG_METHODS.authors, async () => {
+      const session = this.session;
+      if (!session) return { authors: [] };
+      return { authors: await session.service.getAuthors() };
+    });
+
+    rpc.on(LOG_METHODS.refresh, () => {
+      this.refresh();
+      return { ok: true };
+    });
+
+    rpc.on(LOG_METHODS.goToRef, async (params) => {
+      const { ref } = params as { ref?: string };
+      const session = this.session;
+      if (!session) return { ok: false };
+      const target =
+        ref !== undefined && ref.trim().length > 0
+          ? ref.trim()
+          : await vscode.window.showInputBox({
+              prompt: vscode.l10n.t('Go to hash, branch or tag'),
+              ignoreFocusOut: true,
+            });
+      if (target === undefined || target.length === 0) return { ok: false };
+      const resolved = await session.repo.queue.enqueue({
+        label: `resolve ${target}`,
+        kind: 'read',
+        run: (git, token) =>
+          git.exec(session.repo.root, ['rev-parse', '--verify', `${target}^{commit}`], {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            token,
+          }),
+      });
+      if (resolved.exitCode !== 0) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t('"{0}" is not a commit, branch or tag here.', target),
+        );
+        return { ok: false };
+      }
+      await this.revealCommit(resolved.stdout.trim());
+      return { ok: true };
+    });
+
+    rpc.on(LOG_METHODS.savePreset, async (params) => {
+      const { filter, name } = params as { filter: LogFilterDto; name?: string };
+      const chosen =
+        name ??
+        (await vscode.window.showInputBox({
+          prompt: vscode.l10n.t('Preset name'),
+          ignoreFocusOut: true,
+        }));
+      if (chosen === undefined || chosen.trim().length === 0) return { ok: false };
+      const config = vscode.workspace.getConfiguration('gittree.log');
+      const presets = [
+        ...(config.get<Array<{ name: string; filter: LogFilterDto }>>('filterPresets') ?? []).filter(
+          (p) => p.name !== chosen.trim(),
+        ),
+        { name: chosen.trim(), filter },
+      ];
+      await config.update('filterPresets', presets, vscode.ConfigurationTarget.Workspace);
+      return { ok: true };
+    });
+
+    rpc.on(LOG_METHODS.deletePreset, async (params) => {
+      const { name } = params as { name: string };
+      const config = vscode.workspace.getConfiguration('gittree.log');
+      const presets = (
+        config.get<Array<{ name: string; filter: LogFilterDto }>>('filterPresets') ?? []
+      ).filter((p) => p.name !== name);
+      await config.update('filterPresets', presets, vscode.ConfigurationTarget.Workspace);
+      return { ok: true };
+    });
+
     rpc.on(LOG_METHODS.showFileHistory, async (params) => {
       const { path: relPath } = params as { path: string };
       const session = this.session;
@@ -302,6 +377,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       graphPalette: this.graphPalette(),
       colors: statusColorOverrides(),
       ...(this.issueConfig() !== undefined ? { issue: this.issueConfig() } : {}),
+      presets: vscode.workspace.getConfiguration('gittree.log').get('filterPresets') ?? [],
     };
   }
 

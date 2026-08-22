@@ -463,6 +463,8 @@ export interface LogInitDto {
   colors?: Record<string, string>;
   /** P12-T4: issue-key linkification (`gittree.log.issuePattern`/`issueUrl`). */
   issue?: { pattern: string; url: string };
+  /** P12-T5: saved filter presets (`gittree.log.filterPresets`). */
+  presets?: Array<{ name: string; filter: LogFilterDto }>;
 }
 
 export interface CommitFileDto {
@@ -496,6 +498,8 @@ export interface LogBranchesDto {
   tags: string[];
   /** user.email — what "Show my commits" filters the log by. */
   myAuthor?: string;
+  /** user.name — what "Highlight my commits" matches row authors against. */
+  myName?: string;
 }
 
 export interface LogBranchActionParamsDto {
@@ -548,6 +552,16 @@ export const LOG_METHODS = {
   containedBranches: 'log/containedBranches',
   /** P12-T4: parent-link navigation — reveal + select a sha in the graph. */
   goTo: 'log/goTo',
+  /** P12-T5: author list for the User ▾ dropdown. */
+  authors: 'log/authors',
+  /** P12-T5: the toolbar's refresh. */
+  refresh: 'log/refresh',
+  /** P12-T5: Go to Hash/Branch/Tag — resolve a ref and reveal it. */
+  goToRef: 'log/goToRef',
+  /** P12-T5: persist the current filter as a named preset. */
+  savePreset: 'log/savePreset',
+  /** P12-T5: delete a named preset. */
+  deletePreset: 'log/deletePreset',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',

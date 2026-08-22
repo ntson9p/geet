@@ -12,6 +12,7 @@ import {
   LOG_METHODS,
   type CommitDetailsDto,
   type CommitFileDto,
+  type LogBranchesDto,
   type LogChangedFilesDto,
   type LogFilterDto,
   type LogInitDto,
@@ -40,6 +41,7 @@ interface PersistedState {
   layout?: ShellLayout;
   filesRollup?: boolean;
   previewOnClick?: boolean;
+  highlightMine?: boolean;
 }
 
 function relativeDate(unixSeconds: number): string {
@@ -79,6 +81,20 @@ export function App() {
   const [changedLoading, setChangedLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<CommitFileDto | undefined>(undefined);
   const [previewOnClick, setPreviewOnClick] = useState(boot.previewOnClick ?? false);
+  // P12-T5: refs data is shared by the Branches pane AND the filter row.
+  const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
+  const [highlightMine, setHighlightMine] = useState(boot.highlightMine ?? false);
+
+  useEffect(() => {
+    const reload = (): void => {
+      rpc.request<LogBranchesDto>(LOG_METHODS.branches).then(
+        (next) => setBranchesData(next ?? null),
+        () => setBranchesData(null),
+      );
+    };
+    reload();
+    return rpc.onEvent(LOG_METHODS.evtBranches, reload);
+  }, [rpc]);
 
   const filter = init?.filter ?? { sort: 'topo', refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
@@ -92,8 +108,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    persist({ layout, filesRollup, previewOnClick });
-  }, [filesRollup, layout, persist, previewOnClick]);
+    persist({ layout, filesRollup, previewOnClick, highlightMine });
+  }, [filesRollup, highlightMine, layout, persist, previewOnClick]);
 
   // P12-T3: the pane follows the selection — one commit's files, or the
   // aggregate change set of a multi-select.
@@ -355,9 +371,11 @@ export function App() {
                 );
               }
               const isSelected = selected.includes(row.sha);
+              const isMine =
+                highlightMine && branchesData?.myName !== undefined && row.authorName === branchesData.myName;
               return (
                 <span
-                  className={`gt-log-row${isSelected ? ' gt-selected' : ''}`}
+                  className={`gt-log-row${isSelected ? ' gt-selected' : ''}${isMine ? ' gt-mine' : ''}`}
                   style={{ paddingLeft: graphWidth }}
                   data-testid={`log-row-${i}`}
                 >
@@ -398,10 +416,30 @@ export function App() {
         <FilterBar
           filter={filter}
           onChange={applyFilter}
-          onPickBranches={() => void rpc.request(LOG_METHODS.pickBranches)}
-          onPickAuthors={() => void rpc.request(LOG_METHODS.pickAuthors)}
-          onPickDates={() => void rpc.request(LOG_METHODS.pickDates)}
-          onPickPaths={() => void rpc.request(LOG_METHODS.pickPaths)}
+          branches={branchesData}
+          fetchAuthors={async () => {
+            const res = await rpc.request<{ authors: string[] }>(LOG_METHODS.authors);
+            return res?.authors ?? [];
+          }}
+          presets={init.presets ?? []}
+          onSavePreset={() => void rpc.request(LOG_METHODS.savePreset, { filter })}
+          onDeletePreset={(name) => void rpc.request(LOG_METHODS.deletePreset, { name })}
+          onRefresh={() => void rpc.request(LOG_METHODS.refresh)}
+          onGoToRef={(ref) => void rpc.request(LOG_METHODS.goToRef, { ref })}
+          onBrowsePaths={() => void rpc.request(LOG_METHODS.pickPaths)}
+          showDetails={layout.collapsed.files !== true || layout.collapsed.details !== true}
+          onToggleDetails={() =>
+            setLayout((prev) => {
+              const hidden = prev.collapsed.files === true && prev.collapsed.details === true;
+              return {
+                ...prev,
+                collapsed: { ...prev.collapsed, files: !hidden, details: !hidden },
+              };
+            })
+          }
+          highlightMine={highlightMine}
+          onToggleHighlightMine={() => setHighlightMine((v) => !v)}
+          canHighlightMine={branchesData?.myName !== undefined}
           searchInputRef={searchInputRef}
         />
         {/* P10-T2: async loads announced to screen readers. */}
@@ -414,6 +452,7 @@ export function App() {
           branches={
             <BranchesPane
               rpc={rpc}
+              data={branchesData}
               repoRoot={init.repoRoot.length > 0 ? init.repoRoot : undefined}
               filter={filter}
               onFilterChange={applyFilter}

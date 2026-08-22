@@ -38,6 +38,9 @@ export const mockLogHostScript = `
             filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' },
             laneWidth: 12, graphPalette: window.__mockGraphPalette,
             issue: { pattern: 'GT-\\\\d+', url: 'https://tracker.example/browse/$0' },
+            presets: [
+              { name: 'mine only', filter: { sort: 'topo', refs: 'HEAD', authors: ['a@x.dev'] } },
+            ],
           });
           break;
         case 'log/page': {
@@ -112,7 +115,12 @@ export const mockLogHostScript = `
             remotes: [{ remote: 'origin', branches: ['origin/main', 'origin/dev'] }],
             tags: ['v1.0'],
             myAuthor: 'a@x.dev',
+            myName: 'Alice',
           });
+          break;
+        }
+        case 'log/authors': {
+          res({ authors: ['Alice <a@x.dev>', 'Bob <b@x.dev>', 'Carol <c@x.dev>'] });
           break;
         }
         case 'log/setFilter': {

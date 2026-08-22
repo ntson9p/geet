@@ -257,13 +257,124 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBe(true);
   });
 
-  test('chip pickers delegate to the host', async ({ page }) => {
+  test('P12-T5: Branch ▾ is a real multi-select with search, favorites first', async ({ page }) => {
     await openLog(page);
-    await page.getByRole('button', { name: 'Branch', exact: true }).click();
-    await page.getByRole('button', { name: 'User', exact: true }).click();
-    const msgs = await posted(page);
-    expect(msgs.some((m) => m.method === 'log/pickBranches')).toBe(true);
-    expect(msgs.some((m) => m.method === 'log/pickAuthors')).toBe(true);
+    await page.getByTestId('filter-branch').click();
+    const panel = page.getByTestId('filter-branch-panel');
+    await expect(panel).toBeVisible();
+    // Favorites first: release (★) lists before main inside the locals block.
+    const labels = await panel.locator('.gt-filter-checkrow-label').allTextContents();
+    expect(labels.indexOf('release')).toBeLessThan(labels.indexOf('main'));
+    await expect(panel.locator('.gt-filter-star')).toHaveCount(1);
+
+    await panel.getByLabel('Search refs').fill('f1');
+    await panel.getByRole('checkbox').nth(1).click(); // first match under All-branches
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && JSON.stringify(f?.refs) === '["feature/f1"]';
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('P12-T5: User ▾ offers Me and searchable authors', async ({ page }) => {
+    await openLog(page);
+    await page.getByTestId('filter-user').click();
+    const panel = page.getByTestId('filter-user-panel');
+    await expect(panel).toContainText('Me (a@x.dev)');
+    await expect(panel).toContainText('Carol <c@x.dev>');
+    await panel.getByRole('checkbox').first().click(); // Me
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { authors?: string[] } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.authors?.[0] === 'a@x.dev';
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('P12-T5: Date ▾ presets and Paths ▾ multi-entry compose the filter', async ({ page }) => {
+    await openLog(page);
+    await page.getByTestId('filter-date').click();
+    await page.getByTestId('filter-date-panel').getByRole('button', { name: 'Today' }).click();
+    const today = new Date().toISOString().slice(0, 10);
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { dateRange?: { from?: string } } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.dateRange?.from === today;
+        }),
+      )
+      .toBe(true);
+
+    await page.getByTestId('filter-paths').click();
+    const paths = page.getByTestId('filter-paths-panel');
+    await paths.getByLabel('Add path').fill('src/a.ts');
+    await paths.getByLabel('Add path').press('Enter');
+    await paths.getByLabel('Add path').fill('docs/b.md');
+    await paths.getByLabel('Add path').press('Enter');
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { paths?: string[] } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && JSON.stringify(f?.paths) === '["src/a.ts","docs/b.md"]';
+        }),
+      )
+      .toBe(true);
+    // Browse… still delegates to the host picker.
+    await paths.getByRole('button', { name: 'Browse…' }).click();
+    expect((await posted(page)).some((m) => m.method === 'log/pickPaths')).toBe(true);
+  });
+
+  test('P12-T5: a hash in the text field navigates; the toolbar goes to refs', async ({ page }) => {
+    await openLog(page);
+    const search = page.getByLabel('Search commit messages');
+    await search.fill('00000005'.repeat(5));
+    await search.press('Enter');
+    await expect
+      .poll(async () => (await posted(page)).some((m) => m.method === 'log/goToRef'))
+      .toBe(true);
+    await page.getByRole('button', { name: 'Go to Hash/Branch/Tag' }).click();
+    expect(
+      (await posted(page)).filter((m) => m.method === 'log/goToRef').length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  test('P12-T5: saved filters apply and save; Show Details folds the right column', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Saved filters' }).click();
+    await page.getByRole('menuitem', { name: 'mine only' }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { authors?: string[] } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.authors?.[0] === 'a@x.dev';
+        }),
+      )
+      .toBe(true);
+
+    await page.getByRole('button', { name: 'Saved filters' }).click();
+    await page.getByRole('menuitem', { name: 'Save current filter…' }).click();
+    await expect
+      .poll(async () => (await posted(page)).some((m) => m.method === 'log/savePreset'))
+      .toBe(true);
+
+    await page.getByRole('button', { name: 'Show Details' }).click();
+    await expect(page.getByTestId('pane-files-collapsed')).toBeVisible();
+    await expect(page.getByTestId('pane-details-collapsed')).toBeVisible();
+    await page.getByRole('button', { name: 'Show Details' }).click();
+    await expect(page.getByTestId('pane-details')).toBeVisible();
+  });
+
+  test('P12-T5: Highlight my commits marks my rows only', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Highlight my commits' }).click();
+    // Alice authors rows where i % 3 === 0; Bob the rest.
+    await expect(commitRow(page).locator('[data-gt-row="0"] .gt-log-row')).toHaveClass(/gt-mine/);
+    await expect(commitRow(page).locator('[data-gt-row="1"] .gt-log-row')).not.toHaveClass(/gt-mine/);
   });
 
   test('keyboard: arrows navigate, ctrl+c copies the sha', async ({ page }) => {

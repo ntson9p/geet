@@ -64,6 +64,15 @@ describe('buildLogArgs', () => {
     const rx = args({ text: { q: 'fix(es)?', regex: true, matchCase: true } });
     expect(rx).toContain('--extended-regexp');
     expect(rx).not.toContain('-i');
+
+    // P12-T5 acceptance: EVERY regex/match-case combination.
+    const rxNoCase = args({ text: { q: 'x', regex: true, matchCase: false } });
+    expect(rxNoCase).toContain('--extended-regexp');
+    expect(rxNoCase).toContain('-i');
+
+    const literalCase = args({ text: { q: 'x', regex: false, matchCase: true } });
+    expect(literalCase).toContain('--fixed-strings');
+    expect(literalCase).not.toContain('-i');
   });
 
   it('paths go after --, with --follow only in single-path follow mode', () => {

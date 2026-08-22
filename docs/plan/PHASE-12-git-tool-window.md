@@ -190,7 +190,7 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - [x] S2b — Branches pane with folder nodes and the vertical icon rail; ref selection filters the graph (P12-T2)
 - [ ] S10 — Console tab with argv, exit code, duration and redaction
 - [x] Commit Details: committer, signature, parents, `Contained in branches` (lazy) (P12-T4)
-- [ ] Filter row: `Branch or tag`, text/hash with regex + match-case, four multi-select dropdowns, saved presets
+- [x] Filter row: `Branch or tag`, text/hash with regex + match-case, four multi-select dropdowns, saved presets (P12-T5)
 - [ ] Commit menu: Create Patch, Fixup, Squash Into, Push All up to Here, Branches ›, Go to Parent/Child, Show Repository at Revision
 - [ ] `Reset → Keep` alongside Soft/Mixed/Hard
 - [ ] §3.9 patches: `format-patch` create + `am`/`apply --3way` apply, round-trip verified
@@ -221,6 +221,18 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - **P12-T3 — a clean merge shows no per-file rows, because `git show --name-status` shows
   none** (combined-diff semantics). Matching git here is deliberate; first-parent diffs of
   merges are what the P12-T7 context menu's compare actions are for.
+- **P12-T5 — `Collapse linear branches` and `Show long edges` are omitted, not faked.** The
+  §13 graph model is deliberately row-local (each row carries only its own lane segments) so
+  a 100k-commit log streams in pages; neither collapsing linear runs nor classifying an edge
+  as "long" is expressible without giving GraphLayout whole-graph span knowledge, which is a
+  budgeted rework, not a toolbar toggle. Hidden per the shown-inert rule; revisit alongside
+  any graph-layout work.
+- **P12-T5 — the host QuickPick pickers survive as the Paths dropdown's `Browse…`** (a real
+  file picker needs the OS dialog) and the palette commands; everything else moved into the
+  in-webview dropdowns.
+- **P12-T5 — a hash-shaped entry in `Text or hash` navigates (Go to) on Enter instead of
+  grepping**; free text greps as before. Presets persist in `gittree.log.filterPresets`
+  (workspace settings), which is what makes them survive reloads.
 
 ## Planned deviations
 - **`Show Repository at Revision` opens a tree view, not a second project window.** IntelliJ

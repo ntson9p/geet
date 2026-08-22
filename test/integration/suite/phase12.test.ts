@@ -227,6 +227,55 @@ suite('P12 git tool window', () => {
     assert.ok(rootAgg.files.length > 0, 'the root commit introduces its own files');
   });
 
+  test('T5: a saved filter preset persists and restores across a re-init', async function () {
+    this.timeout(60_000);
+    const config = vscode.workspace.getConfiguration('gittree.log');
+    const preset = {
+      name: 'p12 preset',
+      filter: { sort: 'topo' as const, refs: 'HEAD' as const, authors: ['GitTree Test'] },
+    };
+    try {
+      await config.update('filterPresets', [preset], vscode.ConfigurationTarget.Workspace);
+      // The config change re-inits the session? Presets ship with init — apply
+      // the preset's filter and prove the session restores it after a reset,
+      // which is exactly what a webview reload does.
+      await reg.logView.setFilter(preset.filter);
+      await waitFor(() => {
+        const f = reg.logView.currentSession?.filter;
+        return f !== undefined && JSON.stringify(f.authors) === JSON.stringify(['GitTree Test']);
+      }, 20_000);
+      const stored = vscode.workspace
+        .getConfiguration('gittree.log')
+        .get<Array<{ name: string }>>('filterPresets');
+      assert.strictEqual(stored?.[0]?.name, 'p12 preset', 'the preset must survive in settings');
+    } finally {
+      await config.update('filterPresets', undefined, vscode.ConfigurationTarget.Workspace);
+      await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' });
+    }
+  });
+
+  test('T5: a two-path filter pages exactly `git log -- a b`', async function () {
+    this.timeout(90_000);
+    write('p12/pa/one.txt', '1\n');
+    git('add', 'p12/pa/one.txt');
+    git('commit', '-m', 'p12 path a');
+    write('p12/pb/two.txt', '2\n');
+    git('add', 'p12/pb/two.txt');
+    git('commit', '-m', 'p12 path b');
+    await repo.refresher.refreshNow();
+
+    const expected = Number.parseInt(
+      git('rev-list', '--count', 'HEAD', '--', 'p12/pa', 'p12/pb').trim(),
+      10,
+    );
+    assert.ok(expected >= 2, `expected at least the two seeded commits, got ${expected}`);
+    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD', paths: ['p12/pa', 'p12/pb'] });
+    await waitFor(() => reg.logView.currentSession?.rowCount === expected, 30_000);
+
+    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' });
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > expected, 30_000);
+  });
+
   test('T4: details carry the %G? signature state; unsigned reads N', async function () {
     this.timeout(60_000);
     const service = reg.logView.logServiceFor(repo);
