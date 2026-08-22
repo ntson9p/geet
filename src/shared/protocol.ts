@@ -69,6 +69,12 @@ export interface CommitChangeDto {
   kind: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
   checked: boolean;
   origPath?: string;
+  /**
+   * P11-T3: only some of this file's changes are included. Absent means the
+   * whole file, which is the case for all but a handful of rows — computing it
+   * requires a diff per file, so the host ships it only where one exists.
+   */
+  partial?: { total: number; included: number };
 }
 
 export interface CommitGroupDto {
@@ -78,10 +84,7 @@ export interface CommitGroupDto {
   comment?: string;
   isActive: boolean;
   isDefault: boolean;
-  /**
-   * False for Unversioned Files until P11-T3 makes untracked files tickable —
-   * rendering an inert checkbox would be worse than rendering none.
-   */
+  /** False only for a group that cannot take part in a commit at all. */
   checkable: boolean;
   changes: CommitChangeDto[];
 }
@@ -110,10 +113,36 @@ export interface CommitStateDto {
   error?: string;
 }
 
+/**
+ * One file's HEAD↔worktree diff for the commit window's preview pane (P11-T3).
+ * `included` is `null` when the whole file is in — the state every file starts
+ * in — and an index list once the user has excluded something.
+ */
+export interface CommitFileDiffDto {
+  repoRoot: string;
+  path: string;
+  originalText: string;
+  modifiedText: string;
+  changes: LineChangeDto[];
+  included: number[] | null;
+  /**
+   * Whether the file itself is ticked. An unticked file contributes nothing, so
+   * its changes must render unticked too — otherwise the pane would show three
+   * included changes for a file that is not in the commit.
+   */
+  checked: boolean;
+  /** Binary, or one side missing: per-change inclusion is not offered. */
+  wholeFileOnly: boolean;
+  /** Identifies the change list this diff describes; guards a racing toggle. */
+  signature: string;
+}
+
 export const COMMIT_METHODS = {
   /** webview → host */
   init: 'commit/init',
   setChecked: 'commit/setChecked',
+  fileDiff: 'commit/fileDiff',
+  setIncluded: 'commit/setIncluded',
   setMessage: 'commit/setMessage',
   commit: 'commit/commit',
   toggleAmend: 'commit/toggleAmend',
@@ -136,6 +165,18 @@ export interface CommitSetCheckedParamsDto {
 export interface CommitRunParamsDto {
   repoRoot: string;
   andPush: boolean;
+}
+
+export interface CommitSetIncludedParamsDto {
+  repoRoot: string;
+  path: string;
+  included: number[];
+  /**
+   * The signature the webview was looking at. The host recomputes the diff and
+   * drops the toggle if it no longer matches, so a status refresh landing
+   * mid-click cannot apply indices to a renumbered change list.
+   */
+  signature: string;
 }
 
 export const DIALOG_METHODS = {

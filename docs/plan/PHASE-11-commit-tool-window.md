@@ -232,8 +232,8 @@ View `gittree.commit` (webview, `scm` container). Commands
 
 ## Parity checklist (gap-analysis S1, S11, S12, S13, S14 · FEATURES.md §3)
 - [x] S1 — one panel holding tree + toolbar + message editor + amend + gear + action buttons (P11-T2; the gear still opens the P3 QuickPick until T5)
-- [ ] S11 — tri-state checkboxes on group, folder **and** file rows; per-change checkboxes with `N differences, M included`
-- [ ] S11b — unversioned files are checkable and commit correctly (current blocker)
+- [x] S11 — tri-state checkboxes on group, folder **and** file rows; per-change checkboxes with `N differences, M included` (P11-T3)
+- [x] S11b — unversioned files are checkable and commit correctly (P11-T3)
 - [x] S12 — `N files` badge on every group and folder node (P11-T2)
 - [ ] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees
 - [ ] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion
@@ -241,6 +241,37 @@ View `gittree.commit` (webview, `scm` container). Commands
 - [ ] Multi-line message editor with working IME, undo, history clock and amend dropdown
 
 ## Deviations (recorded as tasks land)
+- **P11-T3 — step 3's commit mechanism does not work as written.** The step says to
+  `git apply --cached` the selected changes and let the file "join the `--only` path list".
+  It cannot: `git commit --only <paths>` takes the **working tree** contents of those paths and
+  disregards the index entirely (verified against real git, not assumed — staging a partial
+  patch and committing `--only` produced the whole file). Partial commits instead build the
+  target tree in a scratch index (`GIT_INDEX_FILE` in the git dir): `read-tree HEAD` → `git add`
+  the whole files → `git apply --cached` each partial patch → `git commit`, then
+  `git reset -- <committed paths>` to put the real index back on the new HEAD, which is the
+  state `--only` would have left. The working tree is never written, so an interrupted commit
+  cannot truncate a file to its ticked hunks. `commitChangelist` is untouched and still runs
+  whenever no file is partially included.
+- **P11-T3 — staleness is keyed on a per-file change signature, not `workdirGeneration`.**
+  Step 4 names `workdirGeneration`, which bumps on *any* workspace file change; editing an
+  unrelated file would discard every selection. Each selection instead stores a signature of the
+  change list it was made against (every change's four coordinates), and `resolve` answers
+  "whole file" the moment it stops matching. Same guarantee, and it only fires for the file that
+  actually moved.
+- **P11-T3 — `setChecked(prefix, bool)` and `onDidChangeChecked` were not added.** Step 1 wanted
+  folder-granularity ticking with derived, never-stored folder state. P11-T2 already delivers
+  exactly that: `treeModel.toggle` resolves a folder click to its leaf set and `splitDelta` maps
+  it to repo-relative paths. A second, parallel prefix path would be a way for the two to
+  disagree, and `onDidChangeChecked` would have no consumer — `onDidChange` already fires on
+  every check change and both surfaces rebuild a full snapshot.
+- **P11-T3 — per-change selections are session-scoped and in-memory.** Persisting them across an
+  extension-host restart would mostly persist selections the signature check then discards.
+- **P11-T3 — per-change inclusion is offered only where it has meaning:** a text file with both
+  a HEAD side and a worktree side. Untracked, deleted and binary files commit whole and the
+  preview says so, rather than rendering checkboxes the commit cannot honour.
+- **P11-T3 — `N differences, M included` ships per file only where a selection exists.** The
+  counter needs a diff, and diffing every row on every status push would cost a `git show` per
+  file; rows with no selection are whole-file by definition and need no badge.
 - **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
   rendering a dead tab that says "coming later" would be a worse affordance than none.
 - **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`

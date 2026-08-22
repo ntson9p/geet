@@ -45,6 +45,14 @@ export const UNVERSIONED_ID = '__unversioned__';
 
 export class ChangelistService implements Disposable {
   private lists: PersistedList[] = [];
+  /**
+   * P11-T3: untracked files ticked for commit. Unversioned Files is a virtual
+   * bucket with no PersistedList behind it, so its checkbox state lives here,
+   * under its own storage key — widening the list shape would have broken every
+   * already-persisted workspace. Default is unticked, as in IntelliJ: an
+   * untracked file joins a commit only when you say so.
+   */
+  private unversionedChecked: string[] = [];
   private readonly _onDidChange = new Emitter<void>();
   readonly onDidChange: Event<void> = this._onDidChange.event;
   private readonly modelSub: Disposable;
@@ -55,10 +63,15 @@ export class ChangelistService implements Disposable {
     private readonly storageKey: string,
   ) {
     this.lists = this.load();
+    this.unversionedChecked = this.storage.get<string[]>(this.unversionedKey) ?? [];
     this.reconcile(false);
     this.modelSub = model.onDidChange((sections) => {
       if (sections.has('status')) this.reconcile(true);
     });
+  }
+
+  private get unversionedKey(): string {
+    return `${this.storageKey}.unversionedChecked`;
   }
 
   private load(): PersistedList[] {
@@ -78,6 +91,7 @@ export class ChangelistService implements Disposable {
 
   private persist(): void {
     void this.storage.update(this.storageKey, this.lists);
+    void this.storage.update(this.unversionedKey, this.unversionedChecked);
   }
 
   /** Tracked, dirty, non-conflicted entries — the changelist universe. */
@@ -139,6 +153,14 @@ export class ChangelistService implements Disposable {
         seen.add(p);
         changed = true;
       }
+    }
+    // A ticked unversioned file that got committed, deleted or adopted into a
+    // list is no longer ours to tick.
+    const stillUnversioned = new Set(this.unversioned());
+    const keptTicks = this.unversionedChecked.filter((p) => stillUnversioned.has(p));
+    if (keptTicks.length !== this.unversionedChecked.length) {
+      this.unversionedChecked = keptTicks;
+      changed = true;
     }
     if (changed) {
       this.persist();
@@ -236,14 +258,42 @@ export class ChangelistService implements Disposable {
     for (const p of relPaths) {
       if (!target.files.includes(p)) target.files.push(p);
     }
+    // Adopted files answer to their list's checkbox now, not the unversioned one.
+    this.unversionedChecked = this.unversionedChecked.filter((p) => !relPaths.includes(p));
     this.persist();
     this._onDidChange.fire();
   }
 
-  setChecked(relPaths: readonly string[], checked: boolean): void {
+  /** Whether this path is currently ticked for commit, wherever it lives. */
+  isChecked(relPath: string): boolean {
+    if (this.unversionedChecked.includes(relPath)) {
+      return this.unversioned().includes(relPath);
+    }
+    return this.lists.some((l) => l.files.includes(relPath) && !l.unchecked.includes(relPath));
+  }
+
+  /** Untracked paths ticked for commit, in status order. */
+  unversionedCheckedPaths(): string[] {
+    const ticked = new Set(this.unversionedChecked);
+    return this.unversioned().filter((p) => ticked.has(p));
+  }
+
+  private applyChecked(relPaths: readonly string[], checked: boolean): boolean {
     let changed = false;
-    for (const list of this.lists) {
-      for (const p of relPaths) {
+    const unversioned = new Set(this.unversioned());
+    for (const p of relPaths) {
+      if (unversioned.has(p)) {
+        const at = this.unversionedChecked.indexOf(p);
+        if (checked && at === -1) {
+          this.unversionedChecked.push(p);
+          changed = true;
+        } else if (!checked && at !== -1) {
+          this.unversionedChecked.splice(at, 1);
+          changed = true;
+        }
+        continue;
+      }
+      for (const list of this.lists) {
         if (!list.files.includes(p)) continue;
         const idx = list.unchecked.indexOf(p);
         if (checked && idx !== -1) {
@@ -255,13 +305,23 @@ export class ChangelistService implements Disposable {
         }
       }
     }
-    if (changed) {
+    return changed;
+  }
+
+  setChecked(relPaths: readonly string[], checked: boolean): void {
+    if (this.applyChecked(relPaths, checked)) {
       this.persist();
       this._onDidChange.fire();
     }
   }
 
   setListChecked(id: string, checked: boolean): void {
+    if (id === UNVERSIONED_ID) {
+      this.unversionedChecked = checked ? this.unversioned() : [];
+      this.persist();
+      this._onDidChange.fire();
+      return;
+    }
     const list = this.lists.find((l) => l.id === id);
     if (!list) return;
     list.unchecked = checked ? [] : [...list.files];

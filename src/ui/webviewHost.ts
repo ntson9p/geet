@@ -115,6 +115,16 @@ export class WebviewRpcHost implements vscode.Disposable {
     return this;
   }
 
+  /**
+   * Whether a **request** handler exists. `on()` and `onEvent()` feed different
+   * routers, so a webview that posts `kind: 'evt'` where the host registered
+   * `on()` is answered by nobody and fails silently — this lets a test assert
+   * the two halves of a view's protocol actually meet.
+   */
+  hasHandler(method: string): boolean {
+    return this.handlers.has(method);
+  }
+
   onEvent(method: string, listener: (params: unknown) => void): vscode.Disposable {
     let set = this.eventListeners.get(method);
     if (!set) {

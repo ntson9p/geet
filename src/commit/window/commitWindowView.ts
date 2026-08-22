@@ -21,10 +21,12 @@ import { canonicalKey } from '../../core/repoDiscovery';
 import {
   COMMIT_METHODS,
   type CommitChangeDto,
+  type CommitFileDiffDto,
   type CommitGroupDto,
   type CommitRepoDto,
   type CommitRunParamsDto,
   type CommitSetCheckedParamsDto,
+  type CommitSetIncludedParamsDto,
   type CommitStateDto,
 } from '../../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
@@ -33,6 +35,8 @@ import type { CommitService } from '../commitService';
 import type { CommitMessageBox } from '../messageBox';
 import type { MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
+import { computeFileDiff } from './fileDiff';
+import { signChanges, type InclusionModel } from './inclusion';
 
 export interface CommitWindowDeps {
   context: vscode.ExtensionContext;
@@ -41,6 +45,8 @@ export interface CommitWindowDeps {
   commitService: CommitService;
   history: MessageHistory;
   paradigm: ParadigmManager;
+  /** P11-T3 — per-change inclusion, shared with the commit flow. */
+  inclusion: InclusionModel;
   /** Runs the shared P3 commit flow — the webview never commits by itself. */
   runCommit(repo: RepoHandle, options: { andPush?: boolean }): Promise<boolean>;
 }
@@ -136,14 +142,21 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
   private groupsFor(repo: RepoHandle): CommitGroupDto[] {
     const service = this.deps.changelistsFor(repo);
+    // Per-change selections are keyed by canonical root, and only a handful of
+    // files ever have one — a lookup table beats a diff per row.
+    const selections = new Map(this.deps.inclusion.entries(canonicalKey(repo.root)));
     const change = (relPath: string, checked: boolean): CommitChangeDto => {
       const entry = service.statusEntry(relPath);
+      const selection = selections.get(relPath);
       return {
         path: relPath.replace(/\\/g, '/'),
         code: entry ? shortCode(entry) : 'M.',
         kind: classify(entry),
         checked,
         ...(entry?.origPath !== undefined ? { origPath: entry.origPath } : {}),
+        ...(selection !== undefined
+          ? { partial: { total: selection.total, included: selection.included.length } }
+          : {}),
       };
     };
 
@@ -162,20 +175,25 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
     const unversioned = service.unversioned();
     if (unversioned.length > 0) {
+      // P11-T3: untracked files are tickable. They start unticked, as in
+      // IntelliJ — a new file joins a commit only when you say so.
+      const ticked = new Set(service.unversionedCheckedPaths());
       groups.push({
         id: UNVERSIONED_ID,
         name: vscode.l10n.t('Unversioned Files'),
         isActive: false,
         isDefault: false,
-        // P11-T3 turns this on; until then an inert checkbox would lie.
-        checkable: false,
-        changes: unversioned.map((f) => change(f, false)),
+        checkable: true,
+        changes: unversioned.map((f) => change(f, ticked.has(f))),
       });
     }
     return groups;
   }
 
   buildState(): CommitStateDto {
+    // Every snapshot starts from a pruned model, so no badge can outlive the
+    // file it describes — the state push is the only place that needs to know.
+    this.pruneInclusion();
     const repos: CommitRepoDto[] = this.deps.core.repos.map((repo) => ({
       root: repo.root,
       label: path.basename(repo.root),
@@ -200,9 +218,58 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     };
   }
 
+  /**
+   * One file's diff for the preview pane, with the live inclusion set. A
+   * selection whose change list has been renumbered is dropped here rather than
+   * carried to commit time, so the pane never shows ticks that would not be
+   * honoured.
+   */
+  private async fileDiff(repo: RepoHandle, relPath: string): Promise<CommitFileDiffDto> {
+    const key = canonicalKey(repo.root);
+    const diff = await computeFileDiff(repo, relPath);
+    const signature = signChanges(diff.changes);
+    const selection = this.deps.inclusion.get(key, relPath);
+    const stale = selection !== undefined && selection.signature !== signature;
+    if (stale) {
+      this.deps.inclusion.clear(key, relPath);
+      this.push(); // the row's `M of N changes` badge just became wrong
+    }
+    return {
+      repoRoot: repo.root,
+      path: relPath,
+      originalText: diff.originalText,
+      modifiedText: diff.modifiedText,
+      changes: diff.changes,
+      included: selection === undefined || stale ? null : [...selection.included],
+      checked: this.deps.changelistsFor(repo).isChecked(relPath),
+      wholeFileOnly: diff.wholeFileOnly,
+      signature,
+    };
+  }
+
+  /**
+   * Selections only mean something while their file is still pending. Pruning
+   * on every status tick keeps a committed or reverted file from carrying a
+   * ghost selection into its next appearance.
+   */
+  private pruneInclusion(): void {
+    for (const repo of this.deps.core.repos) {
+      const key = canonicalKey(repo.root);
+      if (this.deps.inclusion.count(key) === 0) continue; // the usual case, for free
+      const service = this.deps.changelistsFor(repo);
+      const live = [...service.getLists().flatMap((l) => l.files), ...service.unversioned()];
+      this.deps.inclusion.prune(key, live);
+    }
+  }
+
   /** True once the view has been made visible and the webview exists. */
   get isResolved(): boolean {
     return this.view !== undefined;
+  }
+
+  /** Test seam: whether the host answers this webview→host method as a request. */
+  hasHandler(method: string): boolean {
+    return this.rpc?.hasHandler(method) ?? false;
   }
 
   push(): void {
@@ -218,8 +285,18 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     return this.deps.core.repos.find((r) => canonicalKey(r.root) === canonicalKey(root));
   }
 
-  /** Runs a mutation with the busy flag raised and errors surfaced in-panel. */
+  /**
+   * Runs a mutation with the busy flag raised and errors surfaced in-panel.
+   *
+   * Re-entry is refused, not queued. Intents arrive as RPC *requests*, and
+   * `RpcClient` re-posts in-flight requests after a rehydrate — so hiding and
+   * re-showing the view mid-commit would otherwise start a second one.
+   */
   private async guard(label: string, run: () => Promise<void>): Promise<void> {
+    if (this.busy > 0) {
+      this.debugTrail.push(`${label} refused: a mutation is already running`);
+      return;
+    }
     this.busy++;
     this.lastError = undefined;
     this.push();
@@ -280,6 +357,44 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return;
       this.deps.changelistsFor(repo).setChecked(p.paths, p.checked);
+      if (!p.checked) {
+        // Unticking a file discards its per-change selection, so ticking it
+        // again means the whole file — never a set the user forgot they made.
+        const key = canonicalKey(repo.root);
+        for (const relPath of p.paths) this.deps.inclusion.clear(key, relPath);
+      }
+      this.push();
+    });
+
+    rpc.on(COMMIT_METHODS.fileDiff, async (raw) => {
+      const p = raw as { repoRoot: string; path: string };
+      const repo = this.repoFor(p.repoRoot);
+      if (!repo) return undefined;
+      return this.fileDiff(repo, p.path);
+    });
+
+    rpc.on(COMMIT_METHODS.setIncluded, async (raw) => {
+      const p = raw as CommitSetIncludedParamsDto;
+      const repo = this.repoFor(p.repoRoot);
+      if (!repo) return;
+      const key = canonicalKey(repo.root);
+      const diff = await computeFileDiff(repo, p.path);
+      // A status refresh may have landed between the render and the click.
+      // Applying indices to a renumbered change list is the one failure this
+      // whole model exists to prevent, so drop the toggle and re-push instead.
+      if (diff.wholeFileOnly || signChanges(diff.changes) !== p.signature) {
+        this.push();
+        return;
+      }
+      if (p.included.length === 0) {
+        // Excluding the last change means the file is out of the commit; two
+        // ways to say "nothing from this file" would be one way too many.
+        this.deps.inclusion.clear(key, p.path);
+        this.deps.changelistsFor(repo).setChecked([p.path], false);
+      } else {
+        this.deps.inclusion.set(key, p.path, diff.changes, p.included);
+        this.deps.changelistsFor(repo).setChecked([p.path], true);
+      }
       this.push();
     });
 

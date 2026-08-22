@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ChangelistService,
   DEFAULT_LIST_ID,
+  UNVERSIONED_ID,
   type ChangelistStorage,
 } from '../../../src/commit/changelists/changelistService';
 import { RepositoryModel } from '../../../src/core/model/repositoryModel';
@@ -17,7 +18,7 @@ const conflicted = (p: string): StatusEntry => ({ kind: 'unmerged', path: p, x: 
 function rig(initial: StatusEntry[] = []): {
   model: RepositoryModel;
   service: ChangelistService;
-  stored: () => unknown;
+  stored: (key?: string) => unknown;
 } {
   const backing = new Map<string, unknown>();
   const storage: ChangelistStorage = {
@@ -29,7 +30,7 @@ function rig(initial: StatusEntry[] = []): {
   const model = new RepositoryModel('X:/repo');
   model.update({ statusEntries: initial });
   const service = new ChangelistService(model, storage, 'test-key');
-  return { model, service, stored: () => backing.get('test-key') };
+  return { model, service, stored: (key = 'test-key') => backing.get(key) };
 }
 
 describe('ChangelistService invariants', () => {
@@ -132,6 +133,52 @@ describe('ChangelistService reconciliation', () => {
     expect(service.getList(DEFAULT_LIST_ID)?.checked).toEqual([]);
     service.setListChecked(DEFAULT_LIST_ID, true);
     expect(service.getList(DEFAULT_LIST_ID)?.checked).toEqual(['b.ts']);
+  });
+
+  it('P11-T3: unversioned files are tickable and start unticked', () => {
+    const { service } = rig([untracked('new.txt'), untracked('other.txt'), modified('a.ts')]);
+    // IntelliJ's default — an untracked file joins a commit only when you say so.
+    expect(service.unversionedCheckedPaths()).toEqual([]);
+    expect(service.isChecked('new.txt')).toBe(false);
+    expect(service.isChecked('a.ts')).toBe(true);
+
+    service.setChecked(['new.txt'], true);
+    expect(service.unversionedCheckedPaths()).toEqual(['new.txt']);
+    expect(service.isChecked('new.txt')).toBe(true);
+    // Ticking one untracked file must not drag the rest in.
+    expect(service.isChecked('other.txt')).toBe(false);
+
+    service.setChecked(['new.txt'], false);
+    expect(service.unversionedCheckedPaths()).toEqual([]);
+  });
+
+  it('P11-T3: the Unversioned group checkbox ticks and unticks every member', () => {
+    const { service } = rig([untracked('one.txt'), untracked('two.txt')]);
+    service.setListChecked(UNVERSIONED_ID, true);
+    expect(service.unversionedCheckedPaths()).toEqual(['one.txt', 'two.txt']);
+    service.setListChecked(UNVERSIONED_ID, false);
+    expect(service.unversionedCheckedPaths()).toEqual([]);
+  });
+
+  it('P11-T3: unversioned ticks persist and prune when the file stops being untracked', () => {
+    const { model, service, stored } = rig([untracked('new.txt')]);
+    service.setChecked(['new.txt'], true);
+    expect(JSON.stringify(stored('test-key.unversionedChecked'))).toContain('new.txt');
+
+    // Committed: no longer untracked, so the tick has nothing left to describe.
+    model.update({ statusEntries: [] });
+    expect(service.unversionedCheckedPaths()).toEqual([]);
+    expect(service.isChecked('new.txt')).toBe(false);
+  });
+
+  it('P11-T3: adopting an unversioned file hands its tick to the list', () => {
+    const { service } = rig([untracked('new.txt')]);
+    service.setChecked(['new.txt'], true);
+    service.moveFiles(['new.txt'], DEFAULT_LIST_ID);
+    // One owner for the checkbox, not two disagreeing ones.
+    expect(service.unversionedCheckedPaths()).toEqual([]);
+    expect(service.getList(DEFAULT_LIST_ID)?.checked).toEqual(['new.txt']);
+    expect(service.isChecked('new.txt')).toBe(true);
   });
 
   it('rehydrates from persisted storage', () => {

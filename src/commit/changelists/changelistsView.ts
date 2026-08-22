@@ -63,14 +63,18 @@ export class ChangelistsViewProvider
           listId: node.list.id,
           checked: node.list.checked.includes(relPath),
         }));
-      case 'unversioned':
+      case 'unversioned': {
+        // P11-T3: untracked files carry a real checkbox now, so their ticked
+        // state has to come from the service instead of being hardcoded false.
+        const ticked = new Set(this.serviceFor(node.repo).unversionedCheckedPaths());
         return node.files.map((relPath) => ({
           kind: 'file' as const,
           repo: node.repo,
           relPath,
           listId: UNVERSIONED_ID,
-          checked: false,
+          checked: ticked.has(relPath),
         }));
+      }
       case 'file':
         return [];
     }
@@ -127,6 +131,12 @@ export class ChangelistsViewProvider
         item.description = vscode.l10n.t('{0} files', node.files.length);
         item.iconPath = new vscode.ThemeIcon('question');
         item.contextValue = 'changelist:unversioned';
+        // P11-T3: ticking the group includes every untracked file in the commit.
+        const ticked = this.serviceFor(node.repo).unversionedCheckedPaths().length;
+        item.checkboxState =
+          ticked > 0 && ticked === node.files.length
+            ? vscode.TreeItemCheckboxState.Checked
+            : vscode.TreeItemCheckboxState.Unchecked;
         return item;
       }
       case 'file': {
@@ -156,11 +166,9 @@ export class ChangelistsViewProvider
           ),
         );
         item.contextValue = node.listId === UNVERSIONED_ID ? 'clfile:unversioned' : 'clfile';
-        if (node.listId !== UNVERSIONED_ID) {
-          item.checkboxState = node.checked
-            ? vscode.TreeItemCheckboxState.Checked
-            : vscode.TreeItemCheckboxState.Unchecked;
-        }
+        item.checkboxState = node.checked
+          ? vscode.TreeItemCheckboxState.Checked
+          : vscode.TreeItemCheckboxState.Unchecked;
         item.command = {
           command: 'gittree.openDiff',
           title: vscode.l10n.t('Open Changes'),
@@ -180,7 +188,9 @@ export class ChangelistsViewProvider
       const checked = state === vscode.TreeItemCheckboxState.Checked;
       if (node.kind === 'list') {
         this.serviceFor(node.repo).setListChecked(node.list.id, checked);
-      } else if (node.kind === 'file' && node.listId !== UNVERSIONED_ID) {
+      } else if (node.kind === 'unversioned') {
+        this.serviceFor(node.repo).setListChecked(UNVERSIONED_ID, checked);
+      } else if (node.kind === 'file') {
         this.serviceFor(node.repo).setChecked([node.relPath], checked);
       }
     }

@@ -15,9 +15,18 @@
 }
 
 /* The tree owns the slack so the message editor never scrolls off. */
-.gt-commit-tree {
+.gt-commit-body {
   flex: 1 1 auto;
   min-height: 60px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Each half of the tree/preview split; measured for the virtual lists inside. */
+.gt-commit-pane {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 

@@ -137,3 +137,11 @@ export function iconFor(change: CommitChangeDto): { codicon: string; color: stri
 export function fileCountLabel(n: number): string {
   return `${n} ${n === 1 ? 'file' : 'files'}`;
 }
+
+/**
+ * `2 of 5 changes` — what a file row says when only part of it is going in
+ * (P11-T3). Without it a ticked checkbox would imply the whole file.
+ */
+export function partialLabel(partial: { total: number; included: number }): string {
+  return `${partial.included} of ${partial.total} ${partial.total === 1 ? 'change' : 'changes'}`;
+}

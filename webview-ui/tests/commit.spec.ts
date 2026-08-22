@@ -94,13 +94,39 @@ test.describe('P11-T2 inclusion round trip', () => {
     await expect(page.getByTestId('commit-counter')).toHaveText('1 of 5 files');
   });
 
-  test('unversioned rows render no checkbox until P11-T3', async ({ page }) => {
+  test('P11-T3: unversioned files are tickable and start unticked', async ({ page }) => {
     await openCommit(page);
     const unversioned = row(page, 'Unversioned Files, 1 file');
-    await expect(unversioned.locator('.gt-tree-check')).toHaveCount(0);
-    await expect(unversioned).not.toHaveAttribute('aria-checked', 'false');
-    // And a "tick everything" gesture from the group cannot reach them.
-    await expect(row(page, '2.txt').locator('.gt-tree-check')).toHaveCount(0);
+    await expect(unversioned.locator('.gt-tree-check')).toHaveCount(1);
+    // IntelliJ's default: a new file joins a commit only when you say so.
+    await expect(unversioned).toHaveAttribute('aria-checked', 'false');
+    await expect(row(page, '2.txt')).toHaveAttribute('aria-checked', 'false');
+
+    await row(page, '2.txt').locator('.gt-tree-check').click();
+    await expect(row(page, '2.txt')).toHaveAttribute('aria-checked', 'true');
+    await expect(unversioned).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('commit-counter')).toHaveText('4 of 5 files');
+
+    const msg = (await posted(page)).find((m) => m.method === 'commit/setChecked');
+    expect(msg?.params).toEqual({
+      repoRoot: 'D:/repos/demo-git',
+      paths: ['2.txt'],
+      checked: true,
+    });
+  });
+
+  test('intents are posted as requests, which is what the host answers', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md, docs').locator('.gt-tree-check').click();
+    await expect
+      .poll(async () => (await posted(page)).filter((m) => m.method === 'commit/setChecked').length)
+      .toBeGreaterThan(0);
+    // `WebviewRpcHost.on()` registers request handlers; a `kind: 'evt'` message
+    // reaches no handler at all and fails silently. P11-T2 shipped exactly that
+    // mismatch, so the wire format is worth asserting directly.
+    for (const msg of await posted(page)) {
+      if (msg.method?.startsWith('commit/')) expect(msg.kind).toBe('req');
+    }
   });
 
   test('two groups holding the same directory expand independently', async ({ page }) => {
@@ -169,5 +195,86 @@ test.describe('P11-T2 commit actions', () => {
     await expect(row(page, 'api, 2 files')).toHaveCount(0);
     await page.getByRole('button', { name: 'Expand all' }).click();
     await expect(row(page, 'api, 2 files')).toBeVisible();
+  });
+});
+
+test.describe('P11-T3 per-change inclusion', () => {
+  const DIFF_ROW = 'Strings.java, src/main/java/util';
+
+  async function openPreview(page: Page): Promise<void> {
+    await openCommit(page);
+    await page.getByRole('button', { name: 'Preview Diff' }).click();
+    await expect(page.getByTestId('commit-preview')).toBeVisible();
+  }
+
+  test('the preview pane opens empty and asks for one file', async ({ page }) => {
+    await openPreview(page);
+    await expect(page.getByTestId('preview-hint')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Preview Diff' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  test('selecting a file shows its changes with an include checkbox each', async ({ page }) => {
+    await openPreview(page);
+    await row(page, DIFF_ROW).click();
+    await expect(page.getByTestId('diff-counter')).toHaveText('3 differences, 3 included');
+    for (const i of [0, 1, 2]) {
+      await expect(page.getByTestId(`diff-include-${i}`)).toBeVisible();
+    }
+  });
+
+  test('excluding a change round-trips and badges the row', async ({ page }) => {
+    await openPreview(page);
+    await row(page, DIFF_ROW).click();
+    await page.getByTestId('diff-include-0').click();
+
+    await expect(page.getByTestId('diff-counter')).toHaveText('3 differences, 2 included');
+    const msg = (await posted(page)).find((m) => m.method === 'commit/setIncluded');
+    expect(msg?.params).toEqual({
+      repoRoot: 'D:/repos/demo-git',
+      path: 'src/main/java/util/Strings.java',
+      included: [1, 2],
+      signature: '2,2,2,2;4,4,4,4;6,6,6,6',
+    });
+    // The tree row has to say so: a plain tick would imply the whole file.
+    await expect(row(page, 'Strings.java, 2 of 3 changes')).toBeVisible();
+  });
+
+  test('re-including every change drops the badge again', async ({ page }) => {
+    await openPreview(page);
+    await row(page, DIFF_ROW).click();
+    await page.getByTestId('diff-include-0').click();
+    await expect(row(page, 'Strings.java, 2 of 3 changes')).toBeVisible();
+
+    await page.getByTestId('diff-include-0').click();
+    await expect(page.getByTestId('diff-counter')).toHaveText('3 differences, 3 included');
+    // "All of it" and "the whole file" must be one state, not two.
+    await expect(row(page, DIFF_ROW)).toBeVisible();
+  });
+
+  test('excluding the last change unticks the file', async ({ page }) => {
+    await openPreview(page);
+    await row(page, DIFF_ROW).click();
+    for (const i of [0, 1, 2]) await page.getByTestId(`diff-include-${i}`).click();
+
+    await expect(page.getByTestId('diff-counter')).toHaveText('3 differences, 0 included');
+    // A ticked file that contributes nothing would be a lie.
+    await expect(row(page, DIFF_ROW)).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByTestId('commit-counter')).toHaveText('2 of 5 files');
+  });
+
+  test('a file with no per-change granularity says so instead of faking it', async ({ page }) => {
+    await openPreview(page);
+    await row(page, 'guide.md, docs').click();
+    await expect(page.getByTestId('preview-whole-file')).toContainText('docs/guide.md');
+    await expect(page.getByTestId('diff-counter')).toHaveCount(0);
+  });
+
+  test('the preview toggle and its ratio survive a reload', async ({ page }) => {
+    await openPreview(page);
+    await page.reload();
+    await expect(page.getByTestId('commit-preview')).toBeVisible();
   });
 });

@@ -24,6 +24,7 @@ import { MessageHistory } from './messageHistory';
 import { ParadigmManager } from './paradigmManager';
 import { registerStagingOps } from './staging/stagingOps';
 import { CommitWindowViewProvider } from './window/commitWindowView';
+import { InclusionModel } from './window/inclusion';
 
 export interface Phase03Registry {
   paradigm: ParadigmManager;
@@ -36,6 +37,8 @@ export interface Phase03Registry {
   commitWindow: CommitWindowViewProvider;
   /** P11-T2 — resolved commit surface (`gittree.commit.window`). */
   commitWindowMode: () => 'webview' | 'native';
+  /** P11-T3 — per-change inclusion, shared by the window and the commit flow. */
+  inclusion: InclusionModel;
 }
 
 export function registerPhase03(context: vscode.ExtensionContext, core: Core): Phase03Registry {
@@ -106,6 +109,11 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       ? 'native'
       : 'webview';
 
+  // P11-T3: which changes inside a file are in the next commit. One instance
+  // shared by the window (which edits it) and the commit flow (which reads it).
+  const inclusion = new InclusionModel();
+  context.subscriptions.push(new vscode.Disposable(() => inclusion.dispose()));
+
   const commitWindow = new CommitWindowViewProvider({
     context,
     core,
@@ -113,6 +121,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     commitService,
     history,
     paradigm,
+    inclusion,
     runCommit: (repo, options) => runCommitFlow(flowDeps, repo, options),
   });
   context.subscriptions.push(commitWindow);
@@ -132,6 +141,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     history,
     changelistsFor,
     inputBoxFor: messageBoxFor,
+    inclusion,
   };
 
   context.subscriptions.push(
@@ -358,6 +368,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     viewProvider,
     commitWindow,
     commitWindowMode,
+    inclusion,
   };
   core.debugRegistry.set('phase03', registry);
   return registry;
