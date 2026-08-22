@@ -220,6 +220,41 @@
         }
       },
       {
+        "title": "%gittree.config.colors.title%",
+        "properties": {
+          "gittree.colors.added": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.colors.added.description%"
+          },
+          "gittree.colors.modified": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.colors.modified.description%"
+          },
+          "gittree.colors.deleted": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.colors.deleted.description%"
+          },
+          "gittree.colors.renamed": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.colors.renamed.description%"
+          },
+          "gittree.colors.untracked": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.colors.untracked.description%"
+          },
+          "gittree.colors.conflicted": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.colors.conflicted.description%"
+          }
+        }
+      },
+      {
         "title": "%gittree.config.commit.title%",
         "properties": {
           "gittree.commit.window": {

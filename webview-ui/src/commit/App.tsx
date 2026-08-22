@@ -26,6 +26,7 @@ import { FileTree } from '../lib/FileTree';
 import { InlineDiff } from '../lib/InlineDiff';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient, RpcRequestError } from '../lib/rpc';
+import { dirStatusColor, statusColor } from '../lib/status';
 import { SplitPane } from '../lib/SplitPane';
 import { TabPanel, Tabs } from '../lib/Tabs';
 import { ToolbarButton } from '../lib/Toolbar';
@@ -225,11 +226,27 @@ export function App() {
 
   const icon = useCallback(
     (node: TreeNode) => {
-      if (node.kind === 'dir') return { codicon: 'folder' };
+      if (node.kind === 'dir') {
+        // P11-T8: a folder of modified descendants wears the modified color.
+        const color = dirStatusColor(model.dirKinds.get(node.path) ?? new Set(), state.colors);
+        return color !== undefined ? { codicon: 'folder', color } : { codicon: 'folder' };
+      }
       const ref = model.files.get(node.path);
-      return ref ? iconFor(ref.change) : { codicon: 'file' };
+      return ref ? iconFor(ref.change, state.colors) : { codicon: 'file' };
     },
-    [model],
+    [model, state.colors],
+  );
+
+  // IntelliJ colors the file *names*, not only the icons (P11-T8).
+  const nameColor = useCallback(
+    (node: TreeNode): string | undefined => {
+      if (node.kind === 'dir') {
+        return dirStatusColor(model.dirKinds.get(node.path) ?? new Set(), state.colors);
+      }
+      const ref = model.files.get(node.path);
+      return ref ? statusColor(ref.change.kind, state.colors) : undefined;
+    },
+    [model, state.colors],
   );
 
   const selectedRelPaths = useCallback((): { repoRoot: string; paths: string[] } | undefined => {
@@ -424,6 +441,7 @@ export function App() {
       }}
       description={description}
       icon={icon}
+      nameColor={nameColor}
     />
   );
 
@@ -635,7 +653,7 @@ export function App() {
       </TabPanel>
 
       <TabPanel id="shelf" active={tab} className="gt-commit-panel">
-        <ShelfTab rpc={rpc} send={send} />
+        <ShelfTab rpc={rpc} send={send} colors={state.colors} />
       </TabPanel>
 
       {optionsOpen && activeRepo !== undefined ? (

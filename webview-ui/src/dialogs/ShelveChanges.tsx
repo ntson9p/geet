@@ -20,6 +20,7 @@ import {
 import { Dialog } from '../lib/Dialog';
 import { FileTree } from '../lib/FileTree';
 import { InlineDiff } from '../lib/InlineDiff';
+import { dirStatusColor, statusColor, statusIcon, type StatusKind } from '../lib/status';
 import { ToolbarButton } from '../lib/Toolbar';
 import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStrip';
 import { buildTree, allDirPaths, countFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
@@ -204,20 +205,39 @@ export function ShelveChanges() {
     [byPath, selections],
   );
 
+  const dirKinds = useCallback(
+    (node: TreeNode): ReadonlySet<StatusKind> => {
+      const out = new Set<StatusKind>();
+      if (node.kind !== 'dir') return out;
+      const prefix = `${node.path}/`;
+      for (const f of files) {
+        if (f.path.startsWith(prefix)) out.add(f.kind);
+      }
+      return out;
+    },
+    [files],
+  );
+
   const icon = useCallback(
     (node: TreeNode) => {
-      if (node.kind === 'dir') return { codicon: 'folder' };
+      if (node.kind === 'dir') {
+        const color = dirStatusColor(dirKinds(node), params?.colors);
+        return color !== undefined ? { codicon: 'folder', color } : { codicon: 'folder' };
+      }
       const file = byPath.get(node.path);
-      return {
-        codicon:
-          file?.kind === 'deleted'
-            ? 'diff-removed'
-            : file?.kind === 'added' || file?.kind === 'untracked'
-              ? 'diff-added'
-              : 'diff-modified',
-      };
+      if (!file) return { codicon: 'file' };
+      return { codicon: statusIcon(file.kind), color: statusColor(file.kind, params?.colors) };
     },
-    [byPath],
+    [byPath, dirKinds, params?.colors],
+  );
+
+  const nameColor = useCallback(
+    (node: TreeNode): string | undefined => {
+      if (node.kind === 'dir') return dirStatusColor(dirKinds(node), params?.colors);
+      const file = byPath.get(node.path);
+      return file ? statusColor(file.kind, params?.colors) : undefined;
+    },
+    [byPath, dirKinds, params?.colors],
   );
 
   if (error !== undefined) {
@@ -325,6 +345,7 @@ export function ShelveChanges() {
           onSelectionChange={(paths) => setSelection(new Set(paths))}
           description={description}
           icon={icon}
+          nameColor={nameColor}
         />
       </div>
       <div className="gt-shelve-count" data-testid="shelve-count">

@@ -341,6 +341,17 @@ View `gittree.commit` (webview, `scm` container). Commands
   reverse cannot match a worktree that still holds the excluded changes, so the
   `apply --check --reverse` gate runs over the whole-file sections only; partial removal is the
   deterministic residue write above, sealed by the same `patchSha256`.
+- **P11-T8 — `gittree.colors.<status>` overrides color GitTree's own webview surfaces** (commit
+  window, Shelf tab, Shelve dialog). The native tree views keep the theme's `gitDecoration-*`
+  colors: VS Code offers no per-extension override of decoration colors, and those same theme
+  tokens are the defaults inside the webviews, so the two agree unless the user explicitly
+  overrides. Override values are validated host-side (`#hex` or a CSS keyword) — they land in
+  a style attribute, so nothing else passes.
+- **P11-T8 — no separate color-blind status palette.** The color-blind need is served by the
+  theme (the defaults track `gitDecoration-*`, which themes and `workbench.colorCustomizations`
+  already control) plus the explicit per-status overrides; the P10-T2 color-blind graph palette
+  (`gittree.log.graphPalette`) is untouched. A second palette switch for six freely-overridable
+  colors would be configuration for its own sake.
 - **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
   rendering a dead tab that says "coming later" would be a worse affordance than none.
 - **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`

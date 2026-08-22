@@ -847,6 +847,69 @@ suite('P11 commit tool window', () => {
     assert.strictEqual(shelfStore.list().length, before);
   });
 
+  test('T8: color overrides ship with the state; invalid values are dropped', async function () {
+    this.timeout(30_000);
+    const colors = vscode.workspace.getConfiguration('gittree.colors');
+    try {
+      await colors.update('modified', '#ff8800', vscode.ConfigurationTarget.Workspace);
+      // A value that is not color-shaped must never reach a style attribute.
+      await colors.update('added', 'url(javascript:alert(1))', vscode.ConfigurationTarget.Workspace);
+      const state = reg.commitWindow.buildState();
+      assert.strictEqual(state.colors?.['modified'], '#ff8800');
+      assert.strictEqual(state.colors?.['added'], undefined, 'invalid override must be dropped');
+    } finally {
+      await colors.update('modified', undefined, vscode.ConfigurationTarget.Workspace);
+      await colors.update('added', undefined, vscode.ConfigurationTarget.Workspace);
+    }
+  });
+
+  test('T8: counts and kinds stay correct across add, delete and rename', async function () {
+    this.timeout(90_000);
+    write('p11/t8-keep.txt', 'keep\n');
+    write('p11/t8-old.txt', 'move me\n');
+    write('p11/t8-gone.txt', 'delete me\n');
+    git('add', 'p11/t8-keep.txt', 'p11/t8-old.txt', 'p11/t8-gone.txt');
+    git('commit', '-m', 't8 seed');
+
+    write('p11/t8-keep.txt', 'keep changed\n'); // modified
+    git('mv', 'p11/t8-old.txt', 'p11/t8-new.txt'); // renamed (staged R)
+    fs.rmSync(path.join(repoRoot, 'p11/t8-gone.txt')); // deleted
+    write('p11/t8-fresh.txt', 'fresh\n'); // untracked
+    await refresh();
+    await waitFor(() => {
+      const g = groupOf('default');
+      return (
+        g.changes.some((c) => c.path === 'p11/t8-new.txt') &&
+        g.changes.some((c) => c.path === 'p11/t8-gone.txt')
+      );
+    }, 20_000);
+
+    const group = groupOf('default');
+    const kindOf = (p: string) => group.changes.find((c) => c.path === p)?.kind;
+    assert.strictEqual(kindOf('p11/t8-keep.txt'), 'modified');
+    assert.strictEqual(kindOf('p11/t8-gone.txt'), 'deleted');
+    assert.strictEqual(kindOf('p11/t8-new.txt'), 'renamed');
+    assert.strictEqual(
+      group.changes.find((c) => c.path === 'p11/t8-new.txt')?.origPath,
+      'p11/t8-old.txt',
+      'a rename must carry where it came from',
+    );
+    assert.ok(
+      !group.changes.some((c) => c.path === 'p11/t8-old.txt'),
+      'the rename source must not appear as a second row',
+    );
+    const unversioned = groupOf('__unversioned__');
+    assert.ok(unversioned.changes.some((c) => c.path === 'p11/t8-fresh.txt'));
+
+    // Cleanup: put everything back.
+    git('checkout', '--', 'p11/t8-keep.txt');
+    git('mv', 'p11/t8-new.txt', 'p11/t8-old.txt');
+    git('checkout', '--', 'p11/t8-gone.txt');
+    fs.rmSync(path.join(repoRoot, 'p11/t8-fresh.txt'));
+    await refresh();
+    restoreChecked();
+  });
+
   test('T2: switching to native restores the SCM input box without a reload', async function () {
     this.timeout(30_000);
     await useCommitWindow('native');

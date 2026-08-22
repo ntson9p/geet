@@ -432,6 +432,46 @@ test.describe('P11-T5 commit options gear popup', () => {
   });
 });
 
+test.describe('P11-T8 status colors and directory highlighting', () => {
+  test('a gittree.colors override colors icon and name; theme rows keep their variable', async ({ page }) => {
+    await openCommit(page);
+    // The mock ships { modified: '#ff8800' } — the override must win…
+    await expect(row(page, 'guide.md, docs').locator('.gt-tree-name')).toHaveCSS(
+      'color',
+      'rgb(255, 136, 0)',
+    );
+    // …while untracked stays on the theme's gitDecoration variable.
+    const untrackedStyle = await row(page, '2.txt')
+      .locator('.gt-tree-name')
+      .getAttribute('style');
+    expect(untrackedStyle).toContain('gitDecoration-untrackedResourceForeground');
+  });
+
+  test('a directory of mixed statuses reads as modified (IntelliJ)', async ({ page }) => {
+    await openCommit(page);
+    // api/ holds one modified + one added file → mixed → the modified override.
+    await expect(row(page, 'api, 2 files').locator('.gt-tree-name')).toHaveCSS(
+      'color',
+      'rgb(255, 136, 0)',
+    );
+    // Its folder icon carries the same status color.
+    await expect(row(page, 'api, 2 files').locator('.gt-tree-icon')).toHaveCSS(
+      'color',
+      'rgb(255, 136, 0)',
+    );
+  });
+
+  test('a single-status directory wears that status color', async ({ page }) => {
+    await openCommit(page);
+    // docs/ holds only guide.md (modified) → the modified override, and the
+    // Unversioned group root holds only untracked → the untracked variable.
+    const unversionedStyle = await row(page, 'Unversioned Files, 1 file')
+      .locator('.gt-tree-name')
+      .getAttribute('style');
+    expect(unversionedStyle).toContain('gitDecoration-untrackedResourceForeground');
+  });
+});
+
 test.describe('P11-T6 shelf tab', () => {
   async function openShelf(page: Page): Promise<void> {
     await openCommit(page);

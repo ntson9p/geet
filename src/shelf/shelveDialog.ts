@@ -26,6 +26,7 @@ import {
   type ShelveFileDiffDto,
 } from '../shared/protocol';
 import { openDialog } from '../ui/dialogHost';
+import { statusColorOverrides } from '../ui/statusColors';
 import type { ShelfStore } from './shelfStore';
 
 export interface ShelveDialogDeps {
@@ -96,6 +97,7 @@ export function buildShelveParams(
     lists,
     listId: preferred.id,
     message: draft.length > 0 ? draft : preferred.name,
+    colors: statusColorOverrides(),
   };
 }
 

@@ -111,6 +111,11 @@ export interface CommitStateDto {
   checkedCount: number;
   paradigm: 'changelists' | 'staging';
   error?: string;
+  /**
+   * P11-T8: `gittree.colors.<status>` overrides (validated host-side). Absent
+   * statuses fall back to the theme's gitDecoration variables in the webview.
+   */
+  colors?: Record<string, string>;
 }
 
 /**
@@ -340,6 +345,8 @@ export interface ShelveDialogParamsDto {
   listId: string;
   /** Prefill: the commit-window draft, else the selected list's name. */
   message: string;
+  /** P11-T8: status color overrides, same contract as `CommitStateDto.colors`. */
+  colors?: Record<string, string>;
 }
 
 /** Lazy per-file diff for the collapsible `∨ Diff` section. */

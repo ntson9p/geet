@@ -147,6 +147,8 @@ export const mockCommitHostScript = `
       checkedCount:
         changes.filter((c) => c.checked).length + unversioned.filter((c) => c.checked).length,
       paradigm: 'changelists',
+      // P11-T8: one override so specs can see it win; the rest follow the theme.
+      colors: { modified: '#ff8800' },
     };
   }
 

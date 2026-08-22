@@ -12,6 +12,7 @@
  *     per repository.
  */
 import type { CommitChangeDto, CommitStateDto } from '../../../src/shared/protocol';
+import { statusColor, statusIcon, type StatusColorOverrides, type StatusKind } from '../lib/status';
 import { buildTree, collectFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
 
 export interface CommitFileRef {
@@ -30,6 +31,11 @@ export interface CommitTreeModel {
   readonly files: Map<string, CommitFileRef>;
   /** Group node paths, so callers can default them to expanded. */
   readonly groupPaths: string[];
+  /**
+   * P11-T8: dir/group node path → the statuses of its descendants. One status
+   * colors the folder with it; mixed folders read as plain modified (IntelliJ).
+   */
+  readonly dirKinds: Map<string, ReadonlySet<StatusKind>>;
 }
 
 /** Stable, collision-free identity for a group row. */
@@ -43,7 +49,22 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   const checkboxless = new Set<string>();
   const files = new Map<string, CommitFileRef>();
   const groupPaths: string[] = [];
+  const dirKinds = new Map<string, ReadonlySet<StatusKind>>();
   const multiRepo = state.repos.length > 1;
+
+  /** Bottom-up status rollup for the directory highlighting (P11-T8). */
+  const annotate = (node: TreeNode): ReadonlySet<StatusKind> => {
+    if (node.kind === 'file') {
+      const ref = files.get(node.path);
+      return new Set(ref ? [ref.change.kind] : []);
+    }
+    const out = new Set<StatusKind>();
+    for (const child of node.children) {
+      for (const k of annotate(child)) out.add(k);
+    }
+    dirKinds.set(node.path, out);
+    return out;
+  };
 
   for (const repo of state.repos) {
     for (const group of repo.groups) {
@@ -74,10 +95,11 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
         if (change.checked) checked.add(leaf);
         if (!group.checkable) checkboxless.add(leaf);
       }
+      annotate(root);
     }
   }
 
-  return { nodes, checked, checkboxless, files, groupPaths };
+  return { nodes, checked, checkboxless, files, groupPaths, dirKinds };
 }
 
 export interface RepoCheckDelta {
@@ -111,26 +133,11 @@ export function splitDelta(
   }));
 }
 
-const KIND_ICONS: Record<CommitChangeDto['kind'], string> = {
-  added: 'diff-added',
-  modified: 'diff-modified',
-  deleted: 'diff-removed',
-  renamed: 'diff-renamed',
-  untracked: 'diff-added',
-  conflicted: 'warning',
-};
-
-const KIND_COLORS: Record<CommitChangeDto['kind'], string> = {
-  added: 'var(--vscode-gitDecoration-addedResourceForeground)',
-  modified: 'var(--vscode-gitDecoration-modifiedResourceForeground)',
-  deleted: 'var(--vscode-gitDecoration-deletedResourceForeground)',
-  renamed: 'var(--vscode-gitDecoration-renamedResourceForeground)',
-  untracked: 'var(--vscode-gitDecoration-untrackedResourceForeground)',
-  conflicted: 'var(--vscode-gitDecoration-conflictingResourceForeground)',
-};
-
-export function iconFor(change: CommitChangeDto): { codicon: string; color: string } {
-  return { codicon: KIND_ICONS[change.kind], color: KIND_COLORS[change.kind] };
+export function iconFor(
+  change: CommitChangeDto,
+  overrides?: StatusColorOverrides,
+): { codicon: string; color: string } {
+  return { codicon: statusIcon(change.kind), color: statusColor(change.kind, overrides) };
 }
 
 /** `2 files` / `1 file` — the badge every IntelliJ tree node carries (S12). */

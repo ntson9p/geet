@@ -44,6 +44,8 @@ export interface FileTreeProps {
   /** Dim trailing text — `2 files` on directories, the parent dir on files. */
   description?: (node: TreeNode) => string | undefined;
   icon?: (node: TreeNode) => FileTreeIcon | undefined;
+  /** P11-T8: status color for the row label (IntelliJ colors names, not icons). */
+  nameColor?: (node: TreeNode) => string | undefined;
   rowContext?: (node: TreeNode) => Record<string, unknown> | undefined;
   rowHeight?: number;
   onFocusPath?: (path: string) => void;
@@ -67,6 +69,7 @@ export function FileTree({
   onActivate,
   description,
   icon,
+  nameColor,
   rowContext,
   rowHeight = DEFAULT_ROW_HEIGHT,
   onFocusPath,
@@ -191,6 +194,7 @@ export function FileTree({
       const state = stateOf(row);
       const desc = description?.(node);
       const ico = icon?.(node);
+      const labelColor = nameColor?.(node);
       return (
         <span className="gt-tree-row-inner" style={{ paddingLeft: node.depth * INDENT_PX }}>
           <span
@@ -226,14 +230,19 @@ export function FileTree({
               aria-hidden="true"
             />
           ) : null}
-          <span className="gt-tree-name">{node.name}</span>
+          <span
+            className="gt-tree-name"
+            style={labelColor !== undefined ? { color: labelColor } : undefined}
+          >
+            {node.name}
+          </span>
           {desc !== undefined && desc !== '' ? (
             <span className="gt-tree-desc">{desc}</span>
           ) : null}
         </span>
       );
     },
-    [applyToggle, description, icon, rows, setExpanded, stateOf],
+    [applyToggle, description, icon, nameColor, rows, setExpanded, stateOf],
   );
 
   const rowAria = useCallback(

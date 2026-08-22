@@ -21,6 +21,7 @@ import {
 } from '../../../src/shared/protocol';
 import { FileTree } from '../lib/FileTree';
 import type { RpcClient } from '../lib/rpc';
+import { statusColor, statusIcon, type StatusColorOverrides } from '../lib/status';
 import { ToolbarButton } from '../lib/Toolbar';
 import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStrip';
 import type { TreeNode } from '../lib/treeModel';
@@ -39,11 +40,13 @@ interface ShelfRef {
 export interface ShelfTabProps {
   rpc: RpcClient;
   send: (method: string, params?: unknown) => void;
+  /** P11-T8: status color overrides from the commit state. */
+  colors?: StatusColorOverrides;
 }
 
 const EMPTY: CommitShelfStateDto = { repos: [], showUnshelved: false };
 
-export function ShelfTab({ rpc, send }: ShelfTabProps) {
+export function ShelfTab({ rpc, send, colors }: ShelfTabProps) {
   const [shelf, setShelf] = useState<CommitShelfStateDto>(EMPTY);
   const [ready, setReady] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -147,16 +150,19 @@ export function ShelfTab({ rpc, send }: ShelfTabProps) {
         return { codicon: ref.entry.unshelved ? 'check' : 'package' };
       }
       const file = ref.entry.files.find((f) => f.relPath === ref.relPath);
-      return {
-        codicon:
-          file?.status === 'deleted'
-            ? 'diff-removed'
-            : file?.status === 'modified'
-              ? 'diff-modified'
-              : 'diff-added',
-      };
+      if (!file) return { codicon: 'file' };
+      return { codicon: statusIcon(file.status), color: statusColor(file.status, colors) };
     },
-    [refs],
+    [colors, refs],
+  );
+
+  const nameColor = useCallback(
+    (node: TreeNode): string | undefined => {
+      const ref = refs.get(node.path);
+      const file = ref?.entry.files.find((f) => f.relPath === ref.relPath);
+      return file ? statusColor(file.status, colors) : undefined;
+    },
+    [colors, refs],
   );
 
   const rowContext = useCallback(
@@ -249,6 +255,7 @@ export function ShelfTab({ rpc, send }: ShelfTabProps) {
               }}
               description={description}
               icon={icon}
+              nameColor={nameColor}
               rowContext={rowContext}
             />
           )}

@@ -30,6 +30,7 @@ import {
   type CommitSetOptionParamsDto,
   type CommitStateDto,
 } from '../../shared/protocol';
+import { statusColorOverrides } from '../../ui/statusColors';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
 import { ChangelistService, UNVERSIONED_ID } from '../changelists/changelistService';
 import type { CommitService } from '../commitService';
@@ -104,6 +105,10 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       core.onDidRemoveRepo(() => this.push()),
       deps.paradigm.onDidChange(() => this.push()),
       deps.commitService.onDidCommit(() => this.push()),
+      // P11-T8: a changed color override must repaint without a reload.
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('gittree.colors')) this.push();
+      }),
     );
   }
 
@@ -229,6 +234,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       checkedCount: changes.filter((c) => c.checked).length,
       paradigm: this.deps.paradigm.paradigm,
       ...(this.lastError !== undefined ? { error: this.lastError } : {}),
+      colors: statusColorOverrides(),
     };
   }
 

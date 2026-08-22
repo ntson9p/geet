@@ -171,6 +171,44 @@ List shelved changes that were already unshelved but kept (IntelliJ's greyed ent
 
 - Type: `boolean` · Default: `false`
 
+## GitTree: File Status Colors
+
+### `gittree.colors.added`
+
+Override for added files in GitTree's own views (hex like #81b88b or a CSS color name). Empty follows the theme's gitDecoration colors.
+
+- Type: `string` · Default: `""`
+
+### `gittree.colors.modified`
+
+Override for modified files in GitTree's own views. Empty follows the theme.
+
+- Type: `string` · Default: `""`
+
+### `gittree.colors.deleted`
+
+Override for deleted files in GitTree's own views. Empty follows the theme.
+
+- Type: `string` · Default: `""`
+
+### `gittree.colors.renamed`
+
+Override for renamed files in GitTree's own views. Empty follows the theme.
+
+- Type: `string` · Default: `""`
+
+### `gittree.colors.untracked`
+
+Override for untracked files in GitTree's own views. Empty follows the theme.
+
+- Type: `string` · Default: `""`
+
+### `gittree.colors.conflicted`
+
+Override for conflicted files in GitTree's own views. Empty follows the theme.
+
+- Type: `string` · Default: `""`
+
 ## GitTree Commit
 
 ### `gittree.commit.window`
