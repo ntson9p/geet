@@ -13,8 +13,16 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { repoStoreKey } from '../localHistory/snapshotStore';
 import { confirmModal, typedConfirm } from '../ui/confirm';
 import type { ConflictSource } from '../merge/conflictSession';
-import { ShelfStore, type ShelfMeta, type ShelveOptions } from '../shelf/shelfStore';
-import { SHELF_SCHEME, ShelfContentProvider, ShelfViewProvider, type ShelfNode } from '../shelf/shelfView';
+import { ShelfBridge } from '../commit/window/shelfBridge';
+import { ShelfStore, type ShelfFileMeta, type ShelfMeta, type ShelveOptions } from '../shelf/shelfStore';
+import {
+  makeShelfUri,
+  SHELF_SCHEME,
+  shelfDiffSides,
+  ShelfContentProvider,
+  ShelfViewProvider,
+  type ShelfNode,
+} from '../shelf/shelfView';
 import { UnshelveEngine } from '../shelf/unshelve';
 import { StashService, type StashPushOptions } from './stashService';
 import { relativeTime, stashDiffSides, StashViewProvider, type StashNode } from './stashView';
@@ -314,13 +322,26 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   context.subscriptions.push(new vscode.Disposable(() => shelfAddSub.dispose()));
   pushShelves();
 
-  /** Resolve the acted-on shelf entry: tree node, else QuickPick. */
+  /**
+   * Resolve the acted-on shelf entry: tree node, the `{repoRoot, shelfId}`
+   * shape the commit window's Shelf tab and its native context menu pass
+   * (P11-T6), else QuickPick.
+   */
   const pickShelf = async (
     arg: unknown,
   ): Promise<{ repo: RepoHandle; store: ShelfStore; meta: ShelfMeta } | undefined> => {
     const node = arg as ShelfNode | undefined;
     if (node && typeof node === 'object' && 'kind' in node && node.kind === 'entry') {
       return { repo: node.repo, store: node.store, meta: node.meta };
+    }
+    if (arg && typeof arg === 'object' && 'shelfId' in arg && 'repoRoot' in arg) {
+      const ref = arg as { repoRoot: string; shelfId: string };
+      const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(ref.repoRoot));
+      const store = shelves.get(canonicalKey(ref.repoRoot));
+      const meta = store?.get(ref.shelfId);
+      if (repo && store && meta) return { repo, store, meta };
+      void vscode.window.showWarningMessage(vscode.l10n.t('That shelved change no longer exists.'));
+      return undefined;
     }
     interface Choice extends vscode.QuickPickItem {
       repo: RepoHandle;
@@ -641,6 +662,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
           service.moveFiles(res.relPaths, target.id);
         }
       }
+      // P11-T6: a kept-after-apply entry is IntelliJ's greyed "already
+      // unshelved" state — mark full unshelves so the Shelf surfaces can hide
+      // them behind the Show-already-unshelved toggle.
+      if (!deleteAfter && indexes === undefined) t.store.markUnshelved(t.meta.id);
       void vscode.window.showInformationMessage(
         vscode.l10n.t('Unshelved "{0}" ({1} file(s)).', t.meta.name, res.relPaths.length),
       );
@@ -694,6 +719,81 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     await runUnshelve(t, undefined, deleteAfter);
   });
 
+  // P11-T6: IntelliJ's "Unshelve Silently" — apply with the defaults, no
+  // prompts. deleteAfter=true is this codebase's stated IntelliJ default
+  // (P7-T5's pickDeleteAfter labels), kept consistent here.
+  register('gittree.shelf.unshelveSilently', async (arg) => {
+    const t = await pickShelf(arg);
+    if (!t) return;
+    await runUnshelve(t, undefined, true);
+  });
+
+  /** Resolve a shelf FILE from a tree node or the tab's {repoRoot, shelfId, relPath}. */
+  const pickShelfFile = async (
+    arg: unknown,
+  ): Promise<
+    { repo: RepoHandle; store: ShelfStore; meta: ShelfMeta; file: ShelfFileMeta } | undefined
+  > => {
+    const node = arg as ShelfNode | undefined;
+    if (node && typeof node === 'object' && 'kind' in node && node.kind === 'file') {
+      return { repo: node.repo, store: node.store, meta: node.meta, file: node.file };
+    }
+    if (arg && typeof arg === 'object' && 'relPath' in arg) {
+      const ref = arg as { repoRoot?: string; shelfId?: string; relPath: string };
+      const t = await pickShelf(ref);
+      const file = t?.meta.files.find((f) => f.relPath === ref.relPath);
+      if (t && file) return { ...t, file };
+    }
+    return undefined;
+  };
+
+  // P11-T6: shelved content ↔ the file as it is in the worktree right now.
+  register('gittree.shelf.compareWithLocal', async (arg) => {
+    const t = await pickShelfFile(arg);
+    if (!t) return;
+    if (t.file.isBinary) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('"{0}" is binary — no text comparison available.', t.file.relPath),
+      );
+      return;
+    }
+    const baseName = t.file.relPath.split('/').pop() ?? t.file.relPath;
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      makeShelfUri(t.repo.root, t.meta.id, t.file.relPath),
+      vscode.Uri.file(path.join(t.repo.root, t.file.relPath)),
+      vscode.l10n.t('{0} (Shelved: {1} ↔ Local)', baseName, t.meta.name),
+    );
+  });
+
+  // P11-T6: the tab's file-row activate — same base↔shelved diff the tree opens.
+  register('gittree.shelf.openShelvedDiff', async (arg) => {
+    const t = await pickShelfFile(arg);
+    if (!t || t.file.isBinary) return;
+    const sides = shelfDiffSides({
+      kind: 'file',
+      repo: t.repo,
+      store: t.store,
+      meta: t.meta,
+      file: t.file,
+    });
+    await vscode.commands.executeCommand('vscode.diff', sides.left, sides.right, sides.title);
+  });
+
+  register('gittree.shelf.showUnshelved', async () => {
+    const config = vscode.workspace.getConfiguration('gittree.shelf');
+    await config.update(
+      'showUnshelved',
+      !config.get<boolean>('showUnshelved', false),
+      vscode.ConfigurationTarget.Workspace,
+    );
+  });
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gittree.shelf.showUnshelved')) shelfViewProvider.refresh();
+    }),
+  );
+
   register('gittree.shelf.unshelvePartial', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
@@ -727,9 +827,24 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     );
   });
 
+  // P11-T6: hand the commit window its Shelf tab data source. Phase 03 built
+  // the window; the stores live here — the bridge ties them together and the
+  // tab dispatches back into the very commands registered above.
+  const shelfBridge = new ShelfBridge({
+    core,
+    storeFor: (repoRoot) => shelves.get(canonicalKey(repoRoot)),
+  });
+  context.subscriptions.push(shelfBridge);
+  (
+    core.debugRegistry.get('phase03') as
+      | { commitWindow?: { attachShelf(bridge: ShelfBridge): void } }
+      | undefined
+  )?.commitWindow?.attachShelf(shelfBridge);
+
   core.debugRegistry.set('phase07', {
     getStashService: (repoRoot: string) => services.get(canonicalKey(repoRoot)),
     getShelfStore: (repoRoot: string) => shelves.get(canonicalKey(repoRoot)),
+    shelfBridge,
     makeUnshelveEngine: (repoRoot: string) => {
       const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot));
       const store = shelves.get(canonicalKey(repoRoot));

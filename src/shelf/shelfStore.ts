@@ -50,6 +50,12 @@ export interface ShelfMeta {
   untrackedSnapshots: 'embedded';
   /** Integrity: sha256(hex) of changes.patch, checked before unshelve/edit. */
   patchSha256: string;
+  /**
+   * P11-T6 — set when the entry was cleanly unshelved but kept (IntelliJ's
+   * greyed "already unshelved" state). Absent on every pre-T6 entry, which
+   * reads as "not unshelved" — old stores keep working untouched.
+   */
+  unshelvedAt?: number;
 }
 
 export interface ShelveOptions {
@@ -201,6 +207,15 @@ export class ShelfStore implements Disposable {
       );
     }
     return bytes;
+  }
+
+  /** P11-T6: applied-but-kept marker. Meta-only; patch bytes untouched. */
+  markUnshelved(id: string): void {
+    const meta = this.readMeta(id);
+    if (!meta) return;
+    meta.unshelvedAt = Date.now();
+    this.writeMeta(meta);
+    this._onDidChange.fire();
   }
 
   /** Meta-only rewrite (T4 Rename/Comment). Patch bytes and hash untouched. */

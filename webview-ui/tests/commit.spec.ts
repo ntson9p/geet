@@ -432,6 +432,112 @@ test.describe('P11-T5 commit options gear popup', () => {
   });
 });
 
+test.describe('P11-T6 shelf tab', () => {
+  async function openShelf(page: Page): Promise<void> {
+    await openCommit(page);
+    await page.getByRole('tab', { name: 'Shelf' }).click();
+    await expect(page.getByTestId('shelf-tab')).toBeVisible();
+  }
+
+  test('the Commit | Shelf strip exists and the tab lists entries with files', async ({ page }) => {
+    await openShelf(page);
+    const entry = page.getByRole('treeitem', { name: /feature work/ });
+    await expect(entry).toBeVisible();
+    await expect(entry).toContainText('2 files');
+    await expect(entry).toContainText('from main');
+    // Applied-but-kept entries hide until the eye toggle.
+    await expect(page.getByRole('treeitem', { name: /applied earlier/ })).toHaveCount(0);
+
+    // Expanding shows the patch's files with status and binary flags.
+    await entry.locator('.gt-twistie').click();
+    await expect(page.getByRole('treeitem', { name: /alpha\.ts/ })).toContainText('modified');
+    await expect(page.getByRole('treeitem', { name: /logo\.png/ })).toContainText('binary');
+  });
+
+  test('a tampered entry renders damaged inline, not as a modal', async ({ page }) => {
+    await openShelf(page);
+    const damaged = page.getByRole('treeitem', { name: /tampered entry/ });
+    await expect(damaged).toBeVisible();
+    await expect(damaged).toContainText('damaged');
+    await expect(damaged.locator('.codicon-warning')).toHaveCount(1);
+  });
+
+  test('the eye toggle reveals already-unshelved entries', async ({ page }) => {
+    await openShelf(page);
+    await page.getByRole('button', { name: 'Show already unshelved' }).click();
+    const applied = page.getByRole('treeitem', { name: /applied earlier/ });
+    await expect(applied).toBeVisible();
+    await expect(applied).toContainText('unshelved');
+    await page.getByRole('button', { name: 'Show already unshelved' }).click();
+    await expect(page.getByRole('treeitem', { name: /applied earlier/ })).toHaveCount(0);
+  });
+
+  test('toolbar actions dispatch shelfAction with the entry identity', async ({ page }) => {
+    await openShelf(page);
+    await expect(page.getByRole('button', { name: 'Unshelve…' })).toBeDisabled();
+    await page.getByRole('treeitem', { name: /feature work/ }).click();
+    await expect(page.getByRole('button', { name: 'Unshelve…' })).toBeEnabled();
+
+    await page.getByRole('button', { name: 'Unshelve Silently' }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).filter((m) => m.method === 'commit/shelfAction').length,
+      )
+      .toBeGreaterThan(0);
+    const msg = (await posted(page)).find((m) => m.method === 'commit/shelfAction');
+    expect(msg?.kind).toBe('req');
+    expect(msg?.params).toEqual({
+      action: 'unshelveSilently',
+      repoRoot: 'D:/repos/demo-git',
+      id: 'shelf-1',
+    });
+    // The mock applies it: the entry leaves the list, like a real unshelve.
+    await expect(page.getByRole('treeitem', { name: /feature work/ })).toHaveCount(0);
+  });
+
+  test('shelf rows carry the native context-menu identity', async ({ page }) => {
+    await openShelf(page);
+    const entry = page.getByRole('treeitem', { name: /feature work/ });
+    const ctx = JSON.parse((await entry.getAttribute('data-vscode-context')) ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    expect(ctx['webviewSection']).toBe('shelfEntry');
+    expect(ctx['shelfId']).toBe('shelf-1');
+    expect(ctx['repoRoot']).toBe('D:/repos/demo-git');
+
+    await entry.locator('.gt-twistie').click();
+    const file = page.getByRole('treeitem', { name: /alpha\.ts/ });
+    const fileCtx = JSON.parse((await file.getAttribute('data-vscode-context')) ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    expect(fileCtx['webviewSection']).toBe('shelfFile');
+    expect(fileCtx['relPath']).toBe('src/alpha.ts');
+  });
+
+  test('activating a file row asks the host for the shelved diff', async ({ page }) => {
+    await openShelf(page);
+    await page.getByRole('treeitem', { name: /feature work/ }).locator('.gt-twistie').click();
+    await page.getByRole('treeitem', { name: /alpha\.ts/ }).dblclick();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const p = m.params as { action?: string; relPath?: string } | undefined;
+          return m.method === 'commit/shelfAction' && p?.action === 'openDiff' && p.relPath === 'src/alpha.ts';
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('a refused action surfaces in the error banner instead of vanishing', async ({ page }) => {
+    await openShelf(page);
+    await page.getByRole('treeitem', { name: /tampered entry/ }).click();
+    await page.getByRole('button', { name: 'Unshelve Silently' }).click();
+    await expect(page.getByTestId('commit-error')).toContainText('sha256');
+  });
+});
+
 test.describe('P11-T3 per-change inclusion', () => {
   const DIFF_ROW = 'Strings.java, src/main/java/util';
 

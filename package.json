@@ -211,6 +211,11 @@
             "type": "string",
             "default": "",
             "description": "%gittree.config.shelf.path.description%"
+          },
+          "gittree.shelf.showUnshelved": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.shelf.showUnshelved.description%"
           }
         }
       },
@@ -1013,6 +1018,26 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "gittree.shelf.unshelveSilently",
+        "title": "%gittree.command.shelf.unshelveSilently.title%",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "gittree.shelf.compareWithLocal",
+        "title": "%gittree.command.shelf.compareWithLocal.title%",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "gittree.shelf.openShelvedDiff",
+        "title": "%gittree.command.shelf.openShelvedDiff.title%",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "gittree.shelf.showUnshelved",
+        "title": "%gittree.command.shelf.showUnshelved.title%",
+        "icon": "$(eye)"
+      },
+      {
         "command": "gittree.openWalkthrough",
         "title": "%gittree.command.openWalkthrough.title%",
         "category": "GitTree"
@@ -1042,6 +1067,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gittree.shelf.compareWithLocal",
+          "when": "false"
+        },
+        {
+          "command": "gittree.shelf.openShelvedDiff",
+          "when": "false"
+        },
         {
           "command": "gittree.debug.showState",
           "when": "config.gittree.trace"
@@ -1441,6 +1474,11 @@
           "group": "1_manage@1"
         },
         {
+          "command": "gittree.shelf.showUnshelved",
+          "when": "view == gittree.shelf",
+          "group": "navigation@2"
+        },
+        {
           "command": "gittree.log.refresh",
           "when": "view == gittree.log",
           "group": "navigation@1"
@@ -1673,6 +1711,16 @@
           "group": "3_manage@1"
         },
         {
+          "command": "gittree.shelf.unshelveSilently",
+          "when": "view == gittree.shelf && viewItem == shelf:entry",
+          "group": "1_apply@2"
+        },
+        {
+          "command": "gittree.shelf.compareWithLocal",
+          "when": "view == gittree.shelf && viewItem =~ /^shelf:file/",
+          "group": "1_file@1"
+        },
+        {
           "command": "gittree.changelist.moveTo",
           "when": "view == gittree.changelists && viewItem =~ /^clfile/",
           "group": "1_file@1"
@@ -1779,6 +1827,51 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "gittree.shelf.unshelve",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "1_apply@1"
+        },
+        {
+          "command": "gittree.shelf.unshelveSilently",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "1_apply@2"
+        },
+        {
+          "command": "gittree.shelf.unshelvePartial",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "1_apply@3"
+        },
+        {
+          "command": "gittree.shelf.showPatch",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "2_inspect@1"
+        },
+        {
+          "command": "gittree.shelf.export",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "2_inspect@2"
+        },
+        {
+          "command": "gittree.shelf.rename",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "3_manage@1"
+        },
+        {
+          "command": "gittree.shelf.delete",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",
+          "group": "3_manage@2"
+        },
+        {
+          "command": "gittree.shelf.compareWithLocal",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfFile'",
+          "group": "1_file@1"
+        },
+        {
+          "command": "gittree.shelf.openShelvedDiff",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfFile'",
+          "group": "1_file@2"
+        },
         {
           "command": "gittree.log.copySha",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
@@ -2159,7 +2252,8 @@
           "name": "%gittree.view.shelf.name%",
           "contextualTitle": "GitTree",
           "icon": "$(package)",
-          "visibility": "collapsed"
+          "visibility": "collapsed",
+          "when": "gittree.commitWindow == native"
         }
       ]
     },

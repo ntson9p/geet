@@ -235,7 +235,7 @@ View `gittree.commit` (webview, `scm` container). Commands
 - [x] S11 — tri-state checkboxes on group, folder **and** file rows; per-change checkboxes with `N differences, M included` (P11-T3)
 - [x] S11b — unversioned files are checkable and commit correctly (P11-T3)
 - [x] S12 — `N files` badge on every group and folder node (P11-T2)
-- [ ] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees
+- [x] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees (P11-T6)
 - [ ] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion
 - [x] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities) (P11-T5)
 - [x] Multi-line message editor with working IME, undo, history clock and amend dropdown (P11-T4)
@@ -309,6 +309,19 @@ View `gittree.commit` (webview, `scm` container). Commands
   The P3-T7 gating path remains fully supported behind the toggle (phase03's gate test pins it
   off). The deferred pass re-baselines range-scoped checks on the new commit's parent —
   post-commit, worktree↔HEAD is empty and would have made the TODO check silently blind.
+- **P11-T6 — every tab action dispatches the registered `gittree.shelf.*` command** with a
+  `{repoRoot, shelfId}` argument (the same shape the webview's native context menu passes), so
+  the tab and the tree run literally one implementation. Context menus are VS Code-native
+  (`data-vscode-context` + `webview/context`) — the labels are static, which is the case
+  master §9 reserves native menus for; the kit `Menu` stays for interpolated labels.
+- **P11-T6 — "already unshelved" is a new `unshelvedAt` marker on `ShelfMeta`,** set when a
+  clean full unshelve keeps the entry (`deleteAfter: false`). P7 had no such state — entries
+  were either deleted or left untouched — so IntelliJ's greyed entries had nothing to key on.
+  Absent on pre-T6 entries, which reads as not-unshelved; old stores work unchanged. The
+  `Show already unshelved` toggle is a workspace setting (`gittree.shelf.showUnshelved`)
+  consumed by both surfaces, so they can never disagree about what is listed.
+- **P11-T6 — `Unshelve Silently` uses `deleteAfter: true`,** this codebase's stated IntelliJ
+  default (the P7-T5 QuickPick labels), rather than re-litigating P7's semantics.
 - **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
   rendering a dead tab that says "coming later" would be a worse affordance than none.
 - **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`

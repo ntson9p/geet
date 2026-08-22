@@ -165,6 +165,12 @@ Custom directory for shelved patches (must be writable). Empty = the extension's
 
 - Type: `string` · Default: `""`
 
+### `gittree.shelf.showUnshelved`
+
+List shelved changes that were already unshelved but kept (IntelliJ's greyed entries).
+
+- Type: `boolean` · Default: `false`
+
 ## GitTree Commit
 
 ### `gittree.commit.window`

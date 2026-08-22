@@ -39,6 +39,8 @@ import type { ParadigmManager } from '../paradigmManager';
 import { computeFileDiff } from './fileDiff';
 import { signChanges, type InclusionModel } from './inclusion';
 import { applyOption, readOptions, type CommitOptionsStore } from './options';
+import type { ShelfBridge } from './shelfBridge';
+import type { CommitShelfActionParamsDto } from '../../shared/protocol';
 
 export interface CommitWindowDeps {
   context: vscode.ExtensionContext;
@@ -82,6 +84,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   private rpc: WebviewRpcHost | undefined;
   private busy = 0;
   private lastError: string | undefined;
+  private shelfBridge: ShelfBridge | undefined;
   private readonly subs: vscode.Disposable[] = [];
   /** Test observability, mirroring the RebaseViewController convention. */
   readonly debugTrail: string[] = [];
@@ -283,6 +286,22 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     return this.rpc?.hasHandler(method) ?? false;
   }
 
+  /**
+   * P11-T6: the Shelf tab's data source, attached by the phase-07 register
+   * layer once the stores exist (phase 03 builds this view first). Handlers
+   * are registered unconditionally and answer empty until this lands.
+   */
+  attachShelf(bridge: ShelfBridge): void {
+    this.shelfBridge = bridge;
+    this.subs.push(bridge.onDidChange(() => this.pushShelf()));
+    this.pushShelf();
+  }
+
+  private pushShelf(): void {
+    if (!this.view || !this.shelfBridge) return;
+    this.rpc?.notify(COMMIT_METHODS.evtShelf, this.shelfBridge.buildState());
+  }
+
   push(): void {
     if (!this.view) return;
     const state = this.buildState();
@@ -352,6 +371,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       if (view.visible) {
         rpc.rehydrate();
         this.push();
+        this.pushShelf();
       }
     });
   }
@@ -510,6 +530,16 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       // Throws on an invalid author; the RPC error reaches the popup inline.
       await applyOption(this.deps.options, repo, p.option);
       this.push();
+    });
+
+    // P11-T6: the Shelf tab. Empty until phase 07 attaches the bridge.
+    rpc.on(COMMIT_METHODS.shelfState, () =>
+      this.shelfBridge?.buildState() ?? { repos: [], showUnshelved: false },
+    );
+
+    rpc.on(COMMIT_METHODS.shelfAction, async (raw) => {
+      if (!this.shelfBridge) return;
+      await this.shelfBridge.dispatch(raw as CommitShelfActionParamsDto);
     });
   }
 

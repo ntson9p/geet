@@ -158,8 +158,14 @@ export const COMMIT_METHODS = {
   messageHistory: 'commit/messageHistory',
   /** P11-T4: recent commits for the `Amend ▾` reuse-message dropdown. */
   recentCommits: 'commit/recentCommits',
+  /** P11-T6: the Shelf tab's snapshot. */
+  shelfState: 'commit/shelfState',
+  /** P11-T6: one shelf action (unshelve/rename/delete/…) from the tab. */
+  shelfAction: 'commit/shelfAction',
   /** host → webview */
   evtState: 'commit/state',
+  /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
+  evtShelf: 'commit/shelf',
   /**
    * Host → webview: a *programmatic* message write — history pick, amend
    * prefill, post-commit clear. This is deliberately not part of `evtState`:
@@ -209,6 +215,58 @@ export interface CommitRecentCommitsDto {
 export interface CommitMessageEvtDto {
   repoRoot: string;
   message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Shelf tab (P11-T6)
+// ---------------------------------------------------------------------------
+
+export interface CommitShelfFileDto {
+  relPath: string;
+  status: 'modified' | 'added' | 'deleted' | 'untracked';
+  isBinary: boolean;
+}
+
+export interface CommitShelfEntryDto {
+  id: string;
+  name: string;
+  comment: string;
+  /** Epoch milliseconds. */
+  createdAt: number;
+  branch: string;
+  baseShort: string;
+  files: CommitShelfFileDto[];
+  /** False when changes.patch no longer matches its recorded sha256 — the row
+   *  renders damaged and every unshelve path refuses to touch it. */
+  valid: boolean;
+  /** Applied-but-kept (IntelliJ's greyed "already unshelved" state). */
+  unshelved: boolean;
+}
+
+export interface CommitShelfStateDto {
+  repos: Array<{ root: string; label: string; entries: CommitShelfEntryDto[] }>;
+  /** The eye toggle: whether applied-but-kept entries are listed at all. */
+  showUnshelved: boolean;
+}
+
+export type CommitShelfActionDto =
+  | 'unshelve'
+  | 'unshelveSilently'
+  | 'unshelveFiles'
+  | 'compareWithLocal'
+  | 'openDiff'
+  | 'showPatch'
+  | 'export'
+  | 'rename'
+  | 'delete'
+  | 'import'
+  | 'toggleShowUnshelved';
+
+export interface CommitShelfActionParamsDto {
+  action: CommitShelfActionDto;
+  repoRoot?: string;
+  id?: string;
+  relPath?: string;
 }
 
 // ---------------------------------------------------------------------------

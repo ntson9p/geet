@@ -47,6 +47,50 @@ export const mockCommitHostScript = `
   /** relPath -> included indices. Absent means the whole file. */
   const included = new Map();
 
+  // P11-T6: shelf fixture — one healthy entry, one damaged, one already
+  // unshelved (hidden until the eye toggle).
+  const shelfEntries = [
+    {
+      id: 'shelf-1', name: 'feature work', comment: '', createdAt: Date.now() - 7200e3,
+      branch: 'main', baseShort: 'abcd1234',
+      files: [
+        { relPath: 'src/alpha.ts', status: 'modified', isBinary: false },
+        { relPath: 'assets/logo.png', status: 'added', isBinary: true },
+      ],
+      valid: true, unshelved: false,
+    },
+    {
+      id: 'shelf-2', name: 'tampered entry', comment: '', createdAt: Date.now() - 86400e3,
+      branch: 'main', baseShort: 'ffff0000',
+      files: [{ relPath: 'src/beta.ts', status: 'modified', isBinary: false }],
+      valid: false, unshelved: false,
+    },
+    {
+      id: 'shelf-3', name: 'applied earlier', comment: '', createdAt: Date.now() - 172800e3,
+      branch: 'dev', baseShort: '99990000',
+      files: [{ relPath: 'src/gamma.ts', status: 'deleted', isBinary: false }],
+      valid: true, unshelved: true,
+    },
+  ];
+  let showUnshelved = false;
+
+  function buildShelf() {
+    return {
+      repos: [{
+        root: REPO, label: 'demo-git',
+        entries: shelfEntries.filter((e) => showUnshelved || !e.unshelved),
+      }],
+      showUnshelved: showUnshelved,
+    };
+  }
+
+  function pushShelf() {
+    window.postMessage(
+      { v: 1, id: 's' + Math.random(), kind: 'evt', method: 'commit/shelf', params: buildShelf() },
+      '*'
+    );
+  }
+
   // P11-T5: gear popup state.
   const options = {
     repoRoot: REPO,
@@ -209,6 +253,23 @@ export const mockCommitHostScript = `
       else if (o.kind === 'todoPattern') options.todoPattern = o.value;
       else if (o.kind === 'cleanupKind') options.cleanupKind = o.value;
       else if (o.kind === 'deferAdvanced') options.deferAdvanced = o.value;
+    },
+    // P11-T6: the Shelf tab.
+    'commit/shelfState': () => buildShelf(),
+    'commit/shelfAction': (p) => {
+      if (p.action === 'toggleShowUnshelved') {
+        showUnshelved = !showUnshelved;
+        setTimeout(pushShelf, 5);
+        return;
+      }
+      if (p.action === 'delete' || p.action === 'unshelveSilently') {
+        const at = shelfEntries.findIndex((e) => e.id === p.id);
+        const entry = shelfEntries[at];
+        if (entry && !entry.valid) throw new Error('changes.patch does not match its recorded sha256');
+        if (at >= 0) shelfEntries.splice(at, 1);
+        setTimeout(pushShelf, 5);
+      }
+      // The remaining actions open host-side UI; receiving them is enough.
     },
     // P11-T4: data behind the in-webview history and Amend dropdowns.
     'commit/messageHistory': () => ({

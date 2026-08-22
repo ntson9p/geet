@@ -31,6 +31,11 @@ export type ShelfNode =
   | { kind: 'entry'; repo: RepoHandle; store: ShelfStore; meta: ShelfMeta }
   | { kind: 'file'; repo: RepoHandle; store: ShelfStore; meta: ShelfMeta; file: ShelfFileMeta };
 
+/** P11-T6 — the Show-already-unshelved toggle, shared by tree and tab. */
+export function isShowUnshelvedEnabled(): boolean {
+  return vscode.workspace.getConfiguration('gittree.shelf').get<boolean>('showUnshelved', false);
+}
+
 /** Serves the reconstructed post-shelve content of one file in one shelf. */
 export class ShelfContentProvider implements vscode.TextDocumentContentProvider {
   private readonly _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -106,9 +111,14 @@ export class ShelfViewProvider implements vscode.TreeDataProvider<ShelfNode> {
 
   getChildren(node?: ShelfNode): ShelfNode[] {
     if (!node) {
+      const showUnshelved = isShowUnshelvedEnabled();
       const rows: ShelfNode[] = [];
       for (const { repo, store } of this.repos) {
-        for (const meta of store.list()) rows.push({ kind: 'entry', repo, store, meta });
+        for (const meta of store.list()) {
+          // Applied-but-kept entries hide behind the toggle (IntelliJ).
+          if (!showUnshelved && meta.unshelvedAt !== undefined) continue;
+          rows.push({ kind: 'entry', repo, store, meta });
+        }
       }
       return rows;
     }
@@ -127,15 +137,23 @@ export class ShelfViewProvider implements vscode.TreeDataProvider<ShelfNode> {
   getTreeItem(node: ShelfNode): vscode.TreeItem {
     if (node.kind === 'entry') {
       const item = new vscode.TreeItem(node.meta.name, vscode.TreeItemCollapsibleState.Collapsed);
-      item.description = vscode.l10n.t(
-        '{0} · {1} file(s) · from {2}',
-        relativeTime(Math.floor(node.meta.createdAt / 1000)),
-        node.meta.files.length,
-        node.meta.branch,
-      );
+      const unshelved = node.meta.unshelvedAt !== undefined;
+      const damaged = !node.store.verify(node.meta.id);
+      item.description =
+        vscode.l10n.t(
+          '{0} · {1} file(s) · from {2}',
+          relativeTime(Math.floor(node.meta.createdAt / 1000)),
+          node.meta.files.length,
+          node.meta.branch,
+        ) +
+        (unshelved ? ` · ${vscode.l10n.t('already unshelved')}` : '') +
+        (damaged ? ` · ${vscode.l10n.t('damaged')}` : '');
       const comment = node.meta.comment.length > 0 ? `\n${node.meta.comment}` : '';
       item.tooltip = `${node.meta.name}${comment}\n${vscode.l10n.t('base {0}', node.meta.baseSha.slice(0, 12))}`;
-      item.iconPath = new vscode.ThemeIcon('package');
+      // Integrity failures surface inline on the row, never as a modal.
+      item.iconPath = damaged
+        ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('errorForeground'))
+        : new vscode.ThemeIcon(unshelved ? 'check' : 'package');
       item.contextValue = 'shelf:entry';
       item.id = `${node.repo.root}#shelf#${node.meta.id}`;
       return item;

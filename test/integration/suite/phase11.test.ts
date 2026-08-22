@@ -6,6 +6,8 @@ import type { Phase03Registry } from '../../../src/commit/register';
 import { recentCommitMessages } from '../../../src/commit/messageHistory';
 import { computeFileDiff } from '../../../src/commit/window/fileDiff';
 import { applyOption, readOptions } from '../../../src/commit/window/options';
+import type { ShelfBridge } from '../../../src/commit/window/shelfBridge';
+import type { ShelfStore } from '../../../src/shelf/shelfStore';
 import type { RepoHandle } from '../../../src/core/core';
 import type { LineChange } from '../../../src/core/patch/patchBuilder';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
@@ -31,6 +33,8 @@ suite('P11 commit tool window', () => {
   let repo: RepoHandle;
   let reg: Phase03Registry;
   let scmInput: vscode.SourceControlInputBox;
+  let shelfStore: ShelfStore;
+  let shelfBridge: ShelfBridge;
 
   const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const write = (rel: string, content: string): void => {
@@ -63,6 +67,13 @@ suite('P11 commit tool window', () => {
     assert.ok(reg, 'phase03 registry missing');
     const phase01 = core.debugRegistry.get('phase01') as Phase01Registry;
     scmInput = phase01.sourceControls.get(canonicalKey(repoRoot))!.sc.inputBox;
+    const phase07 = core.debugRegistry.get('phase07') as {
+      getShelfStore: (root: string) => ShelfStore | undefined;
+      shelfBridge: ShelfBridge;
+    };
+    shelfStore = phase07.getShelfStore(repoRoot)!;
+    shelfBridge = phase07.shelfBridge;
+    assert.ok(shelfStore && shelfBridge, 'phase07 shelf pieces missing');
 
     await useCommitWindow('webview');
     if (reg.paradigm.paradigm !== 'changelists') {
@@ -528,6 +539,171 @@ suite('P11 commit tool window', () => {
       await checks.update('analyze', undefined, vscode.ConfigurationTarget.Workspace);
       restoreChecked();
     }
+  });
+
+  /** Shelve exactly one modified file through the real store. */
+  async function seedShelf(name: string, rel: string): Promise<string> {
+    write(rel, 'shelf base\n');
+    git('add', rel);
+    git('commit', '-m', `seed ${rel}`);
+    write(rel, 'shelf changed\n');
+    await refresh();
+    const res = await shelfStore.shelve({ name, paths: [rel], removeFromWorktree: true });
+    assert.ok(res.removed, 'the shelve must have reverted the worktree');
+    assert.strictEqual(fs.readFileSync(path.join(repoRoot, rel), 'utf8'), 'shelf base\n');
+    await refresh();
+    return res.meta.id;
+  }
+
+  const dropChangelist = (name: string): void => {
+    const service = reg.changelistsFor(repo);
+    const list = service.getLists().find((l) => l.name === name);
+    if (list) service.remove(list.id);
+  };
+
+  test('T6: every tree-view shelf action has a command the tab can dispatch', async function () {
+    this.timeout(30_000);
+    const commands = await vscode.commands.getCommands(true);
+    for (const id of [
+      'gittree.shelf.shelve',
+      'gittree.shelf.unshelve',
+      'gittree.shelf.unshelveSilently',
+      'gittree.shelf.unshelvePartial',
+      'gittree.shelf.compareWithLocal',
+      'gittree.shelf.openShelvedDiff',
+      'gittree.shelf.showPatch',
+      'gittree.shelf.export',
+      'gittree.shelf.rename',
+      'gittree.shelf.delete',
+      'gittree.shelf.import',
+      'gittree.shelf.showUnshelved',
+    ]) {
+      assert.ok(commands.includes(id), `missing command ${id}`);
+    }
+  });
+
+  test('T6: the tab bridge mirrors the store and its unshelve is the tree unshelve', async function () {
+    this.timeout(120_000);
+    const rel = 'p11/shelf-tab.txt';
+    const id = await seedShelf('p11 tab entry', rel);
+
+    const state = shelfBridge.buildState();
+    const repoState = state.repos.find((r) => canonicalKey(r.root) === canonicalKey(fsRoot))!;
+    const entry = repoState.entries.find((e) => e.id === id)!;
+    assert.ok(entry, 'the bridge must list the freshly shelved entry');
+    assert.strictEqual(entry.name, 'p11 tab entry');
+    assert.strictEqual(entry.valid, true);
+    assert.strictEqual(entry.unshelved, false);
+    assert.deepStrictEqual(
+      entry.files.map((f) => f.relPath),
+      [rel],
+    );
+
+    // The tab's Unshelve Silently — dispatched through the same command the
+    // tree runs, so this IS the acceptance that both produce one store state.
+    await shelfBridge.dispatch({ action: 'unshelveSilently', repoRoot: fsRoot, id });
+    await waitFor(
+      () => fs.readFileSync(path.join(repoRoot, rel), 'utf8') === 'shelf changed\n',
+      30_000,
+    );
+    assert.strictEqual(shelfStore.get(id), undefined, 'silent unshelve removes the entry');
+
+    git('checkout', '--', rel);
+    await refresh();
+    dropChangelist('p11 tab entry');
+    restoreChecked();
+  });
+
+  test('T6: a tampered changes.patch reads damaged and refuses to unshelve', async function () {
+    this.timeout(120_000);
+    const rel = 'p11/shelf-tamper.txt';
+    const id = await seedShelf('p11 tampered', rel);
+    fs.appendFileSync(shelfStore.patchPath(id), 'GARBAGE-NOT-A-PATCH\n');
+
+    const entry = shelfBridge
+      .buildState()
+      .repos.find((r) => canonicalKey(r.root) === canonicalKey(fsRoot))!
+      .entries.find((e) => e.id === id)!;
+    assert.strictEqual(entry.valid, false, 'the row must read damaged, not fail modally');
+
+    // The engine's integrity gate throws; the command surfaces it as an error
+    // message and must leave both the worktree and the entry untouched.
+    await shelfBridge.dispatch({ action: 'unshelveSilently', repoRoot: fsRoot, id });
+    assert.strictEqual(
+      fs.readFileSync(path.join(repoRoot, rel), 'utf8'),
+      'shelf base\n',
+      'a damaged patch must never reach the worktree',
+    );
+    assert.ok(shelfStore.get(id) !== undefined, 'the damaged entry must be kept for inspection');
+
+    shelfStore.delete(id);
+    restoreChecked();
+  });
+
+  test('T6: unshelve-keeping marks the entry; the eye toggle governs visibility', async function () {
+    this.timeout(120_000);
+    const rel = 'p11/shelf-keep.txt';
+    const id = await seedShelf('p11 kept', rel);
+
+    process.env['GITTREE_TEST_UNSHELVE'] = JSON.stringify({ deleteAfter: false });
+    try {
+      await shelfBridge.dispatch({ action: 'unshelve', repoRoot: fsRoot, id });
+    } finally {
+      delete process.env['GITTREE_TEST_UNSHELVE'];
+    }
+    await waitFor(
+      () => fs.readFileSync(path.join(repoRoot, rel), 'utf8') === 'shelf changed\n',
+      30_000,
+    );
+    assert.ok(
+      shelfStore.get(id)?.unshelvedAt !== undefined,
+      'a kept entry must be marked already-unshelved',
+    );
+
+    const hidden = shelfBridge.buildState();
+    assert.ok(
+      !hidden.repos.some((r) => r.entries.some((e) => e.id === id)),
+      'applied-but-kept entries hide by default',
+    );
+    await vscode.commands.executeCommand('gittree.shelf.showUnshelved');
+    try {
+      const shown = shelfBridge.buildState();
+      assert.strictEqual(shown.showUnshelved, true);
+      const entry = shown.repos
+        .find((r) => canonicalKey(r.root) === canonicalKey(fsRoot))!
+        .entries.find((e) => e.id === id);
+      assert.ok(entry, 'the toggle must reveal the applied entry');
+      assert.strictEqual(entry.unshelved, true);
+    } finally {
+      await vscode.commands.executeCommand('gittree.shelf.showUnshelved');
+    }
+
+    shelfStore.delete(id);
+    git('checkout', '--', rel);
+    await refresh();
+    dropChangelist('p11 kept');
+    restoreChecked();
+  });
+
+  test('T6: Compare with Local opens the shelved↔worktree diff', async function () {
+    this.timeout(120_000);
+    const rel = 'p11/shelf-compare.txt';
+    const id = await seedShelf('p11 compare', rel);
+
+    await shelfBridge.dispatch({
+      action: 'compareWithLocal',
+      repoRoot: fsRoot,
+      id,
+      relPath: rel,
+    });
+    const diffTab = vscode.window.tabGroups.all
+      .flatMap((g) => g.tabs)
+      .find((t) => t.label.includes('Shelved: p11 compare'));
+    assert.ok(diffTab, 'the diff tab must be open with the shelved-vs-local title');
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+    shelfStore.delete(id);
+    restoreChecked();
   });
 
   test('T2: switching to native restores the SCM input box without a reload', async function () {

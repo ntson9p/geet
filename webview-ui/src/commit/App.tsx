@@ -37,6 +37,7 @@ import { assembleCommitTree, fileCountLabel, iconFor, partialLabel, splitDelta }
 import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
+import { ShelfTab } from './ShelfTab';
 
 interface Persisted {
   tab?: string;
@@ -85,12 +86,12 @@ export function App() {
     () => new Set(saved.expanded ?? []),
   );
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
-  // Mirror of the uncontrolled editor's value — drives `canCommit` and the
-  // webview-state persist. The editor itself owns the DOM value (P11-T4).
+  // Mirror of the uncontrolled editor's value — drives `canCommit`, the
+  // webview-state persist, and re-seeds the editor when its TabPanel remounts
+  // after a Shelf-tab round trip (P11-T6). The editor owns the DOM value; a
+  // changing `initial` never touches it after mount, and mid-composition the
+  // mirror is frozen because onInput is suppressed (P11-T4).
   const [message, setMessage] = useState(saved.message ?? '');
-  // Frozen first-render value: `saved` is re-read every render, and a changing
-  // `initial` prop would defeat the editor's memo shield while typing.
-  const initialMessage = useRef(saved.message ?? '').current;
   const [menu, setMenu] = useState<MessageMenu | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [preview, setPreview] = useState(saved.preview ?? false);
@@ -466,8 +467,19 @@ export function App() {
         ariaLabel="Commit tool window"
         active={tab}
         onChange={setTab}
-        tabs={[{ id: 'commit', label: 'Commit' }]}
+        tabs={[
+          { id: 'commit', label: 'Commit' },
+          { id: 'shelf', label: 'Shelf' },
+        ]}
       />
+
+      {/* Window-level, not per-tab: a failed shelf action must be visible from
+          the Shelf tab exactly like a failed commit is from the Commit tab. */}
+      {errorText !== undefined ? (
+        <div className="gt-commit-error" role="alert" data-testid="commit-error">
+          {errorText}
+        </div>
+      ) : null}
 
       <TabPanel id="commit" active={tab} className="gt-commit-panel">
         <ToolbarStrip ariaLabel="Commit actions">
@@ -551,12 +563,6 @@ export function App() {
           )}
         </div>
 
-        {errorText !== undefined ? (
-          <div className="gt-commit-error" role="alert" data-testid="commit-error">
-            {errorText}
-          </div>
-        ) : null}
-
         <div className="gt-commit-bottom">
           <div className="gt-commit-amend-row">
             <label className="gt-checkbox">
@@ -591,7 +597,7 @@ export function App() {
 
           <MessageEditor
             ref={editorRef}
-            initial={initialMessage}
+            initial={message}
             disabled={activeRepo === undefined}
             onInput={onEditorInput}
             onPersist={onEditorPersist}
@@ -626,6 +632,10 @@ export function App() {
             />
           </div>
         </div>
+      </TabPanel>
+
+      <TabPanel id="shelf" active={tab} className="gt-commit-panel">
+        <ShelfTab rpc={rpc} send={send} />
       </TabPanel>
 
       {optionsOpen && activeRepo !== undefined ? (
