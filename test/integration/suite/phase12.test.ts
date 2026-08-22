@@ -226,4 +226,32 @@ suite('P12 git tool window', () => {
     assert.strictEqual(rootAgg.base, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
     assert.ok(rootAgg.files.length > 0, 'the root commit introduces its own files');
   });
+
+  test('T4: details carry the %G? signature state; unsigned reads N', async function () {
+    this.timeout(60_000);
+    const service = reg.logView.logServiceFor(repo);
+    const head = git('rev-parse', 'HEAD').trim();
+    const details = await service.getCommitDetails(head);
+    assert.ok(details, 'details missing');
+    assert.strictEqual(details.signature, 'N', 'an unsigned commit must read N, never blank');
+    assert.ok(details.parents.length > 0, 'parents ship for the parent links');
+  });
+
+  test('T4: --contains is lazy and answers the containing branches', async function () {
+    this.timeout(60_000);
+    const service = reg.logView.logServiceFor(repo);
+    const before = service.containsCalls;
+    const head = git('rev-parse', 'HEAD').trim();
+    await service.getCommitDetails(head);
+    assert.strictEqual(
+      service.containsCalls,
+      before,
+      'selection (details) must never run branch --contains',
+    );
+
+    const branches = await service.getContainingBranches(head);
+    assert.strictEqual(service.containsCalls, before + 1);
+    const current = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+    assert.ok(branches.includes(current), `HEAD's branch must contain HEAD: ${branches.join(', ')}`);
+  });
 });

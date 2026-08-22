@@ -161,6 +161,77 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBeGreaterThan(before);
   });
 
+  test('P12-T4: details carry subject, meta, committer, signature and ref chips', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="0"]').click();
+    const details = page.getByTestId('details-panel');
+    await expect(page.getByTestId('details-subject')).toContainText('subject of');
+    await expect(details).toContainText('a@x.dev on');
+    // Committer differs → the line renders; signature G → Good signature.
+    await expect(page.getByTestId('details-committer')).toContainText('committed by Carol');
+    await expect(page.getByTestId('details-signature')).toContainText('Good signature');
+    await expect(details.locator('.gt-ref-tag')).toContainText('tag: v1.0');
+
+    // The unsigned commit shows no signature row at all.
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('details-signature')).toHaveCount(0);
+  });
+
+  test('P12-T4: Copy Subject copies the subject, not the sha', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await page.getByRole('button', { name: 'Copy Subject' }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const p = m.params as { text?: string } | undefined;
+          return m.method === 'log/copy' && p?.text?.startsWith('subject of') === true;
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('P12-T4: a parent link asks the host and the reveal moves the selection', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="0"]').click();
+    // Parents in the mock are rows 2 and 3 — click the first.
+    await page.getByTestId('details-parent-0000000').first().click();
+    await expect
+      .poll(async () => (await posted(page)).some((m) => m.method === 'log/goTo'))
+      .toBe(true);
+    // The host's reveal event selects the parent row.
+    await expect(commitRow(page).locator('[data-gt-row="2"] .gt-log-row')).toHaveClass(
+      /gt-selected/,
+    );
+  });
+
+  test('P12-T4: Contained-in-branches is lazy — nothing runs until the click', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('details-contained-link')).toBeVisible();
+    expect(
+      await page.evaluate(() => (window as unknown as { __containsCalls?: number }).__containsCalls ?? 0),
+    ).toBe(0);
+
+    await page.getByTestId('details-contained-link').click();
+    await expect(page.getByTestId('details-contained')).toContainText('release');
+    expect(
+      await page.evaluate(() => (window as unknown as { __containsCalls?: number }).__containsCalls ?? 0),
+    ).toBe(1);
+  });
+
+  test('P12-T4: the body linkifies URLs and configured issue keys', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const body = page.getByTestId('details-body');
+    await expect(body.locator('a[href="https://example.com/doc"]')).toHaveText(
+      'https://example.com/doc',
+    );
+    await expect(body.locator('a[href="https://tracker.example/browse/GT-123"]')).toHaveText(
+      'GT-123',
+    );
+  });
+
   test('filter bar round-trips: search text and sort produce setFilter', async ({ page }) => {
     await openLog(page);
     await page.getByLabel('Search commit messages').fill('bugfix');

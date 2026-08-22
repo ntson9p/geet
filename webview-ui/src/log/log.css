@@ -175,6 +175,58 @@
   padding: 10px;
 }
 
+/* ---- P12-T4: Commit Details pane ---- */
+.gt-details-subject {
+  font-weight: 600;
+  font-size: 1.05em;
+  white-space: pre-wrap;
+}
+
+.gt-details-author {
+  font-weight: 600;
+}
+
+.gt-details-signature {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.gt-details-signature.gt-signature-bad {
+  color: var(--vscode-errorForeground);
+}
+
+.gt-details-parents {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.gt-details-parent,
+.gt-details-contained-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.gt-details-parent:hover,
+.gt-details-contained-link:hover {
+  text-decoration: underline;
+}
+
+.gt-details-contained {
+  margin-top: 4px;
+}
+
+.gt-details-body a {
+  color: var(--vscode-textLink-foreground);
+}
+
 /* ---- P12-T3: Changed Files pane ---- */
 .gt-changed-files {
   flex: 1 1 auto;

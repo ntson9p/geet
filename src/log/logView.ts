@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Log tool-window host (P4-T3/T4): WebviewViewProvider for `gittree.log` in
  * the bottom panel. Owns the LogService/GraphLayout session, streams pages to
  * the webview, runs the chip pickers (QuickPicks host-side), opens diffs, and
@@ -183,6 +183,21 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { files: aggregate.files, newest, base: aggregate.base };
     });
 
+    // P12-T4: lazy on purpose — `branch --contains` walks history and would
+    // cost a traversal per selection; it runs only when the link is clicked.
+    rpc.on(LOG_METHODS.containedBranches, async (params) => {
+      const { sha } = params as { sha: string };
+      const session = this.session;
+      if (!session) return { branches: [] };
+      return { branches: await session.service.getContainingBranches(sha) };
+    });
+
+    rpc.on(LOG_METHODS.goTo, async (params) => {
+      const { sha } = params as { sha: string };
+      await this.revealCommit(sha);
+      return { ok: true };
+    });
+
     rpc.on(LOG_METHODS.showFileHistory, async (params) => {
       const { path: relPath } = params as { path: string };
       const session = this.session;
@@ -224,6 +239,20 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private graphPalette(): 'default' | 'colorBlind' {
     const v = vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette', 'default');
     return v === 'colorBlind' ? 'colorBlind' : 'default';
+  }
+
+  /** P12-T4: issue-key linkification config for the details body. */
+  private issueConfig(): { pattern: string; url: string } | undefined {
+    const config = vscode.workspace.getConfiguration('gittree.log');
+    const pattern = config.get<string>('issuePattern', '').trim();
+    const url = config.get<string>('issueUrl', '').trim();
+    if (pattern.length === 0 || url.length === 0) return undefined;
+    try {
+      new RegExp(pattern, 'g');
+    } catch {
+      return undefined; // an invalid pattern must not break the whole view
+    }
+    return { pattern, url };
   }
 
   /** P10-T2: keyboard parity — move focus into the filter search box. */
@@ -272,6 +301,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       laneWidth: LANE_WIDTH,
       graphPalette: this.graphPalette(),
       colors: statusColorOverrides(),
+      ...(this.issueConfig() !== undefined ? { issue: this.issueConfig() } : {}),
     };
   }
 

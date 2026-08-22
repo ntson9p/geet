@@ -41,6 +41,8 @@ export interface CommitDetails {
   committerName: string;
   committerEmail: string;
   committerTime: number;
+  /** `%G?` — G good, B bad, U/X/Y/R unverified shades, E cannot check, N none. */
+  signature: string;
   refs: string[];
   body: string;
   files: NameStatusEntry[];
@@ -206,7 +208,9 @@ export class LogService {
   }
 
   async getCommitDetails(sha: string): Promise<CommitDetails | undefined> {
-    const format = '%H%x00%P%x00%an%x00%ae%x00%at%x00%cn%x00%ce%x00%ct%x00%D%x00%B%x1e';
+    // %G? — GPG signature state (P12-T4): G good, B bad, U/X/Y/R unverified
+    // shades, E cannot check, N none. Costs nothing when gpg is absent.
+    const format = '%H%x00%P%x00%an%x00%ae%x00%at%x00%cn%x00%ce%x00%ct%x00%G?%x00%D%x00%B%x1e';
     const result = await this.repo.queue.enqueue({
       label: `show ${sha.slice(0, 7)}`,
       kind: 'read',
@@ -222,7 +226,7 @@ export class LogService {
     const sep = result.stdout.indexOf('\x1e');
     if (sep === -1) return undefined;
     const meta = result.stdout.slice(0, sep).split('\0');
-    if (meta.length < 10) return undefined;
+    if (meta.length < 11) return undefined;
     // After \x1e git emits a NUL and a newline before the -z name-status
     // stream (measured: `…\x1e\0\nR100\0old\0new\0`).
     const filesRaw = result.stdout.slice(sep + 1).replace(/^[\0\n]+/, '');
@@ -235,10 +239,43 @@ export class LogService {
       committerName: meta[5] as string,
       committerEmail: meta[6] as string,
       committerTime: Number.parseInt(meta[7] as string, 10),
-      refs: (meta[8] as string).length > 0 ? (meta[8] as string).split(', ') : [],
-      body: meta.slice(9).join('\0').replace(/\n+$/, ''),
+      signature: meta[8] as string,
+      refs: (meta[9] as string).length > 0 ? (meta[9] as string).split(', ') : [],
+      body: meta.slice(10).join('\0').replace(/\n+$/, ''),
       files: parseNameStatusZ(filesRaw),
     };
+  }
+
+  /** P12-T4 — how many times `--contains` ran (laziness acceptance seam). */
+  containsCalls = 0;
+
+  /**
+   * `Contained in branches` — deliberately lazy: `git branch --contains` walks
+   * history and is slow on large repos, so it runs on click, never on
+   * selection (the test asserts this counter stays at zero until then).
+   */
+  async getContainingBranches(sha: string): Promise<string[]> {
+    this.containsCalls++;
+    const result = await this.repo.queue.enqueue({
+      label: `branch --contains ${sha.slice(0, 7)}`,
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(
+          this.repo.root,
+          ['branch', '--contains', sha, '--format=%(refname:short)'],
+          {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            token,
+          },
+        ),
+    });
+    if (result.exitCode !== 0) return [];
+    return result.stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
   }
 
   /** Deduped `Author <email>` list for the filter bar autocomplete. */

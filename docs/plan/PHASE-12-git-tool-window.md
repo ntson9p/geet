@@ -189,7 +189,7 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - [ ] S2 — four synchronized panes with per-pane toolbars in one bottom-docked window
 - [x] S2b — Branches pane with folder nodes and the vertical icon rail; ref selection filters the graph (P12-T2)
 - [ ] S10 — Console tab with argv, exit code, duration and redaction
-- [ ] Commit Details: committer, signature, parents, `Contained in branches` (lazy)
+- [x] Commit Details: committer, signature, parents, `Contained in branches` (lazy) (P12-T4)
 - [ ] Filter row: `Branch or tag`, text/hash with regex + match-case, four multi-select dropdowns, saved presets
 - [ ] Commit menu: Create Patch, Fixup, Squash Into, Push All up to Here, Branches ›, Go to Parent/Child, Show Repository at Revision
 - [ ] `Reset → Keep` alongside Soft/Mixed/Hard

@@ -450,7 +450,16 @@ export function App() {
             <DetailsPanel
               details={details}
               loading={detailsLoading}
-              onCopySha={(sha: string) => void rpc.request(LOG_METHODS.copy, { text: sha })}
+              issue={init.issue}
+              onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
+              onGoTo={(sha: string) => void rpc.request(LOG_METHODS.goTo, { sha })}
+              fetchContained={async (sha: string) => {
+                const res = await rpc.request<{ branches: string[] }>(
+                  LOG_METHODS.containedBranches,
+                  { sha },
+                );
+                return res?.branches ?? [];
+              }}
             />
           }
           toolbars={{

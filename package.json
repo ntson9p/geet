@@ -362,6 +362,16 @@
             "default": "default",
             "description": "%gittree.config.log.graphPalette.description%"
           },
+          "gittree.log.issuePattern": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.log.issuePattern.description%"
+          },
+          "gittree.log.issueUrl": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.log.issueUrl.description%"
+          },
           "gittree.blame.heatmap": {
             "type": "boolean",
             "default": true,

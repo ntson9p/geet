@@ -48,7 +48,13 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
       logView.focusFilter();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('gittree.log.graphPalette')) logView.refreshInit();
+      if (
+        e.affectsConfiguration('gittree.log.graphPalette') ||
+        e.affectsConfiguration('gittree.log.issuePattern') ||
+        e.affectsConfiguration('gittree.log.issueUrl')
+      ) {
+        logView.refreshInit();
+      }
     }),
   );
 

@@ -314,6 +314,18 @@ Color palette for the commit graph lanes.
   - `default` — Hue-cycled palette matching the editor theme.
   - `colorBlind` — Okabe–Ito color-blind-safe palette (distinct under deutan, protan and tritan vision).
 
+### `gittree.log.issuePattern`
+
+Regular expression for issue keys in commit messages (e.g. [A-Z]+-\d+). Empty disables issue linkification.
+
+- Type: `string` · Default: `""`
+
+### `gittree.log.issueUrl`
+
+URL template for matched issue keys; $0 is replaced with the match (e.g. https://tracker.example.com/browse/$0).
+
+- Type: `string` · Default: `""`
+
 ### `gittree.blame.heatmap`
 
 Fade blame annotations by commit age (newest brightest).

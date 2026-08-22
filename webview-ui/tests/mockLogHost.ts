@@ -33,7 +33,12 @@ export const mockLogHostScript = `
       const res = (result) => post({ v: 1, id: msg.id, kind: 'res', result });
       switch (msg.method) {
         case 'log/init':
-          res({ repoRoot: '/repo', repoLabel: 'repo', filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, graphPalette: window.__mockGraphPalette });
+          res({
+            repoRoot: '/repo', repoLabel: 'repo',
+            filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' },
+            laneWidth: 12, graphPalette: window.__mockGraphPalette,
+            issue: { pattern: 'GT-\\\\d+', url: 'https://tracker.example/browse/$0' },
+          });
           break;
         case 'log/page': {
           const page = msg.params.page;
@@ -46,15 +51,29 @@ export const mockLogHostScript = `
         }
         case 'log/details': {
           const s = msg.params.sha;
+          const first = s === sha(0);
           res({
-            sha: s, parents: [], authorName: 'Alice', authorEmail: 'a@x.dev',
-            authorTime: 1700000000, committerName: 'Alice', committerEmail: 'a@x.dev',
-            committerTime: 1700000000, refs: [], body: 'body of ' + s.slice(0, 7),
+            sha: s, parents: [sha(2), sha(3)], authorName: 'Alice', authorEmail: 'a@x.dev',
+            authorTime: 1700000000, committerName: first ? 'Carol' : 'Alice', committerEmail: 'c@x.dev',
+            committerTime: 1700000001,
+            signature: first ? 'G' : 'N',
+            refs: first ? ['HEAD -> main', 'tag: v1.0'] : [],
+            body: 'subject of ' + s.slice(0, 7) + '\\n\\nSee https://example.com/doc and GT-123 for context.',
             files: [
               { status: 'M', path: 'src/app.ts' },
               { status: 'R', path: 'src/new.ts', origPath: 'src/old.ts' },
             ],
           });
+          break;
+        }
+        case 'log/containedBranches': {
+          window.__containsCalls = (window.__containsCalls || 0) + 1;
+          res({ branches: ['main', 'release'] });
+          break;
+        }
+        case 'log/goTo': {
+          res({ ok: true });
+          post({ v: 1, id: 'evtgo', kind: 'evt', method: 'log/reveal', params: { sha: msg.params.sha } });
           break;
         }
         case 'log/changedFiles': {

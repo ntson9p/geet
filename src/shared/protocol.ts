@@ -461,6 +461,8 @@ export interface LogInitDto {
   graphPalette?: 'default' | 'colorBlind';
   /** P11-T8 palette overrides, same contract as `CommitStateDto.colors`. */
   colors?: Record<string, string>;
+  /** P12-T4: issue-key linkification (`gittree.log.issuePattern`/`issueUrl`). */
+  issue?: { pattern: string; url: string };
 }
 
 export interface CommitFileDto {
@@ -512,6 +514,8 @@ export interface CommitDetailsDto {
   committerName: string;
   committerEmail: string;
   committerTime: number;
+  /** P12-T4: `%G?` GPG state (G/B/U/X/Y/R/E/N). Absent from older hosts. */
+  signature?: string;
   refs: string[];
   body: string;
   files: CommitFileDto[];
@@ -540,6 +544,10 @@ export const LOG_METHODS = {
   changedFiles: 'log/changedFiles',
   /** P12-T3: `Show History for Revision` on a file row. */
   showFileHistory: 'log/showFileHistory',
+  /** P12-T4: lazy `git branch --contains` — on click, never on selection. */
+  containedBranches: 'log/containedBranches',
+  /** P12-T4: parent-link navigation — reveal + select a sha in the graph. */
+  goTo: 'log/goTo',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',
