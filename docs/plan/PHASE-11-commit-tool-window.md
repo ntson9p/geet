@@ -240,6 +240,19 @@ View `gittree.commit` (webview, `scm` container). Commands
 - [ ] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities)
 - [ ] Multi-line message editor with working IME, undo, history clock and amend dropdown
 
+## Deviations (recorded as tasks land)
+- **P11-T1:** menus inside webviews are rendered by the kit's own `Menu`, not by VS Code's
+  native context menu. `data-vscode-context` can only raise statically-contributed
+  `webview/context` items, which cannot carry per-row interpolated labels such as
+  `Merge 'feature/f1-1' into 'master'` — the exact thing gap analysis S3 is about. Native
+  menus stay in use for the tree views, which are not webviews.
+- **P11-T1:** the kit harness page (`webview-ui/kit.html` + `src/kit/`) is deliberately **not**
+  a vite `apps` entry, so it is served in dev and by Playwright but never enters
+  `dist/webviews` or the P10-T5 bundle budget.
+- **P11-T1:** `VirtualList` gained four optional props (`role`, `rowRole`, `rowAria`,
+  `onRowKeyDown`) rather than growing a second windowing implementation for trees. Defaults
+  preserve the listbox behaviour the log and demo rely on.
+
 ## Planned deviations
 - **No OS-modal dialogs.** VS Code cannot host a modal webview; `dialogHost` opens an editor-area
   panel styled and focus-trapped as a dialog. Nothing else is available in the API.

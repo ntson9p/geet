@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- Dev/Playwright harness for the P11-T1 UI kit. Deliberately NOT registered
+     in vite.config.ts `apps`, so it is served in dev and never bundled into
+     dist/webviews — the kit ships inside the apps that use it, and the P10-T5
+     bundle budget stays unaffected. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GitTree UI kit (dev harness)</title>
+  </head>
+  <body class="vscode-dark">
+    <div id="root"></div>
+    <script type="module" src="/src/kit/main.tsx"></script>
+  </body>
+</html>

@@ -40,6 +40,34 @@ export const DEMO_METHODS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Webview dialogs (P11-T1) — the frame contract every P11-P13 dialog speaks
+// ---------------------------------------------------------------------------
+
+/**
+ * Structurally identical to `core/patch/patchBuilder.LineChange`, so a change
+ * list crosses the RPC boundary without mapping. Kept declared here because
+ * webviews may not import from `src/core`. 1-based; `originalEndLineNumber`
+ * of 0 marks an insertion, `modifiedEndLineNumber` of 0 a deletion.
+ */
+export interface LineChangeDto {
+  originalStartLineNumber: number;
+  originalEndLineNumber: number;
+  modifiedStartLineNumber: number;
+  modifiedEndLineNumber: number;
+}
+
+export const DIALOG_METHODS = {
+  /** webview→host, request: returns the dialog's initial params. */
+  init: 'dialog/init',
+  /** webview→host, event: user accepted; params carry the dialog's result. */
+  accept: 'dialog/accept',
+  /** webview→host, event: user cancelled, closed or pressed Escape. */
+  cancel: 'dialog/cancel',
+  /** webview→host, event: open this dialog's documentation. */
+  help: 'dialog/help',
+} as const;
+
+// ---------------------------------------------------------------------------
 // Log view (P4-T3/T4) — host ⇄ webview DTOs
 // ---------------------------------------------------------------------------
 

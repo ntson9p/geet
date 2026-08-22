@@ -40,6 +40,24 @@ export interface VirtualListProps {
   /** Viewport tracker for overlay layers (log graph canvas) + infinite scroll. */
   onViewport?: (view: { scrollTop: number; first: number; last: number }) => void;
   className?: string;
+  /**
+   * P11-T1: container role. Defaults to `listbox`; `tree` lets FileTree reuse
+   * this windowing without inheriting listbox semantics.
+   */
+  role?: 'listbox' | 'tree';
+  /** Row role, paired with `role`. Defaults to `option`. */
+  rowRole?: 'option' | 'treeitem';
+  /**
+   * P11-T1: extra ARIA per row (`aria-level`, `aria-expanded`, `aria-checked`),
+   * spread last so a tree can override the listbox defaults.
+   */
+  rowAria?: (index: number) => Record<string, string | number | boolean | undefined> | undefined;
+  /**
+   * P11-T1: consumer key handling, run before the built-in model. Return true
+   * to claim the event — a tree needs Space for check-toggling, which would
+   * otherwise fire `onActivate`.
+   */
+  onRowKeyDown?: (index: number, e: KeyboardEvent<HTMLDivElement>) => boolean;
 }
 
 export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(function VirtualList(
@@ -57,6 +75,10 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     onRowClick,
     onViewport,
     className,
+    role = 'listbox',
+    rowRole = 'option',
+    rowAria,
+    onRowKeyDown,
   }: VirtualListProps,
   ref,
 ) {
@@ -118,6 +140,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   useImperativeHandle(ref, () => ({ scrollToIndex, focusIndex }), [scrollToIndex, focusIndex]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (onRowKeyDown?.(focusedIndex, e) === true) return;
     const page = Math.max(1, Math.floor(height / rowHeight) - 1);
     let next: number | undefined;
     switch (e.key) {
@@ -171,11 +194,12 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     rows.push(
       <div
         key={i}
-        role="option"
+        role={rowRole}
         aria-posinset={i + 1}
         aria-setsize={rowCount}
         aria-selected={i === focusedIndex}
         aria-label={rowAriaLabel?.(i)}
+        {...rowAria?.(i)}
         data-gt-row={i}
         data-vscode-context={ctx ? JSON.stringify(ctx) : undefined}
         tabIndex={i === focusedIndex ? 0 : -1}
@@ -197,7 +221,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   return (
     <div
       ref={containerRef}
-      role="listbox"
+      role={role}
       aria-label={ariaLabel}
       tabIndex={-1}
       className={`gt-virtual-list${className ? ` ${className}` : ''}`}
