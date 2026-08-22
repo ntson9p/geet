@@ -151,9 +151,22 @@ export const COMMIT_METHODS = {
   rollback: 'commit/rollback',
   shelve: 'commit/shelve',
   showOptions: 'commit/showOptions',
-  showHistory: 'commit/showHistory',
+  /** P11-T4: the 50-entry message ring, rendered as an in-webview dropdown. */
+  messageHistory: 'commit/messageHistory',
+  /** P11-T4: recent commits for the `Amend ▾` reuse-message dropdown. */
+  recentCommits: 'commit/recentCommits',
   /** host → webview */
   evtState: 'commit/state',
+  /**
+   * Host → webview: a *programmatic* message write — history pick, amend
+   * prefill, post-commit clear. This is deliberately not part of `evtState`:
+   * a generic state push can be built from a snapshot that predates the
+   * user's latest keystrokes (the editor persists on a debounce), so the
+   * editor ignores `CommitStateDto.message` after init and only ever adopts
+   * text from this event. That is what keeps the host from fighting the
+   * textarea's native undo stack (master §6's "undo quirks" objection).
+   */
+  evtMessage: 'commit/message',
 } as const;
 
 export interface CommitSetCheckedParamsDto {
@@ -177,6 +190,22 @@ export interface CommitSetIncludedParamsDto {
    * mid-click cannot apply indices to a renumbered change list.
    */
   signature: string;
+}
+
+/** P11-T4 — one entry of the per-repo message ring. */
+export interface CommitHistoryDto {
+  entries: Array<{ message: string; ts: number }>;
+}
+
+/** P11-T4 — recent commits whose message can be reused from the Amend ▾ menu. */
+export interface CommitRecentCommitsDto {
+  commits: Array<{ sha: string; shortSha: string; subject: string; message: string }>;
+}
+
+/** P11-T4 — payload of `commit/message` (see `COMMIT_METHODS.evtMessage`). */
+export interface CommitMessageEvtDto {
+  repoRoot: string;
+  message: string;
 }
 
 export const DIALOG_METHODS = {

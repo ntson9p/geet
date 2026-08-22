@@ -238,7 +238,7 @@ View `gittree.commit` (webview, `scm` container). Commands
 - [ ] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees
 - [ ] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion
 - [ ] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities)
-- [ ] Multi-line message editor with working IME, undo, history clock and amend dropdown
+- [x] Multi-line message editor with working IME, undo, history clock and amend dropdown (P11-T4)
 
 ## Deviations (recorded as tasks land)
 - **P11-T3 — step 3's commit mechanism does not work as written.** The step says to
@@ -272,6 +272,27 @@ View `gittree.commit` (webview, `scm` container). Commands
 - **P11-T3 — `N differences, M included` ships per file only where a selection exists.** The
   counter needs a diff, and diffing every row on every status push would cost a `git show` per
   file; rows with no selection are whole-file by definition and need no badge.
+- **P11-T4 — `setRangeText` does not land on Chromium's undo stack.** Step 1 prescribes
+  `setRangeText` + `input` event "so they land on the undo stack"; Chromium records no undo
+  entry for it (verified: Ctrl+Z after such an insert restored nothing). Programmatic writes
+  use `document.execCommand('insertText')` — deprecated, but load-bearing in Chromium/Electron,
+  which is the only runtime webviews have — with `setRangeText` retained as the functional
+  fallback if `execCommand` ever reports failure.
+- **P11-T4 — programmatic message writes travel on a dedicated `commit/message` event, and the
+  editor ignores `CommitStateDto.message` after init.** A generic state push can be built from
+  a snapshot older than the 250 ms-debounced persist; adopting it would eat the user's newest
+  keystrokes. Splitting the channel is what makes "the host never writes `value` back while the
+  element has focus" actually true rather than merely intended.
+- **P11-T4 — `commit/showHistory` removed** in favour of `commit/messageHistory` +
+  `commit/recentCommits` data requests rendered as in-webview kit `Menu` dropdowns (the P11-T1
+  menu deviation applies). The native `gittree.commit.showMessageHistory` QuickPick command
+  keeps working in both surface modes.
+- **P11-T4 — the editor autogrows (6 rows → 320px) and the manual resize handle is removed.**
+  Autogrow and a drag handle fight each other; IntelliJ's editor has no handle either.
+- **P11-T4 — real-IME verification is a recorded manual checklist item** (Japanese and
+  Vietnamese, in `PROGRESS.md`). Playwright drives `CompositionEvent`s and proves the
+  event-order contract — including Chromium's final-`input`-before-`compositionend` order —
+  but cannot exercise the OS IME itself.
 - **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
   rendering a dead tab that says "coming later" would be a worse affordance than none.
 - **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`

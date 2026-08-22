@@ -198,6 +198,121 @@ test.describe('P11-T2 commit actions', () => {
   });
 });
 
+test.describe('P11-T4 message editor', () => {
+  function editor(page: Page) {
+    return page.getByTestId('commit-message');
+  }
+  async function setMessages(page: Page): Promise<PostedMsg[]> {
+    return (await posted(page)).filter((m) => m.method === 'commit/setMessage');
+  }
+
+  test('persist is debounced: five keystrokes, one setMessage', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).pressSequentially('hello', { delay: 10 });
+    await expect.poll(async () => (await setMessages(page)).length).toBe(1);
+    expect((await setMessages(page))[0]?.params?.['message']).toBe('hello');
+    // And it stays one — the debounce fired exactly once for the burst.
+    await page.waitForTimeout(350);
+    expect((await setMessages(page)).length).toBe(1);
+  });
+
+  test('nothing round-trips mid-IME-composition; compositionend catches up', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).click();
+    await editor(page).evaluate((el) => {
+      el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      (el as HTMLTextAreaElement).value = 'にほ';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.waitForTimeout(400);
+    expect((await setMessages(page)).length).toBe(0);
+
+    // Chromium fires the final `input` before `compositionend`; both orders
+    // must land the composed text exactly once.
+    await editor(page).evaluate((el) => {
+      (el as HTMLTextAreaElement).value = '日本';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    });
+    await expect.poll(async () => (await setMessages(page)).length).toBe(1);
+    expect((await setMessages(page))[0]?.params?.['message']).toBe('日本');
+    await expect(editor(page)).toHaveValue('日本');
+  });
+
+  test('a history pick is undoable back to the typed draft', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).click();
+    await editor(page).pressSequentially('draft', { delay: 5 });
+    await page.getByRole('button', { name: 'Commit message history' }).click();
+    await page.getByRole('menuitem', { name: /fix: adjust retry backoff/ }).click();
+    await expect(editor(page)).toHaveValue('fix: adjust retry backoff\n\nDoubles the base delay.');
+    // The programmatic insert landed *on* the undo stack — master §6's
+    // "undo quirks" objection, answered.
+    await editor(page).press('Control+z');
+    await expect(editor(page)).toHaveValue('draft');
+  });
+
+  test('history shows first line and relative time', async ({ page }) => {
+    await openCommit(page);
+    await page.getByRole('button', { name: 'Commit message history' }).click();
+    const item = page.getByRole('menuitem', { name: /fix: adjust retry backoff/ });
+    await expect(item).toBeVisible();
+    // Multi-line body must not leak into the label.
+    await expect(item).not.toContainText('Doubles');
+    await expect(item).toContainText('h ago');
+  });
+
+  test('the Amend ▾ dropdown inserts a recent commit message without toggling amend', async ({ page }) => {
+    await openCommit(page);
+    await page.getByRole('button', { name: 'Reuse a recent commit message' }).click();
+    await page.getByRole('menuitem', { name: 'older subject' }).click();
+    await expect(editor(page)).toHaveValue('older subject');
+    await expect(page.getByRole('checkbox', { name: /Amend/ })).not.toBeChecked();
+    // Undoable too, like every programmatic write.
+    await editor(page).press('Control+z');
+    await expect(editor(page)).toHaveValue('');
+  });
+
+  test('the subject-length hint appears past 72 characters and never blocks', async ({ page }) => {
+    await openCommit(page);
+    const long = 'x'.repeat(80);
+    await editor(page).evaluate((el, text) => {
+      (el as HTMLTextAreaElement).value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, long);
+    await expect(page.getByTestId('subject-length')).toHaveText('80');
+    await expect(page.getByTestId('commit-button')).toBeEnabled();
+
+    await editor(page).evaluate((el) => {
+      (el as HTMLTextAreaElement).value = 'short subject';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect(page.getByTestId('subject-length')).toBeHidden();
+  });
+
+  test('a pending message is flushed before the commit intent', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).pressSequentially('quick', { delay: 5 });
+    // Click before the 250 ms debounce fires: the flush must still win.
+    await page.getByTestId('commit-button').click();
+    const all = await posted(page);
+    const setIdx = all.findIndex(
+      (m) => m.method === 'commit/setMessage' && m.params?.['message'] === 'quick',
+    );
+    const commitIdx = all.findIndex((m) => m.method === 'commit/commit');
+    expect(setIdx).toBeGreaterThanOrEqual(0);
+    expect(commitIdx).toBeGreaterThan(setIdx);
+  });
+
+  test('the message survives a webview reload', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).pressSequentially('persisted message', { delay: 5 });
+    await expect.poll(async () => (await setMessages(page)).length).toBeGreaterThan(0);
+    await page.reload();
+    await expect(editor(page)).toHaveValue('persisted message');
+  });
+});
+
 test.describe('P11-T3 per-change inclusion', () => {
   const DIFF_ROW = 'Strings.java, src/main/java/util';
 

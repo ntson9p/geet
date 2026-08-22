@@ -2,7 +2,7 @@
  * Toolbar (master §9 shared lib): themed via --vscode-* variables only,
  * fully keyboard-operable, codicon-friendly.
  */
-import type { ReactNode } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
 export interface ToolbarProps {
   ariaLabel: string;
@@ -25,7 +25,8 @@ export interface ToolbarButtonProps {
   showLabel?: boolean;
   disabled?: boolean;
   toggled?: boolean;
-  onClick?: () => void;
+  /** The event is passed through so dropdowns can anchor to the button. */
+  onClick?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
 export function ToolbarButton({ label, icon, showLabel, disabled, toggled, onClick }: ToolbarButtonProps) {

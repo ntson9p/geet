@@ -94,6 +94,52 @@ export class MessageHistory {
   }
 }
 
+/** One recent commit whose message the Amend ▾ dropdown can reuse (P11-T4). */
+export interface RecentCommitMessage {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  message: string;
+}
+
+/**
+ * Recent commits for the commit window's `Amend  last commit ▾` dropdown
+ * (P11-T4 step 4). NUL separates sha from body and RS separates records, so a
+ * multi-line body — the very thing worth reusing — survives parsing intact.
+ */
+export async function recentCommitMessages(
+  repo: RepoHandle,
+  limit: number,
+): Promise<RecentCommitMessage[]> {
+  const result = await repo.queue.enqueue({
+    label: 'read recent commit messages',
+    kind: 'read',
+    run: (git, token) =>
+      git.exec(repo.root, ['log', `-${limit}`, '--format=%H%x00%B%x1e'], {
+        structured: true,
+        noOptionalLocks: true,
+        allowNonZeroExit: true, // an unborn HEAD is "no commits", not an error
+        token,
+      }),
+  });
+  if (result.exitCode !== 0) return [];
+  const commits: RecentCommitMessage[] = [];
+  for (const record of result.stdout.split('\x1e')) {
+    const cut = record.indexOf('\x00');
+    if (cut < 0) continue;
+    const sha = record.slice(0, cut).replace(/^\s+/, '');
+    if (!/^[0-9a-f]{40}$/.test(sha)) continue;
+    const message = record.slice(cut + 1).replace(/\n+$/, '');
+    commits.push({
+      sha,
+      shortSha: sha.slice(0, 8),
+      subject: message.split('\n')[0] ?? '',
+      message,
+    });
+  }
+  return commits;
+}
+
 function relativeTime(ts: number): string {
   const minutes = Math.round((Date.now() - ts) / 60_000);
   if (minutes < 1) return vscode.l10n.t('just now');

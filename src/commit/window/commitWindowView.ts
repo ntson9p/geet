@@ -33,7 +33,7 @@ import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui
 import { ChangelistService, UNVERSIONED_ID } from '../changelists/changelistService';
 import type { CommitService } from '../commitService';
 import type { CommitMessageBox } from '../messageBox';
-import type { MessageHistory } from '../messageHistory';
+import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
 import { computeFileDiff } from './fileDiff';
 import { signChanges, type InclusionModel } from './inclusion';
@@ -112,7 +112,14 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
   private setMessage(repo: RepoHandle, value: string, echo: boolean): void {
     void this.deps.context.workspaceState.update(this.messageKey(repo), value);
-    if (echo) this.push();
+    if (echo) {
+      // Programmatic writes travel on their own event, not on a state push —
+      // the editor ignores `CommitStateDto.message` after init because a push
+      // can be built from a snapshot older than the user's latest keystrokes
+      // (the webview persists on a 250 ms debounce). See COMMIT_METHODS.evtMessage.
+      this.rpc?.notify(COMMIT_METHODS.evtMessage, { repoRoot: repo.root, message: value });
+      this.push();
+    }
   }
 
   /**
@@ -425,7 +432,9 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
         result.previousMessage !== undefined &&
         this.getMessage(repo).trim().length === 0
       ) {
-        this.setMessage(repo, result.previousMessage, false);
+        // echo=true: the prefill must reach the editor as a programmatic write
+        // (setRangeText → lands on the undo stack) — a state push would not.
+        this.setMessage(repo, result.previousMessage, true);
       }
       this.push();
     });
@@ -463,11 +472,21 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       });
     });
 
-    rpc.on(COMMIT_METHODS.showHistory, async (raw) => {
+    // P11-T4: the clock and Amend ▾ dropdowns render inside the webview; the
+    // host only serves their data. The native QuickPick stays reachable via
+    // the `gittree.commit.showMessageHistory` command in both modes.
+    rpc.on(COMMIT_METHODS.messageHistory, async (raw) => {
       const p = raw as { repoRoot: string };
       const repo = this.repoFor(p.repoRoot);
-      if (!repo) return;
-      await this.deps.history.showPicker(repo, this.messageBoxFor(repo));
+      if (!repo) return { entries: [] };
+      return { entries: await this.deps.history.entries(repo) };
+    });
+
+    rpc.on(COMMIT_METHODS.recentCommits, async (raw) => {
+      const p = raw as { repoRoot: string };
+      const repo = this.repoFor(p.repoRoot);
+      if (!repo) return { commits: [] };
+      return { commits: await recentCommitMessages(repo, 20) };
     });
 
     // P11-T5 replaces this with the in-webview gear popup; until then the

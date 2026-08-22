@@ -118,8 +118,29 @@ suite('P4 log & blame host', () => {
 
   test('copy revision number writes the clipboard', async function () {
     this.timeout(30_000);
+    // The Windows clipboard is a shared, lockable OS resource: under a
+    // disconnected RDP session (no rdpclip) or a clipboard-manager collision,
+    // writes vanish and reads return ''. Probe first and skip as a capability
+    // gap rather than failing the suite on an environment defect; the command
+    // path itself is still asserted wherever a clipboard exists.
+    const roundTrips = async (text: string): Promise<boolean> => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await vscode.env.clipboard.writeText(text);
+        if ((await vscode.env.clipboard.readText()) === text) return true;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return false;
+    };
+    if (!(await roundTrips('gittree-clipboard-probe'))) {
+      this.skip();
+    }
+
     const head = git('rev-parse', 'HEAD').trim();
-    await vscode.commands.executeCommand('gittree.log.copySha', { sha: head });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await vscode.commands.executeCommand('gittree.log.copySha', { sha: head });
+      if ((await vscode.env.clipboard.readText()) === head) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
     assert.strictEqual(await vscode.env.clipboard.readText(), head);
   });
 

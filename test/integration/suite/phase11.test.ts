@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
+import { recentCommitMessages } from '../../../src/commit/messageHistory';
 import { computeFileDiff } from '../../../src/commit/window/fileDiff';
 import type { RepoHandle } from '../../../src/core/core';
 import type { LineChange } from '../../../src/core/patch/patchBuilder';
@@ -145,7 +146,7 @@ suite('P11 commit tool window', () => {
     // here that a handler exists, and in commit.spec.ts that the webview posts
     // requests.
     for (const [name, method] of Object.entries(COMMIT_METHODS)) {
-      if (name === 'evtState') continue; // host → webview
+      if (name.startsWith('evt')) continue; // host → webview
       assert.ok(reg.commitWindow.hasHandler(method), `no host handler for ${method}`);
     }
   });
@@ -368,6 +369,53 @@ suite('P11 commit tool window', () => {
     git('checkout', '--', rel);
     await refresh();
     restoreChecked();
+  });
+
+  test('T4: recent commits are served for the amend dropdown, body intact', async function () {
+    this.timeout(60_000);
+    // A commit with a real body — the thing worth reusing from the ▾ menu.
+    write('p11/t4-body.txt', 'body\n');
+    git('add', 'p11/t4-body.txt');
+    git('commit', '-m', 't4 subject', '-m', 'body line two');
+
+    const commits = await recentCommitMessages(repo, 5);
+    assert.ok(commits.length >= 2, 'this suite has committed more than once by now');
+    const head = commits[0]!;
+    assert.match(head.sha, /^[0-9a-f]{40}$/);
+    assert.strictEqual(head.shortSha, head.sha.slice(0, 8));
+    assert.strictEqual(head.subject, 't4 subject');
+    assert.strictEqual(
+      head.message,
+      't4 subject\n\nbody line two',
+      'the multi-line body must survive the NUL/RS parse intact',
+    );
+    assert.strictEqual(commits[1]!.subject, git('log', '-1', '--skip=1', '--format=%s').trim());
+  });
+
+  test('T4: the message ring feeds the in-webview history dropdown', async function () {
+    this.timeout(30_000);
+    // Earlier commits in this suite went through the shared flow, which pushes
+    // into the ring — the same data `commit/messageHistory` serves.
+    const entries = await reg.history.entries(repo);
+    assert.ok(entries.length > 0, 'the ring must hold this suite\'s earlier commit messages');
+    assert.ok(
+      entries.some((e) => e.message === 'p11 commit from the tool window'),
+      `ring: ${entries.map((e) => JSON.stringify(e.message)).join(', ')}`,
+    );
+    assert.ok(
+      entries.every((e) => typeof e.message === 'string' && typeof e.ts === 'number'),
+      'each entry carries the full message and a timestamp for the relative-time label',
+    );
+  });
+
+  test('T4: a programmatic message write reaches workspaceState immediately', function () {
+    this.timeout(30_000);
+    // The messageBox setter is the path history picks, amend prefill and the
+    // post-commit clear all share; the webview editor hears it via evtMessage.
+    reg.commitWindow.messageBoxFor(repo).value = 'programmatic write';
+    assert.strictEqual(reg.commitWindow.getMessage(repo), 'programmatic write');
+    reg.commitWindow.messageBoxFor(repo).value = '';
+    assert.strictEqual(reg.commitWindow.getMessage(repo), '');
   });
 
   test('T2: switching to native restores the SCM input box without a reload', async function () {

@@ -15,12 +15,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   COMMIT_METHODS,
   type CommitFileDiffDto,
+  type CommitHistoryDto,
+  type CommitMessageEvtDto,
+  type CommitRecentCommitsDto,
   type CommitSetIncludedParamsDto,
   type CommitStateDto,
   type CommitSetCheckedParamsDto,
 } from '../../../src/shared/protocol';
 import { FileTree } from '../lib/FileTree';
 import { InlineDiff } from '../lib/InlineDiff';
+import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient, RpcRequestError } from '../lib/rpc';
 import { SplitPane } from '../lib/SplitPane';
 import { TabPanel, Tabs } from '../lib/Tabs';
@@ -30,6 +34,8 @@ import { allDirPaths, countFiles, type ToggleDelta, type TreeNode } from '../lib
 import { useElementSize } from '../lib/useElementSize';
 import { getVsCodeApi } from '../lib/vscodeApi';
 import { assembleCommitTree, fileCountLabel, iconFor, partialLabel, splitDelta } from './commitTree';
+import { firstLine, relativeTime } from './format';
+import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 
 interface Persisted {
   tab?: string;
@@ -56,6 +62,16 @@ const EMPTY: CommitStateDto = {
   paradigm: 'changelists',
 };
 
+/** A message dropdown (history clock or Amend ▾), anchored under its button. */
+interface MessageMenu {
+  label: string;
+  x: number;
+  y: number;
+  items: MenuItem[];
+  /** Index-aligned with `items`: the full multi-line message each inserts. */
+  messages: string[];
+}
+
 export function App() {
   const rpc = useMemo(() => new RpcClient(), []);
   const api = useMemo(() => getVsCodeApi(), []);
@@ -68,7 +84,13 @@ export function App() {
     () => new Set(saved.expanded ?? []),
   );
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  // Mirror of the uncontrolled editor's value — drives `canCommit` and the
+  // webview-state persist. The editor itself owns the DOM value (P11-T4).
   const [message, setMessage] = useState(saved.message ?? '');
+  // Frozen first-render value: `saved` is re-read every render, and a changing
+  // `initial` prop would defeat the editor's memo shield while typing.
+  const initialMessage = useRef(saved.message ?? '').current;
+  const [menu, setMenu] = useState<MessageMenu | null>(null);
   const [preview, setPreview] = useState(saved.preview ?? false);
   const [ratio, setRatio] = useState(saved.ratio ?? 0.55);
   const [diff, setDiff] = useState<CommitFileDiffDto | undefined>(undefined);
@@ -76,6 +98,9 @@ export function App() {
   const [treeRef, treeSize] = useElementSize<HTMLDivElement>();
   const [diffRef, diffSize] = useElementSize<HTMLDivElement>();
   const seededExpansion = useRef(false);
+  const editorRef = useRef<MessageEditorHandle | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const model = useMemo(() => assembleCommitTree(state), [state]);
 
@@ -85,17 +110,32 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const off = rpc.onEvent(COMMIT_METHODS.evtState, (p) => apply(p as CommitStateDto));
+    const offState = rpc.onEvent(COMMIT_METHODS.evtState, (p) => apply(p as CommitStateDto));
+    // Programmatic message writes (history pick via the native command, amend
+    // prefill, post-commit clear) arrive on their own event. Generic state
+    // pushes never touch the editor: they can carry a snapshot older than the
+    // debounced persist, and applying one would eat the user's last keystrokes.
+    const offMessage = rpc.onEvent(COMMIT_METHODS.evtMessage, (p) => {
+      const m = p as CommitMessageEvtDto;
+      if (m.repoRoot !== stateRef.current.activeRepo) return;
+      editorRef.current?.setProgrammatic(m.message);
+    });
     rpc.request<CommitStateDto>(COMMIT_METHODS.init).then(apply, () => setReady(true));
-    return off;
+    return () => {
+      offState();
+      offMessage();
+    };
   }, [apply, rpc]);
 
-  // The host is the source of truth for the message, but only adopt its value
-  // when it actually differs — echoing every keystroke back would fight the
-  // editor's undo stack (hardened in P11-T4).
+  // Adopt the host's message only when the repo under the editor changes —
+  // which includes the first snapshot. Everything else comes via evtMessage.
+  const editorRepo = useRef<{ root: string | undefined } | null>(null);
   useEffect(() => {
-    setMessage((current) => (state.message === current ? current : state.message));
-  }, [state.message]);
+    if (!ready) return;
+    if (editorRepo.current !== null && editorRepo.current.root === state.activeRepo) return;
+    editorRepo.current = { root: state.activeRepo };
+    editorRef.current?.adoptExternal(state.message);
+  }, [ready, state]);
 
   // Expand every group and folder the first time real content arrives, the way
   // the IntelliJ commit window opens.
@@ -263,8 +303,90 @@ export function App() {
     [diff, diffPath, diffRepo, includedSet, send],
   );
 
+  // ---- message editor (P11-T4) ----------------------------------------------
+
+  const onEditorInput = useCallback((value: string) => setMessage(value), []);
+  const activeRepoRef = useRef(activeRepo);
+  activeRepoRef.current = activeRepo;
+  const onEditorPersist = useCallback(
+    (value: string) => {
+      const repoRoot = activeRepoRef.current;
+      if (repoRoot === undefined) return;
+      send(COMMIT_METHODS.setMessage, { repoRoot, message: value });
+    },
+    [send],
+  );
+
+  /** Opens the history clock or Amend ▾ dropdown under its button. */
+  const openMessageMenu = useCallback(
+    async (anchor: HTMLElement, kind: 'history' | 'amend') => {
+      const repoRoot = activeRepoRef.current;
+      if (repoRoot === undefined) return;
+      const rect = anchor.getBoundingClientRect();
+      const at = { x: rect.left, y: rect.bottom + 2 };
+      try {
+        if (kind === 'history') {
+          const res = await rpc.request<CommitHistoryDto>(COMMIT_METHODS.messageHistory, {
+            repoRoot,
+          });
+          const entries = res?.entries ?? [];
+          setMenu({
+            label: 'Commit message history',
+            ...at,
+            items:
+              entries.length === 0
+                ? [{ kind: 'item', id: 'empty', label: 'No commit message history yet.', disabled: true }]
+                : entries.map((e, i) => ({
+                    kind: 'item' as const,
+                    id: String(i),
+                    label: firstLine(e.message),
+                    accelerator: relativeTime(e.ts, Date.now()),
+                  })),
+            messages: entries.map((e) => e.message),
+          });
+        } else {
+          const res = await rpc.request<CommitRecentCommitsDto>(COMMIT_METHODS.recentCommits, {
+            repoRoot,
+          });
+          const commits = res?.commits ?? [];
+          setMenu({
+            label: 'Reuse commit message',
+            ...at,
+            items:
+              commits.length === 0
+                ? [{ kind: 'item', id: 'empty', label: 'No commits yet.', disabled: true }]
+                : commits.map((c, i) => ({
+                    kind: 'item' as const,
+                    id: String(i),
+                    label: c.subject,
+                    accelerator: c.shortSha,
+                  })),
+            messages: commits.map((c) => c.message),
+          });
+        }
+      } catch (err) {
+        setRpcError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [rpc],
+  );
+
+  const onMenuSelect = useCallback(
+    (id: string) => {
+      const text = menu?.messages[Number(id)];
+      setMenu(null);
+      // Deferred one tick: the closing menu restores focus to the button that
+      // opened it, and the editor must win that race after a pick.
+      if (text !== undefined) window.setTimeout(() => editorRef.current?.insert(text), 0);
+    },
+    [menu],
+  );
+
   const commit = (andPush: boolean): void => {
     if (activeRepo === undefined) return;
+    // A half-typed message may still be inside the debounce window; the flush
+    // posts it first, and the host processes messages in arrival order.
+    editorRef.current?.flush();
     send(COMMIT_METHODS.commit, { repoRoot: activeRepo, andPush });
   };
 
@@ -449,29 +571,28 @@ export function App() {
               </span>
             </label>
             <ToolbarButton
+              icon="chevron-down"
+              label="Reuse a recent commit message"
+              disabled={activeRepo === undefined}
+              onClick={(e) => void openMessageMenu(e.currentTarget, 'amend')}
+            />
+            <ToolbarButton
               icon="history"
               label="Commit message history"
-              onClick={() => send(COMMIT_METHODS.showHistory, { repoRoot: activeRepo })}
+              disabled={activeRepo === undefined}
+              onClick={(e) => void openMessageMenu(e.currentTarget, 'history')}
             />
             <span className="gt-commit-counter" data-testid="commit-counter">
               {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
             </span>
           </div>
 
-          <textarea
-            className="gt-input gt-commit-message"
-            aria-label="Commit message"
-            data-testid="commit-message"
-            rows={6}
-            value={message}
+          <MessageEditor
+            ref={editorRef}
+            initial={initialMessage}
             disabled={activeRepo === undefined}
-            onChange={(e) => {
-              setMessage(e.currentTarget.value);
-              send(COMMIT_METHODS.setMessage, {
-                repoRoot: activeRepo,
-                message: e.currentTarget.value,
-              });
-            }}
+            onInput={onEditorInput}
+            onPersist={onEditorPersist}
           />
 
           <div className="gt-commit-actions">
@@ -502,6 +623,16 @@ export function App() {
           </div>
         </div>
       </TabPanel>
+
+      {menu !== null ? (
+        <Menu
+          items={menu.items}
+          at={{ x: menu.x, y: menu.y }}
+          ariaLabel={menu.label}
+          onSelect={onMenuSelect}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
     </div>
   );
 }

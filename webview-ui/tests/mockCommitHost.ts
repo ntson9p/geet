@@ -25,7 +25,9 @@ export const mockCommitHostScript = `
     { path: 'docs/guide.md', code: '.M', kind: 'modified', checked: false },
   ];
   const unversioned = [{ path: '2.txt', code: '??', kind: 'untracked', checked: false }];
-  let message = '';
+  // The real message store is workspaceState, which survives a webview reload —
+  // so the mock's must too, or reload tests prove nothing.
+  let message = sessionStorage.getItem('gt-mock-message') || '';
   let amend = false;
 
   // One file with three separate changes, so per-change inclusion has
@@ -98,6 +100,18 @@ export const mockCommitHostScript = `
     );
   }
 
+  // P11-T4: programmatic message writes travel on their own event; the webview
+  // deliberately ignores state.message after init (see COMMIT_METHODS.evtMessage).
+  function pushMessage() {
+    window.postMessage(
+      {
+        v: 1, id: 'm' + Math.random(), kind: 'evt', method: 'commit/message',
+        params: { repoRoot: REPO, message: message },
+      },
+      '*'
+    );
+  }
+
   function fileOf(path) {
     return changes.concat(unversioned).find((c) => c.path === path);
   }
@@ -113,10 +127,16 @@ export const mockCommitHostScript = `
       if (!p.checked) for (const path of p.paths) included.delete(path);
       setTimeout(push, 5);
     },
-    'commit/setMessage': (p) => { message = p.message; },
+    'commit/setMessage': (p) => {
+      message = p.message;
+      sessionStorage.setItem('gt-mock-message', p.message);
+    },
     'commit/toggleAmend': () => {
       amend = !amend;
-      if (amend && message.trim().length === 0) message = 'previous subject';
+      if (amend && message.trim().length === 0) {
+        message = 'previous subject';
+        setTimeout(pushMessage, 5);
+      }
       setTimeout(push, 5);
     },
     'commit/fileDiff': (p) => {
@@ -160,8 +180,23 @@ export const mockCommitHostScript = `
     'commit/openDiff': () => undefined,
     'commit/rollback': () => undefined,
     'commit/shelve': () => undefined,
-    'commit/showHistory': () => undefined,
     'commit/showOptions': () => undefined,
+    // P11-T4: data behind the in-webview history and Amend dropdowns.
+    'commit/messageHistory': () => ({
+      entries: [
+        { message: 'fix: adjust retry backoff\\n\\nDoubles the base delay.', ts: Date.now() - 3600e3 },
+        { message: 'feat: add exporters', ts: Date.now() - 86400e3 },
+      ],
+    }),
+    'commit/recentCommits': () => ({
+      commits: [
+        {
+          sha: 'a1b2c3d4'.repeat(5), shortSha: 'a1b2c3d4',
+          subject: 'previous subject', message: 'previous subject\\n\\nBody of the last commit.',
+        },
+        { sha: 'e5f6a7b8'.repeat(5), shortSha: 'e5f6a7b8', subject: 'older subject', message: 'older subject' },
+      ],
+    }),
   };
 
   const api = {
