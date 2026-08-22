@@ -193,7 +193,7 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - [x] Filter row: `Branch or tag`, text/hash with regex + match-case, four multi-select dropdowns, saved presets (P12-T5)
 - [ ] Commit menu: Create Patch, Fixup, Squash Into, Push All up to Here, Branches ›, Go to Parent/Child, Show Repository at Revision
 - [ ] `Reset → Keep` alongside Soft/Mixed/Hard
-- [ ] §3.9 patches: `format-patch` create + `am`/`apply --3way` apply, round-trip verified
+- [x] §3.9 patches: `format-patch` create + `am`/`apply --3way` apply, round-trip verified (P12-T6)
 
 ## Deviations (recorded as tasks land)
 - **P12-T1 — the tab strip ships with `Log` only.** The `Console` tab arrives with T8; a dead
@@ -233,6 +233,18 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - **P12-T5 — a hash-shaped entry in `Text or hash` navigates (Go to) on Enter instead of
   grepping**; free text greps as before. Presets persist in `gittree.log.filterPresets`
   (workspace settings), which is what makes them survive reloads.
+- **P12-T6 — worktree-selection patches come from a scratch-index diff, not `buildPatch`.**
+  `buildPatch` emits zero-context hunks only `apply --unidiff-zero` reads (the P11-T7
+  incompatibility); the selection is staged into a scratch index and `git diff --cached HEAD
+  --binary` writes an ordinary patch anyone can apply.
+- **P12-T6 — a mailbox apply that cannot complete is aborted and degraded, never left
+  paused.** `git am -3` replays clean mailboxes as commits; on failure the engine runs
+  `git am --abort` and content-applies the same file with `apply --3way`, whose conflicts are
+  ordinary unmerged entries the P6 flow already owns. `--reject` is never passed, so `.rej`
+  litter cannot exist.
+- **P12-T6 — patch bytes are always written by git itself** (`format-patch -o` per commit,
+  `diff --output=`): executor stdout is utf8-decoded and would corrupt `--binary` payloads
+  (the P7-T3 lesson, reapplied).
 
 ## Planned deviations
 - **`Show Repository at Revision` opens a tree view, not a second project window.** IntelliJ

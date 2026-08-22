@@ -6,6 +6,8 @@ import type { RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { Phase02Registry } from '../../../src/branches/register';
 import type { Phase04Registry } from '../../../src/log/register';
+import { applyPatchFile } from '../../../src/rewrite/patch/applyPatch';
+import { createPatchText, createPatchToFile } from '../../../src/rewrite/patch/createPatch';
 import { LOG_METHODS } from '../../../src/shared/protocol';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
@@ -274,6 +276,125 @@ suite('P12 git tool window', () => {
 
     await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' });
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > expected, 30_000);
+  });
+
+  test('T6: create-from-2-commits → reset --hard → apply restores identical trees', async function () {
+    this.timeout(120_000);
+    write('p12/patch-a.txt', 'alpha\n');
+    git('add', 'p12/patch-a.txt');
+    git('commit', '-m', 'p12 patch one');
+    const c1 = git('rev-parse', 'HEAD').trim();
+    write('p12/patch-b.txt', 'beta\n');
+    git('add', 'p12/patch-b.txt');
+    git('commit', '-m', 'p12 patch two');
+    const c2 = git('rev-parse', 'HEAD').trim();
+    const wantTree = git('rev-parse', 'HEAD^{tree}').trim();
+    const base = git('rev-parse', 'HEAD~2').trim();
+
+    const patchPath = path.join(repoRoot, '.git', 'p12-roundtrip.patch');
+    await createPatchToFile(repo, { kind: 'commits', shas: [c2, c1] }, patchPath);
+    assert.ok(fs.readFileSync(patchPath, 'latin1').startsWith('From '), 'mailbox format expected');
+
+    git('reset', '--hard', base);
+    await repo.refresher.refreshNow();
+    const result = await applyPatchFile(repo, patchPath);
+    assert.strictEqual(result.status, 'applied', JSON.stringify(result));
+    assert.strictEqual(result.appliedAsCommits, true, 'a mailbox must replay via git am');
+    assert.strictEqual(
+      git('rev-parse', 'HEAD^{tree}').trim(),
+      wantTree,
+      'the replayed history must reproduce the identical tree',
+    );
+    assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p12 patch two');
+    fs.rmSync(patchPath, { force: true });
+    await repo.refresher.refreshNow();
+  });
+
+  test('T6: a conflicting patch reports its files and leaves no .rej litter', async function () {
+    this.timeout(120_000);
+    write('p12/conflict.txt', 'line one\nline two\n');
+    git('add', 'p12/conflict.txt');
+    git('commit', '-m', 'p12 conflict base');
+    write('p12/conflict.txt', 'line one CHANGED\nline two\n');
+    git('add', 'p12/conflict.txt');
+    git('commit', '-m', 'p12 conflict edit');
+    const editSha = git('rev-parse', 'HEAD').trim();
+
+    const patchPath = path.join(repoRoot, '.git', 'p12-conflict.patch');
+    await createPatchToFile(repo, { kind: 'commits', shas: [editSha] }, patchPath);
+
+    // Move the base under the patch so the 3way has to conflict.
+    git('reset', '--hard', 'HEAD~1');
+    write('p12/conflict.txt', 'line one DIVERGED\nline two\n');
+    git('add', 'p12/conflict.txt');
+    git('commit', '-m', 'p12 diverged');
+
+    const result = await applyPatchFile(repo, patchPath);
+    assert.strictEqual(result.status, 'conflicts', JSON.stringify(result));
+    assert.deepStrictEqual(result.rejected, ['p12/conflict.txt']);
+    const rejFiles = fs
+      .readdirSync(path.join(repoRoot, 'p12'))
+      .filter((f) => f.endsWith('.rej'));
+    assert.deepStrictEqual(rejFiles, [], 'no .rej litter — conflicts are unmerged entries');
+
+    // Clean up the conflict state entirely.
+    git('reset', '--hard', 'HEAD');
+    git('checkout', '--', '.');
+    fs.rmSync(patchPath, { force: true });
+    await repo.refresher.refreshNow();
+  });
+
+  test('T6: binary content round-trips byte-exactly', async function () {
+    this.timeout(120_000);
+    const bytes = Buffer.from([0, 1, 2, 3, 255, 254, 128, 10, 13, 0, 42]);
+    fs.mkdirSync(path.join(repoRoot, 'p12'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'p12/blob.bin'), bytes);
+    git('add', 'p12/blob.bin');
+    git('commit', '-m', 'p12 binary');
+    const sha = git('rev-parse', 'HEAD').trim();
+
+    const patchPath = path.join(repoRoot, '.git', 'p12-binary.patch');
+    await createPatchToFile(repo, { kind: 'commits', shas: [sha] }, patchPath);
+    git('reset', '--hard', 'HEAD~1');
+    assert.ok(!fs.existsSync(path.join(repoRoot, 'p12/blob.bin')));
+
+    const result = await applyPatchFile(repo, patchPath);
+    assert.strictEqual(result.status, 'applied', JSON.stringify(result));
+    assert.ok(
+      fs.readFileSync(path.join(repoRoot, 'p12/blob.bin')).equals(bytes),
+      'binary bytes must survive format-patch --binary + am',
+    );
+    fs.rmSync(patchPath, { force: true });
+    await repo.refresher.refreshNow();
+  });
+
+  test('T6: a worktree-selection patch carries real context and applies back', async function () {
+    this.timeout(120_000);
+    write('p12/wt.txt', 'w1\nw2\nw3\n');
+    git('add', 'p12/wt.txt');
+    git('commit', '-m', 'p12 wt base');
+    write('p12/wt.txt', 'w1\nCHANGED\nw3\n');
+    await repo.refresher.refreshNow();
+
+    const text = await createPatchText(repo, {
+      kind: 'worktree',
+      wholePaths: ['p12/wt.txt'],
+      partials: [],
+    });
+    assert.ok(text.includes('@@'), 'a real diff with hunks');
+    assert.ok(text.includes(' w1'), 'context lines must be present (not unidiff-zero)');
+
+    git('checkout', '--', 'p12/wt.txt');
+    const patchPath = path.join(repoRoot, '.git', 'p12-wt.patch');
+    fs.writeFileSync(patchPath, Buffer.from(text, 'latin1'));
+    const result = await applyPatchFile(repo, patchPath);
+    assert.strictEqual(result.status, 'applied', JSON.stringify(result));
+    assert.strictEqual(fs.readFileSync(path.join(repoRoot, 'p12/wt.txt'), 'utf8'), 'w1\nCHANGED\nw3\n');
+
+    git('checkout', '--', 'p12/wt.txt');
+    git('reset', '-q');
+    fs.rmSync(patchPath, { force: true });
+    await repo.refresher.refreshNow();
   });
 
   test('T4: details carry the %G? signature state; unsigned reads N', async function () {

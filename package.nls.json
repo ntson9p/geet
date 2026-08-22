@@ -137,6 +137,7 @@
   "gittree.command.shelf.showUnshelved.title": "Show Already Unshelved",
   "gittree.command.shelve.dialog.title": "Shelve Changes…",
   "gittree.command.log.branch.checkout.title": "Checkout",
+  "gittree.command.patch.apply.title": "Apply Patch…",
   "gittree.command.log.branch.newFrom.title": "New Branch from Here…",
   "gittree.command.log.branch.compareWithCurrent.title": "Compare with Current",
   "gittree.command.log.branch.diffWithWorkingTree.title": "Show Diff with Working Tree",

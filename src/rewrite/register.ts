@@ -270,6 +270,49 @@ export function registerPhase05HistoryRewriting(
     }
   });
 
+  // P12-T6: Apply Patch — mailbox patches replay as commits (`git am -3`),
+  // plain diffs content-apply (`git apply --3way`). The P13-T4 dialog will
+  // front this same engine with its option matrix.
+  register('gittree.patch.apply', async (repoRoot) => {
+    const repo =
+      typeof repoRoot === 'string'
+        ? core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot))
+        : (core.repoForUri(vscode.window.activeTextEditor?.document.uri ?? vscode.Uri.file('')) ??
+          core.repos[0]);
+    if (!repo) return;
+    const seeded = process.env['GITTREE_TEST_APPLY_PATCH'];
+    const picked =
+      seeded !== undefined
+        ? [vscode.Uri.file(seeded)]
+        : await vscode.window.showOpenDialog({
+            filters: { [vscode.l10n.t('Patch files')]: ['patch', 'diff'] },
+            canSelectMany: false,
+          });
+    if (!picked || picked.length === 0) return;
+    const { applyPatchFile } = await import('./patch/applyPatch');
+    const result = await applyPatchFile(repo, picked[0]!.fsPath);
+    await repo.refresher.refreshNow();
+    if (result.status === 'applied') {
+      void vscode.window.showInformationMessage(
+        result.appliedAsCommits
+          ? vscode.l10n.t('Patch applied as commits (git am).')
+          : vscode.l10n.t('Patch applied to the working tree.'),
+      );
+    } else if (result.status === 'conflicts') {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Patch applied with conflicts in: {0}', result.rejected.join(', ')),
+      );
+    } else {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t(
+          'Patch failed: {0}{1}',
+          result.reason ?? 'unknown',
+          result.rejected.length > 0 ? ` (${result.rejected.join(', ')})` : '',
+        ),
+      );
+    }
+  });
+
   core.debugRegistry.set('phase05', {
     getEngine: (repoRoot: string) => engines.get(canonicalKey(repoRoot)),
     getMonitor: (repoRoot: string) => monitors.get(canonicalKey(repoRoot)),

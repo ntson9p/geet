@@ -1108,6 +1108,11 @@
         "icon": "$(archive)"
       },
       {
+        "command": "gittree.patch.apply",
+        "title": "%gittree.command.patch.apply.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.log.branch.checkout",
         "title": "%gittree.command.log.branch.checkout.title%"
       },
