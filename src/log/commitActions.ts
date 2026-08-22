@@ -122,16 +122,19 @@ export function registerCommitActions(
     const repo = repoOf();
     if (sha === undefined || !repo) return;
     interface ModeItem extends vscode.QuickPickItem {
-      mode: 'soft' | 'mixed' | 'hard';
+      mode: 'soft' | 'mixed' | 'hard' | 'keep';
     }
     const items: ModeItem[] = [
       { label: vscode.l10n.t('Soft — keep index and worktree'), mode: 'soft' },
       { label: vscode.l10n.t('Mixed — keep worktree, reset index'), mode: 'mixed' },
       { label: vscode.l10n.t('Hard — discard EVERYTHING after {0}', sha.slice(0, 7)), mode: 'hard' },
+      // P12-T7.6: git's fourth mode, previously missing everywhere — moves
+      // HEAD but REFUSES rather than discard local changes.
+      { label: vscode.l10n.t('Keep — like hard, but refuses to touch local changes'), mode: 'keep' },
     ];
     const testMode = process.env['GITTREE_TEST_RESET_MODE'];
     const picked =
-      testMode === 'soft' || testMode === 'mixed' || testMode === 'hard'
+      testMode === 'soft' || testMode === 'mixed' || testMode === 'hard' || testMode === 'keep'
         ? items.find((i) => i.mode === testMode)
         : await vscode.window.showQuickPick(items, {
             placeHolder: vscode.l10n.t('Reset current branch to {0}', sha.slice(0, 7)),
@@ -145,15 +148,32 @@ export function registerCommitActions(
       );
       if (!ok) return;
     }
-    await repo.queue.enqueue({
-      label: vscode.l10n.t('Reset ({0}) to {1}', picked.mode, sha.slice(0, 7)),
-      kind: 'mutate',
-      isDestructive: picked.mode === 'hard',
-      ...(picked.mode === 'hard' ? { snapshotLabel: SNAPSHOT_LABELS.reset, snapshotAfter: true } : {}),
-      run: async (git, token) => {
-        await git.exec(repo.root, ['reset', `--${picked.mode}`, sha], { token });
-      },
-    });
+    try {
+      await repo.queue.enqueue({
+        label: vscode.l10n.t('Reset ({0}) to {1}', picked.mode, sha.slice(0, 7)),
+        kind: 'mutate',
+        isDestructive: picked.mode === 'hard' || picked.mode === 'keep',
+        ...(picked.mode === 'hard' || picked.mode === 'keep'
+          ? { snapshotLabel: SNAPSHOT_LABELS.reset, snapshotAfter: true }
+          : {}),
+        run: async (git, token) => {
+          await git.exec(repo.root, ['reset', `--${picked.mode}`, sha], { token });
+        },
+      });
+    } catch (err) {
+      // `--keep` refusing to discard local changes is the point of the mode;
+      // surface git's own reason instead of a stack trace.
+      if (picked.mode === 'keep' && err instanceof GitError) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Reset --keep refused: {0}',
+            err.stderr.split('\n').find((l) => l.trim().length > 0) ?? 'local changes would be lost',
+          ),
+        );
+        return;
+      }
+      throw err;
+    }
   });
 
   register('gittree.log.compareWithLocal', async (arg) => {
@@ -228,7 +248,297 @@ export function registerCommitActions(
     await logView.setFilter({ sort: 'topo', range: { a: branch, b: current } });
   });
 
-  void GitError; // (classification handled inside queue paths)
+  // ---- P12-T7: the reference menu's missing items --------------------------
+
+  const isAncestorOfHead = async (repo: RepoHandle, sha: string): Promise<boolean> => {
+    const result = await repo.queue.enqueue({
+      label: 'ancestor check',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(repo.root, ['merge-base', '--is-ancestor', sha, 'HEAD'], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    return result.exitCode === 0;
+  };
+
+  /** The ticked-paths target the shared commit flow would use (changelists). */
+  const tickedPaths = (repo: RepoHandle): string[] => {
+    const p3 = core.debugRegistry.get('phase03') as
+      | {
+          paradigm: { paradigm: 'changelists' | 'staging' };
+          changelistsFor: (r: RepoHandle) => {
+            getLists(): Array<{ checked: string[] }>;
+            unversionedCheckedPaths(): string[];
+          };
+        }
+      | undefined;
+    if (!p3 || p3.paradigm.paradigm !== 'changelists') return [];
+    const service = p3.changelistsFor(repo);
+    return [...service.getLists().flatMap((l) => l.checked), ...service.unversionedCheckedPaths()];
+  };
+
+  /**
+   * Fixup / Squash Into (step 2): commit the current inclusion set with
+   * `--fixup`/`--squash`, then offer a non-interactive autosquash rebase onto
+   * the target's parent. `GIT_SEQUENCE_EDITOR=:` accepts git's own generated
+   * plan; git runs editors through its sh even on Windows, so `:` is safe.
+   */
+  const fixupLike = async (arg: unknown, mode: 'fixup' | 'squash'): Promise<void> => {
+    const sha = shaOf(arg);
+    const repo = repoOf();
+    if (sha === undefined || !repo) return;
+    if (!(await isAncestorOfHead(repo, sha))) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          '{0} is not an ancestor of HEAD — a {1} commit could never be squashed into it.',
+          sha.slice(0, 7),
+          mode,
+        ),
+      );
+      return;
+    }
+    const paths = tickedPaths(repo);
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Commit --{0}={1}', mode, sha.slice(0, 7)),
+      kind: 'mutate',
+      run: async (git, token) => {
+        const args = ['commit', `--${mode}=${sha}`];
+        if (paths.length > 0) args.push('--only', '--', ...paths);
+        await git.exec(repo.root, args, { token });
+      },
+    });
+    await repo.refresher.refreshNow();
+
+    const doRebase =
+      process.env['GITTREE_TEST_AUTOSQUASH'] === 'yes'
+        ? true
+        : process.env['GITTREE_TEST_AUTOSQUASH'] === 'no'
+          ? false
+          : (await vscode.window.showInformationMessage(
+              vscode.l10n.t('{0} commit created. Run rebase --autosquash now?', mode),
+              vscode.l10n.t('Rebase Now'),
+            )) !== undefined;
+    if (!doRebase) return;
+    try {
+      await repo.queue.enqueue({
+        label: vscode.l10n.t('rebase --autosquash onto {0}^', sha.slice(0, 7)),
+        kind: 'mutate',
+        isDestructive: true,
+        snapshotLabel: SNAPSHOT_LABELS.rebaseStart,
+        run: async (git, token) => {
+          await git.exec(repo.root, ['rebase', '--interactive', '--autosquash', '--autostash', `${sha}^`], {
+            env: { GIT_SEQUENCE_EDITOR: ':', GIT_EDITOR: ':' },
+            token,
+          });
+        },
+      });
+    } catch (err) {
+      // A conflicted autosquash pauses the rebase — the P5 monitor and P6
+      // conflict flow own it from here; say so instead of failing silently.
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Autosquash paused: {0}', err instanceof Error ? err.message.split('\n')[0] ?? '' : String(err)),
+      );
+    }
+    await repo.refresher.refreshNow();
+  };
+  register('gittree.log.fixup', (arg) => fixupLike(arg, 'fixup'));
+  register('gittree.log.squashInto', (arg) => fixupLike(arg, 'squash'));
+
+  /**
+   * Push All up to Here (step 3): `git push <remote> <sha>:refs/heads/<branch>`
+   * with the not-on-current-branch and non-fast-forward cases refused BEFORE
+   * anything is invoked.
+   */
+  register('gittree.log.pushAllUpToHere', async (arg) => {
+    const sha = shaOf(arg);
+    const repo = repoOf();
+    if (sha === undefined || !repo) return;
+    const snapshot = repo.model.snapshot;
+    const branch = snapshot.headRef;
+    const upstream = snapshot.upstream; // `origin/main` form
+    if (branch === undefined || upstream === undefined || !upstream.includes('/')) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Push up to here needs a current branch with an upstream.'),
+      );
+      return;
+    }
+    if (!(await isAncestorOfHead(repo, sha))) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('{0} is not on the current branch.', sha.slice(0, 7)),
+      );
+      return;
+    }
+    const remote = upstream.slice(0, upstream.indexOf('/'));
+    const remoteBranch = upstream.slice(upstream.indexOf('/') + 1);
+    // Fast-forward check: the remote tip must already be contained in <sha>.
+    const ff = await repo.queue.enqueue({
+      label: 'push ff check',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(repo.root, ['merge-base', '--is-ancestor', upstream, sha], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    if (ff.exitCode !== 0) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          'Pushing {0} would not fast-forward {1} — pull or choose a newer commit.',
+          sha.slice(0, 7),
+          upstream,
+        ),
+      );
+      return;
+    }
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Push {0} → {1}', sha.slice(0, 7), upstream),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['push', remote, `${sha}:refs/heads/${remoteBranch}`], { token });
+      },
+    });
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t('Pushed history up to {0} to {1}.', sha.slice(0, 7), upstream),
+    );
+    await repo.refresher.refreshNow();
+  });
+
+  /**
+   * Branches › (step 4): lazy `--contains` list, each ref offering the shared
+   * registry's checkout / new-branch-from / compare. QuickPick stands in for
+   * the submenu — native webview menus cannot nest dynamically (D3).
+   */
+  register('gittree.log.commitBranches', async (arg) => {
+    const sha = shaOf(arg);
+    const repo = repoOf();
+    if (sha === undefined || !repo) return;
+    const [branches, tags] = await Promise.all([
+      logView.logServiceFor(repo).getContainingBranches(sha),
+      repo.queue.enqueue({
+        label: 'tag --contains',
+        kind: 'read',
+        run: (git, token) =>
+          git.exec(repo.root, ['tag', '--contains', sha], {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            token,
+          }),
+      }).then((r) => (r.exitCode === 0 ? r.stdout.split('\n').filter((l) => l.trim().length > 0) : [])),
+    ]);
+    interface RefItem extends vscode.QuickPickItem {
+      ref: string;
+      type: 'local' | 'tag';
+    }
+    const items: RefItem[] = [
+      ...branches.map((b): RefItem => ({ label: `$(git-branch) ${b}`, ref: b, type: 'local' })),
+      ...tags.map((t): RefItem => ({ label: `$(tag) ${t}`, ref: t, type: 'tag' })),
+    ];
+    if (items.length === 0) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('No branch or tag contains {0} yet.', sha.slice(0, 7)),
+      );
+      return;
+    }
+    const seededRef = process.env['GITTREE_TEST_COMMIT_BRANCH_PICK'];
+    const pickedRef =
+      seededRef !== undefined
+        ? items.find((i) => i.ref === seededRef)
+        : await vscode.window.showQuickPick(items, {
+            placeHolder: vscode.l10n.t('Branches containing {0}', sha.slice(0, 7)),
+          });
+    if (!pickedRef) return;
+    interface ActionItem extends vscode.QuickPickItem {
+      action: 'checkout' | 'newFrom' | 'compareWithCurrent';
+    }
+    const actions: ActionItem[] = [
+      { label: vscode.l10n.t('Checkout'), action: 'checkout' },
+      { label: vscode.l10n.t("New Branch from '{0}'…", pickedRef.ref), action: 'newFrom' },
+      { label: vscode.l10n.t('Compare with Current'), action: 'compareWithCurrent' },
+    ];
+    const seededAction = process.env['GITTREE_TEST_COMMIT_BRANCH_ACTION'];
+    const pickedAction =
+      seededAction !== undefined
+        ? actions.find((a) => a.action === seededAction)
+        : await vscode.window.showQuickPick(actions, { placeHolder: pickedRef.ref });
+    if (!pickedAction) return;
+    await logView.branchesBridge.dispatch(repo, {
+      action: pickedAction.action,
+      name: pickedRef.ref,
+      type: pickedRef.type,
+    });
+  });
+
+  /** Go to Parent / Child (step 1). Child = a loaded row listing sha as parent. */
+  register('gittree.log.goToParent', async (arg) => {
+    const sha = shaOf(arg);
+    const repo = repoOf();
+    if (sha === undefined || !repo) return;
+    const parents = await repo.queue.enqueue({
+      label: 'read parents',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(repo.root, ['rev-list', '--parents', '-1', sha], {
+          structured: true,
+          noOptionalLocks: true,
+          token,
+        }),
+    });
+    const list = parents.stdout.trim().split(/\s+/u).slice(1);
+    if (list.length === 0) {
+      void vscode.window.showInformationMessage(vscode.l10n.t('{0} is a root commit.', sha.slice(0, 7)));
+      return;
+    }
+    const target =
+      list.length === 1
+        ? list[0]
+        : await vscode.window.showQuickPick(list, {
+            placeHolder: vscode.l10n.t('Merge commit — pick a parent'),
+          });
+    if (target !== undefined) await logView.revealCommit(target);
+  });
+
+  register('gittree.log.goToChild', async (arg) => {
+    const sha = shaOf(arg);
+    if (sha === undefined) return;
+    const child = logView.findLoadedChild(sha);
+    if (child === undefined) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('No loaded commit lists {0} as a parent (children load top-down).', sha.slice(0, 7)),
+      );
+      return;
+    }
+    await logView.revealCommit(child);
+  });
+
+  /** Create Patch… (step 1, over the T6 engine). */
+  register('gittree.log.createPatch', async (arg) => {
+    const ctx = arg as CommitContext | undefined;
+    const repo = repoOf();
+    const shas = ctx?.shas && ctx.shas.length > 0 ? ctx.shas : [shaOf(arg) ?? ''].filter((s) => s.length > 0);
+    if (!repo || shas.length === 0) return;
+    const { createPatchToFile } = await import('../rewrite/patch/createPatch');
+    const seeded = process.env['GITTREE_TEST_CREATE_PATCH'];
+    const target =
+      seeded !== undefined
+        ? vscode.Uri.file(seeded)
+        : await vscode.window.showSaveDialog({
+            filters: { [vscode.l10n.t('Patch files')]: ['patch'] },
+            defaultUri: vscode.Uri.file(`${shas[0]!.slice(0, 7)}.patch`),
+          });
+    if (!target) return;
+    await createPatchToFile(repo, { kind: 'commits', shas }, target.fsPath);
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t('Patch with {0} commit(s) written to {1}.', shas.length, target.fsPath),
+    );
+  });
+
 }
 
 /** github/gitlab-style commit URL builders (capability-hidden otherwise). */

@@ -1113,6 +1113,43 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.log.createPatch",
+        "title": "%gittree.command.log.createPatch.title%"
+      },
+      {
+        "command": "gittree.log.fixup",
+        "title": "%gittree.command.log.fixup.title%"
+      },
+      {
+        "command": "gittree.log.squashInto",
+        "title": "%gittree.command.log.squashInto.title%"
+      },
+      {
+        "command": "gittree.log.pushAllUpToHere",
+        "title": "%gittree.command.log.pushAllUpToHere.title%"
+      },
+      {
+        "command": "gittree.log.commitBranches",
+        "title": "%gittree.command.log.commitBranches.title%"
+      },
+      {
+        "command": "gittree.log.goToParent",
+        "title": "%gittree.command.log.goToParent.title%"
+      },
+      {
+        "command": "gittree.log.goToChild",
+        "title": "%gittree.command.log.goToChild.title%"
+      },
+      {
+        "command": "gittree.log.showRepoAtRevision",
+        "title": "%gittree.command.log.showRepoAtRevision.title%"
+      },
+      {
+        "command": "gittree.revTree.close",
+        "title": "%gittree.command.revTree.close.title%",
+        "icon": "$(close)"
+      },
+      {
         "command": "gittree.log.branch.checkout",
         "title": "%gittree.command.log.branch.checkout.title%"
       },
@@ -1178,6 +1215,42 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gittree.log.createPatch",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.fixup",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.squashInto",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.pushAllUpToHere",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.commitBranches",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.goToParent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.goToChild",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.showRepoAtRevision",
+          "when": "false"
+        },
+        {
+          "command": "gittree.revTree.close",
+          "when": "gittree.revTree.active"
+        },
         {
           "command": "gittree.log.branch.checkout",
           "when": "false"
@@ -1626,6 +1699,11 @@
           "group": "navigation@2"
         },
         {
+          "command": "gittree.revTree.close",
+          "when": "view == gittree.revTree",
+          "group": "navigation@1"
+        },
+        {
           "command": "gittree.log.refresh",
           "when": "view == gittree.log",
           "group": "navigation@1"
@@ -2070,6 +2148,46 @@
           "group": "1_nav@1"
         },
         {
+          "command": "gittree.log.goToParent",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "1_nav@2"
+        },
+        {
+          "command": "gittree.log.goToChild",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "1_nav@3"
+        },
+        {
+          "command": "gittree.log.createPatch",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "5_patch@1"
+        },
+        {
+          "command": "gittree.log.fixup",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@1"
+        },
+        {
+          "command": "gittree.log.squashInto",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_rewrite@2"
+        },
+        {
+          "command": "gittree.log.pushAllUpToHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "7_push@1"
+        },
+        {
+          "command": "gittree.log.commitBranches",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "8_refs@1"
+        },
+        {
+          "command": "gittree.log.showRepoAtRevision",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "8_refs@2"
+        },
+        {
           "command": "gittree.log.createBranchHere",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
           "group": "2_refs@1"
@@ -2458,6 +2576,13 @@
           "icon": "$(package)",
           "visibility": "collapsed",
           "when": "gittree.commitWindow == native"
+        },
+        {
+          "id": "gittree.revTree",
+          "name": "%gittree.view.revTree.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(history)",
+          "when": "gittree.revTree.active"
         }
       ]
     },

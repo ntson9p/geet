@@ -386,6 +386,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return this.serviceFor(repo);
   }
 
+  /** P12-T7 Go to Child: the nearest LOADED row listing `sha` as a parent. */
+  findLoadedChild(sha: string): string | undefined {
+    const rows = this.session?.rows ?? [];
+    for (let i = rows.length - 1; i >= 0; i--) {
+      // Newest-first rows: walk from the bottom up so the NEAREST child (the
+      // last one above the commit) wins over distant descendants.
+      const row = rows[i]!;
+      if (row.parents.includes(sha)) return row.sha;
+    }
+    return undefined;
+  }
+
   private toDto(row: LogRow, session: Session): LogRowDto {
     const graphRows = session.layout.appendPage([{ sha: row.sha, parents: row.parents }]);
     const graph = graphRows[0]!;

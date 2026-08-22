@@ -191,8 +191,8 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - [ ] S10 — Console tab with argv, exit code, duration and redaction
 - [x] Commit Details: committer, signature, parents, `Contained in branches` (lazy) (P12-T4)
 - [x] Filter row: `Branch or tag`, text/hash with regex + match-case, four multi-select dropdowns, saved presets (P12-T5)
-- [ ] Commit menu: Create Patch, Fixup, Squash Into, Push All up to Here, Branches ›, Go to Parent/Child, Show Repository at Revision
-- [ ] `Reset → Keep` alongside Soft/Mixed/Hard
+- [x] Commit menu: Create Patch, Fixup, Squash Into, Push All up to Here, Branches ›, Go to Parent/Child, Show Repository at Revision (P12-T7)
+- [x] `Reset → Keep` alongside Soft/Mixed/Hard (P12-T7)
 - [x] §3.9 patches: `format-patch` create + `am`/`apply --3way` apply, round-trip verified (P12-T6)
 
 ## Deviations (recorded as tasks land)
@@ -245,6 +245,18 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 - **P12-T6 — patch bytes are always written by git itself** (`format-patch -o` per commit,
   `diff --output=`): executor stdout is utf8-decoded and would corrupt `--binary` payloads
   (the P7-T3 lesson, reapplied).
+- **P12-T7 — `Branches ›` is a QuickPick chain, not a native submenu.** `webview/context`
+  menus cannot nest dynamic per-commit content (the D3 constraint); the menu item opens the
+  lazy `--contains` list, and picking a ref opens its actions — dispatched through the shared
+  `branchActions` registry, same as every other branch surface.
+- **P12-T7 — autosquash runs non-interactively** via `GIT_SEQUENCE_EDITOR=:`/`GIT_EDITOR=:`
+  (git executes editors through its own sh, Windows included), accepting git's generated plan
+  verbatim; a conflicted autosquash pauses into the P5 rebase monitor + P6 conflict flow
+  rather than being aborted behind the user's back.
+- **P12-T7 — `Push All up to Here` refuses, it does not force.** Not-on-current-branch and
+  non-fast-forward are checked against local remote-tracking state before any push is
+  invoked; there is no force fallback in this menu item (force-with-lease lives in the P5
+  push-safety flow).
 
 ## Planned deviations
 - **`Show Repository at Revision` opens a tree view, not a second project window.** IntelliJ

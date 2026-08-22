@@ -30,15 +30,26 @@ suite('P12 git tool window', () => {
     fs.writeFileSync(p, content);
   };
 
+  let coreRef: Awaited<ReturnType<typeof activateGitTree>>;
+
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
     const core = await activateGitTree();
+    coreRef = core;
     reg = core.debugRegistry.get('phase04') as Phase04Registry;
     p2 = core.debugRegistry.get('phase02') as Phase02Registry;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(reg && p2 && repo, 'registries missing');
   });
+
+  /** Re-tick the default list so later tests keep their commit targets. */
+  const restoreChecked = (): void => {
+    const p3 = coreRef.debugRegistry.get('phase03') as {
+      changelistsFor(r: RepoHandle): { setListChecked(id: string, checked: boolean): void };
+    };
+    p3.changelistsFor(repo).setListChecked('default', true);
+  };
 
   test('T1: every webview→host log method has a host handler', async function () {
     this.timeout(30_000);
@@ -395,6 +406,179 @@ suite('P12 git tool window', () => {
     git('reset', '-q');
     fs.rmSync(patchPath, { force: true });
     await repo.refresher.refreshNow();
+  });
+
+  test('T7: fixup + autosquash folds the ticked change into the target, linearly', async function () {
+    this.timeout(150_000);
+    write('p12/fix.txt', 'v1\n');
+    git('add', 'p12/fix.txt');
+    git('commit', '-m', 'p12 fixup target');
+    const target = git('rev-parse', 'HEAD').trim();
+    write('p12/other.txt', 'other\n');
+    git('add', 'p12/other.txt');
+    git('commit', '-m', 'p12 after target');
+    const countBefore = git('rev-list', '--count', 'HEAD').trim();
+
+    write('p12/fix.txt', 'v1\nv2 fixed\n');
+    await repo.refresher.refreshNow();
+    await waitFor(() => {
+      const p3 = coreRef.debugRegistry.get('phase03') as {
+        changelistsFor(r: RepoHandle): { getLists(): Array<{ checked: string[] }> };
+      };
+      return p3.changelistsFor(repo).getLists().some((l) => l.checked.includes('p12/fix.txt'));
+    }, 20_000);
+
+    process.env['GITTREE_TEST_AUTOSQUASH'] = 'yes';
+    try {
+      await vscode.commands.executeCommand('gittree.log.fixup', { sha: target });
+    } finally {
+      delete process.env['GITTREE_TEST_AUTOSQUASH'];
+    }
+
+    await waitFor(() => git('rev-list', '--count', 'HEAD').trim() === countBefore, 30_000);
+    const subjects = git('log', '--format=%s', '-5').trim().split('\n');
+    assert.ok(!subjects.some((s) => s.startsWith('fixup!')), `history must be linear: ${subjects.join(' | ')}`);
+    assert.ok(subjects.includes('p12 fixup target'));
+    // The fixup content folded into the target commit itself.
+    const rewrittenTarget = git('log', '--format=%H', '--grep=p12 fixup target', '-1').trim();
+    assert.strictEqual(git('show', `${rewrittenTarget}:p12/fix.txt`), 'v1\nv2 fixed\n');
+    restoreChecked();
+  });
+
+  test('T7: a fixup of a non-ancestor is refused with a reason', async function () {
+    this.timeout(60_000);
+    // A commit on a side branch is not an ancestor of HEAD.
+    const base = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+    git('checkout', '-b', 'p12/not-ancestor');
+    write('p12/side2.txt', 's\n');
+    git('add', 'p12/side2.txt');
+    git('commit', '-m', 'p12 side only');
+    const side = git('rev-parse', 'HEAD').trim();
+    git('checkout', base);
+    const head = git('rev-parse', 'HEAD').trim();
+    await vscode.commands.executeCommand('gittree.log.fixup', { sha: side });
+    assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'a refused fixup must change nothing');
+    git('branch', '-D', 'p12/not-ancestor');
+  });
+
+  test('T7: Push All up to Here pushes exactly through the selected commit', async function () {
+    this.timeout(150_000);
+    const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+    const bare = path.join(path.dirname(repoRoot), `p12-bare-${Date.now()}.git`);
+    gitWithRetry(path.dirname(repoRoot), ['init', '--bare', bare]);
+    try {
+      git('remote', 'add', 'origin', bare);
+      // Seed the remote two commits behind and set the upstream.
+      const base = git('rev-parse', 'HEAD~2').trim();
+      git('push', 'origin', `${base}:refs/heads/${branch}`);
+      git('fetch', 'origin');
+      git('branch', `--set-upstream-to=origin/${branch}`);
+      await repo.refresher.refreshNow();
+      await waitFor(() => repo.model.snapshot.upstream !== undefined, 20_000);
+
+      const mid = git('rev-parse', 'HEAD~1').trim();
+      await vscode.commands.executeCommand('gittree.log.pushAllUpToHere', { sha: mid });
+      await waitFor(
+        () => gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim() === mid,
+        30_000,
+      );
+      assert.notStrictEqual(
+        gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim(),
+        git('rev-parse', 'HEAD').trim(),
+        'HEAD itself must NOT have been pushed',
+      );
+
+      // Non-fast-forward: pushing an older commit is refused before invoking.
+      git('fetch', 'origin');
+      const older = git('rev-parse', 'HEAD~2').trim();
+      await vscode.commands.executeCommand('gittree.log.pushAllUpToHere', { sha: older });
+      assert.strictEqual(
+        gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim(),
+        mid,
+        'a non-fast-forward push must be refused, leaving the remote untouched',
+      );
+    } finally {
+      git('remote', 'remove', 'origin');
+      try {
+        // Bare pack files are read-only on Windows; retries + best effort —
+        // a leftover dir in OS temp must never mask a real assertion failure.
+        fs.rmSync(bare, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch {
+        // leftover temp dir — harmless
+      }
+      await repo.refresher.refreshNow();
+    }
+  });
+
+  test('T7: gittree-tree serves a 3-commits-ago file read-only', async function () {
+    this.timeout(90_000);
+    const { makeRevTreeUri } = await import('../../../src/core/vdocs/revTreeFs');
+    const rev = git('rev-parse', 'HEAD~3').trim();
+    const known = git('ls-tree', '-r', '--name-only', rev)
+      .trim()
+      .split('\n')
+      .find((l) => l.trim().length > 0)!;
+    assert.ok(known, 'the revision must have at least one file');
+
+    await vscode.commands.executeCommand('gittree.log.showRepoAtRevision', { sha: rev });
+    assert.strictEqual(reg.revTree.currentTarget?.rev, rev);
+
+    const rootEntries = await reg.revTreeFs.readDirectory(makeRevTreeUri(repoRoot, rev, ''));
+    assert.ok(rootEntries.length > 0, 'the revision root must list entries');
+
+    const uri = makeRevTreeUri(repoRoot, rev, known);
+    const bytes = Buffer.from(await reg.revTreeFs.readFile(uri));
+    assert.strictEqual(bytes.toString('utf8'), git('show', `${rev}:${known}`));
+    const stat = await reg.revTreeFs.stat(uri);
+    assert.strictEqual(stat.permissions, vscode.FilePermission.Readonly);
+    assert.throws(
+      () => reg.revTreeFs.writeFile(),
+      /read-only/,
+      'writes must be refused',
+    );
+    const doc = await vscode.workspace.openTextDocument(uri);
+    assert.strictEqual(doc.getText(), git('show', `${rev}:${known}`));
+    await vscode.commands.executeCommand('gittree.revTree.close');
+    assert.strictEqual(reg.revTree.currentTarget, undefined);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  });
+
+  test('T7: Reset → Keep refuses rather than discard local changes', async function () {
+    this.timeout(90_000);
+    write('p12/keep.txt', 'k1\n');
+    git('add', 'p12/keep.txt');
+    git('commit', '-m', 'p12 keep base');
+    write('p12/keep.txt', 'k2\n');
+    git('add', 'p12/keep.txt');
+    git('commit', '-m', 'p12 keep edit');
+    const head = git('rev-parse', 'HEAD').trim();
+
+    const target = git('rev-parse', `${head}~1`).trim();
+
+    // A local change to the very file the reset would rewrite → git refuses.
+    write('p12/keep.txt', 'k-local\n');
+    await repo.refresher.refreshNow();
+    process.env['GITTREE_TEST_RESET_MODE'] = 'keep';
+    try {
+      await vscode.commands.executeCommand('gittree.log.resetHere', { sha: target });
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'refused keep must not move HEAD');
+      assert.strictEqual(
+        fs.readFileSync(path.join(repoRoot, 'p12/keep.txt'), 'utf8'),
+        'k-local\n',
+        'the local change must survive untouched',
+      );
+
+      // With the worktree clean for that file, keep moves HEAD.
+      git('checkout', '--', 'p12/keep.txt');
+      await vscode.commands.executeCommand('gittree.log.resetHere', { sha: target });
+      await waitFor(() => git('rev-parse', 'HEAD').trim() !== head, 20_000);
+      assert.strictEqual(fs.readFileSync(path.join(repoRoot, 'p12/keep.txt'), 'utf8'), 'k1\n');
+    } finally {
+      delete process.env['GITTREE_TEST_RESET_MODE'];
+      git('reset', '--hard', head);
+      await repo.refresher.refreshNow();
+      restoreChecked();
+    }
   });
 
   test('T4: details carry the %G? signature state; unsigned reads N', async function () {
