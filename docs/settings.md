@@ -186,6 +186,12 @@ How commits are assembled: IntelliJ-style changelists (index-bypassing checked-f
   - `changelists`
   - `staging`
 
+### `gittree.commit.signoff`
+
+Append a Signed-off-by trailer (git commit -s) to every commit.
+
+- Type: `boolean` · Default: `false`
+
 ### `gittree.commit.checks.reformat`
 
 Pre-commit: reformat only the modified line ranges of committed files.
@@ -230,6 +236,18 @@ Pre-commit: warn about TODO-like markers on newly added lines.
 Regular expression for the TODO check (applied per added line).
 
 - Type: `string` · Default: `"\\b(TODO|FIXME)\\b"`
+
+### `gittree.commit.checks.cleanupKind`
+
+Code-action kind the Cleanup check applies — the "profile": source.fixAll runs every provider, source.fixAll.eslint only ESLint.
+
+- Type: `string` · Default: `"source.fixAll"`
+
+### `gittree.commit.checks.deferAdvanced`
+
+Run the advanced checks (Analyze code, TODO) after the commit and report via notification instead of gating the commit — IntelliJ's default. Failed checks will not prevent a commit.
+
+- Type: `boolean` · Default: `true`
 
 ## GitTree Log & Blame
 

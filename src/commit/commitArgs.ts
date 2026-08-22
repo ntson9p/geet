@@ -1,9 +1,16 @@
 /**
  * Pure commit argv assembly (P3-T5; vscode-free for unit tests).
+ * P11-T5 adds the author override (`--author=`) and sign-off (`-s`) — both
+ * optional so every pre-P11 call site keeps meaning exactly what it said.
  */
 export interface CommitOptions {
   amend: boolean;
+  /** GPG-sign (`-S`) — distinct from `signoff`. */
   sign: boolean;
+  /** `Name <email>` for `--author=`; git resolves author-only overrides. */
+  author?: string;
+  /** DCO trailer via `-s`. */
+  signoff?: boolean;
 }
 
 export function buildCommitArgs(
@@ -14,6 +21,10 @@ export function buildCommitArgs(
 ): string[] {
   const args = ['commit'];
   if (options.sign) args.push('-S');
+  if (options.signoff === true) args.push('-s');
+  if (options.author !== undefined && options.author.length > 0) {
+    args.push(`--author=${options.author}`);
+  }
   if (options.amend) args.push('--amend');
   if (message.length > 0) {
     args.push('-m', message);

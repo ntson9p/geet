@@ -12,6 +12,12 @@ export interface CheckContext {
   files: vscode.Uri[];
   token: CancelToken;
   progress: (message: string) => void;
+  /**
+   * P11-T5: diff baseline for range-scoped checks. Pre-commit runs leave it
+   * unset (= HEAD); the deferred post-commit pass sets the new commit's
+   * parent, because after the commit worktree↔HEAD is empty.
+   */
+  baseRev?: string;
 }
 
 export type CheckResult =
@@ -23,6 +29,14 @@ export interface CommitCheck {
   label: string;
   /** Setting under gittree.commit.checks.* gating this check. */
   configKey: string;
+  /**
+   * P11-T5: an "Advanced Commit Check" (Analyze, TODO). When
+   * `gittree.commit.checks.deferAdvanced` is on these run *after* the commit
+   * and report via notification — IntelliJ's "Failed checks will not prevent
+   * a commit". Non-advanced checks (reformat/imports/cleanup) rewrite files,
+   * so deferring them would commit the unformatted tree; they always gate.
+   */
+  advanced?: boolean;
   run(ctx: CheckContext): Promise<CheckResult>;
 }
 
@@ -44,12 +58,37 @@ export class CheckPipeline {
     return [...this.checks];
   }
 
-  async run(ctx: CheckContext): Promise<PipelineOutcome> {
+  async run(ctx: CheckContext, opts: { skipAdvanced?: boolean } = {}): Promise<PipelineOutcome> {
+    const failures = await this.collect(
+      ctx,
+      this.checks.filter((c) => !(opts.skipAdvanced === true && c.advanced === true)),
+    );
+    if (ctx.token.isCancellationRequested) return { proceed: false, cancelled: true, failures };
+    if (failures.length === 0) return { proceed: true, cancelled: false, failures };
+
+    const decision = await presentFailures(failures);
+    return { proceed: decision === 'commit-anyway', cancelled: decision === 'cancel', failures };
+  }
+
+  /**
+   * P11-T5: the post-commit half of deferred mode. Runs only the advanced,
+   * setting-enabled checks and *reports* — no modal, no gate, the commit has
+   * already happened.
+   */
+  async runAdvanced(ctx: CheckContext): Promise<PipelineOutcome['failures']> {
+    return this.collect(
+      ctx,
+      this.checks.filter((c) => c.advanced === true),
+    );
+  }
+
+  private async collect(
+    ctx: CheckContext,
+    checks: readonly CommitCheck[],
+  ): Promise<PipelineOutcome['failures']> {
     const failures: PipelineOutcome['failures'] = [];
-    for (const check of this.checks) {
-      if (ctx.token.isCancellationRequested) {
-        return { proceed: false, cancelled: true, failures };
-      }
+    for (const check of checks) {
+      if (ctx.token.isCancellationRequested) return failures;
       if (!checksEnabled(check.configKey)) continue;
       ctx.progress(check.label);
       try {
@@ -66,11 +105,7 @@ export class CheckPipeline {
         });
       }
     }
-    if (ctx.token.isCancellationRequested) return { proceed: false, cancelled: true, failures };
-    if (failures.length === 0) return { proceed: true, cancelled: false, failures };
-
-    const decision = await presentFailures(failures);
-    return { proceed: decision === 'commit-anyway', cancelled: decision === 'cancel', failures };
+    return failures;
   }
 }
 

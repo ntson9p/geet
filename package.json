@@ -240,6 +240,11 @@
             "scope": "window",
             "description": "%gittree.config.commit.paradigm.description%"
           },
+          "gittree.commit.signoff": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.commit.signoff.description%"
+          },
           "gittree.commit.checks.reformat": {
             "type": "boolean",
             "default": false,
@@ -278,6 +283,16 @@
             "type": "string",
             "default": "\\b(TODO|FIXME)\\b",
             "description": "%gittree.config.commit.checks.todoPattern.description%"
+          },
+          "gittree.commit.checks.cleanupKind": {
+            "type": "string",
+            "default": "source.fixAll",
+            "description": "%gittree.config.commit.checks.cleanupKind.description%"
+          },
+          "gittree.commit.checks.deferAdvanced": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.commit.checks.deferAdvanced.description%"
           }
         }
       },

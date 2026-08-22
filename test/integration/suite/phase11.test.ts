@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
 import { recentCommitMessages } from '../../../src/commit/messageHistory';
 import { computeFileDiff } from '../../../src/commit/window/fileDiff';
+import { applyOption, readOptions } from '../../../src/commit/window/options';
 import type { RepoHandle } from '../../../src/core/core';
 import type { LineChange } from '../../../src/core/patch/patchBuilder';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
@@ -416,6 +417,117 @@ suite('P11 commit tool window', () => {
     assert.strictEqual(reg.commitWindow.getMessage(repo), 'programmatic write');
     reg.commitWindow.messageBoxFor(repo).value = '';
     assert.strictEqual(reg.commitWindow.getMessage(repo), '');
+  });
+
+  test('T5: gear options round-trip to settings and workspaceState', async function () {
+    this.timeout(30_000);
+    const store = reg.optionsStore;
+    try {
+      await applyOption(store, repo, { kind: 'author', value: 'Test Author <t@example.com>' });
+      assert.strictEqual(store.getAuthor(repo), 'Test Author <t@example.com>');
+      await applyOption(store, repo, { kind: 'signoff', value: true });
+      assert.strictEqual(
+        vscode.workspace.getConfiguration('gittree.commit').get('signoff'),
+        true,
+      );
+      await applyOption(store, repo, { kind: 'deferAdvanced', value: false });
+      const dto = await readOptions(store, repo);
+      assert.strictEqual(dto.author, 'Test Author <t@example.com>');
+      assert.strictEqual(dto.signoff, true);
+      assert.strictEqual(dto.deferAdvanced, false);
+      assert.ok(dto.authorSuggestions.length > 0, 'history-derived completion list');
+      assert.ok(
+        dto.authorSuggestions.every((a) => /<.+@.+>$/.test(a)),
+        `suggestions: ${dto.authorSuggestions.slice(0, 3).join(' | ')}`,
+      );
+      await assert.rejects(
+        applyOption(store, repo, { kind: 'author', value: 'nonsense' }),
+        /Name <email/,
+        'an invalid author must be refused, not stored',
+      );
+    } finally {
+      await applyOption(store, repo, { kind: 'author', value: '' });
+      await applyOption(store, repo, { kind: 'signoff', value: false });
+      await vscode.workspace
+        .getConfiguration('gittree.commit.checks')
+        .update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
+    }
+  });
+
+  test('T5: author override and sign-off land on the commit itself', async function () {
+    this.timeout(90_000);
+    const store = reg.optionsStore;
+    try {
+      await applyOption(store, repo, { kind: 'author', value: 'Doe, John <doe@example.com>' });
+      await applyOption(store, repo, { kind: 'signoff', value: true });
+      write('p11/t5-author.txt', 'authored\n');
+      git('add', 'p11/t5-author.txt');
+      write('p11/t5-author.txt', 'authored more\n');
+      await refresh();
+      await waitFor(() => reg.changelistsFor(repo).isChecked('p11/t5-author.txt'), 20_000);
+
+      await commitNow('t5 authored commit');
+
+      assert.strictEqual(
+        git('log', '-1', '--format=%an <%ae>').trim(),
+        'Doe, John <doe@example.com>',
+        'the --author override must reach the commit, comma intact',
+      );
+      assert.ok(
+        git('log', '-1', '--format=%B').includes('Signed-off-by:'),
+        'sign-off must append the DCO trailer',
+      );
+    } finally {
+      await applyOption(store, repo, { kind: 'author', value: '' });
+      await applyOption(store, repo, { kind: 'signoff', value: false });
+      restoreChecked();
+    }
+  });
+
+  test('T5: deferred advanced checks run after the commit and never gate it', async function () {
+    this.timeout(90_000);
+    const store = reg.optionsStore;
+    const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
+    process.env['GITTREE_TEST_DEFERRED_CHECKS'] = '1';
+    try {
+      // Default assertion first: deferred-after is the IntelliJ-parity default.
+      assert.strictEqual((await readOptions(store, repo)).deferAdvanced, true);
+      // TODO check only — Analyze would sit in a diagnostics quiesce for seconds.
+      await checks.update('analyze', false, vscode.ConfigurationTarget.Workspace);
+
+      const rel = 'p11/t5-todo.txt';
+      write(rel, 'plain line\n');
+      git('add', rel);
+      git('commit', '-m', 't5 todo base');
+      write(rel, 'plain line\n// TODO deferred marker\n');
+      await refresh();
+      await waitFor(() => reg.changelistsFor(repo).isChecked(rel), 20_000);
+
+      const before = git('rev-parse', 'HEAD').trim();
+      reg.commitWindow.messageBoxFor(repo).value = 't5 deferred checks commit';
+      // Deliberately NO GITTREE_TEST_CHECKS_CHOICE: a gating modal would hang
+      // this test. Deferred mode must commit without asking anything.
+      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
+      const newHead = git('rev-parse', 'HEAD').trim();
+
+      assert.ok(reg.lastDeferredChecks !== undefined, 'the deferred run must be handed out');
+      const outcome = await reg.lastDeferredChecks;
+      assert.ok(outcome, 'deferred checks must actually run under the opt-in env');
+      assert.strictEqual(
+        outcome.headSha,
+        newHead,
+        'the checks must have run AFTER the commit landed',
+      );
+      assert.ok(
+        outcome.failures.some((f) => f.message.includes('TODO')),
+        `expected the TODO finding, got: ${JSON.stringify(outcome.failures)}`,
+      );
+    } finally {
+      delete process.env['GITTREE_TEST_DEFERRED_CHECKS'];
+      await checks.update('analyze', undefined, vscode.ConfigurationTarget.Workspace);
+      restoreChecked();
+    }
   });
 
   test('T2: switching to native restores the SCM input box without a reload', async function () {

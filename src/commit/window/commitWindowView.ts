@@ -27,6 +27,7 @@ import {
   type CommitRunParamsDto,
   type CommitSetCheckedParamsDto,
   type CommitSetIncludedParamsDto,
+  type CommitSetOptionParamsDto,
   type CommitStateDto,
 } from '../../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
@@ -37,6 +38,7 @@ import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
 import { computeFileDiff } from './fileDiff';
 import { signChanges, type InclusionModel } from './inclusion';
+import { applyOption, readOptions, type CommitOptionsStore } from './options';
 
 export interface CommitWindowDeps {
   context: vscode.ExtensionContext;
@@ -47,6 +49,8 @@ export interface CommitWindowDeps {
   paradigm: ParadigmManager;
   /** P11-T3 — per-change inclusion, shared with the commit flow. */
   inclusion: InclusionModel;
+  /** P11-T5 — author/sign-off/checks state behind the gear popup. */
+  options: CommitOptionsStore;
   /** Runs the shared P3 commit flow — the webview never commits by itself. */
   runCommit(repo: RepoHandle, options: { andPush?: boolean }): Promise<boolean>;
 }
@@ -489,10 +493,23 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       return { commits: await recentCommitMessages(repo, 20) };
     });
 
-    // P11-T5 replaces this with the in-webview gear popup; until then the
-    // existing multi-select QuickPick is the honest surface.
-    rpc.on(COMMIT_METHODS.showOptions, async () => {
-      await vscode.commands.executeCommand('gittree.commit.configureChecks');
+    // P11-T5: the gear popup renders inside the webview; the host serves and
+    // applies its state. The `gittree.commit.configureChecks` QuickPick stays
+    // registered for native mode and the palette.
+    rpc.on(COMMIT_METHODS.options, async (raw) => {
+      const p = raw as { repoRoot: string };
+      const repo = this.repoFor(p.repoRoot);
+      if (!repo) return undefined;
+      return readOptions(this.deps.options, repo);
+    });
+
+    rpc.on(COMMIT_METHODS.setOption, async (raw) => {
+      const p = raw as CommitSetOptionParamsDto;
+      const repo = this.repoFor(p.repoRoot);
+      if (!repo) return;
+      // Throws on an invalid author; the RPC error reaches the popup inline.
+      await applyOption(this.deps.options, repo, p.option);
+      this.push();
     });
   }
 

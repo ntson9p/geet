@@ -42,6 +42,7 @@ export const analyzeCheck: CommitCheck = {
   id: 'analyze',
   label: vscode.l10n.t('Analyze code'),
   configKey: 'analyze',
+  advanced: true,
   async run(ctx) {
     // Save so language servers lint what will actually be committed.
     for (const uri of ctx.files) {

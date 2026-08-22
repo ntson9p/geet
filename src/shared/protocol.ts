@@ -150,7 +150,10 @@ export const COMMIT_METHODS = {
   openDiff: 'commit/openDiff',
   rollback: 'commit/rollback',
   shelve: 'commit/shelve',
-  showOptions: 'commit/showOptions',
+  /** P11-T5: the gear popup's snapshot — author, sign-off, checks, defer. */
+  options: 'commit/options',
+  /** P11-T5: apply one option change from the gear popup. */
+  setOption: 'commit/setOption',
   /** P11-T4: the 50-entry message ring, rendered as an in-webview dropdown. */
   messageHistory: 'commit/messageHistory',
   /** P11-T4: recent commits for the `Amend ▾` reuse-message dropdown. */
@@ -206,6 +209,57 @@ export interface CommitRecentCommitsDto {
 export interface CommitMessageEvtDto {
   repoRoot: string;
   message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Commit options gear popup (P11-T5)
+// ---------------------------------------------------------------------------
+
+/** Snapshot behind the gear popup. One request on open; writes go one-by-one. */
+export interface CommitOptionsDto {
+  repoRoot: string;
+  /** `Name <email>` override, or '' when committing as the configured user. */
+  author: string;
+  /** Deduped `Name <email>` list from recent history, for completion. */
+  authorSuggestions: string[];
+  signoff: boolean;
+  checks: {
+    reformat: boolean;
+    optimizeImports: boolean;
+    cleanup: boolean;
+    analyze: boolean;
+    todo: boolean;
+  };
+  analyzeSeverity: 'error' | 'warning';
+  todoPattern: string;
+  /** The `source.fixAll`-style code-action kind Cleanup applies (its "profile"). */
+  cleanupKind: string;
+  /** IntelliJ's "Run advanced checks after a commit is done". */
+  deferAdvanced: boolean;
+}
+
+export type CommitOptionChangeDto =
+  | { kind: 'author'; value: string }
+  | { kind: 'signoff'; value: boolean }
+  | { kind: 'check'; id: 'reformat' | 'optimizeImports' | 'cleanup' | 'analyze' | 'todo'; value: boolean }
+  | { kind: 'analyzeSeverity'; value: 'error' | 'warning' }
+  | { kind: 'todoPattern'; value: string }
+  | { kind: 'cleanupKind'; value: string }
+  | { kind: 'deferAdvanced'; value: boolean };
+
+export interface CommitSetOptionParamsDto {
+  repoRoot: string;
+  option: CommitOptionChangeDto;
+}
+
+/**
+ * `Name <email>` shape check for the author override — shared so the popup can
+ * validate as the user types and the host can refuse what slips past. Kept
+ * permissive the way git itself is: any non-angle-bracket name (commas and
+ * non-ASCII included), any `local@domain` inside the brackets.
+ */
+export function isValidAuthor(value: string): boolean {
+  return /^[^<>]*[^<>\s][^<>]*\s<[^<>\s@]+@[^<>\s]+>$/.test(value);
 }
 
 export const DIALOG_METHODS = {

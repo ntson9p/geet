@@ -313,6 +313,125 @@ test.describe('P11-T4 message editor', () => {
   });
 });
 
+test.describe('P11-T5 commit options gear popup', () => {
+  async function openOptions(page: Page) {
+    await openCommit(page);
+    await page.getByRole('button', { name: 'Commit options' }).click();
+    await expect(page.getByTestId('commit-options-popup')).toBeVisible();
+  }
+  async function setOptions(page: Page): Promise<PostedMsg[]> {
+    return (await posted(page)).filter((m) => m.method === 'commit/setOption');
+  }
+
+  test('opens with the three sections; omitted rows are omitted, not inert', async ({ page }) => {
+    await openOptions(page);
+    const popup = page.getByTestId('commit-options-popup');
+    await expect(popup).toContainText('Git');
+    await expect(popup).toContainText('Commit Checks');
+    await expect(popup).toContainText('Advanced Commit Checks');
+    await expect(popup).toContainText('Failed checks will not prevent a commit');
+    // Plan step 5: hidden rather than shown-inert.
+    await expect(popup).not.toContainText('Rearrange');
+    await expect(popup).not.toContainText('copyright');
+    await expect(popup).not.toContainText('Run Configuration');
+    await expect(popup).not.toContainText('Upload files');
+  });
+
+  test('author accepts Name <email>, posts it, and clears with ×', async ({ page }) => {
+    await openOptions(page);
+    const input = page.getByTestId('opt-author');
+    await input.fill('Ada Lovelace <ada@example.com>');
+    await input.press('Enter');
+    await expect
+      .poll(async () =>
+        (await setOptions(page)).filter(
+          (m) => (m.params?.['option'] as { kind?: string } | undefined)?.kind === 'author',
+        ).length,
+      )
+      .toBe(1);
+
+    // Host state holds it: close and reopen.
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('commit-options-popup')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Commit options' }).click();
+    await expect(page.getByTestId('opt-author')).toHaveValue('Ada Lovelace <ada@example.com>');
+
+    await page.getByTestId('opt-author-clear').click();
+    await expect(page.getByTestId('opt-author')).toHaveValue('');
+    const authorPosts = (await setOptions(page)).filter(
+      (m) => (m.params?.['option'] as { kind?: string } | undefined)?.kind === 'author',
+    );
+    expect((authorPosts.at(-1)?.params?.['option'] as { value?: string }).value).toBe('');
+  });
+
+  test('an invalid author shows the reason inline and posts nothing', async ({ page }) => {
+    await openOptions(page);
+    const input = page.getByTestId('opt-author');
+    await input.fill('not an author');
+    await input.press('Enter');
+    await expect(page.getByTestId('opt-author-error')).toBeVisible();
+    const authorPosts = (await setOptions(page)).filter(
+      (m) => (m.params?.['option'] as { kind?: string } | undefined)?.kind === 'author',
+    );
+    expect(authorPosts.length).toBe(0);
+  });
+
+  test('sign-off and deferred-checks toggles round-trip', async ({ page }) => {
+    await openOptions(page);
+    await page.getByTestId('opt-signoff').click();
+    await expect
+      .poll(async () =>
+        (await setOptions(page)).some((m) => {
+          const o = m.params?.['option'] as { kind?: string; value?: boolean } | undefined;
+          return o?.kind === 'signoff' && o.value === true;
+        }),
+      )
+      .toBe(true);
+
+    // Defer defaults ON (the §2A reference shows it checked); unticking posts false.
+    await expect(page.getByTestId('opt-defer')).toBeChecked();
+    await page.getByTestId('opt-defer').click();
+    await expect
+      .poll(async () =>
+        (await setOptions(page)).some((m) => {
+          const o = m.params?.['option'] as { kind?: string; value?: boolean } | undefined;
+          return o?.kind === 'deferAdvanced' && o.value === false;
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('severity and profile controls follow their check toggles', async ({ page }) => {
+    await openOptions(page);
+    // Analyze is on by default → severity enabled; cleanup off → profile disabled.
+    await expect(page.getByTestId('opt-analyze-severity')).toBeEnabled();
+    await expect(page.getByTestId('opt-cleanup-kind')).toBeDisabled();
+
+    await page.getByTestId('opt-analyze-severity').selectOption('warning');
+    await expect
+      .poll(async () =>
+        (await setOptions(page)).some((m) => {
+          const o = m.params?.['option'] as { kind?: string; value?: string } | undefined;
+          return o?.kind === 'analyzeSeverity' && o.value === 'warning';
+        }),
+      )
+      .toBe(true);
+
+    await page.getByTestId('opt-cleanup').click();
+    await expect(page.getByTestId('opt-cleanup-kind')).toBeEnabled();
+  });
+
+  test('Escape closes the popup and the gear reads unpressed', async ({ page }) => {
+    await openOptions(page);
+    await expect(page.getByRole('button', { name: 'Commit options' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('commit-options-popup')).toHaveCount(0);
+  });
+});
+
 test.describe('P11-T3 per-change inclusion', () => {
   const DIFF_ROW = 'Strings.java, src/main/java/util';
 

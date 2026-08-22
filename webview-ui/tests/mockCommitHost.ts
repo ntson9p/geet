@@ -47,6 +47,19 @@ export const mockCommitHostScript = `
   /** relPath -> included indices. Absent means the whole file. */
   const included = new Map();
 
+  // P11-T5: gear popup state.
+  const options = {
+    repoRoot: REPO,
+    author: '',
+    authorSuggestions: ['Ada Lovelace <ada@example.com>', 'Đặng Trần Côn <dtc@example.jp>'],
+    signoff: false,
+    checks: { reformat: false, optimizeImports: false, cleanup: false, analyze: true, todo: true },
+    analyzeSeverity: 'error',
+    todoPattern: '\\\\b(TODO|FIXME)\\\\b',
+    cleanupKind: 'source.fixAll',
+    deferAdvanced: true,
+  };
+
   function decorate(c) {
     const copy = Object.assign({}, c);
     const sel = included.get(c.path);
@@ -180,7 +193,23 @@ export const mockCommitHostScript = `
     'commit/openDiff': () => undefined,
     'commit/rollback': () => undefined,
     'commit/shelve': () => undefined,
-    'commit/showOptions': () => undefined,
+    // P11-T5: gear popup state, routed like the real applyOption — an invalid
+    // author is a handler throw, which the router turns into an RPC error.
+    'commit/options': () => JSON.parse(JSON.stringify(options)),
+    'commit/setOption': (p) => {
+      const o = p.option;
+      if (o.kind === 'author') {
+        if (o.value.length > 0 && !/^[^<>]*[^<>\\s][^<>]*\\s<[^<>\\s@]+@[^<>\\s]+>$/.test(o.value)) {
+          throw new Error('Author must look like: Name <email@example.com>');
+        }
+        options.author = o.value;
+      } else if (o.kind === 'signoff') options.signoff = o.value;
+      else if (o.kind === 'check') options.checks[o.id] = o.value;
+      else if (o.kind === 'analyzeSeverity') options.analyzeSeverity = o.value;
+      else if (o.kind === 'todoPattern') options.todoPattern = o.value;
+      else if (o.kind === 'cleanupKind') options.cleanupKind = o.value;
+      else if (o.kind === 'deferAdvanced') options.deferAdvanced = o.value;
+    },
     // P11-T4: data behind the in-webview history and Amend dropdowns.
     'commit/messageHistory': () => ({
       entries: [

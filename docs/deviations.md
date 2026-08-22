@@ -165,10 +165,19 @@ the file explorer stays limited by the decoration API.
 
 ## D7 · IDE-platform features omitted
 
-Commit-options rows with no VS Code analogue are **not implemented and not rendered**:
-`Update copyright`, `Check malicious dependencies`, `Run Configuration`, and the entire
-`After Commit` / `Upload files to <server>` section (IntelliJ's deployment integration).
-`Rearrange code` ships only where a language contributes a suitable code-action kind.
+Commit-options rows with no VS Code analogue are **not implemented and not rendered**
+(P11-T5 gear popup): `Update copyright`, `Check malicious dependencies`, `Run Configuration`,
+and the entire `After Commit` / `Upload files to <server>` section (IntelliJ's deployment
+integration). `Rearrange code` is also omitted: VS Code has no cross-language member-rearrange
+code-action kind (`source.organizeImports` is already the Optimize imports row, and
+`source.sortMembers` exists only for individual languages with no capability probe that does
+not execute every provider), so the row is hidden rather than shown-inert per the plan.
+IntelliJ's Cleanup "Choose profile" maps to **which code-action kind the Cleanup check
+applies** (`gittree.commit.checks.cleanupKind`, default `source.fixAll`, e.g.
+`source.fixAll.eslint`) — inspection profiles themselves have no analogue.
+The plan's contributions list also names a `gittree.commit.author` *setting*; the author
+override is per-repo `workspaceState` instead (plan step 2), because a workspace-level setting
+cannot differ per repository in a multi-root workspace.
 **Why:** these are IntelliJ platform features (copyright profiles, run configurations,
 deployment targets, package-checker), not Git features.
 **Revisitable:** no, unless the equivalent VS Code ecosystem feature is in scope.

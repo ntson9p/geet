@@ -237,7 +237,7 @@ View `gittree.commit` (webview, `scm` container). Commands
 - [x] S12 — `N files` badge on every group and folder node (P11-T2)
 - [ ] S13 — `Commit | Shelf` tabs in one tool window instead of two stacked sidebar trees
 - [ ] S14 — Shelve Changes dialog with an embedded diff and per-change inclusion
-- [ ] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities)
+- [x] Commit options gear popup with `Author:` and `Sign-off commit` (both new capabilities) (P11-T5)
 - [x] Multi-line message editor with working IME, undo, history clock and amend dropdown (P11-T4)
 
 ## Deviations (recorded as tasks land)
@@ -293,6 +293,22 @@ View `gittree.commit` (webview, `scm` container). Commands
   Vietnamese, in `PROGRESS.md`). Playwright drives `CompositionEvent`s and proves the
   event-order contract — including Chromium's final-`input`-before-`compositionend` order —
   but cannot exercise the OS IME itself.
+- **P11-T5 — `Rearrange code` is omitted entirely, not language-conditional.** The step allows
+  hiding it where no suitable code-action kind exists; no *cross-language* rearrange kind
+  exists at all, and probing `source.sortMembers` per language means executing every provider.
+  Hidden everywhere, per the hidden-not-inert rule. `Choose profile` maps to the code-action
+  kind Cleanup applies (`gittree.commit.checks.cleanupKind`) — see docs/deviations.md D7.
+- **P11-T5 — the author override is per-repo `workspaceState`, not a `gittree.commit.author`
+  setting.** The contributions list names a setting; step 2 says workspaceState. The step wins:
+  a workspace-level setting cannot be per-repository in a multi-root workspace.
+- **P11-T5 — deferred advanced checks default ON (`gittree.commit.checks.deferAdvanced: true`).**
+  The §2A reference shows the box checked and the caption "Failed checks will not prevent a
+  commit" — that is IntelliJ's shipped default, and shipping the popup with the old gating
+  default would render a checked box that lies. **This changes existing behaviour:** Analyze
+  and TODO now run after the commit and report via notification unless the user unticks it.
+  The P3-T7 gating path remains fully supported behind the toggle (phase03's gate test pins it
+  off). The deferred pass re-baselines range-scoped checks on the new commit's parent —
+  post-commit, worktree↔HEAD is empty and would have made the TODO check silently blind.
 - **P11-T2:** the tab strip ships with `Commit` only. The `Shelf` tab arrives with T6 —
   rendering a dead tab that says "coming later" would be a worse affordance than none.
 - **P11-T2:** `CommitStateDto.signing` is always `false` for now. `CommitService.isSignEnabled`

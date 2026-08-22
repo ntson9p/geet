@@ -20,6 +20,7 @@ import { GitError } from '../core/git/errors';
 import { canonicalKey } from '../core/repoDiscovery';
 import { computeFileDiff, planPartialCommit, type PartialPlan } from './window/fileDiff';
 import type { InclusionModel } from './window/inclusion';
+import { runDeferredChecks, type CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
 
 export interface CommitFlowDeps {
   core: Core;
@@ -32,6 +33,10 @@ export interface CommitFlowDeps {
   inputBoxFor: (repo: RepoHandle) => CommitMessageBox | undefined;
   /** P11-T3: per-change inclusion. Absent = every ticked file commits whole. */
   inclusion?: InclusionModel;
+  /** P11-T5: author override + sign-off + deferred-checks mode. */
+  options?: CommitOptionsStore;
+  /** P11-T5: test seam — hands out the deferred post-commit check run. */
+  onDeferredChecks?: (run: Promise<DeferredChecksOutcome | undefined>) => void;
 }
 
 interface CommitTarget {
@@ -140,6 +145,12 @@ export async function runCommitFlow(
   }
 
   const sign = await deps.commitService.isSignEnabled(repo);
+  // P11-T5: gear-popup options. Advanced checks (Analyze/TODO) move to a
+  // post-commit report when deferAdvanced is on — IntelliJ's default shape.
+  const author = deps.options?.getAuthor(repo);
+  const signoff = deps.options?.isSignoffEnabled() ?? false;
+  const deferAdvanced = deps.options?.isDeferAdvancedEnabled() ?? false;
+  const commitOptions = { amend, sign, signoff, ...(author !== undefined ? { author } : {}) };
 
   const committed = await vscode.window.withProgress(
     {
@@ -151,12 +162,15 @@ export async function runCommitFlow(
       const source = new CancellationSource();
       const tokenSub = token.onCancellationRequested(() => source.cancel());
       try {
-        const outcome = await deps.pipeline.run({
-          repo,
-          files: target.uris,
-          token: source.token,
-          progress: (step) => progress.report({ message: step }),
-        });
+        const outcome = await deps.pipeline.run(
+          {
+            repo,
+            files: target.uris,
+            token: source.token,
+            progress: (step) => progress.report({ message: step }),
+          },
+          { skipAdvanced: deferAdvanced },
+        );
         if (!outcome.proceed) return false;
 
         progress.report({ message: vscode.l10n.t('Running git commit') });
@@ -187,7 +201,7 @@ export async function runCommitFlow(
                 plan.wholePaths,
                 plan.partials,
                 message,
-                { amend, sign },
+                commitOptions,
               );
             } else {
               await deps.commitService.commitChangelist(
@@ -195,11 +209,11 @@ export async function runCommitFlow(
                 plan.wholePaths,
                 untracked,
                 message,
-                { amend, sign },
+                commitOptions,
               );
             }
           } else {
-            await deps.commitService.commitStaged(repo, message, { amend, sign }, commitAll);
+            await deps.commitService.commitStaged(repo, message, commitOptions, commitAll);
           }
         } catch (err) {
           if (err instanceof GitError) {
@@ -219,7 +233,15 @@ export async function runCommitFlow(
     },
   );
 
-  if (committed) await postCommit(deps, repo, message, options.andPush === true);
+  if (committed) {
+    await postCommit(deps, repo, message, options.andPush === true);
+    if (deferAdvanced) {
+      // Fire-and-forget by design: the commit is done and the flow must not
+      // block on a diagnostics quiesce. The notification carries the findings.
+      const run = runDeferredChecks(deps.pipeline, deps.core, repo, target.uris).catch(() => undefined);
+      deps.onDeferredChecks?.(run);
+    }
+  }
   return committed;
 }
 

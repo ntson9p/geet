@@ -200,6 +200,11 @@ suite('P3 commit lifecycle', () => {
 
   test('T7: analyze check blocks on seeded diagnostics; Commit Anyway proceeds', async function () {
     this.timeout(90_000);
+    // P11-T5 made deferred advanced checks the default (IntelliJ parity), so
+    // the gating behaviour this test exists to prove is now behind the flag.
+    await vscode.workspace
+      .getConfiguration('gittree.commit.checks')
+      .update('deferAdvanced', false, vscode.ConfigurationTarget.Workspace);
     // Seed a diagnostic OURSELVES — deterministic, no language server needed.
     const uri = vscode.Uri.file(path.join(fsRoot, 'src', 'code.ts'));
     write('src/code.ts', 'export const one = 1; // diagnostic target\n');
@@ -243,6 +248,9 @@ suite('P3 commit lifecycle', () => {
     await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 20_000);
     assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'analyze gate commit');
     collection.dispose();
+    await vscode.workspace
+      .getConfiguration('gittree.commit.checks')
+      .update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
   });
 
   test('T7: TODO check flags only newly added markers', async function () {

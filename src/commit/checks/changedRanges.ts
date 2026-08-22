@@ -9,24 +9,31 @@ import type { LineChange } from '../../core/patch/patchBuilder';
 import { repoRelative } from '../../core/util/paths';
 import { revObjectSpec } from '../../core/vdocs/revContentProvider';
 
-export async function headText(repo: RepoHandle, rel: string): Promise<string> {
+export async function headText(repo: RepoHandle, rel: string, rev = 'HEAD'): Promise<string> {
   const result = await repo.queue.enqueue({
-    label: `show HEAD:${rel}`,
+    label: `show ${rev}:${rel}`,
     kind: 'read',
     run: (git, token) =>
-      git.exec(repo.root, ['show', revObjectSpec('HEAD', rel)], {
+      git.exec(repo.root, ['show', revObjectSpec(rev, rel)], {
         structured: true,
         noOptionalLocks: true,
-        allowNonZeroExit: true,
+        allowNonZeroExit: true, // absent at that rev → treat as empty (all-added)
         token,
       }),
   });
   return result.exitCode === 0 ? result.stdout : '';
 }
 
+/**
+ * `baseRev` defaults to HEAD — "what this commit is about to introduce". The
+ * deferred post-commit pass (P11-T5) passes the new commit's parent instead:
+ * after the commit, worktree↔HEAD is empty, and the thing to scan is what the
+ * commit just added.
+ */
 export async function changesVsHead(
   repo: RepoHandle,
   uri: vscode.Uri,
+  baseRev = 'HEAD',
 ): Promise<{ doc: vscode.TextDocument; changes: LineChange[] } | undefined> {
   if (uri.scheme !== 'file') return undefined;
   const rel = repoRelative(repo.root, uri.fsPath);
@@ -37,6 +44,6 @@ export async function changesVsHead(
   } catch {
     return undefined; // deleted/binary
   }
-  const base = await headText(repo, rel);
+  const base = await headText(repo, rel, baseRev);
   return { doc, changes: computeLineChanges(base, doc.getText()) };
 }

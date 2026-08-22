@@ -40,12 +40,28 @@ export async function applyCodeActionKind(ctx: CheckContext, kind: vscode.CodeAc
   }
 }
 
+/**
+ * P11-T5: the gear popup's "Choose profile" maps to which fix-all kind runs —
+ * `source.fixAll` (every provider) or a scoped one like `source.fixAll.eslint`.
+ * IntelliJ profiles are inspection sets; the code-action kind is the honest
+ * VS Code analogue of "which cleanup".
+ */
+export function cleanupKind(): vscode.CodeActionKind {
+  const raw = vscode.workspace
+    .getConfiguration('gittree.commit.checks')
+    .get<string>('cleanupKind', 'source.fixAll');
+  const value = raw.trim();
+  return value.length === 0 || !value.startsWith('source.')
+    ? vscode.CodeActionKind.SourceFixAll
+    : vscode.CodeActionKind.Empty.append(value);
+}
+
 export const cleanupCheck: CommitCheck = {
   id: 'cleanup',
   label: vscode.l10n.t('Cleanup (fix all)'),
   configKey: 'cleanup',
   async run(ctx) {
-    await applyCodeActionKind(ctx, vscode.CodeActionKind.SourceFixAll);
+    await applyCodeActionKind(ctx, cleanupKind());
     return { ok: true };
   },
 };

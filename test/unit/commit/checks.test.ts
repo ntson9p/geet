@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { scanAddedTodos } from '../../../src/commit/checks/todoScanner';
 import { buildCommitArgs } from '../../../src/commit/commitArgs';
 import { computeLineChanges } from '../../../src/core/patch/lineDiff';
+import { isValidAuthor } from '../../../src/shared/protocol';
 
 describe('scanAddedTodos', () => {
   const pattern = /\b(TODO|FIXME)\b/;
@@ -76,5 +77,70 @@ describe('buildCommitArgs', () => {
       'm',
       '--all',
     ]);
+  });
+
+  // P11-T5: --author= and -s. One argv element each — git handles the quoting,
+  // never the shell, so a comma or non-ASCII name must pass through verbatim.
+  it('author override with a comma in the name', () => {
+    expect(
+      buildCommitArgs('staged', 'msg', { amend: false, sign: false, author: 'Doe, John <j@example.com>' }),
+    ).toEqual(['commit', '--author=Doe, John <j@example.com>', '-m', 'msg']);
+  });
+
+  it('author override with a non-ASCII name', () => {
+    expect(
+      buildCommitArgs('staged', 'msg', {
+        amend: false,
+        sign: false,
+        author: 'Nguyễn Trường Sơn <son@例え.jp>',
+      }),
+    ).toContain('--author=Nguyễn Trường Sơn <son@例え.jp>');
+  });
+
+  it('sign-off adds -s and composes with -S, --amend and --author', () => {
+    expect(
+      buildCommitArgs('staged', 'msg', {
+        amend: true,
+        sign: true,
+        signoff: true,
+        author: 'A B <a@b.c>',
+      }),
+    ).toEqual(['commit', '-S', '-s', '--author=A B <a@b.c>', '--amend', '-m', 'msg']);
+  });
+
+  it('an empty author never emits a bare --author=', () => {
+    expect(buildCommitArgs('staged', 'msg', { amend: false, sign: false, author: '' })).toEqual([
+      'commit',
+      '-m',
+      'msg',
+    ]);
+  });
+});
+
+describe('isValidAuthor (P11-T5)', () => {
+  it('accepts git-shaped authors, commas and non-ASCII included', () => {
+    for (const ok of [
+      'Ada Lovelace <ada@example.com>',
+      'Doe, John <j@x.co>',
+      'Nguyễn Trường Sơn <son@例え.jp>',
+      'a <a@localhost>',
+    ]) {
+      expect(isValidAuthor(ok), ok).toBe(true);
+    }
+  });
+
+  it('rejects everything that is not Name <email>', () => {
+    for (const bad of [
+      '',
+      'just a name',
+      '<a@b.c>',
+      ' <a@b.c>',
+      'name <no-at-sign>',
+      'name <a@b.c> trailing',
+      'angle < in name <a@b.c>',
+      'name <spa ce@b.c>',
+    ]) {
+      expect(isValidAuthor(bad), bad).toBe(false);
+    }
   });
 });

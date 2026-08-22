@@ -36,6 +36,7 @@ import { getVsCodeApi } from '../lib/vscodeApi';
 import { assembleCommitTree, fileCountLabel, iconFor, partialLabel, splitDelta } from './commitTree';
 import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
+import { OptionsPopup } from './OptionsPopup';
 
 interface Persisted {
   tab?: string;
@@ -91,6 +92,7 @@ export function App() {
   // `initial` prop would defeat the editor's memo shield while typing.
   const initialMessage = useRef(saved.message ?? '').current;
   const [menu, setMenu] = useState<MessageMenu | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [preview, setPreview] = useState(saved.preview ?? false);
   const [ratio, setRatio] = useState(saved.ratio ?? 0.55);
   const [diff, setDiff] = useState<CommitFileDiffDto | undefined>(undefined);
@@ -618,11 +620,17 @@ export function App() {
             <ToolbarButton
               icon="gear"
               label="Commit options"
-              onClick={() => send(COMMIT_METHODS.showOptions, { repoRoot: activeRepo })}
+              disabled={activeRepo === undefined}
+              toggled={optionsOpen}
+              onClick={() => setOptionsOpen((open) => !open)}
             />
           </div>
         </div>
       </TabPanel>
+
+      {optionsOpen && activeRepo !== undefined ? (
+        <OptionsPopup rpc={rpc} repoRoot={activeRepo} onClose={() => setOptionsOpen(false)} />
+      ) : null}
 
       {menu !== null ? (
         <Menu

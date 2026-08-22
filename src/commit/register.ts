@@ -25,6 +25,7 @@ import { ParadigmManager } from './paradigmManager';
 import { registerStagingOps } from './staging/stagingOps';
 import { CommitWindowViewProvider } from './window/commitWindowView';
 import { InclusionModel } from './window/inclusion';
+import { CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
 
 export interface Phase03Registry {
   paradigm: ParadigmManager;
@@ -39,6 +40,10 @@ export interface Phase03Registry {
   commitWindowMode: () => 'webview' | 'native';
   /** P11-T3 — per-change inclusion, shared by the window and the commit flow. */
   inclusion: InclusionModel;
+  /** P11-T5 — author/sign-off/deferred-checks store behind the gear popup. */
+  optionsStore: CommitOptionsStore;
+  /** P11-T5 — the most recent deferred post-commit check run (test seam). */
+  lastDeferredChecks?: Promise<DeferredChecksOutcome | undefined>;
 }
 
 export function registerPhase03(context: vscode.ExtensionContext, core: Core): Phase03Registry {
@@ -114,6 +119,9 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   const inclusion = new InclusionModel();
   context.subscriptions.push(new vscode.Disposable(() => inclusion.dispose()));
 
+  // P11-T5: the gear popup's backing store.
+  const optionsStore = new CommitOptionsStore(context.workspaceState);
+
   const commitWindow = new CommitWindowViewProvider({
     context,
     core,
@@ -122,6 +130,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     history,
     paradigm,
     inclusion,
+    options: optionsStore,
     runCommit: (repo, options) => runCommitFlow(flowDeps, repo, options),
   });
   context.subscriptions.push(commitWindow);
@@ -142,6 +151,10 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     changelistsFor,
     inputBoxFor: messageBoxFor,
     inclusion,
+    options: optionsStore,
+    onDeferredChecks: (run) => {
+      registry.lastDeferredChecks = run;
+    },
   };
 
   context.subscriptions.push(
@@ -369,6 +382,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     commitWindow,
     commitWindowMode,
     inclusion,
+    optionsStore,
   };
   core.debugRegistry.set('phase03', registry);
   return registry;

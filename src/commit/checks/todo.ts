@@ -24,12 +24,13 @@ export const todoCheck: CommitCheck = {
   id: 'todo',
   label: vscode.l10n.t('TODO check (new comments)'),
   configKey: 'todo',
+  advanced: true,
   async run(ctx) {
     const pattern = todoPattern();
     const all: Array<{ uri: vscode.Uri; hit: TodoHit }> = [];
     for (const uri of ctx.files) {
       if (ctx.token.isCancellationRequested) break;
-      const target = await changesVsHead(ctx.repo, uri);
+      const target = await changesVsHead(ctx.repo, uri, ctx.baseRev ?? 'HEAD');
       if (!target) continue;
       for (const hit of scanAddedTodos(target.changes, target.doc.getText(), pattern)) {
         all.push({ uri, hit });
