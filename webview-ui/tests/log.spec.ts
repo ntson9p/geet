@@ -621,6 +621,95 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBe(true);
   });
 
+  test('P12-T8: Console tab lists runs; failures pre-expanded with exit code', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Console' }).click();
+    const pane = page.getByTestId('console-pane');
+    await expect(pane).toBeVisible();
+    await expect(page.getByTestId('console-count')).toHaveText('3');
+
+    // The failing fetch (exit 128): coloured row, output visible unprompted,
+    // and the argv shows the HOST-redacted URL — no token ever reaches the DOM.
+    const failed = page.getByTestId('console-entry-2');
+    await expect(failed).toHaveClass(/gt-console-failed/);
+    await expect(failed.locator('.gt-console-cmd')).toHaveText(
+      'git fetch https://***@example.com/r.git',
+    );
+    await expect(failed.locator('.gt-console-exit')).toHaveText('→ 128');
+    await expect(failed.locator('.gt-console-exit')).toHaveClass(/gt-console-exit-bad/);
+    await expect(failed.locator('.gt-console-output')).toContainText(
+      'fatal: could not read from remote',
+    );
+
+    // Success rows start collapsed.
+    const ok = page.getByTestId('console-entry-3');
+    await expect(ok.locator('.gt-console-output')).toHaveCount(0);
+  });
+
+  test('P12-T8: chevrons expand successes and collapse failures', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Console' }).click();
+    const failed = page.getByTestId('console-entry-2');
+    const ok = page.getByTestId('console-entry-3');
+
+    await ok.getByRole('button', { name: 'Toggle output of git log' }).click();
+    await expect(ok.locator('.gt-console-output')).toHaveText('abc123');
+
+    // Failures default open but stay collapsible (toggle is XOR, not OR).
+    await failed.getByRole('button', { name: 'Toggle output of git fetch' }).click();
+    await expect(failed.locator('.gt-console-output')).toHaveCount(0);
+    await failed.getByRole('button', { name: 'Toggle output of git fetch' }).click();
+    await expect(failed.locator('.gt-console-output')).toBeVisible();
+  });
+
+  test('P12-T8: filter narrows entries; Copy command posts the redacted argv', async ({
+    page,
+  }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Console' }).click();
+    await page.getByRole('textbox', { name: 'Filter commands' }).fill('fetch');
+    await expect(page.getByTestId('console-entry-2')).toBeVisible();
+    await expect(page.getByTestId('console-entry-1')).toHaveCount(0);
+    await expect(page.getByTestId('console-entry-3')).toHaveCount(0);
+
+    await page
+      .getByTestId('console-entry-2')
+      .getByRole('button', { name: 'Copy command' })
+      .click();
+    const msgs = await posted(page);
+    const copy = msgs.find((m) => m.method === 'log/copy');
+    expect((copy?.params as { text?: string } | undefined)?.text).toBe(
+      'git fetch https://***@example.com/r.git',
+    );
+  });
+
+  test('P12-T8: Clear posts consoleClear and empties the pane', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Console' }).click();
+    await page.getByRole('button', { name: 'Clear console' }).click();
+    await expect(page.getByTestId('console-pane')).toContainText('No git commands yet.');
+    await expect(page.getByTestId('console-count')).toHaveText('0');
+    await expect
+      .poll(async () => (await posted(page)).some((m) => m.method === 'log/consoleClear'))
+      .toBe(true);
+  });
+
+  test('P12-T8: the active tab survives a reload', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Console' }).click();
+    await expect(page.getByTestId('console-pane')).toBeVisible();
+    await page.reload();
+    // Boots straight into Console — no click — from persisted webview state.
+    await expect(page.getByTestId('console-pane')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Console' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    // And back: the Log tab remounts its rows intact.
+    await page.getByRole('tab', { name: 'Log' }).click();
+    await expect(page.getByTestId('log-row-0')).toBeVisible();
+  });
+
   test('P10-T2: colorBlind palette drives ref-chip and graph colors', async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __mockGraphPalette?: string }).__mockGraphPalette = 'colorBlind';

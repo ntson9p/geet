@@ -119,6 +119,21 @@ export const mockLogHostScript = `
           });
           break;
         }
+        case 'log/console': {
+          const after = (msg.params && msg.params.afterSeq) || 0;
+          const all = [
+            { seq: 1, ts: 1700000000000, argv: ['status', '--porcelain'], exitCode: 0, durationMs: 12, output: '' },
+            { seq: 2, ts: 1700000001000, argv: ['fetch', 'https://***@example.com/r.git'], exitCode: 128, durationMs: 88, output: 'fatal: could not read from remote' },
+            { seq: 3, ts: 1700000002000, argv: ['log', '--format=%H'], exitCode: 0, durationMs: 30, output: 'abc123' },
+          ];
+          res({ entries: window.__consoleCleared ? [] : all.filter((e) => e.seq > after) });
+          break;
+        }
+        case 'log/consoleClear': {
+          window.__consoleCleared = true;
+          res({ ok: true });
+          break;
+        }
         case 'log/authors': {
           res({ authors: ['Alice <a@x.dev>', 'Bob <b@x.dev>', 'Carol <c@x.dev>'] });
           break;

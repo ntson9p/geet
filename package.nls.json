@@ -147,6 +147,8 @@
   "gittree.command.log.goToChild.title": "Go to Child Commit",
   "gittree.command.log.showRepoAtRevision.title": "Show Repository at Revision",
   "gittree.command.revTree.close.title": "Close Revision View",
+  "gittree.command.log.console.clear.title": "Clear Git Console",
+  "gittree.config.log.console.limit.description": "Maximum number of git commands kept in the Console tab's history (read at startup).",
   "gittree.view.revTree.name": "Repository at Revision",
   "gittree.command.log.branch.newFrom.title": "New Branch from Here…",
   "gittree.command.log.branch.compareWithCurrent.title": "Compare with Current",

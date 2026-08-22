@@ -14,6 +14,7 @@ import {
   type GitExecutorImpl,
   type RepoId,
 } from './git/executor';
+import { CommandLog } from './git/commandLog';
 import { ModeManager, type ConsentChoice, type GitTreeMode } from './modeManager';
 import { RepositoryModel } from './model/repositoryModel';
 import { OperationQueue } from './ops/operationQueue';
@@ -43,6 +44,8 @@ export class Core implements vscode.Disposable {
   readonly debugRegistry = new Map<string, unknown>();
   /** P10-T4: recent trace lines — feeds the sanitized issue report. */
   getTraceTail: () => readonly string[] = () => [];
+  /** P12-T8: the structured (redacted) git-command ring behind the Console tab. */
+  commandLog: CommandLog = new CommandLog(0);
   private readonly _onDidAddRepo = new Emitter<RepoHandle>();
   private readonly _onDidRemoveRepo = new Emitter<RepoHandle>();
   readonly onDidAddRepo: Event<RepoHandle> = this._onDidAddRepo.event;
@@ -255,6 +258,13 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
 
   const cfg = vscode.workspace.getConfiguration();
   const builtinGitPath = cfg.get<string | string[] | null>('git.path');
+  // P12-T8: every git run lands (redacted) in the Console tab's ring. The
+  // limit is read once at activation — resizing a ring live has churn for no
+  // one, and the setting exists for constrained hosts, not live tuning.
+  const consoleLimit = cfg.get<number>('gittree.log.console.limit', 2000);
+  const commandLog = new CommandLog(
+    Number.isFinite(consoleLimit) && consoleLimit >= 100 ? Math.floor(consoleLimit) : 2000,
+  );
   const executor = await createGitExecutor(
     {
       gittreeGitPath: cfg.get<string | null>('gittree.gitPath') ?? undefined,
@@ -262,7 +272,11 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
         ? builtinGitPath[0]
         : (builtinGitPath ?? undefined),
     },
-    { trace: (l) => trace(`[exec] ${l}`), baseEnv: () => askpass?.env ?? {} },
+    {
+      trace: (l) => trace(`[exec] ${l}`),
+      baseEnv: () => askpass?.env ?? {},
+      onDidRun: (run) => commandLog.push(run),
+    },
   );
   if (!executor) {
     void vscode.window.showErrorMessage(
@@ -294,6 +308,8 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   });
 
   const core = new Core(executor, mode, output, trace);
+  core.commandLog = commandLog;
+  context.subscriptions.push(new vscode.Disposable(() => commandLog.dispose()));
   core.getTraceTail = () => [...traceTail];
   context.subscriptions.push(core);
   await core.initialize(context);

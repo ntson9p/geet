@@ -52,6 +52,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
   readonly branchesBridge: BranchesPaneBridge;
   private refsSub: vscode.Disposable | undefined;
+  /** P12-T8: throttled Console change ping. */
+  private consoleSub: vscode.Disposable | undefined;
   /** Boot breadcrumbs (integration-test observability). */
   readonly debugTrail: string[] = [];
 
@@ -183,6 +185,36 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { files: aggregate.files, newest, base: aggregate.base };
     });
 
+    // P12-T8: the Console tab — a delta read over the redacted command ring,
+    // with a throttled change ping so bursts (a status refresh runs many
+    // gits) cost one repaint, not one per command.
+    rpc.on(LOG_METHODS.consoleEntries, (params) => {
+      const { afterSeq } = params as { afterSeq?: number };
+      return {
+        entries:
+          afterSeq !== undefined
+            ? this.core.commandLog.entriesAfter(afterSeq)
+            : [...this.core.commandLog.entries()],
+      };
+    });
+    rpc.on(LOG_METHODS.consoleClear, () => {
+      this.core.commandLog.clear();
+      return { ok: true };
+    });
+    this.consoleSub?.dispose();
+    let consolePing: NodeJS.Timeout | undefined;
+    const cmdSub = this.core.commandLog.onDidChange(() => {
+      if (consolePing !== undefined) return;
+      consolePing = setTimeout(() => {
+        consolePing = undefined;
+        this.rpc?.notify(LOG_METHODS.evtConsole, {});
+      }, 200);
+    });
+    this.consoleSub = new vscode.Disposable(() => {
+      cmdSub.dispose();
+      if (consolePing !== undefined) clearTimeout(consolePing);
+    });
+
     // P12-T4: lazy on purpose — `branch --contains` walks history and would
     // cost a traversal per selection; it runs only when the link is clicked.
     rpc.on(LOG_METHODS.containedBranches, async (params) => {
@@ -306,6 +338,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.view = undefined;
       this.refsSub?.dispose();
       this.refsSub = undefined;
+      this.consoleSub?.dispose();
+      this.consoleSub = undefined;
     });
   }
 

@@ -175,6 +175,81 @@
   padding: 10px;
 }
 
+/* ---- P12-T8: Console tab ---- */
+.gt-console {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gt-console-filter {
+  flex: 0 1 220px;
+  margin: 2px 4px;
+}
+
+.gt-console-count {
+  margin-right: 4px;
+  font-size: 0.9em;
+}
+
+.gt-console-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.92em;
+}
+
+.gt-console-entry {
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  padding: 1px 4px;
+}
+
+.gt-console-entry.gt-console-failed {
+  background: var(--vscode-inputValidation-errorBackground, transparent);
+}
+
+.gt-console-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gt-console-toggle {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gt-console-cmd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gt-console-exit {
+  white-space: nowrap;
+}
+
+.gt-console-exit-bad {
+  color: var(--vscode-errorForeground);
+  font-weight: 600;
+}
+
+.gt-console-output {
+  margin: 2px 0 4px 22px;
+  white-space: pre-wrap;
+  color: var(--vscode-descriptionForeground);
+  max-height: 200px;
+  overflow: auto;
+}
+
 /* ---- P12-T5: filter row dropdowns + toolbar ---- */
 .gt-filter-anchor {
   position: relative;

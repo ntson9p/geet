@@ -137,6 +137,8 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
       await vscode.commands.executeCommand('gittree.revTree.focus');
     }),
     vscode.commands.registerCommand('gittree.revTree.close', () => revTree.close()),
+    // P12-T8: palette access to the Console ring's clear.
+    vscode.commands.registerCommand('gittree.log.console.clear', () => core.commandLog.clear()),
   );
 
   const registry: Phase04Registry = { logView, blameUi, revTree, revTreeFs };

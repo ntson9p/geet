@@ -332,6 +332,13 @@ Saved log filter presets (managed by the Saved filters toolbar menu).
 
 - Type: `array` · Default: `[]`
 
+### `gittree.log.console.limit`
+
+Maximum number of git commands kept in the Console tab's history (read at startup).
+
+- Type: `number` · Default: `2000`
+- Minimum: `100`
+
 ### `gittree.blame.heatmap`
 
 Fade blame annotations by commit age (newest brightest).

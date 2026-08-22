@@ -392,6 +392,12 @@
               }
             }
           },
+          "gittree.log.console.limit": {
+            "type": "number",
+            "default": 2000,
+            "minimum": 100,
+            "description": "%gittree.config.log.console.limit.description%"
+          },
           "gittree.blame.heatmap": {
             "type": "boolean",
             "default": true,
@@ -1148,6 +1154,11 @@
         "command": "gittree.revTree.close",
         "title": "%gittree.command.revTree.close.title%",
         "icon": "$(close)"
+      },
+      {
+        "command": "gittree.log.console.clear",
+        "title": "%gittree.command.log.console.clear.title%",
+        "category": "GitTree"
       },
       {
         "command": "gittree.log.branch.checkout",

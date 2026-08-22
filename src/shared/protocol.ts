@@ -485,6 +485,17 @@ export interface LogChangedFilesDto {
   base?: string;
 }
 
+/** P12-T8 — one Console row: a redacted, structured git run. */
+export interface LogConsoleEntryDto {
+  seq: number;
+  /** Epoch ms. */
+  ts: number;
+  argv: string[];
+  exitCode: number;
+  durationMs: number;
+  output: string;
+}
+
 // ---------------------------------------------------------------------------
 // Branches pane (P12-T2)
 // ---------------------------------------------------------------------------
@@ -562,12 +573,18 @@ export const LOG_METHODS = {
   savePreset: 'log/savePreset',
   /** P12-T5: delete a named preset. */
   deletePreset: 'log/deletePreset',
+  /** P12-T8: the Console tab's ring (delta read via afterSeq). */
+  consoleEntries: 'log/console',
+  /** P12-T8: clear the ring. */
+  consoleClear: 'log/consoleClear',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',
   evtReveal: 'log/reveal',
   /** P12-T2: refs changed (branch created/deleted, favorite toggled…). */
   evtBranches: 'log/branchesChanged',
+  /** P12-T8: the command ring grew or was cleared (throttled, payload-free). */
+  evtConsole: 'log/consoleChanged',
   /** P10-T2: keyboard parity — move focus into the filter search box. */
   evtFocusFilter: 'log/focusFilter',
 } as const;

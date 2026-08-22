@@ -608,4 +608,54 @@ suite('P12 git tool window', () => {
     const current = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
     assert.ok(branches.includes(current), `HEAD's branch must contain HEAD: ${branches.join(', ')}`);
   });
+
+  test('T8: every executor run — failures included — lands in the console ring', async function () {
+    this.timeout(30_000);
+    // By this point in a full run the ring sits AT its cap, so size cannot
+    // grow — the seq cursor is the only honest "these runs arrived" witness.
+    const log = coreRef.commandLog;
+    const lastSeq = log.entries()[log.size - 1]?.seq ?? 0;
+
+    // A successful run and a failing one, both through the core executor —
+    // the ring must see exactly what ran, exit codes intact.
+    await coreRef.git.exec(repoRoot, ['rev-parse', '--verify', 'HEAD']);
+    await coreRef.git.exec(repoRoot, ['rev-parse', '--verify', '--quiet', 'gt-definitely-missing'], {
+      allowNonZeroExit: true,
+    });
+
+    const fresh = log.entriesAfter(lastSeq);
+    assert.ok(fresh.length >= 2, `both runs must enter the ring (got ${fresh.length} fresh)`);
+    const okRun = fresh.find(
+      (e) => e.argv.join(' ') === 'rev-parse --verify HEAD' && e.exitCode === 0,
+    );
+    assert.ok(okRun, 'successful run recorded with exit 0');
+    const failRun = fresh.find((e) => e.argv.includes('gt-definitely-missing'));
+    assert.ok(failRun, 'failing run recorded');
+    assert.notStrictEqual(failRun.exitCode, 0, 'failure keeps its non-zero exit code');
+    assert.ok(failRun.durationMs >= 0 && failRun.ts > 0, 'timing fields populated');
+  });
+
+  test('T8: the console RPC serves deltas and clear empties the ring', async function () {
+    this.timeout(30_000);
+    // The webview reads via log/console {afterSeq}; prove the seam end-to-end
+    // through the same CommandLog instance the view handlers use.
+    const log = coreRef.commandLog;
+    await coreRef.git.exec(repoRoot, ['status', '--porcelain']);
+    const all = log.entriesAfter(0);
+    assert.ok(all.length > 0, 'ring has entries');
+    const mid = all[Math.floor(all.length / 2)]!.seq;
+    const delta = log.entriesAfter(mid);
+    assert.ok(delta.every((e) => e.seq > mid), 'delta strictly after the cursor');
+
+    const maxSeq = all[all.length - 1]!.seq;
+    await vscode.commands.executeCommand('gittree.log.console.clear');
+    // Background refreshers may push a run between clear and this line —
+    // "empty" means everything pre-clear is gone, not that git went quiet.
+    const after = log.entriesAfter(0);
+    assert.ok(
+      after.every((e) => e.seq > maxSeq),
+      `pre-clear entries survived the clear (size ${after.length})`,
+    );
+    assert.ok(after.length < 20, `ring effectively empty after clear, got ${after.length}`);
+  });
 });

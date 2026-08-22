@@ -68,6 +68,15 @@ export interface ExecutorInit {
   version: string;
   /** Structured trace sink (OutputChannel "GitTree" in production). */
   trace?: (line: string) => void;
+  /** P12-T8: structured per-run record for the Console tab's ring buffer. */
+  onDidRun?: (run: {
+    ts: number;
+    argv: readonly string[];
+    exitCode: number;
+    durationMs: number;
+    stdout: string;
+    stderr: string;
+  }) => void;
   /** Extra env merged into every spawn — askpass bridge vars (P0-T8). */
   baseEnv?: () => Record<string, string>;
   /** Test seam only: overrides the `-c` config args prepended to every call. */
@@ -87,6 +96,7 @@ export class GitExecutorImpl implements GitExecutor {
   readonly caps: GitCapabilities;
   readonly gitPath: string;
   private readonly trace: (line: string) => void;
+  private readonly onDidRun: ExecutorInit['onDidRun'];
   private readonly baseEnv: () => Record<string, string>;
   private readonly baseArgs: string[];
 
@@ -95,6 +105,7 @@ export class GitExecutorImpl implements GitExecutor {
     this.version = init.version;
     this.caps = buildCapabilities(init.version);
     this.trace = init.trace ?? (() => undefined);
+    this.onDidRun = init.onDidRun;
     this.baseEnv = init.baseEnv ?? (() => ({}));
     this.baseArgs = init.baseArgs ?? BASE_ARGS;
   }
@@ -115,12 +126,26 @@ export class GitExecutorImpl implements GitExecutor {
     });
   }
 
-  private traceRun(args: string[], startedAt: number, exitCode: number, note = ''): void {
+  private traceRun(
+    args: string[],
+    startedAt: number,
+    exitCode: number,
+    note = '',
+    output: { stdout: string; stderr: string } = { stdout: '', stderr: '' },
+  ): void {
     const ms = Date.now() - startedAt;
     const argv = args
       .map((a) => (a.length > TRACE_ARG_MAX ? `${a.slice(0, TRACE_ARG_MAX)}…(${a.length})` : a))
       .join(' ');
     this.trace(`git ${argv} → ${exitCode} in ${ms}ms${note ? ` (${note})` : ''}`);
+    this.onDidRun?.({
+      ts: startedAt,
+      argv: args,
+      exitCode,
+      durationMs: ms,
+      stdout: output.stdout,
+      stderr: output.stderr,
+    });
   }
 
   async exec(repo: RepoId, args: string[], o: ExecOpts = {}): Promise<GitResult> {
@@ -159,7 +184,10 @@ export class GitExecutorImpl implements GitExecutor {
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
         exitCode,
       };
-      this.traceRun(args, startedAt, exitCode, cancelled ? 'cancelled' : '');
+      this.traceRun(args, startedAt, exitCode, cancelled ? 'cancelled' : '', {
+        stdout: result.stdout,
+        stderr: result.stderr,
+      });
       if (exitCode !== 0 && !o.allowNonZeroExit && !cancelled) {
         throw makeGitError({ args, exitCode, stderr: result.stderr, stdout: result.stdout, cwd: repo });
       }
@@ -211,7 +239,10 @@ export class GitExecutorImpl implements GitExecutor {
       }
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
       const code = exitCode ?? -1;
-      this.traceRun(args, startedAt, code, cancelled ? 'cancelled (stream)' : 'stream');
+      this.traceRun(args, startedAt, code, cancelled ? 'cancelled (stream)' : 'stream', {
+        stdout: '',
+        stderr,
+      });
       if (code !== 0 && !cancelled && !o.allowNonZeroExit) {
         rejectDone(makeGitError({ args, exitCode: code, stderr, stdout: '', cwd: repo }));
       } else {

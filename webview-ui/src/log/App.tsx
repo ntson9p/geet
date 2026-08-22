@@ -22,11 +22,13 @@ import {
 import { RpcClient } from '../lib/rpc';
 import { TabPanel, Tabs } from '../lib/Tabs';
 import { ToolbarButton } from '../lib/Toolbar';
+import { useElementSize } from '../lib/useElementSize';
 import { useVsCodeTheme } from '../lib/useVsCodeTheme';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import { getVsCodeApi } from '../lib/vscodeApi';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
+import { ConsolePane } from './ConsolePane';
 import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
 import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
@@ -42,6 +44,7 @@ interface PersistedState {
   filesRollup?: boolean;
   previewOnClick?: boolean;
   highlightMine?: boolean;
+  tab?: string;
 }
 
 function relativeDate(unixSeconds: number): string {
@@ -66,7 +69,6 @@ export function App() {
   const [eof, setEof] = useState(false);
   const [loading, setLoading] = useState(false);
   const [viewport, setViewport] = useState<GraphViewport>({ scrollTop: 0, first: 0, last: 0 });
-  const [size, setSize] = useState({ width: 800, height: 400 });
   const [selected, setSelected] = useState<string[]>([]);
   const [details, setDetails] = useState<CommitDetailsDto | undefined>();
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -84,6 +86,8 @@ export function App() {
   // P12-T5: refs data is shared by the Branches pane AND the filter row.
   const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
   const [highlightMine, setHighlightMine] = useState(boot.highlightMine ?? false);
+  // P12-T8: the Log | Console strip; the active tab persists (step 1).
+  const [tab, setTab] = useState(boot.tab ?? 'log');
 
   useEffect(() => {
     const reload = (): void => {
@@ -108,8 +112,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    persist({ layout, filesRollup, previewOnClick, highlightMine });
-  }, [filesRollup, highlightMine, layout, persist, previewOnClick]);
+    persist({ layout, filesRollup, previewOnClick, highlightMine, tab });
+  }, [filesRollup, highlightMine, layout, persist, previewOnClick, tab]);
 
   // P12-T3: the pane follows the selection — one commit's files, or the
   // aggregate change set of a multi-select.
@@ -144,16 +148,11 @@ export function App() {
   }, [rpc, selected]);
 
   // ---- container sizing ----
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setSize({ width: el.clientWidth, height: el.clientHeight });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [init]);
+  // useElementSize (callback ref) survives the Log tab unmounting/remounting
+  // around the Console tab — an object-ref ResizeObserver would keep watching
+  // the detached node (the P11-T4 lesson).
+  const [containerRef, measured] = useElementSize<HTMLDivElement>();
+  const size = { width: measured.width || 800, height: measured.height || 400 };
 
   // ---- boot + host events ----
   const restoreShaRef = useRef<string | undefined>(undefined);
@@ -408,11 +407,20 @@ export function App() {
     <div className="gt-log-root">
       <Tabs
         ariaLabel="Git tool window"
-        active="log"
-        onChange={() => undefined}
-        tabs={[{ id: 'log', label: 'Log' }]}
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          { id: 'log', label: 'Log' },
+          { id: 'console', label: 'Console' },
+        ]}
       />
-      <TabPanel id="log" active="log" className="gt-log-tabpanel">
+      <TabPanel id="console" active={tab} className="gt-log-tabpanel">
+        <ConsolePane
+          rpc={rpc}
+          onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
+        />
+      </TabPanel>
+      <TabPanel id="log" active={tab} className="gt-log-tabpanel">
         <FilterBar
           filter={filter}
           onChange={applyFilter}
