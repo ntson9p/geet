@@ -467,6 +467,28 @@ export interface CommitFileDto {
   origPath?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Branches pane (P12-T2)
+// ---------------------------------------------------------------------------
+
+export interface LogBranchesDto {
+  /** Current branch name; undefined when detached. */
+  current?: string;
+  detached: boolean;
+  locals: Array<{ name: string; favorite: boolean }>;
+  remotes: Array<{ remote: string; branches: string[] }>;
+  tags: string[];
+  /** user.email — what "Show my commits" filters the log by. */
+  myAuthor?: string;
+}
+
+export interface LogBranchActionParamsDto {
+  /** A `branchActions.ts` id, or 'new' (the rail's `+`, no ref needed). */
+  action: string;
+  name?: string;
+  type?: 'local' | 'remote' | 'tag';
+}
+
 export interface CommitDetailsDto {
   sha: string;
   parents: string[];
@@ -496,10 +518,16 @@ export const LOG_METHODS = {
   copy: 'log/copy',
   /** P12-T1: the one host-side selection model every pane and command reads. */
   select: 'log/select',
+  /** P12-T2: the Branches pane's ref snapshot. */
+  branches: 'log/branches',
+  /** P12-T2: one rail/context action on a ref, run through the shared registry. */
+  branchAction: 'log/branchAction',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',
   evtReveal: 'log/reveal',
+  /** P12-T2: refs changed (branch created/deleted, favorite toggled…). */
+  evtBranches: 'log/branchesChanged',
   /** P10-T2: keyboard parity — move focus into the filter search box. */
   evtFocusFilter: 'log/focusFilter',
 } as const;

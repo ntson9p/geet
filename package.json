@@ -1078,6 +1078,42 @@
         "icon": "$(archive)"
       },
       {
+        "command": "gittree.log.branch.checkout",
+        "title": "%gittree.command.log.branch.checkout.title%"
+      },
+      {
+        "command": "gittree.log.branch.newFrom",
+        "title": "%gittree.command.log.branch.newFrom.title%"
+      },
+      {
+        "command": "gittree.log.branch.compareWithCurrent",
+        "title": "%gittree.command.log.branch.compareWithCurrent.title%"
+      },
+      {
+        "command": "gittree.log.branch.diffWithWorkingTree",
+        "title": "%gittree.command.log.branch.diffWithWorkingTree.title%"
+      },
+      {
+        "command": "gittree.log.branch.rebaseOntoCurrent",
+        "title": "%gittree.command.log.branch.rebaseOntoCurrent.title%"
+      },
+      {
+        "command": "gittree.log.branch.push",
+        "title": "%gittree.command.log.branch.push.title%"
+      },
+      {
+        "command": "gittree.log.branch.rename",
+        "title": "%gittree.command.log.branch.rename.title%"
+      },
+      {
+        "command": "gittree.log.branch.delete",
+        "title": "%gittree.command.log.branch.delete.title%"
+      },
+      {
+        "command": "gittree.log.branch.toggleFavorite",
+        "title": "%gittree.command.log.branch.toggleFavorite.title%"
+      },
+      {
         "command": "gittree.openWalkthrough",
         "title": "%gittree.command.openWalkthrough.title%",
         "category": "GitTree"
@@ -1107,6 +1143,42 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gittree.log.branch.checkout",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.newFrom",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.compareWithCurrent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.diffWithWorkingTree",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.rebaseOntoCurrent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.push",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.rename",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.delete",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.branch.toggleFavorite",
+          "when": "false"
+        },
         {
           "command": "gittree.shelf.compareWithLocal",
           "when": "false"
@@ -1867,6 +1939,51 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "gittree.log.branch.checkout",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "1_checkout@1"
+        },
+        {
+          "command": "gittree.log.branch.newFrom",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "1_checkout@2"
+        },
+        {
+          "command": "gittree.log.branch.compareWithCurrent",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "2_compare@1"
+        },
+        {
+          "command": "gittree.log.branch.diffWithWorkingTree",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "2_compare@2"
+        },
+        {
+          "command": "gittree.log.branch.rebaseOntoCurrent",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "3_integrate@1"
+        },
+        {
+          "command": "gittree.log.branch.push",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "4_manage@1"
+        },
+        {
+          "command": "gittree.log.branch.rename",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "4_manage@2"
+        },
+        {
+          "command": "gittree.log.branch.delete",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "4_manage@3"
+        },
+        {
+          "command": "gittree.log.branch.toggleFavorite",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "4_manage@4"
+        },
         {
           "command": "gittree.shelf.unshelve",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'shelfEntry'",

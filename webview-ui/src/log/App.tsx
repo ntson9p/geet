@@ -23,6 +23,7 @@ import { ToolbarButton } from '../lib/Toolbar';
 import { useVsCodeTheme } from '../lib/useVsCodeTheme';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import { getVsCodeApi } from '../lib/vscodeApi';
+import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
 import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
@@ -378,9 +379,18 @@ export function App() {
           layout={layout}
           onLayoutChange={setLayout}
           branches={
-            <div className="gt-pane-empty gt-muted" data-testid="branches-stub">
-              Branch filtering arrives with the Branches pane (P12-T2).
-            </div>
+            <BranchesPane
+              rpc={rpc}
+              repoRoot={init.repoRoot.length > 0 ? init.repoRoot : undefined}
+              filter={filter}
+              onFilterChange={applyFilter}
+              onCollapsePane={() =>
+                setLayout((prev) => ({
+                  ...prev,
+                  collapsed: { ...prev.collapsed, branches: true },
+                }))
+              }
+            />
           }
           commits={commitsPane}
           files={

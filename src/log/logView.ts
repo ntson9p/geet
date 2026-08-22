@@ -21,6 +21,7 @@ import {
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
+import { BranchesPaneBridge } from './branchesPaneBridge';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
 import { DEFAULT_FILTER, type LogFilter } from './logFilter';
@@ -47,6 +48,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private readonly services = new Map<string, LogService>();
   /** P12-T1: the host-side selection model (`log/select`). */
   private selected: string[] = [];
+  /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
+  readonly branchesBridge: BranchesPaneBridge;
+  private refsSub: vscode.Disposable | undefined;
   /** Boot breadcrumbs (integration-test observability). */
   readonly debugTrail: string[] = [];
 
@@ -63,7 +67,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly core: Core,
-  ) {}
+  ) {
+    this.branchesBridge = new BranchesPaneBridge(core);
+  }
 
   private serviceFor(repo: RepoHandle): LogService {
     const key = canonicalKey(repo.root);
@@ -149,11 +155,28 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.selected = Array.isArray(shas) ? shas.filter((s) => typeof s === 'string') : [];
       return { ok: true };
     });
+    // P12-T2: the Branches pane.
+    rpc.on(LOG_METHODS.branches, async () => {
+      const repo = this.session?.repo ?? this.activeRepo();
+      if (!repo) return { detached: false, locals: [], remotes: [], tags: [] };
+      return this.branchesBridge.buildBranches(repo);
+    });
+    rpc.on(LOG_METHODS.branchAction, async (params) => {
+      const repo = this.session?.repo ?? this.activeRepo();
+      if (!repo) return { ok: false };
+      await this.branchesBridge.dispatch(
+        repo,
+        params as { action: string; name?: string; type?: 'local' | 'remote' | 'tag' },
+      );
+      return { ok: true };
+    });
 
     view.onDidDispose(() => {
       rpc.dispose();
       this.rpc = undefined;
       this.view = undefined;
+      this.refsSub?.dispose();
+      this.refsSub = undefined;
     });
   }
 
@@ -191,6 +214,17 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       eof: false,
     };
     void this.session.service.maybeMaintain();
+    // P12-T2: refs move (branch created, favorite toggled, checkout…) → the
+    // Branches pane re-requests. The event carries no payload on purpose: the
+    // webview's own request dedups bursts naturally.
+    this.refsSub?.dispose();
+    const notifyRefs = (): void => this.rpc?.notify(LOG_METHODS.evtBranches, {});
+    const modelSub = repo.model.onDidChange(notifyRefs);
+    const favSub = this.branchesBridge.refServiceFor(repo)?.onDidChangeFavorites(notifyRefs);
+    this.refsSub = new vscode.Disposable(() => {
+      modelSub.dispose();
+      favSub?.dispose();
+    });
     return {
       repoRoot: repo.root,
       repoLabel: path.basename(repo.root),

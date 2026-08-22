@@ -175,6 +175,37 @@
   padding: 10px;
 }
 
+/* ---- P12-T2: Branches pane + vertical icon rail ---- */
+.gt-branches-pane {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.gt-branches-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border-right: 1px solid var(--vscode-panel-border, transparent);
+  flex: 0 0 auto;
+}
+
+.gt-branches-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gt-branches-search {
+  margin: 2px 4px;
+  flex: 0 0 auto;
+}
+
 /* Collapsed panes fold to a slim bar, IntelliJ-style. */
 .gt-pane-collapsed {
   flex: 0 0 auto;

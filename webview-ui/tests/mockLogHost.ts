@@ -57,6 +57,22 @@ export const mockLogHostScript = `
           });
           break;
         }
+        case 'log/branches': {
+          res({
+            current: 'main', detached: false,
+            locals: [
+              { name: 'main', favorite: false },
+              { name: 'release', favorite: true },
+              { name: 'feature/f1', favorite: false },
+              { name: 'feature/f1-1', favorite: false },
+              { name: 'feature/f2', favorite: false },
+            ],
+            remotes: [{ remote: 'origin', branches: ['origin/main', 'origin/dev'] }],
+            tags: ['v1.0'],
+            myAuthor: 'a@x.dev',
+          });
+          break;
+        }
         case 'log/setFilter': {
           res({ ok: true });
           post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: '/repo', repoLabel: 'repo', filter: msg.params.filter, laneWidth: 12 } });

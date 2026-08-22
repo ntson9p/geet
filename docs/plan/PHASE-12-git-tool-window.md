@@ -187,7 +187,7 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
 
 ## Parity checklist (gap-analysis S2, S10 · §3.4, §3.8, §3.9 · FEATURES.md §4)
 - [ ] S2 — four synchronized panes with per-pane toolbars in one bottom-docked window
-- [ ] S2b — Branches pane with folder nodes and the vertical icon rail; ref selection filters the graph
+- [x] S2b — Branches pane with folder nodes and the vertical icon rail; ref selection filters the graph (P12-T2)
 - [ ] S10 — Console tab with argv, exit code, duration and redaction
 - [ ] Commit Details: committer, signature, parents, `Contained in branches` (lazy)
 - [ ] Filter row: `Branch or tag`, text/hash with regex + match-case, four multi-select dropdowns, saved presets
@@ -203,6 +203,17 @@ Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.consol
   three panes fold to slim bars, IntelliJ-style, and keep their state because they only hide.
 - **P12-T1 — `gittree.log.focus` (`alt+9`) focuses the window; the "last active tab" half of
   step 1 becomes meaningful when a second tab exists (T8).**
+- **P12-T2 — favorites render flat-first inside `Local`, then the folder tree of the rest.**
+  Duplicating a favorite in both its tree position and a favorites row would list it twice;
+  IntelliJ pins favorites to the top of the section, which is what this reproduces.
+- **P12-T2 — `applies()` gates menu enumeration, never dispatch.** The bridge runs a
+  dispatched action even when the (possibly stale) snapshot says it does not apply — a
+  checkout can outrun the refresher, and a truly invalid action gets git's own error instead
+  of a silent second-guess. Found by an integration test that checked out through the
+  registry and immediately dispatched the reverse.
+- **P12-T2 — the pane's context menu is native (`webview/context`, static labels), the same
+  D3-related split as the Shelf tab; the rail's `Q`/`★` are webview-local filters and `@`
+  round-trips through the author filter (`user.email`).**
 
 ## Planned deviations
 - **`Show Repository at Revision` opens a tree view, not a second project window.** IntelliJ

@@ -17,6 +17,11 @@ async function posted(page: Page): Promise<PostedMsg[]> {
   return (await page.evaluate(() => (window as unknown as { __postedMessages: unknown }).__postedMessages)) as PostedMsg[];
 }
 
+/** P12-T2 added a second virtual tree (Branches); scope row hits to Commits. */
+function commitRow(page: Page) {
+  return page.getByTestId('log-rows');
+}
+
 test.describe('P4-T3/T4 log webview', () => {
   test('streams the first page and windows the DOM', async ({ page }) => {
     await openLog(page);
@@ -49,21 +54,21 @@ test.describe('P4-T3/T4 log webview', () => {
 
   test('selection updates data-vscode-context (single + ctrl multi)', async ({ page }) => {
     await openLog(page);
-    await page.locator('[data-gt-row="2"]').click();
-    const ctxSingle = await page.locator('[data-gt-row="2"]').getAttribute('data-vscode-context');
+    await commitRow(page).locator('[data-gt-row="2"]').click();
+    const ctxSingle = await commitRow(page).locator('[data-gt-row="2"]').getAttribute('data-vscode-context');
     const parsedSingle = JSON.parse(ctxSingle ?? '{}') as { sha: string; shas: string[]; webviewSection: string };
     expect(parsedSingle.webviewSection).toBe('commit');
     expect(parsedSingle.shas).toHaveLength(1);
 
-    await page.locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
-    const ctxMulti = await page.locator('[data-gt-row="4"]').getAttribute('data-vscode-context');
+    await commitRow(page).locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
+    const ctxMulti = await commitRow(page).locator('[data-gt-row="4"]').getAttribute('data-vscode-context');
     const parsedMulti = JSON.parse(ctxMulti ?? '{}') as { shas: string[] };
     expect(parsedMulti.shas.length).toBe(2);
   });
 
   test('selection fills Commit Details and Changed Files; file click posts openFileDiff', async ({ page }) => {
     await openLog(page);
-    await page.locator('[data-gt-row="1"]').click();
+    await commitRow(page).locator('[data-gt-row="1"]').click();
     // P12-T1: the right column is two panes — meta in Details, files in
     // Changed Files — both fed by the same selection.
     const details = page.getByTestId('details-panel');
@@ -113,7 +118,7 @@ test.describe('P4-T3/T4 log webview', () => {
 
   test('keyboard: arrows navigate, ctrl+c copies the sha', async ({ page }) => {
     await openLog(page);
-    await page.locator('[data-gt-row="0"]').click();
+    await commitRow(page).locator('[data-gt-row="0"]').click();
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Control+c');
     await expect
@@ -138,10 +143,10 @@ test.describe('P4-T3/T4 log webview', () => {
 
   test('P10-T2: rows carry IntelliJ-style screen-reader labels', async ({ page }) => {
     await openLog(page);
-    const label = await page.locator('[data-gt-row="0"]').getAttribute('aria-label');
+    const label = await commitRow(page).locator('[data-gt-row="0"]').getAttribute('aria-label');
     expect(label).toContain('commit commit 0 by Alice');
     expect(label).toContain('branch main');
-    const plain = await page.locator('[data-gt-row="1"]').getAttribute('aria-label');
+    const plain = await commitRow(page).locator('[data-gt-row="1"]').getAttribute('aria-label');
     expect(plain).toContain('commit commit 1 by Bob');
     expect(plain).not.toContain('branch');
   });
@@ -184,7 +189,7 @@ test.describe('P4-T3/T4 log webview', () => {
   test('P12-T1: collapsing a pane folds it to a bar and keeps its state', async ({ page }) => {
     await openLog(page);
     // Select a commit so the panes hold state worth keeping.
-    await page.locator('[data-gt-row="1"]').click();
+    await commitRow(page).locator('[data-gt-row="1"]').click();
     await expect(page.getByTestId('changed-files')).toContainText('src/app.ts');
 
     await page
@@ -218,8 +223,8 @@ test.describe('P4-T3/T4 log webview', () => {
 
   test('P12-T1: the selection is mirrored to the host as one model', async ({ page }) => {
     await openLog(page);
-    await page.locator('[data-gt-row="2"]').click();
-    await page.locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
+    await commitRow(page).locator('[data-gt-row="2"]').click();
+    await commitRow(page).locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
     await expect
       .poll(async () => {
         const selects = (await posted(page)).filter((m) => m.method === 'log/select');
@@ -227,6 +232,132 @@ test.describe('P4-T3/T4 log webview', () => {
         return last?.shas?.length;
       })
       .toBe(2);
+  });
+
+  test('P12-T2: sections render with folder nodes and favorites starred first', async ({ page }) => {
+    await openLog(page);
+    const pane = page.getByTestId('branches-pane');
+    await expect(pane.getByRole('treeitem', { name: /HEAD \(Current\)/ })).toBeVisible();
+    // Folder node: feature/f1, f1-1, f2 collapse under one `feature` row.
+    const featureDir = pane.getByRole('treeitem', { name: /^feature, 3$/ });
+    await expect(featureDir).toBeVisible();
+    await expect(pane.getByRole('treeitem', { name: /f1-1/ })).toHaveCount(0);
+    await featureDir.locator('.gt-twistie').click();
+    await expect(pane.getByRole('treeitem', { name: /f1-1/ })).toBeVisible();
+
+    // The favorite sorts first inside Local and wears the star.
+    const labels = await pane
+      .getByRole('treeitem')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+    const releaseIdx = labels.indexOf('release');
+    const mainIdx = labels.indexOf('main, current');
+    expect(releaseIdx).toBeGreaterThan(-1);
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(releaseIdx).toBeLessThan(mainIdx);
+    await expect(
+      pane.getByRole('treeitem', { name: /release/ }).locator('.codicon-star-full'),
+    ).toHaveCount(1);
+
+    // Remote per remote, tags at the end.
+    await expect(pane.getByRole('treeitem', { name: /^origin, 2$/ })).toBeVisible();
+    await expect(pane.getByRole('treeitem', { name: /^Tags, 1$/ })).toBeVisible();
+  });
+
+  test('P12-T2: selecting a ref filters the commits; HEAD restores; Ctrl adds', async ({ page }) => {
+    await openLog(page);
+    const pane = page.getByTestId('branches-pane');
+    await pane.getByRole('treeitem', { name: /^feature, 3$/ }).locator('.gt-twistie').click();
+    await pane.getByRole('treeitem', { name: 'f1', exact: true }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && JSON.stringify(f?.refs) === '["feature/f1"]';
+        }),
+      )
+      .toBe(true);
+
+    // Ctrl adds the second ref to the same filter.
+    await pane.getByRole('treeitem', { name: 'f2', exact: true }).click({ modifiers: ['Control'] });
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return (
+            m.method === 'log/setFilter' &&
+            JSON.stringify(f?.refs) === '["feature/f1","feature/f2"]'
+          );
+        }),
+      )
+      .toBe(true);
+
+    // HEAD (Current) restores the default.
+    await pane.getByRole('treeitem', { name: /HEAD \(Current\)/ }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.refs === 'HEAD';
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('P12-T2: every rail button carries an accessible name', async ({ page }) => {
+    await openLog(page);
+    const rail = page.getByRole('toolbar', { name: 'Branch actions' });
+    for (const name of [
+      'New Branch',
+      'Delete Branch',
+      'Compare with Current',
+      'Filter branches',
+      'Favorites only',
+      'Show my commits',
+      'Collapse pane',
+    ]) {
+      await expect(rail.getByRole('button', { name })).toBeVisible();
+    }
+    // The rail acts through the shared registry: + posts the new action.
+    await rail.getByRole('button', { name: 'New Branch' }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some(
+          (m) =>
+            m.method === 'log/branchAction' &&
+            (m.params as { action?: string } | undefined)?.action === 'new',
+        ),
+      )
+      .toBe(true);
+  });
+
+  test('P12-T2: branch rows carry the native-menu identity; rail toggles filter locally', async ({ page }) => {
+    await openLog(page);
+    const pane = page.getByTestId('branches-pane');
+    const release = pane.getByRole('treeitem', { name: /release/ });
+    const ctx = JSON.parse((await release.getAttribute('data-vscode-context')) ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    expect(ctx['webviewSection']).toBe('logBranch');
+    expect(ctx['refName']).toBe('release');
+    expect(ctx['refType']).toBe('local');
+
+    // Favorites-only narrows Local to the starred branch.
+    await page.getByRole('button', { name: 'Favorites only' }).click();
+    await expect(pane.getByRole('treeitem', { name: /^feature, 3$/ })).toHaveCount(0);
+    await expect(release).toBeVisible();
+
+    // Show my commits round-trips through the author filter.
+    await page.getByRole('button', { name: 'Favorites only' }).click();
+    await page.getByRole('button', { name: 'Show my commits' }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { authors?: string[] } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.authors?.[0] === 'a@x.dev';
+        }),
+      )
+      .toBe(true);
   });
 
   test('P10-T2: colorBlind palette drives ref-chip and graph colors', async ({ page }) => {
