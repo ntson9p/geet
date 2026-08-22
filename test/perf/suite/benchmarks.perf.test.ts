@@ -172,6 +172,46 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
     );
   });
 
+  test('P12-T9 selection → Details + Changed Files panes (recorded, no §13 budget)', async function () {
+    this.timeout(120_000);
+    // The four-pane window populates lazily: selecting a commit pushes ids and
+    // each right pane fetches its own data — log/details and log/changedFiles
+    // both resolve through getCommitDetails host-side. Measure the concurrent
+    // pair on a fresh service (no details cache), the way a first click lands.
+    const head1 = (
+      await core.git.exec(repoLog.root, ['rev-parse', 'HEAD~1'])
+    ).stdout.trim();
+    const times: number[] = [];
+    for (let run = 0; run < 5; run++) {
+      const svc = new LogService(repoLog);
+      const t0 = performance.now();
+      const [details, files] = await Promise.all([
+        svc.getCommitDetails(head1),
+        svc.getCommitDetails(head1),
+      ]);
+      times.push(performance.now() - t0);
+      assert.ok(details && files, 'both pane feeds resolved');
+    }
+    results['selectionToPanes'] = { medianMs: round(median(times)) };
+  });
+
+  test('P12-T9 Changed Files @ 5000-file commit (recorded, no §13 budget)', async function () {
+    this.timeout(120_000);
+    // HEAD of the log fixture is the 5 000-file wide commit (runPerf.ts).
+    const wideSha = (await core.git.exec(repoLog.root, ['rev-parse', 'HEAD'])).stdout.trim();
+    const times: number[] = [];
+    let fileCount = 0;
+    for (let run = 0; run < 5; run++) {
+      const svc = new LogService(repoLog);
+      const t0 = performance.now();
+      const details = await svc.getCommitDetails(wideSha);
+      times.push(performance.now() - t0);
+      fileCount = details?.files.length ?? 0;
+    }
+    assert.strictEqual(fileCount, 5000, 'wide commit reports all 5000 files');
+    results['changedFiles5000'] = { medianMs: round(median(times)), files: fileCount };
+  });
+
   test('P9 snapshot overhead @ 2k dirty files (recorded, no §13 budget)', async function () {
     this.timeout(300_000);
     const dirtyAll = (tag: string): void => {

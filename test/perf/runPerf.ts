@@ -47,6 +47,12 @@ async function main(): Promise<void> {
     for (let l = 1; l <= 1000; l++) blame += `line ${c * 1000 + l} from commit ${c}\n`;
     repoLog.commit(`blame chunk ${c}`, { 'blame.txt': blame });
   }
+  // P12-T9: one 5 000-file commit at HEAD — the Changed Files pane's wide case.
+  const wide: Record<string, string> = {};
+  for (let i = 0; i < 5000; i++) {
+    wide[`wide/dir${Math.floor(i / 200)}/w${i}.txt`] = `w${i}\n`;
+  }
+  repoLog.commit('wide commit (5000 files)', wide);
   console.log(`[perf] log fixture ready in ${Date.now() - t} ms`);
 
   console.log(`[perf] building ${STATUS_FILES.toLocaleString()}-file status fixture…`);

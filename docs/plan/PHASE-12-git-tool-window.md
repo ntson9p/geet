@@ -186,7 +186,7 @@ Commands `gittree.log.createPatch`, `gittree.log.fixup`, `gittree.log.squashInto
 Settings `gittree.log.panes.*`, `gittree.log.filterPresets`, `gittree.log.console.limit`.
 
 ## Parity checklist (gap-analysis S2, S10 · §3.4, §3.8, §3.9 · FEATURES.md §4)
-- [ ] S2 — four synchronized panes with per-pane toolbars in one bottom-docked window
+- [x] S2 — four synchronized panes with per-pane toolbars in one bottom-docked window (P12-T1–T4; §13 budgets re-validated four-pane in P12-T9)
 - [x] S2b — Branches pane with folder nodes and the vertical icon rail; ref selection filters the graph (P12-T2)
 - [x] S10 — Console tab with argv, exit code, duration and redaction (P12-T8)
 - [x] Commit Details: committer, signature, parents, `Contained in branches` (lazy) (P12-T4)

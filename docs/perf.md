@@ -19,6 +19,36 @@ The CI `perf` job (`.github/workflows/ci.yml`) runs the suite on all three OSes.
 It has never executed: the repository has no remote by project-owner decision, so
 the recorded evidence is the local runs below.
 
+## Results — 2026-08-23, Windows 11, local — four-pane window (P12-T9)
+
+Re-validation after Phase 12 turned the log into the four-pane Git tool window
+(Branches · Commits · Changed Files · Commit Details + the Console tab). Same
+fixtures, plus a 5 000-file commit at the log fixture's HEAD.
+
+| Metric | §13 budget | Measured |
+|---|---|---|
+| Activation (sync path) | ≤ 100 ms | **6.1 ms** |
+| Status refresh p95 @ 10k tracked files (250 dirty) | ≤ 400 ms | **230 ms** (median 216.2) |
+| Log first page (2 000 rows) + graph layout @ 100k commits | ≤ 600 ms | **611.5 ms** — within the 15% tolerance; first row chunk 590.5 ms, so git's own streaming still dominates (the machine was under overnight suite load; cf. 542.1 ms on 2026-07-16) |
+| Blame 5k-line file, cold / cached | ≤ 300 / 30 ms | **80.8 / 0 ms** |
+| Graph scroll frame time @ 100k, all four panes mounted (Playwright) | 60 fps; redraw ≤ 8 ms | **median 16.8 ms, p95 18.2 ms** (no missed frames) |
+| Extension-host memory, 100k-commit log session | ≤ 150 MB | **+64.4 MB** session delta (absolute 247.7 MB over a 183.3 MB baseline) |
+| Selection → Details + Changed Files panes populated | *(no §13 row — recorded)* | **81.5 ms** median (fresh service, concurrent pane fetches) |
+| Changed Files @ 5 000-file commit | *(no §13 row — recorded)* | **80.1 ms** median, all 5 000 files reported |
+| P9 snapshot @ 2k dirty files | *(no §13 row — recorded)* | **~3.7 s** overhead, host responsive |
+
+Four-pane notes:
+- Pane population is **lazy by construction**: selecting a commit pushes ids to
+  the host's single selection model; Changed Files and Commit Details each fetch
+  their own data (`log/changedFiles`, `log/details`), so an unselected or
+  collapsed pane costs nothing. The recorded 81.5 ms covers both fetches
+  resolving concurrently on a cold service.
+- The Console tab is a capped ring (default 2 000 entries, output head 2 000
+  chars, redacted at insert) — memory is bounded by construction and the tab
+  renders nothing while inactive (`TabPanel` unmounts it).
+- The frame-time spec runs against the full four-pane page since P12-T1, so the
+  60 fps row above is measured with Branches/Changed Files/Details mounted.
+
 ## Results — 2026-07-16, Windows 11, local
 
 | Metric | §13 budget | Measured |

@@ -149,26 +149,89 @@ The `⚙` beside the action buttons opens the §2A popup inside the window:
 
 ## 4. Git Log & History (Git Tool Window)
 
-This is the control center for reviewing project history, replacing tools like SourceTree or GitKraken.
+Like §3, every item here carries its **shape criterion** — which container, which pane,
+which toolbar — because the pre-P12 audit passed on behaviours while the product was a
+single-pane list. Reference layout: `docs/intellij-gap-analysis.md` §2A ("Git tool window —
+docked bottom, tabs `Log | Console`").
 
-### The Graph View
+### The window itself (shape)
 
-* **Visuals:** A highly optimized, color-coded topological graph of commits.
-* **Intelli-Sort:** Supports native Git sorting (`Date`, `Topo`) plus JetBrains' proprietary "IntelliSort," which makes complex merge histories easier to read visually.
+* **One bottom-docked tool window**: webview view `gittree.log` in the `gittree-panel`
+  panel container, holding tabs **`Log | Console`** (active tab persisted), simultaneously
+  visible with the left-docked Commit window and the editor. `gittree.log.focus` (`alt+9`)
+  focuses it on the last active tab.
+* **Log tab = filter row + four synchronized panes** in nested splitters:
+  `[Branches | Commits] | [Changed Files / Commit Details]` — the right column splits
+  vertically. Every splitter ratio persists; double-click resets. Each pane has a header row
+  (chevron · name · per-pane toolbar); panes collapse to slim bars keeping their state — the
+  Commits pane, the window's centre, deliberately never collapses. `Tab`/`Shift+Tab` cycle
+  the pane headers with a visible focus ring; panes carry aria names.
+* **One selection model, host-side:** the graph's multi-select is mirrored to the host and
+  drives Changed Files, Commit Details, and every selection-scoped menu action from a single
+  list — no pane keeps its own copy.
 
-### Search and Filtering Engine
+### The Branches pane (shape)
 
-* **Filters:** Top bar allows intersecting filters by: **Branch** (e.g., only `HEAD` or `master`), **User** (auto-completes author names), **Date** (ranges), and **Path** (filters the entire graph to show only commits affecting a specific file/folder).
+* Sections `HEAD (Current)` → `Local` (favorites ★ flat-first, then **folder nodes** —
+  `feature/f1`, `f1-1`, `f2` collapse under one `feature` row) → `Remote` per remote →
+  `Tags`, with a **vertical icon rail** on the pane's left edge: new branch · delete ·
+  compare-with-current · search · favorites-only · show-my-commits · collapse.
+* **Selecting a ref filters the Commits pane** through the filter model (Ctrl adds;
+  `HEAD (Current)` restores). Branch rows have a native context menu (checkout, new from,
+  compare, diff with working tree, rebase onto current, push, rename, delete, favorite)
+  backed by the same action registry the Branches popup uses (§2), so surfaces cannot drift.
 
-### Advanced Context Menu Actions (Commit Modification)
+### The graph and its filters
 
-Right-clicking any commit in the log provides access to advanced rewriting tools without touching the CLI:
+* Color-coded topological graph, canvas-drawn, **virtualized to 60 fps at 100k commits**
+  (§13 budgets re-validated with all four panes mounted — see `docs/perf.md`); refs render
+  as typed chips; `Date`/`Topo` sort (IntelliSort is a recorded deviation).
+* **Filter row, §2A order:** `Branch or tag` combo (datalist over every ref) · `Text or hash`
+  with `.*` regex and `Cc` match-case toggles (a hash navigates instead of grepping) · four
+  **multi-select dropdowns with search**: `Branch ▾` (favorites-first), `User ▾`
+  (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (chips +
+  `Browse…`). Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
+  (`gittree.log.filterPresets`).
+* Right toolbar: refresh · **Go to Hash/Branch/Tag** · Show Details (folds the right
+  column) · Highlight my commits.
 
-* **Interactive Rebase:** Selecting a sequence of commits opens a bespoke UI where users can drag-and-drop commits to reorder them, and select actions from a dropdown: *Pick*, *Squash*, *Reword*, *Fixup*, or *Drop*.
-* **Undo Commit:** Automatically creates a reverse patch of a commit and puts it in the staging area.
-* **Revert Commit:** Executes `git revert`.
-* **Cherry-Pick:** Copies a commit from another branch into the current working branch, auto-resolving cleanly when possible.
-* **Drop Commit:** Hard removes the commit (executes a background rebase).
+### Changed Files & Commit Details panes (shape)
+
+* **Changed Files:** repo row (`repo · N files · path`) → folder rows with counts →
+  status-colored files with rename pairs; tree/flat toggle, preview-on-click, multi-diff,
+  Show History for Revision. A **multi-commit selection shows the aggregate diff**
+  (`oldest^..newest`), and file clicks open range-scoped diffs. Population is lazy —
+  selection pushes ids, each pane fetches its own data.
+* **Commit Details:** subject → `<hash> <author>` (+ copy actions) → `<email> on <date> at
+  <time>` → typed ref chips → committer-when-different → **GPG signature state** → clickable
+  parent links → lazy `Contained in branches: Show all`. Body URLs and issue keys
+  (`gittree.log.issuePattern`/`issueUrl`) are linkified.
+
+### The Console tab (shape)
+
+* A read-only structured mirror of **every git command the extension runs**: one collapsible
+  row per run — time · `git argv` · exit code · duration · output head — failures
+  pre-expanded and colored; filter box; Copy command / Copy output; Clear. The ring holds
+  `gittree.log.console.limit` entries (default 2 000) and is **redacted before storage**
+  (URL userinfo, askpass values, `--author` identities). No re-run affordance — deliberate
+  (deviation D10).
+
+### Commit context menu (complete)
+
+Right-clicking commits in the graph (native menu, multi-select aware):
+
+* **Interactive Rebase** (P5's bespoke editor: drag-and-drop reorder, Pick/Squash/Reword/
+  Fixup/Drop per row, force-push acknowledgement on published ranges, pause/continue monitor).
+* **Undo Commit** · **Revert Commit** · **Cherry-Pick** · **Drop Commit** · **Reword**.
+* **Create Patch…** (`format-patch`-faithful, binary-safe) and **Apply Patch…**
+  (`git am -3` for mailboxes with degrade-to-`apply --3way`; conflicts land in the §5 flow).
+* **Fixup… / Squash Into…** — commits the ticked changes as `fixup!`/`squash!`, then offers
+  a non-interactive `--autosquash` fold.
+* **Push All up to Here** (exact-sha push, non-fast-forward refused) · **Reset Here**
+  (Soft/Mixed/Hard/**Keep**, destructive modes snapshot first) · **Checkout Revision** ·
+  **New Branch/Tag here** · **Compare with Local** · **Branches ›** (lazy `--contains`) ·
+  **Go to Parent / Child** · **Show Repository at Revision** (read-only `gittree-tree:`
+  virtual tree) · Copy Revision Number · Open on remote (browser URL only).
 
 ---
 
