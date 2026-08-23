@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { Phase01Registry } from '../../../src/scm/register';
+import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
+import type { DiffEntry } from '../../../src/diff/diffSession';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
@@ -264,6 +266,124 @@ suite('P14 owning the SCM surface', () => {
       undefined,
       'Core still exposes a mode manager',
     );
+  });
+
+  // ---- T7: cross-file change navigation ------------------------------------
+
+  suite('T7 diff navigation', () => {
+    let repoRoot: string;
+    let fsRoot: string;
+    let reg: { sessions: { open(e: readonly DiffEntry[], i: number): Promise<void> }; lastHint?: string };
+    const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
+
+    /** Where the cursor is, and which file the open diff is showing. */
+    const at = (): { title: string; line: number } | undefined => {
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      const editor = vscode.window.activeTextEditor;
+      if (!tab || !editor) return undefined;
+      return { title: tab.label, line: editor.selection.active.line };
+    };
+
+    suiteSetup(async function () {
+      this.timeout(90_000);
+      const core = await activateGitTree();
+      repoRoot = workspaceRepoC();
+      fsRoot = core.repoForPath(repoRoot)!.root;
+      reg = core.debugRegistry.get('phase14') as typeof reg;
+      assert.ok(reg, 'phase14 diff registry missing');
+    });
+
+    teardown(async () => {
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    });
+
+    test('walks every change of every file, arms at each boundary, and never wraps', async function () {
+      this.timeout(120_000);
+      // Three files, two well-separated changes each.
+      const body = Array.from({ length: 20 }, (_, i) => `row ${i + 1}`).join('\n') + '\n';
+      const names = ['p14n1.txt', 'p14n2.txt', 'p14n3.txt'];
+      for (const n of names) fs.writeFileSync(path.join(fsRoot, n), body);
+      git('add', ...names);
+      git('commit', '-m', 'p14 nav base');
+      for (const n of names) {
+        fs.writeFileSync(
+          path.join(fsRoot, n),
+          body.replace('row 4', 'row 4 EDITED').replace('row 15', 'row 15 EDITED'),
+        );
+      }
+      git('add', ...names);
+      git('commit', '-m', 'p14 nav edits');
+      const head = git('rev-parse', 'HEAD').trim();
+
+      const entries: DiffEntry[] = names.map((n) => ({
+        original: makeRevUri(fsRoot, n, `${head}^`),
+        modified: makeRevUri(fsRoot, n, head),
+        title: n,
+      }));
+      await reg.sessions.open(entries, 0);
+      await waitFor(() => at() !== undefined, 15_000);
+
+      // VS Code parks the cursor on the first difference when a diff opens, so
+      // starting the walk from wherever it lands would skip a change. Reset to
+      // the top and let the first press find change one.
+      const start = vscode.window.activeTextEditor!;
+      start.selection = new vscode.Selection(0, 0, 0, 0);
+      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await waitFor(() => (at()?.line ?? -1) === 3, 10_000);
+
+      const visited: string[] = [];
+      for (let step = 0; step < 12; step++) {
+        const before = at()!;
+        visited.push(`${before.title}:${before.line}`);
+        await vscode.commands.executeCommand('gittree.diff.nextChange');
+        // Give a crossing time to open the next diff.
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      // Each file contributes rows 3 and 14; a boundary shows as the SAME
+      // position repeated, because the first press arms instead of jumping.
+      // That repetition is the feature, not a stutter.
+      const unique = visited.filter((v, i) => i === 0 || v !== visited[i - 1]);
+      assert.deepStrictEqual(
+        unique,
+        [
+          'p14n1.txt:3',
+          'p14n1.txt:14',
+          'p14n2.txt:3',
+          'p14n2.txt:14',
+          'p14n3.txt:3',
+          'p14n3.txt:14',
+        ],
+        `walk was ${visited.join(' -> ')}`,
+      );
+      assert.ok(
+        visited.filter((v) => v === 'p14n1.txt:14').length >= 2,
+        'the last change of a file must be visited twice: once reached, once arming',
+      );
+
+      // At the very end it must say so and stay put, never wrap to the top.
+      const end = at()!;
+      assert.strictEqual(end.title, 'p14n3.txt');
+      assert.strictEqual(end.line, 14, 'navigation wrapped instead of stopping');
+      assert.match(String(reg.lastHint), /Last change/u);
+
+      for (const n of names) git('rm', '-q', '-f', n);
+      git('commit', '-m', 'p14 nav cleanup');
+    });
+
+    test('the diff toolbar controls are scoped to GitTree diffs', () => {
+      const menus = contributes()['menus'] as Record<string, Array<{ command?: string; when?: string }>>;
+      const ours = [...(menus['editor/title/navigation'] ?? []), ...(menus['editor/title'] ?? [])].filter(
+        (e) => String(e.command ?? '').startsWith('gittree.diff.'),
+      );
+      assert.strictEqual(ours.length, 5, 'expected 2 arrows + 3 view toggles');
+      for (const e of ours) {
+        // Unscoped, these would appear on every diff in the window, including
+        // ones GitTree knows nothing about.
+        assert.match(String(e.when), /isInDiffEditor/u);
+        assert.match(String(e.when), /gittree\.diff\.active/u);
+      }
+    });
   });
 
   // ---- T3: GitTree's own change bars ---------------------------------------

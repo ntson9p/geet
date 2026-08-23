@@ -1499,6 +1499,36 @@
         "command": "gittree.change.showActions",
         "title": "%gittree.command.change.showActions.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.diff.nextChange",
+        "title": "%gittree.command.diff.nextChange.title%",
+        "category": "GitTree",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "gittree.diff.prevChange",
+        "title": "%gittree.command.diff.prevChange.title%",
+        "category": "GitTree",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "gittree.diff.toggleSideBySide",
+        "title": "%gittree.command.diff.toggleSideBySide.title%",
+        "category": "GitTree",
+        "icon": "$(editor-layout)"
+      },
+      {
+        "command": "gittree.diff.toggleIgnoreWhitespace",
+        "title": "%gittree.command.diff.toggleIgnoreWhitespace.title%",
+        "category": "GitTree",
+        "icon": "$(whitespace)"
+      },
+      {
+        "command": "gittree.diff.toggleCollapseUnchanged",
+        "title": "%gittree.command.diff.toggleCollapseUnchanged.title%",
+        "category": "GitTree",
+        "icon": "$(fold)"
       }
     ],
     "submenus": [
@@ -1839,6 +1869,21 @@
           "command": "gittree.merge.abortFile",
           "when": "resourceScheme == gittree-merge",
           "group": "navigation@5"
+        },
+        {
+          "command": "gittree.diff.toggleSideBySide",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "1_gittree_diff@1"
+        },
+        {
+          "command": "gittree.diff.toggleIgnoreWhitespace",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "1_gittree_diff@2"
+        },
+        {
+          "command": "gittree.diff.toggleCollapseUnchanged",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "1_gittree_diff@3"
         }
       ],
       "view/title": [
@@ -2464,6 +2509,18 @@
           "when": "resourceScheme == file",
           "group": "2_gittree@4"
         }
+      ],
+      "editor/title/navigation": [
+        {
+          "command": "gittree.diff.prevChange",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.diff.nextChange",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "navigation@2"
+        }
       ]
     },
     "keybindings": [
@@ -2560,6 +2617,16 @@
         "key": "ctrl+enter",
         "mac": "cmd+enter",
         "when": "focusedView == 'gittree.commit'"
+      },
+      {
+        "command": "gittree.diff.nextChange",
+        "key": "f7",
+        "when": "config.gittree.keymap.intellij && gittree.diff.active && editorTextFocus"
+      },
+      {
+        "command": "gittree.diff.prevChange",
+        "key": "shift+f7",
+        "when": "config.gittree.keymap.intellij && gittree.diff.active && editorTextFocus"
       }
     ],
     "walkthroughs": [

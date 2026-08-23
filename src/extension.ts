@@ -9,6 +9,7 @@ import { registerPhase05HistoryRewriting } from './rewrite/register';
 import { registerPhase10Hardening } from './hardening/register';
 import { registerPhase01 } from './scm/register';
 import { registerPhase13Dialogs } from './scm/dialogs/register';
+import { registerDiffControls } from './diff/register';
 import { registerPhase07StashShelve } from './stash/register';
 import { DEMO_METHODS } from './shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/webviewHost';
@@ -81,6 +82,8 @@ function registerPhases(
   // rather than adding one, so their views hang off the phase that owns them.
   // -- registerPhase13 (Dialogs, popups, action hub) -----------------------
   registerPhase13Dialogs(context, core);
+  // -- registerPhase14 (Diff controls + cross-file change navigation) ------
+  registerDiffControls(context, core);
 }
 
 /** P0 contribution: `gittree.debug.showState` dumps model JSON to an untitled doc. */

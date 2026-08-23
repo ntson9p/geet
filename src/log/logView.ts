@@ -21,6 +21,7 @@ import {
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
+import type { DiffEntry } from '../diff/diffSession';
 import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
 import { GraphLayout } from './graphLayout/layout';
@@ -56,6 +57,12 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private consoleSub: vscode.Disposable | undefined;
   /** Boot breadcrumbs (integration-test observability). */
   readonly debugTrail: string[] = [];
+  /**
+   * P14-T7: the Changed Files pane's current contents, which double as the
+   * diff *sequence* — clicking a file opens it as position i of N so "next
+   * change" can leave it for the next file instead of wrapping to its top.
+   */
+  private lastChangedFiles: CommitFileDto[] = [];
 
   /** Multi-select in webview order — what commit actions operate on. */
   get selectedCommits(): readonly string[] {
@@ -166,15 +173,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       if (!session || !Array.isArray(shas) || shas.length === 0) return { files: [] };
       if (shas.length === 1) {
         const details = await session.service.getCommitDetails(shas[0]!);
-        return {
-          files:
-            details?.files.map((f) => ({
-              status: f.status,
-              path: f.path,
-              ...(f.origPath !== undefined ? { origPath: f.origPath } : {}),
-            })) ?? [],
-          newest: shas[0]!,
-        };
+        const files =
+          details?.files.map((f) => ({
+            status: f.status,
+            path: f.path,
+            ...(f.origPath !== undefined ? { origPath: f.origPath } : {}),
+          })) ?? [];
+        // P14-T7: the pane's contents are the diff sequence.
+        this.lastChangedFiles = files;
+        return { files, newest: shas[0]! };
       }
       // Selection order is click order; the range is graph order.
       const order = new Map(session.rows.map((r, i) => [r.sha, i] as const));
@@ -182,6 +189,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const newest = sorted[0]!;
       const oldest = sorted[sorted.length - 1]!;
       const aggregate = await session.service.getAggregateFiles(oldest, newest);
+      this.lastChangedFiles = aggregate.files;
       return { files: aggregate.files, newest, base: aggregate.base };
     });
 
@@ -728,9 +736,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const repoRoot = session.repo.root;
     // P12-T3: an aggregate selection diffs the whole range, not one commit.
     const base = baseRev ?? `${sha}^`;
-    const title = `${path.posix.basename(file.path)} (${
-      baseRev !== undefined ? `${baseRev.slice(0, 7)}..` : ''
-    }${sha.slice(0, 7)})`;
+    const titleOf = (f: CommitFileDto): string =>
+      `${path.posix.basename(f.path)} (${
+        baseRev !== undefined ? `${baseRev.slice(0, 7)}..` : ''
+      }${sha.slice(0, 7)})`;
     if (file.status.startsWith('A')) {
       await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, sha), { preview: true });
       return;
@@ -739,11 +748,36 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, base), { preview: true });
       return;
     }
+
+    // P14-T7: open through the sequence, not as a standalone pair. The pane the
+    // user clicked in IS the sequence, so "next change" can leave this file for
+    // the next one instead of wrapping to the top of it. Added and deleted
+    // files open as plain documents (there is nothing to diff), so they are
+    // excluded from the sequence rather than being dead stops inside it.
+    const p14 = this.core.debugRegistry.get('phase14') as
+      | { sessions: { open(entries: readonly DiffEntry[], index: number): Promise<void> } }
+      | undefined;
+    const diffable = this.lastChangedFiles.filter(
+      (f) => !f.status.startsWith('A') && !f.status.startsWith('D'),
+    );
+    const entries: DiffEntry[] = (diffable.length > 0 ? diffable : [file]).map((f) => ({
+      original: makeRevUri(repoRoot, f.origPath ?? f.path, base),
+      modified: makeRevUri(repoRoot, f.path, sha),
+      title: titleOf(f),
+    }));
+    const index = Math.max(
+      0,
+      entries.findIndex((e) => e.modified.toString() === makeRevUri(repoRoot, file.path, sha).toString()),
+    );
+    if (p14) {
+      await p14.sessions.open(entries, index);
+      return;
+    }
     await vscode.commands.executeCommand(
       'vscode.diff',
-      makeRevUri(repoRoot, file.origPath ?? file.path, base),
-      makeRevUri(repoRoot, file.path, sha),
-      title,
+      entries[index]!.original,
+      entries[index]!.modified,
+      entries[index]!.title,
     );
   }
 
