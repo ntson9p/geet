@@ -44,11 +44,39 @@ import {
   type OpDialogDeps,
   type OpOutcome,
 } from './opsDialogs';
+import {
+  applyCherryPickResult,
+  applyCloneResult,
+  applyPatchResult,
+  applyStashResult,
+  applyUnstashResult,
+  buildCherryPickParams,
+  buildPatchParams,
+  buildRemotesParams,
+  buildStashParams,
+  buildUnstashParams,
+  checkCloneDirectory,
+  listRemoteRows,
+  remotesHandlers,
+  showApplyPatchDialog,
+  showCherryPickDialog,
+  showCloneDialog,
+  showRemotesDialog,
+  showStashDialog,
+  showUnstashDialog,
+  unstashFiles,
+  type UnstashDeps,
+} from './moreDialogs';
 import type {
+  ApplyPatchDialogResultDto,
+  CherryPickDialogResultDto,
+  CloneDialogResultDto,
   MergeDialogResultDto,
   RebaseDialogResultDto,
   ResetDialogResultDto,
   RollbackDialogResultDto,
+  StashDialogResultDto,
+  UnstashDialogResultDto,
   UpdateDialogResultDto,
 } from '../../shared/protocol';
 
@@ -77,6 +105,27 @@ export interface Phase13Registry {
   buildRollbackParams: typeof buildRollbackParams;
   applyRollbackResult: (repo: RepoHandle, result: RollbackDialogResultDto) => Promise<OpOutcome>;
   rollbackFileDiff: (repo: RepoHandle, relPath: string) => ReturnType<typeof rollbackFileDiff>;
+  /** P13-T4 test seams. */
+  buildCherryPickParams: (
+    repo: RepoHandle,
+    seedShas?: readonly string[],
+  ) => ReturnType<typeof buildCherryPickParams>;
+  applyCherryPickResult: (
+    repo: RepoHandle,
+    result: CherryPickDialogResultDto,
+  ) => Promise<OpOutcome>;
+  buildStashParams: (repo: RepoHandle) => ReturnType<typeof buildStashParams>;
+  applyStashResult: (repo: RepoHandle, result: StashDialogResultDto) => Promise<OpOutcome>;
+  buildUnstashParams: (repo: RepoHandle) => ReturnType<typeof buildUnstashParams>;
+  applyUnstashResult: (repo: RepoHandle, result: UnstashDialogResultDto) => Promise<OpOutcome>;
+  unstashFiles: (repo: RepoHandle, index: number) => ReturnType<typeof unstashFiles>;
+  buildPatchParams: typeof buildPatchParams;
+  applyPatchResult: (repo: RepoHandle, result: ApplyPatchDialogResultDto) => Promise<OpOutcome>;
+  checkCloneDirectory: typeof checkCloneDirectory;
+  applyCloneResult: (result: CloneDialogResultDto) => Promise<OpOutcome>;
+  buildRemotesParams: (repo: RepoHandle) => ReturnType<typeof buildRemotesParams>;
+  listRemoteRows: (repo: RepoHandle) => ReturnType<typeof listRemoteRows>;
+  remotesHandlers: (repo: RepoHandle) => Record<string, (params: unknown) => unknown>;
 }
 
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
@@ -170,6 +219,57 @@ export function registerPhase13Dialogs(
     }),
   );
 
+  // P13-T4: the remaining option-bearing dialogs. `Manage Remotes` had no
+  // command at all before this; the others replace QuickPick chains.
+  interface ChangelistsSeam {
+    getLists(): Array<{ id: string; name: string }>;
+    moveFiles(relPaths: readonly string[], targetId: string): void;
+  }
+  const changelistsFor = (repo: RepoHandle): ChangelistsSeam | undefined => {
+    const p3 = core.debugRegistry.get('phase03') as
+      | { changelistsFor?: (r: RepoHandle) => ChangelistsSeam }
+      | undefined;
+    return p3?.changelistsFor?.(repo);
+  };
+  const unstashDeps: UnstashDeps = {
+    ...deps,
+    changelists: (repo) => changelistsFor(repo)?.getLists() ?? [],
+    assignChangelist: (repo, listId, paths) => {
+      changelistsFor(repo)?.moveFiles(paths, listId);
+    },
+  };
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gittree.cherryPick.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (!repo) return;
+      const seed =
+        arg !== null && typeof arg === 'object' && 'sha' in arg ? [String(arg.sha)] : undefined;
+      await showCherryPickDialog(opDeps, repo, seed);
+    }),
+    vscode.commands.registerCommand('gittree.stash.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (repo) await showStashDialog(opDeps, repo);
+    }),
+    vscode.commands.registerCommand('gittree.unstash.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (repo) await showUnstashDialog(unstashDeps, repo);
+    }),
+    vscode.commands.registerCommand('gittree.patch.applyDialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (!repo) return;
+      const seed = arg instanceof vscode.Uri ? arg.fsPath : undefined;
+      await showApplyPatchDialog(opDeps, repo, seed);
+    }),
+    // Clone is the one dialog that works with no repository open.
+    vscode.commands.registerCommand('gittree.clone.dialog', async () => {
+      await showCloneDialog(opDeps);
+    }),
+    vscode.commands.registerCommand('gittree.remotes.manage', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (repo) await showRemotesDialog(opDeps, repo);
+    }),
+  );
+
   const registry: Phase13Registry = {
     buildPushParams,
     applyPushResult: (result) => applyPushResult(deps, result),
@@ -189,6 +289,20 @@ export function registerPhase13Dialogs(
     buildRollbackParams,
     applyRollbackResult: (repo, result) => applyRollbackResult(opDeps, repo, result),
     rollbackFileDiff: (repo, relPath) => rollbackFileDiff(core, repo, relPath),
+    buildCherryPickParams: (repo, seedShas) => buildCherryPickParams(core, repo, seedShas),
+    applyCherryPickResult: (repo, result) => applyCherryPickResult(opDeps, repo, result),
+    buildStashParams: (repo) => buildStashParams(core, repo),
+    applyStashResult: (repo, result) => applyStashResult(opDeps, repo, result),
+    buildUnstashParams: (repo) => buildUnstashParams(unstashDeps, repo),
+    applyUnstashResult: (repo, result) => applyUnstashResult(unstashDeps, repo, result),
+    unstashFiles: (repo, index) => unstashFiles(core, repo, index),
+    buildPatchParams,
+    applyPatchResult: (repo, result) => applyPatchResult(opDeps, repo, result),
+    checkCloneDirectory,
+    applyCloneResult: (result) => applyCloneResult(core, result),
+    buildRemotesParams: (repo) => buildRemotesParams(core, repo),
+    listRemoteRows: (repo) => listRemoteRows(core, repo),
+    remotesHandlers: (repo) => remotesHandlers(opDeps, repo),
   };
   core.debugRegistry.set('phase13', registry);
   return registry;

@@ -8,12 +8,23 @@
 // The P13 dialogs' option shapes live with their argv builders (which are
 // vscode-free and unit-tested); importing the types here keeps one definition
 // instead of a hand-mirrored copy that can drift from what actually runs.
+import type { CherryPickOptions } from '../scm/dialogs/cherryPickArgs';
+import type { CloneOptions } from '../scm/dialogs/cloneArgs';
 import type { MergeOptions } from '../scm/dialogs/mergeArgs';
 import type { RebaseOptions } from '../scm/dialogs/rebaseArgs';
 import type { ResetMode } from '../scm/dialogs/resetArgs';
 import type { RollbackKind } from '../scm/dialogs/rollbackPlan';
+import type { StashPushArgsOptions } from '../scm/dialogs/stashArgs';
 
-export type { MergeOptions, RebaseOptions, ResetMode, RollbackKind };
+export type {
+  CherryPickOptions,
+  CloneOptions,
+  MergeOptions,
+  RebaseOptions,
+  ResetMode,
+  RollbackKind,
+  StashPushArgsOptions,
+};
 
 export const PROTOCOL_VERSION = 1 as const;
 
@@ -603,6 +614,158 @@ export interface RollbackFileDiffDto {
   /** Binary, too large, or otherwise not line-diffable. */
   wholeFileOnly: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Cherry-pick · Stash · Unstash · Apply Patch · Clone · Remotes (P13-T4)
+// ---------------------------------------------------------------------------
+
+export interface CherryPickCommitDto {
+  sha: string;
+  subject: string;
+  authorName: string;
+  authorTime: number;
+  /** Merge commits need `-m <parent>`; the dialog only offers it for these. */
+  parentCount: number;
+  /** Branch/ref the commit was found on, for the list's dim suffix. */
+  ref?: string;
+}
+
+export interface CherryPickDialogParamsDto extends OpDialogBaseDto {
+  commits: CherryPickCommitDto[];
+  /** `gittree.cherryPick.recordOrigin` — the `-x` default. */
+  recordOrigin: boolean;
+}
+
+export interface CherryPickDialogResultDto {
+  options: CherryPickOptions;
+}
+
+export interface StashDialogParamsDto extends OpDialogBaseDto {
+  /** git ≥ 2.35 — `--staged` is offered only when the build supports it. */
+  canStashStaged: boolean;
+  dirtyCount: number;
+  untrackedCount: number;
+  stagedCount: number;
+  includeUntrackedDefault: boolean;
+}
+
+export interface StashDialogResultDto {
+  options: StashPushArgsOptions;
+}
+
+export interface UnstashEntryDto {
+  index: number;
+  message: string;
+  branch?: string;
+  /** Unix seconds. */
+  date?: number;
+}
+
+export interface UnstashFileDto {
+  path: string;
+  status: string;
+}
+
+export interface UnstashDialogParamsDto extends OpDialogBaseDto {
+  entries: UnstashEntryDto[];
+  /** Changelists the restored work can land in (P3) — IntelliJ's target selector. */
+  changelists: Array<{ id: string; name: string }>;
+  activeChangelistId: string;
+}
+
+export interface UnstashDialogResultDto {
+  index: number;
+  pop: boolean;
+  reinstateIndex: boolean;
+  changelistId: string;
+}
+
+export const UNSTASH_DIALOG_METHODS = {
+  /** webview → host request: the files in one stash entry. Params `{index}`. */
+  files: 'unstashDialog/files',
+  /** webview → host request: one file's diff inside a stash. Params `{index, relPath}`. */
+  fileDiff: 'unstashDialog/fileDiff',
+} as const;
+
+export interface PatchFileSummaryDto {
+  relPath: string;
+  hunks: number;
+  status: string;
+  /** The patch touches a file that is not in the worktree. */
+  missing: boolean;
+}
+
+export interface ApplyPatchDialogParamsDto extends OpDialogBaseDto {
+  /** Empty until the user picks a file. */
+  patchPath: string;
+  summary: PatchFileSummaryDto[];
+  isMailbox: boolean;
+  /** Parse/read failure, shown instead of the summary. */
+  error?: string;
+}
+
+export interface ApplyPatchDialogResultDto {
+  patchPath: string;
+  threeWay: boolean;
+  reverse: boolean;
+  pDepth: number;
+  whitespaceFix: boolean;
+  /** Force a content-only apply even for a mailbox patch. */
+  contentOnly: boolean;
+}
+
+export const PATCH_DIALOG_METHODS = {
+  /** webview → host request: open the file picker; returns fresh params. */
+  choose: 'patchDialog/choose',
+  /** webview → host request: re-read the summary for `{patchPath}`. */
+  inspect: 'patchDialog/inspect',
+} as const;
+
+export interface CloneDialogParamsDto {
+  /** Directory the destination field starts in. */
+  defaultParent: string;
+  showCommandLine: boolean;
+}
+
+export interface CloneDialogResultDto {
+  options: CloneOptions;
+  /** What to do with the clone once it exists. */
+  openAfter: 'window' | 'add' | 'none';
+}
+
+export const CLONE_DIALOG_METHODS = {
+  /** webview → host request: native folder picker; returns `{directory}`. */
+  browse: 'cloneDialog/browse',
+  /** webview → host request: is `{directory}` usable? Returns `{ok, reason?}`. */
+  checkDirectory: 'cloneDialog/checkDirectory',
+} as const;
+
+export interface RemoteRowDto {
+  name: string;
+  fetchUrl: string;
+  /** Empty means "same as fetch". */
+  pushUrl: string;
+}
+
+export interface RemotesDialogParamsDto extends OpDialogBaseDto {
+  remotes: RemoteRowDto[];
+}
+
+export interface RemotesOpResultDto {
+  ok: boolean;
+  message?: string;
+  /** The table after the operation — the dialog re-renders from this. */
+  remotes: RemoteRowDto[];
+}
+
+export const REMOTES_DIALOG_METHODS = {
+  /** webview → host request: add or edit. Params `{before?, after}`. */
+  save: 'remotesDialog/save',
+  /** webview → host request: `{name}`. */
+  remove: 'remotesDialog/remove',
+  /** webview → host request: `git remote prune <name>`. */
+  prune: 'remotesDialog/prune',
+} as const;
 
 // ---------------------------------------------------------------------------
 // Log view (P4-T3/T4) — host ⇄ webview DTOs

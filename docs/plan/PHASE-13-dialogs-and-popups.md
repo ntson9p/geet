@@ -226,14 +226,15 @@ Settings `gittree.update.strategy`, `gittree.push.runHooks`, `gittree.push.tags`
 `gittree.dialogs.showCommandLine`.
 
 ## Parity checklist (gap-analysis S3, S4, S6, S7 · §3.2, §3.5, §3.7, §3.10)
-- [ ] S4 — Push · Update Project · Merge · Rebase · Reset · Rollback · Cherry-pick · Stash · Unstash · Apply Patch · Clone · Manage Remotes all have option-bearing dialogs
+- [x] S4 — Push · Update Project · Merge · Rebase · Reset · Rollback · Cherry-pick · Stash · Unstash · Apply Patch · Clone · Manage Remotes all have option-bearing dialogs *(P13-T1…T4; every one previews the exact argv it will run)*
 - [ ] S3 — branches popup opens with top-level verbs, has folder rows, and a full `›` submenu per branch
 - [ ] S3b — `Merge 'X' into '<current>'` reachable without drag-and-drop (fixes the `mergeIntoCurrent` defect)
 - [ ] S6 — VCS Operations Popup on `alt+\``, context-aware, enumerated from the registries
 - [ ] S7 — `Files Merged with Conflicts` dialog gate, tree view retained
 - [ ] §3.5 — `Apply non-conflicting changes` split into Left/All/Right + live conflict counter + per-side Show Details
 - [ ] §3.10 — worktree create/list/remove/lock/prune with a management view
-- [ ] `Manage Remotes` exists at all (no command today)
+- [x] `Manage Remotes` exists at all (no command today) *(P13-T4: `gittree.remotes.manage` —
+      add / edit / remove / prune over a live table)*
 - [x] `Reset → Keep` available in the reset dialog *(P13-T3: four-mode radio, with a live
       impact line and git's own refusal surfaced when `--keep` declines)*
 

@@ -7,12 +7,18 @@ import { createRoot } from 'react-dom/client';
 import '../lib/base.css';
 import './dialogs.css';
 import { getInitialState } from '../lib/vscodeApi';
+import { ApplyPatch } from './ApplyPatch';
+import { CherryPick } from './CherryPick';
+import { Clone } from './Clone';
 import { Merge } from './Merge';
 import { Push } from './Push';
 import { Rebase } from './Rebase';
+import { Remotes } from './Remotes';
 import { Reset } from './Reset';
 import { Rollback } from './Rollback';
 import { ShelveChanges } from './ShelveChanges';
+import { Stash } from './Stash';
+import { Unstash } from './Unstash';
 import { UpdateProject } from './UpdateProject';
 
 const container = document.getElementById('root');
@@ -37,6 +43,18 @@ function pick(): JSX.Element {
       return <Reset />;
     case 'rollback':
       return <Rollback />;
+    case 'cherryPick':
+      return <CherryPick />;
+    case 'stash':
+      return <Stash />;
+    case 'unstash':
+      return <Unstash />;
+    case 'applyPatch':
+      return <ApplyPatch />;
+    case 'clone':
+      return <Clone />;
+    case 'remotes':
+      return <Remotes />;
     default:
       return <div className="gt-dialog-unknown">Unknown dialog: {dialog}</div>;
   }

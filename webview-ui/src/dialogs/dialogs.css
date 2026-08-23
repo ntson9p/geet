@@ -430,3 +430,147 @@
 .gt-rollback-diff-empty {
   padding: 10px;
 }
+
+/* ---- Cherry-pick · Stash · Unstash · Patch · Clone · Remotes (P13-T4) ----- */
+
+.gt-cherry-count {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-cherry-list {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 6px;
+  list-style: none;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-cherry-row {
+  padding: 1px 0;
+}
+
+.gt-cherry-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.gt-cherry-sha {
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.gt-cherry-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gt-cherry-merge {
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 0.85em;
+}
+
+.gt-stash-message {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gt-unstash-files {
+  max-height: 140px;
+  overflow: auto;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-unstash-files ul {
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+.gt-unstash-file {
+  display: block;
+  width: 100%;
+  padding: 1px 8px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gt-unstash-file:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gt-unstash-file.gt-active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.gt-unstash-diff {
+  height: 200px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-unstash-empty {
+  padding: 10px;
+}
+
+.gt-patch-list {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 6px 4px 22px;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-patch-missing code {
+  color: var(--vscode-errorForeground);
+}
+
+.gt-remotes-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.gt-remotes-table th,
+.gt-remotes-table td {
+  padding: 3px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-remotes-table th {
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+}
+
+.gt-remotes-table tbody tr {
+  cursor: pointer;
+}
+
+.gt-remotes-table tbody tr:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gt-remotes-table tbody tr.gt-active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.gt-remotes-form {
+  padding-top: 8px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}

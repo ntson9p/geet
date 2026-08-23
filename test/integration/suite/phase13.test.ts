@@ -6,7 +6,11 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
-import { PUSH_DIALOG_METHODS, type PushRepoSectionDto } from '../../../src/shared/protocol';
+import {
+  PUSH_DIALOG_METHODS,
+  REMOTES_DIALOG_METHODS as REMOTES_METHODS,
+  type PushRepoSectionDto,
+} from '../../../src/shared/protocol';
 import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoC } from '../setup';
 
 /**
@@ -70,6 +74,19 @@ suite('P13 dialogs', () => {
       /* best effort */
     }
   });
+
+  /**
+   * `refreshNow()` can resolve against a refresh that started before the write
+   * we just made, so reading the snapshot straight afterwards is a race that
+   * only shows up under full-run contention. Wait for the fact instead.
+   */
+  const waitForStatus = async (
+    pred: (entries: readonly { path: string }[]) => boolean,
+    timeoutMs = 20_000,
+  ): Promise<void> => {
+    await repo.refresher.refreshNow();
+    await waitFor(() => pred(repo.model.snapshot.statusEntries), timeoutMs);
+  };
 
   const sectionNow = async (): Promise<PushRepoSectionDto> => {
     const params = await reg.buildPushParams(core, [repo]);
@@ -438,7 +455,7 @@ suite('P13 dialogs', () => {
       const dirtyRel = 'p13/t2-dirty.txt';
       fs.writeFileSync(path.join(repoRoot, dirtyRel), 'unsaved work\n');
       git('add', '--', dirtyRel);
-      await repo.refresher.refreshNow();
+      await waitForStatus((entries) => entries.some((e) => e.path === dirtyRel));
 
       // Declined: the branch and the working tree are left exactly as they are.
       const headBefore = git('rev-parse', 'HEAD').trim();
@@ -680,7 +697,7 @@ suite('P13 dialogs', () => {
       commit('P13-T3 keep target');
       // Dirty the very file the reset would have to rewrite: --keep must refuse.
       write(rel, 'v2 uncommitted\n');
-      await repo.refresher.refreshNow();
+      await waitForStatus((entries) => entries.some((e) => e.path === rel));
 
       const outcome = await reg.applyResetResult(repo, { ref: before, mode: 'keep' });
       assert.strictEqual(outcome.ok, false, 'Reset --keep must refuse here');
@@ -737,7 +754,11 @@ suite('P13 dialogs', () => {
       write('p13/t3-rb-added.txt', 'added\n');
       git('add', '--', 'p13/t3-rb-added.txt');
       write('p13/t3-rb-untracked.txt', 'untracked\n');
-      await repo.refresher.refreshNow();
+      await waitForStatus((entries) =>
+        ['p13/t3-rb1.txt', 'p13/t3-rb-added.txt', 'p13/t3-rb-untracked.txt'].every((p) =>
+          entries.some((e) => e.path === p),
+        ),
+      );
 
       const params = reg.buildRollbackParams(repo);
       const byPath = new Map(params.files.map((f) => [f.path, f]));
@@ -771,7 +792,10 @@ suite('P13 dialogs', () => {
       write(addedRel, 'staged new\n');
       git('add', '--', addedRel);
       write(untrackedRel, 'never tracked\n');
-      await repo.refresher.refreshNow();
+      await waitForStatus(
+        (entries) =>
+          entries.some((e) => e.path === addedRel) && entries.some((e) => e.path === untrackedRel),
+      );
 
       // Unticked: unstaged, but the local copies stay on disk.
       const kept = await reg.applyRollbackResult(repo, {
@@ -784,7 +808,10 @@ suite('P13 dialogs', () => {
       assert.match(git('status', '--porcelain'), new RegExp(`\\?\\?\\s+${addedRel}`));
 
       // Ticked: the same files go.
-      await repo.refresher.refreshNow();
+      await waitForStatus(
+        (entries) =>
+          entries.some((e) => e.path === addedRel) && entries.some((e) => e.path === untrackedRel),
+      );
       const deleted = await reg.applyRollbackResult(repo, {
         paths: [addedRel, untrackedRel],
         deleteAddedLocalCopies: true,
@@ -821,6 +848,354 @@ suite('P13 dialogs', () => {
       git('reset', '--hard', baseline);
       fs.rmSync(path.join(repoRoot, 'p13/t3-preview-new.txt'), { force: true });
       await repo.refresher.refreshNow();
+    });
+  });
+
+  // ---- P13-T4 · Cherry-pick · Stash · Unstash · Patch · Clone · Remotes -----
+
+  suite('T4 more dialogs', () => {
+    const write = (rel: string, content: string): void => {
+      const abs = path.join(repoRoot, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content);
+    };
+    const read = (rel: string): string => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+    const commit = (subject: string): string => {
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', subject);
+      return git('rev-parse', 'HEAD').trim();
+    };
+
+    suiteTeardown(async function () {
+      this.timeout(60_000);
+      for (const abort of [['cherry-pick', '--abort'], ['am', '--abort']]) {
+        try {
+          git(...abort);
+        } catch {
+          /* not in that state */
+        }
+      }
+      try {
+        git('stash', 'clear');
+      } catch {
+        /* nothing stashed */
+      }
+      await repo.refresher.refreshNow();
+    });
+
+    test('T4: cherry-pick -x appends the source line', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      git('checkout', '-b', 'p13/t4-source');
+      write('p13/t4-pick.txt', 'picked content\n');
+      git('add', '--', 'p13/t4-pick.txt');
+      const source = commit('P13-T4 pick me');
+      git('checkout', branch);
+      await repo.refresher.refreshNow();
+
+      const params = await reg.buildCherryPickParams(repo, [source]);
+      assert.strictEqual(params.commits.length, 1);
+      assert.strictEqual(params.commits[0]?.sha, source);
+      assert.strictEqual(params.commits[0]?.parentCount, 1);
+
+      const outcome = await reg.applyCherryPickResult(repo, {
+        options: { shas: [source], recordOrigin: true, noCommit: false, mainline: 0 },
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.deepStrictEqual(outcome.commands[0], ['cherry-pick', '-x', source]);
+      const body = git('log', '-1', '--format=%B');
+      assert.match(body, /cherry picked from commit/, 'the -x source line must be in the message');
+      assert.match(body, new RegExp(source));
+      assert.strictEqual(read('p13/t4-pick.txt'), 'picked content\n');
+
+      git('reset', '--hard', baseline);
+      git('branch', '-D', 'p13/t4-source');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T4: cherry-pick --no-commit stages without committing', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      git('checkout', '-b', 'p13/t4-source2');
+      write('p13/t4-nocommit.txt', 'staged only\n');
+      git('add', '--', 'p13/t4-nocommit.txt');
+      const source = commit('P13-T4 no-commit source');
+      git('checkout', branch);
+      await repo.refresher.refreshNow();
+
+      const outcome = await reg.applyCherryPickResult(repo, {
+        options: { shas: [source], recordOrigin: true, noCommit: true, mainline: 0 },
+      });
+      assert.ok(outcome.ok, outcome.message);
+      // -x is dropped when no commit is created to carry it.
+      assert.deepStrictEqual(outcome.commands[0], ['cherry-pick', '--no-commit', source]);
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), baseline, 'must not commit');
+      assert.match(git('status', '--porcelain'), /A\s+p13\/t4-nocommit\.txt/);
+
+      git('reset', '--hard', baseline);
+      fs.rmSync(path.join(repoRoot, 'p13/t4-nocommit.txt'), { force: true });
+      git('branch', '-D', 'p13/t4-source2');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T4: stash --keep-index leaves the staged half applied', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      write('p13/t4-stash.txt', 'v1\n');
+      git('add', '--', 'p13/t4-stash.txt');
+      commit('P13-T4 stash baseline');
+      // One staged edit and one unstaged edit of the same file.
+      write('p13/t4-stash.txt', 'v2 staged\n');
+      git('add', '--', 'p13/t4-stash.txt');
+      write('p13/t4-stash.txt', 'v3 unstaged\n');
+      await waitForStatus((entries) => entries.some((e) => e.path === 'p13/t4-stash.txt'));
+
+      const params = reg.buildStashParams(repo);
+      assert.ok(params.dirtyCount > 0);
+
+      const outcome = await reg.applyStashResult(repo, {
+        options: {
+          message: 'P13-T4 keep-index',
+          keepIndex: true,
+          includeUntracked: false,
+          all: false,
+          staged: false,
+          paths: [],
+        },
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.deepStrictEqual(outcome.commands[0], [
+        'stash',
+        'push',
+        '--keep-index',
+        '-m',
+        'P13-T4 keep-index',
+      ]);
+      // --keep-index: the staged content stays on disk, the unstaged edit does not.
+      assert.strictEqual(read('p13/t4-stash.txt'), 'v2 staged\n');
+      assert.match(git('status', '--porcelain'), /M\s+p13\/t4-stash\.txt/);
+
+      git('reset', '--hard', baseline);
+      git('stash', 'clear');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T4: unstash restores the files it listed, and pop removes the entry', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      write('p13/t4-unstash.txt', 'v1\n');
+      git('add', '--', 'p13/t4-unstash.txt');
+      commit('P13-T4 unstash baseline');
+      write('p13/t4-unstash.txt', 'v2 stashed away\n');
+      await waitForStatus((entries) => entries.some((e) => e.path === 'p13/t4-unstash.txt'));
+
+      await reg.applyStashResult(repo, {
+        options: {
+          message: 'P13-T4 unstash me',
+          keepIndex: false,
+          includeUntracked: false,
+          all: false,
+          staged: false,
+          paths: [],
+        },
+      });
+      await repo.refresher.refreshNow();
+      await waitFor(() => repo.model.snapshot.stashes.length > 0, 20_000);
+      assert.strictEqual(read('p13/t4-unstash.txt'), 'v1\n', 'stash reverted the worktree');
+
+      const params = reg.buildUnstashParams(repo);
+      assert.ok(params.entries.length > 0, 'the stash entry must be listed');
+      const files = await reg.unstashFiles(repo, 0);
+      assert.deepStrictEqual(
+        files.map((f) => f.path),
+        ['p13/t4-unstash.txt'],
+      );
+
+      const outcome = await reg.applyUnstashResult(repo, {
+        index: 0,
+        pop: true,
+        reinstateIndex: false,
+        changelistId: '',
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.deepStrictEqual(outcome.commands[0], ['stash', 'pop', 'stash@{0}']);
+      assert.strictEqual(read('p13/t4-unstash.txt'), 'v2 stashed away\n');
+      await repo.refresher.refreshNow();
+      await waitFor(() => repo.model.snapshot.stashes.length === 0, 20_000);
+
+      git('reset', '--hard', baseline);
+      await repo.refresher.refreshNow();
+    });
+
+    test('T4: apply-patch reverse undoes a previously applied patch', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      const rel = 'p13/t4-patch.txt';
+      write(rel, 'one\ntwo\nthree\n');
+      git('add', '--', rel);
+      commit('P13-T4 patch baseline');
+
+      // Build a real patch from a change, then reset back to the baseline.
+      write(rel, 'one\nTWO PATCHED\nthree\n');
+      const patchText = git('diff', '--', rel);
+      const patchPath = path.join(tmpDir, 't4.patch');
+      fs.writeFileSync(patchPath, patchText);
+      git('checkout', '--', rel);
+      await repo.refresher.refreshNow();
+
+      // The pre-apply summary is what the dialog shows before anything runs.
+      const params = reg.buildPatchParams(repo, patchPath);
+      assert.strictEqual(params.error, undefined, params.error);
+      assert.strictEqual(params.summary.length, 1);
+      assert.strictEqual(params.summary[0]?.relPath, rel);
+      assert.ok((params.summary[0]?.hunks ?? 0) > 0);
+      assert.strictEqual(params.summary[0]?.missing, false);
+      assert.strictEqual(params.isMailbox, false);
+
+      const applied = await reg.applyPatchResult(repo, {
+        patchPath,
+        threeWay: true,
+        reverse: false,
+        pDepth: 1,
+        whitespaceFix: false,
+        contentOnly: false,
+      });
+      assert.ok(applied.ok, applied.message);
+      assert.strictEqual(read(rel), 'one\nTWO PATCHED\nthree\n');
+
+      const reversed = await reg.applyPatchResult(repo, {
+        patchPath,
+        threeWay: true,
+        reverse: true,
+        pDepth: 1,
+        whitespaceFix: false,
+        contentOnly: false,
+      });
+      assert.ok(reversed.ok, reversed.message);
+      assert.strictEqual(read(rel), 'one\ntwo\nthree\n', 'reverse must undo the patch');
+
+      git('reset', '--hard', baseline);
+      fs.rmSync(patchPath, { force: true });
+      await repo.refresher.refreshNow();
+    });
+
+    test('T4: a patch touching a missing file is flagged before applying', function () {
+      this.timeout(60_000);
+      const patchPath = path.join(tmpDir, 't4-missing.patch');
+      fs.writeFileSync(
+        patchPath,
+        [
+          'diff --git a/p13/never-here.txt b/p13/never-here.txt',
+          'index 1111111..2222222 100644',
+          '--- a/p13/never-here.txt',
+          '+++ b/p13/never-here.txt',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+          '',
+        ].join('\n'),
+      );
+      const params = reg.buildPatchParams(repo, patchPath);
+      assert.strictEqual(params.summary.length, 1);
+      assert.strictEqual(params.summary[0]?.missing, true, 'must warn about the missing file');
+      fs.rmSync(patchPath, { force: true });
+    });
+
+    test('T4: cloning into a non-empty directory is blocked with a reason', async function () {
+      this.timeout(120_000);
+      const busy = path.join(tmpDir, 'busy-target');
+      fs.mkdirSync(busy, { recursive: true });
+      fs.writeFileSync(path.join(busy, 'occupied.txt'), 'in the way\n');
+      const check = reg.checkCloneDirectory(busy);
+      assert.strictEqual(check.ok, false);
+      assert.match(check.reason ?? '', /not empty/i);
+
+      const blocked = await reg.applyCloneResult({
+        options: {
+          url: bareUrl,
+          directory: busy,
+          recursiveSubmodules: false,
+          depth: 0,
+          branch: '',
+        },
+        openAfter: 'none',
+      });
+      assert.strictEqual(blocked.ok, false);
+      assert.match(blocked.message, /not empty/i);
+
+      // A fresh directory clones for real — from the local bare repo, no network.
+      const fresh = path.join(tmpDir, 'clone-target');
+      assert.strictEqual(reg.checkCloneDirectory(fresh).ok, true);
+      const cloned = await reg.applyCloneResult({
+        options: {
+          url: bareUrl,
+          directory: fresh,
+          recursiveSubmodules: false,
+          depth: 0,
+          branch: '',
+        },
+        openAfter: 'none',
+      });
+      assert.ok(cloned.ok, cloned.message);
+      assert.ok(fs.existsSync(path.join(fresh, '.git')), 'the clone must exist on disk');
+      try {
+        // A clone's pack files are read-only on Windows; the suite teardown
+        // removes the whole temp tree anyway, so a leftover must never mask a
+        // real assertion failure (the same policy as P12's bare-repo cleanup).
+        fs.rmSync(fresh, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch {
+        /* best effort */
+      }
+    });
+
+    test('T4: Manage Remotes add → prune → remove round-trips', async function () {
+      this.timeout(90_000);
+      const handlers = reg.remotesHandlers(repo);
+      const before = await reg.listRemoteRows(repo);
+      assert.ok(
+        before.some((r) => r.name === REMOTE),
+        'the suite remote should be listed',
+      );
+      // An empty push URL means "same as fetch" and must not echo the fetch URL.
+      assert.strictEqual(before.find((r) => r.name === REMOTE)?.pushUrl, '');
+
+      const added = (await handlers[REMOTES_METHODS.save]!({
+        after: { name: 'p13extra', fetchUrl: bareUrl, pushUrl: '' },
+      })) as { ok: boolean; remotes: Array<{ name: string; fetchUrl: string }> };
+      assert.ok(added.ok);
+      assert.ok(added.remotes.some((r) => r.name === 'p13extra'));
+      assert.strictEqual(git('remote', 'get-url', 'p13extra').trim(), bareUrl);
+
+      // Editing the fetch URL of an existing remote.
+      const edited = (await handlers[REMOTES_METHODS.save]!({
+        before: { name: 'p13extra', fetchUrl: bareUrl, pushUrl: '' },
+        after: { name: 'p13renamed', fetchUrl: bareUrl, pushUrl: bareUrl },
+      })) as { ok: boolean; remotes: Array<{ name: string; pushUrl: string }> };
+      assert.ok(edited.ok);
+      assert.ok(edited.remotes.some((r) => r.name === 'p13renamed'));
+
+      const pruned = (await handlers[REMOTES_METHODS.prune]!({ name: 'p13renamed' })) as {
+        ok: boolean;
+      };
+      assert.ok(pruned.ok);
+
+      const removed = (await withAutoConfirm('1', async () => {
+        return await handlers[REMOTES_METHODS.remove]!({ name: 'p13renamed' });
+      })) as { ok: boolean; remotes: Array<{ name: string }> };
+      assert.ok(removed.ok);
+      assert.ok(!removed.remotes.some((r) => r.name === 'p13renamed'));
+      assert.ok(
+        removed.remotes.some((r) => r.name === REMOTE),
+        'removing one remote must not disturb the others',
+      );
+    });
+
+    test('T4: a duplicate remote name is refused before git sees it', async () => {
+      const handlers = reg.remotesHandlers(repo);
+      const res = (await handlers[REMOTES_METHODS.save]!({
+        after: { name: REMOTE, fetchUrl: bareUrl, pushUrl: '' },
+      })) as { ok: boolean; message?: string };
+      assert.strictEqual(res.ok, false);
+      assert.match(res.message ?? '', /already exists/);
     });
   });
 });

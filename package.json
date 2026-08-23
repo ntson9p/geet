@@ -1296,6 +1296,39 @@
         "title": "%gittree.command.rollback.dialog.title%",
         "category": "GitTree",
         "icon": "$(discard)"
+      },
+      {
+        "command": "gittree.cherryPick.dialog",
+        "title": "%gittree.command.cherryPick.dialog.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.stash.dialog",
+        "title": "%gittree.command.stash.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "gittree.unstash.dialog",
+        "title": "%gittree.command.unstash.dialog.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.patch.applyDialog",
+        "title": "%gittree.command.patch.applyDialog.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.clone.dialog",
+        "title": "%gittree.command.clone.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "gittree.remotes.manage",
+        "title": "%gittree.command.remotes.manage.title%",
+        "category": "GitTree",
+        "icon": "$(remote)"
       }
     ],
     "submenus": [
