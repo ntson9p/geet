@@ -10,31 +10,26 @@ import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
-import { GitTreeResourceState } from './sourceControl';
 
 interface Selection {
   repo: RepoHandle;
   entries: StatusEntry[];
 }
 
-/** scm/resourceGroup/context passes the group object; unwrap its states. */
-function statesFrom(args: unknown[]): GitTreeResourceState[] {
-  const out: GitTreeResourceState[] = [];
-  for (const a of args) {
-    if (a instanceof GitTreeResourceState) {
-      out.push(a);
-    } else if (
-      typeof a === 'object' &&
-      a !== null &&
-      'resourceStates' in a &&
-      Array.isArray(a.resourceStates)
-    ) {
-      for (const s of a.resourceStates as unknown[]) {
-        if (s instanceof GitTreeResourceState) out.push(s);
-      }
-    }
-  }
-  return out;
+/**
+ * Which side of a status entry an action is about. Once `SourceControlResource`
+ * group membership; P14-T4 deleted the SourceControl, and this is all that was
+ * ever load-bearing about it — `openDiffForResource` picks its diff pair from
+ * this and nothing else.
+ */
+export type GroupId = 'merge' | 'staged' | 'changes' | 'untracked';
+
+export class GitTreeResourceState {
+  constructor(
+    readonly repoRoot: string,
+    readonly entry: StatusEntry,
+    readonly group: GroupId,
+  ) {}
 }
 
 /**
@@ -56,14 +51,8 @@ function fileContextFrom(args: unknown[]): FileContextArg | undefined {
   return undefined;
 }
 
-/** SCM menus pass the selected resource states spread as arguments. */
+/** Commit-window context, an explicit Uri, else the active editor. */
 function normalize(core: Core, args: unknown[]): Selection | undefined {
-  const states = statesFrom(args);
-  if (states.length > 0) {
-    const repo = core.getRepo(states[0]!.repoRoot);
-    if (!repo) return undefined;
-    return { repo, entries: states.map((s) => s.entry) };
-  }
   const ctx = fileContextFrom(args);
   if (ctx) {
     const repo = core.getRepo(ctx.repoRoot);

@@ -1,7 +1,13 @@
 /**
- * Phase 1 registration: SourceControl per repo, `gittree-rev:` provider,
- * quick diff, hunk actions, file ops, status bar + sync, explorer
- * decorations, commit MVP. Single entry point per master §0.6.
+ * Phase 1 registration: `gittree-rev:` provider, change bars, hunk actions,
+ * file ops, status bar + sync, explorer decorations. Single entry point per
+ * master §0.6.
+ *
+ * P14-T4 removed the per-repo `vscode.scm` SourceControl — the last reference
+ * to the SCM framework anywhere in `src/`. What it carried has its own home
+ * now: the change bars are GitTree-painted (T3), the status bar owns its
+ * items, the count is a view badge, and the commit message lives in the commit
+ * tool window.
  */
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
@@ -13,12 +19,9 @@ import { registerFileOps } from './fileOps';
 import { ChangeBarsController } from './gutter/changeBars';
 import { registerChangePopup } from './gutter/changePopup';
 import { registerHunkActions } from './hunkActions';
-import { wireQuickDiff } from './quickDiff';
-import { GitTreeSourceControl } from './sourceControl';
 import { registerSyncOps } from './syncOps';
 
 export interface Phase01Registry {
-  sourceControls: Map<string, GitTreeSourceControl>;
   statusBars: Map<string, StatusBarController>;
   revProvider: RevContentProvider;
   /** P14-T3 — GitTree's own change bars; the test seam for what is painted. */
@@ -26,8 +29,18 @@ export interface Phase01Registry {
 }
 
 export function registerPhase01(context: vscode.ExtensionContext, core: Core): Phase01Registry {
-  const sourceControls = new Map<string, GitTreeSourceControl>();
   const statusBars = new Map<string, StatusBarController>();
+
+  /**
+   * The status bar shows one repository at a time — the one the active editor
+   * belongs to, else the first. `SourceControl.statusBarCommands` was scoped by
+   * VS Code to the selected provider; with plain items the scoping is ours.
+   */
+  const activeRepoKey = (): string | undefined => {
+    const uri = vscode.window.activeTextEditor?.document.uri;
+    const repo = (uri && core.repoForUri(uri)) ?? core.repos[0];
+    return repo ? canonicalKey(repo.root) : undefined;
+  };
 
   // gittree-rev: content provider (P1-T2 / master §2), refreshed on status
   // changes so open diffs and gutter bars track index updates.
@@ -42,10 +55,10 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
 
   const attach = (repo: RepoHandle): void => {
     const key = canonicalKey(repo.root);
-    if (sourceControls.has(key)) return;
-    const sc = repo.disposables.add(new GitTreeSourceControl(repo));
-    sourceControls.set(key, sc);
-    const bar = repo.disposables.add(new StatusBarController(repo, sc.sc));
+    if (statusBars.has(key)) return;
+    const bar = repo.disposables.add(
+      new StatusBarController(repo, () => activeRepoKey() === key),
+    );
     statusBars.set(key, bar);
     repo.disposables.add(
       repo.model.onDidChange((sections) => {
@@ -54,22 +67,21 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     );
     repo.disposables.add({
       dispose: () => {
-        sourceControls.delete(key);
         statusBars.delete(key);
       },
     });
   };
   for (const repo of core.repos) attach(repo);
   const addSub = core.onDidAddRepo((repo) => attach(repo));
-  context.subscriptions.push(new vscode.Disposable(() => addSub.dispose()));
-
   context.subscriptions.push(
-    wireQuickDiff(core, (repo) => sourceControls.get(canonicalKey(repo.root))?.sc),
+    new vscode.Disposable(() => addSub.dispose()),
+    // Which repo is "active" is an editor-focus question, so the visibility of
+    // every repo's items has to be re-evaluated when focus moves.
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      for (const bar of statusBars.values()) bar.update();
+    }),
   );
-  // P14-T3: GitTree paints its own change bars. Both run for now — quick diff
-  // is still attached in takeover mode until P14-T4 removes the provider —
-  // and they are distinguishable rather than overlapping, ours sitting at the
-  // content edge and VS Code's in its own lane.
+
   const changeBars = new ChangeBarsController(core);
   context.subscriptions.push(changeBars);
   registerChangePopup(context, core, changeBars);
@@ -80,7 +92,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
 
-  const registry: Phase01Registry = { sourceControls, statusBars, revProvider, changeBars };
+  const registry: Phase01Registry = { statusBars, revProvider, changeBars };
   core.debugRegistry.set('phase01', registry);
   return registry;
 }

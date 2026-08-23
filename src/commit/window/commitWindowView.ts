@@ -303,6 +303,11 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     this.pushShelf();
   }
 
+  /** P14-T4 test seam: what the view badge currently shows. */
+  get badgeValue(): number | undefined {
+    return this.view?.badge?.value;
+  }
+
   private pushShelf(): void {
     if (!this.view || !this.shelfBridge) return;
     this.rpc?.notify(COMMIT_METHODS.evtShelf, this.shelfBridge.buildState());
@@ -311,6 +316,18 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   push(): void {
     if (!this.view) return;
     const state = this.buildState();
+    // P14-T4: the pending-change count used to be `SourceControl.count`. With
+    // no SourceControl left, the view carries its own badge.
+    this.view.badge =
+      state.modifiedCount > 0
+        ? {
+            value: state.modifiedCount,
+            tooltip:
+              state.modifiedCount === 1
+                ? vscode.l10n.t('1 pending change')
+                : vscode.l10n.t('{0} pending changes', state.modifiedCount),
+          }
+        : undefined;
     this.rpc?.notify(COMMIT_METHODS.evtState, state);
     // Bounded — this is test observability, not a log.
     if (this.debugTrail.length > 50) this.debugTrail.shift();

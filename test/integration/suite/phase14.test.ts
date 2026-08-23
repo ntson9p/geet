@@ -76,13 +76,12 @@ suite('P14 owning the SCM surface', () => {
   test('T2: the native commit surface is gone from the manifest', () => {
     const c = contributes();
     const menus = c['menus'] as Record<string, unknown[]>;
-    // `scm/change/title` is the quick-diff peek toolbar and outlives T2; it goes
-    // with the quick-diff provider itself in T4.
-    assert.deepStrictEqual(
-      Object.keys(menus).filter((k) => k.startsWith('scm')),
-      ['scm/change/title'],
-      'only the quick-diff peek menu may remain',
-    );
+    // The three menus T2 owns. `scm/change/title` was the quick-diff peek
+    // toolbar and outlived T2 deliberately, because the provider it belonged to
+    // did; T4 removed both, and asserts the total is zero.
+    for (const key of ['scm/title', 'scm/resourceState/context', 'scm/resourceGroup/context']) {
+      assert.strictEqual(menus[key], undefined, `${key} should be gone`);
+    }
 
     const settings = (c['configuration'] as Array<{ properties?: Record<string, unknown> }>).flatMap(
       (b) => Object.keys(b.properties ?? {}),
@@ -151,6 +150,48 @@ suite('P14 owning the SCM surface', () => {
     }
   });
 
+  test('T4: no SCM contribution and no SourceControl survives', async function () {
+    this.timeout(30_000);
+    const menus = contributes()['menus'] as Record<string, unknown[]>;
+    assert.deepStrictEqual(
+      Object.keys(menus).filter((k) => k.startsWith('scm')),
+      [],
+      'GitTree still contributes to VS Code SCM menus',
+    );
+
+    // The registry is the runtime half of the same claim: nothing hands out a
+    // SourceControl any more, so nothing can be holding one.
+    const core = await activateGitTree();
+    const p1 = core.debugRegistry.get('phase01') as Record<string, unknown>;
+    assert.ok(p1, 'phase01 registry missing');
+    assert.strictEqual(p1['sourceControls'], undefined, 'phase01 still exposes SourceControls');
+    assert.ok(p1['statusBars'], 'the status bar controllers should still be registered');
+    assert.ok(p1['changeBars'], 'the change bars controller should still be registered');
+  });
+
+  test('T4: the commit view badge carries the pending-change count', async function () {
+    this.timeout(90_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase03') as Phase03Registry;
+    const repo = core.repoForPath(workspaceRepoC())!;
+    const root = repo.root;
+
+    await vscode.commands.executeCommand('workbench.view.extension.gittree');
+    await vscode.commands.executeCommand('gittree.commit.focus');
+    await waitFor(() => reg.commitWindow.isResolved, 15_000);
+
+    // `SourceControl.count` used to carry this; the view badge replaces it.
+    fs.writeFileSync(path.join(root, 'p14badge.txt'), 'badge me\n');
+    await repo.refresher.refreshNow();
+    await waitFor(() => {
+      reg.commitWindow.push();
+      return (reg.commitWindow.badgeValue ?? 0) > 0;
+    }, 20_000);
+
+    fs.rmSync(path.join(root, 'p14badge.txt'));
+    await repo.refresher.refreshNow();
+  });
+
   // ---- T3: GitTree's own change bars ---------------------------------------
 
   suite('T3 change bars', () => {
@@ -172,7 +213,7 @@ suite('P14 owning the SCM surface', () => {
     async function paint(
       rel: string,
       expect: string,
-      opts: { tracked?: boolean } = {},
+      opts: { tracked?: boolean; settle?: 'changes' | 'empty' } = {},
     ): Promise<ReturnType<typeof bars.changesFor>> {
       const uri = vscode.Uri.file(abs(rel));
       await repo!.refresher.refreshNow();
@@ -188,8 +229,36 @@ suite('P14 owning the SCM surface', () => {
       }
       const doc = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(doc, { preview: false });
+      // The controller deliberately does nothing for a document with no visible
+      // editor — correct in production, but `showTextDocument` resolving does
+      // not mean `visibleTextEditors` has caught up, and the early return would
+      // leave nothing computed and look like "no changes".
+      await waitFor(
+        () => vscode.window.visibleTextEditors.some((e) => e.document === doc),
+        10_000,
+      );
       await waitFor(() => doc.getText() === expect, 15_000);
       await bars.refreshNow(doc);
+
+      // A status refresh can land mid-recompute and momentarily clear the bars
+      // — the model snapshot an apply reads may be older than the git state it
+      // describes. That is fine in the product (the next apply repaints), but a
+      // test that reads once can catch the gap. Wait for the state to settle,
+      // then let the caller assert what it actually is: converging on "some
+      // changes" is not the same as asserting *which*.
+      if (opts.settle === 'changes') {
+        await waitFor(() => {
+          void bars.refreshNow(doc);
+          const d = bars.changesFor(uri);
+          return d !== undefined && d.changes.length > 0;
+        }, 20_000);
+      } else if (opts.settle === 'empty') {
+        await waitFor(() => {
+          void bars.refreshNow(doc);
+          const d = bars.changesFor(uri);
+          return d === undefined || d.changes.length === 0;
+        }, 20_000);
+      }
       return bars.changesFor(uri);
     }
     const rows = (d: ReturnType<typeof bars.changesFor>): string[] =>
@@ -203,6 +272,29 @@ suite('P14 owning the SCM surface', () => {
       fsRoot = repo!.root;
       bars = (core.debugRegistry.get('phase01') as Phase01Registry).changeBars;
       assert.ok(bars, 'change bars controller missing from the phase01 registry');
+      // The test VS Code keeps ONE user-data-dir across runs, so a global
+      // setting written by a previous run survives into this one. The cutoff
+      // test writes exactly such a setting; if its restore lost the race with
+      // shutdown, every later run would silently paint no bars at all. Reset to
+      // the default here rather than trusting the previous run's teardown.
+      await resetCutoff();
+    });
+
+    /** Put `changeBars.maxFileLines` back to its default and wait for it. */
+    async function resetCutoff(): Promise<void> {
+      await vscode.workspace
+        .getConfiguration('gittree')
+        .update('changeBars.maxFileLines', undefined, vscode.ConfigurationTarget.Global);
+      await waitFor(
+        () =>
+          vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') ===
+          20000,
+        10_000,
+      );
+    }
+
+    suiteTeardown(async () => {
+      await resetCutoff();
     });
 
     teardown(async () => {
@@ -224,13 +316,16 @@ suite('P14 owning the SCM surface', () => {
       lines.splice(9, 1);
       fs.writeFileSync(abs('p14bars.txt'), lines.join('\n'));
 
-      const painted = await paint('p14bars.txt', lines.join('\n'), { tracked: true });
+      const painted = await paint('p14bars.txt', lines.join('\n'), {
+        tracked: true,
+        settle: 'changes',
+      });
       assert.deepStrictEqual(rows(painted), ['modified 1-1', 'added 5-5', 'deleted 9-9']);
 
       // Reverting the file must take the bars with it — a stale bar is worse
       // than no bar, because Rollback acts on what the bar claims.
       fs.writeFileSync(abs('p14bars.txt'), body);
-      const cleared = await paint('p14bars.txt', body, { tracked: true });
+      const cleared = await paint('p14bars.txt', body, { tracked: true, settle: 'empty' });
       assert.deepStrictEqual(rows(cleared), []);
 
       git('rm', '-q', '-f', 'p14bars.txt');
@@ -241,7 +336,7 @@ suite('P14 owning the SCM surface', () => {
       this.timeout(60_000);
       fs.writeFileSync(abs('p14untracked.txt'), 'brand new\n');
       await vscode.commands.executeCommand('gittree.refresh');
-      const painted = await paint('p14untracked.txt', 'brand new\n');
+      const painted = await paint('p14untracked.txt', 'brand new\n', { settle: 'empty' });
       assert.strictEqual(painted, undefined, 'untracked files must not report changes');
       fs.rmSync(abs('p14untracked.txt'));
     });
@@ -255,7 +350,7 @@ suite('P14 owning the SCM surface', () => {
       fs.writeFileSync(abs('p14hover.txt'), body.replace('row 4', 'row 4 EDITED'));
 
       const modified = body.replace('row 4', 'row 4 EDITED');
-      const painted = await paint('p14hover.txt', modified, { tracked: true });
+      const painted = await paint('p14hover.txt', modified, { tracked: true, settle: 'changes' });
       assert.deepStrictEqual(rows(painted), ['modified 3-3']);
 
       const uri = vscode.Uri.file(abs('p14hover.txt'));
@@ -291,7 +386,8 @@ suite('P14 owning the SCM surface', () => {
       fs.writeFileSync(abs('p14big.txt'), body.replace('big 5', 'big 5 EDITED'));
 
       const bigMod = body.replace('big 5', 'big 5 EDITED');
-      assert.deepStrictEqual(rows(await paint('p14big.txt', bigMod, { tracked: true })), ['modified 4-4']);
+      const bigRows = { tracked: true, settle: 'changes' } as const;
+      assert.deepStrictEqual(rows(await paint('p14big.txt', bigMod, bigRows)), ['modified 4-4']);
       await cfg.update('changeBars.maxFileLines', 100, vscode.ConfigurationTarget.Global);
       await waitFor(
         () =>
@@ -300,7 +396,7 @@ suite('P14 owning the SCM surface', () => {
       );
       try {
         // 41 lines is under 100, so it still paints; the cutoff only bites above.
-        assert.deepStrictEqual(rows(await paint('p14big.txt', bigMod, { tracked: true })), ['modified 4-4']);
+        assert.deepStrictEqual(rows(await paint('p14big.txt', bigMod, bigRows)), ['modified 4-4']);
         await cfg.update('changeBars.maxFileLines', 100000, vscode.ConfigurationTarget.Global);
         await cfg.update('changeBars.maxFileLines', 10, vscode.ConfigurationTarget.Global);
         await waitFor(
@@ -308,9 +404,15 @@ suite('P14 owning the SCM surface', () => {
             vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') === 10,
           10_000,
         );
-        assert.strictEqual(await paint('p14big.txt', bigMod, { tracked: true }), undefined, 'cutoff must suppress the bars');
+        assert.strictEqual(
+          await paint('p14big.txt', bigMod, { tracked: true, settle: 'empty' }),
+          undefined,
+          'cutoff must suppress the bars',
+        );
       } finally {
-        await cfg.update('changeBars.maxFileLines', undefined, vscode.ConfigurationTarget.Global);
+        // Wait for the restore to be observed, not just requested — an
+        // un-awaited reset is how this setting leaks into the next run.
+        await resetCutoff();
       }
 
       git('checkout', '--', 'p14big.txt');

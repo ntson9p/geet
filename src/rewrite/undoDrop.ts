@@ -16,8 +16,8 @@ import { isPublished } from './publishedGuard';
 import type { RebaseEngine, RebaseOutcome } from './rebase/rebaseEngine';
 
 /** Structural slices of the P1/P3 registries this service composes with. */
-interface SourceControlsShape {
-  sourceControls: Map<string, { sc: vscode.SourceControl }>;
+interface MessageBoxShape {
+  messageBoxFor(repo: RepoHandle): { value: string } | undefined;
 }
 interface CommitShape {
   paradigm: { paradigm: 'changelists' | 'staging' };
@@ -48,9 +48,13 @@ export class UndoDropService {
     private readonly engineFor: (repo: RepoHandle) => RebaseEngine | undefined,
   ) {}
 
-  private inputBoxFor(repo: RepoHandle): vscode.SourceControlInputBox | undefined {
-    const p1 = this.core.debugRegistry.get('phase01') as SourceControlsShape | undefined;
-    return p1?.sourceControls.get(canonicalKey(repo.root))?.sc.inputBox;
+  /**
+   * P14-T4: the SCM input box is gone. The commit window's message box is the
+   * only place a message lives, and phase03 exposes it.
+   */
+  private inputBoxFor(repo: RepoHandle): { value: string } | undefined {
+    const p3 = this.core.debugRegistry.get('phase03') as MessageBoxShape | undefined;
+    return p3?.messageBoxFor(repo);
   }
 
   private commitShape(): CommitShape | undefined {

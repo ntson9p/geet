@@ -1,4 +1,4 @@
-﻿import * as assert from 'node:assert';
+import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -22,21 +22,25 @@ suite('P1 core SCM', () => {
   const write = (rel: string, content: string): void =>
     fs.writeFileSync(path.join(repoRoot, rel), content);
 
+  /**
+   * P14-T4: no `sourceControls` any more. The status bar owns real
+   * `StatusBarItem`s, and `titles` is the seam that replaced reading
+   * `SourceControl.statusBarCommands[i].title`.
+   */
   interface Phase01RegistryShape {
-    sourceControls: Map<string, { sc: vscode.SourceControl }>;
-    statusBars: Map<string, { update(): void }>;
+    statusBars: Map<string, { update(): void; titles: string[] }>;
   }
 
   /** P14-T2: file commands now take the commit window's context shape. */
   const fileArg = (rel: string) => ({ repoRoot, relPath: rel });
 
-  async function scOf(root: string) {
+  async function barOf(root: string) {
     const core = await activateGitTree();
     const reg = core.debugRegistry.get('phase01') as Phase01RegistryShape | undefined;
     assert.ok(reg, 'phase01 registry missing — registerPhase01 not run?');
-    const sc = reg.sourceControls.get(canonicalKey(root));
-    assert.ok(sc, `no SourceControl for ${root}`);
-    return sc;
+    const bar = reg.statusBars.get(canonicalKey(root));
+    assert.ok(bar, `no status bar controller for ${root}`);
+    return bar;
   }
 
   async function refresh(): Promise<void> {
@@ -96,9 +100,10 @@ suite('P1 core SCM', () => {
     write('untracked.txt', 'new\n');
 
     await refresh();
-    const sc = await scOf(repoRoot);
     // P14-T2 retired the four resource groups; what they rendered was always
-    // this classification, and the count badge is the surviving consumer.
+    // this classification. P14-T4 moved the count badge itself onto the commit
+    // view, where the phase14 suite asserts it — what belongs here is that the
+    // classification totals what the badge would show.
     const core = await activateGitTree();
     const entriesOf = () => core.repoForPath(repoRoot)!.model.snapshot.statusEntries;
     const kinds = () => {
@@ -114,7 +119,12 @@ suite('P1 core SCM', () => {
       const k = kinds();
       return k.merge === 1 && k.staged === 1 && k.changes === 1 && k.untracked === 1;
     }, 15_000);
-    assert.strictEqual(sc.sc.count, 4, 'count badge must total every classified entry');
+    const k = kinds();
+    assert.strictEqual(
+      k.merge + k.staged + k.changes + k.untracked,
+      4,
+      'every classified entry must be counted exactly once',
+    );
 
     const conflict = entriesOf().find((e) => e.path.endsWith('conflict.txt'));
     assert.ok(conflict && isConflicted(conflict), 'conflict.txt should be unmerged');
@@ -261,7 +271,7 @@ suite('P1 core SCM', () => {
     this.timeout(120_000);
     const core = await activateGitTree();
     const repo = core.repoForPath(repoRoot)!;
-    const sc = await scOf(repoRoot);
+    const bar = await barOf(repoRoot);
 
     // Local bare remote + upstream.
     const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p1-remote-'));
@@ -295,10 +305,10 @@ suite('P1 core SCM', () => {
       15_000,
     );
 
-    const syncTitle = sc.sc.statusBarCommands?.[1]?.title ?? '';
+    const syncTitle = bar.titles[1] ?? '';
     assert.ok(syncTitle.includes('$(arrow-down) 2'), `sync title: ${syncTitle}`);
     assert.ok(syncTitle.includes('$(arrow-up) 1'), `sync title: ${syncTitle}`);
-    const checkoutTitle = sc.sc.statusBarCommands?.[0]?.title ?? '';
+    const checkoutTitle = bar.titles[0] ?? '';
     assert.ok(checkoutTitle.includes(branch), `checkout title: ${checkoutTitle}`);
 
     await vscode.commands.executeCommand('gittree.sync', repoRoot);
@@ -318,12 +328,12 @@ suite('P1 core SCM', () => {
     this.timeout(30_000);
     const core = await activateGitTree();
     const repo = core.repoForPath(repoRoot)!;
-    const sc = await scOf(repoRoot);
+    const bar = await barOf(repoRoot);
     const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
     git('checkout', '--detach', 'HEAD');
     await refresh();
     await waitFor(() => repo.model.snapshot.detached, 15_000);
-    const title = sc.sc.statusBarCommands?.[0]?.title ?? '';
+    const title = bar.titles[0] ?? '';
     assert.ok(title.includes('$(git-commit)'), `widget: ${title}`);
     git('checkout', branch);
     await refresh();

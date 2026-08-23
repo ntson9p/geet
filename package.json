@@ -2416,23 +2416,6 @@
           "when": "resourceScheme == file",
           "group": "2_gittree@4"
         }
-      ],
-      "scm/change/title": [
-        {
-          "command": "gittree.hunk.openCommitView",
-          "when": "originalResourceScheme == gittree-rev",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gittree.hunk.stage",
-          "when": "originalResourceScheme == gittree-rev",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gittree.hunk.rollback",
-          "when": "originalResourceScheme == gittree-rev",
-          "group": "navigation@3"
-        }
       ]
     },
     "keybindings": [
@@ -2523,6 +2506,12 @@
         "command": "gittree.change.showActions",
         "key": "ctrl+alt+g h",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "gittree.commit",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "focusedView == 'gittree.commit'"
       }
     ],
     "walkthroughs": [

@@ -6,7 +6,6 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../../src/core/core';
 import type { SnapshotManifest } from '../../../src/localHistory/snapshotStore';
-import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RebaseEngine } from '../../../src/rewrite/rebase/rebaseEngine';
 import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseView';
 import type { RebasePausedEvent, RebaseStateMonitor } from '../../../src/rewrite/rebase/stateMonitor';
@@ -26,14 +25,13 @@ interface Phase05RegistryShape {
   reword: RewordService;
   pushSafety: PushSafetyService;
 }
-interface Phase01Shape {
-  sourceControls: Map<string, { sc: { inputBox: { value: string } } }>;
-}
 interface Phase03Shape {
   paradigm: { paradigm: string; switch(): Promise<void> };
   changelistsFor(repo: RepoHandle): {
     getLists(): Array<{ id: string; name: string; files: string[] }>;
   };
+  /** P14-T4: replaced the SCM input box as the home of the commit message. */
+  messageBoxFor(repo: RepoHandle): { value: string } | undefined;
 }
 interface Phase09RegistryShape {
   getStore(repoRoot: string): { list(): SnapshotManifest[] } | undefined;
@@ -399,7 +397,6 @@ suite('P5 history rewriting — rebase engine', () => {
     const core = await activateGitTree();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     const p3 = core.debugRegistry.get('phase03') as Phase03Shape;
-    const p1 = core.debugRegistry.get('phase01') as Phase01Shape;
     // The P3 suite leaves the window on the staging paradigm; undo's
     // changelist filing is a changelists-paradigm behavior.
     const originalParadigm = p3.paradigm.paradigm;
@@ -431,15 +428,17 @@ suite('P5 history rewriting — rebase engine', () => {
       assert.ok(list, 'changelist named after the subject missing');
       assert.deepStrictEqual([...list.files].sort(), ['p5undo-a.txt', 'p5undo-b.txt']);
 
-      const input = p1.sourceControls.get(canonicalKey(repoRoot))?.sc.inputBox;
-      assert.ok(input, 'input box missing');
+      // P14-T4: the SCM input box is gone; the commit window's message box is
+      // where undo restores the message.
+      const input = p3.messageBoxFor(repo);
+      assert.ok(input, 'commit window message box missing');
       assert.ok(input.value.includes('Fix parser bug'), `input: ${input.value}`);
       assert.ok(input.value.includes('details body'), 'full message (body) must be restored');
       assert.notStrictEqual(git('rev-parse', 'HEAD').trim(), committed);
     } finally {
       fs.rmSync(abs('p5undo-a.txt'), { force: true });
       fs.rmSync(abs('p5undo-b.txt'), { force: true });
-      const input = p1.sourceControls.get(canonicalKey(repoRoot))?.sc.inputBox;
+      const input = p3.messageBoxFor(repo);
       if (input) input.value = '';
       if (p3.paradigm.paradigm !== originalParadigm) {
         await p3.paradigm.switch();

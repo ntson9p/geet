@@ -1,8 +1,13 @@
 /**
- * Status-bar widget (P1-T5): branch + incoming/outgoing arrows rendered
- * through SourceControl.statusBarCommands — the same slot the built-in git
- * extension uses, so takeover mode looks native. Pure render function is
- * unit-testable; the class only wires model → commands.
+ * Status-bar widget (P1-T5, re-hosted by P14-T4): branch + incoming/outgoing
+ * arrows. Rendered through `window.createStatusBarItem` now that GitTree
+ * registers no SourceControl — `statusBarCommands` was the old sink, and it
+ * belonged to the SCM framework this phase removes. The pure render function
+ * is unchanged and still carries the unit tests; only the sink moved.
+ *
+ * Only the active repository's items are visible. `statusBarCommands` was
+ * scoped to the selected provider by VS Code; with plain items that scoping is
+ * ours to do, and N repos × 3 items would otherwise fill the status bar.
  */
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
@@ -59,13 +64,17 @@ export function renderStatusBar(snap: RepoSnapshot, fetching: boolean): StatusBa
   };
 }
 
+/** Left-aligned, just left of where the built-in git extension puts its own. */
+const BASE_PRIORITY = 100;
+
 export class StatusBarController implements vscode.Disposable {
   private fetching = false;
   private readonly sub: { dispose(): void };
+  private readonly items: vscode.StatusBarItem[] = [];
 
   constructor(
     private readonly repo: RepoHandle,
-    private readonly sc: vscode.SourceControl,
+    private readonly isActive: () => boolean,
   ) {
     this.sub = repo.model.onDidChange(() => this.update());
     this.update();
@@ -74,6 +83,30 @@ export class StatusBarController implements vscode.Disposable {
   setFetching(fetching: boolean): void {
     this.fetching = fetching;
     this.update();
+  }
+
+  /**
+   * P14-T4 test seam: the item texts, in order. Replaces reading
+   * `SourceControl.statusBarCommands[i].title`, which is what the P1 tests
+   * asserted on before the SourceControl was deleted.
+   */
+  get titles(): string[] {
+    return this.items.map((i) => i.text);
+  }
+
+  /** One item per command, created on demand and reused across updates. */
+  private itemAt(index: number): vscode.StatusBarItem {
+    let item = this.items[index];
+    if (!item) {
+      item = vscode.window.createStatusBarItem(
+        `gittree.status.${index}`,
+        vscode.StatusBarAlignment.Left,
+        BASE_PRIORITY - index,
+      );
+      item.name = 'GitTree';
+      this.items[index] = item;
+    }
+    return item;
   }
 
   update(): void {
@@ -103,10 +136,21 @@ export class StatusBarController implements vscode.Disposable {
         arguments: [this.repo.root],
       });
     }
-    this.sc.statusBarCommands = commands;
+    const visible = this.isActive();
+    commands.forEach((command, i) => {
+      const item = this.itemAt(i);
+      item.text = command.title;
+      item.tooltip = command.tooltip;
+      item.command = command;
+      if (visible) item.show();
+      else item.hide();
+    });
+    // A finished rebase drops the third command; its item must go with it.
+    for (let i = commands.length; i < this.items.length; i++) this.items[i]?.hide();
   }
 
   dispose(): void {
     this.sub.dispose();
+    for (const item of this.items) item.dispose();
   }
 }

@@ -15,7 +15,6 @@ import { UnshelveEngine } from '../../../src/shelf/unshelve';
 import type { RepoHandle } from '../../../src/core/core';
 import type { LineChange } from '../../../src/core/patch/patchBuilder';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import type { Phase01Registry } from '../../../src/scm/register';
 import { COMMIT_METHODS } from '../../../src/shared/protocol';
 import {
   activateGitTree,
@@ -35,7 +34,6 @@ suite('P11 commit tool window', () => {
   let fsRoot: string;
   let repo: RepoHandle;
   let reg: Phase03Registry;
-  let scmInput: vscode.SourceControlInputBox;
   let shelfStore: ShelfStore;
   let shelfBridge: ShelfBridge;
   let coreRef: Core;
@@ -70,8 +68,6 @@ suite('P11 commit tool window', () => {
     fsRoot = repo.root;
     reg = core.debugRegistry.get('phase03') as Phase03Registry;
     assert.ok(reg, 'phase03 registry missing');
-    const phase01 = core.debugRegistry.get('phase01') as Phase01Registry;
-    scmInput = phase01.sourceControls.get(canonicalKey(repoRoot))!.sc.inputBox;
     const phase07 = core.debugRegistry.get('phase07') as {
       getShelfStore: (root: string) => ShelfStore | undefined;
       shelfBridge: ShelfBridge;
@@ -86,13 +82,9 @@ suite('P11 commit tool window', () => {
     }
   });
 
-  test('T2: the commit window is the only commit surface', async function () {
-    this.timeout(30_000);
-    // P14-T2 retired `gittree.commit.window: native` and the SCM input box with
-    // it; the box stays hidden for as long as the SourceControl shell survives
-    // (P14-T4 removes it entirely).
-    await waitFor(() => scmInput.visible === false, 10_000);
-  });
+  // P14-T4 deleted the SourceControl outright, so there is no longer an input
+  // box to assert is hidden. The phase14 suite asserts the stronger fact: no
+  // SourceControl is registered at all.
 
   test('T2: the view actually resolves in the GitTree container', async function () {
     this.timeout(30_000);
@@ -212,9 +204,8 @@ suite('P11 commit tool window', () => {
   test('T2: the window message box drives the shared commit flow', async function () {
     this.timeout(60_000);
     const before = git('rev-parse', 'HEAD').trim();
-    // The SCM input box is deliberately left empty: if the flow still read it,
-    // the commit would be refused for an empty message.
-    scmInput.value = '';
+    // P14-T4: there is no SCM input box left to leave empty — the window's
+    // message box is the only source the flow can read.
     reg.commitWindow.messageBoxFor(repo).value = 'p11 commit from the tool window';
     assert.strictEqual(reg.commitWindow.getMessage(repo), 'p11 commit from the tool window');
 

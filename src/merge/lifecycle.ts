@@ -19,8 +19,9 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { DisposableStore } from '../core/util/events';
 import { ConflictSession, type ConflictSource } from './conflictSession';
 
-interface Phase01SourceControls {
-  sourceControls: Map<string, { sc: vscode.SourceControl }>;
+/** P14-T4 — the commit window's message box, via the phase03 registry. */
+interface Phase03MessageBox {
+  messageBoxFor(repo: RepoHandle): { value: string } | undefined;
 }
 
 export class MergeLifecycle implements vscode.Disposable {
@@ -191,10 +192,12 @@ export class MergeLifecycle implements vscode.Disposable {
     }
   }
 
-  /** "Commit Merge…": SCM view with the merge message prefilled (MERGE_MSG). */
+  /** "Commit Merge…": commit window with the merge message prefilled (MERGE_MSG). */
   private async openMergeCommitUi(repo: RepoHandle): Promise<void> {
-    const p1 = this.core.debugRegistry.get('phase01') as Phase01SourceControls | undefined;
-    const input = p1?.sourceControls.get(canonicalKey(repo.root))?.sc.inputBox;
+    // P14-T4: the SCM input box is gone; the commit window's message box is
+    // where a message lives, and phase03 owns it.
+    const p3 = this.core.debugRegistry.get('phase03') as Phase03MessageBox | undefined;
+    const input = p3?.messageBoxFor(repo);
     if (input && input.value.trim().length === 0) {
       try {
         const msg = fs.readFileSync(path.join(repo.dirs.gitDir, 'MERGE_MSG'), 'utf8');
