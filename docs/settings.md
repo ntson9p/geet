@@ -168,15 +168,6 @@ Magic Wand: when one side changed only whitespace, take the substantive side aut
 
 - Type: `boolean` · Default: `true`
 
-### `gittree.merge.ui`
-
-Which merge UI opens for text conflicts. The native VS Code merge editor rides on an internal command and silently falls back to the GitTree tri-editor when unavailable.
-
-- Type: `string` · Default: `"triEditor"`
-- Values:
-  - `triEditor` — GitTree's three-pane merge editor (yours | result | theirs) with chevrons and the Magic Wand.
-  - `native` — VS Code's built-in merge editor (internal command — falls back to the tri-editor if it is missing or fails).
-
 ## GitTree: Stash
 
 ### `gittree.stash.includeUntrackedDefault`

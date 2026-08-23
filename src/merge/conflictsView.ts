@@ -67,7 +67,7 @@ export class ConflictsViewProvider implements vscode.TreeDataProvider<ConflictNo
     item.resourceUri = vscode.Uri.file(path.join(node.session.repo.root, node.path));
     item.iconPath = new vscode.ThemeIcon(
       node.kind === 'both-modified' || node.kind === 'added-by-both' ? 'git-merge' : 'warning',
-      new vscode.ThemeColor('gitDecoration.conflictingResourceForeground'),
+      new vscode.ThemeColor('gittree.color.conflicted'),
     );
     item.contextValue = isSpecialConflict(node.kind) ? 'conflict:special' : 'conflict:file';
     item.command = {

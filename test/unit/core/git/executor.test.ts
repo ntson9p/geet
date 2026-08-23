@@ -186,16 +186,16 @@ describe('GitExecutorImpl.stream', () => {
 });
 
 describe('resolveGitCandidates', () => {
-  it('orders settings first, then PATH, then well-known locations', () => {
+  it('orders the setting first, then PATH, then well-known locations', () => {
+    // P14-T5 removed the built-in `git.path` fallback that used to sit between
+    // `gittree.gitPath` and PATH — GitTree reads no `git.*` configuration.
     const c = resolveGitCandidates({
       gittreeGitPath: 'X:\\custom\\git.exe',
-      builtinGitPath: 'Y:\\builtin\\git.exe',
       platform: 'win32',
       env: { ProgramFiles: 'C:\\Program Files' },
     });
     expect(c[0]).toBe('X:\\custom\\git.exe');
-    expect(c[1]).toBe('Y:\\builtin\\git.exe');
-    expect(c[2]).toBe('git');
+    expect(c[1]).toBe('git');
     expect(c).toContain('C:\\Program Files\\Git\\cmd\\git.exe');
   });
 

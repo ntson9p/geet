@@ -192,6 +192,46 @@ suite('P14 owning the SCM surface', () => {
     await repo.refresher.refreshNow();
   });
 
+  test('T5: GitTree owns its status colours and the last unstable API is gone', () => {
+    const c = contributes();
+    const colors = (c['colors'] ?? []) as Array<{
+      id: string;
+      defaults?: Record<string, string>;
+    }>;
+    const ids = colors.map((x) => x.id).sort();
+    assert.deepStrictEqual(
+      ids,
+      [
+        'gittree.color.added',
+        'gittree.color.conflicted',
+        'gittree.color.deleted',
+        'gittree.color.ignored',
+        'gittree.color.modified',
+        'gittree.color.renamed',
+        'gittree.color.untracked',
+      ],
+      'GitTree must contribute its own status colours',
+    );
+    // Every variant needs a default or the colour goes blank in that theme —
+    // which is the exact failure mode `gitDecoration.*` had when the built-in
+    // git extension was disabled.
+    for (const color of colors) {
+      for (const variant of ['light', 'dark', 'highContrast', 'highContrastLight']) {
+        assert.ok(
+          typeof color.defaults?.[variant] === 'string',
+          `${color.id} has no ${variant} default`,
+        );
+      }
+    }
+
+    const settings = (c['configuration'] as Array<{ properties?: Record<string, unknown> }>).flatMap(
+      (b) => Object.keys(b.properties ?? {}),
+    );
+    // The setting only chose between the tri-editor and the `_open.mergeEditor`
+    // internal-command bridge; the bridge is deleted, so the choice is gone.
+    assert.ok(!settings.includes('gittree.merge.ui'), 'gittree.merge.ui should be gone');
+  });
+
   // ---- T3: GitTree's own change bars ---------------------------------------
 
   suite('T3 change bars', () => {
@@ -246,18 +286,26 @@ suite('P14 owning the SCM surface', () => {
       // test that reads once can catch the gap. Wait for the state to settle,
       // then let the caller assert what it actually is: converging on "some
       // changes" is not the same as asserting *which*.
-      if (opts.settle === 'changes') {
-        await waitFor(() => {
-          void bars.refreshNow(doc);
+      //
+      // Each attempt is AWAITED. Firing `refreshNow` from inside a 25 ms poll
+      // without awaiting queues a git read per tick, which under full-suite
+      // load thrashes the repo queue badly enough that it never converges.
+      if (opts.settle !== undefined) {
+        const want = opts.settle;
+        const deadline = Date.now() + 20_000;
+        for (;;) {
+          await bars.refreshNow(doc);
           const d = bars.changesFor(uri);
-          return d !== undefined && d.changes.length > 0;
-        }, 20_000);
-      } else if (opts.settle === 'empty') {
-        await waitFor(() => {
-          void bars.refreshNow(doc);
-          const d = bars.changesFor(uri);
-          return d === undefined || d.changes.length === 0;
-        }, 20_000);
+          const ok =
+            want === 'changes'
+              ? d !== undefined && d.changes.length > 0
+              : d === undefined || d.changes.length === 0;
+          if (ok) break;
+          if (Date.now() > deadline) {
+            throw new Error(`change bars for ${rel} never settled to "${want}"`);
+          }
+          await new Promise((r) => setTimeout(r, 200));
+        }
       }
       return bars.changesFor(uri);
     }

@@ -471,11 +471,11 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
       'color',
       'rgb(255, 136, 0)',
     );
-    // …while untracked stays on the theme's gitDecoration variable.
+    // …while untracked stays on GitTree's own theme colour.
     const untrackedStyle = await row(page, '2.txt')
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(untrackedStyle).toContain('gitDecoration-untrackedResourceForeground');
+    expect(untrackedStyle).toContain('gittree-color-untracked');
   });
 
   test('a directory of mixed statuses reads as modified (IntelliJ)', async ({ page }) => {
@@ -499,7 +499,7 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
     const unversionedStyle = await row(page, 'Unversioned Files, 1 file')
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(unversionedStyle).toContain('gitDecoration-untrackedResourceForeground');
+    expect(unversionedStyle).toContain('gittree-color-untracked');
   });
 });
 

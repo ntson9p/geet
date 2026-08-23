@@ -257,7 +257,10 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   );
 
   const cfg = vscode.workspace.getConfiguration();
-  const builtinGitPath = cfg.get<string | string[] | null>('git.path');
+  // P14-T5: the built-in extension's `git.path` is no longer consulted. It was
+  // only ever a convenience fallback and reading a *setting* is harmless, but
+  // "GitTree reads no `git.*` configuration" is a rule that can be checked;
+  // "reads exactly one key" is not.
   // P12-T8: every git run lands (redacted) in the Console tab's ring. The
   // limit is read once at activation — resizing a ring live has churn for no
   // one, and the setting exists for constrained hosts, not live tuning.
@@ -266,12 +269,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
     Number.isFinite(consoleLimit) && consoleLimit >= 100 ? Math.floor(consoleLimit) : 2000,
   );
   const executor = await createGitExecutor(
-    {
-      gittreeGitPath: cfg.get<string | null>('gittree.gitPath') ?? undefined,
-      builtinGitPath: Array.isArray(builtinGitPath)
-        ? builtinGitPath[0]
-        : (builtinGitPath ?? undefined),
-    },
+    { gittreeGitPath: cfg.get<string | null>('gittree.gitPath') ?? undefined },
     {
       trace: (l) => trace(`[exec] ${l}`),
       baseEnv: () => askpass?.env ?? {},

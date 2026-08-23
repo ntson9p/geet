@@ -238,9 +238,6 @@
   "gittree.command.merge.magicWandSession.title": "Magic Wand: Auto-Resolve Simple Conflicts (All Files)",
   "gittree.config.merge.autoResolveWhitespace.description": "Magic Wand: when one side changed only whitespace, take the substantive side automatically.",
   "gittree.config.merge.conflictsDialog.description": "Show the \"Files Merged with Conflicts\" dialog when an operation produces conflicts. The Conflicts view remains available either way.",
-  "gittree.config.merge.ui.description": "Which merge UI opens for text conflicts. The native VS Code merge editor rides on an internal command and silently falls back to the GitTree tri-editor when unavailable.",
-  "gittree.config.merge.ui.triEditor": "GitTree's three-pane merge editor (yours | result | theirs) with chevrons and the Magic Wand.",
-  "gittree.config.merge.ui.native": "VS Code's built-in merge editor (internal command — falls back to the tri-editor if it is missing or fails).",
   "gittree.view.stashes.name": "Stashes",
   "gittree.command.stash.push.title": "Stash Changes…",
   "gittree.command.stash.apply.title": "Apply Stash",
@@ -307,5 +304,12 @@
   "gittree.config.changeBars.base.description": "What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).",
   "gittree.config.changeBars.maxFileLines.description": "Files longer than this get no change bars. The line diff is quadratic in the worst case, and a stalled editor is worse than a missing bar.",
   "gittree.config.quickDiff.base.deprecated": "Renamed to `#gittree.changeBars.base#`. The old key is still honoured.",
-  "gittree.command.change.showActions.title": "Show Change Actions"
+  "gittree.command.change.showActions.title": "Show Change Actions",
+  "gittree.color.added.description": "Added files in GitTree views, the change tree and the explorer.",
+  "gittree.color.modified.description": "Modified files in GitTree views, the change tree and the explorer.",
+  "gittree.color.deleted.description": "Deleted files in GitTree views, the change tree and the explorer.",
+  "gittree.color.renamed.description": "Renamed or copied files in GitTree views, the change tree and the explorer.",
+  "gittree.color.untracked.description": "Untracked files in GitTree views, the change tree and the explorer.",
+  "gittree.color.ignored.description": "Ignored files in GitTree views, the change tree and the explorer.",
+  "gittree.color.conflicted.description": "Conflicting files in GitTree views, the change tree and the explorer."
 }

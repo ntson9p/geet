@@ -204,19 +204,6 @@
             "type": "boolean",
             "default": true,
             "description": "%gittree.config.merge.autoResolveWhitespace.description%"
-          },
-          "gittree.merge.ui": {
-            "type": "string",
-            "enum": [
-              "triEditor",
-              "native"
-            ],
-            "enumDescriptions": [
-              "%gittree.config.merge.ui.triEditor%",
-              "%gittree.config.merge.ui.native%"
-            ],
-            "default": "triEditor",
-            "description": "%gittree.config.merge.ui.description%"
           }
         }
       },
@@ -504,6 +491,78 @@
             "default": "none",
             "description": "%gittree.config.push.tags.description%"
           }
+        }
+      }
+    ],
+    "colors": [
+      {
+        "id": "gittree.color.added",
+        "description": "%gittree.color.added.description%",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#a1e3ad",
+          "highContrastLight": "#587c0c"
+        }
+      },
+      {
+        "id": "gittree.color.modified",
+        "description": "%gittree.color.modified.description%",
+        "defaults": {
+          "light": "#895503",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D",
+          "highContrastLight": "#895503"
+        }
+      },
+      {
+        "id": "gittree.color.deleted",
+        "description": "%gittree.color.deleted.description%",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
+        }
+      },
+      {
+        "id": "gittree.color.renamed",
+        "description": "%gittree.color.renamed.description%",
+        "defaults": {
+          "light": "#007100",
+          "dark": "#73C991",
+          "highContrast": "#73C991",
+          "highContrastLight": "#007100"
+        }
+      },
+      {
+        "id": "gittree.color.untracked",
+        "description": "%gittree.color.untracked.description%",
+        "defaults": {
+          "light": "#007100",
+          "dark": "#73C991",
+          "highContrast": "#73C991",
+          "highContrastLight": "#007100"
+        }
+      },
+      {
+        "id": "gittree.color.ignored",
+        "description": "%gittree.color.ignored.description%",
+        "defaults": {
+          "light": "#8E8E90",
+          "dark": "#8C8C8C",
+          "highContrast": "#A7A8A9",
+          "highContrastLight": "#8E8E90"
+        }
+      },
+      {
+        "id": "gittree.color.conflicted",
+        "description": "%gittree.color.conflicted.description%",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#e4676b",
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
         }
       }
     ],

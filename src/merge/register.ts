@@ -11,7 +11,6 @@ import { isSpecialConflict, type ConflictSession } from './conflictSession';
 import { ConflictsViewProvider, type ConflictNode } from './conflictsView';
 import { MergeLifecycle } from './lifecycle';
 import { MergeComputer, serializeResult, type MergeExec } from './mergeCompute';
-import { mergeUiSetting, NativeMergeBridge } from './nativeBridge';
 import { registerResolutionActions, wandOptions } from './resolutionActions';
 import { resolveAllBlocks } from './resolver/autoResolver';
 import { TriEditorManager } from './triEditor';
@@ -27,8 +26,6 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   context.subscriptions.push(triEditors);
   registerResolutionActions(context, triEditors);
   const trace = (l: string): void => core.output.appendLine(`[merge] ${l}`);
-  const nativeBridge = new NativeMergeBridge(trace);
-  context.subscriptions.push(nativeBridge);
   const view = vscode.window.createTreeView('gittree.conflicts', {
     treeDataProvider: viewProvider,
   });
@@ -145,12 +142,10 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
       await resolveBinary(node, input.kind);
       return;
     }
-    // T6: optional native path — silent tri-editor fallback on any failure.
-    if (mergeUiSetting() === 'native') {
-      if (await nativeBridge.open(node.session.repo, node.path, node.session)) return;
-      node.session.usedTriEditorFallback = true;
-      trace(`native merge UI unavailable — tri-editor fallback for ${node.path}`);
-    }
+    // P14-T5 removed the optional `_open.mergeEditor` bridge: an internal,
+    // underscore-prefixed VS Code command was the single least stable API this
+    // extension touched, and the tri-editor it fell back to has been the
+    // default throughout.
     await triEditors.openEditor(node.session.repo, node.path, node.session, input.merge);
   });
   register('gittree.merge.apply', async () => {

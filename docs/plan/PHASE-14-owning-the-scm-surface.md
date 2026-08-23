@@ -324,8 +324,8 @@ all 34 `scm/*` menu entries; the mode consent modal.
 - [ ] Existing takeover workspaces are migrated back and told why *(P14-T6.1)*
 - [x] Change bars are GitTree-painted and work with the built-in extension enabled or disabled *(P14-T3; `editorGutter.*` is a VS Code core colour, so the bars theme correctly with the built-in git extension disabled)*
 - [x] The change popup replaces the native peek with Rollback / Stage / Show Diff / navigate *(P14-T3.3; hover + `ctrl+alt+g h`, because no decoration exposes a click handler — D19)*
-- [ ] Status colors come from `gittree.color.*` and survive the built-in extension being disabled *(P14-T5.1)*
-- [ ] No internal (underscore-prefixed) VS Code command is called anywhere *(P14-T5.2)*
+- [x] Status colors come from `gittree.color.*` and survive the built-in extension being disabled *(P14-T5.1; 7 colours, a default per theme variant, values matching what the built-in extension shipped)*
+- [x] No internal (underscore-prefixed) VS Code command is called anywhere *(P14-T5.2; `nativeBridge.ts` and the `gittree.merge.ui` setting deleted with it)*
 - [ ] D1 Route A: GitTree's own controls on GitTree's diffs *(P14-T7.3)*
 - [ ] Cross-file change navigation with IntelliJ's two-stage "press again for the next file" hint *(P14-T7.2)*
 

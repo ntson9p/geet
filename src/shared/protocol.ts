@@ -136,7 +136,7 @@ export interface CommitStateDto {
   error?: string;
   /**
    * P11-T8: `gittree.colors.<status>` overrides (validated host-side). Absent
-   * statuses fall back to the theme's gitDecoration variables in the webview.
+   * statuses fall back to GitTree's own `gittree.color.*` theme colors (P14-T5).
    */
   colors?: Record<string, string>;
 }

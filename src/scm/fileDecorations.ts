@@ -15,32 +15,32 @@ function decorationFor(entry: StatusEntry): vscode.FileDecoration {
   switch (entry.kind) {
     case 'untracked':
       badge = 'U';
-      color = 'gitDecoration.untrackedResourceForeground';
+      color = 'gittree.color.untracked';
       break;
     case 'ignored':
       badge = '!';
-      color = 'gitDecoration.ignoredResourceForeground';
+      color = 'gittree.color.ignored';
       break;
     case 'unmerged':
       badge = '!';
-      color = 'gitDecoration.conflictingResourceForeground';
+      color = 'gittree.color.conflicted';
       break;
     case 'renamed':
     case 'copied':
       badge = 'R';
-      color = 'gitDecoration.renamedResourceForeground';
+      color = 'gittree.color.renamed';
       break;
     case 'ordinary': {
       const code = entry.x !== '.' ? entry.x : entry.y;
       if (code === 'A') {
         badge = 'A';
-        color = 'gitDecoration.addedResourceForeground';
+        color = 'gittree.color.added';
       } else if (code === 'D') {
         badge = 'D';
-        color = 'gitDecoration.deletedResourceForeground';
+        color = 'gittree.color.deleted';
       } else {
         badge = 'M';
-        color = 'gitDecoration.modifiedResourceForeground';
+        color = 'gittree.color.modified';
       }
     }
   }

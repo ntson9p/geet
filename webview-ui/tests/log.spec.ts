@@ -94,7 +94,7 @@ test.describe('P4-T3/T4 log webview', () => {
       .getByRole('treeitem', { name: /app\.ts/ })
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(style).toContain('gitDecoration-modifiedResourceForeground');
+    expect(style).toContain('gittree-color-modified');
 
     // Flat mode lists full paths under the repo row.
     await page.getByRole('button', { name: 'Flat file list' }).click();
