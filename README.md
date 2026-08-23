@@ -13,9 +13,11 @@ Local History failsafe.
 ## Quick start
 
 1. Install GitTree and open any git repository.
-2. Choose a mode when asked — **Takeover** (GitTree runs the SCM view,
-   reversible per workspace) or **Companion** (side by side with the
-   built-in git). Nothing changes without this consent.
+2. Open the **GitTree** container in the activity bar. There is nothing to
+   configure and no mode to pick: GitTree brings its own views, commit window,
+   change bars and diff controls, so it neither needs nor touches the built-in
+   Git extension. Leave that one enabled or disable it — GitTree behaves the
+   same either way.
 3. Run **GitTree: Getting Started Walkthrough** — it can generate a
    disposable [playground repository](docs/faq.md) to practice a commit, a
    conflict resolution and the log without touching your real projects.

@@ -3,26 +3,33 @@
 GitTree is designed to be adopted incrementally — nothing about your
 repository changes, and every step below is reversible.
 
-## 1. Pick a mode
+## 1. There is nothing to choose
 
-On first activation in a workspace GitTree asks once:
+GitTree installs alongside the built-in Git extension and does not compete with
+it. It has its own container in the activity bar, its own commit window, its own
+change bars in the gutter and its own controls on the diffs it opens. It
+registers no Source Control provider, contributes nothing to VS Code's Source
+Control menus, and reads no `git.*` setting.
 
-| | Takeover | Companion |
-| --- | --- | --- |
-| SCM view | GitTree's (changelists **or** staging) | both extensions' views |
-| Gutter/quick-diff | GitTree | built-in keeps them (GitTree's stay off) |
-| `git.enabled` | set to `false` for this workspace | untouched |
-| Undo | leave takeover → the setting is restored | — |
+So: leave the built-in extension enabled, or disable it because you no longer
+need it. GitTree behaves identically either way, and it will not make that
+decision for you.
 
-"Later" defers the decision; until you decide, GitTree behaves as a companion
-and touches nothing. The decision is per-workspace and lives in
-`gittree.mode` — editing that setting is the same consent, explicitly given.
+**If you used an earlier version and chose "takeover"**, that version wrote
+`git.enabled: false` into the workspace. GitTree no longer needs it, so on first
+launch it removes that override and shows a notification saying so. It only ever
+*removes* what it wrote — a `git.enabled` you set yourself, at any other scope,
+is left alone.
+
+The one overlap that remains is Explorer file badges, which both extensions can
+draw. If you run both and want only one set, turn off
+`gittree.decorations.fileExplorer`.
 
 ## 2. Feature equivalents
 
 | You used (built-in) | You get (GitTree) |
 | --- | --- |
-| Source Control view | Commit tool window — changelists or Staged/Unstaged with hunk & line staging |
+| Source Control view | Commit tool window in the **GitTree** container — changelists or Staged/Unstaged with hunk & line staging |
 | `Git: Commit` | `GitTree: Commit` (pre-commit checks, amend, sign, message history — `Ctrl+Up`) |
 | Branch status-bar item | Branches view: current/recent/local/remote, favorites, smart checkout |
 | `Git: Stash` commands | Stash view with diffs, plus the Shelf (patches stored outside `.git`) |
@@ -46,12 +53,16 @@ Keyboard reference: [keyboard.md](keyboard.md). Every setting: [settings.md](set
 
 ## 4. Coexistence notes
 
-- Other Git UIs (GitLens, Git Graph) keep working in either mode — they read
-  the same repository state. Disable their duplicate blame/graph surfaces to
-  taste.
-- Workspaces you never opted into are never affected: the consent is stored
-  per workspace, not globally.
-- To leave GitTree entirely: switch `gittree.mode` to `companion` (restores
-  `git.enabled`), then disable/uninstall the extension. Shelved patches and
-  Local History snapshots remain on disk until you delete them (see
-  [faq.md](faq.md) for locations).
+- Other Git UIs (GitLens, Git Graph) keep working — they read the same
+  repository state. Disable their duplicate blame/graph surfaces to taste.
+- GitTree changes no VS Code or extension setting on your behalf. The one
+  exception is the one-shot cleanup described above, which *removes* an override
+  an earlier GitTree wrote and is itself removed a release later.
+- VS Code's own previous/next-change arrows stay in the diff toolbar next to
+  GitTree's. An extension cannot remove a built-in toolbar button; you can hide
+  them yourself by right-clicking the toolbar. GitTree's arrows are the ones
+  that walk into the next file instead of wrapping, and `F7`/`Shift+F7` are
+  GitTree's on GitTree's diffs.
+- To leave GitTree entirely: disable or uninstall the extension. Nothing needs
+  restoring first. Shelved patches and Local History snapshots remain on disk
+  until you delete them (see [faq.md](faq.md) for locations).

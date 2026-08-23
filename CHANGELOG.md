@@ -6,10 +6,51 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — GitTree now owns its own surfaces (Phase 14)
+
+GitTree no longer builds on VS Code's Source Control framework or shares
+surfaces with the built-in Git extension. **There is no mode to choose any
+more**, and nothing about the built-in extension is changed on your behalf.
+
+- **Its own container.** All GitTree views moved out of VS Code's Source
+  Control sidebar into a **GitTree** container in the activity bar. View IDs
+  are unchanged, so existing keybindings and layouts keep working.
+- **No Source Control provider.** GitTree registers no `vscode.scm` provider
+  and contributes nothing to VS Code's Source Control menus. The branch and
+  sync indicators are its own status-bar items; the pending-change count is a
+  badge on the commit view.
+- **Its own change bars.** The gutter bars are GitTree-painted against the
+  index (or HEAD — `gittree.changeBars.base`), with overview-ruler marks, and
+  work whether or not the built-in Git extension is installed. Hover a changed
+  line, or press `Ctrl+Alt+G H`, for the previous text plus Rollback / Stage /
+  Commit View / navigate.
+- **Cross-file change navigation** — the thing VS Code's diff editor cannot do.
+  At the last change of a file, next-change offers to continue into the *next
+  file* instead of wrapping to the top of the current one; press again and it
+  goes. At the end of the last file it says so and stops. `F7`/`Shift+F7` under
+  the IntelliJ keymap. GitTree also contributes side-by-side/inline,
+  ignore-whitespace and collapse-unchanged controls to its own diffs.
+- **Its own status colours** (`gittree.color.*`), so file status stays coloured
+  with the built-in Git extension disabled — previously it went blank.
+- **Removed:** the takeover/companion consent modal and `gittree.mode`; the
+  `gittree.commit.window: "native"` fallback surface (the commit tool window is
+  the only commit surface, and its change tree now carries the changelist
+  context menus); the `gittree.merge.ui: "native"` bridge onto VS Code's
+  internal merge-editor command; and the read of the built-in `git.path`
+  setting.
+- **Migration:** if a workspace still carries the `"git.enabled": false` that an
+  earlier GitTree wrote for takeover mode, it is removed on first launch with a
+  notification. GitTree only ever removes what it wrote — a `git.enabled` you
+  set yourself is left alone.
+
+New deviations D18–D22 in [docs/deviations.md](docs/deviations.md) record what
+the VS Code API made impossible: bar position, popup invocation, VS Code's own
+diff arrows remaining beside GitTree's, and one-line anchoring differences.
+
 ### Added
 
 - **The Commit tool window (Tier-1 rebuild, Phase 11).** One panel, first in
-  the Source Control view, replacing the stacked sidebar trees:
+  the GitTree container, replacing the stacked sidebar trees:
   - `Commit | Shelf` tabs, an 8-action toolbar, and IntelliJ folder rows with
     single-child chains collapsed, `N files` badges on every node, and
     tri-state checkboxes on group, folder and file rows.

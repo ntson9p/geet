@@ -2,16 +2,22 @@
 
 ### Does GitTree replace the built-in Git extension?
 
-Only if you ask it to. On first use GitTree asks once per workspace:
+No, and it no longer asks you to choose. GitTree has its own activity-bar
+container, its own commit window, its own change bars and its own diff
+controls, so it does not compete with the built-in Git extension for anything.
+Leave that extension on or turn it off — GitTree behaves the same either way.
 
-- **Takeover** — GitTree provides the SCM view and disables the built-in git
-  extension *for that workspace only* (it writes `git.enabled: false` at
-  workspace scope, and restores it the moment you leave takeover mode).
-- **Companion** — both run side by side; GitTree keeps overlapping gutter and
-  explorer decorations off so nothing is drawn twice.
+Specifically, GitTree registers no Source Control provider, contributes nothing
+to VS Code's Source Control menus, and reads no `git.*` setting.
 
-Nothing is changed without that explicit consent, and `gittree.mode` can flip
-the decision at any time. See [migration-from-builtin.md](migration-from-builtin.md).
+Earlier versions asked once per workspace and, if you chose "takeover", wrote
+`git.enabled: false` into that workspace. That is gone. If your workspace still
+carries that setting, GitTree removes it on first launch and tells you it did.
+See [migration-from-builtin.md](migration-from-builtin.md).
+
+The one place both extensions can still draw on the same thing is Explorer file
+badges. If you run both and would rather see only one set, turn off
+`gittree.decorations.fileExplorer` (or disable the other extension).
 
 ### GPG signing on Windows doesn't prompt / hangs — what now?
 

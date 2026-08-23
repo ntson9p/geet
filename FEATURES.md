@@ -17,12 +17,36 @@ ships. Accepted divergences are named here and registered once in
 
 * **IntelliJ:** color bars in the left gutter — green added, blue modified, grey deleted —
   with a floating inline diff on click carrying Rollback / Show Diff / Copy actions.
-* **GitTree:** VS Code's native **quick diff** provider (`SourceControl.quickDiffProvider`)
-  over the `gittree-rev:` scheme, so the bars are the editor's own and track the index live.
-  The click popup is VS Code's, and GitTree contributes the actions into it through
-  `scm/change/title`: **Stage Hunk · Unstage Hunk · Revert Hunk · Show Diff**.
-* **Deviation:** the popup is VS Code's, not a bespoke floating viewer — the API exposes no way
-  to render one (see D1).
+* **GitTree:** **its own** bars, painted with `TextEditorDecorationType` against the index (or
+  HEAD — `gittree.changeBars.base`), plus matching overview-ruler marks. P14-T3 replaced the
+  `SourceControl.quickDiffProvider` route, which died with the SourceControl itself. Colours
+  are `editorGutter.*`, a VS Code **core** token, so they theme correctly whether or not the
+  built-in Git extension is installed.
+* **Popup:** previous text plus **Rollback · Stage · Commit View · ↑ ↓**, on hover over a
+  changed line or from `gittree.change.showActions` (`Ctrl+Alt+G H`).
+* **Bounds:** untracked and ignored files get no bars (as in IntelliJ); files over
+  `gittree.changeBars.maxFileLines` (default 20 000) are skipped loudly in the trace rather
+  than stalling the editor. Recompute is debounced and measured — p95 0.6 ms at 5 000 lines.
+* **Deviations:** the bars sit ~21px right of VS Code's own lane, which no public API can
+  target (D18); the popup opens on hover or a key rather than by clicking the bar, because
+  decorations expose no click handler (D19); and anchoring can differ from VS Code's by one
+  line where an insertion sits between equally plausible anchors (D21).
+
+### Diff controls and cross-file navigation (shape + behaviour)
+
+* **IntelliJ:** the Differences Viewer's own toolbar, and — the part that matters daily — at
+  the last change of a file the next-change button offers to continue into the *next file*.
+* **GitTree:** its own controls on its own diffs (`isInDiffEditor && gittree.diff.active`):
+  **↑ ↓ change · side-by-side/inline · ignore whitespace · collapse unchanged**, with
+  `F7`/`Shift+F7` under the IntelliJ keymap.
+* **Cross-file navigation:** the changed-files list you clicked from *is* the sequence. At the
+  last change the first press **arms** and names the next file; the second press crosses,
+  landing on its first change (or its last, going backwards). At the end of the last file it
+  says so and **never wraps** — which is exactly what VS Code's own arrows do instead.
+* **Deviations:** the renderer is still VS Code's, so IntelliJ's per-change apply arrows,
+  highlight granularity and three-way view modes remain out of reach (D1, narrowed); and VS
+  Code's own change arrows stay in the toolbar beside GitTree's, because an extension cannot
+  unregister a core menu item (D20).
 
 ### Git blame (shape + behaviour)
 
@@ -95,13 +119,15 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 ### The window itself (shape)
 
 * **One tool window**, not stacked sidebar trees: webview view `gittree.commit`, placed
-  **first in the SCM container**, holding tabs `Commit | Shelf`, a toolbar strip, the change
-  tree, and a bottom block (amend row · message editor · action buttons · options gear) — all
-  in a single panel. The native SCM input box is hidden while this window owns the message.
+  **first in the GitTree activity-bar container** (P14-T1), holding tabs `Commit | Shelf`, a
+  toolbar strip, the change tree, and a bottom block (amend row · message editor · action
+  buttons · options gear) — all in a single panel. There is no SCM input box to hide: P14-T4
+  deleted the `vscode.scm` SourceControl entirely.
 * **Toolbar** (icon buttons with tooltips): Refresh · Rollback · Show Diff · Shelve Changes ·
   Preview Diff toggle · Expand all · Collapse all.
-* **Escape hatch:** `gittree.commit.window: "native"` restores the pre-P11 surface (the
-  `gittree.changelists` tree + SCM input box + `gittree.shelf` tree) without a reload.
+* **Context menus:** right-click a changelist row for Commit / Set Active / New / Rename /
+  Delete / Shelve, or a file row for Show Diff / Open File / Move to Changelist / Roll Back
+  (P14-T2a). These were the changelists tree view's menus; they moved here with it.
 
 ### The change tree (shape + behaviour)
 
@@ -116,7 +142,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   `M of N changes`. Excluding the last change unticks the file. Stale selections (the file
   moved) fall back to whole-file, loudly — renumbered hunks are never committed.
 * **Density:** `N files` badge on every group and folder node; status-colored file **names**
-  and icons (theme `gitDecoration-*` colors, `gittree.colors.<status>` overrides); a folder
+  and icons (GitTree's own `gittree.color.*` theme colours, `gittree.colors.<status>`  overrides); a folder
   whose descendants share one status wears it, mixed folders read as modified.
 
 ### Paradigm A: Changelists (the default)

@@ -329,6 +329,68 @@ all 34 `scm/*` menu entries; the mode consent modal.
 - [x] D1 Route A: GitTree's own controls on GitTree's diffs *(P14-T7.3; 2 arrows + 3 view toggles, all scoped to `gittree.diff.active` so they never appear on a diff GitTree did not open)*
 - [x] Cross-file change navigation with IntelliJ's two-stage "press again for the next file" hint *(P14-T7.2; walked end to end over a real 3-file commit diff, and asserted never to wrap)*
 
+## Outcome (P14-T8, 2026-08-24) — **PHASE 14 CLOSED**
+
+Every checklist item above is ticked. `vscode.scm` appears nowhere in `src/` outside a comment
+describing its removal; `contributes.menus` has zero `scm/*` keys; the ten views live in
+GitTree's own activity-bar container (two of them retired as superseded); the change bars,
+change popup, status colours and diff controls are GitTree's own; and the only `git.*` write
+left is the one-shot migration that removes an override this extension wrote earlier.
+
+**Shipped across eight commits** (T2 and T2a were split so no commit ever carried the
+regression the split existed to avoid):
+
+| Task | Commit | What |
+|---|---|---|
+| T1 | `4bc49d3` | GitTree activity-bar container |
+| T2a | `66ca8f7` | Commit-window native context menus (added *before* the deletion) |
+| T2b | `5e7a166` | Retire the native commit surface |
+| T3 | `389ccf2` | Own change bars and change popup |
+| T4 | `4f46541` | Delete the SourceControl |
+| T5 | `6da302e` | Own status colours; drop the last built-in-git couplings |
+| T6 | `f9f9dee` | Retire ModeManager; migrate takeover workspaces |
+| T7 | `544dd81` | Diff controls and cross-file change navigation |
+
+**Gates at close:** 713 unit, 198 Playwright webview (+3 skipped), 231 integration (+2
+pending), `test:perf` 9/9 with every §13 budget met including the new change-bar recompute
+bound (**0.6 ms p95** at 5 000 lines against 50 ms).
+
+**Four deviations from the plan, each recorded where it happened:**
+1. `scm/change/title` was held from T2 to T4 — those three entries are the quick-diff peek
+   toolbar, and the provider they belong to did not go until T4. Deleting them earlier would
+   have left a live peek widget with a dead toolbar for two commits.
+2. T2 was split into T2a/T2b, additive half first. The plan's T2 would have dropped changelist
+   management to palette-only between commits; the commit window's group rows had no context
+   menu because that had always lived on the tree view being deleted.
+3. The `gittree.changeBars.base` rename moved from T4 to T3, because T3 needed the setting and
+   splitting a rename across two tasks leaves the two keys disagreeing in between.
+4. T6.3's "detect `vscode.git` and default explorer decorations off" was **not** implemented —
+   see D22. It writes a setting unprompted and reintroduces exactly the behavioural dependency
+   this phase removes.
+
+**Three real defects were found and fixed while building this**, none of them in the phase's
+own new code:
+- `rewrite/undoDrop.ts`, `merge/lifecycle.ts` and `ui/progress.ts` were all still reaching a
+  SourceControl that no longer existed, through `debugRegistry.get(...) as Shape` casts that
+  typecheck cannot see through. Two would have been silent no-ops (a lost commit-message
+  prefill in each); the third put the operation spinner in a view GitTree no longer contributes
+  to. **The registry-cast pattern converts refactor breakage into silent runtime no-ops** —
+  worth knowing before the next structural change.
+- `ChangeBarsController.apply()` could clear a fresher result with a staler one, because two
+  runs interleave across its single `await`. Visible as bars vanishing after a terminal-side
+  `git add`. Fixed with a per-document generation guard.
+
+**Two harness weaknesses recorded for the owner, deliberately not fixed here:**
+- `gitWithRetry` (`test/integration/setup.ts`) retries the *whole* git command on lock errors.
+  `git checkout -b X` is not idempotent, so a transient `unable to write symref for HEAD:
+  Permission denied` resurfaces as `A branch named 'X' already exists` — an error that no
+  longer resembles its cause. Most cascading failures seen during this phase trace to it.
+- `%TEMP%` had accumulated **662** leaked `gittree-*` fixture repos since 2026-07-11, because
+  both `runTests.ts` and `FixtureRepo.dispose()` swallow Windows cleanup failures by design.
+  With them present the suite ran 10–11 min with 5–6 cascading failures; cleared, 7 min with
+  one. A startup sweep of stale fixture dirs is worth its own task, and the P7-T2 stash budget
+  is worth re-measuring against a clean temp before anyone changes it.
+
 ## Planned deviations
 - **D18 · Change bars sit at the content edge, not VS Code's quick-diff lane.** VS Code paints
   quick diff in an internal "line decorations" lane between the line numbers and the text; no

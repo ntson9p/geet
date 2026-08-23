@@ -15,7 +15,7 @@ surface, which made genuine gaps invisible. Rules:
 
 | # | Deviation | Revisitable |
 |---|---|---|
-| [D1](#d1--differences-viewer) | Diffs use VS Code's diff editor, not IntelliJ's Differences Viewer | **Yes — planned, see below** |
+| [D1](#d1--differences-viewer) | Diffs use VS Code's diff editor, not IntelliJ's Differences Viewer | **Narrowed — Route A shipped (P14-T7); the renderer stays deviated** |
 | [D2](#d2--dialogs-are-not-os-modal) | Dialogs are editor-area webview panels | No (API) |
 | [D3](#d3--no-anchored-popups) | Popups are not anchored to their trigger widget | No (API) |
 | [D4](#d4--vcs-widget-location) | Branch widget lives in the status bar, not a top toolbar | No (API) |
@@ -32,6 +32,11 @@ surface, which made genuine gaps invisible. Rules:
 | [D15](#d15--push-tags-current-branch-means---follow-tags) | `Push tags: Current Branch` maps to `--follow-tags` | No (no git equivalent) |
 | [D16](#d16--worktree-lockprunable-flags-are-derived-on-git--236) | Worktree lock/prunable derived from disk on git &lt; 2.36 | Yes (drop when git 2.36 is the floor) |
 | [D17](#d17--apply-non-conflicting-changes-acts-on-conflict-blocks-not-the-whole-diff) | `Apply non-conflicting changes` acts on conflict blocks; git pre-applies the rest | Only by dropping git's own re-merge |
+| [D18](#d18--change-bars-sit-at-the-content-edge) | Change bars sit at the content edge, ~21px right of VS Code's own lane | No (no public API targets that lane) |
+| [D19](#d19--the-change-popup-is-hover--and-keyboard-invoked) | The change popup opens on hover or a key, not by clicking the bar | No (decorations expose no click handler) |
+| [D20](#d20--vs-codes-own-diff-arrows-remain-beside-gittrees) | VS Code's next/prev-change arrows remain beside GitTree's | Only via Route B |
+| [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
+| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
 
 ---
 
@@ -109,11 +114,31 @@ the inclusion model while keeping every editor feature. Awkward in one respect: 
 not physically inside the diff's toolbar, so it looks adjacent rather than integrated.
 
 **Recommendation for a future phase:** do **A** first as part of any Tier 2 work, then decide
-between C and B based on whether the per-change arrows matter more than editor fidelity. A
-plausible `PHASE-14-differences-viewer.md` would be: T1 Route A · T2 inclusion/change-list
-strip (C) · T3 decision gate on B with a spike measuring bundle cost and large-file
-performance · T4–T6 the renderer if the gate passes · T7 accessibility parity · T8 fallback
-rules and docs.
+between C and B based on whether the per-change arrows matter more than editor fidelity.
+
+### Status: Route A shipped in P14-T7 — this deviation is narrowed, not closed
+
+GitTree now contributes its own controls to its own diffs (`when: isInDiffEditor &&
+gittree.diff.active`): previous/next change, side-by-side/inline, ignore-whitespace and
+collapse-unchanged. It also has something IntelliJ has and the native editor structurally
+cannot: **cross-file change navigation**. VS Code wraps to the top of the same file at the last
+change because a diff editor knows two documents and nothing about a sequence; GitTree opens
+the diffs, so it knows the sequence and reproduces IntelliJ's two-stage gesture — the first
+press arms and names the next file, the second press crosses, and the end of the last file
+stops rather than wrapping.
+
+**What is still deviated:** the renderer itself. Side-by-side/unified/two-side-with-line-by-line
+as three modes rather than a boolean, the five-way ignore-whitespace list, highlight
+granularity (words/lines/split), the `≫`/`≪` per-change apply arrows between panes, per-change
+include checkboxes outside the commit window, and "align changes" all remain out of reach
+without Route B.
+
+**Route B is gated, not rejected.** It costs a phase of its own and trades away syntax
+highlighting (TextMate grammars are unreachable from a webview), find/replace, multi-cursor,
+folding, go-to-definition, hover, the user's editor keybindings, IME in editable panes,
+large-file performance, and the Accessible Diff Viewer that P10-T2 commits to. Revisit it
+behind a spike measuring bundle cost and large-file performance, as above — not as a
+refactor.
 
 ---
 
@@ -279,3 +304,66 @@ taking a side. The toolbar shape matches the reference and the semantics stay ho
 "take my side everywhere" verbs are the separate `Accept Yours` / `Accept Theirs` actions.
 **Revisitable:** only by abandoning git's own re-merge and computing the full three-way diff
 ourselves, which would lose byte-exact parity with what git would have written.
+
+## D18 · Change bars sit at the content edge
+
+**IntelliJ:** a narrow change-marker strip between the line numbers and the text.
+**VS Code:** its own quick-diff bars render in an internal "line decorations" lane, in the same
+place.
+**GitTree:** an `isWholeLine` decoration with a 3px left border, which lands at the left edge of
+the *content* area.
+
+**Why:** no public decoration API targets that lane. Measured on VS Code 1.134 at
+`window.zoomLevel: 2`, VS Code's bar sits at x=431–434 and the border technique at x=462–465 —
+about 21px right at 100% zoom, at the identical 4px width. The alternative, `gutterIconPath`,
+renders in the **glyph margin**: 54px the *other* way, only 2px wide, and sharing a lane with
+breakpoints. The border was chosen on width fidelity and to keep breakpoints uncontested.
+**Revisitable:** no, absent a new API.
+
+## D19 · The change popup is hover- and keyboard-invoked
+
+**IntelliJ:** clicking a gutter marker opens a compact popup with the previous text and a
+toolbar.
+**GitTree:** the same content — previous text plus Rollback / Stage / Commit View / navigate —
+opens on hover over a changed line, or from `gittree.change.showActions` (`Ctrl+Alt+G H`).
+
+**Why:** VS Code exposes no click handler for a `TextEditorDecorationType`, and no API opens a
+diff peek widget at a location. Native quick-diff bars are clickable because VS Code core
+implements that itself. A `CodeLens` variant was rejected: it costs a text line per change,
+which a gutter marker does not.
+**Revisitable:** no, absent a new API.
+
+## D20 · VS Code's own diff arrows remain beside GitTree's
+
+**GitTree** contributes previous/next-change arrows to its own diffs, and they sort first.
+VS Code's built-in arrows stay visible next to them and still wrap within the file.
+
+**Why:** an extension cannot unregister a core menu item. Users can hide the built-ins from the
+editor-toolbar context menu, but GitTree cannot do it for them. The keyboard is unaffected —
+`F7`/`Shift+F7` are GitTree's and scoped to its diffs.
+**Revisitable:** only via Route B, which would replace the editor and so remove its toolbar with
+it. Deleting two buttons is not a reason to take on that trade.
+
+## D21 · Change-bar anchoring can differ by one line
+
+GitTree computes its own hunks, so where an insertion sits between two equally plausible
+anchors — most often blank lines — its bar may start one line from where VS Code's did. Both are
+correct diffs of the same change; the block covers the same number of lines.
+
+**Why:** inherent to owning the diff instead of reading VS Code's.
+**Revisitable:** no.
+
+## D22 · Explorer decorations are a setting, not a negotiation
+
+**Before P14:** GitTree skipped explorer decorations in "companion" mode so as not to double up
+with the built-in Git extension's.
+**Now:** `gittree.decorations.fileExplorer` (default on). GitTree does not inspect what other
+extensions are doing.
+
+**Why:** the plan for P14-T6 proposed detecting `vscode.git` and defaulting the setting off once.
+That was rejected during implementation: it writes a setting on the user's behalf unprompted,
+and it makes GitTree's behaviour depend on another extension — the exact coupling this phase
+exists to remove, and a contradiction of its own exit criterion that enabling or disabling the
+built-in Git extension changes nothing about how GitTree behaves. Someone running both who
+dislikes the overlap turns one of them off.
+**Revisitable:** deliberate.

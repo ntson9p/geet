@@ -19,6 +19,28 @@ The CI `perf` job (`.github/workflows/ci.yml`) runs the suite on all three OSes.
 It has never executed: the repository has no remote by project-owner decision, so
 the recorded evidence is the local runs below.
 
+## Results — 2026-08-24, Windows 11, local — **Phase 14 close** (P14-T8)
+
+Phase 14 removed the SCM provider and replaced VS Code's quick diff with
+GitTree-painted change bars, so the one new budget is the recompute that
+replaced it. It is the term the `gittree.changeBars.maxFileLines` cutoff exists
+to bound, measured on the pure function — the decoration apply is O(changes)
+and never the cost.
+
+| Metric | §13 budget | Measured |
+|---|---|---|
+| Change-bar recompute p95 @ 5 000 lines | ≤ 50 ms | **0.6 ms** (median 0.5) |
+
+The fixture is a realistic edit spread — 40 scattered single-line
+modifications plus one 20-line insert and one 15-line delete — not a single
+large rewrite, which would be the easy case for an LCS diff. Two orders of
+magnitude under budget at 5 000 lines is why the default cutoff sits at 20 000
+rather than lower: the guard is against pathological files, not typical ones.
+
+Every other §13 budget re-ran green and unchanged from the Tier-1 close below;
+Phase 14 adds no startup cost (the change-bar controller registers listeners and
+paints nothing until an editor is visible).
+
 ## Results — 2026-08-23, Windows 11, local — **Tier-1 close** (P13-T9)
 
 Final re-validation with Phases 11–13 all shipped (dialogs, worktrees, the

@@ -61,14 +61,30 @@ GitTree replaces the built-in Git experience with an IntelliJ-grade one: changel
 
 ## 3. Coexistence with the built-in Git extension
 
-Two SCM providers on one repo means duplicate gutter bars, status entries and status-bar items. `ModeManager` (P0-T7) owns the strategy; **every UI-registering module must consult it**.
+> **SUPERSEDED by Phase 14** (`docs/plan/PHASE-14-owning-the-scm-surface.md`). GitTree no
+> longer coexists *by negotiation*: it does not compete for the built-in extension's surfaces,
+> so there is nothing to negotiate. The mode machinery below is gone — `ModeManager`, the
+> consent modal and the `gittree.mode` setting were deleted in P14-T6, and a one-shot migration
+> removes the `git.enabled` override from any workspace that had consented to takeover.
+>
+> **What holds now:** GitTree registers no `vscode.scm` SourceControl, contributes no `scm/*`
+> menus, hosts its views in its own activity-bar container, paints its own change bars, and
+> reads no `git.*` configuration. Enabling or disabling the built-in Git extension changes
+> nothing about how GitTree behaves. The single remaining overlap — explorer file decorations,
+> which both extensions can badge — is a plain user setting, `gittree.decorations.fileExplorer`
+> (deviation D22).
+>
+> The original table is kept below as history, because PROGRESS.md and six phase documents
+> reference it. **It no longer describes the product.**
 
-| Mode | Behavior | When |
+~~Two SCM providers on one repo means duplicate gutter bars, status entries and status-bar items. `ModeManager` (P0-T7) owns the strategy; **every UI-registering module must consult it**.~~
+
+| ~~Mode~~ | ~~Behavior~~ | ~~When~~ |
 |---|---|---|
-| **Takeover** (recommended default) | One-time consent modal explains the change, then writes `git.enabled: false` to workspace settings. GitTree provides all SCM UI. | User accepts onboarding prompt. |
-| **Companion** | Built-in git stays on. GitTree does **not** register its `QuickDiffProvider` or `FileDecorationProvider` (avoids double gutter/explorer decorations); its SourceControl hosts only the changelist/commit UI; log/blame/merge/stash/shelf/PR/history features all still work. | User declines, or until they opt in. |
+| ~~**Takeover** (recommended default)~~ | ~~One-time consent modal explains the change, then writes `git.enabled: false` to workspace settings. GitTree provides all SCM UI.~~ | ~~User accepts onboarding prompt.~~ |
+| ~~**Companion**~~ | ~~Built-in git stays on. GitTree does **not** register its `QuickDiffProvider` or `FileDecorationProvider`; its SourceControl hosts only the changelist/commit UI.~~ | ~~User declines, or until they opt in.~~ |
 
-Notes: never flip `git.enabled` without explicit consent (Marketplace policy + trust). Read the user's `git.path` setting first when locating the git binary. Takeover removes the built-in merge-editor entry points — P6 replaces them.
+~~Notes: never flip `git.enabled` without explicit consent (Marketplace policy + trust). Read the user's `git.path` setting first when locating the git binary.~~ The `git.path` fallback was also removed in P14-T5: GitTree resolves the binary from `gittree.gitPath`, `PATH` and well-known install locations only.
 
 ---
 

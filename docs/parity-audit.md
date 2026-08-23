@@ -1,4 +1,4 @@
-# Parity audit — Tier 1 close (P13-T9)
+# Parity audit — Tier 1 close (P13-T9), updated at P14-T8
 
 Scored against the **rewritten** [FEATURES.md](../FEATURES.md) (P13-T9) and the inventory in
 [intellij-gap-analysis.md](intellij-gap-analysis.md) §3. It replaces the 2026-07-16 audit,
@@ -14,12 +14,25 @@ rewrite — it is what the previous audit could not express.
 Legend: **✅** shipped, shape and behaviour · **🟡** shipped, shape differs (each one is
 registered in [deviations.md](deviations.md)) · **❌** absent · **⏭️** intentionally unshipped.
 
-**Verification base (2026-08-23):** 686 unit tests, 220 integration tests (+2 pending),
-197 Playwright webview tests (+3 skipped), §13 perf budgets green (`docs/perf.md`), bundle
-1.15 MB against a 2.50 MB budget. One known-red integration assertion is documented in
-`docs/plan/NIGHTLOG-2026-08-23.md` (a 500 ms stash-view latency bound that this machine
-now straddles); it is a budget question for the owner, not a product defect. CI matrices are
-authored but have never executed — no remote (PHASE-10 deviations).
+**Verification base (2026-08-24, after Phase 14):** 713 unit tests, 231 integration tests
+(+2 pending), 198 Playwright webview tests (+3 skipped), §13 perf budgets green
+(`docs/perf.md`) including the new change-bar recompute bound. One known-red integration
+assertion is documented in `docs/plan/NIGHTLOG-2026-08-23.md` (a 500 ms stash-view latency
+bound that this machine now straddles, most recently at 504 ms); it is a budget question for
+the owner, not a product defect. CI matrices are authored but have never executed — no remote
+(PHASE-10 deviations).
+
+**Phase 14 changed the containers, so re-read the shape column.** GitTree no longer registers
+a `vscode.scm` SourceControl, contributes no `scm/*` menus, and hosts its views in its own
+activity-bar container. Rows that previously scored ✅ *because* they sat in VS Code's SCM
+surfaces now score ✅ on GitTree's own, and the gutter rows moved from "VS Code's quick diff"
+to GitTree's own bars and popup. New deviations D18–D22 cover what that cost.
+
+**Where owning the implementation is strictly better.** VS Code's built-in git extension
+serves **no** quick diff and **no** file decorations for repositories under a Windows 8.3 short
+path (`C:\Users\ADA~1.LOV\…`) — silently, while still showing the branch in the status bar.
+GitTree is immune: `src/core/util/paths.ts` canonicalizes both sides before comparing, a rule
+established in P0 and now load-bearing for the change bars. Found while building P14-T3.
 
 ---
 
@@ -41,8 +54,10 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Gutter line tracking, bars track the index live | ✅ | P1 `quickDiffProvider` over `gittree-rev:`; `phase01` integration |
-| Hunk actions from the gutter popup | 🟡 | `scm/change/title`: Stage/Unstage/Revert Hunk, Show Diff. The popup is VS Code's — no API for a bespoke one (**D1**) |
+| Gutter line tracking, bars track the index live | ✅ | P14-T3 `ChangeBarsController` — GitTree-painted decorations against the index or HEAD, invalidated on every status move; `phase14` integration asserts the exact painted rows |
+| Hunk actions from the gutter popup | 🟡 | P14-T3 `changePopup`: previous text + Rollback / Stage / Commit View / ↑ ↓, GitTree's own content. Opens on hover or `Ctrl+Alt+G H` rather than by clicking the bar — decorations expose no click handler (**D19**) |
+| Next/previous change walks into the next file | ✅ | P14-T7 `navigationStep` + `diffSession`: IntelliJ's two-stage gesture, asserted end to end over a 3-file commit diff and asserted never to wrap. VS Code's own arrows cannot do this at all |
+| Differences Viewer toolbar controls | 🟡 | P14-T7 Route A: side-by-side/inline, ignore whitespace, collapse unchanged, scoped to GitTree's diffs. The renderer stays VS Code's, so per-change apply arrows and highlight granularity remain out (**D1**, narrowed) |
 | Blame: author · date · sha per line, toggleable | ✅ | `gittree.blame.toggle` (`Ctrl+Alt+G B`), inline decorations, `blame --incremental` |
 | Blame age heat-map | ✅ | `gittree.blame.heatmap`; unit-tested in the blame suites |
 | Click a blame annotation → the commit in the log | ✅ | `gittree.blame.revealCursorCommit` |
@@ -72,7 +87,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| One tool window with `Commit \| Shelf` tabs, first in the SCM container | ✅ | P11-T2 `gittree.commit` webview |
+| One tool window with `Commit \| Shelf` tabs, first in the GitTree container | ✅ | P11-T2 `gittree.commit` webview; moved out of VS Code's SCM container by P14-T1 |
 | Toolbar strip (refresh, rollback, diff, shelve, preview, expand/collapse) | ✅ | P11-T2 |
 | Folder rows with single-child chains collapsed | ✅ | `treeModel.buildTree` |
 | Tri-state checkboxes on group, folder and file rows | ✅ | P11-T2/T3 — impossible in `TreeView` |
