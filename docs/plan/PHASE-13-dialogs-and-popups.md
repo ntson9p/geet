@@ -227,8 +227,8 @@ Settings `gittree.update.strategy`, `gittree.push.runHooks`, `gittree.push.tags`
 
 ## Parity checklist (gap-analysis S3, S4, S6, S7 · §3.2, §3.5, §3.7, §3.10)
 - [x] S4 — Push · Update Project · Merge · Rebase · Reset · Rollback · Cherry-pick · Stash · Unstash · Apply Patch · Clone · Manage Remotes all have option-bearing dialogs *(P13-T1…T4; every one previews the exact argv it will run)*
-- [ ] S3 — branches popup opens with top-level verbs, has folder rows, and a full `›` submenu per branch
-- [ ] S3b — `Merge 'X' into '<current>'` reachable without drag-and-drop (fixes the `mergeIntoCurrent` defect)
+- [x] S3 — branches popup opens with top-level verbs, has folder rows, and a full `›` submenu per branch *(P13-T5; typing searches flat across every level, so drill-in never traps)*
+- [x] S3b — `Merge 'X' into '<current>'` reachable without drag-and-drop (fixes the `mergeIntoCurrent` defect) *(P13-T5: registry entry + `gittree.branch.mergeIntoCurrent` + tree-view menu row)*
 - [ ] S6 — VCS Operations Popup on `alt+\``, context-aware, enumerated from the registries
 - [ ] S7 — `Files Merged with Conflicts` dialog gate, tree view retained
 - [ ] §3.5 — `Apply non-conflicting changes` split into Left/All/Right + live conflict counter + per-side Show Details

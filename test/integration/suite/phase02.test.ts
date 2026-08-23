@@ -86,8 +86,14 @@ suite('P2 branches', () => {
       current: service.currentBranch,
       locals: service.localBranches,
       remotes: service.remoteBranches,
+      // P13-T5 widened the input: tags, the drill-in prefix, the flat-search
+      // mode and the incoming/outgoing toggle. Top level, not filtering.
+      tags: [],
       recent: ['feature/one'],
       favorites: await service.getFavorites(),
+      prefix: '',
+      filtering: false,
+      showInOut: false,
     });
     const elapsed = Date.now() - t0;
     assert.ok(elapsed < 150, `buildPopupItems took ${elapsed}ms (budget 150)`);

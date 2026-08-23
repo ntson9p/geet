@@ -242,6 +242,105 @@ export class BranchOps {
     }
   }
 
+  /**
+   * `git rebase <sel>` — rebase the CURRENT branch onto the selected one. The
+   * mirror of `checkoutAndRebaseOntoCurrent`, and a separate verb in IntelliJ's
+   * branch submenu (`Rebase '<current>' onto 'X'`). P13-T5.
+   */
+  async rebaseCurrentOnto(repo: RepoHandle, branch: string): Promise<void> {
+    const current = repo.model.snapshot.headRef;
+    if (current === undefined) {
+      void vscode.window.showWarningMessage(vscode.l10n.t('Not on a branch.'));
+      return;
+    }
+    try {
+      await repo.queue.enqueue({
+        label: vscode.l10n.t('Rebase {0} onto {1}', current, branch),
+        kind: 'mutate',
+        isDestructive: true,
+        snapshotLabel: SNAPSHOT_LABELS.rebaseStart,
+        snapshotAfter: true,
+        run: async (git, token) => {
+          await git.exec(repo.root, ['rebase', branch], { token });
+        },
+      });
+    } catch (err) {
+      if (err instanceof GitError && err.kind === 'merge-conflict') {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Rebase of "{0}" stopped on conflicts. Resolve the conflicted files, then continue or abort the rebase.',
+            current,
+          ),
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  /** `Pull into '<current>' Using Merge` on a remote branch row (P13-T5). */
+  async pullRemoteIntoCurrent(repo: RepoHandle, remoteBranch: string): Promise<void> {
+    const slash = remoteBranch.indexOf('/');
+    if (slash <= 0) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('"{0}" is not a remote-tracking branch.', remoteBranch),
+      );
+      return;
+    }
+    const remote = remoteBranch.slice(0, slash);
+    const branch = remoteBranch.slice(slash + 1);
+    try {
+      await repo.queue.enqueue({
+        label: vscode.l10n.t('Pull {0}', remoteBranch),
+        kind: 'mutate',
+        isDestructive: true,
+        snapshotLabel: SNAPSHOT_LABELS.merge,
+        run: async (git, token) => {
+          await git.exec(repo.root, ['pull', '--no-rebase', remote, branch], { token });
+        },
+      });
+    } catch (err) {
+      if (err instanceof GitError && err.kind === 'merge-conflict') {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t('Pull of "{0}" produced conflicts — resolve them, then commit.', remoteBranch),
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * `Delete 'origin/x' on Remote` — `git push <remote> --delete <branch>`.
+   * Behind an explicit confirmation: this is the one branch action that
+   * changes something other people can see.
+   */
+  async deleteRemoteBranch(repo: RepoHandle, remoteBranch: string): Promise<void> {
+    const slash = remoteBranch.indexOf('/');
+    if (slash <= 0) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('"{0}" is not a remote-tracking branch.', remoteBranch),
+      );
+      return;
+    }
+    const remote = remoteBranch.slice(0, slash);
+    const branch = remoteBranch.slice(slash + 1);
+    const ok = await confirmModal(
+      vscode.l10n.t('Delete "{0}" on the remote?', remoteBranch),
+      vscode.l10n.t('This removes the branch for everyone using {0}.', remote),
+      vscode.l10n.t('Delete on Remote'),
+    );
+    if (!ok) return;
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Delete {0} on remote', remoteBranch),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['push', remote, '--delete', branch], { token });
+      },
+    });
+    await repo.refresher.refreshNow();
+  }
+
   private async promptBranchName(
     repo: RepoHandle,
     initial: string,

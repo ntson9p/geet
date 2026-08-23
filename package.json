@@ -132,6 +132,11 @@
             "default": "checkout",
             "description": "%gittree.config.branches.defaultAction.description%"
           },
+          "gittree.branches.showIncomingOutgoing": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.branches.showIncomingOutgoing.description%"
+          },
           "gittree.smartCheckout.behavior": {
             "type": "string",
             "enum": [
@@ -1365,6 +1370,48 @@
         "command": "gittree.worktrees.refresh",
         "title": "%gittree.command.worktrees.refresh.title%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "gittree.branch.mergeIntoCurrent",
+        "title": "%gittree.command.branch.mergeIntoCurrent.title%",
+        "category": "GitTree",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "gittree.branch.checkoutAndRebase",
+        "title": "%gittree.command.branch.checkoutAndRebase.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.rebaseCurrentOnto",
+        "title": "%gittree.command.branch.rebaseCurrentOnto.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.newWorktree",
+        "title": "%gittree.command.branch.newWorktree.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.pullIntoCurrent",
+        "title": "%gittree.command.branch.pullIntoCurrent.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.deleteOnRemote",
+        "title": "%gittree.command.branch.deleteOnRemote.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.new",
+        "title": "%gittree.command.branch.new.title%",
+        "category": "GitTree",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.branches.checkoutRevision",
+        "title": "%gittree.command.branches.checkoutRevision.title%",
+        "category": "GitTree"
       }
     ],
     "submenus": [
@@ -2182,6 +2229,31 @@
           "group": "1_checkout@2"
         },
         {
+          "command": "gittree.branch.mergeIntoCurrent",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "2_integrate@1"
+        },
+        {
+          "command": "gittree.branch.rebaseCurrentOnto",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "2_integrate@2"
+        },
+        {
+          "command": "gittree.branch.pullIntoCurrent",
+          "when": "view == gittree.branches && viewItem == branch:remote",
+          "group": "2_integrate@3"
+        },
+        {
+          "command": "gittree.branch.newWorktree",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "group": "3_worktree@1"
+        },
+        {
+          "command": "gittree.branch.deleteOnRemote",
+          "when": "view == gittree.branches && viewItem == branch:remote",
+          "group": "9_danger@1"
+        },
+        {
           "command": "gittree.branches.newFrom",
           "when": "view == gittree.branches && viewItem =~ /^branch:/",
           "group": "1_checkout@3"
@@ -2590,6 +2662,17 @@
         "key": "ctrl+t",
         "mac": "cmd+t",
         "when": "config.gittree.keymap.intellij && !terminalFocus"
+      },
+      {
+        "command": "gittree.branch.new",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "config.gittree.keymap.intellij && !terminalFocus"
+      },
+      {
+        "command": "gittree.branches.rename",
+        "key": "f2",
+        "when": "config.gittree.keymap.intellij && view == gittree.branches && listFocus && !inputFocus"
       },
       {
         "command": "gittree.log.focus",

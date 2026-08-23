@@ -98,6 +98,12 @@ What pressing Enter on a branch in the Branches popup does.
   - `checkout`
   - `showActions`
 
+### `gittree.branches.showIncomingOutgoing`
+
+Show incoming (↓) before outgoing (↑) counts in the branches popup. Toggled from the popup's header.
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.smartCheckout.behavior`
 
 When a checkout is blocked by local changes: ask (IntelliJ-style dialog), auto (always smart-checkout via stash), or never (just report).
