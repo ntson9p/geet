@@ -447,6 +447,36 @@
             "description": "%gittree.config.localHistory.taskLabels.description%"
           }
         }
+      },
+      {
+        "title": "%gittree.config.dialogs.title%",
+        "properties": {
+          "gittree.dialogs.showCommandLine": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.dialogs.showCommandLine.description%"
+          },
+          "gittree.push.runHooks": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.push.runHooks.description%"
+          },
+          "gittree.push.tags": {
+            "type": "string",
+            "enum": [
+              "none",
+              "all",
+              "follow"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.push.tags.none%",
+              "%gittree.config.push.tags.all%",
+              "%gittree.config.push.tags.follow%"
+            ],
+            "default": "none",
+            "description": "%gittree.config.push.tags.description%"
+          }
+        }
       }
     ],
     "commands": [
@@ -1210,6 +1240,12 @@
         "command": "gittree.reportIssue",
         "title": "%gittree.command.reportIssue.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.push.dialog",
+        "title": "%gittree.command.push.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(repo-push)"
       }
     ],
     "submenus": [

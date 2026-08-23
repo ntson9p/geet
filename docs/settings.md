@@ -391,3 +391,27 @@ Also record a snapshot on file save (debounced 30s per file). Off by default —
 Record a labeled snapshot when a build/test task finishes, so states like "after the last green test run" are easy to find.
 
 - Type: `boolean` · Default: `true`
+
+## GitTree: Dialogs
+
+### `gittree.dialogs.showCommandLine`
+
+Show the dim "will run: git …" line in GitTree's dialogs, so the flags behind each option stay legible.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.push.runHooks`
+
+Run Git hooks (pre-push) when pushing from the Push dialog. Off adds --no-verify.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.push.tags`
+
+Which tags the Push dialog pushes alongside the branch.
+
+- Type: `string` · Default: `"none"`
+- Values:
+  - `none` — No tags.
+  - `all` — All tags (--tags).
+  - `follow` — Tags reachable from the pushed commits (--follow-tags).

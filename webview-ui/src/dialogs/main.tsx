@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import '../lib/base.css';
 import './dialogs.css';
 import { getInitialState } from '../lib/vscodeApi';
+import { Push } from './Push';
 import { ShelveChanges } from './ShelveChanges';
 
 const container = document.getElementById('root');
@@ -19,6 +20,8 @@ function pick(): JSX.Element {
   switch (dialog) {
     case 'shelve':
       return <ShelveChanges />;
+    case 'push':
+      return <Push />;
     default:
       return <div className="gt-dialog-unknown">Unknown dialog: {dialog}</div>;
   }

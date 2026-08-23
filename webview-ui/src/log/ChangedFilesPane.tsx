@@ -9,23 +9,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CommitFileDto, LogChangedFilesDto } from '../../../src/shared/protocol';
 import { FileTree } from '../lib/FileTree';
-import { dirStatusColor, statusColor, statusIcon, type StatusColorOverrides, type StatusKind } from '../lib/status';
+import {
+  dirStatusColor,
+  kindOf,
+  statusColor,
+  statusIcon,
+  type StatusColorOverrides,
+  type StatusKind,
+} from '../lib/status';
 import { buildTree, countFiles, type TreeNode } from '../lib/treeModel';
 import { useElementSize } from '../lib/useElementSize';
-
-export function kindOf(status: string): StatusKind {
-  switch (status.charAt(0)) {
-    case 'A':
-      return 'added';
-    case 'D':
-      return 'deleted';
-    case 'R':
-    case 'C':
-      return 'renamed';
-    default:
-      return 'modified';
-  }
-}
 
 const REPO_ROOT_PATH = '@repo';
 

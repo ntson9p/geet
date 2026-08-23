@@ -395,6 +395,93 @@ export const DIALOG_METHODS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Push dialog (P13-T1) — host ⇄ webview DTOs
+// ---------------------------------------------------------------------------
+
+export interface PushCommitDto {
+  sha: string;
+  subject: string;
+  authorName: string;
+  /** Unix seconds. */
+  authorTime: number;
+}
+
+export interface PushFileDto {
+  /** Single-letter status (`A`/`M`/`D`/`R`…), the `--name-status` letter. */
+  status: string;
+  path: string;
+  /** Rename/copy source. */
+  origPath?: string;
+}
+
+/** One repository section — multi-root workspaces get one each. */
+export interface PushRepoSectionDto {
+  root: string;
+  label: string;
+  /** Current local branch. Detached/unborn repos are filtered out host-side. */
+  branch: string;
+  /** Remote names (`git remote`); empty means the repo cannot push. */
+  remotes: string[];
+  /** Chosen target — initially the upstream, else the first remote + branch. */
+  remote: string;
+  remoteBranch: string;
+  /** The branch has a configured upstream. */
+  hasUpstream: boolean;
+  /** The tracking ref for the chosen target exists locally (diff is exact). */
+  targetExists: boolean;
+  /** Branch names under `refs/remotes/<remote>` — the retarget field's completions. */
+  remoteBranchOptions: string[];
+  /** Left side of the file tree's diffs: the tracking ref, span parent or empty tree. */
+  base: string;
+  /** Outgoing commits, newest first, capped — `totalCommits` is the true count. */
+  commits: PushCommitDto[];
+  totalCommits: number;
+  /** The changed-file set of the push (target..HEAD, or the whole span). */
+  files: PushFileDto[];
+  checked: boolean;
+}
+
+export interface PushDialogParamsDto {
+  repos: PushRepoSectionDto[];
+  tags: 'none' | 'all' | 'follow';
+  runHooks: boolean;
+  /** Render the dim "will run: git push …" line. */
+  showCommandLine: boolean;
+  /** `git push --force-if-includes` supported — the preview line must be exact. */
+  forceIfIncludes: boolean;
+  /** P11-T8 status color overrides for the file tree. */
+  colors?: Record<string, string>;
+}
+
+export interface PushDialogResultDto {
+  /** Checked repos only, each with its (possibly retargeted) destination. */
+  repos: Array<{ root: string; remote: string; remoteBranch: string }>;
+  tags: 'none' | 'all' | 'follow';
+  runHooks: boolean;
+  /** Force-with-lease path (the split button's `Force Push…`). */
+  force: boolean;
+}
+
+export const PUSH_DIALOG_METHODS = {
+  /**
+   * webview → host request: recompute one repo's commits/files for an edited
+   * target. Params `{root, remote, remoteBranch}`; returns the updated
+   * `PushRepoSectionDto`.
+   */
+  retarget: 'pushDialog/retarget',
+  /**
+   * webview → host request: open the pane toolbar's diff for one file.
+   * Params `{root, base, status, path, origPath?}`; returns `{ok: boolean}`.
+   */
+  openDiff: 'pushDialog/openDiff',
+  /**
+   * webview → host request: the toolbar's `Edit source` — open the worktree
+   * file. Params `{root, path}`; returns `{ok: boolean}`.
+   */
+  openFile: 'pushDialog/openFile',
+} as const;
+
+// ---------------------------------------------------------------------------
 // Log view (P4-T3/T4) — host ⇄ webview DTOs
 // ---------------------------------------------------------------------------
 

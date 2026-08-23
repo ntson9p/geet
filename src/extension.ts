@@ -8,6 +8,7 @@ import { registerPhase09LocalHistory } from './localHistory/register';
 import { registerPhase05HistoryRewriting } from './rewrite/register';
 import { registerPhase10Hardening } from './hardening/register';
 import { registerPhase01 } from './scm/register';
+import { registerPhase13Dialogs } from './scm/dialogs/register';
 import { registerPhase07StashShelve } from './stash/register';
 import { DEMO_METHODS } from './shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/webviewHost';
@@ -75,6 +76,11 @@ function registerPhases(
   registerPhase09LocalHistory(context, core);
   // -- registerPhase10 (Hardening) -----------------------------------------
   registerPhase10Hardening(context, core, perf);
+  // -- registerPhase11/12 (Commit + Git tool windows) ----------------------
+  // Registered inside Phase 03 / Phase 04: both rebuild an existing surface
+  // rather than adding one, so their views hang off the phase that owns them.
+  // -- registerPhase13 (Dialogs, popups, action hub) -----------------------
+  registerPhase13Dialogs(context, core);
 }
 
 /** P0 contribution: `gittree.debug.showState` dumps model JSON to an untitled doc. */

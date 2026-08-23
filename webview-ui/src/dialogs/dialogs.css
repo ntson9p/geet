@@ -1,5 +1,14 @@
 /* Dialogs app (P11-T7). The Dialog frame itself is styled by base.css; these
-   are the Shelve Changes internals per gap analysis §2A. */
+   are the per-dialog internals per gap analysis §2A. */
+
+.gt-muted {
+  color: var(--vscode-descriptionForeground);
+}
+
+.gt-dialog-unknown {
+  padding: 12px;
+  color: var(--vscode-descriptionForeground);
+}
 
 .gt-shelve-row {
   display: flex;
@@ -70,4 +79,188 @@
 .gt-shelve-diff-empty {
   padding: 10px;
   color: var(--vscode-descriptionForeground);
+}
+
+/* ---- Push dialog (P13-T1) ------------------------------------------------ */
+
+/* §2A: commit list on the left, the push's changed-file tree on the right. */
+.gt-push-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 8px;
+  height: 340px;
+  min-height: 200px;
+}
+
+.gt-push-left {
+  overflow: auto;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-push-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-push-files-header {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-push-files-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.gt-push-files {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gt-push-empty {
+  padding: 10px;
+}
+
+/* The pane's own strip runs down the right edge, as in the reference. */
+.gt-toolbar-vertical {
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-toolbar-vertical .gt-toolbar-sep {
+  width: 80%;
+  height: 1px;
+  margin: 3px 0;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-section + .gt-push-section {
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-section.gt-active .gt-push-target-row {
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.gt-push-target-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  flex-wrap: wrap;
+}
+
+/* The arrow row is a button: clicking the target opens the retarget editor. */
+.gt-push-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-push-target:hover {
+  border-color: var(--vscode-panel-border, transparent);
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gt-push-target:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.gt-push-local,
+.gt-push-remote {
+  font-weight: 600;
+}
+
+.gt-push-arrow {
+  color: var(--vscode-descriptionForeground);
+}
+
+.gt-push-new {
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: 0.85em;
+}
+
+.gt-push-target-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.gt-push-count {
+  margin-left: auto;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-push-commit-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gt-push-commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 6px 1px 18px;
+  white-space: nowrap;
+}
+
+.gt-push-sha {
+  flex: 0 0 auto;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.gt-push-subject {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gt-push-author,
+.gt-push-date {
+  flex: 0 0 auto;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-push-tags-mode {
+  min-width: 9em;
+}
+
+/* The dim "will run" line — the same argv the host executes. */
+.gt-push-cmd {
+  padding: 6px 2px 0;
+  font-size: 0.9em;
+  overflow-x: auto;
+}
+
+.gt-push-cmd code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: pre;
 }

@@ -49,6 +49,25 @@ export function statusIcon(kind: StatusKind): string {
 }
 
 /**
+ * `git diff --name-status` letter → status kind. `R`/`C` carry a similarity
+ * score (`R100`), so only the first character is significant. Shared by the
+ * log's Changed Files pane (P12-T3) and the Push dialog's file tree (P13-T1).
+ */
+export function kindOf(status: string): StatusKind {
+  switch (status.charAt(0)) {
+    case 'A':
+      return 'added';
+    case 'D':
+      return 'deleted';
+    case 'R':
+    case 'C':
+      return 'renamed';
+    default:
+      return 'modified';
+  }
+}
+
+/**
  * The color a *directory* row takes (P11-T8 step 3, IntelliJ behaviour): a
  * folder whose descendants all share one status wears that status; mixed
  * descendants read as plain "modified". Undefined when nothing is known.

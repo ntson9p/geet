@@ -260,5 +260,13 @@
   "gittree.command.shelf.unshelve.title": "Unshelve Changes",
   "gittree.command.shelf.unshelvePartial.title": "Unshelve Files…",
   "gittree.config.shelf.title": "GitTree: Shelf",
-  "gittree.config.shelf.path.description": "Custom directory for shelved patches (must be writable). Empty = the extension's global storage. Shelves always live outside the repository, so they survive deleting or re-initializing it."
+  "gittree.config.shelf.path.description": "Custom directory for shelved patches (must be writable). Empty = the extension's global storage. Shelves always live outside the repository, so they survive deleting or re-initializing it.",
+  "gittree.command.push.dialog.title": "Push…",
+  "gittree.config.dialogs.title": "GitTree: Dialogs",
+  "gittree.config.push.runHooks.description": "Run Git hooks (pre-push) when pushing from the Push dialog. Off adds --no-verify.",
+  "gittree.config.push.tags.description": "Which tags the Push dialog pushes alongside the branch.",
+  "gittree.config.push.tags.none": "No tags.",
+  "gittree.config.push.tags.all": "All tags (--tags).",
+  "gittree.config.push.tags.follow": "Tags reachable from the pushed commits (--follow-tags).",
+  "gittree.config.dialogs.showCommandLine.description": "Show the dim \"will run: git …\" line in GitTree's dialogs, so the flags behind each option stay legible."
 }

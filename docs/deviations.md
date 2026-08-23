@@ -29,6 +29,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D12](#d12--local-history-is-bespoke) | Local History is a bespoke store, not the Timeline API | Yes, if the API stabilizes |
 | [D13](#d13--inclusion-is-line-granular) | Per-change inclusion is line-range granular | Yes (small) |
 | [D14](#d14--tri-editor-merge-layout) | Merge uses three real editors, not IntelliJ's pane chrome | Deliberate (a win) |
+| [D15](#d15--push-tags-current-branch-means---follow-tags) | `Push tags: Current Branch` maps to `--follow-tags` | No (no git equivalent) |
 
 ---
 
@@ -238,3 +239,13 @@ full language support — autocomplete, diagnostics, formatting — while resolv
 a webview merge view would lose. Recorded as a deviation for honesty, but it is a **win**, and
 P13-T8 closes the toolbar gaps (Left/All/Right apply-non-conflicting, live conflict counter,
 per-side Show Details).
+
+## D15 · `Push tags: Current Branch` means `--follow-tags`
+
+IntelliJ's push dialog offers `All` / `Current Branch` for tags. Git has no "tags on this
+branch" flag; the closest true equivalent is `--follow-tags`, which pushes annotated tags
+reachable from the commits being pushed. **GitTree uses `--follow-tags` for `Current Branch`
+and `--tags` for `All`** (P13-T1), and the dialog's "will run" line always shows which one is
+about to run, so the mapping is visible rather than implied.
+**Revisitable:** only by enumerating `git tag --merged <branch>` and pushing an explicit refspec
+list, which would push lightweight tags IntelliJ also skips. Not worth the divergence.
