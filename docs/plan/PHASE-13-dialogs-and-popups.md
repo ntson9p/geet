@@ -229,7 +229,7 @@ Settings `gittree.update.strategy`, `gittree.push.runHooks`, `gittree.push.tags`
 - [x] S4 — Push · Update Project · Merge · Rebase · Reset · Rollback · Cherry-pick · Stash · Unstash · Apply Patch · Clone · Manage Remotes all have option-bearing dialogs *(P13-T1…T4; every one previews the exact argv it will run)*
 - [x] S3 — branches popup opens with top-level verbs, has folder rows, and a full `›` submenu per branch *(P13-T5; typing searches flat across every level, so drill-in never traps)*
 - [x] S3b — `Merge 'X' into '<current>'` reachable without drag-and-drop (fixes the `mergeIntoCurrent` defect) *(P13-T5: registry entry + `gittree.branch.mergeIntoCurrent` + tree-view menu row)*
-- [ ] S6 — VCS Operations Popup on `alt+\``, context-aware, enumerated from the registries
+- [x] S6 — VCS Operations Popup on `alt+\``, context-aware, enumerated from the registries *(P13-T7: `dialogRegistry.ts` + in-progress/diff/commit groups, recents per workspace)*
 - [ ] S7 — `Files Merged with Conflicts` dialog gate, tree view retained
 - [ ] §3.5 — `Apply non-conflicting changes` split into Left/All/Right + live conflict counter + per-side Show Details
 - [x] §3.10 — worktree create/list/remove/lock/prune with a management view *(P13-T6:

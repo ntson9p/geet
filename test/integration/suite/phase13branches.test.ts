@@ -1,4 +1,6 @@
 import * as assert from 'node:assert';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
@@ -291,5 +293,151 @@ suite('P13 branches hub', () => {
     // Merging the current branch into itself is not an applicable action.
     await vscode.commands.executeCommand('gittree.branch.mergeIntoCurrent', repo.root, branch);
     assert.strictEqual(git('rev-parse', 'HEAD').trim(), before, 'nothing should have run');
+  });
+
+  // ---- P13-T7 · VCS Operations Popup ---------------------------------------
+
+  suite('T7 operations popup', () => {
+    interface OpsRegistry {
+      readContext(repoRoot?: string): { hasRepo: boolean; dirty: boolean; inProgressOp?: string };
+      buildItems(repoRoot?: string): Array<{ command: string; group: string; label: string }>;
+    }
+    let ops: OpsRegistry;
+
+    suiteSetup(function () {
+      this.timeout(30_000);
+      ops = core.debugRegistry.get('operationsPopup') as OpsRegistry;
+      assert.ok(ops, 'operationsPopup registry missing');
+    });
+
+    suiteTeardown(async function () {
+      this.timeout(60_000);
+      try {
+        git('merge', '--abort');
+      } catch {
+        /* not mid-merge */
+      }
+      git('reset', '--hard');
+      git('clean', '-fd');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T7: the command is registered and bound to the hub', async () => {
+      const all = await vscode.commands.getCommands(true);
+      assert.ok(all.includes('gittree.operationsPopup'), 'gittree.operationsPopup is missing');
+    });
+
+    test('T7: no item appears that would immediately fail its own precondition', async function () {
+      this.timeout(60_000);
+      git('reset', '--hard');
+      git('clean', '-fd');
+      await repo.refresher.refreshNow();
+      await waitFor(() => !ops.readContext(repo.root).dirty, 15_000);
+
+      const commands = ops.buildItems(repo.root).map((i) => i.command);
+      // A clean tree has nothing to commit, stash, shelve or roll back.
+      for (const c of [
+        'gittree.commit',
+        'gittree.stash.dialog',
+        'gittree.shelve.dialog',
+        'gittree.rollback.dialog',
+      ]) {
+        assert.ok(!commands.includes(c), `${c} must not be offered on a clean tree`);
+      }
+      // No stash exists here either.
+      assert.ok(!commands.includes('gittree.unstash.dialog'));
+      // But repository-level actions do apply.
+      assert.ok(commands.includes('gittree.merge.dialog'));
+      assert.ok(commands.includes('gittree.clone.dialog'));
+    });
+
+    test('T7: a dirty tree changes the item set', async function () {
+      this.timeout(60_000);
+      const rel = 'p13-ops-dirty.txt';
+      fs.writeFileSync(path.join(repoRoot, rel), 'dirty\n');
+      await repo.refresher.refreshNow();
+      await waitFor(() => ops.readContext(repo.root).dirty, 15_000);
+
+      const commands = ops.buildItems(repo.root).map((i) => i.command);
+      for (const c of [
+        'gittree.commit',
+        'gittree.stash.dialog',
+        'gittree.shelve.dialog',
+        'gittree.rollback.dialog',
+      ]) {
+        assert.ok(commands.includes(c), `${c} should be offered on a dirty tree`);
+      }
+
+      git('clean', '-fd');
+      await repo.refresher.refreshNow();
+      await waitFor(() => !ops.readContext(repo.root).dirty, 15_000);
+    });
+
+    test('T7: mid-merge the continue/abort actions come first', async function () {
+      this.timeout(120_000);
+      const base = git('rev-parse', 'HEAD').trim();
+      const rel = 'p13-ops-conflict.txt';
+      // Two branches editing the same line — a guaranteed conflict.
+      fs.writeFileSync(path.join(repoRoot, rel), 'base\n');
+      git('add', '--', rel);
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', 'ops base');
+      const forkPoint = git('rev-parse', 'HEAD').trim();
+      git('checkout', '-b', 'p13ops/side');
+      fs.writeFileSync(path.join(repoRoot, rel), 'side\n');
+      git('add', '--', rel);
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', 'ops side');
+      git('checkout', branch);
+      fs.writeFileSync(path.join(repoRoot, rel), 'mine\n');
+      git('add', '--', rel);
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', 'ops mine');
+
+      try {
+        try {
+          git('merge', 'p13ops/side');
+          assert.fail('the merge was expected to conflict');
+        } catch {
+          /* conflict is the point */
+        }
+        await repo.refresher.refreshNow();
+        await waitFor(() => ops.readContext(repo.root).inProgressOp !== undefined, 20_000);
+
+        const items = ops.buildItems(repo.root);
+        assert.strictEqual(items[0]?.group, 'inProgress', 'the in-progress group must be first');
+        assert.strictEqual(items[0]?.command, 'gittree.merge.continueOp');
+        const commands = items.map((i) => i.command);
+        assert.ok(commands.includes('gittree.merge.abortOp'));
+        // A merge has no "skip" — only a rebase does.
+        assert.ok(!commands.includes('gittree.rebase.skip'));
+      } finally {
+        try {
+          git('merge', '--abort');
+        } catch {
+          /* already aborted */
+        }
+        git('reset', '--hard', base);
+        git('clean', '-fd');
+        try {
+          git('branch', '-D', 'p13ops/side');
+        } catch {
+          /* already gone */
+        }
+        void forkPoint;
+        await repo.refresher.refreshNow();
+      }
+    });
+
+    test('T7: every offered item is a registered command', async function () {
+      this.timeout(60_000);
+      const all = new Set(await vscode.commands.getCommands(true));
+      const missing = ops
+        .buildItems()
+        .map((i) => i.command)
+        .filter((c) => !all.has(c));
+      assert.deepStrictEqual(
+        missing,
+        [],
+        `the popup offers unregistered commands: ${missing.join(', ')}`,
+      );
+    });
   });
 });

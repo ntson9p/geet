@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { registerWorktrees, type WorktreeRegistry } from '../../branches/worktrees';
+import { registerOperationsPopup } from '../../ui/operationsPopup';
 import {
   applyPushResult,
   buildPushParams,
@@ -276,6 +277,18 @@ export function registerPhase13Dialogs(
   // P13-T6: worktree management — the view, its commands, and the New Worktree
   // dialog that the T5 branch submenu's `New Worktree from 'X'…` will call.
   const worktrees = registerWorktrees(context, core, deps);
+
+  // P13-T7: the VCS Operations Popup, enumerated from `dialogRegistry.ts` so it
+  // stays complete by construction rather than by a hand-kept list.
+  registerOperationsPopup(context, {
+    core,
+    commitSelected: () => {
+      const p4 = core.debugRegistry.get('phase04') as
+        | { logView?: { currentSession?: { rowCount: number } } }
+        | undefined;
+      return (p4?.logView?.currentSession?.rowCount ?? 0) > 0;
+    },
+  });
 
   const registry: Phase13Registry = {
     buildPushParams,

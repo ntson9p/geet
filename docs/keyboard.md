@@ -47,6 +47,9 @@ binding set (all gated on the setting — off by default):
 | `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `gittree.push.dialog` |
 | `Ctrl+T` (`Cmd+T`) | Update Project | `gittree.update.dialog` |
 | `Alt+9` (`Cmd+9`) | Git tool window | `gittree.log.focus` |
+| ``Alt+` `` (`Ctrl+V`) | VCS Operations Popup | `gittree.operationsPopup` |
+| `Ctrl+Alt+N` (`Cmd+Alt+N`) | New Branch… | `gittree.branch.new` |
+| `F2` | Rename branch (in the Branches view) | `gittree.branches.rename` |
 | `Ctrl+Alt+Z` (`Cmd+Alt+Z`) | Rollback | `gittree.rollbackFile` (active file) |
 
 **Known conflicts when enabled** (deliberate — this is what "IntelliJ

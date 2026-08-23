@@ -1412,6 +1412,12 @@
         "command": "gittree.branches.checkoutRevision",
         "title": "%gittree.command.branches.checkoutRevision.title%",
         "category": "GitTree"
+      },
+      {
+        "command": "gittree.operationsPopup",
+        "title": "%gittree.command.operationsPopup.title%",
+        "category": "GitTree",
+        "icon": "$(list-unordered)"
       }
     ],
     "submenus": [
@@ -2667,6 +2673,12 @@
         "command": "gittree.branch.new",
         "key": "ctrl+alt+n",
         "mac": "cmd+alt+n",
+        "when": "config.gittree.keymap.intellij && !terminalFocus"
+      },
+      {
+        "command": "gittree.operationsPopup",
+        "key": "alt+`",
+        "mac": "ctrl+v",
         "when": "config.gittree.keymap.intellij && !terminalFocus"
       },
       {
