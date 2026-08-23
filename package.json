@@ -1273,6 +1273,29 @@
         "title": "%gittree.command.update.configure.title%",
         "category": "GitTree",
         "icon": "$(gear)"
+      },
+      {
+        "command": "gittree.merge.dialog",
+        "title": "%gittree.command.merge.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "gittree.rebase.dialog",
+        "title": "%gittree.command.rebase.dialog.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.reset.dialog",
+        "title": "%gittree.command.reset.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "gittree.rollback.dialog",
+        "title": "%gittree.command.rollback.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(discard)"
       }
     ],
     "submenus": [

@@ -5,6 +5,16 @@
  * and re-send pending requests on rehydrate.
  */
 
+// The P13 dialogs' option shapes live with their argv builders (which are
+// vscode-free and unit-tested); importing the types here keeps one definition
+// instead of a hand-mirrored copy that can drift from what actually runs.
+import type { MergeOptions } from '../scm/dialogs/mergeArgs';
+import type { RebaseOptions } from '../scm/dialogs/rebaseArgs';
+import type { ResetMode } from '../scm/dialogs/resetArgs';
+import type { RollbackKind } from '../scm/dialogs/rollbackPlan';
+
+export type { MergeOptions, RebaseOptions, ResetMode, RollbackKind };
+
 export const PROTOCOL_VERSION = 1 as const;
 
 export interface RpcError {
@@ -506,6 +516,92 @@ export interface UpdateDialogResultDto {
   strategy: 'merge' | 'rebase';
   /** Persist the strategy to `gittree.update.strategy` and skip the dialog next time. */
   dontShowAgain: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Merge · Rebase · Reset · Rollback dialogs (P13-T3) — host ⇄ webview DTOs
+// ---------------------------------------------------------------------------
+
+/** One entry in a dialog's ref picker. */
+export interface DialogRefDto {
+  name: string;
+  kind: 'local' | 'remote' | 'tag';
+  upstream?: string;
+}
+
+/** Fields every T3 dialog's params carry. */
+export interface OpDialogBaseDto {
+  repoRoot: string;
+  repoLabel: string;
+  currentBranch: string;
+  showCommandLine: boolean;
+}
+
+export interface MergeDialogParamsDto extends OpDialogBaseDto {
+  refs: DialogRefDto[];
+  defaultRef: string;
+}
+
+export interface MergeDialogResultDto {
+  options: MergeOptions;
+}
+
+export interface RebaseDialogParamsDto extends OpDialogBaseDto {
+  refs: DialogRefDto[];
+  defaultOnto: string;
+}
+
+export interface RebaseDialogResultDto {
+  options: RebaseOptions;
+}
+
+export interface ResetDialogParamsDto extends OpDialogBaseDto {
+  refs: DialogRefDto[];
+  defaultRef: string;
+  /** Dirty entries right now — the live "will discard N local changes" line. */
+  dirtyCount: number;
+  stagedCount: number;
+}
+
+export interface ResetDialogResultDto {
+  ref: string;
+  mode: ResetMode;
+}
+
+export interface RollbackFileDto {
+  path: string;
+  /** Two-char porcelain code, for the badge. */
+  code: string;
+  kind: RollbackKind;
+  origPath?: string;
+}
+
+export interface RollbackDialogParamsDto extends OpDialogBaseDto {
+  files: RollbackFileDto[];
+  /** Pre-ticked paths — the selection the command was invoked with. */
+  checked: string[];
+  deleteAddedLocalCopies: boolean;
+  colors?: Record<string, string>;
+}
+
+export interface RollbackDialogResultDto {
+  paths: string[];
+  deleteAddedLocalCopies: boolean;
+}
+
+export const ROLLBACK_DIALOG_METHODS = {
+  /** webview → host request: one file's HEAD↔worktree diff for the preview. */
+  fileDiff: 'rollbackDialog/fileDiff',
+} as const;
+
+/** The preview pane's payload — same shape the Shelve dialog's diff uses. */
+export interface RollbackFileDiffDto {
+  path: string;
+  originalText: string;
+  modifiedText: string;
+  changes: LineChangeDto[];
+  /** Binary, too large, or otherwise not line-diffable. */
+  wholeFileOnly: boolean;
 }
 
 // ---------------------------------------------------------------------------

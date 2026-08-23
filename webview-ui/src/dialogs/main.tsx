@@ -7,7 +7,11 @@ import { createRoot } from 'react-dom/client';
 import '../lib/base.css';
 import './dialogs.css';
 import { getInitialState } from '../lib/vscodeApi';
+import { Merge } from './Merge';
 import { Push } from './Push';
+import { Rebase } from './Rebase';
+import { Reset } from './Reset';
+import { Rollback } from './Rollback';
 import { ShelveChanges } from './ShelveChanges';
 import { UpdateProject } from './UpdateProject';
 
@@ -25,6 +29,14 @@ function pick(): JSX.Element {
       return <Push />;
     case 'update':
       return <UpdateProject />;
+    case 'merge':
+      return <Merge />;
+    case 'rebase':
+      return <Rebase />;
+    case 'reset':
+      return <Reset />;
+    case 'rollback':
+      return <Rollback />;
     default:
       return <div className="gt-dialog-unknown">Unknown dialog: {dialog}</div>;
   }

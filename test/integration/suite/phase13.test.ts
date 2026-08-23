@@ -506,6 +506,323 @@ suite('P13 dialogs', () => {
       }
     });
   });
+
+  // ---- P13-T3 · Merge · Rebase · Reset · Rollback ---------------------------
+
+  suite('T3 op dialogs', () => {
+    const write = (rel: string, content: string): void => {
+      const abs = path.join(repoRoot, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content);
+    };
+    const read = (rel: string): string => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+    const commit = (subject: string): string => {
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', subject);
+      return git('rev-parse', 'HEAD').trim();
+    };
+    /** A side branch with one commit, left checked out on the original branch. */
+    const sideBranch = (name: string, rel: string, content: string): string => {
+      git('checkout', '-b', name);
+      write(rel, content);
+      git('add', '--', rel);
+      const sha = commit(`side ${name}`);
+      git('checkout', branch);
+      return sha;
+    };
+
+    suiteTeardown(async function () {
+      this.timeout(60_000);
+      // Never leave the fixture mid-operation for the suites that follow.
+      for (const abort of [['merge', '--abort'], ['rebase', '--abort']]) {
+        try {
+          git(...abort);
+        } catch {
+          /* not in that state */
+        }
+      }
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: merge params offer the other refs and default sensibly', async () => {
+      await repo.refresher.refreshNow();
+      const params = reg.buildMergeParams(repo);
+      assert.strictEqual(params.currentBranch, branch);
+      assert.ok(params.refs.length > 0, 'expected at least one other ref');
+      assert.ok(
+        !params.refs.some((r) => r.kind === 'local' && r.name === branch),
+        'the current branch must not offer to merge into itself',
+      );
+    });
+
+    test('T3: --squash leaves the change staged, not committed', async function () {
+      this.timeout(90_000);
+      const rel = 'p13/t3-squash.txt';
+      sideBranch('p13/t3-squash-src', rel, 'from the side branch\n');
+      const before = git('rev-parse', 'HEAD').trim();
+
+      const outcome = await reg.applyMergeResult(repo, {
+        options: {
+          ref: 'p13/t3-squash-src',
+          noFf: false,
+          ffOnly: false,
+          squash: true,
+          noCommit: false,
+          allowUnrelatedHistories: false,
+          strategy: '',
+          strategyOption: '',
+          message: '',
+        },
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.deepStrictEqual(outcome.commands[0], ['merge', '--squash', '--', 'p13/t3-squash-src']);
+      // The defining behaviour of --squash: HEAD is untouched, the index is not.
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), before, '--squash must not commit');
+      assert.match(git('status', '--porcelain'), new RegExp(`A\\s+${rel}`));
+      assert.strictEqual(read(rel), 'from the side branch\n');
+
+      // Put the fixture back.
+      git('reset', '--hard', before);
+      git('branch', '-D', 'p13/t3-squash-src');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: --no-ff creates a merge commit where a fast-forward was possible', async function () {
+      this.timeout(90_000);
+      const rel = 'p13/t3-noff.txt';
+      const sideSha = sideBranch('p13/t3-noff-src', rel, 'no-ff\n');
+      const before = git('rev-parse', 'HEAD').trim();
+
+      const outcome = await reg.applyMergeResult(repo, {
+        options: {
+          ref: 'p13/t3-noff-src',
+          noFf: true,
+          ffOnly: false,
+          squash: false,
+          noCommit: false,
+          allowUnrelatedHistories: false,
+          strategy: '',
+          strategyOption: '',
+          message: 'P13-T3 forced merge commit',
+        },
+      });
+      assert.ok(outcome.ok, outcome.message);
+      const head = git('rev-parse', 'HEAD').trim();
+      assert.notStrictEqual(head, sideSha, '--no-ff must not fast-forward onto the side branch');
+      assert.strictEqual(git('rev-list', '--count', '--merges', `${before}..HEAD`).trim(), '1');
+      assert.match(git('log', '-1', '--format=%s'), /P13-T3 forced merge commit/);
+
+      git('reset', '--hard', before);
+      git('branch', '-D', 'p13/t3-noff-src');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: a validation failure never reaches git', async () => {
+      const outcome = await reg.applyMergeResult(repo, {
+        options: {
+          ref: 'main',
+          noFf: true,
+          ffOnly: true,
+          squash: false,
+          noCommit: false,
+          allowUnrelatedHistories: false,
+          strategy: '',
+          strategyOption: '',
+          message: '',
+        },
+      });
+      assert.strictEqual(outcome.ok, false);
+      assert.deepStrictEqual(outcome.commands, [], 'a rejected option set must run nothing');
+      assert.match(outcome.message, /contradict/i);
+    });
+
+    test('T3: rebase replays the branch onto another ref', async function () {
+      this.timeout(90_000);
+      const before = git('rev-parse', 'HEAD').trim();
+      // A base to rebase onto, then one local commit to replay.
+      git('checkout', '-b', 'p13/t3-base');
+      write('p13/t3-base.txt', 'base\n');
+      git('add', '--', 'p13/t3-base.txt');
+      const baseSha = commit('P13-T3 rebase base');
+      git('checkout', branch);
+      write('p13/t3-mine.txt', 'mine\n');
+      git('add', '--', 'p13/t3-mine.txt');
+      const mine = commit('P13-T3 rebase mine');
+
+      const outcome = await reg.applyRebaseResult(repo, {
+        options: {
+          onto: 'p13/t3-base',
+          from: '',
+          interactive: false,
+          rebaseMerges: false,
+          autostash: false,
+          noVerify: false,
+          keepEmpty: false,
+        },
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.deepStrictEqual(outcome.commands[0], ['rebase', 'p13/t3-base']);
+      const head = git('rev-parse', 'HEAD').trim();
+      assert.notStrictEqual(head, mine, 'a rebase rewrites the replayed commit');
+      assert.strictEqual(git('rev-parse', 'HEAD^').trim(), baseSha);
+      assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'P13-T3 rebase mine');
+
+      git('reset', '--hard', before);
+      git('branch', '-D', 'p13/t3-base');
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: Reset Keep refuses rather than discarding local changes', async function () {
+      this.timeout(90_000);
+      const before = git('rev-parse', 'HEAD').trim();
+      const rel = 'p13/t3-keep.txt';
+      write(rel, 'v1\n');
+      git('add', '--', rel);
+      commit('P13-T3 keep target');
+      // Dirty the very file the reset would have to rewrite: --keep must refuse.
+      write(rel, 'v2 uncommitted\n');
+      await repo.refresher.refreshNow();
+
+      const outcome = await reg.applyResetResult(repo, { ref: before, mode: 'keep' });
+      assert.strictEqual(outcome.ok, false, 'Reset --keep must refuse here');
+      assert.match(outcome.message, /refused/i);
+      // Nothing was lost, and HEAD did not move.
+      assert.strictEqual(read(rel), 'v2 uncommitted\n');
+      assert.notStrictEqual(git('rev-parse', 'HEAD').trim(), before);
+
+      // A hard reset from the same state does move, and is snapshotted.
+      const p9 = core.debugRegistry.get('phase09') as {
+        getStore(root: string): { list(): Array<{ label: string }> } | undefined;
+      };
+      const store = p9.getStore(repo.root)!;
+      const snapsBefore = store.list().length;
+      const hard = await withAutoConfirm('1', () =>
+        reg.applyResetResult(repo, { ref: before, mode: 'hard' }),
+      );
+      assert.ok(hard.ok, hard.message);
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), before);
+      assert.ok(store.list().length > snapsBefore, 'a hard reset must snapshot first');
+      assert.ok(store.list().some((s) => s.label === 'Before: reset'));
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: a soft reset moves the branch and leaves everything else alone', async function () {
+      this.timeout(90_000);
+      const before = git('rev-parse', 'HEAD').trim();
+      write('p13/t3-soft.txt', 'soft\n');
+      git('add', '--', 'p13/t3-soft.txt');
+      commit('P13-T3 soft target');
+
+      const outcome = await reg.applyResetResult(repo, { ref: before, mode: 'soft' });
+      assert.ok(outcome.ok, outcome.message);
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), before);
+      // Soft keeps the index: the file is still staged.
+      assert.match(git('status', '--porcelain'), /A\s+p13\/t3-soft\.txt/);
+
+      git('reset', '--hard', before);
+      fs.rmSync(path.join(repoRoot, 'p13/t3-soft.txt'), { force: true });
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: rollback of 2 of 5 files leaves the other 3 untouched', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      // Three tracked files committed, then all three modified.
+      for (const n of [1, 2, 3]) {
+        write(`p13/t3-rb${n}.txt`, `v1-${n}\n`);
+        git('add', '--', `p13/t3-rb${n}.txt`);
+      }
+      commit('P13-T3 rollback baseline');
+      for (const n of [1, 2, 3]) write(`p13/t3-rb${n}.txt`, `v2-${n}\n`);
+      // Plus a staged-new file and an untracked one — five in total.
+      write('p13/t3-rb-added.txt', 'added\n');
+      git('add', '--', 'p13/t3-rb-added.txt');
+      write('p13/t3-rb-untracked.txt', 'untracked\n');
+      await repo.refresher.refreshNow();
+
+      const params = reg.buildRollbackParams(repo);
+      const byPath = new Map(params.files.map((f) => [f.path, f]));
+      assert.strictEqual(byPath.get('p13/t3-rb-added.txt')?.kind, 'added');
+      assert.strictEqual(byPath.get('p13/t3-rb-untracked.txt')?.kind, 'untracked');
+      assert.strictEqual(byPath.get('p13/t3-rb1.txt')?.kind, 'restore');
+
+      const outcome = await reg.applyRollbackResult(repo, {
+        paths: ['p13/t3-rb1.txt', 'p13/t3-rb2.txt'],
+        deleteAddedLocalCopies: true,
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.strictEqual(read('p13/t3-rb1.txt'), 'v1-1\n', 'rolled back');
+      assert.strictEqual(read('p13/t3-rb2.txt'), 'v1-2\n', 'rolled back');
+      assert.strictEqual(read('p13/t3-rb3.txt'), 'v2-3\n', 'NOT selected — must be untouched');
+      assert.strictEqual(read('p13/t3-rb-added.txt'), 'added\n', 'NOT selected — must survive');
+      assert.strictEqual(read('p13/t3-rb-untracked.txt'), 'untracked\n', 'NOT selected');
+
+      git('reset', '--hard', baseline);
+      for (const rel of ['p13/t3-rb-added.txt', 'p13/t3-rb-untracked.txt']) {
+        fs.rmSync(path.join(repoRoot, rel), { force: true });
+      }
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: added-file copies are deleted only when the box is ticked', async function () {
+      this.timeout(90_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      const addedRel = 'p13/t3-del-added.txt';
+      const untrackedRel = 'p13/t3-del-untracked.txt';
+      write(addedRel, 'staged new\n');
+      git('add', '--', addedRel);
+      write(untrackedRel, 'never tracked\n');
+      await repo.refresher.refreshNow();
+
+      // Unticked: unstaged, but the local copies stay on disk.
+      const kept = await reg.applyRollbackResult(repo, {
+        paths: [addedRel, untrackedRel],
+        deleteAddedLocalCopies: false,
+      });
+      assert.ok(kept.ok, kept.message);
+      assert.ok(fs.existsSync(path.join(repoRoot, addedRel)), 'unticked must keep the local copy');
+      assert.ok(fs.existsSync(path.join(repoRoot, untrackedRel)));
+      assert.match(git('status', '--porcelain'), new RegExp(`\\?\\?\\s+${addedRel}`));
+
+      // Ticked: the same files go.
+      await repo.refresher.refreshNow();
+      const deleted = await reg.applyRollbackResult(repo, {
+        paths: [addedRel, untrackedRel],
+        deleteAddedLocalCopies: true,
+      });
+      assert.ok(deleted.ok, deleted.message);
+      assert.ok(!fs.existsSync(path.join(repoRoot, addedRel)), 'ticked must delete the local copy');
+      assert.ok(!fs.existsSync(path.join(repoRoot, untrackedRel)));
+
+      git('reset', '--hard', baseline);
+      await repo.refresher.refreshNow();
+    });
+
+    test('T3: the rollback preview diffs the worktree against HEAD', async function () {
+      this.timeout(60_000);
+      const baseline = git('rev-parse', 'HEAD').trim();
+      const rel = 'p13/t3-preview.txt';
+      write(rel, 'one\ntwo\nthree\n');
+      git('add', '--', rel);
+      commit('P13-T3 preview baseline');
+      write(rel, 'one\nTWO!\nthree\n');
+      await repo.refresher.refreshNow();
+
+      const diff = await reg.rollbackFileDiff(repo, rel);
+      assert.strictEqual(diff.wholeFileOnly, false);
+      assert.strictEqual(diff.originalText, 'one\ntwo\nthree\n');
+      assert.strictEqual(diff.modifiedText, 'one\nTWO!\nthree\n');
+      assert.ok(diff.changes.length > 0, 'expected at least one line change');
+
+      // A file with nothing in HEAD has no line diff to show.
+      write('p13/t3-preview-new.txt', 'brand new\n');
+      const newDiff = await reg.rollbackFileDiff(repo, 'p13/t3-preview-new.txt');
+      assert.strictEqual(newDiff.wholeFileOnly, true);
+
+      git('reset', '--hard', baseline);
+      fs.rmSync(path.join(repoRoot, 'p13/t3-preview-new.txt'), { force: true });
+      await repo.refresher.refreshNow();
+    });
+  });
 });
 
 /** Open editor tabs, by label — used to assert a dialog panel did NOT appear. */

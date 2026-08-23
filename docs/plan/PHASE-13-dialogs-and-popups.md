@@ -234,7 +234,8 @@ Settings `gittree.update.strategy`, `gittree.push.runHooks`, `gittree.push.tags`
 - [ ] §3.5 — `Apply non-conflicting changes` split into Left/All/Right + live conflict counter + per-side Show Details
 - [ ] §3.10 — worktree create/list/remove/lock/prune with a management view
 - [ ] `Manage Remotes` exists at all (no command today)
-- [ ] `Reset → Keep` available in the reset dialog
+- [x] `Reset → Keep` available in the reset dialog *(P13-T3: four-mode radio, with a live
+      impact line and git's own refusal surfaced when `--keep` declines)*
 
 ## Planned deviations
 - **Dialogs are editor-area webview panels, not OS-modal windows** (P11-T1). Focus-trapped and

@@ -27,7 +27,30 @@ import {
   showUpdateDialog,
   type UpdateOutcome,
 } from './updateDialog';
-import type { UpdateDialogResultDto } from '../../shared/protocol';
+import {
+  applyMergeResult,
+  applyRebaseResult,
+  applyResetResult,
+  applyRollbackResult,
+  buildMergeParams,
+  buildRebaseParams,
+  buildResetParams,
+  buildRollbackParams,
+  rollbackFileDiff,
+  showMergeDialog,
+  showRebaseDialog,
+  showResetDialog,
+  showRollbackDialog,
+  type OpDialogDeps,
+  type OpOutcome,
+} from './opsDialogs';
+import type {
+  MergeDialogResultDto,
+  RebaseDialogResultDto,
+  ResetDialogResultDto,
+  RollbackDialogResultDto,
+  UpdateDialogResultDto,
+} from '../../shared/protocol';
 
 export interface Phase13Registry {
   /** Test seam: the params the dialog would open with. */
@@ -44,6 +67,16 @@ export interface Phase13Registry {
   /** The gear's persistence half, and what Ctrl+T would do right now. */
   currentUpdateStrategy: typeof currentUpdateStrategy;
   setUpdateStrategy: typeof setUpdateStrategy;
+  /** P13-T3 test seams — params in, accept-half out, for all four dialogs. */
+  buildMergeParams: typeof buildMergeParams;
+  applyMergeResult: (repo: RepoHandle, result: MergeDialogResultDto) => Promise<OpOutcome>;
+  buildRebaseParams: typeof buildRebaseParams;
+  applyRebaseResult: (repo: RepoHandle, result: RebaseDialogResultDto) => Promise<OpOutcome>;
+  buildResetParams: typeof buildResetParams;
+  applyResetResult: (repo: RepoHandle, result: ResetDialogResultDto) => Promise<OpOutcome>;
+  buildRollbackParams: typeof buildRollbackParams;
+  applyRollbackResult: (repo: RepoHandle, result: RollbackDialogResultDto) => Promise<OpOutcome>;
+  rollbackFileDiff: (repo: RepoHandle, relPath: string) => ReturnType<typeof rollbackFileDiff>;
 }
 
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
@@ -101,6 +134,42 @@ export function registerPhase13Dialogs(
     }),
   );
 
+  // P13-T3: the four "Modify options" dialogs. The P1/P2/P5 no-questions
+  // commands stay; these are the surfaces that expose the flags behind them.
+  const opDeps: OpDialogDeps = deps;
+  const needRepo = (arg?: unknown): RepoHandle | undefined => {
+    const repo = resolveRepo(core, arg);
+    if (!repo) {
+      void vscode.window.showInformationMessage(vscode.l10n.t('Open a repository first.'));
+    }
+    return repo;
+  };
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gittree.merge.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (repo) await showMergeDialog(opDeps, repo);
+    }),
+    vscode.commands.registerCommand('gittree.rebase.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (repo) await showRebaseDialog(opDeps, repo);
+    }),
+    vscode.commands.registerCommand('gittree.reset.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (!repo) return;
+      // Invoked from a log row, the clicked commit seeds the revision field.
+      const seed =
+        arg !== null && typeof arg === 'object' && 'sha' in arg ? String(arg.sha) : undefined;
+      await showResetDialog(opDeps, repo, seed);
+    }),
+    vscode.commands.registerCommand('gittree.rollback.dialog', async (arg?: unknown) => {
+      const repo = needRepo(arg);
+      if (!repo) return;
+      const preselected =
+        Array.isArray(arg) && arg.every((a) => typeof a === 'string') ? arg : undefined;
+      await showRollbackDialog(opDeps, repo, preselected);
+    }),
+  );
+
   const registry: Phase13Registry = {
     buildPushParams,
     applyPushResult: (result) => applyPushResult(deps, result),
@@ -111,6 +180,15 @@ export function registerPhase13Dialogs(
     reportUpdate,
     currentUpdateStrategy,
     setUpdateStrategy,
+    buildMergeParams,
+    applyMergeResult: (repo, result) => applyMergeResult(opDeps, repo, result),
+    buildRebaseParams,
+    applyRebaseResult: (repo, result) => applyRebaseResult(opDeps, repo, result),
+    buildResetParams,
+    applyResetResult: (repo, result) => applyResetResult(opDeps, repo, result),
+    buildRollbackParams,
+    applyRollbackResult: (repo, result) => applyRollbackResult(opDeps, repo, result),
+    rollbackFileDiff: (repo, relPath) => rollbackFileDiff(core, repo, relPath),
   };
   core.debugRegistry.set('phase13', registry);
   return registry;

@@ -307,3 +307,126 @@
   padding: 2px 0 0 20px;
   font-size: 0.9em;
 }
+
+/* ---- Merge · Rebase · Reset · Rollback (P13-T3) --------------------------- */
+
+.gt-op-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  flex-wrap: wrap;
+}
+
+.gt-op-row label {
+  flex: 0 0 auto;
+}
+
+.gt-op-row-block {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.gt-ref-select {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
+.gt-ref-expression {
+  flex: 1 1 10em;
+  min-width: 0;
+}
+
+.gt-op-message {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: var(--vscode-font-family);
+}
+
+/* IntelliJ's "Modify options" — a dropdown of flags, revealed as controls. */
+.gt-modify-options {
+  margin-top: 10px;
+}
+
+.gt-modify-options-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gt-modify-options-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 0 2px;
+}
+
+.gt-modify-options-errors {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--vscode-errorForeground, var(--vscode-inputValidation-errorForeground));
+  font-size: 0.9em;
+}
+
+.gt-op-note {
+  padding-left: 20px;
+  font-size: 0.9em;
+}
+
+.gt-op-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.gt-op-impact {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  background: var(--vscode-textBlockQuote-background);
+  border-left: 3px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-op-impact-danger {
+  border-left-color: var(--vscode-editorError-foreground, var(--vscode-errorForeground));
+}
+
+.gt-op-cmd {
+  padding: 10px 2px 0;
+  font-size: 0.9em;
+  overflow-x: auto;
+}
+
+.gt-op-cmd code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: pre;
+}
+
+.gt-rollback-tree {
+  height: 200px;
+  min-height: 120px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-rollback-count {
+  padding: 2px 0 6px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-rollback-diff {
+  height: 220px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-rollback-diff-empty {
+  padding: 10px;
+}
