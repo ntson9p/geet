@@ -37,6 +37,25 @@ function statesFrom(args: unknown[]): GitTreeResourceState[] {
   return out;
 }
 
+/**
+ * P14-T2: the commit window's native context menu passes a plain
+ * `{repoRoot, relPath}` object rather than a resource state or a tree node.
+ */
+interface FileContextArg {
+  repoRoot: string;
+  relPath: string;
+}
+function fileContextFrom(args: unknown[]): FileContextArg | undefined {
+  for (const a of args) {
+    if (typeof a !== 'object' || a === null) continue;
+    const c = a as Partial<FileContextArg>;
+    if (typeof c.repoRoot === 'string' && typeof c.relPath === 'string') {
+      return { repoRoot: c.repoRoot, relPath: c.relPath };
+    }
+  }
+  return undefined;
+}
+
 /** SCM menus pass the selected resource states spread as arguments. */
 function normalize(core: Core, args: unknown[]): Selection | undefined {
   const states = statesFrom(args);
@@ -44,6 +63,13 @@ function normalize(core: Core, args: unknown[]): Selection | undefined {
     const repo = core.getRepo(states[0]!.repoRoot);
     if (!repo) return undefined;
     return { repo, entries: states.map((s) => s.entry) };
+  }
+  const ctx = fileContextFrom(args);
+  if (ctx) {
+    const repo = core.getRepo(ctx.repoRoot);
+    if (!repo) return undefined;
+    const entry = repo.model.snapshot.statusEntries.find((e) => e.path === ctx.relPath);
+    return entry ? { repo, entries: [entry] } : { repo, entries: [] };
   }
   const uri = args.find((a): a is vscode.Uri => a instanceof vscode.Uri) ?? vscode.window.activeTextEditor?.document.uri;
   if (!uri || uri.scheme !== 'file') return undefined;

@@ -21,6 +21,19 @@ export interface CommitFileRef {
   readonly change: CommitChangeDto;
 }
 
+/**
+ * P14-T2: a group row's identity, so the native context menu can name the
+ * changelist it was opened on. Derivable from the node path in principle, but
+ * `groupKey` joins with `:` and a Windows repo root contains one — parsing it
+ * back would be guesswork.
+ */
+export interface CommitGroupRef {
+  readonly repoRoot: string;
+  readonly groupId: string;
+  readonly isDefault: boolean;
+  readonly checkable: boolean;
+}
+
 export interface CommitTreeModel {
   readonly nodes: TreeNode[];
   /** Tree paths of the ticked files. */
@@ -31,6 +44,8 @@ export interface CommitTreeModel {
   readonly files: Map<string, CommitFileRef>;
   /** Group node paths, so callers can default them to expanded. */
   readonly groupPaths: string[];
+  /** Group node path → the changelist it stands for. Files are absent. */
+  readonly groups: Map<string, CommitGroupRef>;
   /**
    * P11-T8: dir/group node path → the statuses of its descendants. One status
    * colors the folder with it; mixed folders read as plain modified (IntelliJ).
@@ -49,6 +64,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   const checkboxless = new Set<string>();
   const files = new Map<string, CommitFileRef>();
   const groupPaths: string[] = [];
+  const groups = new Map<string, CommitGroupRef>();
   const dirKinds = new Map<string, ReadonlySet<StatusKind>>();
   const multiRepo = state.repos.length > 1;
 
@@ -81,6 +97,12 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       if (!root) continue;
       nodes.push(root);
       groupPaths.push(key);
+      groups.set(key, {
+        repoRoot: repo.root,
+        groupId: group.id,
+        isDefault: group.isDefault,
+        checkable: group.checkable,
+      });
       if (!group.checkable) checkboxless.add(key);
 
       // buildTree sorts and may collapse chains, so re-derive the leaf order
@@ -99,7 +121,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     }
   }
 
-  return { nodes, checked, checkboxless, files, groupPaths, dirKinds };
+  return { nodes, checked, checkboxless, files, groupPaths, groups, dirKinds };
 }
 
 export interface RepoCheckDelta {

@@ -41,6 +41,37 @@ test.describe('P11-T2 commit window layout', () => {
     await expect(row(page, 'ArticleDataController.java, src/main/java/api')).toBeVisible();
   });
 
+  test('P14-T2: group and file rows carry the native context-menu identity', async ({ page }) => {
+    await openCommit(page);
+    // The changelists tree view was the only home for rename/delete/setActive;
+    // once it goes, this context is what keeps them reachable by right-click.
+    const ctxOf = async (name: string): Promise<Record<string, unknown>> =>
+      JSON.parse((await row(page, name).getAttribute('data-vscode-context')) ?? '{}') as Record<
+        string,
+        unknown
+      >;
+
+    const group = await ctxOf('Changes, 4 files');
+    expect(group['webviewSection']).toBe('commitGroup');
+    expect(group['repoRoot']).toBe('D:/repos/demo-git');
+    expect(group['listId']).toBe('default');
+    expect(group['listIsDefault']).toBe(true);
+
+    const unversioned = await ctxOf('Unversioned Files, 1 file');
+    expect(unversioned['listId']).toBe('__unversioned__');
+    expect(unversioned['listIsDefault']).toBe(false);
+
+    const file = await ctxOf('ArticleDataController.java, src/main/java/api');
+    expect(file['webviewSection']).toBe('commitFile');
+    expect(file['repoRoot']).toBe('D:/repos/demo-git');
+    expect(file['relPath']).toBe('src/main/java/api/ArticleDataController.java');
+    // A file row must not offer changelist-level actions.
+    expect(file['listId']).toBeUndefined();
+
+    // Folder rows stand for no changelist and no file, so they carry nothing.
+    expect(await row(page, 'api, 2 files').getAttribute('data-vscode-context')).toBeNull();
+  });
+
   test('opens with everything expanded, like the IntelliJ commit window', async ({ page }) => {
     await openCommit(page);
     await expect(row(page, 'Changes, 4 files')).toHaveAttribute('aria-expanded', 'true');

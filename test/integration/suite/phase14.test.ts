@@ -1,5 +1,7 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
+import type { Phase03Registry } from '../../../src/commit/register';
+import { activateGitTree, workspaceRepoC } from '../setup';
 
 /**
  * Phase 14 — owning the SCM surface. This suite guards the *structural*
@@ -64,5 +66,52 @@ suite('P14 owning the SCM surface', () => {
     // manifest assertions above cannot see that.
     await vscode.commands.executeCommand('workbench.view.extension.gittree');
     await vscode.commands.executeCommand('gittree.commit.focus');
+  });
+
+  test('T2: changelist commands accept the commit window context shape', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase03') as Phase03Registry;
+    assert.ok(reg, 'phase03 registry missing');
+    const repo = core.repoForPath(workspaceRepoC());
+    assert.ok(repo, 'repoC not discovered');
+
+    // The shared window runs the staging paradigm from phase03 onward.
+    const wasChangelists = reg.paradigm.paradigm === 'changelists';
+    if (!wasChangelists) await reg.paradigm.switch();
+    try {
+      const service = reg.changelistsFor(repo);
+      const list = service.create('P14 context list', undefined, false);
+      assert.notStrictEqual(
+        service.getLists().find((l) => l.isActive)?.id,
+        list.id,
+        'fixture list should not start active',
+      );
+
+      // This is the whole point of T2: the changelists tree view is gone, so
+      // the only caller left passes {repoRoot, listId} from the webview.
+      await vscode.commands.executeCommand('gittree.changelist.setActive', {
+        repoRoot: repo.root,
+        listId: list.id,
+      });
+      assert.strictEqual(
+        service.getLists().find((l) => l.isActive)?.id,
+        list.id,
+        'setActive did not accept the webview context shape',
+      );
+
+      // An unresolvable repo must be a no-op, never a throw — a context object
+      // can outlive the repo it named.
+      await vscode.commands.executeCommand('gittree.changelist.setActive', {
+        repoRoot: 'D:/no/such/repo',
+        listId: list.id,
+      });
+      assert.strictEqual(service.getLists().find((l) => l.isActive)?.id, list.id);
+
+      service.setActive(service.getLists().find((l) => l.isDefault)!.id);
+      service.remove(list.id);
+    } finally {
+      if (!wasChangelists) await reg.paradigm.switch();
+    }
   });
 });

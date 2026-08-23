@@ -53,6 +53,43 @@ function labels(model: ReturnType<typeof assembleCommitTree>): string[] {
   return flatten(model.nodes, new Set(model.nodes.flatMap(() => []))).map((r) => r.node.name);
 }
 
+describe('assembleCommitTree groups map (P14-T2)', () => {
+  it('maps every group row back to its changelist identity', () => {
+    const model = assembleCommitTree(state());
+    // One entry per group row, and exactly the group rows — a file path here
+    // would make the native menu offer changelist actions on a file.
+    expect([...model.groups.keys()].sort()).toEqual([...model.groupPaths].sort());
+    const def = model.groups.get(model.groupPaths[0]!);
+    expect(def).toEqual({
+      repoRoot: 'D:/repos/demo',
+      groupId: 'default',
+      isDefault: true,
+      checkable: true,
+    });
+    const unversioned = model.groups.get(model.groupPaths[1]!);
+    expect(unversioned?.groupId).toBe('__unversioned__');
+    expect(unversioned?.isDefault).toBe(false);
+    // Unversioned cannot take part in a commit, so shelve must not be offered.
+    expect(unversioned?.checkable).toBe(false);
+  });
+
+  it('keeps group identity distinct per repo when two repos share a list id', () => {
+    const s = state();
+    const second = { ...s.repos[0]!, root: 'D:/repos/other', label: 'other' };
+    const model = assembleCommitTree({ ...s, repos: [s.repos[0]!, second] });
+    const roots = [...model.groups.values()].map((g) => g.repoRoot);
+    expect(new Set(roots)).toEqual(new Set(['D:/repos/demo', 'D:/repos/other']));
+    expect(model.groups.size).toBe(4);
+  });
+
+  it('never returns a group ref for a file row', () => {
+    const model = assembleCommitTree(state());
+    for (const filePath of model.files.keys()) {
+      expect(model.groups.get(filePath)).toBeUndefined();
+    }
+  });
+});
+
 describe('assembleCommitTree', () => {
   it('produces one group row per changelist with folder rows beneath', () => {
     const model = assembleCommitTree(state());

@@ -2387,6 +2387,56 @@
       ],
       "webview/context": [
         {
+          "command": "gittree.changelist.commitList",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "group": "1_commit@1"
+        },
+        {
+          "command": "gittree.changelist.setActive",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "group": "2_list@1"
+        },
+        {
+          "command": "gittree.changelist.new",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "group": "2_list@2"
+        },
+        {
+          "command": "gittree.changelist.rename",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "group": "2_list@3"
+        },
+        {
+          "command": "gittree.changelist.delete",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsDefault",
+          "group": "2_list@4"
+        },
+        {
+          "command": "gittree.shelf.shelve",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listCheckable",
+          "group": "3_shelf@1"
+        },
+        {
+          "command": "gittree.openDiff",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile'",
+          "group": "1_open@1"
+        },
+        {
+          "command": "gittree.openFile",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile'",
+          "group": "1_open@2"
+        },
+        {
+          "command": "gittree.changelist.moveTo",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && gittree.paradigm == changelists",
+          "group": "2_file@1"
+        },
+        {
+          "command": "gittree.rollbackFile",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile'",
+          "group": "2_file@2"
+        },
+        {
           "command": "gittree.log.branch.checkout",
           "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
           "group": "1_checkout@1"

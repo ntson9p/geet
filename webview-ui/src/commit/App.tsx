@@ -249,6 +249,37 @@ export function App() {
     [model, state.colors],
   );
 
+  /**
+   * P14-T2: native context menus for the change tree. The changelists tree view
+   * used to be the only place a changelist could be renamed, deleted or made
+   * active; once it goes, this is that home. Labels are static, so master §9's
+   * native-menu rule applies (the kit `Menu` is for interpolated labels).
+   */
+  const rowContext = useCallback(
+    (node: TreeNode): Record<string, unknown> | undefined => {
+      const group = model.groups.get(node.path);
+      if (group) {
+        return {
+          preventDefaultContextMenuItems: true,
+          webviewSection: 'commitGroup',
+          repoRoot: group.repoRoot,
+          listId: group.groupId,
+          listIsDefault: group.isDefault,
+          listCheckable: group.checkable,
+        };
+      }
+      const ref = model.files.get(node.path);
+      if (!ref) return undefined;
+      return {
+        preventDefaultContextMenuItems: true,
+        webviewSection: 'commitFile',
+        repoRoot: ref.repoRoot,
+        relPath: ref.relPath,
+      };
+    },
+    [model],
+  );
+
   const selectedRelPaths = useCallback((): { repoRoot: string; paths: string[] } | undefined => {
     const refs = [...selection]
       .map((p) => model.files.get(p))
@@ -442,6 +473,7 @@ export function App() {
       description={description}
       icon={icon}
       nameColor={nameColor}
+      rowContext={rowContext}
     />
   );
 

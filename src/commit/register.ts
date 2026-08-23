@@ -244,11 +244,26 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
 
   // Changelist commands.
   const listArg = (node: unknown): { repo: RepoHandle; listId: string } | undefined => {
-    if (typeof node === 'object' && node !== null && 'kind' in node && node.kind === 'list') {
+    if (typeof node !== 'object' || node === null) return undefined;
+    if ('kind' in node && node.kind === 'list') {
       const n = node as Extract<ChangelistNode, { kind: 'list' }>;
       return { repo: n.repo, listId: n.list.id };
     }
+    // P14-T2: the commit window's native context menu passes {repoRoot, listId}.
+    const c = node as { repoRoot?: unknown; listId?: unknown };
+    if (typeof c.repoRoot === 'string' && typeof c.listId === 'string') {
+      const repo = core.getRepo(c.repoRoot);
+      if (repo) return { repo, listId: c.listId };
+    }
     return undefined;
+  };
+  /** Commit-window file rows carry {repoRoot, relPath}; tree nodes do not. */
+  const fileCtxArg = (arg: unknown): { repo: RepoHandle; relPath: string } | undefined => {
+    if (typeof arg !== 'object' || arg === null) return undefined;
+    const c = arg as { repoRoot?: unknown; relPath?: unknown };
+    if (typeof c.repoRoot !== 'string' || typeof c.relPath !== 'string') return undefined;
+    const repo = core.getRepo(c.repoRoot);
+    return repo ? { repo, relPath: c.relPath } : undefined;
   };
   register('gittree.changelist.new', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
@@ -322,8 +337,11 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       (a): a is Extract<ChangelistNode, { kind: 'file' }> =>
         typeof a === 'object' && a !== null && 'kind' in a && a.kind === 'file',
     );
-    if (files.length === 0) return;
-    const repo = files[0]!.repo;
+    // P14-T2: fall back to the commit window's {repoRoot, relPath} context.
+    const ctx = files.length === 0 ? args.map(fileCtxArg).find((c) => c !== undefined) : undefined;
+    const repo = files[0]?.repo ?? ctx?.repo;
+    const relPaths = files.length > 0 ? files.map((f) => f.relPath) : ctx ? [ctx.relPath] : [];
+    if (!repo || relPaths.length === 0) return;
     const service = changelistsFor(repo);
     const newListLabel = vscode.l10n.t('$(add) New changelist…');
     const options = [
@@ -331,7 +349,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       { label: newListLabel, id: '__new__' },
     ];
     const picked = await vscode.window.showQuickPick(options, {
-      placeHolder: vscode.l10n.t('Move {0} file(s) to…', files.length),
+      placeHolder: vscode.l10n.t('Move {0} file(s) to…', relPaths.length),
     });
     if (!picked) return;
     let targetId = picked.id;
@@ -343,10 +361,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       if (name === undefined || name.trim().length === 0) return;
       targetId = service.create(name.trim()).id;
     }
-    service.moveFiles(
-      files.map((f) => f.relPath),
-      targetId,
-    );
+    service.moveFiles(relPaths, targetId);
   });
 
   // Attach acceptInputCommand + template prefill per repo.
