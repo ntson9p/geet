@@ -1,9 +1,12 @@
 # GitTree
 
-IntelliJ-grade Git integration for VS Code: changelists **and** native
-staging, a color-coded 100k-commit log graph, drag-and-drop interactive
-rebase, a true 3-pane merge editor with a real editor in the result pane,
-IntelliJ-style shelve, and an operation-scoped Local History failsafe.
+IntelliJ-grade Git integration for VS Code: a real commit tool window with
+tri-state checkboxes and per-change inclusion, a four-pane Git tool window
+over a 100k-commit graph, a branches popup that is an action hub, dialogs
+that expose the actual git flags and show you the command before it runs,
+a true 3-pane merge editor with a real editor in the result pane,
+IntelliJ-style shelve, worktree management, and an operation-scoped
+Local History failsafe.
 
 ![GitTree log tool window](media/screens/log.png)
 
@@ -25,80 +28,92 @@ keyboard reference (including the optional IntelliJ keymap):
 
 ## Feature parity with IntelliJ IDEA Ultimate
 
-Derived from [FEATURES.md](FEATURES.md), the project's parity specification.
-The line-by-line sign-off audit lives in
-[docs/parity-audit.md](docs/parity-audit.md).
+Scored against [FEATURES.md](FEATURES.md) — rewritten in 2026-08 so that **every item carries a
+*shape* criterion** (which container, which toolbar, which menu) alongside its behaviour, after
+a review found the previous spec described capabilities without containers. The line-by-line
+audit is [docs/parity-audit.md](docs/parity-audit.md); the measured inventory is
+[docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md); divergences kept on purpose are
+registered once in [docs/deviations.md](docs/deviations.md).
 
-> **Read this first.** The ✅ marks below are scored against `FEATURES.md`, which a
-> 2026-08-20 review found undercounts IntelliJ's real Git surface by roughly 6–8×.
-> They mean "matches the spec", **not** "matches IntelliJ". The measured gap is in
-> [docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md); the accepted
-> rebuild is [P11](docs/plan/PHASE-11-commit-tool-window.md)–[P13](docs/plan/PHASE-13-dialogs-and-popups.md);
-> divergences kept on purpose are in [docs/deviations.md](docs/deviations.md).
-> This section and the audit are rewritten by P13-T9.
+Measured over that inventory: **118 at parity · 33 partial · 79 absent** (from 75 / 36 / 122
+before the 2026-08 rebuild). ✅ below means shape *and* behaviour; 🟡 means it works but sits in
+a different kind of surface, and each one is a registered deviation.
 
-### 1 · Editor integration ✅
+### 1 · Editor integration 🟡
 
-Color-coded gutter line tracking with click-to-diff popup, inline hunk
-rollback and hunk staging; toggleable blame annotations with author/date/sha,
-age heat-map fading and click-through to the log; status-bar branch widget
-opening the branches popup.
+Gutter line tracking with hunk stage/unstage/revert and show-diff in the change popup;
+toggleable blame with author/date/sha, an age heat-map and click-through to the log;
+status-bar branch widget opening the branches popup. *Partial: the hunk popup is VS Code's,
+and the widget is in the status bar rather than a top toolbar.*
 
 ### 2 · Branch management ✅
 
-Searchable popup with Current/Recent/Local/Remote categories and starred
-favorites; **Smart Checkout** (auto-stash → checkout → unstash, with conflict
-resolution when needed); per-branch actions: checkout, checkout-and-rebase
-onto current, new branch from, compare with current, diff with working tree,
-rename, delete, push.
+The branches popup is an **action hub**: top-level verbs (Update Project, Commit, Push, New
+Branch, Checkout Tag or Revision) before any branch, sections for Current/Favorites/Recent/
+Local/Remote/Tags, **folder rows** that drill in with a `‹ Back` row while typing searches flat
+across every level, a header gear and incoming/outgoing toggle, and a `›` **submenu per row**
+carrying the full reference list — including `Merge 'X' into '<current>'`, which before this
+rebuild was reachable only by dragging. **Smart Checkout** intercepts a blocked checkout and
+offers stash → checkout → unstash.
 
 ### 3 · Commit lifecycle ✅
 
-Both paradigms, switchable at any time: **changelists** (index-bypassing,
-multiple lists, active list, new changes auto-adopted) and **staging**
-(Staged/Unstaged with hunk- and line-level staging from the diff). Pre-commit
-checks: reformat changed lines, optimize imports, analyze, TODO scan,
-cleanup. Amend checkbox, GPG sign toggle, commit message history.
+One **commit tool window** with `Commit | Shelf` tabs, a toolbar strip, folder rows with
+**tri-state checkboxes**, per-change include checkboxes with `N differences, M included`, a
+real message editor with history and templates, and an options gear (author, sign-off, deferred
+checks). Both paradigms — **changelists** and **staging** — switchable at any time.
 
 ### 4 · Log & history ✅
 
-Virtualized graph proven at 100k commits (60 fps scroll); Date/Topo/
-**IntelliSort** orders; intersecting Branch/User (autocompleted)/Date/Path
-filters plus regex text search; right-click revision actions: interactive
-rebase, undo commit, revert, cherry-pick, drop; file history with rename
-following. Screen-reader labels and a color-blind-safe palette included.
+A bottom **Git tool window** with `Log | Console` tabs and **four panes** — Branches (with its
+own icon rail), Commits, Changed Files, Commit Details — in persisted splitters. Graph proven
+at 100k commits, Date/Topo/**IntelliSort**, intersecting filters, regex search, go-to-hash, and
+the full commit context menu (interactive rebase, fixup/squash, push-all-up-to-here, reset
+including **Keep**, show repository at revision). The **Console** tab records every git command
+run, with secrets redacted.
 
 ### 5 · 3-way merge resolution ✅
 
-Yours/Result/Theirs panes where the result is a real editor (IntelliSense,
-your keybindings); chevron accepts per side, **magic wand** auto-resolving
-non-overlapping conflicts, F7/Shift+F7 navigation, accept-all per file or
-session, byte-exact CRLF handling.
+A **`Files Merged with Conflicts`** gate, then Yours/Result/Theirs panes where the result is a
+real editor (IntelliSense, your keybindings). `Apply non-conflicting changes` as **Left · All ·
+Right**, a live `No changes. N conflicts.` counter, per-side **Show Details**, explicit
+Accept Yours/Theirs, chevron accepts, F7 navigation, byte-exact CRLF handling.
 
 ![Interactive rebase editor](media/screens/rebase.png)
 
 ### 6 · Stash & shelve ✅
 
-Complete stash GUI (push with file subset, apply/pop with `--index`, branch
-from stash, diff vs working tree). IntelliJ-style **shelf**: patches stored
-*outside* `.git` — they survive repo deletion — with validated patch editing,
-import/export, and full or partial unshelve through a conflict-safe apply
-ladder.
+Full stash GUI plus **dialogs** exposing the real flags (`--keep-index`, `--include-untracked`,
+`--all`, `--staged`) and an Unstash dialog with pop/reinstate-index, a target changelist and an
+inline diff of the file *inside* the stash. IntelliJ-style **shelf**: patches stored *outside*
+`.git`, so they survive repo deletion, with partial shelve and import/export.
 
 ### 7 · GitHub/GitLab review ⏭️ skipped by decision
 
-The provider-integration phase (PR list, in-IDE review, timeline) was
-deliberately not built — it requires live provider accounts this project
-does not use. Rationale and a future-implementer guide:
+The provider-integration phase (PR list, in-IDE review, timeline) was deliberately not built —
+it requires live provider accounts this project does not use. Rationale:
 [docs/plan/PHASE-08-provider-integrations.md](docs/plan/PHASE-08-provider-integrations.md).
 Git-protocol work against any remote (including self-hosted) is unaffected.
 
 ### 8 · Local History failsafe ✅
 
-Automatic snapshots before/after every destructive operation (reset, rebase,
-checkout-with-changes, stash/shelve-with-remove, …) plus optional save-time
-snapshots; Timeline view integration; diff, restore, file recovery and
-commit recovery from the reflog; size/age-budgeted GC.
+Automatic snapshots before every destructive operation (reset, rebase, checkout-with-changes,
+stash/shelve-with-remove, rollback, …) plus optional save-time snapshots; byte-exact restore
+with its own undo, file and commit recovery from the reflog, size/age-budgeted GC.
+
+### 9 · Dialogs, popups and the action hub ✅
+
+Twelve **option-bearing dialogs** — Push, Update Project, Merge, Rebase, Reset, Rollback,
+Cherry-Pick, Stash, Unstash, Apply Patch, Clone, Manage Remotes — on IntelliJ's *Modify
+options* pattern: a compact form plus a dropdown of the real git flags, with contradictory
+combinations rejected *with reasons*. **Every dialog shows the exact command it will run.**
+`` Alt+` `` opens the **VCS Operations Popup**, listing every action applicable right now.
+
+### 10 · Worktrees ✅
+
+A Worktrees view (path, branch, locked/prunable) with Open · Remove · Lock · Unlock · Prune,
+and a **New Worktree** dialog with three branch modes and a sibling default location. Removing
+a dirty worktree is refused with git's own reason.
 
 ## Requirements
 

@@ -1,58 +1,87 @@
-> **⚠️ Obsolete contract — do not cite as a parity standard.** A 2026-08-20 review
-> against JetBrains' documentation and a live IntelliJ install found this document
-> undercounts IntelliJ's real Git surface by roughly 6–8×, and specifies
-> *capabilities* without the *containers* they live in — the two root causes behind
-> [docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md). It is scheduled for
-> rewrite by P13-T9 (see [docs/plan/PHASE-13-dialogs-and-popups.md](docs/plan/PHASE-13-dialogs-and-popups.md)),
-> after which every item will carry a *shape* criterion alongside its behaviour.
-> Until then, treat the gap analysis as the parity standard.
+**What this document is.** The parity contract for GitTree, rewritten (P13-T9) against
+JetBrains' documentation and the reference layouts transcribed in
+[docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md) §2A.
 
-Below is the exhaustive, structured specification of IntelliJ IDEA Ultimate’s Git features, broken down by UI/UX components and underlying functionalities.
+The version before 2026-08-20 specified *capabilities* without the *containers* they live in,
+and an audit passed against it while the product looked nothing like IntelliJ — the root cause
+identified in the gap analysis §1. **Every item below therefore carries a shape criterion —
+which container, which toolbar, which menu — next to what it does**, and states what GitTree
+ships. Accepted divergences are named here and registered once in
+[docs/deviations.md](docs/deviations.md); anything not listed there is a gap, not a deviation.
 
 ---
 
 ## 1. Global UI & Editor Integration
 
-### Editor Gutter Annotations
+### Editor gutter annotations (shape + behaviour)
 
-* **Color-Coded Line Tracking:** The left editor gutter shows vertical color bars indicating line status: **Green** (added), **Blue** (modified), **Grey** (deleted).
-* **Click-to-Diff:** Clicking a color bar opens a floating inline diff viewer showing the original code versus the current code.
-* **Inline Rollback:** From this floating popup, the user can click a "Rollback" icon to revert just that specific hunk, or a "Stash/Commit" icon to manage it.
+* **IntelliJ:** color bars in the left gutter — green added, blue modified, grey deleted —
+  with a floating inline diff on click carrying Rollback / Show Diff / Copy actions.
+* **GitTree:** VS Code's native **quick diff** provider (`SourceControl.quickDiffProvider`)
+  over the `gittree-rev:` scheme, so the bars are the editor's own and track the index live.
+  The click popup is VS Code's, and GitTree contributes the actions into it through
+  `scm/change/title`: **Stage Hunk · Unstage Hunk · Revert Hunk · Show Diff**.
+* **Deviation:** the popup is VS Code's, not a bespoke floating viewer — the API exposes no way
+  to render one (see D1).
 
-### Git Blame (Annotations)
+### Git blame (shape + behaviour)
 
-* **Toggleable Gutter Blame:** Right-clicking the gutter allows users to enable "Annotate with Git Blame."
-* **Visual History:** The gutter expands to show the author's name, date, and commit hash for every line.
-* **Color Fading:** Recent commits are highlighted in darker/bolder colors, while older commits fade, providing a heat-map of code age.
-* **Interactivity:** Clicking a blame annotation opens the corresponding commit in the Git Log tool window.
+* **Toolbar/menu:** `gittree.blame.toggle` (`Ctrl+Alt+G B`), also in the editor title menu.
+* **Shape:** inline **end-of-line decorations**, not a widened gutter column: author · date ·
+  short sha per line, with an **age heat-map** (`gittree.blame.heatmap`) fading older commits.
+* **Behaviour:** hovering shows the full commit message; clicking reveals that commit in the
+  Git tool window's log. Incremental (`blame --incremental`), so a large file paints as it
+  streams rather than blocking.
 
-### The VCS Status Widget
+### The VCS status widget (shape + behaviour)
 
-* **Location:** Bottom right of the status bar (or top left in the New UI).
-* **Function:** Displays the current branch name, sync status (arrows with numbers for incoming/outgoing commits). Clicking it opens the **Branches Popup** (detailed below).
+* **Location:** the **status bar** (left group), showing `branch ↑ahead ↓behind` plus a
+  spinner while fetching, and a warning glyph when the upstream is gone.
+* **Click:** opens the **Branches popup** (§2).
+* **Deviation:** IntelliJ's New UI puts this in a top toolbar; VS Code has no such surface
+  (D4).
 
 ---
 
-## 2. Branch Management (The Branches Popup)
+## 2. Branch Management (the Branches popup as an action hub)
 
-IntelliJ abandons command-line branch switching for a highly categorized, searchable, and protective GUI.
+### The popup itself (shape)
 
-### Structure & UI
+* **Native `QuickPick`**, not a webview — chosen for real focus, type-ahead and keyboard
+  parity (master §6), and vindicated by the reference, whose field reads *"Search for branches
+  **and actions**"*.
+* **Top-level verbs first, before any branch:** `Update Project… Ctrl+T` · `Commit… Ctrl+K` ·
+  `Push… Ctrl+Shift+K` · `New Branch… Ctrl+Alt+N` · `Checkout Tag or Revision…`. They carry
+  search keywords, so typing `merge` finds an action and not only branches.
+* **Sections:** `Current` · `Favorites` · `Recent` · `Local` · `Remote: <name>` per remote ·
+  `Tags`, favorites first, with `↑/↓` counts, short sha and subject as the dim description.
+* **Folder rows:** `feature  12 branches` folds a prefix; picking it drills into a scoped popup
+  with a `‹ Back` row and a breadcrumb title. **Typing collapses the folders** and searches
+  flat across every level, so drill-in never traps anyone.
+* **Header buttons:** new branch · fetch · **incoming/outgoing toggle** · **gear** (branch
+  settings) · open the Branches view.
+* **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
+  collapsible tree (D5).
 
-* **Search Bar:** Filters branches by name instantly.
-* **Categories:** Branches are strictly categorized into: **Current Branch**, **Recent Branches** (automatically populated based on checkout frequency), **Local Branches**, and **Remote Branches**.
-* **Favorites:** Users can click a star icon next to any branch to pin it to the top.
+### The `›` row submenu (shape + behaviour)
 
-### Core Functionalities
+One registry (`branchActions.ts`) feeds the popup, the Branches tree view and the log's
+Branches pane, so the three cannot drift. Labels interpolate the real names, separators mark
+the reference's groups, and **items that do not apply are hidden, not disabled**:
 
-* **Smart Checkout:** If local uncommitted changes conflict with the target branch, IntelliJ intercepts the `git checkout` failure and offers a "Smart Checkout." It automatically stashes the changes, checks out the target branch, and unstashes the changes, initiating a merge conflict resolution if necessary.
-* **Context Menu Actions per Branch:**
-* *Checkout*
-* *Checkout and Rebase onto Current*
-* *New Branch from Selected*
-* *Compare with Current* (Opens a unified tree view showing all commits and file diffs between the two branches).
-* *Show Diff with Working Tree*
-* *Rename / Delete / Push*
+`Checkout` · `New Branch from 'X'…` · `Checkout and Rebase onto '<current>'` · ——
+`Compare with '<current>'` · `Show Diff with Working Tree` · ——
+`Rebase '<current>' onto 'X'` · **`Merge 'X' into '<current>'`** · —— `New Worktree from 'X'…`
+· —— `Push…` · —— `Rename… (F2)` · `Delete`.
+Remote rows swap in `Pull into '<current>' Using Merge` and `Delete 'origin/x' on Remote`.
+
+### Core behaviour
+
+* **Smart Checkout:** a checkout blocked by local changes is intercepted, not just reported —
+  GitTree offers stash → checkout → unstash (`gittree.smartCheckout.behavior`), routing any
+  resulting conflicts into the merge flow.
+* **Compare with Current** opens the log filtered to the range with side badges;
+  **Show Diff with Working Tree** opens the native diff.
 
 ---
 
@@ -235,55 +264,137 @@ Right-clicking commits in the graph (native menu, multi-select aware):
 
 ---
 
-## 5. 3-Way Merge Conflict Resolution Engine
+## 5. 3-Way Merge Conflict Resolution
 
-This is widely considered IntelliJ's strongest feature. When a merge conflict occurs, the "Conflicts" dialog appears.
+### The gate (shape)
 
-### The UI Layout
+* A conflicted operation opens **`Files Merged with Conflicts`** — a dialog listing every
+  conflicted file with its kind, and the actions `Accept Yours` · `Accept Theirs` ·
+  `Resolve Simple Conflicts` · `Merge…` (which opens the first file that *has* a line-level
+  merge). It fires **once per session** and can be switched off
+  (`gittree.merge.conflictsDialog`).
+* The **`gittree.conflicts` tree view remains** the persistent surface for ongoing work —
+  IntelliJ gates on the modal and keeps a view; so does GitTree.
 
-* Clicking "Merge" opens a dedicated three-pane window.
-* **Left Pane:** Local version (Your changes).
-* **Right Pane:** Server/Remote version (Their changes).
-* **Center Pane:** The "Result" file being built.
+### The tri-editor (shape)
 
-### Resolution Mechanics
+* Clicking `Merge…` opens **three real VS Code editors**: Left "Yours" (`:2`, read-only),
+  **Center "Result"** (writable `gittree-merge:` document), Right "Theirs" (`:3`, read-only).
+* **Deviation, and a win:** the centre pane is a real editor, so autocomplete, diagnostics and
+  formatting all work while resolving. A webview merge view would lose them (D14).
 
-* **The Magic Wand:** A button in the toolbar that automatically resolves all "simple" (non-overlapping) conflicts instantly.
-* **Chevrons (`>>`, `<<`):** Conflicts are highlighted with colored blocks. Clicking the chevron on the left pulls your code into the center; clicking the chevron on the right pulls their code in.
-* **Manual Editing:** The center pane is a fully functional editor with syntax highlighting and autocompletion, allowing manual rewriting if `>>`/`<<` isn't sufficient.
-* **Accept Left / Accept Right:** Global buttons to blindly overwrite with one side's version.
+### Toolbar (shape)
+
+* **`Apply non-conflicting changes:` Left · All · Right** — three actions, not one.
+* **Live counter** in IntelliJ's wording: `No changes. 2 conflicts.` / `3 changes, 1 conflict.`
+  / `All changes applied.`, shown in the status bar beside the resolved/total and file position.
+* **Per-side `Show Details`** — the revision behind each pane: short sha · author · date ·
+  subject.
+* **`Accept Yours` / `Accept Theirs`** as explicit whole-file verbs, distinct from the
+  non-conflicting applies.
+* **Magic Wand** (per file and per session) — the rule cascade: identical → one-side-is-base →
+  disjoint interleave → whitespace-only divergence.
+* **Deviation:** git applies every non-overlapping change itself before the tri-editor opens,
+  so `Left`/`Right` act on what remains inside the conflict blocks and say so when there is
+  nothing one-sided to take (D17).
+
+### Resolution mechanics (behaviour)
+
+* **Chevrons** per block as CodeLenses on all three panes: `Accept Yours ≫`, `≪ Accept Theirs`,
+  `Accept Both`, plus the block's live state in the centre.
+* **Keyboard:** `F7` / `Shift+F7` next/previous conflict, `Alt+Enter` accept the focused side,
+  `Ctrl+Alt+Enter` apply.
+* **Sync scroll** across the three panes, toggleable.
 
 ---
 
 ## 6. Stash and Shelve
 
-IntelliJ supports native Git stashing and its own proprietary shelving.
+### Git stash (shape + behaviour)
 
-### Git Stash
+* **View:** `gittree.stashes` tree — one row per entry (message, branch, date), expanding to
+  its files, each opening a real diff against the working tree.
+* **Dialogs (P13-T4):** `Stash Changes…` — message plus **Modify options** revealing
+  `--keep-index`, `--include-untracked`, `--all` and `--staged` (offered only when the git
+  build has it, with the reason stated when it does not). `Unstash Changes…` — the stash list,
+  `[x] Pop stash`, `[ ] Reinstate index`, a target-changelist selector and an inline diff of
+  the selected file *inside* the stash.
+* **Behaviour:** a conflicted pop is demoted to apply semantics by git and routed into the
+  merge flow, with the entry kept.
 
-* Standard `git stash` GUI. Allows saving the working directory, viewing the stash list, diffing stashes against the current working tree, and popping/applying them.
+### Git shelve (shape + behaviour)
 
-### Git Shelve
-
-* **Concept:** An IDE-specific feature that stores uncommitted changes as `.patch` files on the local disk, entirely outside of Git's `.git` directory structure.
-* **Why it exists:** It allows users to store changes safely even if they need to delete the Git repository or perform destructive Git operations that might wipe native stashes.
-* **UI:** A dedicated "Shelf" tab in the Commit Tool window allows users to view shelved patches, edit them, and unshelve them to the current working tree.
+* **Concept parity:** patches stored **outside** `.git`, so they survive deleting or
+  re-initializing the repository — the whole point of shelving.
+* **Shape:** a **`Shelf` tab in the commit tool window** plus the `gittree.shelf` tree, and the
+  `Shelve Changes` dialog (toolbar → changelist selector → checkbox file tree → `N modified` →
+  message → collapsible `∨ Diff` with per-change include checkboxes → `[Shelve Changes]`).
+* **Behaviour:** partial shelving down to individual changes; export/import as `.patch`;
+  unshelve with or without removing the shelf.
 
 ---
 
 ## 7. Deep Provider Integrations (GitHub / GitLab)
 
-Ultimate Edition integrates cloud provider APIs to move code review into the IDE.
-
-* **Pull Requests Tool Window:** Lists all open PRs. Users can filter by assignee, author, or state.
-* **In-IDE Review:** Clicking a PR opens its diffs. Users can add comments directly to lines of code inside the IDE, submit reviews (Approve, Request Changes), and merge the PR.
-* **Timeline View:** Shows the conversation thread, CI/CD pipeline status (e.g., GitHub Actions results), and commit list.
+**Not implemented, by owner decision — this is a standing project constraint, not a gap.**
+GitTree performs no remote-account actions of any kind: no sign-in, no pull-request tool
+window, no in-IDE review, no CI status. Phase 8 was skipped deliberately. `Clone…` accepts a
+URL and does not enumerate a provider's repositories. Registered as D11.
 
 ---
 
 ## 8. The Failsafe: Local History
 
-While not strictly a Git feature, no implementation plan of IntelliJ's VCS capabilities is complete without **Local History**.
+* **Shape:** the `gittree.localHistory` tree view — snapshots grouped by day, each expanding
+  to the files it holds, with `Show Diff`, `Restore` and `Restore Selected Files…`.
+* **Behaviour:** a snapshot is taken **before every destructive operation** (checkout on a
+  dirty tree, reset, rebase, merge, cherry-pick, revert, stash pop/apply/drop/clear, unshelve,
+  rollback, clean, force branch delete, smart checkout), plus optional save- and task-end
+  snapshots. Restores are byte-exact, including CRLF and missing final newlines, and take a
+  paranoia snapshot first so a restore is itself undoable.
+* **Recovery:** dangling-commit recovery from the reflog for the cases a snapshot cannot cover
+  (a bad `reset --hard` of committed work).
+* **Deviation:** a bespoke store rather than VS Code's Timeline — `TimelineProvider` is a
+  proposed API and cannot ship in a published extension (D12).
 
-* **Function:** The IDE independently records every file save, test run, and Git operation in an offline, invisible timeline, completely independent of Git.
-* **UX:** If a user accidentally runs a destructive Git command (e.g., a bad `git reset --hard` or deleting an uncommitted file), they can right-click the project root, select "Local History -> Show History," and restore the exact state of the files from 5 minutes ago. Your VSCode extension should bridge to VSCode's native "Timeline" feature to replicate this safety net.
+---
+
+## 9. Dialogs, Popups and the Action Hub
+
+IntelliJ drives its Git operations through **option-bearing dialogs**; before P13 GitTree stood
+25 of them up as QuickPick/InputBox chains that hid every real flag.
+
+* **Shape shared by all of them:** a focus-trapped editor-area panel (D2) with a title row, a
+  scrollable body, and a footer carrying `?` on the left and the actions on the right. Where
+  IntelliJ shows *Modify options*, GitTree shows the same: a compact primary form plus a
+  dropdown of the actual git flags, each ticked option revealing its control — and un-ticking
+  one **turns the flag off**, so a flag the user cannot see never survives into the command.
+  Contradictory combinations are reported **with reasons** and disable the action.
+* **Every dialog shows the exact command it will run** in a dim `will run:` line, built by the
+  same argv function the host executes (`gittree.dialogs.showCommandLine`).
+* **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
+  tags/hooks footer, `[Push ▾]` with Force Push) · `Update Project` (merge/rebase radio,
+  `Do not show again` → `Ctrl+T` runs directly, `Reset to the Remote Branch`) · `Merge` ·
+  `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`
+  (checkbox tree + inline diff + `Delete local copies of added files`) · `Cherry-Pick` ·
+  `Stash` · `Unstash` · `Apply Patch` (pre-apply summary with missing-file warnings) ·
+  `Clone` · `Manage Remotes` · `New Worktree` · `Files Merged with Conflicts`.
+* **VCS Operations Popup:** `` Alt+` `` opens every action applicable *right now*, enumerated
+  from the dialog and branch-action registries rather than a hand-kept list, with an
+  in-progress group first (continue / skip / abort), diff and commit groups when their context
+  is present, and recently used actions floated to the top.
+
+---
+
+## 10. Worktrees
+
+* **Shape:** the `gittree.worktrees` tree view — one row per worktree showing its branch (or
+  `detached at <sha>`), its path, and lock/prunable state, with `Open`, `Remove`,
+  `Lock`/`Unlock` and `Prune`.
+* **`New Worktree` dialog:** three branch modes (existing branch · new branch from a start
+  point · detach at a revision), a location defaulting to the sibling `../<repo>-<branch>`, and
+  `--no-checkout` / `--force` behind Modify options.
+* **Behaviour:** removing a **dirty** worktree is refused with git's own reason, `--force`
+  being the explicit escape hatch; the main worktree cannot be removed.
+* **Deviation:** on git < 2.36 the lock/prunable flags are derived from git's on-disk layout,
+  because the porcelain does not report them there (D16).

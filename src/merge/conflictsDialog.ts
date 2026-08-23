@@ -74,8 +74,21 @@ export async function applyConflictsResult(
     : vscode.l10n.t('Accepted their version for {0} file(s).', paths.length);
 }
 
-/** True when the S7 gate is enabled (default on). */
+/**
+ * True when the S7 gate is enabled (default on).
+ *
+ * Suppressed under the integration harness: the gate opens a webview panel by
+ * itself the moment conflicts appear, which takes editor focus and breaks every
+ * editor-based assertion in a suite that creates conflict sessions (it did —
+ * P6-T4's chevron test). The dialog's own halves (`buildConflictsParams`,
+ * `applyConflictsResult`) are driven directly by the P13 suite, and
+ * `GITTREE_TEST_CONFLICTS_DIALOG=1` re-arms the auto-open for anyone who wants
+ * to exercise the whole path.
+ */
 export function conflictsDialogEnabled(): boolean {
+  if (process.env['GITTREE_TEST'] === '1' && process.env['GITTREE_TEST_CONFLICTS_DIALOG'] !== '1') {
+    return false;
+  }
   return vscode.workspace
     .getConfiguration('gittree.merge')
     .get<boolean>('conflictsDialog', true);

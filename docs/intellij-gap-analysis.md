@@ -6,10 +6,10 @@ IntelliJ IDEA install (`temp/screenshots/`), and the shipped build
 (`gittree-0.0.1.vsix`, 136 commands, 8 views, 38 settings) read alongside its
 source.
 
-**Status:** the owner accepted **Tier 1** on 2026-08-22. The remediation in §5 is
-now a committed plan — `docs/plan/PHASE-11-commit-tool-window.md`,
-`PHASE-12-git-tool-window.md`, `PHASE-13-dialogs-and-popups.md` — and the
-divergences we are keeping on purpose moved to `docs/deviations.md`.
+**Status: Tier 1 delivered, 2026-08-23.** The owner accepted **Tier 1** on 2026-08-22;
+`PHASE-11-commit-tool-window.md`, `PHASE-12-git-tool-window.md` and
+`PHASE-13-dialogs-and-popups.md` all closed, and the §3 inventory below has been re-scored
+against the shipped build (P13-T9). Divergences kept on purpose live in `docs/deviations.md`.
 
 Legend: **✅** IntelliJ-equivalent · **🟡** present but different form / partial ·
 **❌** absent
@@ -18,16 +18,32 @@ Legend: **✅** IntelliJ-equivalent · **🟡** present but different form / par
 
 ## 0. The one-paragraph answer
 
-GitTree is at 100% parity with [FEATURES.md](../FEATURES.md) — and that is the
-problem. `FEATURES.md` is an ~8-section summary of IntelliJ's Git integration,
-not its feature surface. JetBrains' own docs describe roughly **6–8× more**
-surface than that document captures. On top of that, almost every feature that
-*was* specified got built in **VS Code idiom** (QuickPick, tree view, SCM input
-box) rather than **IntelliJ idiom** (tool window with panes + toolbars, modal
-dialog with *Modify options*, tree popup with per-row context menus). So the app
-diverges on two independent axes at once: *what* it does, and *how it looks and
-feels doing it*. That combination is exactly what produces "an upgrade from
-VS Code's Git rather than an IntelliJ replica."
+**Original finding (2026-08-20).** GitTree was at 100% parity with
+[FEATURES.md](../FEATURES.md) — and that was the problem. `FEATURES.md` was an ~8-section
+summary of IntelliJ's Git integration, not its feature surface; JetBrains' own docs describe
+roughly **6–8× more**. Worse, almost every feature that *was* specified got built in **VS Code
+idiom** (QuickPick, tree view, SCM input box) rather than **IntelliJ idiom** (tool window with
+panes and toolbars, dialog with *Modify options*, tree popup with per-row submenus). The
+product diverged on two axes at once — *what* it does and *how it looks and feels doing it* —
+which is exactly what produced "an upgrade from VS Code's Git rather than an IntelliJ replica."
+
+**After Tier 1 (2026-08-23).** Re-scored against the shipped build, counting the same way:
+
+| | 2026-08-20 | 2026-08-23 | |
+| --- | --- | --- | --- |
+| ❌ absent | 122 | **79** | −43 |
+| 🟡 partial | 36 | **33** | −3 |
+| ✅ at parity | 75 | **118** | **+43** |
+
+The two structural gaps that set the product's character are closed: there is now a **commit
+tool window** and a **Git tool window with four panes and tabs**, the branches popup is an
+**action hub**, and the QuickPick/InputBox chains have become **option-bearing dialogs that
+show the exact command they will run**. What remains is dominated by two deliberate exclusions
+— the **Differences Viewer** (S5, Tier 2: VS Code exposes no API to put controls inside a diff
+editor — D1) and **provider integrations** (§3.13, skipped by owner decision — D11) — plus a
+long tail of IntelliJ-platform features with no VS Code analogue. `FEATURES.md` has been
+rewritten so every item now carries a *shape* criterion; it is the parity contract again, and
+`docs/parity-audit.md` scores against it.
 
 ---
 
@@ -53,22 +69,22 @@ panel, and about 12 context-menu actions.
 This section matters more than any individual missing feature. These are the
 container-level decisions that set the product's character.
 
-| # | IntelliJ | GitTree today | Effect |
+| # | IntelliJ | GitTree before Tier 1 | Status after Tier 1 |
 | --- | --- | --- | --- |
-| S1 | **Commit tool window** (`Alt+0`): one panel with file tree, large message editor, toolbar, gear options, and an inline diff preview | VS Code SCM sidebar plus the **native SCM input box**; options scattered across `scm/title` menus and the command palette | The single most-used surface in IntelliJ has no counterpart. Commit feels like stock VS Code. |
-| S2 | **Git tool window** (`Alt+9`): 4 synchronized panes — Branches, Commits, Changed Files, Commit Details — plus Console / History / Repository / Update Info tabs | One webview in the bottom **panel**: filter bar + graph rows + details panel | No branches pane, no per-pane toolbars, no tabs. Loses the "control center" feel. |
-| S3 | **Branches popup**: a *tree* popup that is also an **action hub** — it opens with Update Project / Commit / Push / New Branch / Checkout Tag or Revision before any branch appears, and the search field matches "branches **and actions**". Real folder nodes (`feature` collapses `f1`, `f1-1`, `f2`), per-row `›` submenus, gear settings | A flat `QuickPick` list with separator headers; branches only | Fine for 20 branches; falls apart at 200. No grouping, no tags, no nested actions, and none of the top-level verbs. |
-| S4 | **Dialogs with "Modify options"** — Push, Pull, Merge, Rebase, Update Project, Reset, Rollback, Stash, Shelve, Cherry-pick target, Apply Patch, Clone, Manage Remotes | Chains of `showQuickPick` / `showInputBox` (25 QuickPick call sites) | IntelliJ exposes real git flags through checkable option lists; GitTree hides them entirely. This is the biggest *power-user* gap. |
-| S5 | **Differences Viewer** with its own toolbar: side-by-side/unified toggle, ignore-whitespace modes, highlight granularity (words/lines/chars/split), align changes, collapse unchanged fragments, compare-with-clipboard, switch-to-three-side, annotate-in-diff | VS Code's native diff editor (`vscode.diff`) | Every diff in the product loses IntelliJ's diff controls. |
-| S6 | **VCS Operations Popup** (`Alt+` + backtick) — one hub listing every applicable VCS action in context | — | Absent entirely. IntelliJ users reach for this constantly. |
-| S7 | **Files Merged with Conflicts** dialog: per-file *Accept Yours / Accept Theirs / Merge…*, plus resolve-all-simple | `gittree.conflicts` **tree view** in the SCM container with equivalent actions | Behaviour is close; the shape is a sidebar list, not a modal gate. |
-| S8 | VCS widget sits in the **top-left main toolbar** (New UI) as `<project> ▾  ⑂ <branch> ▾`, with incoming (blue) / outgoing (green) arrows | Bottom **status bar** item with ahead/behind counts | Right behaviour, wrong end of the window. VS Code has no top-toolbar surface, so this one may be an accepted deviation. |
-| S9 | **File status colors**: 15 named statuses with per-theme colors, customizable on a settings page; directories with modified descendants highlighted | VS Code `FileDecorationProvider` badges | VS Code's decoration API cannot express IntelliJ's palette. |
-| S10 | **Console tab** in the tool window showing every executed git command and its output | One `GitTree` output channel | Discoverability only; low impact. |
-| S11 | **Checkbox inclusion model everywhere**: tri-state checkboxes on the Changes group, on every **folder** node, on every file — *and on every individual change inside the diff* (`2 differences, 0 included`). What you commit is what is ticked. | Partly present, and the parts that are missing are the load-bearing ones. `changelistsView.ts` does put `TreeItemCheckboxState` on changelist and file rows — but (a) there are **no folder nodes at all** (`getChildren` returns files straight off the list; the directory is a dim suffix), (b) `TreeItemCheckboxState` has **no partial state**, so a half-ticked list renders unticked (`changelistsView.ts:113`), (c) **unversioned files get no checkbox** (`:159`), so an untracked file cannot be included by ticking it, and (d) there is no per-change checkbox anywhere | The gesture exists but not at the two granularities that matter: folder and individual change. Fix needs a webview — `TreeView` cannot do tri-state and `vscode.scm` resource groups have no checkbox affordance at all. **The math is already there**: `core/patch/patchBuilder.buildPatch` + `complementChanges` can build a patch from an arbitrary subset of `LineChange[]`, so `N differences, M included` is a UI gap, not an engine gap. → P11-T3 |
-| S12 | Every tree node carries a **file-count badge** (`Changes 2 files`, `api 4 files`), in the commit window, the push dialog and the log's Changed Files pane | Present on changelist and Unversioned nodes (`changelistsView.ts:107`); absent on folder nodes (there are none) and in the log's Changed Files list | Smaller than first assessed — it arrives for free once folder nodes exist. → P11-T8 |
-| S13 | **Two tool windows with tabs**: Commit (left) holds `Commit \| Shelf`; Git (bottom) holds `Log \| Console`. Related surfaces are tabs in one window | **Seven separate tree views stacked in the SCM container** (changelists, branches, compare, localHistory, conflicts, stashes, shelf) plus one log webview in the panel | Same information, radically more scrolling and no sense of a "place". The dock positions were already right — left for commit, bottom for log — so this is purely about grouping. → P11-T2, P11-T6, P12-T1 |
-| S14 | **Dialogs embed a live diff** with per-change include checkboxes — the Shelve Changes dialog carries a collapsible `∨ Diff` section with a full diff toolbar and `2 differences` | Shelve is a QuickPick prompt; the shelf stores whole-file patches (`shelfStore` writes `git diff --output`), so partial shelve is not expressible | Dialogs in IntelliJ are working surfaces, not just parameter forms. → P11-T7 |
+| S1 | **Commit tool window** (`Alt+0`): one panel with file tree, large message editor, toolbar, gear options, and an inline diff preview | VS Code SCM sidebar plus the **native SCM input box**; options scattered across `scm/title` menus and the command palette | **CLOSED (P11).** One `gittree.commit` tool window: `Commit \| Shelf` tabs, toolbar strip, tri-state change tree, message editor, options gear. `commit.window: "native"` restores the old surface. |
+| S2 | **Git tool window** (`Alt+9`): 4 synchronized panes — Branches, Commits, Changed Files, Commit Details — plus Console / History / Repository / Update Info tabs | One webview in the bottom **panel**: filter bar + graph rows + details panel | **CLOSED (P12).** Bottom-docked `gittree-panel` webview with `Log \| Console` tabs and four panes — Branches, Commits, Changed Files, Commit Details — in nested persisted splitters, each with its own toolbar. |
+| S3 | **Branches popup**: a *tree* popup that is also an **action hub** — it opens with Update Project / Commit / Push / New Branch / Checkout Tag or Revision before any branch appears, and the search field matches "branches **and actions**". Real folder nodes (`feature` collapses `f1`, `f1-1`, `f2`), per-row `›` submenus, gear settings | A flat `QuickPick` list with separator headers; branches only | **CLOSED (P13-T5).** Top-level verbs first, folder rows with drill-in and `‹ Back`, flat search across every level, `›` submenu per row from one registry, header gear and incoming/outgoing toggle. |
+| S4 | **Dialogs with "Modify options"** — Push, Pull, Merge, Rebase, Update Project, Reset, Rollback, Stash, Shelve, Cherry-pick target, Apply Patch, Clone, Manage Remotes | Chains of `showQuickPick` / `showInputBox` (25 QuickPick call sites) | **CLOSED (P13-T1…T4).** Twelve option-bearing dialogs on the "Modify options" pattern, each previewing the exact argv it will run. |
+| S5 | **Differences Viewer** with its own toolbar: side-by-side/unified toggle, ignore-whitespace modes, highlight granularity (words/lines/chars/split), align changes, collapse unchanged fragments, compare-with-clipboard, switch-to-three-side, annotate-in-diff | VS Code's native diff editor (`vscode.diff`) | **OPEN — Tier 2, deliberate (D1).** VS Code exposes no API to render controls inside a diff editor. `InlineDiff` covers the commit window and dialogs where per-change inclusion is load-bearing. Route A/B/C for a future phase are written up in `docs/deviations.md`. |
+| S6 | **VCS Operations Popup** (`Alt+` + backtick) — one hub listing every applicable VCS action in context | — | **CLOSED (P13-T7).** `` Alt+` `` VCS Operations Popup, enumerated from `dialogRegistry.ts` + `branchActions.ts`, context-aware, recents floated. |
+| S7 | **Files Merged with Conflicts** dialog: per-file *Accept Yours / Accept Theirs / Merge…*, plus resolve-all-simple | `gittree.conflicts` **tree view** in the SCM container with equivalent actions | **CLOSED (P13-T8).** `Files Merged with Conflicts` dialog gate once per session; the `gittree.conflicts` tree view retained as the persistent surface. |
+| S8 | VCS widget sits in the **top-left main toolbar** (New UI) as `<project> ▾  ⑂ <branch> ▾`, with incoming (blue) / outgoing (green) arrows | Bottom **status bar** item with ahead/behind counts | **ACCEPTED DEVIATION (D4).** VS Code has no top-toolbar surface; the widget stays in the status bar. |
+| S9 | **File status colors**: 15 named statuses with per-theme colors, customizable on a settings page; directories with modified descendants highlighted | VS Code `FileDecorationProvider` badges | **PARTIAL (P11-T8, D6).** Status colors derive from the theme's own `gitDecoration-*` variables with per-status user overrides; IntelliJ's 15-status settings page has no analogue. |
+| S10 | **Console tab** in the tool window showing every executed git command and its output | One `GitTree` output channel | **CLOSED (P12-T8).** `Console` tab beside `Log`, a redacted 2 000-entry ring of every executed git command. Read-only by design (D10). |
+| S11 | **Checkbox inclusion model everywhere**: tri-state checkboxes on the Changes group, on every **folder** node, on every file — *and on every individual change inside the diff* (`2 differences, 0 included`). What you commit is what is ticked. | Partly present, and the parts that are missing are the load-bearing ones. `changelistsView.ts` does put `TreeItemCheckboxState` on changelist and file rows — but (a) there are **no folder nodes at all** (`getChildren` returns files straight off the list; the directory is a dim suffix), (b) `TreeItemCheckboxState` has **no partial state**, so a half-ticked list renders unticked (`changelistsView.ts:113`), (c) **unversioned files get no checkbox** (`:159`), so an untracked file cannot be included by ticking it, and (d) there is no per-change checkbox anywhere | **CLOSED (P11-T2/T3).** Tri-state checkboxes on group, folder and file rows, and per-change include checkboxes with `N differences, M included`. |
+| S12 | Every tree node carries a **file-count badge** (`Changes 2 files`, `api 4 files`), in the commit window, the push dialog and the log's Changed Files pane | Present on changelist and Unversioned nodes (`changelistsView.ts:107`); absent on folder nodes (there are none) and in the log's Changed Files list | **CLOSED (P11-T8, P12-T3).** File-count badges on every folder row, in the commit window, the push dialog and the log's Changed Files pane. |
+| S13 | **Two tool windows with tabs**: Commit (left) holds `Commit \| Shelf`; Git (bottom) holds `Log \| Console`. Related surfaces are tabs in one window | **Seven separate tree views stacked in the SCM container** (changelists, branches, compare, localHistory, conflicts, stashes, shelf) plus one log webview in the panel | **CLOSED (P11-T2/T6, P12-T1).** Two tool windows with tabs; the standalone trees remain available for the surfaces that still warrant one. |
+| S14 | **Dialogs embed a live diff** with per-change include checkboxes — the Shelve Changes dialog carries a collapsible `∨ Diff` section with a full diff toolbar and `2 differences` | Shelve is a QuickPick prompt; the shelf stores whole-file patches (`shelfStore` writes `git diff --output`), so partial shelve is not expressible | **CLOSED (P11-T7).** The Shelve dialog carries a live inline diff with per-change include checkboxes, and the shelf stores partial patches. |
 
 **The merge editor is the exception.** `src/merge/triEditor.ts` composes three
 real VS Code editors (Yours / Result / Theirs) with the result pane fully live —
@@ -381,11 +397,11 @@ row in the branches tree.
 | Search / speed-search in popup | QuickPick filter | ✅ |
 | Categories: Current / Recent / Local / Remote | Separator sections | ✅ |
 | Favorites (star icon, **Space** to toggle) | `branches.toggleFavorite` (button) | 🟡 no Space key |
-| **Group by Directory** (prefix folding) | — | ❌ |
-| **Tags** node in popup | — | ❌ |
+| **Group by Directory** (prefix folding) | P13-T5 folder rows + drill-in with `‹ Back` | ✅ |
+| **Tags** node in popup | P13-T5 `Tags` section | ✅ |
 | **Show My Branches** | — | ❌ |
-| Popup **settings gear** (group-by / show-recent / show-tags) | — | ❌ |
-| **Branches pane** inside the Git tool window (11 toolbar actions) | Separate `gittree.branches` sidebar tree | 🟡 |
+| Popup **settings gear** (group-by / show-recent / show-tags) | P13-T5 gear button → branch settings | ✅ |
+| **Branches pane** inside the Git tool window (11 toolbar actions) | P12-T2 Branches pane + rail | ✅ |
 | Checkout | `branches.checkout` | ✅ |
 | **Smart Checkout** (stash, checkout, unstash) | `smartCheckout` | ✅ |
 | **Force Checkout** | offered in the smart-checkout prompt | ✅ |
@@ -394,11 +410,11 @@ row in the branches tree.
 | Compare with Current | `branches.compareWithCurrent` plus compare tree | ✅ |
 | Show Diff with Working Tree | `branches.diffWithWorkingTree` | ✅ |
 | Rename / Delete / Push | `branches.{rename,delete,push}` | ✅ |
-| **Merge \<branch\> into \<current\>** | `mergeIntoCurrent` — reachable **only by drag-and-drop** in the branches tree; no menu item, no dialog, no options | 🟡 effectively hidden |
-| **Rebase \<current\> onto \<selected\>** (this direction) | only the inverse direction | ❌ |
+| **Merge \<branch\> into \<current\>** | P13-T5: registry entry, `›` submenu row, tree menu row and `gittree.branch.mergeIntoCurrent` | ✅ |
+| **Rebase \<current\> onto \<selected\>** (this direction) | P13-T5 `BranchOps.rebaseCurrentOnto` | ✅ |
 | **Update** / **Checkout and Update** selected branch | — | ❌ |
-| **Pull into \<branch\> Using Rebase / Using Merge** | — | ❌ |
-| **New Worktree from \<branch\>** | — | ❌ |
+| **Pull into \<branch\> Using Rebase / Using Merge** | P13-T5 `pullRemoteIntoCurrent` (merge only) | 🟡 no rebase variant |
+| **New Worktree from \<branch\>** | P13-T5 submenu row → P13-T6 New Worktree dialog | ✅ |
 | Multi-select batch branch operations | — | ❌ |
 | Delete-branch undo notification | — | ❌ |
 | Protected-branch awareness | — | ❌ |
@@ -412,10 +428,10 @@ row in the branches tree.
 | Switch paradigms | `commit.switchParadigm` | ✅ |
 | Hunk / line-level staging | CodeLens plus `stage.selectedRanges` | ✅ |
 | Unversioned Files node | untracked group | ✅ |
-| **Tri-state checkboxes** on the Changes group, folders and files | — (VS Code SCM has no checkbox API) | ❌ **structural** |
-| **Per-change checkboxes inside the diff**, with a live `N differences, M included` counter | range-selection commands | ❌ no checkbox affordance |
+| **Tri-state checkboxes** on the Changes group, folders and files | P11-T2/T3 commit-window `FileTree` (group, folder and file rows) | ✅ |
+| **Per-change checkboxes inside the diff**, with a live `N differences, M included` counter | P11-T3 `InlineDiff` include checkboxes + counter | ✅ |
 | Diff opened from the commit window is a distinct **`Commit: <file>`** tab (with include checkboxes), separate from a plain `Repository Diff: <file>` tab | one diff tab type | ❌ |
-| Commit window toolbar: refresh, rollback, shelve silently, show diff preview, expand/collapse (8 icons in one strip) | actions spread across `scm/title` menus and the palette | 🟡 |
+| Commit window toolbar: refresh, rollback, shelve silently, show diff preview, expand/collapse (8 icons in one strip) | P11-T2 one `ToolbarStrip` in the commit window | ✅ |
 | **Move to Another Changelist…** | `changelist.moveTo` | ✅ |
 | **Move Lines to Another Changelist…** | — | ❌ |
 | **Split Chunks and Include Selected Lines into Commit** | partial via range staging | 🟡 |
@@ -424,8 +440,8 @@ row in the branches tree.
 | Amend checkbox | `commit.toggleAmend` | 🟡 no chevron to pick target commit |
 | Sign commit (GPG) | `commit.toggleSign` (`-S`) | ✅ |
 | **Configure GPG Key** button | — | ❌ |
-| **Author** field in commit options | — | ❌ |
-| **Sign-off commit** (`-s`) | — | ❌ |
+| **Author** field in commit options | P11-T5 gear option (`--author=`) | ✅ |
+| **Sign-off commit** (`-s`) | P11-T5 gear option (`commit.signoff`) | ✅ |
 | Reformat code (changed lines only) | `checks.reformat` | ✅ |
 | Optimize imports | `checks.optimizeImports` | ✅ |
 | Cleanup (plus **Choose profile**) | `checks.cleanup` | 🟡 no profiles |
@@ -435,15 +451,15 @@ row in the branches tree.
 | **Update copyright** | — | ❌ |
 | **Check malicious dependencies** | — | ❌ |
 | **Run Configuration** (run tests) before commit | — | ❌ |
-| **Run advanced checks after a commit is done** (async) | checks are blocking only | ❌ |
+| **Run advanced checks after a commit is done** (async) | P11-T5 deferred checks | ✅ |
 | Commit-message inspections / spellcheck | — | ❌ |
 | **Commit and Push** | `commitAndPush` | ✅ |
-| **Push dialog**: left pane = editable target (`branch → origin : branch`) plus the exact commits being pushed; right pane = **the full changed-file tree of the push**, status-coloured, with per-folder counts and its own toolbar; footer = `☐ Push tags [All ▾]`, `☑ Run Git hooks`, `[Push ▾]` split button | plain `git push` | ❌ |
+| **Push dialog**: left pane = editable target (`branch → origin : branch`) plus the exact commits being pushed; right pane = **the full changed-file tree of the push**, status-coloured, with per-folder counts and its own toolbar; footer = `☐ Push tags [All ▾]`, `☑ Run Git hooks`, `[Push ▾]` split button | P13-T1 Push dialog — every listed element | ✅ |
 | **Push Rejected dialog** (Rebase / Merge, update-all, remember choice) | — | ❌ |
 | *Show Push dialog for Commit and Push* setting | — | ❌ |
 | Warn if CRLF separators are about to be committed | — | ❌ |
 | Warn when committing in detached HEAD or during rebase | — | ❌ |
-| *Do not run Git commit hooks* option | — | ❌ |
+| *Do not run Git commit hooks* option | P13-T1 `Run Git hooks` (push); commit hooks still always run | 🟡 push only |
 | Modal **Commit Changes dialog** (alternative to the tool window) | — | ❌ |
 | *Show on Double-Click: Diff \| Source* | — | ❌ |
 
@@ -451,53 +467,53 @@ row in the branches tree.
 
 | IntelliJ | GitTree | |
 | --- | --- | --- |
-| Four panes (Branches / Commits / Changed Files / Commit Details) | filter bar plus graph plus details panel | 🟡 |
+| Four panes (Branches / Commits / Changed Files / Commit Details) | P12-T1 four panes in nested persisted splitters | ✅ |
 | Color-coded topological graph | `GraphCanvas`, 100k commits at 60fps | ✅ |
 | Sort: Date / Topo / **IntelliSort** | `sort: 'topo' \| 'date' \| 'intelli'` | ✅ |
 | Branch / User / Date / Path filters | filter chips | ✅ |
 | Text search plus Regex plus Match Case | search box with toggles | ✅ |
-| **Go to Hash / Branch / Tag** (`Ctrl+F`) | `revealCommit` is programmatic only | ❌ |
+| **Go to Hash / Branch / Tag** (`Ctrl+F`) | P12-T4 `log.goTo` | ✅ |
 | **Enable Git Log Indexing** | — | ❌ |
-| **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | — | ❌ |
-| **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | — | ❌ |
-| **Show All Affected Files** (`Alt+Shift+A`) and Paths Affected in Revision dialog | — | ❌ |
-| Go to Parent / Child Commit (left/right arrows) | — | ❌ |
+| **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | P12-T5 presentation menu (Collapse linear branches / Show long edges omitted — D) | 🟡 two toggles omitted |
+| **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | P12-T5 highlight menu | ✅ |
+| **Show All Affected Files** (`Alt+Shift+A`) and Paths Affected in Revision dialog | P12-T3 Changed Files pane + `log.showAllAffected` | ✅ |
+| Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild` | ✅ |
 | Multi-repo root colour stripe / root names | — | ❌ |
 | Refresh | `log.refresh` | ✅ |
 | Copy Revision Number | `log.copySha` | ✅ |
 | New Branch / New Tag from commit | `createBranchHere` / `createTagHere` | ✅ |
 | Checkout Revision | `log.checkoutRevision` | ✅ |
-| Reset Current Branch to Here | `log.resetHere` (Soft/Mixed/Hard) | 🟡 no **Keep** mode |
+| Reset Current Branch to Here | `log.resetHere` (Soft/Mixed/Hard/**Keep**) + P13-T3 Reset dialog | ✅ |
 | Compare with Local | `log.compareWithLocal` | ✅ |
 | Revert Commit / Undo Commit / Drop Commit / Cherry-pick / Edit Commit Message | `commit.{revert,undo,drop,cherryPick,reword}` | ✅ |
 | Interactively Rebase from Here | `rebase.interactive` | ✅ |
-| **Create Patch** (from commit) | — | ❌ |
-| **Show Repository at Revision** | — | ❌ |
-| **Fixup** / **Squash Into** (direct from the log) | only inside the rebase editor | ❌ |
+| **Create Patch** (from commit) | P12-T6 `log.createPatch` | ✅ |
+| **Show Repository at Revision** | P12-T7 read-only `gittree-tree:` FS + view | ✅ |
+| **Fixup** / **Squash Into** (direct from the log) | P12-T7 `log.fixup` / `log.squashInto` + autosquash | ✅ |
 | **Squash Commits** (multi-select) | — | ❌ |
-| **Push All up to Here…** | — | ❌ |
+| **Push All up to Here…** | P12-T7 `log.pushAllUpToHere` | ✅ |
 | **Add Commits to Remote Branch** | — | ❌ |
 | **Rebase \<branch\> onto Selected Commit** | — | ❌ |
 | View in browser / Open on GitHub-GitLab | `log.openOnRemote` | ✅ |
-| **Changed Files pane toolbar**: Show Diff, Revert Selected Changes, History Up to Here, View Options (Group By / Show Details / Show Diff Preview), Expand/Collapse | details panel with folder rollup only | 🟡 |
+| **Changed Files pane toolbar**: Show Diff, Revert Selected Changes, History Up to Here, View Options (Group By / Show Details / Show Diff Preview), Expand/Collapse | P12-T3 Changed Files pane with its own toolbar | ✅ |
 | Changed Files context menu: Compare Before with Local, Open Repository Version, Revert Selected Changes, Cherry-Pick Selected Changes, **Extract Selected Changes to Separate Commit**, Drop Selected Changes, Create Patch, Get from Revision, History Up to Here, Show Changes to Parents | open diff only | ❌ (10 actions) |
 | File **History** tab with diff preview | `showFileHistory` (log filtered by path) | 🟡 |
-| **Console** tab sits directly beside **Log** in the Git tool window (verified) | `GitTree` output channel, a separate VS Code surface | 🟡 |
+| **Console** tab sits directly beside **Log** in the Git tool window (verified) | P12-T8 `Log \| Console` tabs in one window (read-only — D10) | ✅ |
 | **Repository** / **Incoming** / **Update Info** tabs | — | ❌ |
-| Branches pane has its own **vertical icon rail** (new branch, delete, update, search, favorite, settings) | sidebar tree with a 2-button title bar | 🟡 |
-| Changed Files pane and Commit Details pane are **stacked** on the right, each with its own toolbar | one details panel | 🟡 |
+| Branches pane has its own **vertical icon rail** (new branch, delete, update, search, favorite, settings) | P12-T2 Branches pane + vertical rail | ✅ |
+| Changed Files pane and Commit Details pane are **stacked** on the right, each with its own toolbar | P12-T1/T3 stacked right panes, each with a toolbar | ✅ |
 
 ### 3.5 Merge and conflict resolution
 
 | IntelliJ | GitTree | |
 | --- | --- | --- |
-| Files Merged with Conflicts dialog | `gittree.conflicts` tree view | 🟡 shape |
+| Files Merged with Conflicts dialog | P13-T8 dialog gate (once per session) + the retained `gittree.conflicts` view | ✅ |
 | Per-file Accept Yours / Accept Theirs / Merge… | `merge.acceptYoursFile` / `acceptTheirsFile` / `merge.open` | ✅ |
 | Three panes, centre is a fully functional editor | `TriMergeEditor` (three real VS Code editors) | ✅ **strength** |
 | Apply All Non-Conflicting Changes ("magic wand") | `merge.magicWand` / `magicWandSession` | ✅ |
-| Apply non-conflicting changes exposed as **three separate links — Left / All / Right** — in one toolbar group | `magicWand` only (equivalent to *All*) | ❌ |
-| Live status text in the toolbar: **`No changes. 1 conflict.`** | — | ❌ |
-| **Show Details** link on each side header | — | ❌ |
+| Apply non-conflicting changes exposed as **three separate links — Left / All / Right** — in one toolbar group | P13-T8 `merge.applyNonConflicting.{left,all,right}` (D17 on what Left/Right can reach) | ✅ |
+| Live status text in the toolbar: **`No changes. 1 conflict.`** | P13-T8 `mergeStatusText` in the status bar | ✅ |
+| **Show Details** link on each side header | P13-T8 `merge.showDetails` — sha, author, date, subject per side | ✅ |
 | Global **Accept Left** / **Accept Right** buttons in the dialog footer | `merge.acceptFileYours` / `acceptFileTheirs` in the editor title bar | ✅ |
 | Pane headers name the actual refs: *Changes from **master*** / *Changes from **master2*** | pane titles are `(Yours)` / `(Theirs)` | 🟡 |
 | Resolve Simple Conflicts | `autoResolver` | ✅ |
@@ -517,8 +533,8 @@ row in the branches tree.
 | Stash tab: Create Stash / Apply / Pop / Drop / Clear | full `gittree.stash.*` | ✅ |
 | Unstash **as new branch** | `stash.branch` | ✅ |
 | Reinstate Index (`--index`) | `restoreIndex` | ✅ |
-| **Keep index** on create (`--keep-index`) | — | ❌ |
-| Stash dialog: git-root selector, branch verification, message | QuickPick plus InputBox | 🟡 |
+| **Keep index** on create (`--keep-index`) | P13-T4 Stash dialog option | ✅ |
+| Stash dialog: git-root selector, branch verification, message | P13-T4 Stash dialog (message + Modify options) | ✅ |
 | Shelf tab, patches stored outside `.git` | `gittree.shelf.*` | ✅ **strength** |
 | Unshelve (full / partial) | `shelf.unshelve` / `unshelvePartial` | ✅ |
 | Import Patches / export | `shelf.import` / `shelf.export` | ✅ |
@@ -528,7 +544,7 @@ row in the branches tree.
 | Drag-and-drop unshelve (Ctrl+drag copies) | — | ❌ |
 | **Already Unshelved** filter | — | ❌ |
 | **Recently Deleted** node plus **Restore** | — | ❌ |
-| Shelve dialog: file list, Group By, Show Differences, Revert | tree view | 🟡 |
+| Shelve dialog: file list, Group By, Show Differences, Revert | P11-T7 Shelve Changes dialog (tree, counts, inline diff) | ✅ |
 | *Combine stashes and shelves in one tab* | two separate views | ❌ |
 | *Shelve base revisions of files* / Change Shelves Location | `shelf.path` only | 🟡 |
 
@@ -538,19 +554,19 @@ row in the branches tree.
 | --- | --- | --- |
 | Fetch | `gittree.fetch` (`--prune`) | ✅ |
 | *Fetch remote changes automatically* | `autofetch.enabled` | ✅ |
-| **Pull Changes dialog**: repository, remote, branch, **Modify options** (`--rebase`, `--ff-only`, `--no-ff`, `--squash`, `--no-commit`, `--no-verify`) | bare `git pull` | ❌ |
-| **Update Project** (`Ctrl+T`) with Merge / Rebase / **Reset to the Remote Branch** | — | ❌ |
-| **Update Info** tab summarizing what arrived | — | ❌ |
+| **Pull Changes dialog**: repository, remote, branch, **Modify options** (`--rebase`, `--ff-only`, `--no-ff`, `--squash`, `--no-commit`, `--no-verify`) | P13-T2 Update Project dialog (merge/rebase, explicit argv) | 🟡 no per-flag list |
+| **Update Project** (`Ctrl+T`) with Merge / Rebase / **Reset to the Remote Branch** | P13-T2 `gittree.update.dialog`, bound to `Ctrl+T` | ✅ |
+| **Update Info** tab summarizing what arrived | P13-T2 result notification with "Show in Log" (D9) | 🟡 notification, not a tab |
 | *Update method* and *Clean working tree using (Stash\|Shelve)* settings | — | ❌ |
 | *Fetch tags* (Auto / Sync / Always / Never) | — | ❌ |
 | Push / Force push | `push`, `pushForceWithLease` | ✅ |
-| **Merge Branches dialog** with `--no-ff`, `--ff-only`, `--squash`, `-m`, `--no-commit`, `--no-verify`, `--allow-unrelated-histories` | drag-and-drop merge, no options | ❌ |
-| **Git Rebase dialog** with `--onto`, `--rebase-merges`, `--keep-empty`, `--root`, `--update-refs`, `--autosquash` | — | ❌ |
-| **Manage Remotes** dialog (add / edit / remove) | — | ❌ |
+| **Merge Branches dialog** with `--no-ff`, `--ff-only`, `--squash`, `-m`, `--no-commit`, `--no-verify`, `--allow-unrelated-histories` | P13-T3 Merge dialog (every listed flag + strategy/strategy-option) | ✅ |
+| **Git Rebase dialog** with `--onto`, `--rebase-merges`, `--keep-empty`, `--root`, `--update-refs`, `--autosquash` | P13-T3 Rebase dialog (`--onto`, `--rebase-merges`, `--keep-empty`, `--autostash`, `--no-verify`, `--interactive`) | 🟡 no `--root`/`--update-refs` |
+| **Manage Remotes** dialog (add / edit / remove) | P13-T4 `gittree.remotes.manage` (add / edit / remove / prune) | ✅ |
 | Incoming (blue) / outgoing (green) arrows | ahead/behind in the status bar | 🟡 |
 | *Check remote for incoming changes* | — | ❌ |
 | *Use credential helper* | askpass implementation | 🟡 |
-| **Clone Repository** dialog, shallow clone, **Unshallow Repository** | — | ❌ |
+| **Clone Repository** dialog, shallow clone, **Unshallow Repository** | P13-T4 Clone dialog (`--depth`, `--branch`, submodules); no unshallow | 🟡 no unshallow |
 
 ### 3.8 History rewriting
 
@@ -580,13 +596,13 @@ row in the branches tree.
 
 | IntelliJ | GitTree | |
 | --- | --- | --- |
-| Create Patch from Local Changes | — | ❌ |
-| Create Patch from a commit (log) | — | ❌ |
+| Create Patch from Local Changes | P12-T6 `gittree.patch.create` | ✅ |
+| Create Patch from a commit (log) | P12-T6 `gittree.log.createPatch` | ✅ |
 | Create Patch from a file revision (history) | — | ❌ |
-| Patch File Settings dialog (location, **To clipboard**, base path, **Reverse patch**, encoding) | — | ❌ |
-| Copy as Patch to Clipboard | — | ❌ |
-| Apply Patch… / Apply Patch from Clipboard | — | ❌ |
-| Change Directory Paths (map base dir, strip / restore leading dirs) | — | ❌ |
+| Patch File Settings dialog (location, **To clipboard**, base path, **Reverse patch**, encoding) | P12-T6 create options + P13-T4 apply options (`--reverse`, `-p<n>`) | 🟡 no encoding/base-path |
+| Copy as Patch to Clipboard | P12-T6 `gittree.patch.copyToClipboard` | ✅ |
+| Apply Patch… / Apply Patch from Clipboard | P12-T6 engine + P13-T4 `gittree.patch.applyDialog` (file picker; no clipboard source) | 🟡 no clipboard source |
+| Change Directory Paths (map base dir, strip / restore leading dirs) | P13-T4 `-p<n>` strip depth only | 🟡 strip only |
 | Analyze and apply patch from clipboard on the fly | — | ❌ |
 | Import to shelf | `shelf.import` | ✅ |
 
@@ -594,13 +610,13 @@ row in the branches tree.
 
 | IntelliJ | GitTree | |
 | --- | --- | --- |
-| Clone Repository dialog | — | ❌ |
+| Clone Repository dialog | P13-T4 `gittree.clone.dialog` | ✅ |
 | Create Git Repository / Enable Version Control Integration | `git init` exists only in the playground generator | ❌ |
 | Add to VCS (`Ctrl+Alt+A`) | `gittree.add` | ✅ |
 | **Add to .gitignore** / **Add to .git/info/exclude** | — | ❌ |
 | **Show Ignored Files** toggle | — | ❌ |
-| Manage Remotes | — | ❌ |
-| **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | worktree paths handled internally; no management UI | ❌ |
+| Manage Remotes | P13-T4 `gittree.remotes.manage` | ✅ |
+| **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | P13-T6 `gittree.worktrees` view + New Worktree dialog + the T5 submenu row | ✅ |
 | Submodule awareness / operations | status parser reads the submodule field only | ❌ |
 | Multi-repo, "Execute branch operations on all roots" | multi-repo model exists; no all-roots switch | 🟡 |
 | Directory mappings settings page | — | ❌ |

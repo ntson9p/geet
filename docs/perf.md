@@ -19,6 +19,35 @@ The CI `perf` job (`.github/workflows/ci.yml`) runs the suite on all three OSes.
 It has never executed: the repository has no remote by project-owner decision, so
 the recorded evidence is the local runs below.
 
+## Results — 2026-08-23, Windows 11, local — **Tier-1 close** (P13-T9)
+
+Final re-validation with Phases 11–13 all shipped (dialogs, worktrees, the
+operations popup and the merge toolbar are added surface, not added startup
+cost). Same fixtures and the same harness as the P12-T9 run below.
+
+| Metric | §13 budget | Measured |
+|---|---|---|
+| Activation (sync path) | ≤ 100 ms | **3.1 ms** |
+| Status refresh p95 @ 10k tracked files (250 dirty) | ≤ 400 ms | **348 ms** (median 312.9) |
+| Log first page (2 000 rows) + graph layout @ 100k commits | ≤ 600 ms | **537.8 ms** (first chunk 517.1) |
+| Blame 5k-line file, cold / cached | ≤ 300 / 30 ms | **102.1 / 0 ms** |
+| Extension-host memory, 100k-commit log session | ≤ 150 MB | **+89.7 MB** session delta (272.7 MB over a 183.0 MB baseline) |
+| Selection → Details + Changed Files panes populated | *(recorded)* | **101 ms** median |
+| Changed Files @ 5 000-file commit | *(recorded)* | **97.9 ms** median |
+| P9 snapshot @ 2k dirty files | *(recorded)* | **~3.9 s** overhead, host responsive |
+
+Bundle: `gittree-0.0.1.vsix` **1.26 MB** (0.07 MB images) → **1.19 MB effective**
+against the 2.50 MB budget, with all of P13's dialogs in the `dialogs` webview
+bundle.
+
+Notes:
+- **The log first page came in at 537.8 ms**, comfortably inside the 600 ms
+  budget — the 611.5 ms reading in the P12-T9 run below was overnight suite
+  load, as suspected there, and the budget was rightly left alone.
+- Status refresh and memory both read higher than the P12-T9 run (348 vs 230 ms;
+  +89.7 vs +64.4 MB) and both stay inside budget. Same machine, different load;
+  neither metric has a code change behind it that would explain a regression.
+
 ## Results — 2026-08-23, Windows 11, local — four-pane window (P12-T9)
 
 Re-validation after Phase 12 turned the log into the four-pane Git tool window

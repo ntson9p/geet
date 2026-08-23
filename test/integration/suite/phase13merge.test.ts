@@ -261,9 +261,13 @@ suite('P13 merge parity', () => {
 
   // ---- S7 · the Files Merged with Conflicts gate ---------------------------
 
-  test('T8: the conflicts gate lists the session and defaults to on', async function () {
+  test('T8: the conflicts gate lists the session, and is suppressed under the harness', async function () {
     this.timeout(180_000);
-    assert.strictEqual(reg.conflictsDialogEnabled(), true, 'the S7 gate is on by default');
+    // The auto-open is off during integration runs — a webview panel opening by
+    // itself takes editor focus and breaks every editor-based assertion in a
+    // suite that creates conflict sessions. The halves below are what the gate
+    // actually does, and they are exercised directly.
+    assert.strictEqual(reg.conflictsDialogEnabled(), false, 'auto-open must be off in tests');
     await startConflict();
     try {
       const session = lifecycle.get(repo.root)!;

@@ -240,6 +240,15 @@ Settings `gittree.update.strategy`, `gittree.push.runHooks`, `gittree.push.tags`
 - [x] `Reset → Keep` available in the reset dialog *(P13-T3: four-mode radio, with a live
       impact line and git's own refusal surfaced when `--keep` declines)*
 
+## Outcome (P13-T9, 2026-08-23) — **PHASE 13 CLOSED, Tier 1 complete**
+
+Every checklist item above is ticked. `FEATURES.md` rewritten so each item carries a *shape*
+criterion; `docs/parity-audit.md` replaced and re-scored against it; `docs/deviations.md`
+finalized at D1–D17; `docs/keyboard.md`, `readme.md` and `CHANGELOG.md` updated. The
+gap-analysis inventory re-scored: **118 at parity · 33 partial · 79 absent**, from
+75 / 36 / 122. Gates at close: 686 unit, 197 webview (+3 skipped), 220 integration (+2
+pending), `test:perf` 8/8 with every §13 budget met, bundle 1.19 MB effective vs 2.50 MB.
+
 ## Planned deviations
 - **Dialogs are editor-area webview panels, not OS-modal windows** (P11-T1). Focus-trapped and
   Esc-cancellable, but the rest of the window stays interactive.

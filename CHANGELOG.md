@@ -35,6 +35,53 @@ pre-release convention (odd minor = pre-release).
     (`gittree.colors.*`).
 - Prefer the classic surface? `gittree.commit.window: "native"` restores the
   pre-11 changelists tree, SCM input box and shelf tree without a reload.
+- **The Git tool window (Tier-1 rebuild, Phase 12).** The log becomes a real
+  tool window instead of a single panel:
+  - `Log | Console` tabs, and **four synchronized panes** — Branches (with its
+    own vertical icon rail), Commits, Changed Files and Commit Details — in
+    nested splitters whose sizes persist.
+  - **Changed Files pane** with folder rows, `N files` counts and status
+    colors; a multi-commit selection shows the aggregate diff.
+  - **Presentation and highlight menus** (compact refs, tag names, timestamps,
+    root names; My Commits, Merge Commits, Current Branch, Not Cherry-Picked),
+    **Go to Hash / Branch / Tag**, and the full 28-item commit context menu —
+    fixup and squash-into with autosquash, *Push All up to Here*,
+    *Show Repository at Revision*, parent/child navigation, and reset
+    including git's **Keep** mode.
+  - **Patches**: create from local changes or a commit, copy to clipboard,
+    and an apply engine that replays mailbox patches as commits.
+  - **Console tab** recording every git command GitTree runs — argv, exit
+    code, duration and output — with URL credentials, askpass values and
+    author identities redacted before anything enters the buffer.
+- **Dialogs, popups and the action hub (Tier-1 rebuild, Phase 13).**
+  - **Twelve option-bearing dialogs** replace the QuickPick/InputBox chains:
+    Push, Update Project, Merge, Rebase, Reset, Rollback, Cherry-Pick, Stash,
+    Unstash, Apply Patch, Clone and **Manage Remotes** (which had no command
+    at all before). Each follows IntelliJ's *Modify options* pattern — a
+    compact form plus a dropdown of the real git flags — rejects contradictory
+    combinations **with reasons**, and shows the exact command it will run.
+  - **Push dialog**: per-repository sections, an editable
+    `branch → remote : branch` target row, the push's full changed-file tree,
+    `Push tags` / `Run Git hooks`, and a `[Push ▾]` split button whose Force
+    path is always `--force-with-lease`.
+  - **Update Project** on `Ctrl+T` with a merge/rebase radio,
+    `Do not show again` (which makes `Ctrl+T` act directly), and
+    *Reset to the Remote Branch* behind a confirmation and a Local History
+    snapshot.
+  - **Reset** finally offers git's fourth mode, **Keep**, with a live
+    "this will discard N local changes" line.
+  - **Branches popup becomes an action hub**: top-level verbs before any
+    branch, folder rows that drill in while typing searches flat across every
+    level, and a `›` submenu per row — including **`Merge 'X' into '<current>'`,
+    which was previously reachable only by drag-and-drop**.
+  - **Worktree management**: a Worktrees view and a New Worktree dialog
+    (create · open · remove · lock · unlock · prune).
+  - **VCS Operations Popup** on `` Alt+` ``, listing every action applicable
+    in the current context, enumerated from the dialog and branch registries.
+  - **Merge**: `Apply non-conflicting changes` split into **Left · All ·
+    Right**, a live `No changes. N conflicts.` counter, per-side
+    *Show Details*, and a `Files Merged with Conflicts` dialog gate after a
+    conflicted operation (the Conflicts view is retained).
 
 ### Changed
 
@@ -43,6 +90,14 @@ pre-release convention (odd minor = pre-release).
   (*"Failed checks will not prevent a commit"*). Untick *Run advanced checks
   after a commit is done* in the gear popup (or set
   `gittree.commit.checks.deferAdvanced: false`) to restore pre-commit gating.
+- Under the IntelliJ keymap, `Ctrl+T` and `Ctrl+Shift+K` now open the
+  **Update Project** and **Push** dialogs rather than acting silently — as
+  they do in IntelliJ. The no-questions `gittree.pull` and `gittree.push`
+  commands are unchanged and still in the palette.
+- `FEATURES.md` has been rewritten so every item carries a *shape* criterion
+  (which container, which toolbar, which menu) beside its behaviour, and
+  `docs/parity-audit.md` re-scored against it: **118 at parity, 33 partial,
+  79 absent**, from 75 / 36 / 122 before the rebuild.
 
 ### Fixed
 
