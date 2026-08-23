@@ -779,6 +779,33 @@ export interface NewWorktreeDialogResultDto {
   openInNewWindow: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Files Merged with Conflicts dialog (P13-T8 · S7)
+// ---------------------------------------------------------------------------
+
+export interface ConflictsDialogFileDto {
+  path: string;
+  /** `text`, `both-added`, `deleted-by-us`, … — the classified conflict kind. */
+  kind: string;
+  /** Special conflicts have no line-level merge to open. */
+  mergeable: boolean;
+}
+
+export interface ConflictsDialogParamsDto {
+  repoRoot: string;
+  repoLabel: string;
+  /** `merge`, `rebase`, `cherry-pick`… — what produced the conflicts. */
+  operation: string;
+  files: ConflictsDialogFileDto[];
+  colors?: Record<string, string>;
+}
+
+export interface ConflictsDialogResultDto {
+  action: 'acceptYours' | 'acceptTheirs' | 'resolveSimple' | 'merge';
+  /** The ticked files the action applies to. */
+  paths: string[];
+}
+
 export const REMOTES_DIALOG_METHODS = {
   /** webview → host request: add or edit. Params `{before?, after}`. */
   save: 'remotesDialog/save',

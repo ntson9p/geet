@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
 import { makeMergeUri, MERGE_SCHEME, type MergeFsProvider } from '../core/vdocs/mergeFs';
 import { makeRevUri, REV_SCHEME } from '../core/vdocs/revContentProvider';
+import { countMerge, mergeStatusText, type ApplySide } from './applyNonConflicting';
 import type { ConflictSession } from './conflictSession';
 import { splitKeepEol, type ConflictBlock, type MergeComputation } from './mergeCompute';
 
@@ -86,6 +87,56 @@ export class TriMergeEditor {
 
   get unresolvedCount(): number {
     return this.blocks.length - this.resolvedCount;
+  }
+
+  /**
+   * P13-T8 · §2A: the live toolbar string —
+   * `No changes. 2 conflicts.` / `3 changes, 1 conflict.`
+   */
+  statusText(): string {
+    return mergeStatusText(
+      countMerge(
+        this.blocks.map((t) => t.block),
+        {
+          whitespace: vscode.workspace
+            .getConfiguration('gittree.merge')
+            .get<boolean>('autoResolveWhitespace', true),
+        },
+      ),
+    );
+  }
+
+  /**
+   * P13-T8 · §2A per-side `Show Details`: the revision behind one pane —
+   * hash, author and date, which the pane title alone cannot carry.
+   */
+  async sideDetails(side: 'left' | 'right'): Promise<string> {
+    // `ours` is HEAD during a merge; `theirs` is MERGE_HEAD (REBASE_HEAD while
+    // rebasing, where the sides are swapped by git's own convention).
+    const ref = side === 'left' ? 'HEAD' : 'MERGE_HEAD';
+    const res = await this.repo.queue.enqueue({
+      label: 'merge side details',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(
+          this.repo.root,
+          ['log', '-1', '--format=%H%x00%an%x00%ad%x00%s', '--date=short', ref],
+          { allowNonZeroExit: true, structured: true, noOptionalLocks: true, token },
+        ),
+    });
+    const label = side === 'left' ? vscode.l10n.t('Yours') : vscode.l10n.t('Theirs');
+    if (res.exitCode !== 0) {
+      return vscode.l10n.t('{0}: revision unavailable ({1} not found).', label, ref);
+    }
+    const [sha, author, date, subject] = res.stdout.trim().split('\0');
+    return vscode.l10n.t(
+      '{0} — {1} · {2} · {3} · {4}',
+      label,
+      (sha ?? '').slice(0, 7),
+      author ?? '',
+      date ?? '',
+      subject ?? '',
+    );
   }
 
   static async open(
@@ -622,6 +673,12 @@ export class TriEditorManager implements vscode.Disposable {
   private readonly _onDidChangeState = new vscode.EventEmitter<void>();
   /** Any open tri-editor changed (open/close/resolution) — CodeLens refresh. */
   readonly onDidChangeState = this._onDidChangeState.event;
+  /**
+   * P13-T8 test seam: the Left/All/Right toolbar action, returning the status
+   * string it reported — which is what the acceptance line asserts on.
+   * Installed by `registerResolutionActions`.
+   */
+  applyNonConflictingForTest?: (side: ApplySide) => Promise<string>;
 
   constructor(private readonly mergeFs: MergeFsProvider) {
     this.decorations = createTriEditorDecorations();
@@ -700,8 +757,10 @@ export class TriEditorManager implements vscode.Disposable {
     }
     const files = active.session.files();
     const fileIdx = Math.max(0, files.findIndex((f) => f.path === active.rel)) + 1;
+    // P13-T8: the live IntelliJ counter rides along with the file position.
     this.statusBar.text = vscode.l10n.t(
-      '$(git-merge) Conflicts: {0}/{1} resolved · file {2}/{3}',
+      '$(git-merge) {0} · {1}/{2} resolved · file {3}/{4}',
+      active.statusText(),
       active.resolvedCount,
       active.blocks.length,
       fileIdx,

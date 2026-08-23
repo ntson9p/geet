@@ -31,6 +31,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D14](#d14--tri-editor-merge-layout) | Merge uses three real editors, not IntelliJ's pane chrome | Deliberate (a win) |
 | [D15](#d15--push-tags-current-branch-means---follow-tags) | `Push tags: Current Branch` maps to `--follow-tags` | No (no git equivalent) |
 | [D16](#d16--worktree-lockprunable-flags-are-derived-on-git--236) | Worktree lock/prunable derived from disk on git &lt; 2.36 | Yes (drop when git 2.36 is the floor) |
+| [D17](#d17--apply-non-conflicting-changes-acts-on-conflict-blocks-not-the-whole-diff) | `Apply non-conflicting changes` acts on conflict blocks; git pre-applies the rest | Only by dropping git's own re-merge |
 
 ---
 
@@ -261,3 +262,20 @@ would never show a lock badge and prune's stale records would be invisible.
 are the reason, and a missing worktree directory is prunable by definition. The derivation only
 ever *adds* information — a git that already reports the flags keeps them, and the two agree.
 **Revisitable:** it can be deleted once the minimum supported git is 2.36 or newer.
+
+## D17 · `Apply non-conflicting changes` acts on conflict blocks, not the whole diff
+
+IntelliJ's merge viewer models **every** difference between the base and either side as a
+"change", so `Apply non-conflicting changes: Left / All / Right` has plenty to apply. GitTree's
+merge model comes from `git merge-file -p --diff3` over the index stages, and **git applies every
+non-overlapping change itself before the tri-editor ever opens** — verified empirically: a change
+one side makes with no counterpart on the other never appears inside a conflict block.
+
+So in GitTree these three actions operate on what remains *inside* the conflict blocks
+(P13-T8): `All` runs the magic-wand cascade — including the two-sided rules (disjoint interleave,
+whitespace-only divergence) — while `Left` and `Right` take only a block a single side owns, and
+otherwise report `No non-conflicting changes to apply` with the live counter rather than quietly
+taking a side. The toolbar shape matches the reference and the semantics stay honest; the
+"take my side everywhere" verbs are the separate `Accept Yours` / `Accept Theirs` actions.
+**Revisitable:** only by abandoning git's own re-merge and computing the full three-way diff
+ourselves, which would lose byte-exact parity with what git would have written.

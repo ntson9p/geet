@@ -179,6 +179,11 @@
             "default": "virtual",
             "description": "%gittree.config.merge.resultMode.description%"
           },
+          "gittree.merge.conflictsDialog": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.merge.conflictsDialog.description%"
+          },
           "gittree.merge.autoResolveWhitespace": {
             "type": "boolean",
             "default": true,
@@ -1054,6 +1059,26 @@
         "icon": "$(wand)"
       },
       {
+        "command": "gittree.merge.applyNonConflicting.left",
+        "title": "%gittree.command.merge.applyNonConflicting.left.title%",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "gittree.merge.applyNonConflicting.all",
+        "title": "%gittree.command.merge.applyNonConflicting.all.title%",
+        "icon": "$(wand)"
+      },
+      {
+        "command": "gittree.merge.applyNonConflicting.right",
+        "title": "%gittree.command.merge.applyNonConflicting.right.title%",
+        "icon": "$(arrow-left)"
+      },
+      {
+        "command": "gittree.merge.showDetails",
+        "title": "%gittree.command.merge.showDetails.title%",
+        "icon": "$(info)"
+      },
+      {
         "command": "gittree.merge.magicWandSession",
         "title": "%gittree.command.merge.magicWandSession.title%",
         "icon": "$(wand)"
@@ -1713,6 +1738,36 @@
           "command": "gittree.merge.magicWand",
           "when": "resourceScheme == gittree-merge",
           "group": "navigation@2"
+        },
+        {
+          "command": "gittree.merge.applyNonConflicting.left",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gittree.merge.applyNonConflicting.all",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gittree.merge.applyNonConflicting.right",
+          "when": "resourceScheme == gittree-merge",
+          "group": "navigation@5"
+        },
+        {
+          "command": "gittree.merge.showDetails",
+          "when": "resourceScheme == gittree-merge",
+          "group": "1_info@1"
+        },
+        {
+          "command": "gittree.merge.acceptAllYours",
+          "when": "resourceScheme == gittree-merge",
+          "group": "2_accept@1"
+        },
+        {
+          "command": "gittree.merge.acceptAllTheirs",
+          "when": "resourceScheme == gittree-merge",
+          "group": "2_accept@2"
         },
         {
           "command": "gittree.merge.acceptFileYours",

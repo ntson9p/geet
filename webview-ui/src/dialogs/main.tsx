@@ -10,6 +10,7 @@ import { getInitialState } from '../lib/vscodeApi';
 import { ApplyPatch } from './ApplyPatch';
 import { CherryPick } from './CherryPick';
 import { Clone } from './Clone';
+import { FilesMergedWithConflicts } from './FilesMergedWithConflicts';
 import { Merge } from './Merge';
 import { NewWorktree } from './NewWorktree';
 import { Push } from './Push';
@@ -58,6 +59,8 @@ function pick(): JSX.Element {
       return <Remotes />;
     case 'newWorktree':
       return <NewWorktree />;
+    case 'conflicts':
+      return <FilesMergedWithConflicts />;
     default:
       return <div className="gt-dialog-unknown">Unknown dialog: {dialog}</div>;
   }

@@ -140,6 +140,12 @@ Where the center Result pane lives during a 3-pane merge.
   - `virtual` — A virtual result document — the conflicted file on disk stays untouched until Apply.
   - `markers` — Edit the real conflicted file in place (fallback for language servers that require on-disk files).
 
+### `gittree.merge.conflictsDialog`
+
+Show the "Files Merged with Conflicts" dialog when an operation produces conflicts. The Conflicts view remains available either way.
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.merge.autoResolveWhitespace`
 
 Magic Wand: when one side changed only whitespace, take the substantive side automatically.

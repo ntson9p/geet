@@ -230,8 +230,9 @@ Settings `gittree.update.strategy`, `gittree.push.runHooks`, `gittree.push.tags`
 - [x] S3 — branches popup opens with top-level verbs, has folder rows, and a full `›` submenu per branch *(P13-T5; typing searches flat across every level, so drill-in never traps)*
 - [x] S3b — `Merge 'X' into '<current>'` reachable without drag-and-drop (fixes the `mergeIntoCurrent` defect) *(P13-T5: registry entry + `gittree.branch.mergeIntoCurrent` + tree-view menu row)*
 - [x] S6 — VCS Operations Popup on `alt+\``, context-aware, enumerated from the registries *(P13-T7: `dialogRegistry.ts` + in-progress/diff/commit groups, recents per workspace)*
-- [ ] S7 — `Files Merged with Conflicts` dialog gate, tree view retained
-- [ ] §3.5 — `Apply non-conflicting changes` split into Left/All/Right + live conflict counter + per-side Show Details
+- [x] S7 — `Files Merged with Conflicts` dialog gate, tree view retained *(P13-T8, once per
+      session, off switch via `gittree.merge.conflictsDialog`)*
+- [x] §3.5 — `Apply non-conflicting changes` split into Left/All/Right + live conflict counter + per-side Show Details *(P13-T8; git pre-applies the non-overlapping changes, so Left/Right act on the conflict blocks — deviation D17)*
 - [x] §3.10 — worktree create/list/remove/lock/prune with a management view *(P13-T6:
       `gittree.worktrees` view + New Worktree dialog; lock/prunable derived on git < 2.36, D16)*
 - [x] `Manage Remotes` exists at all (no command today) *(P13-T4: `gittree.remotes.manage` —

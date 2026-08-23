@@ -574,3 +574,19 @@
   padding-top: 8px;
   border-top: 1px solid var(--vscode-panel-border, transparent);
 }
+
+/* ---- Files Merged with Conflicts (P13-T8) -------------------------------- */
+
+.gt-conflicts-list {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 6px;
+  list-style: none;
+  border: 1px solid var(--vscode-panel-border, transparent);
+  border-radius: 3px;
+}
+
+.gt-conflicts-list li {
+  padding: 1px 0;
+}

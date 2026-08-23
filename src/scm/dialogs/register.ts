@@ -13,6 +13,13 @@ import { canonicalKey } from '../../core/repoDiscovery';
 import { registerWorktrees, type WorktreeRegistry } from '../../branches/worktrees';
 import { registerOperationsPopup } from '../../ui/operationsPopup';
 import {
+  applyConflictsResult,
+  buildConflictsParams,
+  conflictsDialogEnabled,
+  showConflictsDialog,
+} from '../../merge/conflictsDialog';
+import type { ConflictSession } from '../../merge/conflictSession';
+import {
   applyPushResult,
   buildPushParams,
   pushDialogHandlers,
@@ -130,6 +137,10 @@ export interface Phase13Registry {
   remotesHandlers: (repo: RepoHandle) => Record<string, (params: unknown) => unknown>;
   /** P13-T6 — worktree management (also exposed under `worktrees`). */
   worktrees: WorktreeRegistry;
+  /** P13-T8 test seams for the S7 conflicts gate. */
+  buildConflictsParams: typeof buildConflictsParams;
+  applyConflictsResult: typeof applyConflictsResult;
+  conflictsDialogEnabled: typeof conflictsDialogEnabled;
 }
 
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
@@ -278,6 +289,21 @@ export function registerPhase13Dialogs(
   // dialog that the T5 branch submenu's `New Worktree from 'X'…` will call.
   const worktrees = registerWorktrees(context, core, deps);
 
+  // P13-T8 · S7: the `Files Merged with Conflicts` gate. IntelliJ gates on the
+  // modal; the `gittree.conflicts` tree view stays as the persistent surface,
+  // so this fires once per session and can be switched off entirely.
+  const p6 = core.debugRegistry.get('phase06') as
+    | { lifecycle?: { onDidStartSession: vscode.Event<ConflictSession> } }
+    | undefined;
+  if (p6?.lifecycle) {
+    context.subscriptions.push(
+      p6.lifecycle.onDidStartSession((session) => {
+        if (!conflictsDialogEnabled()) return;
+        void showConflictsDialog(deps, session);
+      }),
+    );
+  }
+
   // P13-T7: the VCS Operations Popup, enumerated from `dialogRegistry.ts` so it
   // stays complete by construction rather than by a hand-kept list.
   registerOperationsPopup(context, {
@@ -324,6 +350,9 @@ export function registerPhase13Dialogs(
     listRemoteRows: (repo) => listRemoteRows(core, repo),
     remotesHandlers: (repo) => remotesHandlers(opDeps, repo),
     worktrees,
+    buildConflictsParams,
+    applyConflictsResult,
+    conflictsDialogEnabled,
   };
   core.debugRegistry.set('phase13', registry);
   return registry;

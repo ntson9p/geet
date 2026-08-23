@@ -31,6 +31,13 @@ export class MergeLifecycle implements vscode.Disposable {
   private readonly store = new DisposableStore();
   private readonly _onDidChangeSessions = new vscode.EventEmitter<void>();
   readonly onDidChangeSessions = this._onDidChangeSessions.event;
+  /**
+   * P13-T8 · S7: a conflicted operation just started. IntelliJ gates on a
+   * `Files Merged with Conflicts` **dialog** here; the persistent tree view
+   * stays as the ongoing surface, so this fires exactly once per session.
+   */
+  private readonly _onDidStartSession = new vscode.EventEmitter<ConflictSession>();
+  readonly onDidStartSession = this._onDidStartSession.event;
 
   constructor(
     private readonly core: Core,
@@ -124,6 +131,9 @@ export class MergeLifecycle implements vscode.Disposable {
         this._onDidChangeSessions.fire();
         this.offerCompletion(session);
       });
+      // Fired last, so a subscriber that opens the S7 dialog sees a session
+      // that is already registered and holding the mutation lane.
+      this._onDidStartSession.fire(session);
       return;
     }
 
@@ -206,5 +216,6 @@ export class MergeLifecycle implements vscode.Disposable {
     this.holds.clear();
     this.store.dispose();
     this._onDidChangeSessions.dispose();
+    this._onDidStartSession.dispose();
   }
 }

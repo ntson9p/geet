@@ -8,6 +8,12 @@ import * as vscode from 'vscode';
 import { MERGE_SCHEME } from '../core/vdocs/mergeFs';
 import { REV_SCHEME } from '../core/vdocs/revContentProvider';
 import { confirmModal } from '../ui/confirm';
+import {
+  applyNonConflicting,
+  countMerge,
+  mergeStatusText,
+  type ApplySide,
+} from './applyNonConflicting';
 import { resolveBlock, type WandOptions } from './resolver/autoResolver';
 import type { TriEditorManager, TriMergeEditor } from './triEditor';
 
@@ -195,4 +201,70 @@ export function registerResolutionActions(
       vscode.l10n.t('Resolved {0} of {1} conflicts automatically.', resolved, before),
     );
   });
+
+  // ---- P13-T8 · §3.5 --------------------------------------------------------
+  // `Apply non-conflicting changes:` is THREE actions in IntelliJ — Left, All,
+  // Right. The wand above only ever implemented "All".
+
+  /** Shared by the three toolbar buttons; returns the message it reported. */
+  const applySide = async (
+    editor: TriMergeEditor,
+    side: ApplySide,
+  ): Promise<string> => {
+    const opts = wandOptions();
+    const pending: Array<{ id: number; lines: string[] }> = [];
+    const outcome = applyNonConflicting(
+      editor.blocks.map((t) => t.block),
+      side,
+      opts,
+      (block, lines) => {
+        // Collect first: the editor's apply rewrites the document, and mutating
+        // resolutions mid-iteration would shift the ranges under us.
+        pending.push({ id: block.id, lines });
+      },
+    );
+    for (const p of pending) await editor.applyAutoResolution(p.id, p.lines);
+    const counts = countMerge(
+      editor.blocks.map((t) => t.block),
+      opts,
+    );
+    const message =
+      outcome.applied === 0
+        ? vscode.l10n.t('No non-conflicting changes to apply. {0}', mergeStatusText(counts))
+        : vscode.l10n.t(
+            'Applied {0} non-conflicting change(s). {1}',
+            outcome.applied,
+            mergeStatusText(counts),
+          );
+    void vscode.window.showInformationMessage(message);
+    return message;
+  };
+
+  register('gittree.merge.applyNonConflicting.left', async () => {
+    const editor = manager.active();
+    if (editor) await applySide(editor, 'left');
+  });
+  register('gittree.merge.applyNonConflicting.all', async () => {
+    const editor = manager.active();
+    if (editor) await applySide(editor, 'all');
+  });
+  register('gittree.merge.applyNonConflicting.right', async () => {
+    const editor = manager.active();
+    if (editor) await applySide(editor, 'right');
+  });
+
+  /** §2A per-side `Show Details`: the revision behind each pane. */
+  register('gittree.merge.showDetails', async (arg) => {
+    const editor = manager.active();
+    if (!editor) return;
+    const side = arg === 'right' ? 'right' : 'left';
+    const details = await editor.sideDetails(side);
+    void vscode.window.showInformationMessage(details, { modal: false });
+  });
+
+  // Test seam: the toolbar strings are what the acceptance line asserts on.
+  manager.applyNonConflictingForTest = (side) => {
+    const editor = manager.active();
+    return editor ? applySide(editor, side) : Promise.resolve('');
+  };
 }
