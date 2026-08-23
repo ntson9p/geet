@@ -2868,7 +2868,7 @@
           "icon": "$(git-commit)"
         }
       ],
-      "scm": [
+      "gittree": [
         {
           "id": "gittree.commit",
           "type": "webview",
@@ -2945,6 +2945,13 @@
       ]
     },
     "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gittree",
+          "title": "%gittree.container.title%",
+          "icon": "media/gittree-activitybar.svg"
+        }
+      ],
       "panel": [
         {
           "id": "gittree-panel",

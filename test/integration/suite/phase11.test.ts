@@ -100,7 +100,7 @@ suite('P11 commit tool window', () => {
     await waitFor(() => scmInput.visible === false, 10_000);
   });
 
-  test('T2: the view actually resolves in the SCM container', async function () {
+  test('T2: the view actually resolves in the GitTree container', async function () {
     this.timeout(30_000);
     // Registration alone proves nothing — a WebviewViewProvider only resolves
     // when its view becomes visible, and that is the one seam the mocked

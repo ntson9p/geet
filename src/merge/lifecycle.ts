@@ -207,7 +207,8 @@ export class MergeLifecycle implements vscode.Disposable {
         this.trace('MERGE_MSG unreadable — commit UI opens without a prefill');
       }
     }
-    await vscode.commands.executeCommand('workbench.view.scm');
+    // P14-T1: our own container, not VS Code's SCM one.
+    await vscode.commands.executeCommand('workbench.view.extension.gittree');
   }
 
   dispose(): void {
