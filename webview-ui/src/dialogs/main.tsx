@@ -11,6 +11,7 @@ import { ApplyPatch } from './ApplyPatch';
 import { CherryPick } from './CherryPick';
 import { Clone } from './Clone';
 import { Merge } from './Merge';
+import { NewWorktree } from './NewWorktree';
 import { Push } from './Push';
 import { Rebase } from './Rebase';
 import { Remotes } from './Remotes';
@@ -55,6 +56,8 @@ function pick(): JSX.Element {
       return <Clone />;
     case 'remotes':
       return <Remotes />;
+    case 'newWorktree':
+      return <NewWorktree />;
     default:
       return <div className="gt-dialog-unknown">Unknown dialog: {dialog}</div>;
   }

@@ -46,7 +46,10 @@ suite('P13 dialogs', () => {
     repo = core.repoForPath(repoRoot)!;
     assert.ok(reg && repo, 'phase13 registry or repo missing');
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p13-'));
+    // `os.tmpdir()` hands back the 8.3 short path on Windows, and git prints
+    // the resolved long form — comparing the two never matches. Canonicalize
+    // once here so every path this suite builds is the one git will echo.
+    tmpDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p13-')));
     bareUrl = path.join(tmpDir, 'remote.git').replace(/\\/g, '/');
     execFileSync('git', ['init', '--bare', bareUrl], { cwd: tmpDir, encoding: 'utf8' });
     git('remote', 'add', REMOTE, bareUrl);
@@ -56,7 +59,10 @@ suite('P13 dialogs', () => {
   });
 
   suiteTeardown(function () {
-    this.timeout(30_000);
+    // Generous on purpose: two retrying git config writes (up to ~22 s each
+    // under the Windows lock contention `gitWithRetry` exists for) plus a
+    // recursive delete of a tree holding a bare repo, a clone and worktrees.
+    this.timeout(180_000);
     // Leave the shared fixture exactly as it was found.
     try {
       git('branch', '--unset-upstream');
@@ -69,9 +75,10 @@ suite('P13 dialogs', () => {
       /* already gone */
     }
     try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      // Pack files are read-only on Windows; retry rather than fail the run.
+      fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     } catch {
-      /* best effort */
+      /* best effort — a leftover temp dir must never fail the gate */
     }
   });
 
@@ -1196,6 +1203,204 @@ suite('P13 dialogs', () => {
       })) as { ok: boolean; message?: string };
       assert.strictEqual(res.ok, false);
       assert.match(res.message ?? '', /already exists/);
+    });
+  });
+
+  // ---- P13-T6 · Worktree management ----------------------------------------
+
+  suite('T6 worktrees', () => {
+    let wtPath: string;
+    let wtBranch: string;
+
+    suiteSetup(function () {
+      this.timeout(30_000);
+      wtBranch = 'p13/t6-wt';
+      wtPath = path.join(tmpDir, 'wt-linked').replace(/\\/g, '/');
+    });
+
+    suiteTeardown(function () {
+      this.timeout(60_000);
+      // Never leave a linked worktree registered against the shared fixture.
+      try {
+        git('worktree', 'remove', '--force', wtPath);
+      } catch {
+        /* already gone */
+      }
+      try {
+        git('worktree', 'prune');
+      } catch {
+        /* nothing to prune */
+      }
+      try {
+        git('branch', '-D', wtBranch);
+      } catch {
+        /* already gone */
+      }
+    });
+
+    test('T6: the main worktree is listed first and marked as main', async function () {
+      this.timeout(60_000);
+      const service = reg.worktrees.serviceFor(repo);
+      const list = await service.list();
+      assert.ok(list.length >= 1);
+      assert.strictEqual(list[0]?.isMain, true);
+      assert.strictEqual(
+        list[0]?.path.replace(/\\/g, '/').toLowerCase(),
+        repo.root.replace(/\\/g, '/').toLowerCase(),
+      );
+      assert.strictEqual(list[0]?.branch, branch);
+    });
+
+    test('T6: create a worktree from a new branch, see it listed, then remove it', async function () {
+      this.timeout(120_000);
+      const service = reg.worktrees.serviceFor(repo);
+
+      const created = await reg.worktrees.applyNewWorktreeResult(repo, {
+        options: {
+          path: wtPath,
+          mode: 'new',
+          ref: branch,
+          newBranch: wtBranch,
+          noCheckout: false,
+          force: false,
+        },
+        // Never actually open a window from a test.
+        openInNewWindow: false,
+      });
+      assert.ok(created.ok, created.message);
+      assert.ok(fs.existsSync(path.join(wtPath, '.git')), 'the worktree must exist on disk');
+
+      const listed = await service.list();
+      const mine = listed.find((w) => w.path.replace(/\\/g, '/').toLowerCase() === wtPath.toLowerCase());
+      assert.ok(mine, `worktree not listed: ${JSON.stringify(listed.map((w) => w.path))}`);
+      assert.strictEqual(mine.branch, wtBranch);
+      assert.strictEqual(mine.isMain, false);
+      assert.strictEqual(mine.locked, false);
+      assert.strictEqual(mine.detached, false);
+
+      // Lock / unlock round-trips through the porcelain flags.
+      assert.ok((await service.lock(wtPath, 'p13 test lock')).ok);
+      const locked = (await service.list()).find(
+        (w) => w.path.replace(/\\/g, '/').toLowerCase() === wtPath.toLowerCase(),
+      );
+      assert.strictEqual(locked?.locked, true);
+      assert.strictEqual(locked?.lockReason, 'p13 test lock');
+
+      assert.ok((await service.unlock(wtPath)).ok);
+      const unlocked = (await service.list()).find(
+        (w) => w.path.replace(/\\/g, '/').toLowerCase() === wtPath.toLowerCase(),
+      );
+      assert.strictEqual(unlocked?.locked, false);
+
+      const removed = await service.remove(wtPath);
+      assert.ok(removed.ok, removed.message);
+      assert.ok(!fs.existsSync(wtPath), 'the directory must be gone');
+      const after = await service.list();
+      assert.ok(
+        !after.some((w) => w.path.replace(/\\/g, '/').toLowerCase() === wtPath.toLowerCase()),
+        'the worktree must no longer be listed',
+      );
+    });
+
+    test('T6: removing a dirty worktree is refused with git’s own reason', async function () {
+      this.timeout(120_000);
+      const service = reg.worktrees.serviceFor(repo);
+      const dirtyPath = path.join(tmpDir, 'wt-dirty').replace(/\\/g, '/');
+      const created = await service.add({
+        path: dirtyPath,
+        mode: 'new',
+        ref: branch,
+        newBranch: 'p13/t6-dirty',
+        noCheckout: false,
+        force: false,
+      });
+      assert.ok(created.ok, created.message);
+      try {
+        fs.writeFileSync(path.join(dirtyPath, 'uncommitted.txt'), 'not committed\n');
+
+        const refused = await service.remove(dirtyPath);
+        assert.strictEqual(refused.ok, false, 'a dirty worktree must not be removed silently');
+        assert.match(
+          refused.message,
+          /contains modified or untracked files|use --force/i,
+          `expected git's reason, got: ${refused.message}`,
+        );
+        assert.ok(fs.existsSync(dirtyPath), 'the refused removal must leave it in place');
+
+        // --force is the escape hatch, and it is explicit.
+        const forced = await service.remove(dirtyPath, true);
+        assert.ok(forced.ok, forced.message);
+        assert.ok(!fs.existsSync(dirtyPath));
+      } finally {
+        try {
+          git('worktree', 'remove', '--force', dirtyPath);
+        } catch {
+          /* already removed */
+        }
+        try {
+          git('branch', '-D', 'p13/t6-dirty');
+        } catch {
+          /* already gone */
+        }
+      }
+    });
+
+    test('T6: prune clears a worktree whose directory vanished', async function () {
+      this.timeout(120_000);
+      const service = reg.worktrees.serviceFor(repo);
+      const gonePath = path.join(tmpDir, 'wt-gone').replace(/\\/g, '/');
+      assert.ok(
+        (
+          await service.add({
+            path: gonePath,
+            mode: 'new',
+            ref: branch,
+            newBranch: 'p13/t6-gone',
+            noCheckout: false,
+            force: false,
+          })
+        ).ok,
+      );
+      // Delete the directory behind git's back — the record becomes prunable.
+      fs.rmSync(gonePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+
+      const stale = (await service.list()).find(
+        (w) => w.path.replace(/\\/g, '/').toLowerCase() === gonePath.toLowerCase(),
+      );
+      assert.ok(stale, 'the stale record should still be listed before pruning');
+      assert.strictEqual(stale.prunable, true);
+
+      assert.ok((await service.prune()).ok);
+      const after = await service.list();
+      assert.ok(
+        !after.some((w) => w.path.replace(/\\/g, '/').toLowerCase() === gonePath.toLowerCase()),
+        'prune must drop the stale record',
+      );
+      try {
+        git('branch', '-D', 'p13/t6-gone');
+      } catch {
+        /* already gone */
+      }
+    });
+
+    test('T6: the dialog params seed the branch and a sibling path', function () {
+      const params = reg.worktrees.buildNewWorktreeParams(repo, branch);
+      assert.strictEqual(params.seedBranch, branch);
+      assert.ok(params.branches.includes(branch));
+      assert.match(params.defaultPath.replace(/\\/g, '/'), new RegExp(`-${branch}$`));
+    });
+
+    test('T6: the tree view lists a row per worktree', async function () {
+      this.timeout(60_000);
+      const nodes = await reg.worktrees.provider.getChildren();
+      assert.ok(nodes.length >= 1);
+      const mainNode = nodes.find((n) => n.info.isMain && n.repo.root === repo.root);
+      assert.ok(mainNode, 'the main worktree should have a row');
+      const item = reg.worktrees.provider.getTreeItem(mainNode);
+      assert.strictEqual(item.label, branch);
+      assert.ok(String(item.contextValue).includes('main'));
+      // Leaf rows only — worktrees do not nest.
+      assert.deepStrictEqual(await reg.worktrees.provider.getChildren(mainNode), []);
     });
   });
 });

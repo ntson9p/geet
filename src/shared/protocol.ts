@@ -15,11 +15,13 @@ import type { RebaseOptions } from '../scm/dialogs/rebaseArgs';
 import type { ResetMode } from '../scm/dialogs/resetArgs';
 import type { RollbackKind } from '../scm/dialogs/rollbackPlan';
 import type { StashPushArgsOptions } from '../scm/dialogs/stashArgs';
+import type { NewWorktreeOptions } from '../branches/worktreeArgs';
 
 export type {
   CherryPickOptions,
   CloneOptions,
   MergeOptions,
+  NewWorktreeOptions,
   RebaseOptions,
   ResetMode,
   RollbackKind,
@@ -756,6 +758,25 @@ export interface RemotesOpResultDto {
   message?: string;
   /** The table after the operation — the dialog re-renders from this. */
   remotes: RemoteRowDto[];
+}
+
+// ---------------------------------------------------------------------------
+// New Worktree dialog (P13-T6)
+// ---------------------------------------------------------------------------
+
+export interface NewWorktreeDialogParamsDto {
+  repoRoot: string;
+  repoLabel: string;
+  branches: string[];
+  seedBranch: string;
+  /** Sibling `../<repo>-<branch>`, IntelliJ's default location. */
+  defaultPath: string;
+  showCommandLine: boolean;
+}
+
+export interface NewWorktreeDialogResultDto {
+  options: NewWorktreeOptions;
+  openInNewWindow: boolean;
 }
 
 export const REMOTES_DIALOG_METHODS = {

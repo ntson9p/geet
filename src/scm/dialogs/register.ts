@@ -10,6 +10,7 @@
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
+import { registerWorktrees, type WorktreeRegistry } from '../../branches/worktrees';
 import {
   applyPushResult,
   buildPushParams,
@@ -126,6 +127,8 @@ export interface Phase13Registry {
   buildRemotesParams: (repo: RepoHandle) => ReturnType<typeof buildRemotesParams>;
   listRemoteRows: (repo: RepoHandle) => ReturnType<typeof listRemoteRows>;
   remotesHandlers: (repo: RepoHandle) => Record<string, (params: unknown) => unknown>;
+  /** P13-T6 — worktree management (also exposed under `worktrees`). */
+  worktrees: WorktreeRegistry;
 }
 
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
@@ -270,6 +273,10 @@ export function registerPhase13Dialogs(
     }),
   );
 
+  // P13-T6: worktree management — the view, its commands, and the New Worktree
+  // dialog that the T5 branch submenu's `New Worktree from 'X'…` will call.
+  const worktrees = registerWorktrees(context, core, deps);
+
   const registry: Phase13Registry = {
     buildPushParams,
     applyPushResult: (result) => applyPushResult(deps, result),
@@ -303,6 +310,7 @@ export function registerPhase13Dialogs(
     buildRemotesParams: (repo) => buildRemotesParams(core, repo),
     listRemoteRows: (repo) => listRemoteRows(core, repo),
     remotesHandlers: (repo) => remotesHandlers(opDeps, repo),
+    worktrees,
   };
   core.debugRegistry.set('phase13', registry);
   return registry;

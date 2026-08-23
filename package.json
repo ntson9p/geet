@@ -1329,6 +1329,42 @@
         "title": "%gittree.command.remotes.manage.title%",
         "category": "GitTree",
         "icon": "$(remote)"
+      },
+      {
+        "command": "gittree.worktree.add",
+        "title": "%gittree.command.worktree.add.title%",
+        "category": "GitTree",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.worktree.open",
+        "title": "%gittree.command.worktree.open.title%"
+      },
+      {
+        "command": "gittree.worktree.remove",
+        "title": "%gittree.command.worktree.remove.title%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "gittree.worktree.lock",
+        "title": "%gittree.command.worktree.lock.title%",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "gittree.worktree.unlock",
+        "title": "%gittree.command.worktree.unlock.title%",
+        "icon": "$(unlock)"
+      },
+      {
+        "command": "gittree.worktree.prune",
+        "title": "%gittree.command.worktree.prune.title%",
+        "category": "GitTree",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "gittree.worktrees.refresh",
+        "title": "%gittree.command.worktrees.refresh.title%",
+        "icon": "$(refresh)"
       }
     ],
     "submenus": [
@@ -1804,6 +1840,21 @@
       ],
       "view/title": [
         {
+          "command": "gittree.worktree.add",
+          "when": "view == gittree.worktrees",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.worktrees.refresh",
+          "when": "view == gittree.worktrees",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.worktree.prune",
+          "when": "view == gittree.worktrees",
+          "group": "1_manage@1"
+        },
+        {
           "command": "gittree.stash.push",
           "when": "view == gittree.stashes",
           "group": "navigation@1"
@@ -1915,6 +1966,26 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "gittree.worktree.open",
+          "when": "view == gittree.worktrees && viewItem =~ /gittree\\.worktree/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "gittree.worktree.remove",
+          "when": "view == gittree.worktrees && viewItem =~ /gittree\\.worktree\\.linked/",
+          "group": "inline@2"
+        },
+        {
+          "command": "gittree.worktree.lock",
+          "when": "view == gittree.worktrees && viewItem =~ /unlocked/",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittree.worktree.unlock",
+          "when": "view == gittree.worktrees && viewItem =~ /\\.locked\\./",
+          "group": "inline@1"
+        },
         {
           "command": "gittree.stash.apply",
           "when": "view == gittree.stashes && viewItem == stash:entry",
@@ -2668,6 +2739,13 @@
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
           "icon": "$(git-branch)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "gittree.worktrees",
+          "name": "%gittree.view.worktrees.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(repo-forked)",
           "visibility": "collapsed"
         },
         {

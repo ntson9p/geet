@@ -30,6 +30,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D13](#d13--inclusion-is-line-granular) | Per-change inclusion is line-range granular | Yes (small) |
 | [D14](#d14--tri-editor-merge-layout) | Merge uses three real editors, not IntelliJ's pane chrome | Deliberate (a win) |
 | [D15](#d15--push-tags-current-branch-means---follow-tags) | `Push tags: Current Branch` maps to `--follow-tags` | No (no git equivalent) |
+| [D16](#d16--worktree-lockprunable-flags-are-derived-on-git--236) | Worktree lock/prunable derived from disk on git &lt; 2.36 | Yes (drop when git 2.36 is the floor) |
 
 ---
 
@@ -249,3 +250,14 @@ and `--tags` for `All`** (P13-T1), and the dialog's "will run" line always shows
 about to run, so the mapping is visible rather than implied.
 **Revisitable:** only by enumerating `git tag --merged <branch>` and pushing an explicit refspec
 list, which would push lightweight tags IntelliJ also skips. Not worth the divergence.
+
+## D16 · Worktree lock/prunable flags are derived on git < 2.36
+
+`git worktree list --porcelain` only began reporting `locked` and `prunable` in
+**git 2.36**. On older builds the porcelain is silent about both, so the Worktrees view
+would never show a lock badge and prune's stale records would be invisible.
+**GitTree derives them from git's own on-disk layout instead** (P13-T6): a linked worktree's
+`.git` is a pointer file to its admin directory, a lock is a `locked` file there whose contents
+are the reason, and a missing worktree directory is prunable by definition. The derivation only
+ever *adds* information — a git that already reports the flags keeps them, and the two agree.
+**Revisitable:** it can be deleted once the minimum supported git is 2.36 or newer.
