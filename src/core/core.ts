@@ -1,6 +1,6 @@
 /**
  * Core assembly (master §7: "extension.ts stays thin — builds Core"). One
- * Core per window: executor, mode manager, discovery, and a RepoHandle
+ * Core per window: executor, discovery, and a RepoHandle
  * (model + queue + refresher + watchers) per repository. Later phases receive
  * this object through their registerPhaseXX(context, core) entry points.
  */
@@ -15,7 +15,7 @@ import {
   type RepoId,
 } from './git/executor';
 import { CommandLog } from './git/commandLog';
-import { ModeManager, type ConsentChoice, type GitTreeMode } from './modeManager';
+import { migrateUnsetGitEnabled } from './migrations/unsetGitEnabled';
 import { RepositoryModel } from './model/repositoryModel';
 import { OperationQueue } from './ops/operationQueue';
 import { StatusRefresher } from './ops/statusRefresher';
@@ -35,7 +35,6 @@ export interface RepoHandle {
   disposables: DisposableStore;
 }
 
-const MODE_STATE_KEY = 'gittree.mode';
 
 export class Core implements vscode.Disposable {
   private readonly handles = new Map<string, RepoHandle>(); // canonical key → handle
@@ -54,7 +53,6 @@ export class Core implements vscode.Disposable {
 
   constructor(
     readonly git: GitExecutorImpl,
-    readonly mode: ModeManager,
     readonly output: vscode.OutputChannel,
     private readonly trace: (line: string) => void,
   ) {
@@ -91,7 +89,12 @@ export class Core implements vscode.Disposable {
     return best;
   }
 
-  async initialize(context: vscode.ExtensionContext): Promise<void> {
+  /**
+   * `context` is unused since P14-T6 removed the `gittree.mode` config
+   * listener; kept in the signature because every caller passes it and the
+   * next thing needing extension state will want it back.
+   */
+  async initialize(_context: vscode.ExtensionContext): Promise<void> {
     await this.rescan();
 
     this.store.add(
@@ -113,14 +116,6 @@ export class Core implements vscode.Disposable {
             handle.refresher.poke('worktree', ts);
           },
         };
-      }),
-    );
-
-    context.subscriptions.push(
-      vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.mode')) {
-          void this.mode.refreshFromSetting();
-        }
       }),
     );
 
@@ -206,7 +201,6 @@ export class Core implements vscode.Disposable {
     }
     this.handles.clear();
     this.store.dispose();
-    this.mode.dispose();
     this._onDidAddRepo.dispose();
     this._onDidRemoveRepo.dispose();
   }
@@ -286,36 +280,32 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   }
   output.appendLine(`[exec] GitTree using git ${executor.version} at ${executor.gitPath}`);
 
-  const mode = new ModeManager({
-    getPersisted: () =>
-      context.workspaceState.get<Exclude<GitTreeMode, 'unset'>>(MODE_STATE_KEY),
-    persist: async (m) => {
-      await context.workspaceState.update(MODE_STATE_KEY, m);
-    },
-    getSettingOverride: () => {
-      const v = vscode.workspace.getConfiguration('gittree').get<string>('mode', 'auto');
-      return v === 'takeover' || v === 'companion' ? v : undefined;
-    },
-    showConsentDialog: () => showConsentDialog(),
-    setBuiltinGitEnabled: async (enabled) => {
+  // P14-T6: the coexistence state machine is gone. GitTree no longer competes
+  // for VS Code's SCM surfaces, so there is nothing to negotiate — but a
+  // workspace that consented to takeover still carries the `git.enabled: false`
+  // this extension wrote, and that has to be handed back.
+  void migrateUnsetGitEnabled({
+    workspaceState: context.workspaceState,
+    clearBuiltinGitEnabled: async () => {
       await vscode.workspace
         .getConfiguration('git')
-        .update('enabled', enabled, vscode.ConfigurationTarget.Workspace);
+        .update('enabled', undefined, vscode.ConfigurationTarget.Workspace);
+    },
+    notify: (message) => {
+      void vscode.window.showInformationMessage(message);
     },
     trace,
+  }).catch((err: unknown) => {
+    // Never fail activation over this; the next launch retries.
+    trace(`takeover migration deferred: ${String(err)}`);
   });
 
-  const core = new Core(executor, mode, output, trace);
+  const core = new Core(executor, output, trace);
   core.commandLog = commandLog;
   context.subscriptions.push(new vscode.Disposable(() => commandLog.dispose()));
   core.getTraceTail = () => [...traceTail];
   context.subscriptions.push(core);
   await core.initialize(context);
-
-  // One-time consent, only when there is actually a repo and not under test.
-  if (core.repos.length > 0 && process.env['GITTREE_TEST'] !== '1') {
-    void mode.ensurePrompted();
-  }
   return core;
 }
 
@@ -325,23 +315,4 @@ export function resolveShimDir(context: vscode.ExtensionContext): string {
   const packaged = path.join(context.extensionPath, 'dist', 'shims');
   if (fs.existsSync(path.join(packaged, 'askpass.cjs'))) return packaged;
   return path.join(context.extensionPath, 'shims');
-}
-
-async function showConsentDialog(): Promise<ConsentChoice> {
-  const useGitTree = vscode.l10n.t('Use GitTree');
-  const keepBoth = vscode.l10n.t('Keep both');
-  const choice = await vscode.window.showInformationMessage(
-    vscode.l10n.t('Use GitTree as your Git interface?'),
-    {
-      modal: true,
-      detail: vscode.l10n.t(
-        'GitTree provides changelists, a log graph, interactive rebase, a 3-pane merge editor and more.\n\n"Use GitTree" disables the built-in Git extension for this workspace (writes "git.enabled": false — reversible at any time). "Keep both" runs GitTree alongside the built-in Git with overlapping decorations disabled. Choosing nothing asks again next time.',
-      ),
-    },
-    useGitTree,
-    keepBoth,
-  );
-  if (choice === useGitTree) return 'takeover';
-  if (choice === keepBoth) return 'companion';
-  return 'later';
 }

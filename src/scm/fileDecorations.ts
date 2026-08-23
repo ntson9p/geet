@@ -90,13 +90,22 @@ export class GitTreeFileDecorationProvider implements vscode.FileDecorationProvi
   }
 }
 
-/** Registers in takeover mode; toggling the mode adds/removes live. */
+/**
+ * P14-T6: registered unless `gittree.decorations.fileExplorer` turns it off.
+ * The old gate was the takeover/companion mode — GitTree skipped explorer
+ * decorations in companion mode so it would not double up with the built-in
+ * git extension's. That is now a plain user setting: GitTree does not change
+ * its own behaviour based on what another extension is doing, and someone
+ * running both who dislikes the overlap can switch one of them off.
+ */
 export function wireFileDecorations(context: vscode.ExtensionContext, core: Core): void {
   let registration: vscode.Disposable | undefined;
   let provider: GitTreeFileDecorationProvider | undefined;
 
   const apply = (): void => {
-    const wantOn = core.mode.effectiveMode === 'takeover';
+    const wantOn = vscode.workspace
+      .getConfiguration('gittree')
+      .get<boolean>('decorations.fileExplorer', true);
     if (wantOn && !registration) {
       provider = new GitTreeFileDecorationProvider(core);
       registration = vscode.Disposable.from(
@@ -111,10 +120,11 @@ export function wireFileDecorations(context: vscode.ExtensionContext, core: Core
   };
 
   apply();
-  const modeSub = core.mode.onDidChangeMode(() => apply());
   context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gittree.decorations.fileExplorer')) apply();
+    }),
     new vscode.Disposable(() => {
-      modeSub.dispose();
       registration?.dispose();
     }),
   );

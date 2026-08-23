@@ -58,7 +58,6 @@ export function collectIssueInfo(
     vscodeVersion: vscode.version,
     os: `${os.platform()} ${os.release()}`,
     gitVersion: core.git.version,
-    mode: core.mode.mode,
     capabilities,
     traceTail: core.getTraceTail(),
   };

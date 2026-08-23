@@ -4,10 +4,6 @@
   "gittree.config.title": "GitTree",
   "gittree.config.gitPath.description": "Path to the git executable. Falls back to the built-in `git.path` setting, then PATH, then well-known install locations.",
   "gittree.config.trace.description": "Log every git invocation (argv, duration, exit code — never file contents) to the \"GitTree\" output channel, and reveal debug commands.",
-  "gittree.config.mode.description": "How GitTree coexists with the built-in Git extension. \"auto\" asks once per workspace; \"takeover\" disables the built-in Git here (writes `git.enabled: false`); \"companion\" runs alongside it without overlapping decorations.",
-  "gittree.config.mode.auto": "Ask once per workspace.",
-  "gittree.config.mode.takeover": "GitTree provides all SCM UI; the built-in Git extension is disabled for this workspace.",
-  "gittree.config.mode.companion": "GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off.",
   "gittree.config.terminalAuth.description": "Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code.",
   "gittree.config.keymap.intellij.description": "Enable the optional IntelliJ-flavored keybinding set (Ctrl+K commit, Ctrl+Shift+K push, Ctrl+T update, Alt+9 log, Ctrl+Alt+Z rollback). See docs/keyboard.md for conflicts with VS Code defaults.",
   "gittree.config.whatsNew.enabled.description": "Show a one-time notification with the changelog when GitTree updates to a new minor version.",
@@ -17,8 +13,6 @@
   "gittree.command.reportIssue.title": "Report Issue (Sanitized)",
   "gittree.walkthrough.title": "Get started with GitTree",
   "gittree.walkthrough.description": "IntelliJ-grade Git in VS Code: pick a mode, choose your commit style, then practice a commit, a conflict and the log on a disposable playground repo.",
-  "gittree.walkthrough.pickMode.title": "Choose how GitTree coexists with the built-in Git",
-  "gittree.walkthrough.pickMode.description": "Takeover replaces the built-in git extension for this workspace (you can leave anytime); companion runs both side by side. GitTree never changes the built-in extension without your explicit consent.\n[Choose Mode](command:workbench.action.openSettings?%5B%22gittree.mode%22%5D)",
   "gittree.walkthrough.pickParadigm.title": "Pick your commit paradigm",
   "gittree.walkthrough.pickParadigm.description": "Changelists group work into IDE-managed buckets and bypass the index — IntelliJ's default. Staging mirrors native git add with hunk- and line-level staging. Switch whenever you like.\n[Switch Paradigm](command:gittree.commit.switchParadigm)",
   "gittree.walkthrough.commitWindow.title": "Meet the Commit tool window",
@@ -311,5 +305,6 @@
   "gittree.color.renamed.description": "Renamed or copied files in GitTree views, the change tree and the explorer.",
   "gittree.color.untracked.description": "Untracked files in GitTree views, the change tree and the explorer.",
   "gittree.color.ignored.description": "Ignored files in GitTree views, the change tree and the explorer.",
-  "gittree.color.conflicted.description": "Conflicting files in GitTree views, the change tree and the explorer."
+  "gittree.color.conflicted.description": "Conflicting files in GitTree views, the change tree and the explorer.",
+  "gittree.config.decorations.fileExplorer.description": "Show GitTree's status colours and letter badges on files in the Explorer. Turn this off if you also run the built-in Git extension and would rather see only its decorations."
 }

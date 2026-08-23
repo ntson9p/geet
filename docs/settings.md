@@ -4,8 +4,9 @@
      `contributes.configuration`; regenerate with `npm run docs:settings`.
      test/unit/docs/settingsDoc.test.ts fails when this file is stale. -->
 
-All settings live under the `gittree.` namespace. Defaults are chosen to
-coexist with the built-in git extension until you opt into takeover mode.
+All settings live under the `gittree.` namespace. GitTree owns its own
+views, change bars and commit window, so nothing here depends on — or
+changes — the built-in Git extension.
 
 ## GitTree
 
@@ -22,16 +23,11 @@ Log every git invocation (argv, duration, exit code — never file contents) to 
 
 - Type: `boolean` · Default: `false`
 
-### `gittree.mode`
+### `gittree.decorations.fileExplorer`
 
-How GitTree coexists with the built-in Git extension. "auto" asks once per workspace; "takeover" disables the built-in Git here (writes `git.enabled: false`); "companion" runs alongside it without overlapping decorations.
+Show GitTree's status colours and letter badges on files in the Explorer. Turn this off if you also run the built-in Git extension and would rather see only its decorations.
 
-- Type: `string` · Default: `"auto"`
-- Scope: `window`
-- Values:
-  - `auto` — Ask once per workspace.
-  - `takeover` — GitTree provides all SCM UI; the built-in Git extension is disabled for this workspace.
-  - `companion` — GitTree runs alongside the built-in Git extension; overlapping gutter/explorer decorations stay off.
+- Type: `boolean` · Default: `true`
 
 ### `gittree.terminalAuth`
 

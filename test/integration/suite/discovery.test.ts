@@ -51,13 +51,16 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     assert.strictEqual(c.repoForUri(vscode.Uri.file('/nowhere/else')), undefined);
   });
 
-  test('activation leaves the built-in git untouched (no consent in test env)', async function () {
+  test('activation leaves the built-in git untouched', async function () {
     this.timeout(30_000);
-    const c = await core();
-    assert.strictEqual(c.mode.mode, 'unset');
-    assert.strictEqual(c.mode.effectiveMode, 'companion');
+    await core();
+    // P14-T6 deleted the consent machinery entirely, so this is now an
+    // unconditional guarantee rather than a property of the "unset" mode:
+    // nothing in GitTree writes `git.enabled` except the one-shot migration
+    // that REMOVES an override this extension wrote earlier, and this
+    // workspace never had one.
     const inspected = vscode.workspace.getConfiguration('git').inspect<boolean>('enabled');
-    assert.strictEqual(inspected?.workspaceValue, undefined, 'git.enabled was written without consent');
+    assert.strictEqual(inspected?.workspaceValue, undefined, 'git.enabled must not be written');
   });
 
   test('debug command dumps repository state as JSON', async function () {

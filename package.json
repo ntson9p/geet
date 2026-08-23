@@ -55,21 +55,10 @@
             "default": false,
             "description": "%gittree.config.trace.description%"
           },
-          "gittree.mode": {
-            "type": "string",
-            "enum": [
-              "auto",
-              "takeover",
-              "companion"
-            ],
-            "enumDescriptions": [
-              "%gittree.config.mode.auto%",
-              "%gittree.config.mode.takeover%",
-              "%gittree.config.mode.companion%"
-            ],
-            "default": "auto",
-            "scope": "window",
-            "description": "%gittree.config.mode.description%"
+          "gittree.decorations.fileExplorer": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.decorations.fileExplorer.description%"
           },
           "gittree.terminalAuth": {
             "type": "boolean",
@@ -2579,18 +2568,6 @@
         "title": "%gittree.walkthrough.title%",
         "description": "%gittree.walkthrough.description%",
         "steps": [
-          {
-            "id": "pickMode",
-            "title": "%gittree.walkthrough.pickMode.title%",
-            "description": "%gittree.walkthrough.pickMode.description%",
-            "media": {
-              "svg": "media/walkthrough/mode.svg",
-              "altText": "Takeover and companion mode side by side"
-            },
-            "completionEvents": [
-              "onSettingChanged:gittree.mode"
-            ]
-          },
           {
             "id": "pickParadigm",
             "title": "%gittree.walkthrough.pickParadigm.title%",

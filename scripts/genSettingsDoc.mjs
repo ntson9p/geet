@@ -30,8 +30,9 @@ export function generateSettingsDoc(pkg, strings) {
     '     `contributes.configuration`; regenerate with `npm run docs:settings`.',
     '     test/unit/docs/settingsDoc.test.ts fails when this file is stale. -->',
     '',
-    'All settings live under the `gittree.` namespace. Defaults are chosen to',
-    'coexist with the built-in git extension until you opt into takeover mode.',
+    'All settings live under the `gittree.` namespace. GitTree owns its own',
+    'views, change bars and commit window, so nothing here depends on — or',
+    'changes — the built-in Git extension.',
     '',
   ];
   for (const section of pkg.contributes.configuration) {

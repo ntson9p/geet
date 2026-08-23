@@ -38,7 +38,6 @@ export interface IssueInfo {
   vscodeVersion: string;
   os: string;
   gitVersion: string;
-  mode: string;
   /** Capability map — booleans only. */
   capabilities: Record<string, boolean>;
   /** Most recent trace lines (paths get hashed here). */
@@ -62,7 +61,6 @@ export function buildIssueBody(info: IssueInfo): string {
     `- VS Code: ${info.vscodeVersion}`,
     `- OS: ${info.os}`,
     `- git: ${info.gitVersion}`,
-    `- mode: ${info.mode}`,
     `- capabilities: ${caps}`,
     ...(info.errorKind !== undefined ? [`- error kind: ${info.errorKind}`] : []),
     '',

@@ -15,7 +15,7 @@ import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/web
 
 /**
  * GitTree entry point. Kept intentionally thin (master plan §7): P0-T7 builds
- * the Core (executor, model, queue, watchers, mode manager) and every later
+ * the Core (executor, model, queue, watchers) and every later
  * phase appends exactly one `registerPhaseXX(context, core)` call below its
  * marker — this file is append-only (§0.6).
  */
@@ -93,7 +93,6 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
             root: r.root,
             gitDir: r.dirs.gitDir,
             workdirGeneration: r.model.workdirGeneration,
-            mode: core.mode.mode,
             snapshot: r.model.snapshot,
           }))
         : { error: 'core not available (git not found?)' };

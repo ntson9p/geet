@@ -18,7 +18,6 @@ const info = (over: Partial<IssueInfo> = {}): IssueInfo => ({
   vscodeVersion: '1.129.0',
   os: 'win32 10.0.26200',
   gitVersion: '2.28.0.windows.1',
-  mode: 'takeover',
   capabilities: { fsmonitor: false, commitGraph: true },
   traceTail: [
     'exec git status in D:\\Users\\alice\\secret-project',

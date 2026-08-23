@@ -232,6 +232,40 @@ suite('P14 owning the SCM surface', () => {
     assert.ok(!settings.includes('gittree.merge.ui'), 'gittree.merge.ui should be gone');
   });
 
+  test('T6: the coexistence machinery is gone and git.enabled is untouched', async function () {
+    this.timeout(30_000);
+    const c = contributes();
+    const settings = (c['configuration'] as Array<{ properties?: Record<string, unknown> }>).flatMap(
+      (b) => Object.keys(b.properties ?? {}),
+    );
+    assert.ok(!settings.includes('gittree.mode'), 'gittree.mode should be gone');
+    assert.ok(
+      settings.includes('gittree.decorations.fileExplorer'),
+      'the one thing the mode still gated needs a plain setting',
+    );
+
+    // No walkthrough step may still ask the user to choose a mode.
+    const walkthroughs = (c['walkthroughs'] ?? []) as Array<{ steps?: Array<{ id?: string }> }>;
+    for (const w of walkthroughs) {
+      for (const step of w.steps ?? []) {
+        assert.ok(!String(step.id ?? '').includes('pickMode'), 'a pickMode step survived');
+      }
+    }
+
+    // The guarantee the whole task exists for: activation writes nothing.
+    const inspected = vscode.workspace.getConfiguration('git').inspect<boolean>('enabled');
+    assert.strictEqual(inspected?.workspaceValue, undefined, 'git.enabled must not be written');
+    assert.strictEqual(inspected?.globalValue, undefined, 'git.enabled must not be written globally');
+
+    // And the core no longer carries a mode at all.
+    const core = await activateGitTree();
+    assert.strictEqual(
+      (core as unknown as Record<string, unknown>)['mode'],
+      undefined,
+      'Core still exposes a mode manager',
+    );
+  });
+
   // ---- T3: GitTree's own change bars ---------------------------------------
 
   suite('T3 change bars', () => {
