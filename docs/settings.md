@@ -69,6 +69,22 @@ What the editor gutter bars compare against: the index (IntelliJ behavior — ba
   - `index`
   - `head`
 
+### `gittree.changeBars.base`
+
+What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).
+
+- Type: `string` · Default: `"index"`
+- Values:
+  - `index`
+  - `head`
+
+### `gittree.changeBars.maxFileLines`
+
+Files longer than this get no change bars. The line diff is quadratic in the worst case, and a stalled editor is worse than a missing bar.
+
+- Type: `number` · Default: `20000`
+- Minimum: `100`
+
 ### `gittree.autofetch.enabled`
 
 Periodically run `git fetch` in the background so incoming/outgoing counts stay fresh.

@@ -10,6 +10,8 @@ import { RevContentProvider, REV_SCHEME } from '../core/vdocs/revContentProvider
 import { StatusBarController } from '../ui/statusBar';
 import { wireFileDecorations } from './fileDecorations';
 import { registerFileOps } from './fileOps';
+import { ChangeBarsController } from './gutter/changeBars';
+import { registerChangePopup } from './gutter/changePopup';
 import { registerHunkActions } from './hunkActions';
 import { wireQuickDiff } from './quickDiff';
 import { GitTreeSourceControl } from './sourceControl';
@@ -19,6 +21,8 @@ export interface Phase01Registry {
   sourceControls: Map<string, GitTreeSourceControl>;
   statusBars: Map<string, StatusBarController>;
   revProvider: RevContentProvider;
+  /** P14-T3 — GitTree's own change bars; the test seam for what is painted. */
+  changeBars: ChangeBarsController;
 }
 
 export function registerPhase01(context: vscode.ExtensionContext, core: Core): Phase01Registry {
@@ -62,6 +66,13 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   context.subscriptions.push(
     wireQuickDiff(core, (repo) => sourceControls.get(canonicalKey(repo.root))?.sc),
   );
+  // P14-T3: GitTree paints its own change bars. Both run for now — quick diff
+  // is still attached in takeover mode until P14-T4 removes the provider —
+  // and they are distinguishable rather than overlapping, ours sitting at the
+  // content edge and VS Code's in its own lane.
+  const changeBars = new ChangeBarsController(core);
+  context.subscriptions.push(changeBars);
+  registerChangePopup(context, core, changeBars);
   registerHunkActions(context, core);
   registerFileOps(context, core);
   registerSyncOps(context, core, statusBars);
@@ -69,7 +80,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
 
-  const registry: Phase01Registry = { sourceControls, statusBars, revProvider };
+  const registry: Phase01Registry = { sourceControls, statusBars, revProvider, changeBars };
   core.debugRegistry.set('phase01', registry);
   return registry;
 }

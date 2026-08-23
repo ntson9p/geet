@@ -15,6 +15,7 @@ import { SNAPSHOT_LABELS } from '../../../src/localHistory/hooks';
 import { BlameService } from '../../../src/log/blame/blameService';
 import { GraphLayout } from '../../../src/log/graphLayout/layout';
 import { LogService, PAGE_SIZE } from '../../../src/log/logService';
+import { computeChanges } from '../../../src/scm/gutter/changeModel';
 import { activateGitTree } from '../../integration/setup';
 
 const NOISE = 1.15; // §13 budgets carry a 15% CI-noise tolerance
@@ -25,6 +26,7 @@ const BUDGET = {
   blameColdMs: 300,
   blameWarmMs: 30,
   logSessionMemoryMb: 150,
+  changeBarsP95Ms: 50,
 } as const;
 
 const median = (xs: number[]): number => {
@@ -210,6 +212,34 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
     }
     assert.strictEqual(fileCount, 5000, 'wide commit reports all 5000 files');
     results['changedFiles5000'] = { medianMs: round(median(times)), files: fileCount };
+  });
+
+  test('P14-T3 change-bar recompute p95 @ 5k lines ≤ 50 ms', function () {
+    this.timeout(120_000);
+    // The recompute is dominated by the line diff, which is the term the
+    // `changeBars.maxFileLines` cutoff exists to bound. Measured on the pure
+    // function: the decoration apply is O(changes) and never the cost.
+    const base = Array.from({ length: 5000 }, (_, i) => `line ${i + 1} of the fixture file`).join('\n') + '\n';
+    const lines = base.split('\n');
+    // A realistic edit spread: 40 scattered modifications, one insert block,
+    // one delete block — not one big rewrite, which would be the easy case.
+    for (let i = 0; i < 40; i++) lines[i * 120 + 7] = `line ${i * 120 + 8} EDITED`;
+    lines.splice(2500, 0, ...Array.from({ length: 20 }, (_, i) => `inserted ${i}`));
+    lines.splice(4000, 15);
+    const modified = lines.join('\n');
+
+    const samples: number[] = [];
+    for (let run = 0; run < 10; run++) {
+      const t0 = performance.now();
+      const changes = computeChanges(base, modified);
+      samples.push(performance.now() - t0);
+      assert.ok(changes.length > 0, 'fixture must actually differ');
+    }
+    results['changeBars5kLines'] = { p95Ms: round(p95(samples)), medianMs: round(median(samples)) };
+    assert.ok(
+      p95(samples) <= BUDGET.changeBarsP95Ms * NOISE,
+      `change-bar recompute p95 ${round(p95(samples))}ms exceeds ${BUDGET.changeBarsP95Ms}ms budget`,
+    );
   });
 
   test('P9 snapshot overhead @ 2k dirty files (recorded, no §13 budget)', async function () {

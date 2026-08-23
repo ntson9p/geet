@@ -1,7 +1,10 @@
 import * as assert from 'node:assert';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
-import { activateGitTree, workspaceRepoC } from '../setup';
+import type { Phase01Registry } from '../../../src/scm/register';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
  * Phase 14 — owning the SCM surface. This suite guards the *structural*
@@ -146,5 +149,173 @@ suite('P14 owning the SCM surface', () => {
     } finally {
       if (!wasChangelists) await reg.paradigm.switch();
     }
+  });
+
+  // ---- T3: GitTree's own change bars ---------------------------------------
+
+  suite('T3 change bars', () => {
+    let repoRoot: string;
+    let fsRoot: string;
+    let repo: ReturnType<Awaited<ReturnType<typeof activateGitTree>>['repoForPath']>;
+    let bars: Phase01Registry['changeBars'];
+    const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
+    const abs = (rel: string): string => path.join(fsRoot, rel);
+
+    /**
+     * Open the file and force one recompute. `expect` is the content just
+     * written: a `TextDocument` already open does NOT pick up a disk write
+     * synchronously, so without waiting for it the bars would be computed
+     * against the previous text. The model refresh is for the same reason on
+     * the other side — after a CLI `git add`, a stale snapshot still calls the
+     * file untracked, and untracked files deliberately get no bars.
+     */
+    async function paint(
+      rel: string,
+      expect: string,
+      opts: { tracked?: boolean } = {},
+    ): Promise<ReturnType<typeof bars.changesFor>> {
+      const uri = vscode.Uri.file(abs(rel));
+      await repo!.refresher.refreshNow();
+      if (opts.tracked === true) {
+        // One refresh is not enough under full-suite load: the watcher can
+        // still be reporting the pre-`git add` snapshot, and a file the model
+        // calls untracked deliberately gets no bars — which looks exactly like
+        // "the bars are broken".
+        await waitFor(() => {
+          const e = repo!.model.snapshot.statusEntries.find((x) => x.path === rel);
+          return e === undefined || (e.kind !== 'untracked' && e.kind !== 'ignored');
+        }, 20_000);
+      }
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+      await waitFor(() => doc.getText() === expect, 15_000);
+      await bars.refreshNow(doc);
+      return bars.changesFor(uri);
+    }
+    const rows = (d: ReturnType<typeof bars.changesFor>): string[] =>
+      (d?.changes ?? []).map((c) => `${c.kind} ${c.startLine}-${c.endLine}`);
+
+    suiteSetup(async function () {
+      this.timeout(60_000);
+      const core = await activateGitTree();
+      repoRoot = workspaceRepoC();
+      repo = core.repoForPath(repoRoot);
+      fsRoot = repo!.root;
+      bars = (core.debugRegistry.get('phase01') as Phase01Registry).changeBars;
+      assert.ok(bars, 'change bars controller missing from the phase01 registry');
+    });
+
+    teardown(async () => {
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    });
+
+    test('paints bars on exactly the changed lines, and clears them on revert', async function () {
+      this.timeout(90_000);
+      const body = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n') + '\n';
+      fs.writeFileSync(abs('p14bars.txt'), body);
+      git('add', 'p14bars.txt');
+      git('commit', '-m', 'p14 bars base');
+
+      // One modification, one insertion, one deletion, well separated so the
+      // diff cannot legitimately merge them.
+      const lines = body.split('\n');
+      lines[1] = 'line 2 CHANGED';
+      lines.splice(5, 0, 'INSERTED');
+      lines.splice(9, 1);
+      fs.writeFileSync(abs('p14bars.txt'), lines.join('\n'));
+
+      const painted = await paint('p14bars.txt', lines.join('\n'), { tracked: true });
+      assert.deepStrictEqual(rows(painted), ['modified 1-1', 'added 5-5', 'deleted 9-9']);
+
+      // Reverting the file must take the bars with it — a stale bar is worse
+      // than no bar, because Rollback acts on what the bar claims.
+      fs.writeFileSync(abs('p14bars.txt'), body);
+      const cleared = await paint('p14bars.txt', body, { tracked: true });
+      assert.deepStrictEqual(rows(cleared), []);
+
+      git('rm', '-q', '-f', 'p14bars.txt');
+      git('commit', '-m', 'p14 bars cleanup');
+    });
+
+    test('an untracked file gets no bars — it has no base to compare against', async function () {
+      this.timeout(60_000);
+      fs.writeFileSync(abs('p14untracked.txt'), 'brand new\n');
+      await vscode.commands.executeCommand('gittree.refresh');
+      const painted = await paint('p14untracked.txt', 'brand new\n');
+      assert.strictEqual(painted, undefined, 'untracked files must not report changes');
+      fs.rmSync(abs('p14untracked.txt'));
+    });
+
+    test('the hover fires on a changed line and stays silent on an unchanged one', async function () {
+      this.timeout(90_000);
+      const body = Array.from({ length: 10 }, (_, i) => `row ${i + 1}`).join('\n') + '\n';
+      fs.writeFileSync(abs('p14hover.txt'), body);
+      git('add', 'p14hover.txt');
+      git('commit', '-m', 'p14 hover base');
+      fs.writeFileSync(abs('p14hover.txt'), body.replace('row 4', 'row 4 EDITED'));
+
+      const modified = body.replace('row 4', 'row 4 EDITED');
+      const painted = await paint('p14hover.txt', modified, { tracked: true });
+      assert.deepStrictEqual(rows(painted), ['modified 3-3']);
+
+      const uri = vscode.Uri.file(abs('p14hover.txt'));
+      const ours = async (line: number): Promise<boolean> => {
+        const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+          'vscode.executeHoverProvider',
+          uri,
+          new vscode.Position(line, 0),
+        );
+        // Other providers answer here too; ours is the one carrying the
+        // change-action command links.
+        return (hovers ?? []).some((h) =>
+          h.contents.some((c) =>
+            typeof c === 'string' ? false : c.value.includes('command:gittree.change.'),
+          ),
+        );
+      };
+      assert.strictEqual(await ours(3), true, 'no GitTree hover on the changed line');
+      assert.strictEqual(await ours(8), false, 'GitTree hovered a line with no change');
+
+      git('checkout', '--', 'p14hover.txt');
+      git('rm', '-q', '-f', 'p14hover.txt');
+      git('commit', '-m', 'p14 hover cleanup');
+    });
+
+    test('a file over the line cutoff paints nothing rather than stalling', async function () {
+      this.timeout(90_000);
+      const cfg = vscode.workspace.getConfiguration('gittree');
+      const body = Array.from({ length: 40 }, (_, i) => `big ${i + 1}`).join('\n') + '\n';
+      fs.writeFileSync(abs('p14big.txt'), body);
+      git('add', 'p14big.txt');
+      git('commit', '-m', 'p14 big base');
+      fs.writeFileSync(abs('p14big.txt'), body.replace('big 5', 'big 5 EDITED'));
+
+      const bigMod = body.replace('big 5', 'big 5 EDITED');
+      assert.deepStrictEqual(rows(await paint('p14big.txt', bigMod, { tracked: true })), ['modified 4-4']);
+      await cfg.update('changeBars.maxFileLines', 100, vscode.ConfigurationTarget.Global);
+      await waitFor(
+        () =>
+          vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') === 100,
+        10_000,
+      );
+      try {
+        // 41 lines is under 100, so it still paints; the cutoff only bites above.
+        assert.deepStrictEqual(rows(await paint('p14big.txt', bigMod, { tracked: true })), ['modified 4-4']);
+        await cfg.update('changeBars.maxFileLines', 100000, vscode.ConfigurationTarget.Global);
+        await cfg.update('changeBars.maxFileLines', 10, vscode.ConfigurationTarget.Global);
+        await waitFor(
+          () =>
+            vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') === 10,
+          10_000,
+        );
+        assert.strictEqual(await paint('p14big.txt', bigMod, { tracked: true }), undefined, 'cutoff must suppress the bars');
+      } finally {
+        await cfg.update('changeBars.maxFileLines', undefined, vscode.ConfigurationTarget.Global);
+      }
+
+      git('checkout', '--', 'p14big.txt');
+      git('rm', '-q', '-f', 'p14big.txt');
+      git('commit', '-m', 'p14 big cleanup');
+    });
   });
 });

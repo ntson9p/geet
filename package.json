@@ -104,7 +104,23 @@
               "head"
             ],
             "default": "index",
-            "description": "%gittree.config.quickDiff.base.description%"
+            "description": "%gittree.config.quickDiff.base.description%",
+            "markdownDeprecationMessage": "%gittree.config.quickDiff.base.deprecated%"
+          },
+          "gittree.changeBars.base": {
+            "type": "string",
+            "enum": [
+              "index",
+              "head"
+            ],
+            "default": "index",
+            "description": "%gittree.config.changeBars.base.description%"
+          },
+          "gittree.changeBars.maxFileLines": {
+            "type": "number",
+            "default": 20000,
+            "minimum": 100,
+            "description": "%gittree.config.changeBars.maxFileLines.description%"
           },
           "gittree.autofetch.enabled": {
             "type": "boolean",
@@ -1430,6 +1446,11 @@
         "title": "%gittree.command.operationsPopup.title%",
         "category": "GitTree",
         "icon": "$(list-unordered)"
+      },
+      {
+        "command": "gittree.change.showActions",
+        "title": "%gittree.command.change.showActions.title%",
+        "category": "GitTree"
       }
     ],
     "submenus": [
@@ -2497,6 +2518,11 @@
         "key": "ctrl+alt+z",
         "mac": "cmd+alt+z",
         "when": "config.gittree.keymap.intellij && editorTextFocus"
+      },
+      {
+        "command": "gittree.change.showActions",
+        "key": "ctrl+alt+g h",
+        "when": "editorTextFocus"
       }
     ],
     "walkthroughs": [

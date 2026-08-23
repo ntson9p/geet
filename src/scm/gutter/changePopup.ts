@@ -1,0 +1,198 @@
+/**
+ * The change popup (P14-T3) — what replaces the native dirty-diff peek widget.
+ *
+ * VS Code exposes no click handler for a `TextEditorDecorationType` and no API
+ * to open a diff peek at a location, so the bar itself cannot be the trigger
+ * (deviation D19). Two invocations stand in, and between them they cover the
+ * mouse and the keyboard:
+ *   - a `HoverProvider` scoped to changed lines only, rendering the previous
+ *     text plus actions — IntelliJ's popup reproduced in content;
+ *   - `gittree.change.showActions`, keybound, acting at the cursor.
+ *
+ * A `CodeLens` variant was rejected: it costs a text line per change, which
+ * IntelliJ's marker does not.
+ */
+import * as vscode from 'vscode';
+import type { Core } from '../../core/core';
+import type { ChangeBarsController } from './changeBars';
+import { changeAt, nextChange, originalLinesOf, prevChange, type Change } from './changeModel';
+
+/** Payload for the popup's own commands. A Uri does not survive a command URI. */
+interface ChangeRef {
+  uri: string;
+  index: number;
+}
+
+function label(change: Change): string {
+  const n = change.endLine - change.startLine + 1;
+  switch (change.kind) {
+    case 'added':
+      return n === 1 ? vscode.l10n.t('1 line added') : vscode.l10n.t('{0} lines added', n);
+    case 'deleted':
+      return vscode.l10n.t('Lines removed');
+    case 'modified':
+      return n === 1 ? vscode.l10n.t('1 line changed') : vscode.l10n.t('{0} lines changed', n);
+  }
+}
+
+/**
+ * A fence longer than any backtick run in the body, so file content containing
+ * ``` cannot break out of the block and into the trusted markdown around it.
+ */
+function fenceFor(body: string): string {
+  let longest = 0;
+  for (const run of body.match(/`+/gu) ?? []) longest = Math.max(longest, run.length);
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+function link(title: string, command: string, ref: ChangeRef): string {
+  return `[${title}](command:${command}?${encodeURIComponent(JSON.stringify(ref))})`;
+}
+
+export function registerChangePopup(
+  context: vscode.ExtensionContext,
+  core: Core,
+  bars: ChangeBarsController,
+): void {
+  /** Resolve a ref back to (document, changes, change). */
+  const resolve = (
+    ref: unknown,
+  ): { uri: vscode.Uri; doc: DocumentLike; index: number } | undefined => {
+    if (typeof ref !== 'object' || ref === null) return undefined;
+    const r = ref as Partial<ChangeRef>;
+    if (typeof r.uri !== 'string' || typeof r.index !== 'number') return undefined;
+    const uri = vscode.Uri.parse(r.uri);
+    const doc = bars.changesFor(uri);
+    if (!doc || r.index < 0 || r.index >= doc.changes.length) return undefined;
+    return { uri, doc, index: r.index };
+  };
+
+  /**
+   * The three hunk actions already exist and take the peek widget's argument
+   * shape. Re-dispatch rather than duplicate them: a real `vscode.Uri` cannot
+   * travel through a `command:` URI, but it can travel through executeCommand.
+   */
+  const dispatch = async (command: string, ref: unknown): Promise<void> => {
+    const r = resolve(ref);
+    if (!r) return;
+    await vscode.commands.executeCommand(
+      command,
+      r.uri,
+      r.doc.changes.map((c) => c.source),
+      r.index,
+    );
+  };
+
+  const reveal = (ref: unknown, direction: 'next' | 'prev'): void => {
+    const r = resolve(ref);
+    if (!r) return;
+    const from = r.doc.changes[r.index]!;
+    const target =
+      direction === 'next'
+        ? nextChange(r.doc.changes, from.endLine)
+        : prevChange(r.doc.changes, from.startLine);
+    if (!target) return;
+    const editor = vscode.window.visibleTextEditors.find(
+      (e) => e.document.uri.toString() === r.uri.toString(),
+    );
+    if (!editor) return;
+    const pos = new vscode.Position(target.startLine, 0);
+    editor.selection = new vscode.Selection(pos, pos);
+    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gittree.change.rollback', (ref) =>
+      dispatch('gittree.hunk.rollback', ref),
+    ),
+    vscode.commands.registerCommand('gittree.change.stage', (ref) =>
+      dispatch('gittree.hunk.stage', ref),
+    ),
+    vscode.commands.registerCommand('gittree.change.openCommitView', (ref) =>
+      dispatch('gittree.hunk.openCommitView', ref),
+    ),
+    vscode.commands.registerCommand('gittree.change.next', (ref) => reveal(ref, 'next')),
+    vscode.commands.registerCommand('gittree.change.prev', (ref) => reveal(ref, 'prev')),
+
+    // Keyboard entry point: act on the change under the cursor.
+    vscode.commands.registerCommand('gittree.change.showActions', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const doc = bars.changesFor(editor.document.uri);
+      if (!doc) return;
+      const line = editor.selection.active.line;
+      const change = changeAt(doc.changes, line);
+      if (!change) {
+        void vscode.window.setStatusBarMessage(vscode.l10n.t('No change at the cursor.'), 3000);
+        return;
+      }
+      const index = doc.changes.indexOf(change);
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: vscode.l10n.t('$(discard) Rollback'), command: 'gittree.hunk.rollback' },
+          { label: vscode.l10n.t('$(add) Stage'), command: 'gittree.hunk.stage' },
+          { label: vscode.l10n.t('$(git-commit) Open in Commit View'), command: 'gittree.hunk.openCommitView' },
+        ],
+        { placeHolder: label(change), title: vscode.l10n.t('Change actions') },
+      );
+      if (!picked) return;
+      await vscode.commands.executeCommand(
+        picked.command,
+        editor.document.uri,
+        doc.changes.map((c) => c.source),
+        index,
+      );
+    }),
+
+    vscode.languages.registerHoverProvider(
+      { scheme: 'file' },
+      {
+        provideHover(document, position) {
+          const doc = bars.changesFor(document.uri);
+          if (!doc) return undefined;
+          const change = changeAt(doc.changes, position.line);
+          // Scoped to changed lines only: a hover on every line of every file
+          // would be noise, and would fight the language server's own hovers.
+          if (!change) return undefined;
+          const index = doc.changes.indexOf(change);
+          const ref: ChangeRef = { uri: document.uri.toString(), index };
+
+          const md = new vscode.MarkdownString();
+          md.isTrusted = true;
+          md.supportThemeIcons = true;
+          md.appendMarkdown(`**${label(change)}**\n\n`);
+
+          const original = originalLinesOf(doc.baseText, change);
+          if (original.length > 0) {
+            const body = original.join('\n');
+            const fence = fenceFor(body);
+            md.appendMarkdown(`${fence}${document.languageId}\n${body}\n${fence}\n`);
+          }
+
+          const actions = [
+            link(vscode.l10n.t('$(discard) Rollback'), 'gittree.change.rollback', ref),
+            link(vscode.l10n.t('$(add) Stage'), 'gittree.change.stage', ref),
+            link(vscode.l10n.t('$(git-commit) Commit View'), 'gittree.change.openCommitView', ref),
+          ];
+          if (prevChange(doc.changes, change.startLine)) {
+            actions.push(link('$(arrow-up)', 'gittree.change.prev', ref));
+          }
+          if (nextChange(doc.changes, change.endLine)) {
+            actions.push(link('$(arrow-down)', 'gittree.change.next', ref));
+          }
+          md.appendMarkdown(actions.join(' · '));
+
+          const range = new vscode.Range(change.startLine, 0, change.endLine, 0);
+          return new vscode.Hover(md, range);
+        },
+      },
+    ),
+  );
+  void core;
+}
+
+/** Structural slice of what the controller hands back, to keep the import light. */
+interface DocumentLike {
+  readonly changes: readonly Change[];
+  readonly baseText: string;
+}

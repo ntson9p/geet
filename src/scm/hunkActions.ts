@@ -8,9 +8,9 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { applyLineChanges, buildPatch, complementChanges, type LineChange } from '../core/patch/patchBuilder';
 import { repoRelative } from '../core/util/paths';
-import { revObjectSpec } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
-import { quickDiffBase } from './quickDiff';
+// P14-T3: one base-text read, shared with the change bars and the popup.
+import { readBaseText } from './gutter/baseText';
 
 function isLineChange(x: unknown): x is LineChange {
   return (
@@ -40,23 +40,6 @@ function parseArgs(core: Core, args: unknown[]): HunkArgs | undefined {
   const i = typeof index === 'number' ? index : 0;
   if (lineChanges.length === 0 || i < 0 || i >= lineChanges.length) return undefined;
   return { repo, uri, rel, changes: lineChanges, index: i };
-}
-
-/** The quick-diff base text the gutter bars were computed against. */
-async function readBaseText(repo: RepoHandle, rel: string): Promise<string | undefined> {
-  const ref = quickDiffBase() === 'head' ? 'HEAD' : ':0';
-  const result = await repo.queue.enqueue({
-    label: `show base for ${rel}`,
-    kind: 'read',
-    run: (git, token) =>
-      git.exec(repo.root, ['show', revObjectSpec(ref, rel)], {
-        structured: true,
-        noOptionalLocks: true,
-        allowNonZeroExit: true,
-        token,
-      }),
-  });
-  return result.exitCode === 0 ? result.stdout : undefined;
 }
 
 export function registerHunkActions(context: vscode.ExtensionContext, core: Core): void {

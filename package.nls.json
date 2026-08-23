@@ -303,5 +303,9 @@
   "gittree.config.push.tags.none": "No tags.",
   "gittree.config.push.tags.all": "All tags (--tags).",
   "gittree.config.push.tags.follow": "Tags reachable from the pushed commits (--follow-tags).",
-  "gittree.config.dialogs.showCommandLine.description": "Show the dim \"will run: git …\" line in GitTree's dialogs, so the flags behind each option stay legible."
+  "gittree.config.dialogs.showCommandLine.description": "Show the dim \"will run: git …\" line in GitTree's dialogs, so the flags behind each option stay legible.",
+  "gittree.config.changeBars.base.description": "What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).",
+  "gittree.config.changeBars.maxFileLines.description": "Files longer than this get no change bars. The line diff is quadratic in the worst case, and a stalled editor is worse than a missing bar.",
+  "gittree.config.quickDiff.base.deprecated": "Renamed to `#gittree.changeBars.base#`. The old key is still honoured.",
+  "gittree.command.change.showActions.title": "Show Change Actions"
 }

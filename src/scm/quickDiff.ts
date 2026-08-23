@@ -10,12 +10,11 @@ import type { Core, RepoHandle } from '../core/core';
 import { repoRelative } from '../core/util/paths';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 
-export type QuickDiffBase = 'index' | 'head';
-
-export function quickDiffBase(): QuickDiffBase {
-  const v = vscode.workspace.getConfiguration('gittree').get<string>('quickDiff.base', 'index');
-  return v === 'head' ? 'head' : 'index';
-}
+// P14-T3: the base lives in `gutter/baseText` now, so the bars, the popup and
+// the hunk actions cannot disagree about what "the original" is. Re-exported
+// under the old name until P14-T4 deletes this module.
+import { changeBarsBase } from './gutter/baseText';
+export { changeBarsBase as quickDiffBase, type ChangeBarsBase as QuickDiffBase } from './gutter/baseText';
 
 export class GitTreeQuickDiffProvider implements vscode.QuickDiffProvider {
   constructor(private readonly core: Core) {}
@@ -31,7 +30,7 @@ export class GitTreeQuickDiffProvider implements vscode.QuickDiffProvider {
     // Untracked/ignored files have no original — no bars.
     if (entry && (entry.kind === 'untracked' || entry.kind === 'ignored')) return undefined;
 
-    const base = quickDiffBase();
+    const base = changeBarsBase();
     if (base === 'head') {
       // Follow staged renames back to the HEAD-side name.
       const headRel = entry?.origPath ?? rel;
