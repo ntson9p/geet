@@ -1,13 +1,11 @@
-﻿import * as assert from 'node:assert';
+import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
-import type { Phase01Registry } from '../../../src/scm/register';
-import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, useCommitWindow, waitFor, workspaceRepoC } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /** Phase 3 acceptance on workspace repoC (dedicated to this suite). */
 suite('P3 commit lifecycle', () => {
@@ -18,7 +16,7 @@ suite('P3 commit lifecycle', () => {
   let fsRoot: string;
   let repo: RepoHandle;
   let reg: Phase03Registry;
-  let scmInput: vscode.SourceControlInputBox;
+  let messageBox: { value: string };
 
   const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
   const write = (rel: string, content: string): void => {
@@ -32,17 +30,14 @@ suite('P3 commit lifecycle', () => {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
     const core = await activateGitTree();
-    // P11-T2: this suite asserts against the native SCM input box, so pin the
-    // native commit surface. The webview surface has its own suite (phase11).
-    await useCommitWindow('native');
-
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
     fsRoot = repo.root;
     reg = core.debugRegistry.get('phase03') as Phase03Registry;
     assert.ok(reg, 'phase03 registry missing');
-    const phase01 = core.debugRegistry.get('phase01') as Phase01Registry;
-    scmInput = phase01.sourceControls.get(canonicalKey(repoRoot))!.sc.inputBox;
+    // P14-T2: the SCM input box is retired; the commit window's message box is
+    // the only place a message lives, and the commit flow reads it.
+    messageBox = reg.messageBoxFor(repo);
   });
 
   test('T2/T3: changelists adopt, move, check and persist', async function () {
@@ -65,18 +60,15 @@ suite('P3 commit lifecycle', () => {
     assert.deepStrictEqual(service.getList(feature.id)?.checked, []);
     service.setChecked(['src/code.ts'], true);
 
-    // View shape: list nodes + unversioned bucket.
-    const nodes = reg.viewProvider.getChildren(
-      reg.viewProvider
-        .getChildren()
-        .find((n) => n.kind === 'repo' && canonicalKey(n.repo.root) === canonicalKey(repoRoot)),
+    // P14-T2: the changelists tree view is gone, so its node shape is no longer
+    // the contract — the commit window's state DTO is, and phase11 asserts it.
+    // What still belongs here is the service-level truth the DTO is built from.
+    const lists = service.getLists();
+    assert.ok(
+      lists.some((l) => l.id === feature.id),
+      'feature list missing from the service',
     );
-    const listNode = nodes.find((n) => n.kind === 'list' && n.list.id === feature.id);
-    assert.ok(listNode, 'feature list node missing');
-    const unversionedNode = nodes.find((n) => n.kind === 'unversioned');
-    assert.ok(unversionedNode, 'unversioned node missing');
-    const item = reg.viewProvider.getTreeItem(listNode);
-    assert.strictEqual(item.checkboxState, vscode.TreeItemCheckboxState.Checked);
+    assert.deepStrictEqual(service.getList(feature.id)?.checked, ['src/code.ts']);
   });
 
   test('T5: changelist commit bypasses the index and leaves other lists untouched', async function () {
@@ -95,13 +87,13 @@ suite('P3 commit lifecycle', () => {
     const feature = service.getLists().find((l) => l.name === 'Feature X')!;
     service.moveFiles(['brand-new.txt'], feature.id);
 
-    scmInput.value = 'feature x commit';
+    messageBox.value = 'feature x commit';
     process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
+      // P14-T2: the commit window's context shape replaces the tree node.
       await vscode.commands.executeCommand('gittree.changelist.commitList', {
-        kind: 'list',
-        repo,
-        list: service.getList(feature.id)!,
+        repoRoot: repo.root,
+        listId: feature.id,
       });
     } finally {
       delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
@@ -230,7 +222,7 @@ suite('P3 commit lifecycle', () => {
     assert.strictEqual(vscode.languages.getDiagnostics(uri).length, 1, 'seeded diagnostic missing');
 
     const before = git('rev-parse', 'HEAD').trim();
-    scmInput.value = 'analyze gate commit';
+    messageBox.value = 'analyze gate commit';
     process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'cancel';
     try {
       await vscode.commands.executeCommand('gittree.commit', repoRoot);
@@ -342,12 +334,12 @@ suite('P3 commit lifecycle', () => {
     const originalCfg = fs.readFileSync(cfgPath, 'utf8');
     fs.appendFileSync(cfgPath, '\n[commit]\n\ttemplate = .gittemplate\n');
     try {
-      scmInput.value = '';
-      await reg.history.applyTemplate(repo, scmInput);
-      assert.strictEqual(scmInput.value, 'PROJ-000: ');
+      messageBox.value = '';
+      await reg.history.applyTemplate(repo, messageBox);
+      assert.strictEqual(messageBox.value, 'PROJ-000: ');
     } finally {
       fs.writeFileSync(cfgPath, originalCfg);
-      scmInput.value = '';
+      messageBox.value = '';
     }
   });
 
@@ -355,11 +347,11 @@ suite('P3 commit lifecycle', () => {
     this.timeout(60_000);
     const before = git('rev-parse', 'HEAD').trim();
     const subject = git('log', '-1', '--format=%s').trim();
-    scmInput.value = '';
+    messageBox.value = '';
     await vscode.commands.executeCommand('gittree.commit.toggleAmend', repoRoot);
-    assert.strictEqual(scmInput.value, subject, 'amend should load the previous message');
+    assert.strictEqual(messageBox.value, subject, 'amend should load the previous message');
 
-    scmInput.value = 'amended subject line';
+    messageBox.value = 'amended subject line';
     process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
       await vscode.commands.executeCommand('gittree.commit', repoRoot);

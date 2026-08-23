@@ -6,11 +6,8 @@
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
-import { setHideStagingGroupsProvider, type GitTreeSourceControl } from '../scm/sourceControl';
-import type { Phase01Registry } from '../scm/register';
 import { confirmModal } from '../ui/confirm';
 import { ChangelistService, DEFAULT_LIST_ID } from './changelists/changelistService';
-import { ChangelistsViewProvider, type ChangelistNode } from './changelists/changelistsView';
 import { analyzeCheck } from './checks/analyze';
 import { cleanupCheck } from './checks/cleanup';
 import { optimizeImportsCheck } from './checks/optimizeImports';
@@ -33,11 +30,10 @@ export interface Phase03Registry {
   pipeline: CheckPipeline;
   history: MessageHistory;
   changelistsFor: (repo: RepoHandle) => ChangelistService;
-  viewProvider: ChangelistsViewProvider;
   /** P11-T2 — the commit tool window; undefined has no meaning, it is always built. */
   commitWindow: CommitWindowViewProvider;
-  /** P11-T2 — resolved commit surface (`gittree.commit.window`). */
-  commitWindowMode: () => 'webview' | 'native';
+  /** P14-T2 — the one place a commit message lives, now the only surface. */
+  messageBoxFor: (repo: RepoHandle) => CommitMessageBox;
   /** P11-T3 — per-change inclusion, shared by the window and the commit flow. */
   inclusion: InclusionModel;
   /** P11-T5 — author/sign-off/deferred-checks store behind the gear popup. */
@@ -47,21 +43,8 @@ export interface Phase03Registry {
 }
 
 export function registerPhase03(context: vscode.ExtensionContext, core: Core): Phase03Registry {
-  const phase01 = core.debugRegistry.get('phase01') as Phase01Registry | undefined;
-  const scFor = (repo: RepoHandle): GitTreeSourceControl | undefined =>
-    phase01?.sourceControls.get(canonicalKey(repo.root));
-
   const paradigm = new ParadigmManager(core);
   context.subscriptions.push(paradigm);
-
-  // SCM groups hide in changelists mode (P3-T1 step 3).
-  setHideStagingGroupsProvider(() => paradigm.paradigm === 'changelists');
-  const rerenderAll = (): void => {
-    for (const repo of core.repos) scFor(repo)?.update();
-  };
-  const paradigmSub = paradigm.onDidChange(() => rerenderAll());
-  context.subscriptions.push(new vscode.Disposable(() => paradigmSub.dispose()));
-  rerenderAll();
 
   // Changelist services per repo.
   const services = new Map<string, ChangelistService>();
@@ -80,18 +63,9 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   const addSub = core.onDidAddRepo((repo) => void changelistsFor(repo));
   context.subscriptions.push(new vscode.Disposable(() => addSub.dispose()));
 
-  // Changelists view.
-  const viewProvider = new ChangelistsViewProvider(core, changelistsFor);
-  const view = vscode.window.createTreeView('gittree.changelists', {
-    treeDataProvider: viewProvider,
-    dragAndDropController: viewProvider,
-    canSelectMany: true,
-    showCollapseAll: true,
-  });
-  context.subscriptions.push(
-    view,
-    view.onDidChangeCheckboxState((e) => viewProvider.onCheckboxChanged(e.items)),
-  );
+  // P14-T2: the changelists tree view is gone. The commit window's change tree
+  // renders the same model with folder rows and tri-state checkboxes the tree
+  // view could not, and its native context menus carry the list actions.
 
   registerStagingOps(context, core);
 
@@ -105,14 +79,6 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     todoCheck,
   ]);
   const history = new MessageHistory(core, context.globalState);
-
-  // ---- P11-T2: commit tool window -----------------------------------------
-  // `webview` is the default surface; `native` restores the P3 SCM view + input
-  // box untouched, which is the escape hatch for the master §6 objection.
-  const commitWindowMode = (): 'webview' | 'native' =>
-    vscode.workspace.getConfiguration('gittree').get<string>('commit.window') === 'native'
-      ? 'native'
-      : 'webview';
 
   // P11-T3: which changes inside a file are in the next commit. One instance
   // shared by the window (which edits it) and the commit flow (which reads it).
@@ -136,11 +102,11 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   context.subscriptions.push(commitWindow);
 
   /**
-   * One accessor for "where the commit message lives". Everything that reads or
-   * writes a message goes through it, so the two surfaces cannot diverge.
+   * One accessor for "where the commit message lives". P14-T2 retired the SCM
+   * input box, so there is now exactly one answer — but the indirection stays,
+   * because every reader and writer already goes through it.
    */
-  const messageBoxFor = (repo: RepoHandle): CommitMessageBox | undefined =>
-    commitWindowMode() === 'webview' ? commitWindow.messageBoxFor(repo) : scFor(repo)?.sc.inputBox;
+  const messageBoxFor = (repo: RepoHandle): CommitMessageBox => commitWindow.messageBoxFor(repo);
 
   const flowDeps: CommitFlowDeps = {
     core,
@@ -162,27 +128,6 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
-
-  /** Drives the `when` clauses and hides the now-redundant SCM input box. */
-  const applyWindowMode = (): void => {
-    const mode = commitWindowMode();
-    void vscode.commands.executeCommand('setContext', 'gittree.commitWindow', mode);
-    for (const repo of core.repos) {
-      const box = scFor(repo)?.sc.inputBox;
-      if (box) box.visible = mode === 'native';
-    }
-  };
-  applyWindowMode();
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('gittree.commit.window')) {
-        applyWindowMode();
-        commitWindow.push();
-      }
-    }),
-  );
-  const modeSub = core.onDidAddRepo(() => applyWindowMode());
-  context.subscriptions.push(new vscode.Disposable(() => modeSub.dispose()));
 
   const pickRepo = (arg?: unknown): RepoHandle | undefined => {
     if (typeof arg === 'string') return core.getRepo(arg);
@@ -243,13 +188,9 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   });
 
   // Changelist commands.
+  /** The commit window's native context menu passes {repoRoot, listId}. */
   const listArg = (node: unknown): { repo: RepoHandle; listId: string } | undefined => {
     if (typeof node !== 'object' || node === null) return undefined;
-    if ('kind' in node && node.kind === 'list') {
-      const n = node as Extract<ChangelistNode, { kind: 'list' }>;
-      return { repo: n.repo, listId: n.list.id };
-    }
-    // P14-T2: the commit window's native context menu passes {repoRoot, listId}.
     const c = node as { repoRoot?: unknown; listId?: unknown };
     if (typeof c.repoRoot === 'string' && typeof c.listId === 'string') {
       const repo = core.getRepo(c.repoRoot);
@@ -333,15 +274,10 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     if (arg) await runCommitFlow(flowDeps, arg.repo, { listId: arg.listId });
   });
   register('gittree.changelist.moveTo', async (...args) => {
-    const files = args.filter(
-      (a): a is Extract<ChangelistNode, { kind: 'file' }> =>
-        typeof a === 'object' && a !== null && 'kind' in a && a.kind === 'file',
-    );
-    // P14-T2: fall back to the commit window's {repoRoot, relPath} context.
-    const ctx = files.length === 0 ? args.map(fileCtxArg).find((c) => c !== undefined) : undefined;
-    const repo = files[0]?.repo ?? ctx?.repo;
-    const relPaths = files.length > 0 ? files.map((f) => f.relPath) : ctx ? [ctx.relPath] : [];
-    if (!repo || relPaths.length === 0) return;
+    const ctx = args.map(fileCtxArg).find((c) => c !== undefined);
+    if (!ctx) return;
+    const { repo } = ctx;
+    const relPaths = [ctx.relPath];
     const service = changelistsFor(repo);
     const newListLabel = vscode.l10n.t('$(add) New changelist…');
     const options = [
@@ -364,28 +300,13 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     service.moveFiles(relPaths, targetId);
   });
 
-  // Attach acceptInputCommand + template prefill per repo.
+  // Template prefill per repo (P14-T2 dropped acceptInputCommand with the box).
   const attach = (repo: RepoHandle): void => {
-    const sc = scFor(repo);
-    if (sc) {
-      sc.sc.acceptInputCommand = {
-        command: 'gittree.commit',
-        title: vscode.l10n.t('Commit'),
-        arguments: [repo.root],
-      };
-    }
-    const box = messageBoxFor(repo);
-    if (box) void history.applyTemplate(repo, box);
+    void history.applyTemplate(repo, messageBoxFor(repo));
   };
   for (const repo of core.repos) attach(repo);
   const addSub2 = core.onDidAddRepo((repo) => attach(repo));
   context.subscriptions.push(new vscode.Disposable(() => addSub2.dispose()));
-
-  register('gittree.commit.window.toggle', async () => {
-    const config = vscode.workspace.getConfiguration('gittree');
-    const next = commitWindowMode() === 'webview' ? 'native' : 'webview';
-    await config.update('commit.window', next, vscode.ConfigurationTarget.Global);
-  });
 
   const registry: Phase03Registry = {
     paradigm,
@@ -393,9 +314,8 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     pipeline,
     history,
     changelistsFor,
-    viewProvider,
     commitWindow,
-    commitWindowMode,
+    messageBoxFor,
     inclusion,
     optionsStore,
   };

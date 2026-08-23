@@ -319,7 +319,7 @@ all 34 `scm/*` menu entries; the mode consent modal.
 ## Parity checklist
 - [ ] No `vscode.scm` SourceControl is registered; GitTree does not appear in VS Code's Source Control view *(P14-T4)*
 - [x] All views live in GitTree's own activity-bar container, not VS Code's `scm` container *(P14-T1; view IDs unchanged, so every `when` clause and registration survived — the two `workbench.view.scm` call sites in `hunkActions.ts` and `merge/lifecycle.ts` were the only functional fallout)*
-- [ ] Zero `scm/*` menu contributions *(P14-T2)*
+- [x] Zero `scm/*` menu contributions *(P14-T2b removed 31 of 34; `scm/change/title` is deliberately held to T4, which removes the quick-diff provider those three actions belong to — deleting them earlier would leave a live peek widget with a dead toolbar)*
 - [ ] GitTree reads no `git.*` configuration and writes none, except the one-shot migration that removes its own earlier override; no consent modal *(P14-T5, P14-T6)*
 - [ ] Existing takeover workspaces are migrated back and told why *(P14-T6.1)*
 - [ ] Change bars are GitTree-painted and work with the built-in extension enabled or disabled *(P14-T3)*

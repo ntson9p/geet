@@ -223,15 +223,6 @@ Override for conflicted files in GitTree's own views. Empty follows the theme.
 
 ## GitTree Commit
 
-### `gittree.commit.window`
-
-Which commit surface to show: the GitTree commit tool window (file tree with tri-state inclusion, message editor and options in one panel), or the original VS Code SCM view plus input box.
-
-- Type: `string` · Default: `"webview"`
-- Values:
-  - `webview` — GitTree commit tool window (IntelliJ-shaped).
-  - `native` — Native SCM view with the changelists tree and the built-in input box.
-
 ### `gittree.commit.paradigm`
 
 How commits are assembled: IntelliJ-style changelists (index-bypassing checked-file commits) or native git staging.

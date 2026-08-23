@@ -10,7 +10,6 @@ import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
 import { applyHunks, splitPatchFiles } from '../core/patch/patchParser';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
-import { relativeTime } from '../stash/stashView';
 import type { ShelfFileMeta, ShelfMeta, ShelfStore } from './shelfStore';
 
 export const SHELF_SCHEME = 'gittree-shelf';
@@ -95,92 +94,7 @@ export function shelfDiffSides(
   };
 }
 
-export class ShelfViewProvider implements vscode.TreeDataProvider<ShelfNode> {
-  private readonly _onDidChange = new vscode.EventEmitter<void>();
-  readonly onDidChangeTreeData = this._onDidChange.event;
-  private repos: Array<{ repo: RepoHandle; store: ShelfStore }> = [];
 
-  setRepos(repos: Array<{ repo: RepoHandle; store: ShelfStore }>): void {
-    this.repos = repos;
-    this.refresh();
-  }
-
-  refresh(): void {
-    this._onDidChange.fire();
-  }
-
-  getChildren(node?: ShelfNode): ShelfNode[] {
-    if (!node) {
-      const showUnshelved = isShowUnshelvedEnabled();
-      const rows: ShelfNode[] = [];
-      for (const { repo, store } of this.repos) {
-        for (const meta of store.list()) {
-          // Applied-but-kept entries hide behind the toggle (IntelliJ).
-          if (!showUnshelved && meta.unshelvedAt !== undefined) continue;
-          rows.push({ kind: 'entry', repo, store, meta });
-        }
-      }
-      return rows;
-    }
-    if (node.kind === 'entry') {
-      return node.meta.files.map((file) => ({
-        kind: 'file',
-        repo: node.repo,
-        store: node.store,
-        meta: node.meta,
-        file,
-      }));
-    }
-    return [];
-  }
-
-  getTreeItem(node: ShelfNode): vscode.TreeItem {
-    if (node.kind === 'entry') {
-      const item = new vscode.TreeItem(node.meta.name, vscode.TreeItemCollapsibleState.Collapsed);
-      const unshelved = node.meta.unshelvedAt !== undefined;
-      const damaged = !node.store.verify(node.meta.id);
-      item.description =
-        vscode.l10n.t(
-          '{0} · {1} file(s) · from {2}',
-          relativeTime(Math.floor(node.meta.createdAt / 1000)),
-          node.meta.files.length,
-          node.meta.branch,
-        ) +
-        (unshelved ? ` · ${vscode.l10n.t('already unshelved')}` : '') +
-        (damaged ? ` · ${vscode.l10n.t('damaged')}` : '');
-      const comment = node.meta.comment.length > 0 ? `\n${node.meta.comment}` : '';
-      item.tooltip = `${node.meta.name}${comment}\n${vscode.l10n.t('base {0}', node.meta.baseSha.slice(0, 12))}`;
-      // Integrity failures surface inline on the row, never as a modal.
-      item.iconPath = damaged
-        ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('errorForeground'))
-        : new vscode.ThemeIcon(unshelved ? 'check' : 'package');
-      item.contextValue = 'shelf:entry';
-      item.id = `${node.repo.root}#shelf#${node.meta.id}`;
-      return item;
-    }
-    const rel = node.file.relPath;
-    const base = rel.split('/').pop() ?? rel;
-    const item = new vscode.TreeItem(base, vscode.TreeItemCollapsibleState.None);
-    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-    const binary = node.file.isBinary ? ` · ${vscode.l10n.t('binary')}` : '';
-    item.description = `${dir.length > 0 ? `${dir} · ` : ''}${node.file.status}${binary}`;
-    item.resourceUri = vscode.Uri.file(`${node.repo.root}/${rel}`);
-    item.iconPath = new vscode.ThemeIcon(
-      node.file.status === 'deleted'
-        ? 'diff-removed'
-        : node.file.status === 'modified'
-          ? 'diff-modified'
-          : 'diff-added',
-    );
-    item.contextValue = node.file.isBinary ? 'shelf:file:binary' : 'shelf:file';
-    if (!node.file.isBinary) {
-      const sides = shelfDiffSides(node);
-      item.command = {
-        command: 'vscode.diff',
-        title: vscode.l10n.t('Show Shelved Change'),
-        arguments: [sides.left, sides.right, sides.title],
-      };
-    }
-    return item;
-  }
-}
+// P14-T2: ShelfViewProvider is gone with the `gittree.shelf` tree view. The
+// commit window's Shelf tab (P11-T6) renders the same stores via ShelfBridge;
+// the ShelfNode shape survives because shelfDiffSides still takes it.

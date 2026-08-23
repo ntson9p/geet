@@ -6,7 +6,6 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { ChangelistNode } from '../commit/changelists/changelistsView';
 import type { Core, RepoHandle } from '../core/core';
 import { splitPatchFiles } from '../core/patch/patchParser';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -22,8 +21,6 @@ import {
   SHELF_SCHEME,
   shelfDiffSides,
   ShelfContentProvider,
-  ShelfViewProvider,
-  type ShelfNode,
 } from '../shelf/shelfView';
 import { UnshelveEngine } from '../shelf/unshelve';
 import { StashService, type StashPushOptions } from './stashService';
@@ -296,12 +293,9 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     );
   });
 
-  // ---- P7-T4: shelf view, per-file diffs, patch edit/import/export --------
-  const shelfViewProvider = new ShelfViewProvider();
-  const shelfView = vscode.window.createTreeView('gittree.shelf', {
-    treeDataProvider: shelfViewProvider,
-  });
-  context.subscriptions.push(shelfView);
+  // ---- P7-T4: shelf per-file diffs, patch edit/import/export --------------
+  // P14-T2: the `gittree.shelf` tree view is gone; the commit window's Shelf
+  // tab (P11-T6) renders the same stores through shelfBridge.
   const shelfContent = new ShelfContentProvider(
     (repoRoot) => shelves.get(canonicalKey(repoRoot)),
     (repoRoot) => core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot)),
@@ -309,33 +303,18 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(SHELF_SCHEME, shelfContent),
   );
-  const pushShelves = (): void => {
-    shelfViewProvider.setRepos(
-      core.repos.map((repo) => ({ repo, store: shelves.get(canonicalKey(repo.root))! })),
-    );
-  };
-  for (const repo of core.repos) {
-    repo.disposables.add(shelves.get(canonicalKey(repo.root))!.onDidChange(() => pushShelves()));
-  }
-  const shelfAddSub = core.onDidAddRepo((repo) => {
-    repo.disposables.add(shelves.get(canonicalKey(repo.root))!.onDidChange(() => pushShelves()));
-    pushShelves();
-  });
-  context.subscriptions.push(new vscode.Disposable(() => shelfAddSub.dispose()));
-  pushShelves();
+  // P14-T2: no tree view to push to. ShelfBridge (P11-T6) carries its own
+  // per-store onDidChange subscriptions and its own showUnshelved config
+  // listener, so the Shelf tab still refreshes on every store change.
 
   /**
-   * Resolve the acted-on shelf entry: tree node, the `{repoRoot, shelfId}`
-   * shape the commit window's Shelf tab and its native context menu pass
-   * (P11-T6), else QuickPick.
+   * Resolve the acted-on shelf entry: the `{repoRoot, shelfId}` shape the
+   * commit window's Shelf tab and its native context menu pass (P11-T6), else
+   * QuickPick. P14-T2 removed the tree-node branch with the tree view.
    */
   const pickShelf = async (
     arg: unknown,
   ): Promise<{ repo: RepoHandle; store: ShelfStore; meta: ShelfMeta } | undefined> => {
-    const node = arg as ShelfNode | undefined;
-    if (node && typeof node === 'object' && 'kind' in node && node.kind === 'entry') {
-      return { repo: node.repo, store: node.store, meta: node.meta };
-    }
     if (arg && typeof arg === 'object' && 'shelfId' in arg && 'repoRoot' in arg) {
       const ref = arg as { repoRoot: string; shelfId: string };
       const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(ref.repoRoot));
@@ -377,29 +356,44 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     });
   };
 
-  /** Shelve flow — view `+`, changelist context and palette all land here. */
+  const phase03 = (): Phase03Registry | undefined =>
+    core.debugRegistry.get('phase03') as Phase03Registry | undefined;
+  /** Commit-window group rows identify a changelist by {repoRoot, listId}. */
+  const listCtx = (arg: unknown): { repo: RepoHandle; listId: string } | undefined => {
+    if (typeof arg !== 'object' || arg === null) return undefined;
+    const c = arg as { repoRoot?: unknown; listId?: unknown };
+    if (typeof c.repoRoot !== 'string' || typeof c.listId !== 'string') return undefined;
+    const key = canonicalKey(c.repoRoot);
+    const repo = core.repos.find((r) => canonicalKey(r.root) === key);
+    return repo ? { repo, listId: c.listId } : undefined;
+  };
+  const listOf = (
+    repo: RepoHandle,
+    listId: string,
+  ): { name: string; files: readonly string[] } | undefined => phase03()?.changelistsFor(repo).getList(listId);
+
+  /** Shelve flow — commit-window group row, toolbar and palette all land here. */
   register('gittree.shelf.shelve', async (arg) => {
-    const node = arg as ChangelistNode | undefined;
-    const fromList = node && typeof node === 'object' && 'kind' in node && node.kind === 'list';
-    const repo = fromList ? node.repo : repoForNew();
+    // P14-T2: the changelists tree view is gone; the commit window's group row
+    // passes {repoRoot, listId} through its native context menu instead.
+    const ctx = listCtx(arg);
+    const repo = ctx?.repo ?? repoForNew();
     if (!repo) return;
     const store = shelves.get(canonicalKey(repo.root))!;
-    const listPaths = fromList && node.list.files.length > 0 ? node.list.files : undefined;
+    const list = ctx ? listOf(repo, ctx.listId) : undefined;
+    const listPaths = list && list.files.length > 0 ? list.files : undefined;
 
     const seeded = process.env['GITTREE_TEST_SHELVE'];
     if (seeded !== undefined) {
       const opts = JSON.parse(seeded) as ShelveOptions;
-      await store.shelve(fromList ? { paths: listPaths, ...opts } : opts);
+      await store.shelve(list ? { paths: listPaths, ...opts } : opts);
       return;
     }
-    // IntelliJ default name: the changelist name, else the SCM input draft.
-    const p1 = core.debugRegistry.get('phase01') as
-      | { sourceControls: Map<string, { sc: vscode.SourceControl }> }
-      | undefined;
-    const draft = p1?.sourceControls.get(canonicalKey(repo.root))?.sc.inputBox.value.trim();
+    // IntelliJ default name: the changelist name, else the commit-window draft.
+    const draft = phase03()?.messageBoxFor(repo).value.trim();
     const name = await vscode.window.showInputBox({
       prompt: vscode.l10n.t('Shelf name'),
-      value: fromList ? node.list.name : draft && draft.length > 0 ? draft.split('\n')[0] : '',
+      value: list ? list.name : draft && draft.length > 0 ? draft.split('\n')[0] : '',
       validateInput: (v) => (v.trim().length === 0 ? vscode.l10n.t('Name required') : undefined),
     });
     if (name === undefined || name.trim().length === 0) return;
@@ -736,10 +730,6 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   ): Promise<
     { repo: RepoHandle; store: ShelfStore; meta: ShelfMeta; file: ShelfFileMeta } | undefined
   > => {
-    const node = arg as ShelfNode | undefined;
-    if (node && typeof node === 'object' && 'kind' in node && node.kind === 'file') {
-      return { repo: node.repo, store: node.store, meta: node.meta, file: node.file };
-    }
     if (arg && typeof arg === 'object' && 'relPath' in arg) {
       const ref = arg as { repoRoot?: string; shelfId?: string; relPath: string };
       const t = await pickShelf(ref);
@@ -790,11 +780,8 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       vscode.ConfigurationTarget.Workspace,
     );
   });
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('gittree.shelf.showUnshelved')) shelfViewProvider.refresh();
-    }),
-  );
+  // P14-T2: no listener here any more — ShelfBridge carries its own
+  // `gittree.shelf.showUnshelved` config listener for the Shelf tab.
 
   register('gittree.shelf.unshelvePartial', async (arg) => {
     const t = await pickShelf(arg);
@@ -839,10 +826,12 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     let listId: string | undefined;
     if (typeof arg === 'string') {
       repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(arg));
-    } else if (arg && typeof arg === 'object' && 'kind' in arg && arg.kind === 'list') {
-      const node = arg as Extract<ChangelistNode, { kind: 'list' }>;
-      repo = node.repo;
-      listId = node.list.id;
+    } else {
+      const ctx = listCtx(arg);
+      if (ctx) {
+        repo = ctx.repo;
+        listId = ctx.listId;
+      }
     }
     repo ??= repoForNew();
     if (!repo) return;
@@ -884,7 +873,6 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       return repo && store ? new UnshelveEngine(repo, store, expectConflict, trace) : undefined;
     },
     stashViewProvider: viewProvider,
-    shelfViewProvider,
     shelfContent,
   });
 }

@@ -15,7 +15,7 @@ import type { PushSafetyService } from '../../../src/rewrite/pushSafety';
 import type { RevertCherryPickService } from '../../../src/rewrite/revertCherryPick';
 import type { RewordService } from '../../../src/rewrite/reword';
 import type { UndoDropService } from '../../../src/rewrite/undoDrop';
-import { activateGitTree, gitWithRetry, useCommitWindow, waitFor, workspaceRepoA } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 interface Phase05RegistryShape {
   getEngine(repoRoot: string): RebaseEngine | undefined;
@@ -79,9 +79,6 @@ suite('P5 history rewriting — rebase engine', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     const core = await activateGitTree();
-    // P11-T2: this suite asserts against the native SCM input box, so pin the
-    // native commit surface. The webview surface has its own suite (phase11).
-    await useCommitWindow('native');
     repo = core.repoForPath(workspaceRepoA())!;
     assert.ok(repo, 'repoA not discovered');
     repoRoot = repo.root;

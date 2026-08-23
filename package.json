@@ -267,20 +267,7 @@
       {
         "title": "%gittree.config.commit.title%",
         "properties": {
-          "gittree.commit.window": {
-          "type": "string",
-          "enum": [
-            "webview",
-            "native"
-          ],
-          "enumDescriptions": [
-            "%gittree.config.commit.window.webview%",
-            "%gittree.config.commit.window.native%"
-          ],
-          "default": "webview",
-          "description": "%gittree.config.commit.window.description%"
-        },
-        "gittree.commit.paradigm": {
+          "gittree.commit.paradigm": {
             "type": "string",
             "enum": [
               "changelists",
@@ -1785,167 +1772,6 @@
           "group": "navigation@5"
         }
       ],
-      "scm/title": [
-        {
-          "command": "gittree.refresh",
-          "when": "scmProvider == gittree",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gittree.commit",
-          "when": "scmProvider == gittree",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gittree.pull",
-          "when": "scmProvider == gittree",
-          "group": "1_sync@1"
-        },
-        {
-          "command": "gittree.push",
-          "when": "scmProvider == gittree",
-          "group": "1_sync@2"
-        },
-        {
-          "command": "gittree.fetch",
-          "when": "scmProvider == gittree",
-          "group": "1_sync@3"
-        },
-        {
-          "command": "gittree.pushForceWithLease",
-          "when": "scmProvider == gittree",
-          "group": "1_sync@4"
-        },
-        {
-          "command": "gittree.commitAmend",
-          "when": "scmProvider == gittree",
-          "group": "2_commit@1"
-        },
-        {
-          "command": "gittree.commit.undo",
-          "when": "scmProvider == gittree",
-          "group": "2_commit@4"
-        },
-        {
-          "command": "gittree.cleanUntracked",
-          "when": "scmProvider == gittree",
-          "group": "3_clean@1"
-        },
-        {
-          "command": "gittree.commit.showMessageHistory",
-          "when": "scmProvider == gittree",
-          "group": "navigation@3"
-        },
-        {
-          "command": "gittree.commit.toggleAmend",
-          "when": "scmProvider == gittree",
-          "group": "2_commit@2"
-        },
-        {
-          "command": "gittree.commit.toggleSign",
-          "when": "scmProvider == gittree",
-          "group": "2_commit@3"
-        },
-        {
-          "command": "gittree.commitAndPush",
-          "when": "scmProvider == gittree",
-          "group": "2_commit@4"
-        },
-        {
-          "command": "gittree.stageAll",
-          "when": "scmProvider == gittree && gittree.paradigm == staging",
-          "group": "4_stage@1"
-        },
-        {
-          "command": "gittree.unstageAll",
-          "when": "scmProvider == gittree && gittree.paradigm == staging",
-          "group": "4_stage@2"
-        },
-        {
-          "command": "gittree.commit.switchParadigm",
-          "when": "scmProvider == gittree",
-          "group": "5_config@1"
-        },
-        {
-          "command": "gittree.commit.configureChecks",
-          "when": "scmProvider == gittree",
-          "group": "5_config@2"
-        }
-      ],
-      "scm/resourceGroup/context": [
-        {
-          "command": "gittree.add",
-          "when": "scmProvider == gittree && scmResourceGroup == changes",
-          "group": "1_modification@1"
-        },
-        {
-          "command": "gittree.rollbackFile",
-          "when": "scmProvider == gittree && scmResourceGroup == changes",
-          "group": "1_modification@2"
-        },
-        {
-          "command": "gittree.unstage",
-          "when": "scmProvider == gittree && scmResourceGroup == staged",
-          "group": "1_modification@1"
-        },
-        {
-          "command": "gittree.add",
-          "when": "scmProvider == gittree && scmResourceGroup == untracked",
-          "group": "1_modification@1"
-        },
-        {
-          "command": "gittree.cleanUntracked",
-          "when": "scmProvider == gittree && scmResourceGroup == untracked",
-          "group": "1_modification@2"
-        }
-      ],
-      "scm/resourceState/context": [
-        {
-          "command": "gittree.add",
-          "when": "scmProvider == gittree && scmResourceGroup == changes",
-          "group": "inline@1"
-        },
-        {
-          "command": "gittree.rollbackFile",
-          "when": "scmProvider == gittree && scmResourceGroup == changes",
-          "group": "inline@2"
-        },
-        {
-          "command": "gittree.unstage",
-          "when": "scmProvider == gittree && scmResourceGroup == staged",
-          "group": "inline@1"
-        },
-        {
-          "command": "gittree.add",
-          "when": "scmProvider == gittree && scmResourceGroup == untracked",
-          "group": "inline@1"
-        },
-        {
-          "command": "gittree.rollbackFile",
-          "when": "scmProvider == gittree && scmResourceGroup == untracked",
-          "group": "inline@2"
-        },
-        {
-          "command": "gittree.openFile",
-          "when": "scmProvider == gittree",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gittree.openDiff",
-          "when": "scmProvider == gittree",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gittree.openDiffHead",
-          "when": "scmProvider == gittree && scmResourceGroup == changes",
-          "group": "navigation@3"
-        },
-        {
-          "command": "gittree.rollbackFile",
-          "when": "scmProvider == gittree && scmResourceGroup == staged",
-          "group": "1_modification@1"
-        }
-      ],
       "view/title": [
         {
           "command": "gittree.worktree.add",
@@ -1973,21 +1799,6 @@
           "group": "1_manage@1"
         },
         {
-          "command": "gittree.shelf.shelve",
-          "when": "view == gittree.shelf",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gittree.shelf.import",
-          "when": "view == gittree.shelf",
-          "group": "1_manage@1"
-        },
-        {
-          "command": "gittree.shelf.showUnshelved",
-          "when": "view == gittree.shelf",
-          "group": "navigation@2"
-        },
-        {
           "command": "gittree.revTree.close",
           "when": "view == gittree.revTree",
           "group": "navigation@1"
@@ -1996,26 +1807,6 @@
           "command": "gittree.log.refresh",
           "when": "view == gittree.log",
           "group": "navigation@1"
-        },
-        {
-          "command": "gittree.changelist.new",
-          "when": "view == gittree.changelists",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gittree.commit.configureChecks",
-          "when": "view == gittree.changelists",
-          "group": "navigation@3"
-        },
-        {
-          "command": "gittree.refresh",
-          "when": "view == gittree.changelists",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gittree.commit.switchParadigm",
-          "when": "view == gittree.changelists",
-          "group": "1_config@1"
         },
         {
           "command": "gittree.branches.new",
@@ -2178,96 +1969,6 @@
           "command": "gittree.history.clearAll",
           "when": "view == gittree.localHistory && viewItem == lh:usage",
           "group": "1_manage@2"
-        },
-        {
-          "command": "gittree.changelist.commitList",
-          "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
-          "group": "inline@1"
-        },
-        {
-          "command": "gittree.changelist.setActive",
-          "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
-          "group": "1_list@1"
-        },
-        {
-          "command": "gittree.changelist.rename",
-          "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
-          "group": "1_list@2"
-        },
-        {
-          "command": "gittree.changelist.delete",
-          "when": "view == gittree.changelists && viewItem == changelist",
-          "group": "1_list@3"
-        },
-        {
-          "command": "gittree.changelist.commitList",
-          "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
-          "group": "1_list@4"
-        },
-        {
-          "command": "gittree.shelf.shelve",
-          "when": "view == gittree.changelists && viewItem =~ /^changelist(:default)?$/",
-          "group": "1_list@5"
-        },
-        {
-          "command": "gittree.shelf.unshelve",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "inline@1"
-        },
-        {
-          "command": "gittree.shelf.unshelve",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "0_apply@1"
-        },
-        {
-          "command": "gittree.shelf.unshelvePartial",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "0_apply@2"
-        },
-        {
-          "command": "gittree.shelf.rename",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "1_manage@1"
-        },
-        {
-          "command": "gittree.shelf.export",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "2_inspect@1"
-        },
-        {
-          "command": "gittree.shelf.showPatch",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "2_inspect@2"
-        },
-        {
-          "command": "gittree.shelf.delete",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "3_manage@1"
-        },
-        {
-          "command": "gittree.shelf.unshelveSilently",
-          "when": "view == gittree.shelf && viewItem == shelf:entry",
-          "group": "1_apply@2"
-        },
-        {
-          "command": "gittree.shelf.compareWithLocal",
-          "when": "view == gittree.shelf && viewItem =~ /^shelf:file/",
-          "group": "1_file@1"
-        },
-        {
-          "command": "gittree.changelist.moveTo",
-          "when": "view == gittree.changelists && viewItem =~ /^clfile/",
-          "group": "1_file@1"
-        },
-        {
-          "command": "gittree.rollbackFile",
-          "when": "view == gittree.changelists && viewItem == clfile",
-          "group": "1_file@2"
-        },
-        {
-          "command": "gittree.openDiff",
-          "when": "view == gittree.changelists && viewItem =~ /^clfile/",
-          "group": "1_file@3"
         },
         {
           "command": "gittree.branches.checkout",
@@ -2715,12 +2416,6 @@
     },
     "keybindings": [
       {
-        "command": "gittree.commit.showMessageHistory",
-        "key": "ctrl+up",
-        "mac": "cmd+up",
-        "when": "scmInputIsInFocused && scmProvider == gittree"
-      },
-      {
         "command": "gittree.stage.selectedRanges",
         "key": "ctrl+alt+enter",
         "when": "editorTextFocus && isInDiffEditor"
@@ -2924,15 +2619,7 @@
           "type": "webview",
           "name": "%gittree.view.commit.name%",
           "contextualTitle": "GitTree",
-          "icon": "$(check-all)",
-          "when": "gittree.commitWindow == webview"
-        },
-        {
-          "id": "gittree.changelists",
-          "name": "%gittree.view.changelists.name%",
-          "contextualTitle": "GitTree",
-          "icon": "$(checklist)",
-          "when": "gittree.paradigm == changelists && gittree.commitWindow == native"
+          "icon": "$(check-all)"
         },
         {
           "id": "gittree.branches",
@@ -2976,14 +2663,6 @@
           "contextualTitle": "GitTree",
           "icon": "$(archive)",
           "visibility": "collapsed"
-        },
-        {
-          "id": "gittree.shelf",
-          "name": "%gittree.view.shelf.name%",
-          "contextualTitle": "GitTree",
-          "icon": "$(package)",
-          "visibility": "collapsed",
-          "when": "gittree.commitWindow == native"
         },
         {
           "id": "gittree.revTree",

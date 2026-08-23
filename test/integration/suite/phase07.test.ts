@@ -8,7 +8,7 @@ import { OperationQueue } from '../../../src/core/ops/operationQueue';
 import type { SnapshotStore } from '../../../src/localHistory/snapshotStore';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import { ShelfStore } from '../../../src/shelf/shelfStore';
-import type { ShelfNode, ShelfViewProvider } from '../../../src/shelf/shelfView';
+import { shelfDiffSides } from '../../../src/shelf/shelfView';
 import type { UnshelveEngine } from '../../../src/shelf/unshelve';
 import type { StashService } from '../../../src/stash/stashService';
 import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
@@ -27,7 +27,6 @@ interface Phase09RegistryShape {
 }
 interface Phase07ShelfUiShape {
   getShelfStore(repoRoot: string): ShelfStore | undefined;
-  shelfViewProvider: ShelfViewProvider;
 }
 interface Phase07UnshelveShape {
   getShelfStore(repoRoot: string): ShelfStore | undefined;
@@ -536,7 +535,6 @@ suite('P7 stash & shelve — Shelf UI', () => {
     repoRoot = repo.root;
     ui = core.debugRegistry.get('phase07') as Phase07ShelfUiShape;
     shelf = ui.getShelfStore(repoRoot)!;
-    assert.ok(ui.shelfViewProvider, 'shelf view provider missing');
     git('checkout', '-f', 'main');
   });
 
@@ -576,41 +574,36 @@ suite('P7 stash & shelve — Shelf UI', () => {
     const res = await shelf.shelve({ name: 'ui entry', removeFromWorktree: true });
     assert.strictEqual(res.removed, true);
 
-    const roots = ui.shelfViewProvider.getChildren();
-    const entry = roots.find((n) => n.kind === 'entry' && n.meta.name === 'ui entry') as Extract<
-      ShelfNode,
-      { kind: 'entry' }
-    >;
-    assert.ok(entry, 'entry row rendered');
-    const entryItem = ui.shelfViewProvider.getTreeItem(entry);
-    assert.strictEqual(entryItem.contextValue, 'shelf:entry');
-    assert.match(String(entryItem.description), /3 file\(s\).*from p7\/shelfui/u);
+    // P14-T2: the `gittree.shelf` tree view is gone, so the entry/file rows are
+    // the commit window's Shelf tab now. What this test is really for survives
+    // unchanged — that `shelfDiffSides` names a pair whose two sides resolve to
+    // the exact base and reconstructed contents, worktree untouched throughout.
+    const meta = shelf.list().find((m) => m.name === 'ui entry')!;
+    assert.ok(meta, 'shelved entry recorded');
+    assert.strictEqual(meta.files.length, 3);
 
-    // Every file child carries a vscode.diff whose sides resolve to the
-    // exact base and reconstructed contents — worktree untouched throughout.
     const expected: Record<string, { left: string; right: string }> = {
       'u7m.txt': { left: 'alpha\nbeta\ngamma\n', right: 'alpha\nBETA\ngamma\n' },
       'u7d.txt': { left: 'bye\n', right: '' },
       'u7a.txt': { left: '', right: 'fresh\r\nuntracked\r\n' },
     };
-    const children = ui.shelfViewProvider.getChildren(entry);
-    assert.strictEqual(children.length, 3);
-    for (const child of children) {
-      assert.ok(child.kind === 'file');
-      const item = ui.shelfViewProvider.getTreeItem(child);
-      assert.strictEqual(item.command?.command, 'vscode.diff', child.file.relPath);
-      const [left, right] = item.command.arguments as [vscode.Uri, vscode.Uri, string];
-      const want = expected[child.file.relPath]!;
-      const leftDoc = await vscode.workspace.openTextDocument(left);
-      const rightDoc = await vscode.workspace.openTextDocument(right);
-      assert.strictEqual(leftDoc.getText(), want.left, `${child.file.relPath} base side`);
-      assert.strictEqual(rightDoc.getText(), want.right, `${child.file.relPath} shelved side`);
+    let firstSides: { left: vscode.Uri; right: vscode.Uri; title: string } | undefined;
+    for (const file of meta.files) {
+      const sides = shelfDiffSides({ kind: 'file', repo, store: shelf, meta, file });
+      firstSides ??= sides;
+      const want = expected[file.relPath]!;
+      const leftDoc = await vscode.workspace.openTextDocument(sides.left);
+      const rightDoc = await vscode.workspace.openTextDocument(sides.right);
+      assert.strictEqual(leftDoc.getText(), want.left, `${file.relPath} base side`);
+      assert.strictEqual(rightDoc.getText(), want.right, `${file.relPath} shelved side`);
+      assert.match(sides.title, /Shelved: ui entry/u);
     }
     // One real diff tab opens end-to-end.
-    const first = ui.shelfViewProvider.getTreeItem(children[0]!);
     await vscode.commands.executeCommand(
       'vscode.diff',
-      ...(first.command!.arguments as [vscode.Uri, vscode.Uri, string]),
+      firstSides!.left,
+      firstSides!.right,
+      firstSides!.title,
     );
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
     assert.ok(tab?.input instanceof vscode.TabInputTextDiff, 'diff tab opened');

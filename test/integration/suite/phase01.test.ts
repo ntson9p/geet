@@ -5,7 +5,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import { activateGitTree, gitWithRetry, useCommitWindow, waitFor, workspaceRepoA } from '../setup';
+import { isConflicted, isStaged, isUnstaged, isUntracked } from '../../../src/core/model/statusEntry';
+import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 /**
  * Phase 1 acceptance: SCM groups, rev provider, file ops, commit MVP,
@@ -22,18 +23,12 @@ suite('P1 core SCM', () => {
     fs.writeFileSync(path.join(repoRoot, rel), content);
 
   interface Phase01RegistryShape {
-    sourceControls: Map<
-      string,
-      {
-        sc: vscode.SourceControl;
-        mergeGroup: vscode.SourceControlResourceGroup;
-        stagedGroup: vscode.SourceControlResourceGroup;
-        changesGroup: vscode.SourceControlResourceGroup;
-        untrackedGroup: vscode.SourceControlResourceGroup;
-      }
-    >;
+    sourceControls: Map<string, { sc: vscode.SourceControl }>;
     statusBars: Map<string, { update(): void }>;
   }
+
+  /** P14-T2: file commands now take the commit window's context shape. */
+  const fileArg = (rel: string) => ({ repoRoot, relPath: rel });
 
   async function scOf(root: string) {
     const core = await activateGitTree();
@@ -58,12 +53,9 @@ suite('P1 core SCM', () => {
     this.timeout(60_000);
     repoRoot = workspaceRepoA();
     coreCache = await activateGitTree();
-    // P11-T2: this suite asserts against the native SCM input box, so pin the
-    // native commit surface. The webview surface has its own suite (phase11).
-    await useCommitWindow('native');
 
-    // Phase 3's changelists paradigm (the default) hides the staging groups
-    // this suite asserts on — run it in staging mode.
+    // Phase 3's changelists paradigm is the default; this suite asserts on
+    // staged/unstaged classification, so run it in staging mode.
     await vscode.workspace
       .getConfiguration('gittree')
       .update('commit.paradigm', 'staging', vscode.ConfigurationTarget.Workspace);
@@ -79,7 +71,7 @@ suite('P1 core SCM', () => {
     await waitFor(() => paradigmOf() === 'changelists', 10_000);
   });
 
-  test('T1: four groups populate with correct membership', async function () {
+  test('T1: status entries classify into the four kinds and the badge counts them', async function () {
     this.timeout(60_000);
 
     // Conflict first (merge requires a clean index)…
@@ -105,22 +97,29 @@ suite('P1 core SCM', () => {
 
     await refresh();
     const sc = await scOf(repoRoot);
-    await waitFor(
-      () =>
-        sc.mergeGroup.resourceStates.length === 1 &&
-        sc.stagedGroup.resourceStates.length === 1 &&
-        sc.changesGroup.resourceStates.length === 1 &&
-        sc.untrackedGroup.resourceStates.length === 1,
-      15_000,
-    );
-    assert.strictEqual(sc.sc.count, 4);
+    // P14-T2 retired the four resource groups; what they rendered was always
+    // this classification, and the count badge is the surviving consumer.
+    const core = await activateGitTree();
+    const entriesOf = () => core.repoForPath(repoRoot)!.model.snapshot.statusEntries;
+    const kinds = () => {
+      const e = entriesOf().filter((x) => x.kind !== 'ignored');
+      return {
+        merge: e.filter((x) => isConflicted(x)).length,
+        untracked: e.filter((x) => isUntracked(x)).length,
+        staged: e.filter((x) => !isConflicted(x) && !isUntracked(x) && isStaged(x)).length,
+        changes: e.filter((x) => !isConflicted(x) && !isUntracked(x) && isUnstaged(x)).length,
+      };
+    };
+    await waitFor(() => {
+      const k = kinds();
+      return k.merge === 1 && k.staged === 1 && k.changes === 1 && k.untracked === 1;
+    }, 15_000);
+    assert.strictEqual(sc.sc.count, 4, 'count badge must total every classified entry');
 
-    const mergeState = sc.mergeGroup.resourceStates[0]!;
-    assert.match(mergeState.resourceUri.fsPath, /conflict\.txt$/);
-    assert.ok(mergeState.contextValue?.startsWith('file:merge:'));
-    const stagedState = sc.stagedGroup.resourceStates[0]!;
-    assert.match(stagedState.resourceUri.fsPath, /staged\.txt$/);
-    assert.strictEqual(stagedState.decorations?.strikeThrough, false);
+    const conflict = entriesOf().find((e) => e.path.endsWith('conflict.txt'));
+    assert.ok(conflict && isConflicted(conflict), 'conflict.txt should be unmerged');
+    const staged = entriesOf().find((e) => e.path.endsWith('staged.txt'));
+    assert.ok(staged && isStaged(staged), 'staged.txt should be staged');
 
     // Cleanup: resolve the merge (commits staged.txt too), restore the rest.
     git('add', 'conflict.txt');
@@ -157,43 +156,39 @@ suite('P1 core SCM', () => {
 
   test('T4: stage / unstage / rollback via commands', async function () {
     this.timeout(60_000);
-    const sc = await scOf(repoRoot);
+    // P14-T2: the arguments are the commit window's {repoRoot, relPath} context
+    // now that the SCM resource states are gone — the same path a right-click
+    // in the change tree takes.
+    const core = await activateGitTree();
+    const entry = (rel: string) =>
+      core.repoForPath(repoRoot)!.model.snapshot.statusEntries.find((e) => e.path === rel);
 
     fs.appendFileSync(path.join(repoRoot, 'README.md'), 'unstaged edit\n');
     write('t4-untracked.txt', 'x\n');
     await refresh();
-    await waitFor(
-      () => sc.changesGroup.resourceStates.some((s) => s.resourceUri.fsPath.endsWith('README.md')),
-      15_000,
-    );
+    await waitFor(() => {
+      const e = entry('README.md');
+      return e !== undefined && isUnstaged(e);
+    }, 15_000);
 
     // Stage via command.
-    const changeState = sc.changesGroup.resourceStates.find((s) =>
-      s.resourceUri.fsPath.endsWith('README.md'),
-    )!;
-    await vscode.commands.executeCommand('gittree.add', changeState);
+    await vscode.commands.executeCommand('gittree.add', fileArg('README.md'));
     await refresh();
-    await waitFor(
-      () => sc.stagedGroup.resourceStates.some((s) => s.resourceUri.fsPath.endsWith('README.md')),
-      15_000,
-    );
+    await waitFor(() => {
+      const e = entry('README.md');
+      return e !== undefined && isStaged(e);
+    }, 15_000);
 
     // Unstage via command.
-    const stagedState = sc.stagedGroup.resourceStates.find((s) =>
-      s.resourceUri.fsPath.endsWith('README.md'),
-    )!;
-    await vscode.commands.executeCommand('gittree.unstage', stagedState);
+    await vscode.commands.executeCommand('gittree.unstage', fileArg('README.md'));
     await refresh();
-    await waitFor(
-      () => sc.changesGroup.resourceStates.some((s) => s.resourceUri.fsPath.endsWith('README.md')),
-      15_000,
-    );
+    await waitFor(() => {
+      const e = entry('README.md');
+      return e !== undefined && isUnstaged(e);
+    }, 15_000);
 
     // Rollback (modal auto-confirmed in the test env) → file restored.
-    const rollbackTarget = sc.changesGroup.resourceStates.find((s) =>
-      s.resourceUri.fsPath.endsWith('README.md'),
-    )!;
-    await vscode.commands.executeCommand('gittree.rollbackFile', rollbackTarget);
+    await vscode.commands.executeCommand('gittree.rollbackFile', fileArg('README.md'));
     await waitFor(
       () => !fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8').includes('unstaged edit'),
       15_000,
@@ -201,35 +196,64 @@ suite('P1 core SCM', () => {
 
     // Rollback of an untracked file deletes it.
     await refresh();
-    await waitFor(
-      () => sc.untrackedGroup.resourceStates.some((s) => s.resourceUri.fsPath.endsWith('t4-untracked.txt')),
-      15_000,
-    );
-    const untrackedState = sc.untrackedGroup.resourceStates.find((s) =>
-      s.resourceUri.fsPath.endsWith('t4-untracked.txt'),
-    )!;
-    await vscode.commands.executeCommand('gittree.rollbackFile', untrackedState);
+    await waitFor(() => {
+      const e = entry('t4-untracked.txt');
+      return e !== undefined && isUntracked(e);
+    }, 15_000);
+    await vscode.commands.executeCommand('gittree.rollbackFile', fileArg('t4-untracked.txt'));
     await waitFor(() => !fs.existsSync(path.join(repoRoot, 't4-untracked.txt')), 15_000);
     await refresh();
   });
 
-  test('T7: commit from the SCM input (staged + amend)', async function () {
+  test('T7: commit from the commit window message box (staged + amend)', async function () {
     this.timeout(60_000);
-    const sc = await scOf(repoRoot);
+    // P14-T2: the SCM input box is gone; the commit window's message box is the
+    // one place a message lives, and the same commands read it.
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase03') as {
+      messageBoxFor: (r: ReturnType<typeof core.repoForPath>) => { value: string };
+    };
+    const box = reg.messageBoxFor(core.repoForPath(repoRoot));
     write('t7.txt', 'commit me\n');
     git('add', 't7.txt');
     await refresh();
     const before = git('rev-parse', 'HEAD').trim();
 
-    sc.sc.inputBox.value = 'p1 commit from scm input';
-    await vscode.commands.executeCommand('gittree.commit', repoRoot);
-    await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 15_000);
-    assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p1 commit from scm input');
-    assert.strictEqual(sc.sc.inputBox.value, '');
+    // The commit flow gates on the check pipeline, and whether a check has a
+    // finding to report is timing-dependent (analyze waits for diagnostics to
+    // quiesce). Declare the intent explicitly, the way phase03's T5 does — and
+    // RESTORE the previous value rather than deleting it, because the runner
+    // sets this kind of env once for the whole process (see setup.ts).
+    const prevChoice = process.env['GITTREE_TEST_CHECKS_CHOICE'];
+    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    try {
+      // The window's setter persists through workspaceState without awaiting,
+      // so read it back first: an empty message aborts the flow silently and
+      // would look exactly like "the commit never ran".
+      box.value = 'p1 commit from the commit window';
+      await waitFor(() => box.value === 'p1 commit from the commit window', 5_000);
+      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
+      assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p1 commit from the commit window');
+      assert.strictEqual(box.value, '');
 
-    sc.sc.inputBox.value = 'p1 amended message';
-    await vscode.commands.executeCommand('gittree.commitAmend', repoRoot);
-    await waitFor(() => git('log', '-1', '--format=%s').trim() === 'p1 amended message', 15_000);
+      // `commitAmend` decides what it is amending from the repo model, and the
+      // commit command resolves while the refresh it kicked off is still in
+      // flight. Synchronize on the precondition itself — the model observing
+      // the commit — instead of on elapsed time; under full-suite load the
+      // incidental delay is not enough and the amend races the stale HEAD.
+      const committed = git('rev-parse', 'HEAD').trim();
+      await refresh();
+      await waitFor(() => core.repoForPath(repoRoot)!.model.snapshot.headSha === committed, 30_000);
+
+      box.value = 'p1 amended message';
+      await waitFor(() => box.value === 'p1 amended message', 5_000);
+      await vscode.commands.executeCommand('gittree.commitAmend', repoRoot);
+      await waitFor(() => git('log', '-1', '--format=%s').trim() === 'p1 amended message', 30_000);
+    } finally {
+      if (prevChoice === undefined) delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      else process.env['GITTREE_TEST_CHECKS_CHOICE'] = prevChoice;
+    }
     await refresh();
   });
 

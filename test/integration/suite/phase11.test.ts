@@ -20,16 +20,15 @@ import { COMMIT_METHODS } from '../../../src/shared/protocol';
 import {
   activateGitTree,
   gitWithRetry,
-  useCommitWindow,
   waitFor,
   workspaceRepoC,
 } from '../setup';
 
 /**
- * P11-T2 acceptance for the commit tool window's host half: the surface
- * switch, the message box that replaces the SCM input box, and the state the
- * webview renders. Runs last (phase11 sorts after phase10) and pins the
- * `webview` surface; phase01/03/05 pin `native` for the fallback path.
+ * P11-T2 acceptance for the commit tool window's host half: the message box
+ * that replaced the SCM input box, and the state the webview renders. P14-T2
+ * retired the `native` surface, so there is no longer a mode to pin — this is
+ * the only commit surface there is.
  */
 suite('P11 commit tool window', () => {
   let repoRoot: string;
@@ -81,22 +80,17 @@ suite('P11 commit tool window', () => {
     shelfBridge = phase07.shelfBridge;
     assert.ok(shelfStore && shelfBridge, 'phase07 shelf pieces missing');
 
-    await useCommitWindow('webview');
     if (reg.paradigm.paradigm !== 'changelists') {
       await reg.paradigm.switch();
       await waitFor(() => reg.paradigm.paradigm === 'changelists', 10_000);
     }
   });
 
-  suiteTeardown(async () => {
-    await useCommitWindow('native');
-  });
-
-  test('T2: webview is the default surface and hides the SCM input box', async function () {
+  test('T2: the commit window is the only commit surface', async function () {
     this.timeout(30_000);
-    assert.strictEqual(reg.commitWindowMode(), 'webview');
-    // The commit window owns the message now; leaving a second input box on
-    // screen would give the user two places to type.
+    // P14-T2 retired `gittree.commit.window: native` and the SCM input box with
+    // it; the box stays hidden for as long as the SourceControl shell survives
+    // (P14-T4 removes it entirely).
     await waitFor(() => scmInput.visible === false, 10_000);
   });
 
@@ -910,22 +904,6 @@ suite('P11 commit tool window', () => {
     restoreChecked();
   });
 
-  test('T2: switching to native restores the SCM input box without a reload', async function () {
-    this.timeout(30_000);
-    await useCommitWindow('native');
-    assert.strictEqual(reg.commitWindowMode(), 'native');
-    await waitFor(() => scmInput.visible === true, 10_000);
-
-    await useCommitWindow('webview');
-    assert.strictEqual(reg.commitWindowMode(), 'webview');
-    await waitFor(() => scmInput.visible === false, 10_000);
-  });
-
-  test('T2: the toggle command flips the surface', async function () {
-    this.timeout(30_000);
-    await vscode.commands.executeCommand('gittree.commit.window.toggle');
-    await waitFor(() => reg.commitWindowMode() === 'native', 10_000);
-    await vscode.commands.executeCommand('gittree.commit.window.toggle');
-    await waitFor(() => reg.commitWindowMode() === 'webview', 10_000);
-  });
+  // P14-T2 deleted the two surface-switching tests with the surface they
+  // switched to: `gittree.commit.window` and its toggle command are gone.
 });
