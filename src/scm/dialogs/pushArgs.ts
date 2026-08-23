@@ -59,11 +59,6 @@ export function shouldSetUpstream(
   return !hasUpstream && localBranch === remoteBranch;
 }
 
-/** The dim "will run:" line every P13 dialog shows (`gittree.dialogs.showCommandLine`). */
-export function formatGitCommand(args: readonly string[]): string {
-  return `git ${args.map((a) => (/[\s"']/u.test(a) ? JSON.stringify(a) : a)).join(' ')}`;
-}
-
 /**
  * `origin/feature/x` → `{remote: 'origin', branch: 'feature/x'}`. Split on the
  * longest **known** remote name first: both remote names and branch names may

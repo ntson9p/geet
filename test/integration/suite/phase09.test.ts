@@ -7,7 +7,7 @@ import { makeSnapUri } from '../../../src/core/vdocs/snapFs';
 import type { DestructionEvent, RecoveryWatch } from '../../../src/localHistory/recoveryWatch';
 import type { HistoryNode, LocalHistoryViewProvider, RestoreUx } from '../../../src/localHistory/restoreUx';
 import type { SnapshotManifest, SnapshotStore } from '../../../src/localHistory/snapshotStore';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
 
 interface Phase09RegistryShape {
   getStore(repoRoot: string): SnapshotStore | undefined;
@@ -115,13 +115,11 @@ suite('P9 local history — restore UX & destruction detection', () => {
     // Also diverge the file NOT in the subset — restore must not touch it.
     write('lhsub/inner.txt', 'sub changed\n');
 
-    process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
     process.env['GITTREE_TEST_RESTORE_PATHS'] = 'lh/keep.txt;lh/gone.txt';
     try {
-      await reg.restoreUx.restore(snapshotNode(seedManifest), true);
+      await withAutoConfirm('1', () => reg.restoreUx.restore(snapshotNode(seedManifest), true));
     } finally {
       delete process.env['GITTREE_TEST_RESTORE_PATHS'];
-      delete process.env['GITTREE_TEST_AUTOCONFIRM'];
     }
 
     // Deleted file recreated byte-identically; modified file rolled back;
@@ -137,12 +135,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
     assert.ok(paranoiaKeep && Buffer.from(paranoiaKeep).equals(KEEP_V2), 'paranoia content wrong');
 
     // "Undo restore" (the toast action) re-restores the paranoia manifest.
-    process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
-    try {
-      await reg.restoreUx.restore(snapshotNode(paranoia), false);
-    } finally {
-      delete process.env['GITTREE_TEST_AUTOCONFIRM'];
-    }
+    await withAutoConfirm('1', () => reg.restoreUx.restore(snapshotNode(paranoia), false));
     assert.ok(Buffer.from(fs.readFileSync(abs('lh/keep.txt'))).equals(KEEP_V2), 'undo did not revert');
   });
 
@@ -192,8 +185,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
     assert.ok(tempId);
     const tempManifest = store.get(tempId);
     assert.ok(tempManifest);
-    process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
-    try {
+    await withAutoConfirm('1', async () => {
       await reg.restoreUx.deleteSnapshot(snapshotNode(tempManifest));
       assert.strictEqual(store.get(tempId), undefined, 'snapshot not deleted');
 
@@ -201,9 +193,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
 
       await reg.restoreUx.clearAll(repo);
       assert.strictEqual(store.list().length, 0, 'clearAll left manifests behind');
-    } finally {
-      delete process.env['GITTREE_TEST_AUTOCONFIRM'];
-    }
+    });
   });
 
   test('T4: external reset --hard with dirty worktree fires detection; recover-branch resurrects the sha', async function () {

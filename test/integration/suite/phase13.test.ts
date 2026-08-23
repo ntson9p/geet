@@ -3,10 +3,11 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { PUSH_DIALOG_METHODS, type PushRepoSectionDto } from '../../../src/shared/protocol';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoC } from '../setup';
 
 /**
  * P13 dialogs — host half. The dialog UI is Playwright-covered (push.spec.ts);
@@ -251,22 +252,10 @@ suite('P13 dialogs', () => {
         force: true,
       });
 
-    // The runner sets AUTOCONFIRM=1 for the whole harness: restore it exactly,
-    // never `delete` it, or every later suite loses its auto-accept.
-    const savedConfirm = process.env['GITTREE_TEST_AUTOCONFIRM'];
-    const restoreConfirm = (): void => {
-      if (savedConfirm === undefined) delete process.env['GITTREE_TEST_AUTOCONFIRM'];
-      else process.env['GITTREE_TEST_AUTOCONFIRM'] = savedConfirm;
-    };
-
-    // Declined: nothing runs at all.
+    // Declined: nothing runs at all. `withAutoConfirm` restores the harness's
+    // own value — deleting it would disarm auto-confirm for every later suite.
     const beforeDecline = core.commandLog.entries().at(-1)?.seq ?? 0;
-    process.env['GITTREE_TEST_AUTOCONFIRM'] = '0';
-    try {
-      assert.deepStrictEqual(await force(), []);
-    } finally {
-      restoreConfirm();
-    }
+    assert.deepStrictEqual(await withAutoConfirm('0', force), []);
     assert.strictEqual(
       core.commandLog.entriesAfter(beforeDecline).filter((e) => e.argv[0] === 'push').length,
       0,
@@ -275,13 +264,7 @@ suite('P13 dialogs', () => {
 
     // Accepted: the lease flag is there, and never a bare --force.
     const beforeAccept = core.commandLog.entries().at(-1)?.seq ?? 0;
-    process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
-    let outcomes: string[];
-    try {
-      outcomes = await force();
-    } finally {
-      restoreConfirm();
-    }
+    const outcomes = await withAutoConfirm('1', force);
     assert.match(outcomes[0]!, /pushed/, outcomes.join(' · '));
     const forced = core.commandLog
       .entriesAfter(beforeAccept)
@@ -319,4 +302,213 @@ suite('P13 dialogs', () => {
     assert.strictEqual(outcomes.length, 1);
     assert.match(outcomes[0]!, /repository not found/);
   });
+
+  // ---- P13-T2 · Update Project ---------------------------------------------
+
+  suite('T2 update project', () => {
+    let workDir: string;
+
+    /** Commits in a second clone of the bare repo — the "incoming" changes. */
+    const incoming = (rel: string, content: string, subject: string): string => {
+      const abs = path.join(workDir, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content);
+      gitWithRetry(workDir, ['add', '--', rel]);
+      gitWithRetry(workDir, [
+        '-c', 'user.name=Remote', '-c', 'user.email=remote@example.com',
+        'commit', '-m', subject,
+      ]);
+      gitWithRetry(workDir, ['push', 'origin', `HEAD:refs/heads/${branch}`]);
+      return gitWithRetry(workDir, ['rev-parse', 'HEAD']).trim();
+    };
+
+    const localCommit = (rel: string, content: string, subject: string): string => {
+      const abs = path.join(repoRoot, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content);
+      git('add', '--', rel);
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', subject);
+      return git('rev-parse', 'HEAD').trim();
+    };
+
+    suiteSetup(function () {
+      this.timeout(60_000);
+      workDir = path.join(tmpDir, 'work');
+      execFileSync('git', ['clone', bareUrl, workDir], { cwd: tmpDir, encoding: 'utf8' });
+      gitWithRetry(workDir, ['checkout', branch]);
+    });
+
+    suiteTeardown(async function () {
+      this.timeout(30_000);
+      // The strategy setting is workspace-scoped and would leak into later runs.
+      await reg.setUpdateStrategy('ask');
+    });
+
+    test('T2: params carry the branch, upstream and divergence, defaulting to merge', async () => {
+      await repo.refresher.refreshNow();
+      const params = await reg.buildUpdateParams(repo);
+      assert.strictEqual(params.branch, branch);
+      assert.strictEqual(params.upstream, `${REMOTE}/${branch}`);
+      assert.strictEqual(params.remote, REMOTE);
+      // `ask` (the default) opens the dialog on Merge, IntelliJ's default.
+      assert.strictEqual(reg.currentUpdateStrategy(), 'ask');
+      assert.strictEqual(params.strategy, 'merge');
+    });
+
+    test('T2: the merge strategy fetches, integrates and reports what came in', async function () {
+      this.timeout(90_000);
+      const remoteSha = incoming('p13/t2-incoming.txt', 'from the remote\n', 'P13-T2 incoming A');
+
+      const outcome = await reg.applyUpdateResult(repo, {
+        action: 'update',
+        strategy: 'merge',
+        dontShowAgain: false,
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+      assert.strictEqual(outcome.filesChanged, 1, outcome.message);
+      // The reported range is the upstream boundary, which is what "Show in Log"
+      // filters on — and it really resolves.
+      assert.strictEqual(outcome.to, remoteSha);
+      assert.notStrictEqual(outcome.from, outcome.to);
+      // Nothing local had diverged, so the merge fast-forwarded onto it.
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), remoteSha);
+      assert.strictEqual(
+        fs.readFileSync(path.join(repoRoot, 'p13/t2-incoming.txt'), 'utf8'),
+        'from the remote\n',
+      );
+    });
+
+    test('T2: the rebase strategy replays local commits on top of the incoming ones', async function () {
+      this.timeout(90_000);
+      const mine = localCommit('p13/t2-mine.txt', 'mine\n', 'P13-T2 local work');
+      const remoteSha = incoming('p13/t2-incoming2.txt', 'more remote\n', 'P13-T2 incoming B');
+
+      const outcome = await reg.applyUpdateResult(repo, {
+        action: 'update',
+        strategy: 'rebase',
+        dontShowAgain: false,
+      });
+      assert.ok(outcome.ok, outcome.message);
+      assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+
+      // My commit was replayed: same subject, new sha, parented on the remote's.
+      const head = git('rev-parse', 'HEAD').trim();
+      assert.notStrictEqual(head, mine, 'a rebase must rewrite the local commit');
+      assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'P13-T2 local work');
+      assert.strictEqual(git('rev-parse', 'HEAD^').trim(), remoteSha);
+      // No merge commit, and a clean tree afterwards.
+      assert.strictEqual(git('status', '--porcelain').trim(), '');
+    });
+
+    test('T2: Do not show again runs Ctrl+T directly, and the gear restores the dialog', async function () {
+      this.timeout(90_000);
+      incoming('p13/t2-incoming3.txt', 'third\n', 'P13-T2 incoming C');
+      await reg.setUpdateStrategy('rebase');
+      assert.strictEqual(reg.currentUpdateStrategy(), 'rebase');
+
+      const before = tabTitles();
+      // With a remembered strategy this must NOT open a dialog — if it did, the
+      // call would hang here waiting for a user that does not exist.
+      const outcome = await reg.showUpdateDialog(repo);
+      assert.ok(outcome?.ok, outcome?.message ?? 'no outcome');
+      assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+      assert.deepStrictEqual(
+        tabTitles().filter((t) => !before.includes(t)),
+        [],
+        'the remembered strategy must bypass the dialog entirely',
+      );
+
+      // The gear puts it back.
+      await reg.setUpdateStrategy('ask');
+      assert.strictEqual(reg.currentUpdateStrategy(), 'ask');
+    });
+
+    test('T2: Reset to the Remote Branch snapshots first and is recoverable via P9', async function () {
+      this.timeout(90_000);
+      const p9 = core.debugRegistry.get('phase09') as {
+        getStore(repoRoot: string): { list(): Array<{ label: string; files: Array<{ relPath: string }> }> } | undefined;
+      };
+      const store = p9.getStore(repo.root);
+      assert.ok(store, 'phase09 store missing');
+
+      localCommit('p13/t2-doomed.txt', 'this commit dies\n', 'P13-T2 doomed local commit');
+      // An uncommitted edit is what a hard reset would otherwise destroy without
+      // trace — this is exactly what the P9 snapshot has to capture.
+      const dirtyRel = 'p13/t2-dirty.txt';
+      fs.writeFileSync(path.join(repoRoot, dirtyRel), 'unsaved work\n');
+      git('add', '--', dirtyRel);
+      await repo.refresher.refreshNow();
+
+      // Declined: the branch and the working tree are left exactly as they are.
+      const headBefore = git('rev-parse', 'HEAD').trim();
+      const declined = await withAutoConfirm('0', () =>
+        reg.applyUpdateResult(repo, {
+          action: 'reset',
+          strategy: 'merge',
+          dontShowAgain: false,
+        }),
+      );
+      assert.strictEqual(declined.ok, false);
+      assert.match(declined.message, /cancelled/i);
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), headBefore);
+      assert.strictEqual(
+        fs.readFileSync(path.join(repoRoot, dirtyRel), 'utf8'),
+        'unsaved work\n',
+        'a declined reset must not touch the worktree',
+      );
+
+      const before = store.list().length;
+      const outcome = await withAutoConfirm('1', () =>
+        reg.applyUpdateResult(repo, {
+          action: 'reset',
+          strategy: 'merge',
+          dontShowAgain: false,
+        }),
+      );
+      assert.ok(outcome.ok, outcome.message);
+
+      // HEAD is the upstream exactly, and the doomed commit is gone.
+      const upstreamSha = git('rev-parse', `refs/remotes/${REMOTE}/${branch}`).trim();
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), upstreamSha);
+      assert.doesNotMatch(git('log', '--format=%s', '-20'), /doomed local commit/);
+
+      const snaps = store.list();
+      assert.ok(snaps.length > before, 'reset must add a Local History snapshot');
+      const taken = snaps.filter((s) => s.label === 'Before: reset');
+      assert.ok(taken.length > 0, `no "Before: reset" snapshot in ${JSON.stringify(snaps.map((s) => s.label))}`);
+      assert.ok(
+        taken.some((s) => s.files.some((f) => f.relPath.replace(/\\/g, '/') === dirtyRel)),
+        'the discarded uncommitted edit must be recoverable',
+      );
+    });
+
+    test('T2: a branch with no upstream reports instead of running anything', async function () {
+      this.timeout(60_000);
+      // Built deliberately rather than borrowed from another fixture repo:
+      // earlier suites leave remotes and upstreams behind on the shared repos,
+      // so "some other repo has no upstream" is not a fact this can rely on.
+      git('branch', '--unset-upstream');
+      await repo.refresher.refreshNow();
+      await waitFor(() => repo.model.snapshot.upstream === undefined, 15_000);
+      try {
+        const outcome = await reg.applyUpdateResult(repo, {
+          action: 'update',
+          strategy: 'merge',
+          dontShowAgain: false,
+        });
+        assert.strictEqual(outcome.ok, false);
+        assert.match(outcome.message, /no upstream/);
+        assert.strictEqual(outcome.commitsPulled, 0);
+      } finally {
+        git('branch', `--set-upstream-to=${REMOTE}/${branch}`);
+        await repo.refresher.refreshNow();
+      }
+    });
+  });
 });
+
+/** Open editor tabs, by label — used to assert a dialog panel did NOT appear. */
+function tabTitles(): string[] {
+  return vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
+}

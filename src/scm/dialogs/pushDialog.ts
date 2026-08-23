@@ -29,7 +29,8 @@ import {
 import { confirmModal } from '../../ui/confirm';
 import { openDialog } from '../../ui/dialogHost';
 import { statusColorOverrides } from '../../ui/statusColors';
-import { buildPushArgs, formatGitCommand, shouldSetUpstream, splitUpstream } from './pushArgs';
+import { formatGitCommand } from './commandLine';
+import { buildPushArgs, shouldSetUpstream, splitUpstream } from './pushArgs';
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const COMMIT_CAP = 100;

@@ -9,6 +9,7 @@ import './dialogs.css';
 import { getInitialState } from '../lib/vscodeApi';
 import { Push } from './Push';
 import { ShelveChanges } from './ShelveChanges';
+import { UpdateProject } from './UpdateProject';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('missing #root');
@@ -22,6 +23,8 @@ function pick(): JSX.Element {
       return <ShelveChanges />;
     case 'push':
       return <Push />;
+    case 'update':
+      return <UpdateProject />;
     default:
       return <div className="gt-dialog-unknown">Unknown dialog: {dialog}</div>;
   }

@@ -394,6 +394,16 @@ Record a labeled snapshot when a build/test task finishes, so states like "after
 
 ## GitTree: Dialogs
 
+### `gittree.update.strategy`
+
+What Ctrl+T (Update Project) does. "Ask every time" shows the Update Project dialog; picking a strategy there with "Do not show again" writes it here.
+
+- Type: `string` · Default: `"ask"`
+- Values:
+  - `ask` — Show the Update Project dialog.
+  - `merge` — Merge incoming changes into the current branch.
+  - `rebase` — Rebase the current branch on top of incoming changes.
+
 ### `gittree.dialogs.showCommandLine`
 
 Show the dim "will run: git …" line in GitTree's dialogs, so the flags behind each option stay legible.

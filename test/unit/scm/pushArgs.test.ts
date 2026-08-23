@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { formatGitCommand } from '../../../src/scm/dialogs/commandLine';
 import {
   buildPushArgs,
-  formatGitCommand,
   shouldSetUpstream,
   splitUpstream,
   type PushArgsOptions,

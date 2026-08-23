@@ -62,6 +62,23 @@ export async function useCommitWindow(mode: 'webview' | 'native'): Promise<void>
   );
 }
 
+/**
+ * Runs `fn` with GITTREE_TEST_AUTOCONFIRM pinned, then restores whatever the
+ * harness had. `delete`-ing it instead — as several suites used to — silently
+ * disarms auto-confirm for every suite that runs afterwards, because the runner
+ * sets it once for the whole process (runTests.ts `extensionTestsEnv`).
+ */
+export async function withAutoConfirm<T>(value: '0' | '1', fn: () => Promise<T>): Promise<T> {
+  const saved = process.env['GITTREE_TEST_AUTOCONFIRM'];
+  process.env['GITTREE_TEST_AUTOCONFIRM'] = value;
+  try {
+    return await fn();
+  } finally {
+    if (saved === undefined) delete process.env['GITTREE_TEST_AUTOCONFIRM'];
+    else process.env['GITTREE_TEST_AUTOCONFIRM'] = saved;
+  }
+}
+
 export async function waitFor(cond: () => boolean, timeoutMs = 5000, stepMs = 25): Promise<void> {
   const start = Date.now();
   while (!cond()) {

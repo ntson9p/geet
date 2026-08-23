@@ -451,6 +451,21 @@
       {
         "title": "%gittree.config.dialogs.title%",
         "properties": {
+          "gittree.update.strategy": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "merge",
+              "rebase"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.update.strategy.ask%",
+              "%gittree.config.update.strategy.merge%",
+              "%gittree.config.update.strategy.rebase%"
+            ],
+            "default": "ask",
+            "description": "%gittree.config.update.strategy.description%"
+          },
           "gittree.dialogs.showCommandLine": {
             "type": "boolean",
             "default": true,
@@ -1246,6 +1261,18 @@
         "title": "%gittree.command.push.dialog.title%",
         "category": "GitTree",
         "icon": "$(repo-push)"
+      },
+      {
+        "command": "gittree.update.dialog",
+        "title": "%gittree.command.update.dialog.title%",
+        "category": "GitTree",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "gittree.update.configure",
+        "title": "%gittree.command.update.configure.title%",
+        "category": "GitTree",
+        "icon": "$(gear)"
       }
     ],
     "submenus": [
@@ -2426,13 +2453,13 @@
         "when": "config.gittree.keymap.intellij && !terminalFocus"
       },
       {
-        "command": "gittree.push",
+        "command": "gittree.push.dialog",
         "key": "ctrl+shift+k",
         "mac": "cmd+shift+k",
         "when": "config.gittree.keymap.intellij && !terminalFocus"
       },
       {
-        "command": "gittree.pull",
+        "command": "gittree.update.dialog",
         "key": "ctrl+t",
         "mac": "cmd+t",
         "when": "config.gittree.keymap.intellij && !terminalFocus"

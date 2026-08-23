@@ -12,7 +12,7 @@ import type { ShelfNode, ShelfViewProvider } from '../../../src/shelf/shelfView'
 import type { UnshelveEngine } from '../../../src/shelf/unshelve';
 import type { StashService } from '../../../src/stash/stashService';
 import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
+import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
 
 interface Phase07RegistryShape {
   getStashService(repoRoot: string): StashService | undefined;
@@ -275,12 +275,9 @@ suite('P7 stash & shelve — StashService', () => {
     }
 
     // Drop via the command path (auto-confirmed modal), node-targeted.
-    process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
-    try {
+    await withAutoConfirm('1', async () => {
       await vscode.commands.executeCommand('gittree.stash.drop', row);
-    } finally {
-      delete process.env['GITTREE_TEST_AUTOCONFIRM'];
-    }
+    });
     await waitFor(() => stash.list().length === 0, 10_000);
   });
 });

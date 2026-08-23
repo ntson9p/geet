@@ -44,8 +44,8 @@ binding set (all gated on the setting — off by default):
 | Key | IntelliJ action | GitTree command |
 | --- | --- | --- |
 | `Ctrl+K` (`Cmd+K`) | Commit… | `gittree.commit` |
-| `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `gittree.push` |
-| `Ctrl+T` (`Cmd+T`) | Update Project | `gittree.pull` |
+| `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `gittree.push.dialog` |
+| `Ctrl+T` (`Cmd+T`) | Update Project | `gittree.update.dialog` |
 | `Alt+9` (`Cmd+9`) | Git tool window | `gittree.log.focus` |
 | `Ctrl+Alt+Z` (`Cmd+Alt+Z`) | Rollback | `gittree.rollbackFile` (active file) |
 
@@ -57,6 +57,11 @@ flavor" means; disable the setting to restore the defaults):
 - `Ctrl+Shift+K` shadows *Delete Line*; `Ctrl+T` shadows *Go to Symbol in
   Workspace* (IntelliJ users expect these keys for VCS, and both remain
   reachable via the palette).
+
+Both open the P13 dialogs rather than acting silently, matching IntelliJ. The
+no-questions commands are still there — `gittree.push` and `gittree.pull` — and
+`Ctrl+T` becomes a direct action once you tick *Do not show again* in the Update
+Project dialog (restore it with **GitTree: Update Project Strategy…**).
 
 ## Webview-internal keys
 

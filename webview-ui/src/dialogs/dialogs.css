@@ -254,13 +254,56 @@
 }
 
 /* The dim "will run" line — the same argv the host executes. */
-.gt-push-cmd {
+.gt-push-cmd,
+.gt-update-cmd {
   padding: 6px 2px 0;
   font-size: 0.9em;
   overflow-x: auto;
 }
 
-.gt-push-cmd code {
+.gt-push-cmd code,
+.gt-update-cmd code {
   font-family: var(--vscode-editor-font-family, monospace);
   white-space: pre;
+}
+
+/* ---- Update Project dialog (P13-T2) -------------------------------------- */
+
+.gt-update-summary {
+  padding: 2px 0 10px;
+}
+
+.gt-update-branch,
+.gt-update-upstream {
+  font-weight: 600;
+}
+
+.gt-update-strategies {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.gt-radio {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.gt-radio-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.gt-update-remember {
+  margin-top: 14px;
+}
+
+.gt-update-remember-note {
+  padding: 2px 0 0 20px;
+  font-size: 0.9em;
 }

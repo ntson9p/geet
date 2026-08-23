@@ -20,9 +20,9 @@ import {
   type PushFileDto,
   type PushRepoSectionDto,
 } from '../../../src/shared/protocol';
+import { formatGitCommand } from '../../../src/scm/dialogs/commandLine';
 import {
   buildPushArgs,
-  formatGitCommand,
   shouldSetUpstream,
   type PushTagsMode,
 } from '../../../src/scm/dialogs/pushArgs';
