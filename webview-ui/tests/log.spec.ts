@@ -268,12 +268,91 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(panel.locator('.gt-filter-star')).toHaveCount(1);
 
     await panel.getByLabel('Search refs').fill('f1');
-    await panel.getByRole('checkbox').nth(1).click(); // first match under All-branches
+    await panel.getByRole('checkbox').nth(2).click(); // first match under the two presets
     await expect
       .poll(async () =>
         (await posted(page)).some((m) => {
           const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
           return m.method === 'log/setFilter' && JSON.stringify(f?.refs) === '["feature/f1"]';
+        }),
+      )
+      .toBe(true);
+  });
+
+  test('Branch ▾ names HEAD as a preset, checked by default', async ({ page }) => {
+    await openLog(page);
+    await page.getByTestId('filter-branch').click();
+    const panel = page.getByTestId('filter-branch-panel');
+    const head = panel.getByRole('checkbox').nth(0);
+    const all = panel.getByRole('checkbox').nth(1);
+
+    // The default filter is HEAD (`DEFAULT_FILTER`), and the dropdown says so
+    // instead of leaving it as the unnamed absence of a branch filter.
+    await expect(panel.locator('.gt-filter-checkrow-label').first()).toHaveText('HEAD (Current)');
+    await expect(head).toBeChecked();
+    await expect(all).not.toBeChecked();
+
+    await all.click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.refs === 'ALL';
+        }),
+      )
+      .toBe(true);
+    await expect(head).not.toBeChecked();
+
+    // The presets are mutually exclusive both ways round.
+    await head.click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.refs === 'HEAD';
+        }),
+      )
+      .toBe(true);
+    await expect(head).toBeChecked();
+    await expect(all).not.toBeChecked();
+  });
+
+  test('Branch ▾ presets clear a range, and neither reads as active under one', async ({ page }) => {
+    await openLog(page);
+    // What `Compare with current` / `Show in log` after an update produce: a
+    // range and no refs. The range outranks refs in the argv build, so a preset
+    // must not claim to be on — and picking one must drop the range.
+    await page.evaluate(() => {
+      window.postMessage(
+        {
+          v: 1,
+          id: 'evtreset-range',
+          kind: 'evt',
+          method: 'log/reset',
+          params: {
+            repoRoot: '/repo',
+            repoLabel: 'repo',
+            filter: { sort: 'topo', refs: 'ALL', range: { a: 'feature/f1', b: 'main' } },
+            laneWidth: 12,
+          },
+        },
+        '*',
+      );
+    });
+    await expect(page.getByTestId('filter-branch')).toContainText('feature/f1...main');
+
+    await page.getByTestId('filter-branch').click();
+    const panel = page.getByTestId('filter-branch-panel');
+    await expect(panel.getByRole('checkbox').nth(0)).not.toBeChecked(); // HEAD
+    await expect(panel.getByRole('checkbox').nth(1)).not.toBeChecked(); // All branches
+
+    await panel.getByRole('checkbox').nth(1).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown; range?: unknown } } | undefined)
+            ?.filter;
+          return m.method === 'log/setFilter' && f?.refs === 'ALL' && f?.range === undefined;
         }),
       )
       .toBe(true);

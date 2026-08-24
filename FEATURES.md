@@ -260,7 +260,8 @@ docked bottom, tabs `Log | Console`").
   as typed chips; `Date`/`Topo` sort (IntelliSort is a recorded deviation).
 * **Filter row, §2A order:** `Branch or tag` combo (datalist over every ref) · `Text or hash`
   with `.*` regex and `Cc` match-case toggles (a hash navigates instead of grepping) · four
-  **multi-select dropdowns with search**: `Branch ▾` (favorites-first), `User ▾`
+  **multi-select dropdowns with search**: `Branch ▾` (both presets named —
+  `HEAD (Current)` and `All branches` — then refs, favorites-first), `User ▾`
   (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (chips +
   `Browse…`). Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
   (`gittree.log.filterPresets`).

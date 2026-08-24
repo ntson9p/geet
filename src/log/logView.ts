@@ -139,7 +139,6 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.applyFilter(filter);
       return { ok: true };
     });
-    rpc.on(LOG_METHODS.pickBranches, () => this.pickBranches());
     rpc.on(LOG_METHODS.pickAuthors, () => this.pickAuthors());
     rpc.on(LOG_METHODS.pickDates, () => this.pickDates());
     rpc.on(LOG_METHODS.pickPaths, () => this.pickPaths());
@@ -569,38 +568,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   }
 
   // ---- pickers (host-side QuickPicks/InputBoxes) ----------------------------
-
-  private async pickBranches(): Promise<{ ok: boolean }> {
-    const session = this.session;
-    if (!session) return { ok: false };
-    const refs = session.repo.model.snapshot.refs.filter((r) => r.type !== 'tag');
-    interface Item extends vscode.QuickPickItem {
-      value?: string;
-      preset?: 'ALL' | 'HEAD';
-    }
-    const items: Item[] = [
-      { label: vscode.l10n.t('$(list-flat) All branches'), preset: 'ALL' },
-      { label: vscode.l10n.t('$(target) HEAD only'), preset: 'HEAD' },
-      { label: '', kind: vscode.QuickPickItemKind.Separator },
-      ...refs.map((r) => ({
-        label: `$(git-branch) ${r.name}`,
-        value: r.name,
-        picked: Array.isArray(session.filter.refs) && session.filter.refs.includes(r.name),
-      })),
-    ];
-    const picked = await vscode.window.showQuickPick(items, {
-      canPickMany: true,
-      placeHolder: vscode.l10n.t('Filter by branches (presets override selections)'),
-    });
-    if (!picked) return { ok: false };
-    const preset = picked.find((p) => p.preset !== undefined)?.preset;
-    const values = picked.map((p) => p.value).filter((v): v is string => v !== undefined);
-    const next: LogFilter = { ...session.filter };
-    delete next.range;
-    next.refs = preset ?? (values.length > 0 ? values : 'HEAD');
-    this.applyFilter(next);
-    return { ok: true };
-  }
+  // P12-T5 replaced the branch chip with the in-webview `Branch ▾` dropdown,
+  // which owns both presets (`HEAD (Current)`, `All branches`); the QuickPick
+  // that used to back it had no callers left and is gone.
 
   private async pickAuthors(): Promise<{ ok: boolean }> {
     const session = this.session;

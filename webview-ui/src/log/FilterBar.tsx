@@ -171,6 +171,14 @@ export function FilterBar({
 
   const selectedRefs = Array.isArray(filter.refs) ? filter.refs : [];
 
+  // The two presets, derived exactly as `buildLogArgs` reads them: a `range`
+  // outranks `refs` entirely, so neither preset is active while one is set —
+  // the same precedence `refsLabel` uses to show the range in the chip. HEAD is
+  // also the `refs === undefined` case, since both mean "no ref argv".
+  const headOnly =
+    filter.range === undefined && (filter.refs === undefined || filter.refs === 'HEAD');
+  const allBranches = filter.range === undefined && filter.refs === 'ALL';
+
   const toggleRef = useCallback(
     (name: string) => {
       const next = { ...filter };
@@ -309,9 +317,26 @@ export function FilterBar({
             />
             <div className="gt-filter-list">
               <CheckRow
+                label="HEAD (Current)"
+                checked={headOnly}
+                onToggle={() => {
+                  // Nothing to un-check into: HEAD *is* the empty filter, so an
+                  // already-checked click is a no-op rather than a log re-run
+                  // (`applyFilter` restarts the session on every change).
+                  if (headOnly) return;
+                  const next = { ...filter, refs: 'HEAD' as const };
+                  delete next.range;
+                  onChange(next);
+                }}
+              />
+              <CheckRow
                 label="All branches"
-                checked={filter.refs === 'ALL'}
-                onToggle={() => onChange({ ...filter, refs: filter.refs === 'ALL' ? 'HEAD' : 'ALL' })}
+                checked={allBranches}
+                onToggle={() => {
+                  const next = { ...filter, refs: allBranches ? ('HEAD' as const) : ('ALL' as const) };
+                  delete next.range;
+                  onChange(next);
+                }}
               />
               {sortedLocals
                 .filter((b) => b.name.toLowerCase().includes(refSearch.toLowerCase()))

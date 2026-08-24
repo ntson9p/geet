@@ -174,6 +174,14 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
   Shelve toolbar button executed a command id that never existed; and a
   layout race could render the change tree zero-height with unclickable
   rows. All three shipped with the first commit-window build and are fixed.
+- **The log's `Branch ▾` filter now names HEAD.** Filtering to the current
+  branch was always reachable — the Branches pane's `HEAD (Current)` row, the
+  chip's `×`, or typing `HEAD` into the ref combo — but the dropdown listed only
+  `All branches`, leaving its opposite unnamed and looking unsupported.
+  `HEAD (Current)` is now the first row, ticked whenever no branch filter is
+  set. Neither preset reads as active while a two-branch range is showing (a
+  range outranks refs in the command GitTree runs), and picking one now clears
+  the range instead of leaving a ticked box the log ignores.
 
 ## [0.0.1] — 2026-07-16
 

@@ -979,7 +979,6 @@ export const LOG_METHODS = {
   page: 'log/page',
   details: 'log/details',
   setFilter: 'log/setFilter',
-  pickBranches: 'log/pickBranches',
   pickAuthors: 'log/pickAuthors',
   pickDates: 'log/pickDates',
   pickPaths: 'log/pickPaths',
