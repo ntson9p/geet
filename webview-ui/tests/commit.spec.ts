@@ -56,6 +56,10 @@ test.describe('P11-T2 commit window layout', () => {
     expect(group['repoRoot']).toBe('D:/repos/demo-git');
     expect(group['listId']).toBe('default');
     expect(group['listIsDefault']).toBe(true);
+    // A single-root workspace has no repository rows, so this row still stands
+    // for exactly one repository and every scoped action applies to it as-is.
+    expect(group['listSpansRepos']).toBe(false);
+    expect(group['targets']).toEqual([{ repoRoot: 'D:/repos/demo-git', listId: 'default' }]);
 
     const unversioned = await ctxOf('Unversioned Files, 1 file');
     expect(unversioned['listId']).toBe('__unversioned__');

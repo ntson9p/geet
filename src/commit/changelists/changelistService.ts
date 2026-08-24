@@ -12,6 +12,7 @@
 import type { RepositoryModel } from '../../core/model/repositoryModel';
 import { isConflicted, isUntracked, type StatusEntry } from '../../core/model/statusEntry';
 import { Emitter, type Disposable, type Event } from '../../core/util/events';
+import { UNVERSIONED_GROUP_ID } from '../../shared/protocol';
 
 export interface ChangelistStorage {
   get<T>(key: string): T | undefined;
@@ -41,7 +42,8 @@ export interface Changelist {
 }
 
 export const DEFAULT_LIST_ID = 'default';
-export const UNVERSIONED_ID = '__unversioned__';
+/** One literal, shared with the webview — see protocol.UNVERSIONED_GROUP_ID. */
+export const UNVERSIONED_ID: string = UNVERSIONED_GROUP_ID;
 
 export class ChangelistService implements Disposable {
   private lists: PersistedList[] = [];

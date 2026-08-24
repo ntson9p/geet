@@ -144,11 +144,14 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 * **Density:** `N files` badge on every group and folder node; status-colored file **names**
   and icons (GitTree's own `gittree.color.*` theme colours, `gittree.colors.<status>`  overrides); a folder
   whose descendants share one status wears it, mixed folders read as modified.
-* **Multi-root:** group rows carry the repository (`repoA: Changes`) so a collapsed group and
-  its context menu — changelist actions act on one repository — are attributable. Repositories
-  with nothing to commit contribute no row; an entirely clean workspace reads `No changes.`
-  rather than one empty `Changes  0 files` per repository. Changelists themselves stay
-  per-repository ([D23](docs/deviations.md#d23--changelists-are-per-repository-not-per-project)).
+* **Multi-root: one `Changes`, one `Unversioned Files`, repository rows beneath** — IntelliJ's
+  shape. The same changelist in several repositories is a single row; repositories with nothing
+  in it contribute no row, and the empty default list stays as one anchor however many roots are
+  open. Changelist actions on a merged row fan out to every repository behind it, and a new
+  changelist is created in all of them so `Move to…` offers the same names everywhere; the
+  repository row carries the scoped versions, including shelve (a shelf belongs to one
+  repository). Storage stays per repository
+  ([D23](docs/deviations.md#d23--changelists-are-stored-per-repository-presented-per-project)).
 
 ### Paradigm A: Changelists (the default)
 

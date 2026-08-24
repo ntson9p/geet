@@ -37,7 +37,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D20](#d20--vs-codes-own-diff-arrows-remain-beside-gittrees) | VS Code's next/prev-change arrows remain beside GitTree's | Only via Route B |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
 | [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
-| [D23](#d23--changelists-are-per-repository-not-per-project) | A changelist belongs to one repository; IntelliJ's spans every VCS root | Yes (costly) |
+| [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 
 ---
 
@@ -369,28 +369,41 @@ built-in Git extension changes nothing about how GitTree behaves. Someone runnin
 dislikes the overlap turns one of them off.
 **Revisitable:** deliberate.
 
-## D23 · Changelists are per-repository, not per-project
+## D23 · Changelists are stored per repository, presented per project
 
 In IntelliJ a changelist is a *project*-level object: one `Changes` node holds files from every
-VCS root, and a list named `Feature X` can span three repositories at once. GitTree builds one
-`ChangelistService` per repository (`gittree.changelists.<root>`), so each repository has its own
-independent `Changes` list.
+VCS root, and a list named `Feature X` spans three repositories at once. GitTree builds one
+`ChangelistService` per repository (`gittree.changelists.<root>`).
 
-**What this looks like.** In a multi-root workspace the commit tree shows one group row per
-repository — `repoA: Changes`, `repoB: Changes` — instead of a single `Changes` with repository
-folder rows beneath it. Files cannot be moved into a changelist belonging to another repository.
+**The tree reads as IntelliJ's.** `assembleCommitTree` merges the same changelist across
+repositories into one row, with a repository row per contributor beneath it — a single `Changes`
+and a single `Unversioned Files`, not one of each per repository. Actions on a merged row fan out
+to every repository behind it; the repository row keeps the scoped versions. A new changelist is
+created in *every* repository, so the merged row is not a facade over lists that exist in only
+some of them, and `Move to…` offers the same names everywhere.
 
-**What it does *not* affect.** Committing. `Commit` spans every repository that has something
-ticked, with one message and one commit per repository, which is what IntelliJ does. The
-per-repository model is a difference in how the changes are *grouped*, not in what a commit does.
+**Where the merge is exact, and where it is an approximation.** The default list and Unversioned
+Files carry the same id in every repository (module constants), so they merge by **id** — a
+repository always has exactly those two, and nothing is being guessed. A user-created list gets a
+random per-repo id, so it can only merge by **name**. Two lists that happen to share a name are
+therefore treated as one list. That is the deviation.
 
-**Why it stands.** The `changelistsFor(repo)` seam is consumed by the shelf, stash, undo-drop, log
-commit actions and the SCM dialogs — 38 call sites across 9 modules. Going project-global changes
-list membership from a repo-relative path to a `(repoRoot, path)` pair, makes `reconcile()` watch
-N repository models instead of one, and needs a migration for the per-repository persisted state.
-That is a phase of work whose entire payoff is a nicer tree shape.
+**What is still per repository.** Storage and the active-list flag — each repository has its own
+active changelist, where IntelliJ has one per project. Nothing renders activeness in the tree, so
+this is invisible today, but `Set Active` on a merged row sets it in every repository rather than
+expressing a single project-level fact. Shelving also stays scoped: a shelf belongs to a
+repository, so the action is offered on repository rows and on single-root group rows, never on a
+row spanning several.
 
-**Revisitable:** yes, and worth it for anyone whose repositories are *related* — where one ticket
-routinely touches three of them and a shared `Feature X` list would earn its keep. For a workspace
-of independent projects that merely share a window, it buys nothing the grouping does not already
-give.
+**What it does *not* affect.** Committing. `Commit` spans every repository with something ticked —
+one message, one commit each — and `Commit this changelist` on a merged row does the same,
+narrowed to that list.
+
+**Why the storage stays per repository.** `changelistsFor(repo)` is consumed by the shelf, stash,
+undo-drop, log commit actions and the SCM dialogs — 38 call sites across 9 modules. Going
+project-global changes list membership from a repo-relative path to a `(repoRoot, path)` pair,
+makes `reconcile()` watch N repository models instead of one, and needs a migration for the
+per-repository persisted state. The presentation merge buys the fidelity without any of that.
+
+**Revisitable:** yes. The remaining reasons to go truly global are the name-collision case above
+and a single project-level active list. Neither is visible in ordinary use.

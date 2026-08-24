@@ -99,6 +99,14 @@ suite('Multi-root commit', () => {
     );
   });
 
+  suiteTeardown(async () => {
+    // `focus()` leaves a real editor open in one of this suite's repositories,
+    // and several later suites resolve "the repository to act on" from the
+    // active editor (logView.activeRepo, pickRepo). Leaving one open points
+    // them at repoD/repoE, where the shas they were given do not exist.
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  });
+
   test('the button names only the repositories a commit would touch', async function () {
     this.timeout(60_000);
     assert.deepStrictEqual(
@@ -267,5 +275,117 @@ suite('Multi-root commit', () => {
     await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoE.root));
     await waitFor(() => headOf(repoE) !== beforeE, 60_000);
     assert.deepStrictEqual(ourTargets(), [], 'suite leaves nothing ticked');
+  });
+
+  /**
+   * The tree merges one changelist across repositories into a single row, so a
+   * changelist action on that row has to reach every repository behind it —
+   * otherwise the row would show one list and act on part of it.
+   */
+  suite('merged changelist rows fan out', () => {
+    const listsOf = (r: RepoHandle) => reg.changelistsFor(r).getLists();
+    const namedIn = (r: RepoHandle, name: string) => listsOf(r).find((l) => l.name === name);
+
+    teardown(() => {
+      // Every repository, not just this suite's two: `changelist.new` creates
+      // the list project-wide, so cleaning only D and E would leave an extra
+      // changelist in the repos three other suites assert against — and an
+      // extra list changes quick-pick option counts, which is enough to hang a
+      // prompt that only appears when there is more than one choice.
+      for (const r of core.repos) {
+        for (const l of listsOf(r)) {
+          if (!l.isDefault) reg.changelistsFor(r).remove(l.id);
+        }
+      }
+    });
+
+    test('a new changelist is created in every repository, not just the active one', async function () {
+      this.timeout(60_000);
+      const saved = process.env['GITTREE_TEST_BRANCH_NAME'];
+      process.env['GITTREE_TEST_BRANCH_NAME'] = 'Feature Fanout';
+      try {
+        await vscode.commands.executeCommand('gittree.changelist.new');
+      } finally {
+        if (saved === undefined) delete process.env['GITTREE_TEST_BRANCH_NAME'];
+        else process.env['GITTREE_TEST_BRANCH_NAME'] = saved;
+      }
+      // Present everywhere, so the merged row is real and `Move to…` offers it
+      // in whichever repository the file happens to live.
+      for (const r of core.repos) {
+        assert.ok(namedIn(r, 'Feature Fanout'), `missing in ${labelOf(r)}`);
+      }
+    });
+
+    test('an action on a merged row reaches every repository behind it', async function () {
+      this.timeout(60_000);
+      for (const r of [repoD, repoE]) reg.changelistsFor(r).create('Shared', undefined, false);
+      const targets = [repoD, repoE].map((r) => ({
+        repoRoot: r.root,
+        listId: namedIn(r, 'Shared')!.id,
+      }));
+      // The ids differ per repository — which is exactly why a merged row has to
+      // carry `targets` rather than one {repoRoot, listId} it could guess from.
+      assert.notStrictEqual(targets[0]!.listId, targets[1]!.listId);
+      for (const r of [repoD, repoE]) {
+        assert.ok(listsOf(r).find((l) => l.isDefault)?.isActive, 'default starts active');
+      }
+
+      // setActive is the fan-out under test: no prompts, so the plumbing is
+      // what is being measured rather than a dialog seam.
+      await vscode.commands.executeCommand('gittree.changelist.setActive', { targets });
+
+      for (const r of [repoD, repoE]) {
+        assert.strictEqual(
+          listsOf(r).find((l) => l.isActive)?.name,
+          'Shared',
+          `${labelOf(r)} kept its own active list; the fan-out missed it`,
+        );
+      }
+      // A scoped row still means one repository, and must not touch the other.
+      await vscode.commands.executeCommand('gittree.changelist.setActive', {
+        repoRoot: repoD.root,
+        listId: listsOf(repoD).find((l) => l.isDefault)!.id,
+      });
+      assert.ok(listsOf(repoD).find((l) => l.isDefault)?.isActive, 'repoD scoped back to default');
+      assert.strictEqual(
+        listsOf(repoE).find((l) => l.isActive)?.name,
+        'Shared',
+        'a scoped action must not reach a second repository',
+      );
+    });
+
+    test('committing a merged row commits that list in each repository', async function () {
+      this.timeout(90_000);
+      for (const r of [repoD, repoE]) reg.changelistsFor(r).create('Batch', undefined, false);
+      await tick(repoD, '# repoD merged list\n');
+      await tick(repoE, '# repoE merged list\n');
+      // Move each repo's README into its own copy of the shared list.
+      for (const r of [repoD, repoE]) {
+        reg.changelistsFor(r).moveFiles(['README.md'], namedIn(r, 'Batch')!.id);
+        reg.changelistsFor(r).setListChecked(namedIn(r, 'Batch')!.id, true);
+      }
+      const targets = [repoD, repoE].map((r) => ({
+        repoRoot: r.root,
+        listId: namedIn(r, 'Batch')!.id,
+      }));
+
+      const beforeD = headOf(repoD);
+      const beforeE = headOf(repoE);
+      await focus(repoD);
+      reg.commitWindow.messageBoxFor(repoD).value = 'merged changelist across both repos';
+
+      await commitWith(() =>
+        vscode.commands.executeCommand('gittree.changelist.commitList', { targets }),
+      );
+
+      await waitFor(() => headOf(repoD) !== beforeD && headOf(repoE) !== beforeE, 60_000);
+      for (const r of [repoD, repoE]) {
+        assert.strictEqual(
+          subjectOf(r),
+          'merged changelist across both repos',
+          `${labelOf(r)} did not commit the merged changelist`,
+        );
+      }
+    });
   });
 });

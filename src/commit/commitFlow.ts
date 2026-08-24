@@ -91,8 +91,12 @@ function resolveTarget(deps: CommitScopeDeps, repo: RepoHandle, listId?: string)
  * Cheap by construction — changelist state and the status snapshot are both in
  * memory — so `buildState()` may call it per repo on every push.
  */
-export function hasCommittableChanges(deps: CommitScopeDeps, repo: RepoHandle): boolean {
-  return resolveTarget(deps, repo) !== undefined;
+export function hasCommittableChanges(
+  deps: CommitScopeDeps,
+  repo: RepoHandle,
+  listId?: string,
+): boolean {
+  return resolveTarget(deps, repo, listId) !== undefined;
 }
 
 /**
@@ -280,14 +284,29 @@ export async function runCommitFlow(
  *
  * `messageRepo` owns the message box and the amend flag — the repo the commit
  * window's editor is currently bound to.
+ *
+ * `options.lists` narrows the run to one changelist per repository, keyed by
+ * canonical root — what "Commit this changelist" means on a group row that
+ * stands for the same list in several repositories. Without it every repo with
+ * anything ticked takes part.
  */
 export async function runCommitAcross(
   deps: CommitFlowDeps,
   messageRepo: RepoHandle,
-  options: { andPush?: boolean } = {},
+  options: { andPush?: boolean; lists?: ReadonlyMap<string, string> } = {},
 ): Promise<boolean> {
   const nameOf = (r: RepoHandle): string => path.basename(r.root);
   const typedMessage = (): string => deps.inputBoxFor(messageRepo)?.value.trim() ?? '';
+  const { lists } = options;
+  const listOf = (r: RepoHandle): string | undefined => lists?.get(canonicalKey(r.root));
+  /** Per-repo flow options. Built explicitly so `lists` never leaks through. */
+  const optionsFor = (r: RepoHandle): { andPush?: boolean; listId?: string } => {
+    const listId = listOf(r);
+    return {
+      ...(options.andPush !== undefined ? { andPush: options.andPush } : {}),
+      ...(listId !== undefined ? { listId } : {}),
+    };
+  };
 
   /**
    * Commits exactly one repository. When it is not the one the editor is bound
@@ -297,18 +316,20 @@ export async function runCommitAcross(
    * `runCommitFlow`'s own diagnostics rather than being second-guessed here.
    */
   const commitOne = async (repo: RepoHandle): Promise<boolean> => {
-    if (repo === messageRepo) return runCommitFlow(deps, repo, options);
+    const per = optionsFor(repo);
+    if (repo === messageRepo) return runCommitFlow(deps, repo, per);
     const typed = typedMessage();
-    const ok = await runCommitFlow(
-      deps,
-      repo,
-      typed.length > 0 ? { ...options, message: typed } : options,
-    );
+    const ok = await runCommitFlow(deps, repo, typed.length > 0 ? { ...per, message: typed } : per);
     if (ok) clearTypedMessage(deps, messageRepo);
     return ok;
   };
 
-  const participants = deps.core.repos.filter((r) => hasCommittableChanges(deps, r));
+  // Scoped to one changelist per repo, or every repo with anything ticked.
+  const candidates =
+    lists === undefined
+      ? deps.core.repos
+      : deps.core.repos.filter((r) => lists.has(canonicalKey(r.root)));
+  const participants = candidates.filter((r) => hasCommittableChanges(deps, r, listOf(r)));
   // With none, `messageRepo` reproduces today's diagnostics ("No checked files
   // to commit", the staging commit-all offer, …).
   if (participants.length <= 1) return commitOne(participants[0] ?? messageRepo);
@@ -352,7 +373,7 @@ export async function runCommitAcross(
 
   const committed: string[] = [];
   for (const repo of ordered) {
-    const ok = await runCommitFlow(deps, repo, { ...options, message });
+    const ok = await runCommitFlow(deps, repo, { ...optionsFor(repo), message });
     if (!ok) {
       // Stop rather than carry on: a refused check or a cancelled dialog is a
       // decision about this commit, and committing the rest anyway would be

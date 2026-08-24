@@ -3,17 +3,35 @@
  * window renders — one group row per changelist (plus Unversioned Files),
  * IntelliJ folder rows beneath, files at the leaves.
  *
+ * **The same changelist across repositories is ONE row.** IntelliJ's changelist
+ * is a project-level object: one `Changes` node holding every VCS root, with
+ * repository rows beneath it. GitTree stores a changelist per repository, so
+ * this is where the two are reconciled — the storage stays per repo, the tree
+ * reads as IntelliJ's.
+ *
  * Pure so the identity rules are unit-tested rather than discovered in the UI:
- *   - node paths are namespaced per repo and per group, because two
- *     changelists in one repo may both contain `api/` and must not share an
- *     expansion key or a checkbox rollup;
+ *   - node paths are namespaced per group and per repo, because two changelists
+ *     may both contain `api/` and must not share an expansion key or a checkbox
+ *     rollup, and neither may two repositories inside one group;
  *   - the returned `files` map is the only way back from a tree path to
  *     `(repoRoot, relPath)`, so a folder toggle can be split into one host call
  *     per repository.
  */
-import type { CommitChangeDto, CommitStateDto } from '../../../src/shared/protocol';
+import {
+  UNVERSIONED_GROUP_ID,
+  type CommitChangeDto,
+  type CommitGroupDto,
+  type CommitRepoDto,
+  type CommitStateDto,
+} from '../../../src/shared/protocol';
 import { statusColor, statusIcon, type StatusColorOverrides, type StatusKind } from '../lib/status';
-import { buildTree, collectFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
+import {
+  buildTree,
+  collectFiles,
+  countFiles,
+  type ToggleDelta,
+  type TreeNode,
+} from '../lib/treeModel';
 
 export interface CommitFileRef {
   readonly repoRoot: string;
@@ -21,17 +39,30 @@ export interface CommitFileRef {
   readonly change: CommitChangeDto;
 }
 
+/** One repository's copy of a changelist — what a scoped action acts on. */
+export interface CommitListTarget {
+  readonly repoRoot: string;
+  readonly listId: string;
+}
+
 /**
  * P14-T2: a group row's identity, so the native context menu can name the
  * changelist it was opened on. Derivable from the node path in principle, but
- * `groupKey` joins with `:` and a Windows repo root contains one — parsing it
- * back would be guesswork.
+ * the key joins with `:` and a Windows repo root contains one — parsing it back
+ * would be guesswork.
+ *
+ * A `group` row may stand for the same changelist in several repositories, so
+ * `targets` is the general shape; `repoRoot`/`listId` are set only when the row
+ * means exactly one of them, which is every row in a single-root workspace and
+ * every `repo` row in a multi-root one.
  */
 export interface CommitGroupRef {
-  readonly repoRoot: string;
-  readonly groupId: string;
+  readonly kind: 'group' | 'repo';
+  readonly targets: readonly CommitListTarget[];
   readonly isDefault: boolean;
   readonly checkable: boolean;
+  readonly repoRoot?: string;
+  readonly listId?: string;
 }
 
 export interface CommitTreeModel {
@@ -44,7 +75,7 @@ export interface CommitTreeModel {
   readonly files: Map<string, CommitFileRef>;
   /** Group node paths, so callers can default them to expanded. */
   readonly groupPaths: string[];
-  /** Group node path → the changelist it stands for. Files are absent. */
+  /** Group and repository row paths → the changelist they stand for. */
   readonly groups: Map<string, CommitGroupRef>;
   /**
    * P11-T8: dir/group node path → the statuses of its descendants. One status
@@ -53,9 +84,35 @@ export interface CommitTreeModel {
   readonly dirKinds: Map<string, ReadonlySet<StatusKind>>;
 }
 
-/** Stable, collision-free identity for a group row. */
-function groupKey(repoRoot: string, groupId: string): string {
-  return `@g:${repoRoot}:${groupId}`;
+/**
+ * Which rows are the same changelist.
+ *
+ * The default list and Unversioned Files carry the same id in every repository
+ * (they are module constants), so they merge by id and the merge is exact — a
+ * repository always has exactly those two. A user-created list gets a random
+ * per-repo id, so the only thing two repositories can agree on is its name.
+ * Keying the default by `isDefault` rather than by name keeps it merged even if
+ * it has been renamed in one repository but not another.
+ */
+function mergeKeyOf(group: CommitGroupDto): string {
+  if (group.isDefault) return '@default';
+  if (group.id === UNVERSIONED_GROUP_ID) return '@unversioned';
+  return `name:${group.name}`;
+}
+
+/** Group row path. Repo rows hang off it, and files off those. */
+function groupKey(mergeKey: string): string {
+  return `@g:${mergeKey}`;
+}
+
+interface MergedGroup {
+  readonly key: string;
+  /** First contributing repository's name for the list — one row, one name. */
+  name: string;
+  isDefault: boolean;
+  checkable: boolean;
+  readonly order: number;
+  readonly entries: Array<{ repo: CommitRepoDto; group: CommitGroupDto }>;
 }
 
 export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
@@ -82,52 +139,142 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     return out;
   };
 
+  // Collect the same changelist from every repository into one row. Order is
+  // IntelliJ's: the default list first, user lists in first-appearance order,
+  // Unversioned Files last.
+  const merged = new Map<string, MergedGroup>();
+  let seq = 0;
   for (const repo of state.repos) {
     for (const group of repo.groups) {
-      // An empty default list is the "nothing ticked yet" anchor a single-root
-      // workspace needs. With several roots it is one identical empty row per
-      // repository, burying the repos that do have work; `No changes.` covers
-      // the all-clean case far better than twenty rows saying `0 files`.
-      if (group.changes.length === 0 && (!group.isDefault || multiRepo)) continue;
-      const key = groupKey(repo.root, group.id);
-      // The repository is named once, on the group row itself. It used to be a
-      // folder row *inside* the group, which left the row above it reading a
-      // bare `Changes` — so a collapsed group was unattributable, and so was
-      // every changelist action in its context menu (those act on one repo).
-      const name = multiRepo ? `${repo.label}: ${group.name}` : group.name;
-      const built = buildTree(
-        group.changes.map((c) => c.path),
-        { root: { path: key, name }, pathPrefix: key },
-      );
-      const root = built[0];
-      if (!root) continue;
-      nodes.push(root);
-      groupPaths.push(key);
-      groups.set(key, {
-        repoRoot: repo.root,
-        groupId: group.id,
-        isDefault: group.isDefault,
-        checkable: group.checkable,
-      });
-      if (!group.checkable) checkboxless.add(key);
-
-      // buildTree sorts and may collapse chains, so re-derive the leaf order
-      // from the built tree rather than assuming it matches `group.changes`.
-      const leaves = collectFiles(root);
-      const byPath = new Map(group.changes.map((c) => [c.path, c]));
-      for (const leaf of leaves) {
-        const source = leaf.slice(key.length + 1);
-        const change = byPath.get(source);
-        if (!change) continue;
-        files.set(leaf, { repoRoot: repo.root, relPath: change.path, change });
-        if (change.checked) checked.add(leaf);
-        if (!group.checkable) checkboxless.add(leaf);
+      const key = mergeKeyOf(group);
+      let m = merged.get(key);
+      if (!m) {
+        m = {
+          key,
+          name: group.name,
+          isDefault: group.isDefault,
+          checkable: group.checkable,
+          order: key === '@default' ? -1 : key === '@unversioned' ? Number.MAX_SAFE_INTEGER : seq++,
+          entries: [],
+        };
+        merged.set(key, m);
       }
-      annotate(root);
+      // A row is only tickable if every repository behind it is.
+      m.checkable &&= group.checkable;
+      m.entries.push({ repo, group });
     }
   }
 
+  /** Files of one repository, under `parent`. Returns its node, if any. */
+  const buildRepoSubtree = (
+    parent: string,
+    label: string,
+    repo: CommitRepoDto,
+    group: CommitGroupDto,
+    checkable: boolean,
+  ): TreeNode | undefined => {
+    // Built with its own root rather than by prefixing paths with the repo
+    // name: buildTree collapses single-child chains, so `demo/docs/x.md` would
+    // render as one row reading `demo/docs` and the repository row would
+    // silently disappear exactly when there is least on screen to infer it from.
+    const built = buildTree(
+      group.changes.map((c) => c.path),
+      { root: { path: parent, name: label }, pathPrefix: parent },
+    );
+    const root = built[0];
+    if (!root) return undefined;
+    if (!checkable) checkboxless.add(parent);
+
+    // buildTree sorts and may collapse chains, so re-derive the leaf order from
+    // the built tree rather than assuming it matches `group.changes`.
+    const byPath = new Map(group.changes.map((c) => [c.path, c]));
+    for (const leaf of collectFiles(root)) {
+      const change = byPath.get(leaf.slice(parent.length + 1));
+      if (!change) continue;
+      files.set(leaf, { repoRoot: repo.root, relPath: change.path, change });
+      if (change.checked) checked.add(leaf);
+      if (!checkable) checkboxless.add(leaf);
+    }
+    return root;
+  };
+
+  for (const m of [...merged.values()].sort((a, b) => a.order - b.order)) {
+    // An empty default list is the "nothing ticked yet" anchor, and there is
+    // exactly one of it now however many repositories are open. Every other
+    // empty group is noise.
+    const total = m.entries.reduce((n, e) => n + e.group.changes.length, 0);
+    if (total === 0 && !m.isDefault) continue;
+
+    const gKey = groupKey(m.key);
+    const targets = m.entries.map((e) => ({ repoRoot: e.repo.root, listId: e.group.id }));
+
+    let node: TreeNode | undefined;
+    if (multiRepo) {
+      // One repository row per contributing repository — IntelliJ's shape.
+      // Repositories with nothing in this list contribute no row.
+      const children: TreeNode[] = [];
+      for (const { repo, group } of m.entries) {
+        if (group.changes.length === 0) continue;
+        const rKey = `${gKey}@r:${repo.root}`;
+        const sub = buildRepoSubtree(rKey, repo.label, repo, group, m.checkable);
+        if (!sub) continue;
+        // buildTree roots at depth 0; under a group row it starts one deeper.
+        children.push(reDepth(sub, 1));
+        groups.set(rKey, {
+          kind: 'repo',
+          targets: [{ repoRoot: repo.root, listId: group.id }],
+          isDefault: m.isDefault,
+          checkable: m.checkable,
+          repoRoot: repo.root,
+          listId: group.id,
+        });
+      }
+      node = {
+        kind: 'dir',
+        path: gKey,
+        name: m.name,
+        depth: 0,
+        children,
+        fileCount: children.reduce((n, c) => n + countFiles(c), 0),
+      };
+    } else {
+      const only = m.entries[0];
+      if (!only) continue;
+      node =
+        total === 0
+          ? { kind: 'dir', path: gKey, name: m.name, depth: 0, children: [], fileCount: 0 }
+          : buildRepoSubtree(gKey, m.name, only.repo, only.group, m.checkable);
+    }
+    if (!node) continue;
+
+    nodes.push(node);
+    groupPaths.push(gKey);
+    groups.set(gKey, {
+      kind: 'group',
+      targets,
+      isDefault: m.isDefault,
+      checkable: m.checkable,
+      // A single-root workspace has no repository rows, so this row *is* the
+      // one repository's list and every scoped action still applies to it.
+      ...(targets.length === 1 && targets[0] !== undefined
+        ? { repoRoot: targets[0].repoRoot, listId: targets[0].listId }
+        : {}),
+    });
+    if (!m.checkable) checkboxless.add(gKey);
+    annotate(node);
+  }
+
   return { nodes, checked, checkboxless, files, groupPaths, groups, dirKinds };
+}
+
+/**
+ * Re-stamps `depth` after a subtree is re-parented under a new row. Rebuilds
+ * rather than mutates — `TreeNode` is readonly, and paths (the identity every
+ * map is keyed by) are untouched either way.
+ */
+function reDepth(node: TreeNode, depth: number): TreeNode {
+  if (node.kind === 'file') return { ...node, depth };
+  return { ...node, depth, children: node.children.map((c) => reDepth(c, depth + 1)) };
 }
 
 export interface RepoCheckDelta {

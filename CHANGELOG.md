@@ -21,11 +21,15 @@ left the other ticked, with nothing on screen naming which.
   `Commit to repoA` — computed from the same predicate the commit path uses.
 - **Amend still rewrites only its own repository**, but now asks first when
   changes are ticked elsewhere instead of quietly narrowing the gesture.
-- **Group rows carry the repository** (`repoA: Changes`), so a collapsed group,
-  and the changelist actions in its context menu, are attributable.
-- **Repositories with nothing to commit contribute no row.** A workspace of
-  twenty repositories no longer renders twenty empty `Changes  0 files` rows
-  above the one that has work; a clean workspace reads `No changes.`
+- **One `Changes` row, one `Unversioned Files` row, repositories beneath** —
+  IntelliJ's shape. A workspace of twenty repositories no longer renders twenty
+  identical `Changes  0 files` rows above the one that has work: the same
+  changelist across repositories is a single row, repositories with nothing in
+  it contribute no row, and the empty default list stays as one anchor.
+- **Changelist actions on a merged row fan out** to every repository behind it,
+  and a new changelist is created in all of them, so `Move to…` offers the same
+  names everywhere. The repository row keeps the scoped versions — including
+  shelve, which belongs to a single repository.
 - Invoking `gittree.commit` **with** an explicit repository — a context menu —
   is unchanged and stays scoped to that repository.
 

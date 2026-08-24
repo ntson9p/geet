@@ -262,11 +262,15 @@ export function App() {
       if (group) {
         return {
           preventDefaultContextMenuItems: true,
-          webviewSection: 'commitGroup',
-          repoRoot: group.repoRoot,
-          listId: group.groupId,
+          // A `repo` row is one repository's copy of the list; a `group` row may
+          // be several, so scoped-only actions live on the repository row.
+          webviewSection: group.kind === 'repo' ? 'commitRepo' : 'commitGroup',
+          ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
+          ...(group.listId !== undefined ? { listId: group.listId } : {}),
+          targets: group.targets,
           listIsDefault: group.isDefault,
           listCheckable: group.checkable,
+          listSpansRepos: group.targets.length > 1,
         };
       }
       const ref = model.files.get(node.path);

@@ -1,41 +1,54 @@
 import { describe, expect, it } from 'vitest';
-import type { CommitChangeDto, CommitStateDto } from '../../../src/shared/protocol';
+import type { CommitChangeDto, CommitGroupDto, CommitStateDto } from '../../../src/shared/protocol';
 import {
   assembleCommitTree,
   fileCountLabel,
   splitDelta,
 } from '../../../webview-ui/src/commit/commitTree';
-import { countFiles, findNode, rollup, toggle } from '../../../webview-ui/src/lib/treeModel';
+import {
+  countFiles,
+  findNode,
+  rollup,
+  toggle,
+  type TreeNode,
+} from '../../../webview-ui/src/lib/treeModel';
+
+/** Child row labels of a directory row — the repository rows, in tree order. */
+function childNames(node: TreeNode | undefined): string[] {
+  return node !== undefined && node.kind === 'dir' ? node.children.map((c) => c.name) : [];
+}
 
 function change(path: string, checked = false, kind: CommitChangeDto['kind'] = 'modified'): CommitChangeDto {
   return { path, code: '.M', kind, checked };
 }
 
+/** A default changelist for one repo, named as the service names it. */
+function defaultList(changes: CommitChangeDto[], name = 'Changes'): CommitGroupDto {
+  return { id: 'default', name, isActive: true, isDefault: true, checkable: true, changes };
+}
+
+function namedList(id: string, name: string, changes: CommitChangeDto[]): CommitGroupDto {
+  return { id, name, isActive: false, isDefault: false, checkable: true, changes };
+}
+
+function repo(root: string, label: string, groups: CommitGroupDto[]) {
+  return { root, label, groups };
+}
+
 function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
   return {
     repos: [
-      {
-        root: 'D:/repos/demo',
-        label: 'demo',
-        groups: [
-          {
-            id: 'default',
-            name: 'Changes',
-            isActive: true,
-            isDefault: true,
-            checkable: true,
-            changes: [change('api/a.ts', true), change('api/b.ts'), change('docs/x.md')],
-          },
-          {
-            id: '__unversioned__',
-            name: 'Unversioned Files',
-            isActive: false,
-            isDefault: false,
-            checkable: false,
-            changes: [change('api/new.ts', false, 'untracked')],
-          },
-        ],
-      },
+      repo('D:/repos/demo', 'demo', [
+        defaultList([change('api/a.ts', true), change('api/b.ts'), change('docs/x.md')]),
+        {
+          id: '__unversioned__',
+          name: 'Unversioned Files',
+          isActive: false,
+          isDefault: false,
+          checkable: false,
+          changes: [change('api/new.ts', false, 'untracked')],
+        },
+      ]),
     ],
     activeRepo: 'D:/repos/demo',
     targets: ['demo'],
@@ -50,6 +63,11 @@ function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
   };
 }
 
+/** The two-repo shape the merge exists for. */
+function twoRepos(second = defaultList([change('api/a.ts')])): CommitStateDto {
+  return state({ repos: [...state().repos, repo('D:/repos/other', 'other', [second])] });
+}
+
 describe('assembleCommitTree groups map (P14-T2)', () => {
   it('maps every group row back to its changelist identity', () => {
     const model = assembleCommitTree(state());
@@ -58,25 +76,44 @@ describe('assembleCommitTree groups map (P14-T2)', () => {
     expect([...model.groups.keys()].sort()).toEqual([...model.groupPaths].sort());
     const def = model.groups.get(model.groupPaths[0]!);
     expect(def).toEqual({
-      repoRoot: 'D:/repos/demo',
-      groupId: 'default',
+      kind: 'group',
+      targets: [{ repoRoot: 'D:/repos/demo', listId: 'default' }],
       isDefault: true,
       checkable: true,
+      repoRoot: 'D:/repos/demo',
+      listId: 'default',
     });
     const unversioned = model.groups.get(model.groupPaths[1]!);
-    expect(unversioned?.groupId).toBe('__unversioned__');
+    expect(unversioned?.listId).toBe('__unversioned__');
     expect(unversioned?.isDefault).toBe(false);
     // Unversioned cannot take part in a commit, so shelve must not be offered.
     expect(unversioned?.checkable).toBe(false);
   });
 
-  it('keeps group identity distinct per repo when two repos share a list id', () => {
-    const s = state();
-    const second = { ...s.repos[0]!, root: 'D:/repos/other', label: 'other' };
-    const model = assembleCommitTree({ ...s, repos: [s.repos[0]!, second] });
-    const roots = [...model.groups.values()].map((g) => g.repoRoot);
-    expect(new Set(roots)).toEqual(new Set(['D:/repos/demo', 'D:/repos/other']));
-    expect(model.groups.size).toBe(4);
+  it('a single-root group row still names one repository, so scoped actions are unchanged', () => {
+    const model = assembleCommitTree(state());
+    for (const ref of model.groups.values()) {
+      expect(ref.kind).toBe('group');
+      expect(ref.repoRoot).toBe('D:/repos/demo');
+      expect(ref.targets).toHaveLength(1);
+    }
+  });
+
+  it('a merged group row carries every repository; each repo row carries one', () => {
+    const model = assembleCommitTree(twoRepos());
+    const group = model.groups.get('@g:@default');
+    expect(group?.kind).toBe('group');
+    expect(group?.targets).toEqual([
+      { repoRoot: 'D:/repos/demo', listId: 'default' },
+      { repoRoot: 'D:/repos/other', listId: 'default' },
+    ]);
+    // No single repoRoot: an action on this row fans out rather than guessing.
+    expect(group?.repoRoot).toBeUndefined();
+
+    const repoRow = model.groups.get('@g:@default@r:D:/repos/other');
+    expect(repoRow?.kind).toBe('repo');
+    expect(repoRow?.repoRoot).toBe('D:/repos/other');
+    expect(repoRow?.listId).toBe('default');
   });
 
   it('never returns a group ref for a file row', () => {
@@ -94,15 +131,15 @@ describe('assembleCommitTree', () => {
     const changes = model.nodes[0];
     expect(changes?.kind).toBe('dir');
     expect(countFiles(changes!)).toBe(3);
-    expect(findNode(model.nodes, '@g:D:/repos/demo:default/api')).toBeDefined();
+    expect(findNode(model.nodes, '@g:@default/api')).toBeDefined();
   });
 
   it('namespaces node paths per group so identical directories do not collide', () => {
     const model = assembleCommitTree(state());
     // Both groups contain `api/`; they must be distinct expansion keys, or
     // expanding one would expand the other and their rollups would merge.
-    const a = findNode(model.nodes, '@g:D:/repos/demo:default/api');
-    const b = findNode(model.nodes, '@g:D:/repos/demo:__unversioned__/api');
+    const a = findNode(model.nodes, '@g:@default/api');
+    const b = findNode(model.nodes, '@g:@unversioned/api');
     expect(a).toBeDefined();
     expect(b).toBeDefined();
     expect(a).not.toBe(b);
@@ -110,7 +147,7 @@ describe('assembleCommitTree', () => {
 
   it('maps every leaf back to its repo and relative path', () => {
     const model = assembleCommitTree(state());
-    const ref = model.files.get('@g:D:/repos/demo:default/api/a.ts');
+    const ref = model.files.get('@g:@default/api/a.ts');
     expect(ref).toEqual({
       repoRoot: 'D:/repos/demo',
       relPath: 'api/a.ts',
@@ -121,94 +158,168 @@ describe('assembleCommitTree', () => {
 
   it('marks a non-checkable group and its files checkbox-less', () => {
     const model = assembleCommitTree(state());
-    expect(model.checkboxless.has('@g:D:/repos/demo:__unversioned__')).toBe(true);
-    expect(model.checkboxless.has('@g:D:/repos/demo:__unversioned__/api/new.ts')).toBe(true);
-    expect(model.checkboxless.has('@g:D:/repos/demo:default/api/a.ts')).toBe(false);
+    expect(model.checkboxless.has('@g:@unversioned')).toBe(true);
+    expect(model.checkboxless.has('@g:@unversioned/api/new.ts')).toBe(true);
+    expect(model.checkboxless.has('@g:@default/api/a.ts')).toBe(false);
   });
 
   it('carries the checked set so the rollup reports partial', () => {
     const model = assembleCommitTree(state());
-    const api = findNode(model.nodes, '@g:D:/repos/demo:default/api');
+    const api = findNode(model.nodes, '@g:@default/api');
     expect(rollup(api!, model.checked)).toBe('partial');
     expect(rollup(model.nodes[0]!, model.checked)).toBe('partial');
   });
+});
 
-  it('names the group row after the repo only when the workspace has several roots', () => {
-    const single = assembleCommitTree(state());
-    expect(single.nodes.map((n) => n.name)).toEqual(['Changes', 'Unversioned Files']);
+describe('assembleCommitTree — one changelist, many repositories (IntelliJ shape)', () => {
+  it('shows a single Changes row with a repository row per contributor', () => {
+    const model = assembleCommitTree(twoRepos());
+    // The headline: NOT one `Changes` per repository.
+    expect(model.nodes.map((n) => n.name)).toEqual(['Changes', 'Unversioned Files']);
 
-    const multi = assembleCommitTree(
-      state({
-        repos: [
-          ...state().repos,
-          {
-            root: 'D:/repos/other',
-            label: 'other',
-            groups: [
-              {
-                id: 'default',
-                name: 'Changes',
-                isActive: true,
-                isDefault: true,
-                checkable: true,
-                changes: [change('api/a.ts')],
-              },
-            ],
-          },
-        ],
-      }),
-    );
-    expect(multi.nodes.map((n) => n.name)).toEqual([
-      'demo: Changes',
-      'demo: Unversioned Files',
-      'other: Changes',
-    ]);
-    // The repo is named once, on the group row — never again as a folder row
-    // inside it, which is what the group label used to stand in for.
-    expect([...multi.files.keys()]).toContain('@g:D:/repos/demo:default/api/a.ts');
-    expect([...multi.files.keys()].some((p) => p.includes('/demo/') || p.includes('/other/'))).toBe(
-      false,
-    );
-    // Same relative path in two repos must stay two distinct leaves.
-    expect(multi.files.size).toBe(5);
-    const roots = [...multi.files.values()].map((f) => f.repoRoot);
-    expect(new Set(roots).size).toBe(2);
+    const changes = model.nodes[0];
+    expect(changes?.kind).toBe('dir');
+    expect(childNames(changes)).toEqual(['demo', 'other']);
+    expect(countFiles(changes!)).toBe(4);
   });
 
-  it('drops empty default lists once several roots contribute one each', () => {
-    const emptyDefault = (root: string, label: string) => ({
-      root,
-      label,
-      groups: [
-        { id: 'default', name: 'Changes', isActive: true, isDefault: true, checkable: true, changes: [] },
-      ],
-    });
+  it('merges Unversioned Files the same way', () => {
     const model = assembleCommitTree(
       state({
         repos: [
           ...state().repos,
-          emptyDefault('D:/repos/b', 'b'),
-          emptyDefault('D:/repos/c', 'c'),
+          repo('D:/repos/other', 'other', [
+            defaultList([]),
+            {
+              id: '__unversioned__',
+              name: 'Unversioned Files',
+              isActive: false,
+              isDefault: false,
+              checkable: false,
+              changes: [change('n.ts', false, 'untracked')],
+            },
+          ]),
         ],
       }),
     );
-    // Only the repo with work survives; the other two would otherwise render
-    // as identical `Changes  0 files` rows burying it.
-    expect(model.nodes.map((n) => n.name)).toEqual(['demo: Changes', 'demo: Unversioned Files']);
+    const unversioned = model.nodes.find((n) => n.name === 'Unversioned Files');
+    expect(unversioned).toBeDefined();
+    expect(model.nodes.filter((n) => n.name === 'Unversioned Files')).toHaveLength(1);
+    expect(childNames(unversioned)).toEqual(['demo', 'other']);
+  });
+
+  it('keeps the repository row even when its only change is nested', () => {
+    // buildTree collapses single-child chains, so a repo whose one file is
+    // `docs/x.md` would otherwise render as a single row reading `demo/docs`
+    // and the repository row would vanish exactly when it matters most.
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo('D:/repos/demo', 'demo', [defaultList([change('docs/x.md')])]),
+          repo('D:/repos/other', 'other', [defaultList([change('src/deep/y.ts')])]),
+        ],
+      }),
+    );
+    expect(childNames(model.nodes[0])).toEqual(['demo', 'other']);
+    expect(findNode(model.nodes, '@g:@default@r:D:/repos/demo/docs')).toBeDefined();
+  });
+
+  it('a repository with nothing in the list contributes no row', () => {
+    const model = assembleCommitTree(twoRepos(defaultList([])));
+    expect(childNames(model.nodes[0])).toEqual(['demo']);
+  });
+
+  it('same relative path in two repos stays two distinct leaves', () => {
+    const model = assembleCommitTree(twoRepos());
+    expect(model.files.get('@g:@default@r:D:/repos/demo/api/a.ts')?.repoRoot).toBe('D:/repos/demo');
+    expect(model.files.get('@g:@default@r:D:/repos/other/api/a.ts')?.repoRoot).toBe(
+      'D:/repos/other',
+    );
+    expect(model.files.size).toBe(5);
+  });
+
+  it('merges user lists by name, and keeps differently-named ones apart', () => {
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo('D:/repos/demo', 'demo', [
+            defaultList([]),
+            // Ids are random per repo, so name is the only thing two repos agree on.
+            namedList('cl-aaa', 'Feature X', [change('a.ts')]),
+          ]),
+          repo('D:/repos/other', 'other', [
+            defaultList([]),
+            namedList('cl-bbb', 'Feature X', [change('b.ts')]),
+            namedList('cl-ccc', 'Feature Y', [change('c.ts')]),
+          ]),
+        ],
+      }),
+    );
+    expect(model.nodes.map((n) => n.name)).toEqual(['Changes', 'Feature X', 'Feature Y']);
+    const featureX = model.groups.get('@g:name:Feature X');
+    expect(featureX?.targets).toEqual([
+      { repoRoot: 'D:/repos/demo', listId: 'cl-aaa' },
+      { repoRoot: 'D:/repos/other', listId: 'cl-bbb' },
+    ]);
+  });
+
+  it('merges the default list even when one repository renamed it', () => {
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo('D:/repos/demo', 'demo', [defaultList([change('a.ts')], 'Renamed')]),
+          repo('D:/repos/other', 'other', [defaultList([change('b.ts')])]),
+        ],
+      }),
+    );
+    // Keyed by isDefault, not by name — a rename in one repo must not split the
+    // one row every repository's new changes land in.
+    expect(model.nodes).toHaveLength(1);
+    expect(model.groups.get('@g:@default')?.targets).toHaveLength(2);
+  });
+
+  it('orders default first and Unversioned Files last', () => {
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo('D:/repos/demo', 'demo', [
+            {
+              id: '__unversioned__',
+              name: 'Unversioned Files',
+              isActive: false,
+              isDefault: false,
+              checkable: true,
+              changes: [change('n.ts', false, 'untracked')],
+            },
+            namedList('cl-a', 'Feature X', [change('a.ts')]),
+            defaultList([change('d.ts')]),
+          ]),
+        ],
+      }),
+    );
+    expect(model.nodes.map((n) => n.name)).toEqual(['Changes', 'Feature X', 'Unversioned Files']);
+  });
+
+  it('keeps exactly one empty default row however many roots are open', () => {
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo('D:/repos/a', 'a', [defaultList([])]),
+          repo('D:/repos/b', 'b', [defaultList([])]),
+          repo('D:/repos/c', 'c', [defaultList([])]),
+        ],
+      }),
+    );
+    // The anchor row survives; it does not multiply by the number of repos.
+    expect(model.nodes.map((n) => n.name)).toEqual(['Changes']);
+    expect(countFiles(model.nodes[0]!)).toBe(0);
   });
 
   it('skips empty non-default groups but keeps an empty default one', () => {
     const model = assembleCommitTree(
       state({
         repos: [
-          {
-            root: 'D:/repos/demo',
-            label: 'demo',
-            groups: [
-              { id: 'default', name: 'Changes', isActive: true, isDefault: true, checkable: true, changes: [] },
-              { id: 'other', name: 'Feature', isActive: false, isDefault: false, checkable: true, changes: [] },
-            ],
-          },
+          repo('D:/repos/demo', 'demo', [defaultList([]), namedList('other', 'Feature', [])]),
         ],
       }),
     );
@@ -219,7 +330,7 @@ describe('assembleCommitTree', () => {
 describe('splitDelta', () => {
   it('translates a folder toggle into repo-relative paths', () => {
     const model = assembleCommitTree(state());
-    const api = findNode(model.nodes, '@g:D:/repos/demo:default/api');
+    const api = findNode(model.nodes, '@g:@default/api');
     const delta = toggle(api!, 'partial');
     expect(splitDelta(delta, model)).toEqual([
       { repoRoot: 'D:/repos/demo', paths: ['api/a.ts', 'api/b.ts'], checked: true },
@@ -228,32 +339,22 @@ describe('splitDelta', () => {
 
   it('drops checkbox-less paths so "check everything" cannot include them', () => {
     const model = assembleCommitTree(state());
-    const unversioned = findNode(model.nodes, '@g:D:/repos/demo:__unversioned__');
+    const unversioned = findNode(model.nodes, '@g:@unversioned');
     expect(splitDelta(toggle(unversioned!, 'unchecked'), model)).toEqual([]);
   });
 
+  it('ticking one merged group splits into a call per repository', () => {
+    const model = assembleCommitTree(twoRepos());
+    const changes = findNode(model.nodes, '@g:@default');
+    const parts = splitDelta(toggle(changes!, 'unchecked'), model);
+    expect(parts.map((p) => p.repoRoot).sort()).toEqual(['D:/repos/demo', 'D:/repos/other']);
+    expect(parts.every((p) => p.checked)).toBe(true);
+    // Repo-relative, never the namespaced tree path.
+    expect(parts.flatMap((p) => p.paths).every((p) => !p.startsWith('@g:'))).toBe(true);
+  });
+
   it('splits one gesture into a call per repository', () => {
-    const model = assembleCommitTree(
-      state({
-        repos: [
-          ...state().repos,
-          {
-            root: 'D:/repos/other',
-            label: 'other',
-            groups: [
-              {
-                id: 'default',
-                name: 'Changes',
-                isActive: true,
-                isDefault: true,
-                checkable: true,
-                changes: [change('z.ts')],
-              },
-            ],
-          },
-        ],
-      }),
-    );
+    const model = assembleCommitTree(twoRepos(defaultList([change('z.ts')])));
     const all = { paths: [...model.files.keys()], next: true };
     const parts = splitDelta(all, model);
     expect(parts.map((p) => p.repoRoot).sort()).toEqual(['D:/repos/demo', 'D:/repos/other']);

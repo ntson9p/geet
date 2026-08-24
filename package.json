@@ -2228,7 +2228,37 @@
         },
         {
           "command": "gittree.shelf.shelve",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listCheckable",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listCheckable && !listSpansRepos",
+          "group": "3_shelf@1"
+        },
+        {
+          "command": "gittree.changelist.commitList",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "group": "1_commit@1"
+        },
+        {
+          "command": "gittree.changelist.setActive",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "group": "2_list@1"
+        },
+        {
+          "command": "gittree.changelist.new",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "group": "2_list@2"
+        },
+        {
+          "command": "gittree.changelist.rename",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "group": "2_list@3"
+        },
+        {
+          "command": "gittree.changelist.delete",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists && !listIsDefault",
+          "group": "2_list@4"
+        },
+        {
+          "command": "gittree.shelf.shelve",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && listCheckable",
           "group": "3_shelf@1"
         },
         {

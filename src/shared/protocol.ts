@@ -100,6 +100,15 @@ export interface CommitChangeDto {
   partial?: { total: number; included: number };
 }
 
+/**
+ * The Unversioned Files bucket's group id. It lives here rather than beside the
+ * changelist service because the webview has to recognise the bucket too — it
+ * merges the same changelist across repositories, and the two well-known
+ * buckets merge by id where user-created lists can only merge by name.
+ * `changelistService.UNVERSIONED_ID` re-exports this so there is one literal.
+ */
+export const UNVERSIONED_GROUP_ID = '__unversioned__';
+
 export interface CommitGroupDto {
   /** Changelist id, or the sentinel for the Unversioned Files group. */
   id: string;

@@ -98,7 +98,8 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Commit checks (reformat, imports, cleanup, analyze, TODO) | 🟡 | no IntelliJ inspection *profiles* — no analogue (**D7**) |
 | IME composition in the message editor | 🟡 | event contract covered; **needs one manual pass on a real OS IME** |
 | Multi-root: one gesture commits every repository with ticked changes | ✅ | `runCommitAcross` — one message, one commit each, stopped at the first refusal with a report; the button names its targets. Amend stays single-repo and asks first. Was a silent single-repo commit until this fix |
-| Multi-root: changelists span every VCS root | 🟡 | changelists are per repository, so the tree shows `repoA: Changes` rather than one `Changes` with repo folders (**D23**) |
+| Multi-root: one `Changes` / `Unversioned Files` with repository rows beneath | ✅ | `assembleCommitTree` merges the same changelist across repositories; actions on a merged row fan out, repository rows keep the scoped ones |
+| Multi-root: a changelist is one project-level object | 🟡 | storage stays per repository. The two well-known buckets merge by id (exact); user lists merge by **name**, and the active-list flag stays per repo (**D23**) |
 
 ## §4 Git log & history (Git tool window)
 

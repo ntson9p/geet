@@ -206,6 +206,29 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     }
     return undefined;
   };
+  /**
+   * The same changelist in every repository the group row stands for. A repo
+   * row (and every row in a single-root workspace) carries `{repoRoot, listId}`
+   * and yields exactly one target, so scoped callers are unchanged; a merged
+   * group row carries `targets` and the action fans out — which is what a
+   * project-level changelist means when the storage is per repository.
+   */
+  const listTargets = (node: unknown): Array<{ repo: RepoHandle; listId: string }> => {
+    if (typeof node === 'object' && node !== null) {
+      const raw = (node as { targets?: unknown }).targets;
+      if (Array.isArray(raw)) {
+        const out = raw.flatMap((t) => {
+          const e = t as { repoRoot?: unknown; listId?: unknown };
+          if (typeof e.repoRoot !== 'string' || typeof e.listId !== 'string') return [];
+          const repo = core.getRepo(e.repoRoot);
+          return repo ? [{ repo, listId: e.listId }] : [];
+        });
+        if (out.length > 0) return out;
+      }
+    }
+    const one = listArg(node);
+    return one ? [one] : [];
+  };
   /** Commit-window file rows carry {repoRoot, relPath}; tree nodes do not. */
   const fileCtxArg = (arg: unknown): { repo: RepoHandle; relPath: string } | undefined => {
     if (typeof arg !== 'object' || arg === null) return undefined;
@@ -214,9 +237,15 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const repo = core.getRepo(c.repoRoot);
     return repo ? { repo, relPath: c.relPath } : undefined;
   };
-  register('gittree.changelist.new', async (repoRoot) => {
-    const repo = pickRepo(repoRoot);
-    if (!repo) return;
+  register('gittree.changelist.new', async (arg) => {
+    // A changelist is a project-level idea. Creating it in every repository is
+    // what keeps the merged row honest: the next new file lands in the same
+    // named list whichever repository it belongs to, and `Move to…` offers it
+    // everywhere rather than only where it happens to exist. An explicit repo
+    // argument (palette, or a caller naming one) still scopes it.
+    const explicit = typeof arg === 'string' ? pickRepo(arg) : undefined;
+    const repos = explicit ? [explicit] : core.repos;
+    if (repos.length === 0) return;
     const name =
       process.env['GITTREE_TEST_BRANCH_NAME'] ??
       (await vscode.window.showInputBox({
@@ -230,12 +259,15 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
           prompt: vscode.l10n.t('Comment (optional)'),
           ignoreFocusOut: true,
         }));
-    changelistsFor(repo).create(name.trim(), comment?.trim() || undefined, false);
+    for (const repo of repos) {
+      changelistsFor(repo).create(name.trim(), comment?.trim() || undefined, false);
+    }
   });
   register('gittree.changelist.rename', async (node) => {
-    const arg = listArg(node);
-    if (!arg) return;
-    const list = changelistsFor(arg.repo).getList(arg.listId);
+    const targets = listTargets(node);
+    const first = targets[0];
+    if (!first) return;
+    const list = changelistsFor(first.repo).getList(first.listId);
     if (!list) return;
     const name = await vscode.window.showInputBox({
       prompt: vscode.l10n.t('Rename changelist'),
@@ -248,19 +280,30 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       value: list.comment ?? '',
       ignoreFocusOut: true,
     });
-    changelistsFor(arg.repo).rename(arg.listId, name.trim(), comment?.trim());
+    for (const t of targets) changelistsFor(t.repo).rename(t.listId, name.trim(), comment?.trim());
   });
   register('gittree.changelist.delete', async (node) => {
-    const arg = listArg(node);
-    if (!arg) return;
-    const service = changelistsFor(arg.repo);
-    const list = service.getList(arg.listId);
-    if (!list || list.isDefault) return;
+    const targets = listTargets(node).filter((t) => {
+      const l = changelistsFor(t.repo).getList(t.listId);
+      return l !== undefined && !l.isDefault;
+    });
+    const first = targets[0];
+    if (!first) return;
+    if (targets.length > 1) {
+      // Across repositories the per-repo "move its files to…" pick would be one
+      // prompt per repository for one gesture. The files go to each repo's own
+      // default list, which is where deleting a list puts them anyway.
+      for (const t of targets) changelistsFor(t.repo).remove(t.listId, DEFAULT_LIST_ID);
+      return;
+    }
+    const service = changelistsFor(first.repo);
+    const list = service.getList(first.listId);
+    if (!list) return;
     let target = DEFAULT_LIST_ID;
     if (list.files.length > 0) {
       const options = service
         .getLists()
-        .filter((l) => l.id !== arg.listId)
+        .filter((l) => l.id !== first.listId)
         .map((l) => ({ label: l.name, id: l.id }));
       const picked =
         options.length === 1
@@ -271,15 +314,23 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       if (!picked) return;
       target = picked.id;
     }
-    service.remove(arg.listId, target);
+    service.remove(first.listId, target);
   });
   register('gittree.changelist.setActive', (node) => {
-    const arg = listArg(node);
-    if (arg) changelistsFor(arg.repo).setActive(arg.listId);
+    for (const t of listTargets(node)) changelistsFor(t.repo).setActive(t.listId);
   });
   register('gittree.changelist.commitList', async (node) => {
-    const arg = listArg(node);
-    if (arg) await runCommitFlow(flowDeps, arg.repo, { listId: arg.listId });
+    const targets = listTargets(node);
+    const first = targets[0];
+    if (!first) return;
+    if (targets.length === 1) {
+      await runCommitFlow(flowDeps, first.repo, { listId: first.listId });
+      return;
+    }
+    // One list, several repositories: the same spanning commit the button runs,
+    // narrowed to this changelist in each of them.
+    const lists = new Map(targets.map((t) => [canonicalKey(t.repo.root), t.listId]));
+    await runCommitAcross(flowDeps, pickRepo(undefined) ?? first.repo, { lists });
   });
   register('gittree.changelist.moveTo', async (...args) => {
     const ctx = args.map(fileCtxArg).find((c) => c !== undefined);
