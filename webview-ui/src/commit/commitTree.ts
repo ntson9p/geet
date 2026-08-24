@@ -84,14 +84,20 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
 
   for (const repo of state.repos) {
     for (const group of repo.groups) {
-      if (group.changes.length === 0 && !group.isDefault) continue;
+      // An empty default list is the "nothing ticked yet" anchor a single-root
+      // workspace needs. With several roots it is one identical empty row per
+      // repository, burying the repos that do have work; `No changes.` covers
+      // the all-clean case far better than twenty rows saying `0 files`.
+      if (group.changes.length === 0 && (!group.isDefault || multiRepo)) continue;
       const key = groupKey(repo.root, group.id);
-      // In a multi-root workspace the repo becomes a real folder row inside the
-      // group, which is how IntelliJ shows `demo-git  1 file  demo-git`.
-      const prefix = multiRepo ? `${repo.label}/` : '';
+      // The repository is named once, on the group row itself. It used to be a
+      // folder row *inside* the group, which left the row above it reading a
+      // bare `Changes` — so a collapsed group was unattributable, and so was
+      // every changelist action in its context menu (those act on one repo).
+      const name = multiRepo ? `${repo.label}: ${group.name}` : group.name;
       const built = buildTree(
-        group.changes.map((c) => `${prefix}${c.path}`),
-        { root: { path: key, name: group.name }, pathPrefix: key },
+        group.changes.map((c) => c.path),
+        { root: { path: key, name }, pathPrefix: key },
       );
       const root = built[0];
       if (!root) continue;
@@ -108,7 +114,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       // buildTree sorts and may collapse chains, so re-derive the leaf order
       // from the built tree rather than assuming it matches `group.changes`.
       const leaves = collectFiles(root);
-      const byPath = new Map(group.changes.map((c) => [`${prefix}${c.path}`, c]));
+      const byPath = new Map(group.changes.map((c) => [c.path, c]));
       for (const leaf of leaves) {
         const source = leaf.slice(key.length + 1);
         const change = byPath.get(source);

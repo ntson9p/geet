@@ -14,7 +14,7 @@ import { optimizeImportsCheck } from './checks/optimizeImports';
 import { CheckPipeline, configureChecks } from './checks/pipeline';
 import { reformatCheck } from './checks/reformat';
 import { todoCheck } from './checks/todo';
-import { runCommitFlow, type CommitFlowDeps } from './commitFlow';
+import { runCommitAcross, runCommitFlow, type CommitFlowDeps } from './commitFlow';
 import { CommitService } from './commitService';
 import type { CommitMessageBox } from './messageBox';
 import { MessageHistory } from './messageHistory';
@@ -97,7 +97,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     paradigm,
     inclusion,
     options: optionsStore,
-    runCommit: (repo, options) => runCommitFlow(flowDeps, repo, options),
+    runCommit: (repo, options) => runCommitAcross(flowDeps, repo, options),
   });
   context.subscriptions.push(commitWindow);
 
@@ -139,13 +139,21 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   };
 
   // Commit commands (ids stable since P1).
+  // An explicit repo argument is a *scoped* request — a context menu, or a
+  // test naming its fixture — and commits exactly that repository. The bare
+  // command (palette, Ctrl+K, the commit window's button) means "commit what
+  // is ticked", which in a multi-root workspace may span repositories.
   register('gittree.commit', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
-    if (repo) await runCommitFlow(flowDeps, repo);
+    if (!repo) return;
+    if (repoRoot === undefined) await runCommitAcross(flowDeps, repo);
+    else await runCommitFlow(flowDeps, repo);
   });
   register('gittree.commitAndPush', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
-    if (repo) await runCommitFlow(flowDeps, repo, { andPush: true });
+    if (!repo) return;
+    if (repoRoot === undefined) await runCommitAcross(flowDeps, repo, { andPush: true });
+    else await runCommitFlow(flowDeps, repo, { andPush: true });
   });
   register('gittree.commitAmend', async (repoRoot) => {
     const repo = pickRepo(repoRoot);

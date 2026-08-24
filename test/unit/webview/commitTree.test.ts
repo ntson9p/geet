@@ -5,7 +5,7 @@ import {
   fileCountLabel,
   splitDelta,
 } from '../../../webview-ui/src/commit/commitTree';
-import { countFiles, findNode, flatten, rollup, toggle } from '../../../webview-ui/src/lib/treeModel';
+import { countFiles, findNode, rollup, toggle } from '../../../webview-ui/src/lib/treeModel';
 
 function change(path: string, checked = false, kind: CommitChangeDto['kind'] = 'modified'): CommitChangeDto {
   return { path, code: '.M', kind, checked };
@@ -38,6 +38,7 @@ function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
       },
     ],
     activeRepo: 'D:/repos/demo',
+    targets: ['demo'],
     message: '',
     amend: false,
     signing: false,
@@ -47,10 +48,6 @@ function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
     paradigm: 'changelists',
     ...overrides,
   };
-}
-
-function labels(model: ReturnType<typeof assembleCommitTree>): string[] {
-  return flatten(model.nodes, new Set(model.nodes.flatMap(() => []))).map((r) => r.node.name);
 }
 
 describe('assembleCommitTree groups map (P14-T2)', () => {
@@ -136,9 +133,9 @@ describe('assembleCommitTree', () => {
     expect(rollup(model.nodes[0]!, model.checked)).toBe('partial');
   });
 
-  it('adds a repo folder row only when the workspace has several roots', () => {
+  it('names the group row after the repo only when the workspace has several roots', () => {
     const single = assembleCommitTree(state());
-    expect(labels(single)).not.toContain('demo');
+    expect(single.nodes.map((n) => n.name)).toEqual(['Changes', 'Unversioned Files']);
 
     const multi = assembleCommitTree(
       state({
@@ -161,10 +158,43 @@ describe('assembleCommitTree', () => {
         ],
       }),
     );
+    expect(multi.nodes.map((n) => n.name)).toEqual([
+      'demo: Changes',
+      'demo: Unversioned Files',
+      'other: Changes',
+    ]);
+    // The repo is named once, on the group row — never again as a folder row
+    // inside it, which is what the group label used to stand in for.
+    expect([...multi.files.keys()]).toContain('@g:D:/repos/demo:default/api/a.ts');
+    expect([...multi.files.keys()].some((p) => p.includes('/demo/') || p.includes('/other/'))).toBe(
+      false,
+    );
     // Same relative path in two repos must stay two distinct leaves.
     expect(multi.files.size).toBe(5);
     const roots = [...multi.files.values()].map((f) => f.repoRoot);
     expect(new Set(roots).size).toBe(2);
+  });
+
+  it('drops empty default lists once several roots contribute one each', () => {
+    const emptyDefault = (root: string, label: string) => ({
+      root,
+      label,
+      groups: [
+        { id: 'default', name: 'Changes', isActive: true, isDefault: true, checkable: true, changes: [] },
+      ],
+    });
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          ...state().repos,
+          emptyDefault('D:/repos/b', 'b'),
+          emptyDefault('D:/repos/c', 'c'),
+        ],
+      }),
+    );
+    // Only the repo with work survives; the other two would otherwise render
+    // as identical `Changes  0 files` rows burying it.
+    expect(model.nodes.map((n) => n.name)).toEqual(['demo: Changes', 'demo: Unversioned Files']);
   });
 
   it('skips empty non-default groups but keeps an empty default one', () => {

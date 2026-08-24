@@ -6,8 +6,10 @@ import { FixtureRepo } from '../fixtures/fixtureRepo';
 
 /**
  * Integration entry point: downloads a stable VS Code build and opens a
- * multi-root workspace of two FixtureRepo repos (P0-T7 discovery acceptance),
- * then runs the mocha suite in test/integration/suite.
+ * multi-root workspace of five FixtureRepo repos (P0-T7 discovery acceptance),
+ * then runs the mocha suite in test/integration/suite. Repos are claimed per
+ * suite — A→P1, B→P2/P7/P9, C→P3/P11, D+E→multiRoot — because the suites share
+ * one window and cross-suite dirt cascades into false failures.
  * Executed from out/test/integration/runTests.js (tsc -p tsconfig.integration.json).
  */
 async function main(): Promise<void> {
@@ -27,13 +29,28 @@ async function main(): Promise<void> {
   // repoC belongs to the Phase 3 commit-lifecycle suite.
   const repoC = FixtureRepo.create({ prefix: 'gittree-ws-repoC-' });
   repoC.commit('initial', { 'README.md': '# repoC\n', 'src/code.ts': 'export const one = 1;\n' });
+  // repoD/repoE belong to the multi-root commit suite, which needs two repos
+  // dirty at once and commits in both. Borrowing A/B/C for that would leave
+  // commits behind in repos three other suites assert against.
+  const repoD = FixtureRepo.create({ prefix: 'gittree-ws-repoD-' });
+  repoD.commit('initial', { 'README.md': '# repoD\n', 'src/d.ts': 'export const d = 1;\n' });
+  const repoE = FixtureRepo.create({ prefix: 'gittree-ws-repoE-' });
+  repoE.commit('initial', { 'README.md': '# repoE\n', 'src/e.ts': 'export const e = 1;\n' });
 
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-itest-'));
   const workspaceFile = path.join(scratch, 'gittree-itest.code-workspace');
   fs.writeFileSync(
     workspaceFile,
     JSON.stringify(
-      { folders: [{ path: repoA.root }, { path: repoB.root }, { path: repoC.root }] },
+      {
+        folders: [
+          { path: repoA.root },
+          { path: repoB.root },
+          { path: repoC.root },
+          { path: repoD.root },
+          { path: repoE.root },
+        ],
+      },
       null,
       2,
     ),
@@ -55,6 +72,8 @@ async function main(): Promise<void> {
         GITTREE_TEST_REPO_A: repoA.root,
         GITTREE_TEST_REPO_B: repoB.root,
         GITTREE_TEST_REPO_C: repoC.root,
+        GITTREE_TEST_REPO_D: repoD.root,
+        GITTREE_TEST_REPO_E: repoE.root,
         // Local-iteration filter (mocha grep on suite/test titles). The full
         // suite remains the gate; this only narrows ad-hoc runs.
         ...(process.env['GITTREE_TEST_ONLY'] ? { GITTREE_TEST_ONLY: process.env['GITTREE_TEST_ONLY'] } : {}),
@@ -64,6 +83,8 @@ async function main(): Promise<void> {
     repoA.dispose();
     repoB.dispose();
     repoC.dispose();
+    repoD.dispose();
+    repoE.dispose();
     try {
       fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5 });
     } catch {

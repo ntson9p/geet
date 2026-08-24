@@ -144,6 +144,11 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 * **Density:** `N files` badge on every group and folder node; status-colored file **names**
   and icons (GitTree's own `gittree.color.*` theme colours, `gittree.colors.<status>`  overrides); a folder
   whose descendants share one status wears it, mixed folders read as modified.
+* **Multi-root:** group rows carry the repository (`repoA: Changes`) so a collapsed group and
+  its context menu — changelist actions act on one repository — are attributable. Repositories
+  with nothing to commit contribute no row; an entirely clean workspace reads `No changes.`
+  rather than one empty `Changes  0 files` per repository. Changelists themselves stay
+  per-repository ([D23](docs/deviations.md#d23--changelists-are-per-repository-not-per-project)).
 
 ### Paradigm A: Changelists (the default)
 
@@ -199,6 +204,15 @@ The `⚙` beside the action buttons opens the §2A popup inside the window:
 
 * `[Commit]` `[Commit and Push…]` in the bottom block; amend alone commits without a new
   message; GPG sign toggle (`-S`) kept from P3.
+* **Multi-root commit (IntelliJ's behaviour):** the tree spans every repository, so `Commit`
+  commits *every* repository that has something ticked — one message, one commit each, run in
+  order and stopped at the first refusal with a report of what already landed. The button says
+  what it will do (`Commit to 3 repositories`, or `Commit to repoA`), sourced from the same
+  predicate the commit path uses so the label cannot promise a repository the flow skips.
+* **Amend stays single-repository** — it rewrites only the repository the message box is bound
+  to. With changes ticked elsewhere it asks first, naming what will and will not be committed,
+  rather than silently narrowing the gesture.
+* Invoking `gittree.commit` **with** an explicit repository (a context menu) stays scoped to it.
 
 ---
 

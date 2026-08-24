@@ -87,6 +87,9 @@ test.describe('P11-T2 commit window layout', () => {
     await expect(page.getByTestId('commit-button')).toBeVisible();
     await expect(page.getByTestId('commit-push-button')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Commit options' })).toBeVisible();
+    // A single-root workspace has nothing to disambiguate, so the button stays
+    // the plain verb — the repo name belongs there only when there are several.
+    await expect(page.getByTestId('commit-button')).toHaveText('Commit');
   });
 
   test('shows the checked-of-total counter', async ({ page }) => {

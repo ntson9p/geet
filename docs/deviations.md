@@ -37,6 +37,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D20](#d20--vs-codes-own-diff-arrows-remain-beside-gittrees) | VS Code's next/prev-change arrows remain beside GitTree's | Only via Route B |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
 | [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
+| [D23](#d23--changelists-are-per-repository-not-per-project) | A changelist belongs to one repository; IntelliJ's spans every VCS root | Yes (costly) |
 
 ---
 
@@ -367,3 +368,29 @@ exists to remove, and a contradiction of its own exit criterion that enabling or
 built-in Git extension changes nothing about how GitTree behaves. Someone running both who
 dislikes the overlap turns one of them off.
 **Revisitable:** deliberate.
+
+## D23 · Changelists are per-repository, not per-project
+
+In IntelliJ a changelist is a *project*-level object: one `Changes` node holds files from every
+VCS root, and a list named `Feature X` can span three repositories at once. GitTree builds one
+`ChangelistService` per repository (`gittree.changelists.<root>`), so each repository has its own
+independent `Changes` list.
+
+**What this looks like.** In a multi-root workspace the commit tree shows one group row per
+repository — `repoA: Changes`, `repoB: Changes` — instead of a single `Changes` with repository
+folder rows beneath it. Files cannot be moved into a changelist belonging to another repository.
+
+**What it does *not* affect.** Committing. `Commit` spans every repository that has something
+ticked, with one message and one commit per repository, which is what IntelliJ does. The
+per-repository model is a difference in how the changes are *grouped*, not in what a commit does.
+
+**Why it stands.** The `changelistsFor(repo)` seam is consumed by the shelf, stash, undo-drop, log
+commit actions and the SCM dialogs — 38 call sites across 9 modules. Going project-global changes
+list membership from a repo-relative path to a `(repoRoot, path)` pair, makes `reconcile()` watch
+N repository models instead of one, and needs a migration for the per-repository persisted state.
+That is a phase of work whose entire payoff is a nicer tree shape.
+
+**Revisitable:** yes, and worth it for anyone whose repositories are *related* — where one ticket
+routinely touches three of them and a shared `Feature X` list would earn its keep. For a workspace
+of independent projects that merely share a window, it buys nothing the grouping does not already
+give.

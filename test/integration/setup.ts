@@ -44,6 +44,19 @@ export function workspaceRepoC(): string {
   return p;
 }
 
+/** repoD/repoE belong to the multi-root commit suite — see runTests.ts. */
+export function workspaceRepoD(): string {
+  const p = process.env['GITTREE_TEST_REPO_D'];
+  assert.ok(p, 'GITTREE_TEST_REPO_D missing');
+  return p;
+}
+
+export function workspaceRepoE(): string {
+  const p = process.env['GITTREE_TEST_REPO_E'];
+  assert.ok(p, 'GITTREE_TEST_REPO_E missing');
+  return p;
+}
+
 /**
  * Runs `fn` with GITTREE_TEST_AUTOCONFIRM pinned, then restores whatever the
  * harness had. `delete`-ing it instead — as several suites used to — silently

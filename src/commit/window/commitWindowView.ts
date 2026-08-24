@@ -33,6 +33,7 @@ import {
 import { statusColorOverrides } from '../../ui/statusColors';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
 import { ChangelistService, UNVERSIONED_ID } from '../changelists/changelistService';
+import { hasCommittableChanges } from '../commitFlow';
 import type { CommitService } from '../commitService';
 import type { CommitMessageBox } from '../messageBox';
 import { recentCommitMessages, type MessageHistory } from '../messageHistory';
@@ -223,8 +224,14 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     // to describe everything on screen — not just the repo the message box
     // happens to target.
     const changes = repos.flatMap((r) => r.groups.flatMap((g) => g.changes));
+    // Asked through the commit path's own predicate rather than recomputed
+    // from `changes`, so the button cannot promise a repo the flow skips.
+    const targets = this.deps.core.repos
+      .filter((repo) => hasCommittableChanges(this.deps, repo))
+      .map((repo) => path.basename(repo.root));
     return {
       repos,
+      targets,
       ...(active !== undefined ? { activeRepo: active.root } : {}),
       message: active ? this.getMessage(active) : '',
       amend: active ? this.deps.commitService.isAmend(active) : false,

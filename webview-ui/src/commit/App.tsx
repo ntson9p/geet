@@ -56,6 +56,7 @@ const INTENT_TIMEOUT_MS = 10 * 60_000;
 
 const EMPTY: CommitStateDto = {
   repos: [],
+  targets: [],
   message: '',
   amend: false,
   signing: false,
@@ -447,6 +448,21 @@ export function App() {
     (state.amend || message.trim().length > 0) &&
     (state.amend || state.checkedCount > 0 || state.paradigm === 'staging');
 
+  // The tree spans every repository, so in a multi-root workspace a bare
+  // `Commit` leaves the scope invisible — which is how a commit lands in the
+  // wrong repo unnoticed. Single-root workspaces keep the plain label.
+  // Defensive despite the DTO requiring it: this crosses `postMessage`, where
+  // the compiler enforces nothing, and a missing field must not blank the
+  // whole panel — which is exactly what it did the first time.
+  const targets = state.targets ?? [];
+  const commitLabel =
+    state.repos.length < 2 || targets.length === 0
+      ? 'Commit'
+      : targets.length === 1
+        ? `Commit to ${targets[0]}`
+        : `Commit to ${targets.length} repositories`;
+  const targetTitle = targets.length > 0 ? `Commits: ${targets.join(', ')}` : undefined;
+
   const nothingToShow = ready && model.nodes.length === 0;
   const errorText = state.error ?? rpcError;
 
@@ -659,15 +675,17 @@ export function App() {
               className="gt-button gt-primary"
               data-testid="commit-button"
               disabled={!canCommit}
+              title={targetTitle}
               onClick={() => commit(false)}
             >
-              Commit
+              {commitLabel}
             </button>
             <button
               type="button"
               className="gt-button"
               data-testid="commit-push-button"
               disabled={!canCommit}
+              title={targetTitle}
               onClick={() => commit(true)}
             >
               Commit and Push...

@@ -6,6 +6,29 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — multi-root workspaces commit what you ticked
+
+In a workspace with several repositories, the commit window listed them all but
+**`Commit` only ever committed one of them** — whichever the active editor
+pointed at — while the counter above it described every repository on screen.
+Ticking files in two repositories and pressing Commit silently committed one and
+left the other ticked, with nothing on screen naming which.
+
+- **`Commit` now commits every repository that has something ticked**, IntelliJ's
+  behaviour: one message, one commit per repository, in order. If one is
+  refused, the run stops and says what already landed.
+- **The button says what it will do** — `Commit to 3 repositories`, or
+  `Commit to repoA` — computed from the same predicate the commit path uses.
+- **Amend still rewrites only its own repository**, but now asks first when
+  changes are ticked elsewhere instead of quietly narrowing the gesture.
+- **Group rows carry the repository** (`repoA: Changes`), so a collapsed group,
+  and the changelist actions in its context menu, are attributable.
+- **Repositories with nothing to commit contribute no row.** A workspace of
+  twenty repositories no longer renders twenty empty `Changes  0 files` rows
+  above the one that has work; a clean workspace reads `No changes.`
+- Invoking `gittree.commit` **with** an explicit repository — a context menu —
+  is unchanged and stays scoped to that repository.
+
 ### Changed — GitTree now owns its own surfaces (Phase 14)
 
 GitTree no longer builds on VS Code's Source Control framework or shares

@@ -97,6 +97,8 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Options gear: author, sign-off, deferred checks | ✅ | P11-T5 |
 | Commit checks (reformat, imports, cleanup, analyze, TODO) | 🟡 | no IntelliJ inspection *profiles* — no analogue (**D7**) |
 | IME composition in the message editor | 🟡 | event contract covered; **needs one manual pass on a real OS IME** |
+| Multi-root: one gesture commits every repository with ticked changes | ✅ | `runCommitAcross` — one message, one commit each, stopped at the first refusal with a report; the button names its targets. Amend stays single-repo and asks first. Was a silent single-repo commit until this fix |
+| Multi-root: changelists span every VCS root | 🟡 | changelists are per repository, so the tree shows `repoA: Changes` rather than one `Changes` with repo folders (**D23**) |
 
 ## §4 Git log & history (Git tool window)
 

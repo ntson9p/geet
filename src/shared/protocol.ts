@@ -120,8 +120,15 @@ export interface CommitRepoDto {
 
 export interface CommitStateDto {
   repos: CommitRepoDto[];
-  /** Repo the message box and buttons act on. */
+  /** Repo the message box and the amend checkbox act on. */
   activeRepo?: string;
+  /**
+   * Labels of the repositories a commit would actually touch, host-computed
+   * through the same predicate the commit path uses. The button renders this
+   * rather than deriving it from the tree, so what it promises and what the
+   * flow does cannot drift apart.
+   */
+  targets: string[];
   message: string;
   amend: boolean;
   /** Subject of the commit being amended, shown beside the checkbox. */

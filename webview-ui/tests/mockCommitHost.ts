@@ -139,6 +139,10 @@ export const mockCommitHostScript = `
         },
       ],
       activeRepo: REPO,
+      // The real host lists the repos a commit would touch; with one repo that
+      // is either it or nothing, and the button label follows.
+      targets:
+        changes.some((c) => c.checked) || unversioned.some((c) => c.checked) ? ['demo-git'] : [],
       message: message,
       amend: amend,
       signing: false,

@@ -48,7 +48,14 @@ interface CommitTarget {
   mode: 'changelists' | 'staged';
 }
 
-function resolveTarget(deps: CommitFlowDeps, repo: RepoHandle, listId?: string): CommitTarget | undefined {
+/**
+ * The slice of the deps that decides *what* a repository would commit. Narrow
+ * on purpose: the commit window needs this much and has no pipeline or
+ * history, and `CommitFlowDeps` still satisfies it structurally.
+ */
+export type CommitScopeDeps = Pick<CommitFlowDeps, 'paradigm' | 'changelistsFor'>;
+
+function resolveTarget(deps: CommitScopeDeps, repo: RepoHandle, listId?: string): CommitTarget | undefined {
   if (deps.paradigm.paradigm === 'changelists') {
     const service = deps.changelistsFor(repo);
     const lists = service.getLists().filter((l) => (listId === undefined ? true : l.id === listId));
@@ -77,6 +84,18 @@ function resolveTarget(deps: CommitFlowDeps, repo: RepoHandle, listId?: string):
 }
 
 /**
+ * Would committing this repository right now produce a commit? The commit
+ * window's button label and the commit path itself both ask through here, so
+ * what the button promises and what the flow does cannot drift apart.
+ *
+ * Cheap by construction — changelist state and the status snapshot are both in
+ * memory — so `buildState()` may call it per repo on every push.
+ */
+export function hasCommittableChanges(deps: CommitScopeDeps, repo: RepoHandle): boolean {
+  return resolveTarget(deps, repo) !== undefined;
+}
+
+/**
  * Splits the ticked paths into whole-file and partial commits. With no live
  * per-change selection this is a pure copy and costs no git calls, so the
  * ordinary commit path stays exactly what P3-T5 shipped.
@@ -101,10 +120,13 @@ async function planCommit(
 export async function runCommitFlow(
   deps: CommitFlowDeps,
   repo: RepoHandle,
-  options: { listId?: string; andPush?: boolean } = {},
+  options: { listId?: string; andPush?: boolean; message?: string } = {},
 ): Promise<boolean> {
   const inputBox = deps.inputBoxFor(repo);
-  const message = inputBox?.value.trim() ?? '';
+  // `options.message` is the multi-root path handing down the one message the
+  // user actually typed. Message boxes are per repo, so without it every
+  // repository but the active one would be rejected for having an empty one.
+  const message = options.message ?? inputBox?.value.trim() ?? '';
   const amend = deps.commitService.isAmend(repo);
   if (message.length === 0 && !amend) {
     void vscode.window.showWarningMessage(vscode.l10n.t('Enter a commit message first.'));
@@ -243,6 +265,126 @@ export async function runCommitFlow(
     }
   }
   return committed;
+}
+
+/**
+ * IntelliJ's multi-root commit: one message, one commit per repository that
+ * has something to commit.
+ *
+ * Delegates straight to `runCommitFlow` whenever the answer is a single
+ * repository, so the single-root path — every existing caller, command and
+ * test — keeps byte-identical behaviour, including the staging paradigm's
+ * "nothing staged, commit all?" offer. That offer is deliberately *not*
+ * extended across repositories: "commit everything in five repos" is not a
+ * question a modal should be asking.
+ *
+ * `messageRepo` owns the message box and the amend flag — the repo the commit
+ * window's editor is currently bound to.
+ */
+export async function runCommitAcross(
+  deps: CommitFlowDeps,
+  messageRepo: RepoHandle,
+  options: { andPush?: boolean } = {},
+): Promise<boolean> {
+  const nameOf = (r: RepoHandle): string => path.basename(r.root);
+  const typedMessage = (): string => deps.inputBoxFor(messageRepo)?.value.trim() ?? '';
+
+  /**
+   * Commits exactly one repository. When it is not the one the editor is bound
+   * to, the message the user typed is sitting in `messageRepo`'s box — reading
+   * this repo's own would reject the commit for an empty message that is not
+   * empty anywhere the user can see. An empty one falls through to
+   * `runCommitFlow`'s own diagnostics rather than being second-guessed here.
+   */
+  const commitOne = async (repo: RepoHandle): Promise<boolean> => {
+    if (repo === messageRepo) return runCommitFlow(deps, repo, options);
+    const typed = typedMessage();
+    const ok = await runCommitFlow(
+      deps,
+      repo,
+      typed.length > 0 ? { ...options, message: typed } : options,
+    );
+    if (ok) clearTypedMessage(deps, messageRepo);
+    return ok;
+  };
+
+  const participants = deps.core.repos.filter((r) => hasCommittableChanges(deps, r));
+  // With none, `messageRepo` reproduces today's diagnostics ("No checked files
+  // to commit", the staging commit-all offer, …).
+  if (participants.length <= 1) return commitOne(participants[0] ?? messageRepo);
+
+  // Amend stays single-repo. Amending N repositories from one checkbox rewrites
+  // N histories on one gesture and has no IntelliJ equivalent — but scoping it
+  // silently is the exact trap this work exists to remove.
+  //
+  // Checked across every participant, not just `messageRepo`: amend is per repo
+  // and `gittree.commit.toggleAmend <root>` can arm it on one the editor is not
+  // bound to. Without this the spanning loop below would reach that repo with
+  // amend still armed and rewrite its history as part of a plain commit.
+  const amending = deps.commitService.isAmend(messageRepo)
+    ? messageRepo
+    : participants.find((r) => deps.commitService.isAmend(r));
+  if (amending !== undefined) {
+    const others = participants.filter((r) => r !== amending).map(nameOf);
+    const ok = await confirmModal(
+      vscode.l10n.t('Amend only rewrites {0}.', nameOf(amending)),
+      vscode.l10n.t(
+        'Ticked changes in {0} will not be committed. Untick Amend to commit every repository instead.',
+        others.join(', '),
+      ),
+      vscode.l10n.t('Amend {0}', nameOf(amending)),
+    );
+    if (!ok) return false;
+    return commitOne(amending);
+  }
+
+  const message = typedMessage();
+  if (message.length === 0) {
+    void vscode.window.showWarningMessage(vscode.l10n.t('Enter a commit message first.'));
+    return false;
+  }
+
+  // The message-owning repo goes first: if a later one stops the run, the repo
+  // the user was actually looking at is the one that made it in.
+  const ordered = participants.includes(messageRepo)
+    ? [messageRepo, ...participants.filter((r) => r !== messageRepo)]
+    : participants;
+
+  const committed: string[] = [];
+  for (const repo of ordered) {
+    const ok = await runCommitFlow(deps, repo, { ...options, message });
+    if (!ok) {
+      // Stop rather than carry on: a refused check or a cancelled dialog is a
+      // decision about this commit, and committing the rest anyway would be
+      // the opposite of what was just asked for. Say what already landed —
+      // those commits are real and cannot be quietly implied away.
+      if (committed.length > 0) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            'Committed {0}. Stopped at {1}; the remaining repositories were left untouched.',
+            committed.join(', '),
+            nameOf(repo),
+          ),
+        );
+      }
+      return false;
+    }
+    committed.push(nameOf(repo));
+  }
+  // Each repo's own post-commit cleared its own box; if the message box the
+  // user typed into belongs to a repo that committed nothing, it still holds
+  // the text of a commit that has already happened.
+  clearTypedMessage(deps, messageRepo);
+  return true;
+}
+
+/**
+ * Empties the box the user typed into when its own repo's post-commit never
+ * ran. Idempotent — clearing an already-empty box is a no-op echo.
+ */
+function clearTypedMessage(deps: CommitFlowDeps, repo: RepoHandle): void {
+  const box = deps.inputBoxFor(repo);
+  if (box && box.value.length > 0) box.value = '';
 }
 
 async function postCommit(
