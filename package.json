@@ -1474,6 +1474,56 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.branch.pullIntoCurrentRebase",
+        "title": "%gittree.command.branch.pullIntoCurrentRebase.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.update",
+        "title": "%gittree.command.branch.update.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.tracked.checkout",
+        "title": "%gittree.command.branch.tracked.checkout.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.newFrom",
+        "title": "%gittree.command.branch.tracked.newFrom.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.compareWithCurrent",
+        "title": "%gittree.command.branch.tracked.compareWithCurrent.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.diffWithWorkingTree",
+        "title": "%gittree.command.branch.tracked.diffWithWorkingTree.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.pullIntoCurrent",
+        "title": "%gittree.command.branch.tracked.pullIntoCurrent.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.pullIntoCurrentRebase",
+        "title": "%gittree.command.branch.tracked.pullIntoCurrentRebase.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.mergeIntoCurrent",
+        "title": "%gittree.command.branch.tracked.mergeIntoCurrent.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.rebaseCurrentOnto",
+        "title": "%gittree.command.branch.tracked.rebaseCurrentOnto.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.newWorktree",
+        "title": "%gittree.command.branch.tracked.newWorktree.title%"
+      },
+      {
+        "command": "gittree.branch.tracked.deleteOnRemote",
+        "title": "%gittree.command.branch.tracked.deleteOnRemote.title%"
+      },
+      {
         "command": "gittree.branch.deleteOnRemote",
         "title": "%gittree.command.branch.deleteOnRemote.title%",
         "category": "GitTree"
@@ -1535,6 +1585,10 @@
       {
         "id": "gittree.localHistory.submenu",
         "label": "%gittree.submenu.localHistory.label%"
+      },
+      {
+        "id": "gittree.branches.trackedSubmenu",
+        "label": "%gittree.submenu.trackedBranch.label%"
       }
     ],
     "menus": {
@@ -1542,6 +1596,48 @@
         {
           "command": "gittree.history.showForPath",
           "group": "1_history@1"
+        }
+      ],
+      "gittree.branches.trackedSubmenu": [
+        {
+          "command": "gittree.branch.tracked.checkout",
+          "group": "1_checkout@1"
+        },
+        {
+          "command": "gittree.branch.tracked.newFrom",
+          "group": "1_checkout@2"
+        },
+        {
+          "command": "gittree.branch.tracked.compareWithCurrent",
+          "group": "2_compare@1"
+        },
+        {
+          "command": "gittree.branch.tracked.diffWithWorkingTree",
+          "group": "2_compare@2"
+        },
+        {
+          "command": "gittree.branch.tracked.pullIntoCurrent",
+          "group": "3_integrate@1"
+        },
+        {
+          "command": "gittree.branch.tracked.pullIntoCurrentRebase",
+          "group": "3_integrate@2"
+        },
+        {
+          "command": "gittree.branch.tracked.mergeIntoCurrent",
+          "group": "3_integrate@3"
+        },
+        {
+          "command": "gittree.branch.tracked.rebaseCurrentOnto",
+          "group": "3_integrate@4"
+        },
+        {
+          "command": "gittree.branch.tracked.newWorktree",
+          "group": "4_worktree@1"
+        },
+        {
+          "command": "gittree.branch.tracked.deleteOnRemote",
+          "group": "9_danger@1"
         }
       ],
       "commandPalette": [
@@ -1615,6 +1711,50 @@
         },
         {
           "command": "gittree.log.branch.toggleFavorite",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.update",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.checkout",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.newFrom",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.compareWithCurrent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.diffWithWorkingTree",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.pullIntoCurrent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.pullIntoCurrentRebase",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.mergeIntoCurrent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.rebaseCurrentOnto",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.newWorktree",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.tracked.deleteOnRemote",
           "when": "false"
         },
         {
@@ -2086,83 +2226,98 @@
         },
         {
           "command": "gittree.branches.checkout",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "inline@1"
         },
         {
           "command": "gittree.branches.toggleFavorite",
-          "when": "view == gittree.branches && viewItem == branch:local",
+          "when": "view == gittree.branches && viewItem =~ /^branch:local(:|$)/",
           "group": "inline@2"
         },
         {
           "command": "gittree.branches.checkout",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "1_checkout@1"
-        },
-        {
-          "command": "gittree.branches.rebaseOntoCurrent",
-          "when": "view == gittree.branches && viewItem == branch:local",
-          "group": "1_checkout@2"
-        },
-        {
-          "command": "gittree.branch.mergeIntoCurrent",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
-          "group": "2_integrate@1"
-        },
-        {
-          "command": "gittree.branch.rebaseCurrentOnto",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
-          "group": "2_integrate@2"
-        },
-        {
-          "command": "gittree.branch.pullIntoCurrent",
-          "when": "view == gittree.branches && viewItem == branch:remote",
-          "group": "2_integrate@3"
-        },
-        {
-          "command": "gittree.branch.newWorktree",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
-          "group": "3_worktree@1"
-        },
-        {
-          "command": "gittree.branch.deleteOnRemote",
-          "when": "view == gittree.branches && viewItem == branch:remote",
-          "group": "9_danger@1"
         },
         {
           "command": "gittree.branches.newFrom",
           "when": "view == gittree.branches && viewItem =~ /^branch:/",
+          "group": "1_checkout@2"
+        },
+        {
+          "command": "gittree.branches.rebaseOntoCurrent",
+          "when": "view == gittree.branches && viewItem =~ /^branch:local(:|$)/",
           "group": "1_checkout@3"
         },
         {
           "command": "gittree.branches.compareWithCurrentNode",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "2_compare@1"
         },
         {
           "command": "gittree.branches.diffWithWorkingTreeNode",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)$/",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current|remote)(:|$)/",
           "group": "2_compare@2"
         },
         {
-          "command": "gittree.branches.rename",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
-          "group": "3_modify@1"
+          "command": "gittree.branch.rebaseCurrentOnto",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "group": "3_integrate@1"
+        },
+        {
+          "command": "gittree.branch.mergeIntoCurrent",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "group": "3_integrate@2"
+        },
+        {
+          "command": "gittree.branch.pullIntoCurrent",
+          "when": "view == gittree.branches && viewItem =~ /^branch:remote(:|$)/",
+          "group": "3_integrate@3"
+        },
+        {
+          "command": "gittree.branch.pullIntoCurrentRebase",
+          "when": "view == gittree.branches && viewItem =~ /^branch:remote(:|$)/",
+          "group": "3_integrate@4"
+        },
+        {
+          "command": "gittree.branch.newWorktree",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current|remote)(:|$)/",
+          "group": "4_worktree@1"
+        },
+        {
+          "command": "gittree.branch.update",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current):tracked$/",
+          "group": "5_push@1"
         },
         {
           "command": "gittree.branches.push",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
-          "group": "3_modify@2"
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)(:|$)/",
+          "group": "5_push@2"
+        },
+        {
+          "submenu": "gittree.branches.trackedSubmenu",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current):tracked$/",
+          "group": "6_tracked@1"
+        },
+        {
+          "command": "gittree.branches.rename",
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)(:|$)/",
+          "group": "7_manage@1"
         },
         {
           "command": "gittree.branches.delete",
-          "when": "view == gittree.branches && viewItem == branch:local",
-          "group": "3_modify@3"
+          "when": "view == gittree.branches && viewItem =~ /^branch:local(:|$)/",
+          "group": "7_manage@2"
         },
         {
           "command": "gittree.branches.toggleFavorite",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)$/",
-          "group": "4_favorite@1"
+          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)(:|$)/",
+          "group": "7_manage@3"
+        },
+        {
+          "command": "gittree.branch.deleteOnRemote",
+          "when": "view == gittree.branches && viewItem =~ /^branch:remote(:|$)/",
+          "group": "9_danger@1"
         },
         {
           "command": "gittree.commit.cherryPick",

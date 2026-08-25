@@ -9,7 +9,7 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { setBranchesOpenHandler } from '../scm/syncOps';
 import { createBranchActions, findBranchAction, type BranchAction } from './branchActions';
 import { BranchOps } from './branchOps';
-import { refTypeOf, showBranchesPopup } from './branchesPopup';
+import { refTypeOf, showBranchActions, showBranchesPopup } from './branchesPopup';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
 import { CompareService } from './compare';
 import { RefService, type FavoritesStorage } from './refService';
@@ -59,7 +59,18 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     return (uri && core.repoForUri(uri)) ?? core.repos[0];
   };
 
-  const actions = createBranchActions({ ops, refServiceFor: serviceFor });
+  const actions: BranchAction[] = createBranchActions({
+    ops,
+    refServiceFor: serviceFor,
+    // How the popup's `Tracked Branch 'origin/x'…` row drills in: the upstream
+    // gets the very same action list, built from this very same registry, so
+    // the two rows can never come to disagree about what a remote ref affords.
+    showActionsFor: async (repo, refName) => {
+      const ref = repo.model.snapshot.refs.find((r) => r.name === refName);
+      if (!ref) return;
+      await showBranchActions(core, repo, ops, ref, actions);
+    },
+  });
 
   // The real Branches popup replaces the P1 stub (same command id).
   setBranchesOpenHandler(async (repoRoot) => {
@@ -195,7 +206,49 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   registerAction('gittree.branch.rebaseCurrentOnto', 'rebaseCurrentOnto');
   registerAction('gittree.branch.newWorktree', 'newWorktree');
   registerAction('gittree.branch.pullIntoCurrent', 'pullIntoCurrent');
+  registerAction('gittree.branch.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
+  registerAction('gittree.branch.update', 'update');
   registerAction('gittree.branch.deleteOnRemote', 'deleteOnRemote');
+
+  // ---- The `Tracked Branch` submenu ----------------------------------------
+  // Each row is the corresponding registry action re-aimed at the row's
+  // upstream, so nothing here is a second implementation of anything — the
+  // rows behave exactly as they do on the remote branch itself, which is what
+  // IntelliJ's nested menu promises. The submenu is gated on the `:tracked`
+  // contextValue, so an absent upstream normally means an absent menu; the
+  // guard below is for the window between a fetch dropping the upstream and
+  // the tree redrawing.
+  const runTrackedAction = async (
+    actionId: string,
+    repo: RepoHandle,
+    branch: string,
+  ): Promise<void> => {
+    const ref = repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === branch);
+    const upstream = ref?.upstreamGone === true ? undefined : ref?.upstream;
+    if (upstream === undefined) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('"{0}" no longer tracks a remote branch.', branch),
+      );
+      return;
+    }
+    await runAction(actionId, repo, upstream);
+  };
+  const registerTracked = (commandId: string, actionId: string): void => {
+    register(commandId, async (a, b) => {
+      const arg = actionArgs(a, b);
+      if (arg) await runTrackedAction(actionId, arg.repo, arg.name);
+    });
+  };
+  registerTracked('gittree.branch.tracked.checkout', 'checkout');
+  registerTracked('gittree.branch.tracked.newFrom', 'newFrom');
+  registerTracked('gittree.branch.tracked.compareWithCurrent', 'compareWithCurrent');
+  registerTracked('gittree.branch.tracked.diffWithWorkingTree', 'diffWithWorkingTree');
+  registerTracked('gittree.branch.tracked.pullIntoCurrent', 'pullIntoCurrent');
+  registerTracked('gittree.branch.tracked.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
+  registerTracked('gittree.branch.tracked.mergeIntoCurrent', 'mergeIntoCurrent');
+  registerTracked('gittree.branch.tracked.rebaseCurrentOnto', 'rebaseCurrentOnto');
+  registerTracked('gittree.branch.tracked.newWorktree', 'newWorktree');
+  registerTracked('gittree.branch.tracked.deleteOnRemote', 'deleteOnRemote');
 
   // The hub verbs the popup lists need real command ids of their own.
   register('gittree.branch.new', async (repoRoot) => {

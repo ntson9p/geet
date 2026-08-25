@@ -412,9 +412,11 @@ row in the branches tree.
 | Rename / Delete / Push | `branches.{rename,delete,push}` | ✅ |
 | **Merge \<branch\> into \<current\>** | P13-T5: registry entry, `›` submenu row, tree menu row and `gittree.branch.mergeIntoCurrent` | ✅ |
 | **Rebase \<current\> onto \<selected\>** (this direction) | P13-T5 `BranchOps.rebaseCurrentOnto` | ✅ |
-| **Update** / **Checkout and Update** selected branch | — | ❌ |
-| **Pull into \<branch\> Using Rebase / Using Merge** | P13-T5 `pullRemoteIntoCurrent` (merge only) | 🟡 no rebase variant |
-| **New Worktree from \<branch\>** | P13-T5 submenu row → P13-T6 New Worktree dialog | ✅ |
+| **Update** selected branch | `branchOps.updateBranch` — Update Project on HEAD, fast-forward-only refspec fetch on any other branch | ✅ |
+| **Checkout and Update** selected branch | — | ❌ |
+| **Tracked Branch '\<upstream\>'** submenu | the upstream's own action set, re-aimed: `gittree.branches.trackedSubmenu` in the tree, a drill-in row in the popup | 🟡 tree submenu label cannot carry the ref name (static VS Code titles) |
+| **Pull into \<branch\> Using Rebase / Using Merge** | `pullRemoteIntoCurrent(…, 'merge' \| 'rebase')`, both named in the menus | ✅ |
+| **New Worktree from \<branch\>** | P13-T5 submenu row → P13-T6 New Worktree dialog; offered on the checked-out branch too, where the dialog opens in new-branch mode | ✅ |
 | Multi-select batch branch operations | — | ❌ |
 | Delete-branch undo notification | — | ❌ |
 | Protected-branch awareness | — | ❌ |

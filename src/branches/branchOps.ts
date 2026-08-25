@@ -7,8 +7,24 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
+import { splitUpstream } from '../scm/dialogs/pushArgs';
+import { buildUpdateFetchArgs } from '../scm/dialogs/updateArgs';
 import { confirmModal } from '../ui/confirm';
 import { checkoutWithSmart } from './smartCheckout';
+import {
+  buildAheadBehindArgs,
+  buildFastForwardArgs,
+  parseAheadBehind,
+} from './updateBranchArgs';
+
+/** git's failures are multi-line; notifications get the sentence that matters. */
+function firstLine(text: string): string {
+  const line = text
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
+  return line ?? '';
+}
 
 export class BranchOps {
   constructor(private readonly core: Core) {}
@@ -278,8 +294,17 @@ export class BranchOps {
     }
   }
 
-  /** `Pull into '<current>' Using Merge` on a remote branch row (P13-T5). */
-  async pullRemoteIntoCurrent(repo: RepoHandle, remoteBranch: string): Promise<void> {
+  /**
+   * `Pull into '<current>' Using Merge` / `… Using Rebase` on a remote branch
+   * row (P13-T5; the rebase half added with the Tracked Branch submenu). The
+   * strategy is always explicit — `git pull` on its own obeys `pull.rebase`,
+   * so a menu row promising "Using Merge" could silently rebase.
+   */
+  async pullRemoteIntoCurrent(
+    repo: RepoHandle,
+    remoteBranch: string,
+    strategy: 'merge' | 'rebase' = 'merge',
+  ): Promise<void> {
     const slash = remoteBranch.indexOf('/');
     if (slash <= 0) {
       void vscode.window.showWarningMessage(
@@ -294,19 +319,134 @@ export class BranchOps {
         label: vscode.l10n.t('Pull {0}', remoteBranch),
         kind: 'mutate',
         isDestructive: true,
-        snapshotLabel: SNAPSHOT_LABELS.merge,
+        snapshotLabel: strategy === 'rebase' ? SNAPSHOT_LABELS.rebaseStart : SNAPSHOT_LABELS.merge,
         run: async (git, token) => {
-          await git.exec(repo.root, ['pull', '--no-rebase', remote, branch], { token });
+          const flag = strategy === 'rebase' ? '--rebase' : '--no-rebase';
+          await git.exec(repo.root, ['pull', flag, remote, branch], { token });
         },
       });
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
         void vscode.window.showWarningMessage(
-          vscode.l10n.t('Pull of "{0}" produced conflicts — resolve them, then commit.', remoteBranch),
+          strategy === 'rebase'
+            ? vscode.l10n.t(
+                'Pull of "{0}" stopped on conflicts. Resolve the conflicted files, then continue or abort the rebase.',
+                remoteBranch,
+              )
+            : vscode.l10n.t('Pull of "{0}" produced conflicts — resolve them, then commit.', remoteBranch),
         );
         return;
       }
       throw err;
+    }
+  }
+
+  /**
+   * `Update` on a branch row. On the checked-out branch this *is* Update
+   * Project — same fetch, same merge/rebase choice, same `Show in Log`
+   * follow-up — so it delegates instead of growing a second implementation
+   * that could answer differently.
+   *
+   * Any other branch cannot be integrated without checking it out, so GitTree
+   * does what IntelliJ does and moves the ref in place, fast-forward only. The
+   * refusal is git's own (see `updateBranchArgs.ts`); a diverged branch is
+   * reported with its counts rather than rewritten, because the user cannot
+   * see what they would lose from a branch that is not in front of them.
+   */
+  async updateBranch(repo: RepoHandle, branch: string, isCurrent: boolean): Promise<void> {
+    if (isCurrent) {
+      await vscode.commands.executeCommand('gittree.update.dialog', repo.root);
+      return;
+    }
+    const ref = repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === branch);
+    const upstream = ref?.upstreamGone === true ? undefined : ref?.upstream;
+    if (upstream === undefined) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('"{0}" has no upstream branch to update from.', branch),
+      );
+      return;
+    }
+    const remoteList = await this.core.git.exec(repo.root, ['remote'], { structured: true });
+    const remotes = remoteList.stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    const remote = splitUpstream(upstream, remotes)?.remote;
+
+    type Outcome =
+      | { kind: 'upToDate' }
+      | { kind: 'diverged'; ahead: number; behind: number }
+      | { kind: 'updated'; commits: number }
+      | { kind: 'failed'; message: string };
+
+    // One queue entry, not three: the fetch, the count and the fast-forward
+    // are one user-visible operation, and interleaving another mutation
+    // between the count and the ref move would act on stale numbers.
+    const outcome = await repo.queue.enqueue<Outcome>({
+      label: vscode.l10n.t('Update {0}', branch),
+      kind: 'mutate',
+      run: async (git, token): Promise<Outcome> => {
+        try {
+          await git.exec(repo.root, buildUpdateFetchArgs(remote), { token });
+        } catch (err) {
+          // An unreachable remote is an outcome to report, not a stack trace:
+          // the rest of this operation is meaningless without the fetch, and
+          // the counts below would silently describe the pre-fetch world.
+          return {
+            kind: 'failed',
+            message: err instanceof GitError ? firstLine(err.stderr) : String(err),
+          };
+        }
+        const counted = await git.exec(repo.root, buildAheadBehindArgs(branch, upstream), {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        });
+        if (counted.exitCode !== 0) {
+          return { kind: 'failed', message: firstLine(counted.stderr) };
+        }
+        const { ahead, behind } = parseAheadBehind(counted.stdout);
+        if (behind === 0) return { kind: 'upToDate' };
+        if (ahead > 0) return { kind: 'diverged', ahead, behind };
+        const ff = await git.exec(repo.root, buildFastForwardArgs(upstream, branch), {
+          structured: true,
+          allowNonZeroExit: true,
+          token,
+        });
+        return ff.exitCode === 0
+          ? { kind: 'updated', commits: behind }
+          : { kind: 'failed', message: firstLine(ff.stderr) };
+      },
+    });
+    await repo.refresher.refreshNow();
+
+    switch (outcome.kind) {
+      case 'upToDate':
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('{0} is already up to date with {1}.', branch, upstream),
+        );
+        return;
+      case 'diverged':
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            '"{0}" has diverged from {1} ({2} ahead, {3} behind) and cannot be fast-forwarded. Check it out to merge or rebase.',
+            branch,
+            upstream,
+            outcome.ahead,
+            outcome.behind,
+          ),
+        );
+        return;
+      case 'updated':
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('Updated {0} to {1}: {2} commit(s).', branch, upstream, outcome.commits),
+        );
+        return;
+      case 'failed':
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t('Could not update "{0}": {1}', branch, outcome.message),
+        );
     }
   }
 

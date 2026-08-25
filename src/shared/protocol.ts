@@ -785,6 +785,14 @@ export interface NewWorktreeDialogParamsDto {
   repoLabel: string;
   branches: string[];
   seedBranch: string;
+  /**
+   * The seed is this worktree's checked-out branch, so git will refuse to
+   * check it out again — the dialog opens in "create a new branch" mode
+   * instead of presenting a choice that cannot succeed. Branches held by
+   * *other* worktrees are not detectable here (that needs `worktree list`)
+   * and stay the `--force` case they always were.
+   */
+  seedBranchIsHead: boolean;
   /** Sibling `../<repo>-<branch>`, IntelliJ's default location. */
   defaultPath: string;
   showCommandLine: boolean;

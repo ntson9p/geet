@@ -32,7 +32,7 @@ export interface BranchAction {
    * (`docs/intellij-gap-analysis.md` §2A "Branch row submenu expanded"). The
    * popup inserts a divider whenever the group changes.
    */
-  group?: 'checkout' | 'compare' | 'integrate' | 'worktree' | 'push' | 'manage';
+  group?: 'checkout' | 'compare' | 'integrate' | 'worktree' | 'push' | 'tracked' | 'manage';
   /** Right-aligned shortcut hint. */
   accelerator?: string;
 }
@@ -40,6 +40,45 @@ export interface BranchAction {
 export interface BranchActionDeps {
   ops: BranchOps;
   refServiceFor(repo: RepoHandle): RefService;
+  /**
+   * Opens the action list for another ref — how `trackedBranch` drills into the
+   * upstream. Injected because the popup that renders that list is itself built
+   * from this registry; importing it here would close the cycle.
+   */
+  showActionsFor?(repo: RepoHandle, refName: string): Promise<void>;
+}
+
+/**
+ * True for any branch under `refs/heads/`, checked out or not.
+ *
+ * `BranchRefType` carries both `local` and `head`, and the two are *not*
+ * alternatives: `refTypeOf` narrows a local branch to `head` the moment it
+ * becomes the checked-out one, while the log's Branches pane sends plain
+ * `local` for the same ref and marks it with `isCurrent`. Predicates that
+ * spelled only `type === 'local'` therefore evaporated on the current branch
+ * from one surface and survived on another — the reason the branches popup
+ * offered a single row for HEAD while the tree offered four. Say it once.
+ */
+export function isLocalBranch(ctx: BranchActionContext): boolean {
+  return ctx.type === 'local' || ctx.type === 'head';
+}
+
+/**
+ * The ref's live upstream, or undefined when it has none or the remote branch
+ * is gone. Read from the snapshot rather than carried on the context: tracking
+ * is repository state, and a menu built from a stale copy of it would offer
+ * `Update` for a branch whose upstream was deleted two fetches ago.
+ *
+ * `branchesView.ts` spells the same predicate into its `contextValue` as a
+ * `:tracked` suffix, because `when` clauses cannot read a node's fields. The
+ * two must agree — this is the definition, that is the projection of it.
+ */
+export function upstreamOf(ctx: BranchActionContext): string | undefined {
+  const ref = ctx.repo.model.snapshot.refs.find(
+    (r) => r.type === 'head' && r.name === ctx.name,
+  );
+  if (!ref || ref.upstream === undefined || ref.upstreamGone === true) return undefined;
+  return ref.upstream;
 }
 
 export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
@@ -88,7 +127,11 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       id: 'diffWithWorkingTree',
       group: 'compare',
       label: () => vscode.l10n.t('Show Diff with Working Tree'),
-      applies: (ctx) => !ctx.isCurrent,
+      // Applies to the checked-out branch too, where `git diff HEAD` is the
+      // uncommitted work — IntelliJ offers it there for exactly that reason.
+      // `compareWithCurrent` above is the one that genuinely cannot: comparing
+      // the current branch with itself has no two sides.
+      applies: () => true,
       run: async (ctx) => {
         await vscode.commands.executeCommand(
           'gittree.branches.diffWithWorkingTree',
@@ -128,37 +171,88 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       label: (ctx, current) =>
         vscode.l10n.t("Pull into '{0}' Using Merge", current ?? 'HEAD'),
       applies: (ctx) => ctx.type === 'remote',
-      run: (ctx) => deps.ops.pullRemoteIntoCurrent(ctx.repo, ctx.name),
+      run: (ctx) => deps.ops.pullRemoteIntoCurrent(ctx.repo, ctx.name, 'merge'),
+    },
+    {
+      // IntelliJ offers both integrations on a remote row and names each one;
+      // shipping only the merge half left `Pull … Using Rebase` unreachable.
+      id: 'pullIntoCurrentRebase',
+      group: 'integrate',
+      label: (ctx, current) =>
+        vscode.l10n.t("Pull into '{0}' Using Rebase", current ?? 'HEAD'),
+      applies: (ctx) => ctx.type === 'remote',
+      run: (ctx) => deps.ops.pullRemoteIntoCurrent(ctx.repo, ctx.name, 'rebase'),
     },
     {
       id: 'newWorktree',
       group: 'worktree',
       label: (ctx) => vscode.l10n.t("New Worktree from '{0}'…", ctx.name),
-      applies: (ctx) => ctx.type !== 'head',
+      // The checked-out branch is not excluded: git refuses only to *check out*
+      // a branch a second time, and the dialog answers that by opening in
+      // "create a new branch" mode when the seed is already in use (or by the
+      // explicit `--force` under Modify Options). Hiding the row instead made
+      // "branch off the branch I am on into a worktree" — the common case —
+      // unreachable from the branch it starts at.
+      applies: () => true,
       run: async (ctx) => {
-        await vscode.commands.executeCommand('gittree.worktree.add', ctx.name);
+        await vscode.commands.executeCommand('gittree.worktree.add', ctx.name, ctx.repo.root);
       },
+    },
+    {
+      /**
+       * IntelliJ's `Update`: bring the branch level with the remote branch it
+       * tracks. Local branches only, and only while that upstream still
+       * exists — an update with nothing to update from is not a disabled row
+       * in IntelliJ, it is an absent one.
+       */
+      id: 'update',
+      group: 'push',
+      label: () => vscode.l10n.t('Update'),
+      applies: (ctx) => isLocalBranch(ctx) && upstreamOf(ctx) !== undefined,
+      run: (ctx) => deps.ops.updateBranch(ctx.repo, ctx.name, ctx.isCurrent),
     },
     {
       id: 'push',
       group: 'push',
       label: () => vscode.l10n.t('Push…'),
-      applies: (ctx) => ctx.type === 'local',
+      applies: (ctx) => isLocalBranch(ctx),
       run: (ctx) => deps.ops.pushBranch(ctx.repo, ctx.name),
+    },
+    {
+      /**
+       * IntelliJ's nested `Tracked Branch 'origin/x'` menu: the remote-branch
+       * actions, aimed at the upstream instead of the row. Nothing new runs —
+       * the upstream's own action list is opened, so the two can never offer
+       * different verbs for the same ref. The Branches tree contributes this
+       * as a real submenu (`gittree.branches.trackedSubmenu`); here, where the
+       * surface is a QuickPick, drilling in is the equivalent gesture.
+       */
+      id: 'trackedBranch',
+      group: 'tracked',
+      label: (ctx) => vscode.l10n.t("Tracked Branch '{0}'…", upstreamOf(ctx) ?? ''),
+      applies: (ctx) =>
+        deps.showActionsFor !== undefined &&
+        isLocalBranch(ctx) &&
+        upstreamOf(ctx) !== undefined,
+      run: async (ctx) => {
+        const upstream = upstreamOf(ctx);
+        if (upstream === undefined) return;
+        await deps.showActionsFor?.(ctx.repo, upstream);
+      },
     },
     {
       id: 'rename',
       group: 'manage',
       accelerator: 'F2',
       label: () => vscode.l10n.t('Rename…'),
-      applies: (ctx) => ctx.type === 'local',
+      applies: (ctx) => isLocalBranch(ctx),
       run: (ctx) => deps.ops.renameBranch(ctx.repo, ctx.name),
     },
     {
       id: 'delete',
       group: 'manage',
       label: () => vscode.l10n.t('Delete'),
-      applies: (ctx) => ctx.type === 'local' && !ctx.isCurrent,
+      applies: (ctx) => isLocalBranch(ctx) && !ctx.isCurrent,
       run: (ctx) => deps.ops.deleteBranch(ctx.repo, ctx.name),
     },
     {
@@ -172,7 +266,7 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       id: 'toggleFavorite',
       group: 'manage',
       label: () => vscode.l10n.t('Toggle Favorite'),
-      applies: (ctx) => ctx.type === 'local',
+      applies: (ctx) => isLocalBranch(ctx),
       run: async (ctx) => {
         await deps.refServiceFor(ctx.repo).toggleFavorite(ctx.name);
       },

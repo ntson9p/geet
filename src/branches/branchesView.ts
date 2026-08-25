@@ -164,13 +164,24 @@ export class BranchesViewProvider
         item.iconPath = new vscode.ThemeIcon(
           isCurrent ? 'check' : ref.type === 'tag' ? 'tag' : ref.type === 'remote' ? 'cloud' : 'git-branch',
         );
-        item.contextValue = isCurrent
-          ? 'branch:current'
+        // `branch:<kind>` plus an optional `:tracked` bit. The suffix exists
+        // because a `when` clause cannot read a node's fields, and two rows —
+        // `Update` and the `Tracked Branch` submenu — are meaningless without
+        // a live upstream; `branchActions.upstreamOf` is the definition this
+        // projects, and the two have to keep answering the same thing.
+        // Every clause therefore matches with `(:|$)`, never a bare `$`.
+        const kind = isCurrent
+          ? 'current'
           : ref.type === 'remote'
-            ? 'branch:remote'
+            ? 'remote'
             : ref.type === 'tag'
-              ? 'branch:tag'
-              : 'branch:local';
+              ? 'tag'
+              : 'local';
+        const tracked =
+          (kind === 'current' || kind === 'local') &&
+          ref.upstream !== undefined &&
+          ref.upstreamGone !== true;
+        item.contextValue = tracked ? `branch:${kind}:tracked` : `branch:${kind}`;
         return item;
       }
     }

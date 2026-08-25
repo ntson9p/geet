@@ -13,6 +13,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { parseWorktreeList, type WorktreeInfo } from '../core/git/parsers/worktreeList';
+import { canonicalKey } from '../core/repoDiscovery';
 import type { NewWorktreeDialogParamsDto, NewWorktreeDialogResultDto } from '../shared/protocol';
 import { confirmModal } from '../ui/confirm';
 import { openDialog } from '../ui/dialogHost';
@@ -253,12 +254,19 @@ export function buildNewWorktreeParams(
     .filter((r) => r.type === 'head')
     .map((r) => r.name)
     .sort((a, b) => a.localeCompare(b));
+  // A seed that is not a local branch — `origin/topic` from the Tracked Branch
+  // submenu or a remote row — is still a valid start point (`git worktree add`
+  // DWIMs a remote ref into a new tracking branch), but it was missing from
+  // the only list the dialog can show, so the seed silently became whichever
+  // local branch sorted first.
+  if (branch.length > 0 && !branches.includes(branch)) branches.unshift(branch);
   return {
     repoRoot: repo.root,
     repoLabel: repo.root.split(/[\\/]/u).pop() ?? repo.root,
     branches,
     // Branches already checked out somewhere cannot be checked out again.
     seedBranch: branch,
+    seedBranchIsHead: branch.length > 0 && branch === snap.headRef,
     defaultPath: defaultWorktreePath(repo.root, branch),
     showCommandLine: vscode.workspace
       .getConfiguration('gittree')
@@ -331,9 +339,17 @@ export function registerWorktrees(
   context.subscriptions.push(view, provider);
 
   const serviceFor = (repo: RepoHandle): WorktreeService => new WorktreeService(core, repo);
-  const repoOf = (arg: unknown): RepoHandle | undefined => {
+  const repoOf = (arg: unknown, repoRoot?: unknown): RepoHandle | undefined => {
     if (arg !== null && typeof arg === 'object' && 'repo' in arg) {
       return (arg as WorktreeNode).repo;
+    }
+    // `New Worktree from '<branch>'` sends a bare branch name, which says
+    // nothing about which repository it belongs to. In a multi-root workspace
+    // the old `repos[0]` fallback silently built the worktree from the first
+    // repo's branch of the same name, so the caller now names its repo.
+    if (typeof repoRoot === 'string') {
+      const match = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot));
+      if (match) return match;
     }
     return core.repos[0];
   };
@@ -349,8 +365,8 @@ export function registerWorktrees(
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.worktree.add', async (arg?: unknown) => {
-      const repo = repoOf(arg);
+    vscode.commands.registerCommand('gittree.worktree.add', async (arg?: unknown, repoRoot?: unknown) => {
+      const repo = repoOf(arg, repoRoot);
       if (!repo) return;
       const branch = typeof arg === 'string' ? arg : undefined;
       await showNewWorktreeDialog(deps, repo, branch);

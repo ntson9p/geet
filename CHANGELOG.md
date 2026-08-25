@@ -183,6 +183,41 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
   range outranks refs in the command GitTree runs), and picking one now clears
   the range instead of leaving a ticked box the log ignores.
 
+### Fixed — the Branches context menu on the branch you are on
+
+Right-clicking the checked-out branch in the Branches view offered four rows
+where IntelliJ offers seven. The cause was not a missing feature: the tree marks
+the current branch with its own `contextValue`, but nine of the menu's
+visibility rules were written for two values (`local`, `remote`) and quietly
+excluded it. The branches popup was worse still — its predicates tested
+`type === 'local'` while the current branch is typed `head`, leaving it a single
+row for HEAD.
+
+- **`Show Diff with Working Tree`** and **`New Worktree from…`** now appear on
+  the checked-out branch, where both have always worked. On HEAD the diff is
+  your uncommitted work; the worktree dialog opens in *create a new branch*
+  mode, since git cannot check a branch out twice.
+- **`Update`** is new: fetch and bring a branch level with the remote branch it
+  tracks. On the checked-out branch it is Update Project, honouring
+  `gittree.update.strategy`. On any other branch it fast-forwards the ref in
+  place without checking it out, and **refuses rather than rewrites** when the
+  branch has diverged — it reports how far apart the two are instead.
+- **`Tracked Branch`** is new: a submenu carrying the upstream's own actions —
+  checkout, compare, diff, both pulls, merge, rebase, worktree, delete on
+  remote — aimed at `origin/<branch>` instead of the row. Nothing new runs; the
+  rows behave exactly as they do on the remote branch itself.
+- **`Pull into Current Using Rebase`** joins the merge variant on remote
+  branches, so both integrations are named rather than only one.
+- The menu now follows the reference's order, so `New Worktree` no longer sorts
+  after `Delete`, and rows are grouped as the popup groups them.
+- Both menus are gated on whether the branch actually tracks anything, and the
+  tracking bit is re-read from the repository — an upstream deleted on the
+  remote takes `Update` and `Tracked Branch` away with it.
+- `New Worktree from…` no longer builds the worktree from the **first**
+  repository in a multi-root workspace: the row now names its own repository.
+  A remote branch chosen as the start point is also no longer silently replaced
+  by whichever local branch sorted first.
+
 ## [0.0.1] — 2026-07-16
 
 First feature-complete build — IntelliJ IDEA Ultimate Git parity per

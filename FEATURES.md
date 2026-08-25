@@ -96,8 +96,30 @@ the reference's groups, and **items that do not apply are hidden, not disabled**
 `Checkout` · `New Branch from 'X'…` · `Checkout and Rebase onto '<current>'` · ——
 `Compare with '<current>'` · `Show Diff with Working Tree` · ——
 `Rebase '<current>' onto 'X'` · **`Merge 'X' into '<current>'`** · —— `New Worktree from 'X'…`
-· —— `Push…` · —— `Rename… (F2)` · `Delete`.
-Remote rows swap in `Pull into '<current>' Using Merge` and `Delete 'origin/x' on Remote`.
+· —— **`Update`** · `Push…` · —— **`Tracked Branch 'origin/X'…`** · —— `Rename… (F2)` ·
+`Delete` · `Toggle Favorite`.
+Remote rows swap in `Pull into '<current>' Using Merge`, **`Pull into '<current>' Using
+Rebase`** and `Delete 'origin/x' on Remote`.
+
+**The checked-out branch is a branch.** It keeps everything that can mean something on it —
+`New Branch from 'X'…`, `Show Diff with Working Tree` (which on HEAD is the uncommitted
+work), `New Worktree from 'X'…`, `Update`, `Push…`, `Tracked Branch…`, `Rename…`,
+`Toggle Favorite` — and drops only what cannot: checking it out, comparing it with itself,
+merging it into itself, deleting it. Both the tree's context menu and the popup submenu now
+show that same set, in the reference's own order.
+
+**`Update`** appears only while the branch tracks a remote branch that still exists. On the
+checked-out branch it *is* Update Project (fetch, then merge or rebase per
+`gittree.update.strategy`). On any other branch git cannot integrate without a checkout, so
+GitTree fast-forwards the ref in place — `git fetch . <upstream>:<branch>`, which git performs
+only when it is a genuine fast-forward. A diverged branch is reported with its counts, never
+rewritten.
+
+**`Tracked Branch 'origin/X'`** is the upstream's own action list, re-aimed: a real submenu in
+the Branches tree, a drill-in row in the popup. Nothing new runs — the rows behave exactly as
+they do on the remote branch itself. **Deviation:** VS Code menu titles are static, so the
+tree's submenu reads `Tracked Branch` without the ref name; the popup, which builds its labels
+in code, names it.
 
 ### Core behaviour
 

@@ -270,10 +270,20 @@ suite('P2 branches', () => {
     const current = branches.find((b) => b.ref.isHead);
     assert.ok(current, 'current branch node missing');
     const item = reg.viewProvider.getTreeItem(current);
-    assert.strictEqual(item.contextValue, 'branch:current');
+    // The kind, not the whole value: a tracked branch carries a `:tracked`
+    // suffix so `Update` and the Tracked Branch submenu can be gated on it,
+    // and whether the shared fixture has an upstream at this point in the run
+    // is not this test's subject.
+    assert.ok(
+      item.contextValue?.startsWith('branch:current'),
+      `contextValue was ${String(item.contextValue)}`,
+    );
     const other = branches.find((b) => b.ref.name === 'smart/target');
     assert.ok(other);
-    assert.strictEqual(reg.viewProvider.getTreeItem(other).contextValue, 'branch:local');
+    assert.ok(
+      reg.viewProvider.getTreeItem(other).contextValue?.startsWith('branch:local'),
+      `contextValue was ${String(reg.viewProvider.getTreeItem(other).contextValue)}`,
+    );
 
     // Drag smart/target onto main → merge (choices auto-picked in test env).
     const before = git('rev-parse', 'HEAD').trim();

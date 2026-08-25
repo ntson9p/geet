@@ -48,7 +48,12 @@ export function NewWorktree() {
     setOptions({
       ...EMPTY_NEW_WORKTREE_OPTIONS,
       path: p.defaultPath,
-      mode: 'existing',
+      // "New Worktree from '<the branch I am on>'" cannot mean "check it out
+      // again" — git refuses that without `--force`, and two worktrees sharing
+      // one branch is a trap, not a default. It means "branch off this", so
+      // the dialog opens where that is expressible and keeps the seed as the
+      // start point. Every other seed still opens on the existing branch.
+      mode: p.seedBranchIsHead ? 'new' : 'existing',
       ref: p.seedBranch,
     });
   }, [init]);

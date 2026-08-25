@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 /** P13-T6: the New Worktree dialog — mode switching and the default path. */
 
-const HOST = `
+const host = (seedBranchIsHead = false): string => `
 (() => {
   window.__gittreeInitialState = { dialog: 'newWorktree' };
   const PARAMS = {
@@ -10,6 +10,7 @@ const HOST = `
     repoLabel: 'demo',
     branches: ['feature/x', 'main', 'wip'],
     seedBranch: 'feature/x',
+    seedBranchIsHead: ${seedBranchIsHead},
     defaultPath: 'D:/repos/demo-feature-x',
     showCommandLine: true,
   };
@@ -41,8 +42,8 @@ interface PostedMsg {
   params?: Record<string, unknown>;
 }
 
-async function open(page: Page): Promise<void> {
-  await page.addInitScript(HOST);
+async function open(page: Page, seedBranchIsHead = false): Promise<void> {
+  await page.addInitScript(host(seedBranchIsHead));
   await page.goto('/dialogs.html');
   await expect(page.getByRole('dialog', { name: /New Worktree/ })).toBeVisible();
 }
@@ -63,6 +64,24 @@ test.describe('P13-T6 new worktree dialog', () => {
     await expect(page.getByTestId('will-run')).toContainText(
       'git worktree add D:/repos/demo-feature-x feature/x',
     );
+  });
+
+  test('a seed that is the checked-out branch opens in new-branch mode', async ({ page }) => {
+    // `New Worktree from '<the branch I am on>'` cannot mean "check it out
+    // again" — git refuses that without --force. The dialog opens where the
+    // request is expressible instead of on a choice that cannot succeed.
+    await open(page, true);
+    await expect(page.getByTestId('worktree-mode-new')).toBeChecked();
+    await expect(page.getByTestId('worktree-mode-existing')).not.toBeChecked();
+    await expect(page.getByTestId('worktree-start')).toHaveValue('feature/x');
+
+    // Nothing is created until the new branch is named — no silent failure.
+    await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled();
+    await page.getByTestId('worktree-new-branch').fill('feature/x-wt');
+    await expect(page.getByTestId('will-run')).toContainText(
+      'git worktree add -b feature/x-wt D:/repos/demo-feature-x-wt feature/x',
+    );
+    await expect(page.getByRole('button', { name: 'Create' })).toBeEnabled();
   });
 
   test('the path follows the branch until the user edits it', async ({ page }) => {
