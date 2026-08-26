@@ -41,6 +41,10 @@ suite('P12 git tool window', () => {
     p2 = core.debugRegistry.get('phase02') as Phase02Registry;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(reg && p2 && repo, 'registries missing');
+    // The log shows one repository and no longer re-picks it from the focused
+    // editor, so this suite claims repoC outright instead of nudging the guess
+    // by opening a file in it.
+    reg.logView.showRoot(repo.root);
   });
 
   /** Re-tick the default list so later tests keep their commit targets. */
@@ -129,13 +133,10 @@ suite('P12 git tool window', () => {
     await repo.refresher.refreshNow();
 
     const expected = Number.parseInt(git('rev-list', '--count', 'feature/f2').trim(), 10);
-    // The log session follows the active editor's repo; anchor it to repoC the
-    // way a user working in this repo would be.
-    write('p12/anchor.txt', 'anchor\n');
-    await vscode.window.showTextDocument(
-      await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(repoRoot, 'p12/anchor.txt'))),
-    );
-    await reg.logView.setFilter({ sort: 'topo', refs: ['feature/f2'] });
+    // `feature/f2` is one of *this* repository's branches, so the filter names
+    // where it lives. It used to have to anchor the guess by opening a file
+    // here first, which is not something a caller should have to arrange.
+    await reg.logView.setFilter({ sort: 'topo', refs: ['feature/f2'] }, repoRoot);
     // The REAL webview requests the pages after the reset — same as a user
     // clicking the branch in the pane.
     try {
@@ -149,10 +150,8 @@ suite('P12 git tool window', () => {
     }
     assert.deepStrictEqual(reg.logView.currentSession?.filter.refs, ['feature/f2']);
 
-    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' });
+    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' }, repoRoot);
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
-    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-    fs.rmSync(path.join(repoRoot, 'p12/anchor.txt'), { force: true });
   });
 
   test('T3: single-commit files match git show — rename pair and merge semantics', async function () {
@@ -252,7 +251,7 @@ suite('P12 git tool window', () => {
       // The config change re-inits the session? Presets ship with init — apply
       // the preset's filter and prove the session restores it after a reset,
       // which is exactly what a webview reload does.
-      await reg.logView.setFilter(preset.filter);
+      await reg.logView.setFilter(preset.filter, repoRoot);
       await waitFor(() => {
         const f = reg.logView.currentSession?.filter;
         return f !== undefined && JSON.stringify(f.authors) === JSON.stringify(['GitTree Test']);
@@ -263,7 +262,7 @@ suite('P12 git tool window', () => {
       assert.strictEqual(stored?.[0]?.name, 'p12 preset', 'the preset must survive in settings');
     } finally {
       await config.update('filterPresets', undefined, vscode.ConfigurationTarget.Workspace);
-      await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' });
+      await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' }, repoRoot);
     }
   });
 
@@ -282,10 +281,10 @@ suite('P12 git tool window', () => {
       10,
     );
     assert.ok(expected >= 2, `expected at least the two seeded commits, got ${expected}`);
-    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD', paths: ['p12/pa', 'p12/pb'] });
+    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD', paths: ['p12/pa', 'p12/pb'] }, repoRoot);
     await waitFor(() => reg.logView.currentSession?.rowCount === expected, 30_000);
 
-    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' });
+    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' }, repoRoot);
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > expected, 30_000);
   });
 

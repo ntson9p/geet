@@ -13,7 +13,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { LogBranchesDto, LogFilterDto } from '../../../src/shared/protocol';
+import type { LogBranchesDto, LogFilterDto, LogRootDto } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { ToolbarButton } from '../lib/Toolbar';
 
@@ -26,10 +26,16 @@ interface DropdownProps {
   value: string | undefined;
   onClear: () => void;
   testid: string;
+  /**
+   * Whether the `×` is offered. Defaults to "there is a value" — `Paths ▾` is
+   * the exception: it shows the repository on show even when nothing is
+   * filtered, and clearing cannot un-choose a repository.
+   */
+  canClear?: boolean;
   children: (close: () => void) => ReactNode;
 }
 
-function Dropdown({ label, value, onClear, testid, children }: DropdownProps) {
+function Dropdown({ label, value, onClear, testid, canClear, children }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const hostRef = useRef<HTMLSpanElement | null>(null);
 
@@ -56,7 +62,7 @@ function Dropdown({ label, value, onClear, testid, children }: DropdownProps) {
           {label}
           {value !== undefined ? `: ${value}` : ''} ▾
         </button>
-        {value !== undefined ? (
+        {(canClear ?? value !== undefined) ? (
           <button type="button" className="gt-chip-clear" onClick={onClear} aria-label={`Clear ${label}`}>
             ×
           </button>
@@ -115,7 +121,17 @@ export interface FilterBarProps {
   onDeletePreset: (name: string) => void;
   onRefresh: () => void;
   onGoToRef: (ref?: string) => void;
+  /** `Paths ▾ · Select…` — the host's file chooser. */
   onBrowsePaths: () => void;
+  /** `Paths ▾ · Select in Tree…` — pick out of the repository's own tree. */
+  onPickPathsInTree: () => void;
+  /** `Paths ▾ · Roots` — every repository the workspace has. */
+  roots: readonly LogRootDto[];
+  /** Which of `roots` the log is showing. */
+  currentRoot: string;
+  onSetRoot: (root: string) => void;
+  /** Graph-palette swatch for a root, so a repository keeps one colour. */
+  rootColor: (colorIdx: number) => string;
   showDetails: boolean;
   onToggleDetails: () => void;
   highlightMine: boolean;
@@ -137,6 +153,22 @@ function datesLabel(f: LogFilterDto): string | undefined {
   return `${f.dateRange.from ?? '…'} → ${f.dateRange.to ?? '…'}`;
 }
 
+/**
+ * The `Paths ▾` chip. The reference names the ticked roots here alongside the
+ * paths, which is the only place on the bar that says which repository the log
+ * is showing — and with one repository in the workspace there is nothing to
+ * say, so the name appears only when there is a choice to have made.
+ */
+function pathsLabel(
+  f: LogFilterDto,
+  roots: readonly LogRootDto[],
+  currentRoot: string,
+): string | undefined {
+  const root = roots.length > 1 ? roots.find((r) => r.root === currentRoot)?.label : undefined;
+  const parts = root !== undefined ? [root, ...(f.paths ?? [])] : (f.paths ?? []);
+  return parts.length > 0 ? parts.join(', ') : undefined;
+}
+
 const HASH_RE = /^[0-9a-f]{7,40}$/i;
 
 function isoDaysAgo(days: number): string {
@@ -154,6 +186,11 @@ export function FilterBar({
   onRefresh,
   onGoToRef,
   onBrowsePaths,
+  onPickPathsInTree,
+  roots,
+  currentRoot,
+  onSetRoot,
+  rootColor,
   showDetails,
   onToggleDetails,
   highlightMine,
@@ -508,7 +545,8 @@ export function FilterBar({
       <Dropdown
         label="Paths"
         testid="filter-paths"
-        value={filter.paths && filter.paths.length > 0 ? filter.paths.join(', ') : undefined}
+        value={pathsLabel(filter, roots, currentRoot)}
+        canClear={(filter.paths ?? []).length > 0}
         onClear={() => {
           const next = { ...filter };
           delete next.paths;
@@ -516,11 +554,66 @@ export function FilterBar({
           onChange(next);
         }}
       >
-        {() => (
+        {(close) => (
           <div className="gt-filter-list">
+            {/* The reference's two chooser rows, in its order. */}
+            <button
+              type="button"
+              className="gt-filter-row-button"
+              onClick={() => {
+                onBrowsePaths();
+                close();
+              }}
+            >
+              Select…
+            </button>
+            <button
+              type="button"
+              className="gt-filter-row-button"
+              onClick={() => {
+                onPickPathsInTree();
+                close();
+              }}
+            >
+              Select in Tree…
+            </button>
+
+            {/* Roots. The reference merges every root into one graph and lets
+                you tick a subset; this log renders one repository at a time,
+                so the rows are radios and picking one moves the log there. */}
+            {roots.length > 0 ? (
+              <>
+                <div className="gt-filter-section">Roots</div>
+                {roots.map((r) => (
+                  <label key={r.root} className="gt-filter-checkrow" title={r.root}>
+                    <input
+                      type="radio"
+                      name="gt-log-root"
+                      checked={r.root === currentRoot}
+                      data-testid={`filter-root-${r.label}`}
+                      onChange={() => {
+                        if (r.root === currentRoot) return;
+                        onSetRoot(r.root);
+                        close();
+                      }}
+                    />
+                    <span
+                      className="gt-filter-swatch"
+                      style={{ background: rootColor(r.colorIdx) }}
+                      aria-hidden="true"
+                    />
+                    <span className="gt-filter-checkrow-label">{r.label}</span>
+                  </label>
+                ))}
+              </>
+            ) : null}
+
+            {(filter.paths ?? []).length > 0 ? <div className="gt-filter-section">Paths</div> : null}
             {(filter.paths ?? []).map((p) => (
               <div key={p} className="gt-filter-pathrow">
-                <span className="gt-filter-checkrow-label">{p}</span>
+                <span className="gt-filter-checkrow-label" title={p}>
+                  {p}
+                </span>
                 <button
                   type="button"
                   className="gt-chip-clear"
@@ -552,16 +645,15 @@ export function FilterBar({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && pathDraft.trim().length > 0) {
                     const next = { ...filter };
-                    next.paths = [...(filter.paths ?? []), pathDraft.trim()];
+                    // Deduped like both choosers — a repeated path is one
+                    // pathspec to git and two rows here.
+                    next.paths = [...new Set([...(filter.paths ?? []), pathDraft.trim()])];
                     delete next.follow;
                     onChange(next);
                     setPathDraft('');
                   }
                 }}
               />
-              <button type="button" className="gt-filter-row-button" onClick={onBrowsePaths}>
-                Browse…
-              </button>
             </div>
           </div>
         )}

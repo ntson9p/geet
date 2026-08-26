@@ -101,9 +101,10 @@ suite('Multi-root commit', () => {
 
   suiteTeardown(async () => {
     // `focus()` leaves a real editor open in one of this suite's repositories,
-    // and several later suites resolve "the repository to act on" from the
-    // active editor (logView.activeRepo, pickRepo). Leaving one open points
-    // them at repoD/repoE, where the shas they were given do not exist.
+    // and later suites still resolve "the repository to act on" from the active
+    // editor (`pickRepo`). Leaving one open points them at repoD/repoE, where
+    // the shas they were given do not exist. The log no longer resolves that
+    // way — it holds the root it was given — but the rest still does.
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   });
 

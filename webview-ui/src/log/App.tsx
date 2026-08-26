@@ -17,6 +17,7 @@ import {
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
+  type LogRootDto,
   type LogRowDto,
 } from '../../../src/shared/protocol';
 import { RpcClient } from '../lib/rpc';
@@ -204,6 +205,12 @@ export function App() {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
     });
+    // Roots-only update: merged into init rather than replacing it, so a
+    // folder joining the workspace does not cost the rows or the selection.
+    const offRoots = rpc.onEvent(LOG_METHODS.evtRoots, (params) => {
+      const { roots } = params as { roots: LogRootDto[] };
+      setInit((prev) => (prev ? { ...prev, roots } : prev));
+    });
 
     const saved = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
     restoreShaRef.current = saved.focusSha;
@@ -216,6 +223,7 @@ export function App() {
       offReset();
       offReveal();
       offFocusFilter();
+      offRoots();
     };
     // Boot effect: intentionally runs once per rpc instance.
   }, [rpc]); // requestPage/loadDetails are stable enough for the boot path
@@ -435,6 +443,11 @@ export function App() {
           onRefresh={() => void rpc.request(LOG_METHODS.refresh)}
           onGoToRef={(ref) => void rpc.request(LOG_METHODS.goToRef, { ref })}
           onBrowsePaths={() => void rpc.request(LOG_METHODS.pickPaths)}
+          onPickPathsInTree={() => void rpc.request(LOG_METHODS.pickPathsInTree)}
+          roots={init.roots ?? []}
+          currentRoot={init.repoRoot}
+          onSetRoot={(root) => void rpc.request(LOG_METHODS.setRoot, { root })}
+          rootColor={(colorIdx) => laneColor(colorIdx, dark, init.graphPalette ?? 'default')}
           showDetails={layout.collapsed.files !== true || layout.collapsed.details !== true}
           onToggleDetails={() =>
             setLayout((prev) => {

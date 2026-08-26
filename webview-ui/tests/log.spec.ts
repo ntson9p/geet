@@ -403,9 +403,46 @@ test.describe('P4-T3/T4 log webview', () => {
         }),
       )
       .toBe(true);
-    // Browse… still delegates to the host picker.
-    await paths.getByRole('button', { name: 'Browse…' }).click();
+    // Both choosers delegate to the host, which owns the file dialogs.
+    await paths.getByRole('button', { name: 'Select…', exact: true }).click();
     expect((await posted(page)).some((m) => m.method === 'log/pickPaths')).toBe(true);
+    await page.getByTestId('filter-paths').click();
+    await page.getByTestId('filter-paths-panel').getByRole('button', { name: 'Select in Tree…' }).click();
+    expect((await posted(page)).some((m) => m.method === 'log/pickPathsInTree')).toBe(true);
+  });
+
+  test('Paths ▾ lists the workspace roots and switching one moves the log', async ({ page }) => {
+    await openLog(page);
+    // With more than one repository the chip names the one on show — nothing
+    // else on the bar does — but there is nothing to clear until a path is set.
+    const chip = page.getByTestId('filter-paths');
+    await expect(chip).toHaveText(/repo/);
+    await expect(page.getByRole('button', { name: 'Clear Paths' })).toHaveCount(0);
+
+    await chip.click();
+    const paths = page.getByTestId('filter-paths-panel');
+
+    // Every root the workspace has, with the one on show already marked.
+    await expect(paths.getByText('Roots')).toBeVisible();
+    await expect(paths.getByTestId('filter-root-repo')).toBeChecked();
+    await expect(paths.getByTestId('filter-root-other')).not.toBeChecked();
+
+    // Re-picking the root already on show must not restart the session — the
+    // host re-runs the whole log on `setRoot`, and rows/selection go with it.
+    await paths.getByTestId('filter-root-repo').click();
+    expect((await posted(page)).some((m) => m.method === 'log/setRoot')).toBe(false);
+
+    await paths.getByTestId('filter-root-other').click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some(
+          (m) =>
+            m.method === 'log/setRoot' && (m.params as { root?: string } | undefined)?.root === '/other',
+        ),
+      )
+      .toBe(true);
+    // Picking a root closes the panel, like every other one-shot filter row.
+    await expect(paths).toBeHidden();
   });
 
   test('P12-T5: a hash in the text field navigates; the toolbar goes to refs', async ({ page }) => {

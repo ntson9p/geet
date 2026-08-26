@@ -473,6 +473,8 @@ row in the branches tree.
 | Color-coded topological graph | `GraphCanvas`, 100k commits at 60fps | ✅ |
 | Sort: Date / Topo / **IntelliSort** | `sort: 'topo' \| 'date' \| 'intelli'` | ✅ |
 | Branch / User / Date / Path filters | filter chips | ✅ |
+| `Paths ▾` **Select…** / **Select in Tree…** | host file chooser + a tree-ordered pick over `git ls-files` | ✅ |
+| `Paths ▾` **Roots** section (per-root checkbox, colour swatch) | every workspace repository, swatched — but the log renders one at a time, so the rows are radios (**D24**) | 🟡 single-select |
 | Text search plus Regex plus Match Case | search box with toggles | ✅ |
 | **Go to Hash / Branch / Tag** (`Ctrl+F`) | P12-T4 `log.goTo` | ✅ |
 | **Enable Git Log Indexing** | — | ❌ |
@@ -480,7 +482,8 @@ row in the branches tree.
 | **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | P12-T5 highlight menu | ✅ |
 | **Show All Affected Files** (`Alt+Shift+A`) and Paths Affected in Revision dialog | P12-T3 Changed Files pane + `log.showAllAffected` | ✅ |
 | Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild` | ✅ |
-| Multi-repo root colour stripe / root names | — | ❌ |
+| Multi-repo: one graph merging every root | one root at a time, chosen under `Paths ▾ · Roots` and held (**D24**) | 🟡 |
+| Multi-repo root colour stripe / root names | swatch + name in `Paths ▾ · Roots` and in the panel title; no per-row stripe, there being one root per graph | 🟡 |
 | Refresh | `log.refresh` | ✅ |
 | Copy Revision Number | `log.copySha` | ✅ |
 | New Branch / New Tag from commit | `createBranchHere` / `createTagHere` | ✅ |

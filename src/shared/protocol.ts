@@ -897,9 +897,25 @@ export interface LogPageDto {
   eof: boolean;
 }
 
+/**
+ * One workspace repository in the `Paths ▾ · Roots` section. `colorIdx` indexes
+ * the graph palette so a repository keeps the same swatch across re-inits.
+ */
+export interface LogRootDto {
+  root: string;
+  /** Basename, or `parent/basename` where two roots would otherwise collide. */
+  label: string;
+  colorIdx: number;
+}
+
 export interface LogInitDto {
   repoRoot: string;
   repoLabel: string;
+  /**
+   * Every repository the workspace has. The log renders one of them —
+   * `repoRoot` says which — and the `Roots` section switches between them.
+   */
+  roots?: LogRootDto[];
   filter: LogFilterDto;
   laneWidth: number;
   /** P10-T2: graph palette variant (`gittree.log.graphPalette`). */
@@ -990,6 +1006,10 @@ export const LOG_METHODS = {
   pickAuthors: 'log/pickAuthors',
   pickDates: 'log/pickDates',
   pickPaths: 'log/pickPaths',
+  /** `Paths ▾ · Select in Tree…` — a tree-ordered pick over the tracked paths. */
+  pickPathsInTree: 'log/pickPathsInTree',
+  /** `Paths ▾ · Roots` — show a different workspace repository. */
+  setRoot: 'log/setRoot',
   openFileDiff: 'log/openFileDiff',
   openAllDiffs: 'log/openAllDiffs',
   copy: 'log/copy',
@@ -1027,6 +1047,12 @@ export const LOG_METHODS = {
   evtReveal: 'log/reveal',
   /** P12-T2: refs changed (branch created/deleted, favorite toggled…). */
   evtBranches: 'log/branchesChanged',
+  /**
+   * A repository joined or left the workspace, so `Paths ▾ · Roots` changed.
+   * Sent on its own rather than through `evtReset`, which restarts paging and
+   * drops the selection — too much for a list that only names repositories.
+   */
+  evtRoots: 'log/rootsChanged',
   /** P12-T8: the command ring grew or was cleared (throttled, payload-free). */
   evtConsole: 'log/consoleChanged',
   /** P10-T2: keyboard parity — move focus into the filter search box. */

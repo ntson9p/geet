@@ -35,6 +35,10 @@ export const mockLogHostScript = `
         case 'log/init':
           res({
             repoRoot: '/repo', repoLabel: 'repo',
+            roots: [
+              { root: '/repo', label: 'repo', colorIdx: 0 },
+              { root: '/other', label: 'other', colorIdx: 1 },
+            ],
             filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' },
             laneWidth: 12, graphPalette: window.__mockGraphPalette,
             issue: { pattern: 'GT-\\\\d+', url: 'https://tracker.example/browse/$0' },

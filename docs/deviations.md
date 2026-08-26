@@ -38,6 +38,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
 | [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
+| [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
 
 ---
 
@@ -407,3 +408,39 @@ per-repository persisted state. The presentation merge buys the fidelity without
 
 **Revisitable:** yes. The remaining reasons to go truly global are the name-collision case above
 and a single project-level active list. Neither is visible in ordinary use.
+
+## D24 · The log graph renders one repository at a time
+
+IntelliJ's Log merges every VCS root into **one** graph. Its `Paths ▾` popup therefore opens
+with a `Roots` section of checkboxes — all ticked by default — and un-ticking a root removes
+that root's commits from the graph. Root filtering is just path filtering at repository
+granularity.
+
+GitTree's log renders **one** repository. `Paths ▾ · Roots` lists every repository the
+workspace has, with the same colour swatches, but the rows are **radios**: picking one moves
+the log to that repository. The section answers "which repository am I looking at, and how do
+I look at another" — it cannot answer "show me these three at once".
+
+**Why the rows are radios and not checkboxes.** Rendering them as checkboxes and silently
+enforcing one tick would look like the reference and behave like nothing at all. A radio says
+what the surface can actually do at a glance, which is the point of the section.
+
+**What it would take to remove.** Not a rendering change — a different log. `LogService.getPage`
+pages one repository with `--skip`/`--max-count`; N repositories share no commits, so paging
+becomes a k-way date merge with a cursor per root and git's own skip arithmetic stops applying.
+Every row would need a repository identity (`LogRowDto.repoRoot`), and with it `getDetails`,
+`changedFiles`, `openFileDiff`, `containedBranches`, `goTo`, `showFileHistory` and all of
+`commitActions` — which resolve their repository from the *session* today — would resolve it per
+commit instead. The Branches pane, the Changed Files pane and the Console are each scoped to one
+repository as well. `sort: 'topo'` has no meaning across disjoint histories; only date order does.
+
+**What was done instead.** The repository stopped being *guessed*. It used to be re-derived from
+the focused editor on every re-init — and a re-init happens on every filter change, refresh and
+rehydrate — so a filter change while another repository's file was focused moved the log there
+and re-ran a repo-relative filter against it. Now the focused editor seeds the choice once and
+only an explicit act moves it: a `Roots` row, or a command that names its repository. Moving root
+drops the parts of a filter that name one repository (paths, an explicit ref list, a range) and
+keeps the parts that travel.
+
+**Revisitable:** yes, as a phase of work. Nothing above is blocked by a VS Code API — the graph,
+the paging model and the per-commit repository identity are all ours to change.

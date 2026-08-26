@@ -245,7 +245,10 @@ export function registerCommitActions(
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
     if (!repo || typeof branch !== 'string') return;
     const current = repo.model.snapshot.headRef ?? 'HEAD';
-    await logView.setFilter({ sort: 'topo', range: { a: branch, b: current } });
+    // Both sides of the range are `repo`'s branches; without the root the log
+    // would run `--left-right a...b` in the focused editor's repository, where
+    // neither name resolves and the page read fails outright.
+    await logView.setFilter({ sort: 'topo', range: { a: branch, b: current } }, repo.root);
   });
 
   // ---- P12-T7: the reference menu's missing items --------------------------

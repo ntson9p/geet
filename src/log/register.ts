@@ -43,7 +43,11 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
     vscode.commands.registerCommand('gittree.blame.revealCursorCommit', async () => {
       const lb = blameUi.cursorCommit();
       if (lb && !lb.isUncommitted) {
-        await logView.revealCommit(lb.sha);
+        // Resolved exactly the way `cursorCommit` resolved the blame itself —
+        // the log is pinned to one repository now, so the sha has to say which
+        // one it came from.
+        const uri = vscode.window.activeTextEditor?.document.uri;
+        await logView.revealCommit(lb.sha, uri ? core.repoForUri(uri)?.root : undefined);
       }
     }),
     // P10-T2: keyboard parity — reveal the log and focus its filter box.

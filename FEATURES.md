@@ -284,11 +284,29 @@ docked bottom, tabs `Log | Console`").
   with `.*` regex and `Cc` match-case toggles (a hash navigates instead of grepping) · four
   **multi-select dropdowns with search**: `Branch ▾` (both presets named —
   `HEAD (Current)` and `All branches` — then refs, favorites-first), `User ▾`
-  (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (chips +
-  `Browse…`). Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
+  (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (see below).
+  Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
   (`gittree.log.filterPresets`).
 * Right toolbar: refresh · **Go to Hash/Branch/Tag** · Show Details (folds the right
   column) · Highlight my commits.
+
+### `Paths ▾` and the repository on show
+
+* **`Select…`** opens the file/folder chooser; **`Select in Tree…`** ticks paths out of the
+  repository's own tracked tree (tree order and depth, searchable). Both *add* to the
+  selection, as typing into the panel's `path or glob` box always did. A very large
+  repository offers folders only rather than truncating the alphabet — the title says so.
+  Anything the chooser could not show — a glob, a withheld file — survives the pick untouched.
+* **`Roots`** lists every repository in the workspace, each with its graph-palette swatch.
+  The log renders **one repository at a time**, so the rows are radios: picking one moves the
+  log there. The panel title carries the name of the repository on show, and the list
+  follows folders joining or leaving the workspace without disturbing the rows on screen.
+* **Which repository the log shows is a decision, not a guess.** The focused editor seeds it
+  the first time and nothing else moves it afterwards except an explicit act: a `Roots` row,
+  or a command that names its repository (`Show File History`, `Compare with Current`,
+  `Show in Log` from blame or the rebase editor). The choice survives a restart. Moving root
+  drops the parts of a filter that only mean something in one repository — the paths and any
+  explicit ref list or range — and keeps the parts that travel: author, date, text, sort.
 
 ### Changed Files & Commit Details panes (shape)
 

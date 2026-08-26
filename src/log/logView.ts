@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { parseDecorations } from '../core/git/parsers/logFormat';
 import { canonicalKey } from '../core/repoDiscovery';
+import { repoRelative } from '../core/util/paths';
 import {
   LOG_METHODS,
   type CommitDetailsDto,
@@ -17,6 +18,7 @@ import {
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
+  type LogRootDto,
   type LogRowDto,
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
@@ -24,12 +26,17 @@ import { makeRevUri } from '../core/vdocs/revContentProvider';
 import type { DiffEntry } from '../diff/diffSession';
 import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
+import { PALETTE_SIZE } from './graphLayout/colors';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
 import { DEFAULT_FILTER, type LogFilter } from './logFilter';
 import { LogService, type LogRow } from './logService';
+import { buildPathTree, mergeTreeSelection } from './pathTree';
 
 const LANE_WIDTH = 12;
+
+/** Which repository the log is showing, remembered across restarts. */
+const ROOT_MEMENTO_KEY = 'gittree.log.root';
 
 interface Session {
   repo: RepoHandle;
@@ -53,6 +60,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
   readonly branchesBridge: BranchesPaneBridge;
   private refsSub: vscode.Disposable | undefined;
+  /** Keeps `Paths ▾ · Roots` current as folders join and leave the workspace. */
+  private rootsSub: vscode.Disposable | undefined;
   /** P12-T8: throttled Console change ping. */
   private consoleSub: vscode.Disposable | undefined;
   /** Boot breadcrumbs (integration-test observability). */
@@ -92,9 +101,65 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return s;
   }
 
+  /**
+   * The repository the log shows.
+   *
+   * It used to be re-derived from the focused editor on *every* re-init, and
+   * `startSession` runs on every filter change, refresh and rehydrate — so
+   * changing a filter while a file from another repository happened to be
+   * focused silently moved the log to that repository and re-ran the filter
+   * there. A `paths` filter is repo-relative and a `refs` filter names that
+   * repository's branches, so the move either emptied the log or failed the
+   * page read outright. The reference has no equivalent: it shows every root
+   * at once and never has to guess.
+   *
+   * So the choice is made once and then held: the focused editor seeds it the
+   * first time, and after that only an explicit act moves it — picking a row
+   * under `Paths ▾ · Roots`, or a command that names its repository
+   * (`revealCommit`, `showFileHistory`, `compareInLog`). The choice survives a
+   * restart, which is why it is a memento and not a field.
+   */
   private activeRepo(): RepoHandle | undefined {
+    const pinned = this.pinnedRoot();
+    if (pinned) return pinned;
     const uri = vscode.window.activeTextEditor?.document.uri;
     return (uri && this.core.repoForUri(uri)) ?? this.session?.repo ?? this.core.repos[0];
+  }
+
+  /** The remembered repository, or undefined once it leaves the workspace. */
+  private pinnedRoot(): RepoHandle | undefined {
+    const key = this.context.workspaceState.get<string>(ROOT_MEMENTO_KEY);
+    if (key === undefined) return undefined;
+    const repo = this.core.getRepo(key);
+    if (repo) return repo;
+    void this.context.workspaceState.update(ROOT_MEMENTO_KEY, undefined);
+    return undefined;
+  }
+
+  private pinRoot(root: string): void {
+    void this.context.workspaceState.update(ROOT_MEMENTO_KEY, canonicalKey(root));
+  }
+
+  /**
+   * The `Roots` section: every repository the workspace has. Two repositories
+   * can share a basename (`web/api` and `mobile/api`), which would render as
+   * two identical rows, so a colliding label grows its parent directory.
+   */
+  private roots(): LogRootDto[] {
+    const repos = [...this.core.repos].sort((a, b) => a.root.localeCompare(b.root));
+    const basenames = new Map<string, number>();
+    for (const repo of repos) {
+      const base = path.basename(repo.root);
+      basenames.set(base, (basenames.get(base) ?? 0) + 1);
+    }
+    return repos.map((repo, idx) => {
+      const base = path.basename(repo.root);
+      const label =
+        (basenames.get(base) ?? 0) > 1
+          ? `${path.basename(path.dirname(repo.root))}/${base}`
+          : base;
+      return { root: repo.root, label, colorIdx: idx % PALETTE_SIZE };
+    });
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -142,6 +207,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     rpc.on(LOG_METHODS.pickAuthors, () => this.pickAuthors());
     rpc.on(LOG_METHODS.pickDates, () => this.pickDates());
     rpc.on(LOG_METHODS.pickPaths, () => this.pickPaths());
+    rpc.on(LOG_METHODS.pickPathsInTree, () => this.pickPathsInTree());
+    rpc.on(LOG_METHODS.setRoot, (params) => {
+      const { root } = params as { root: string };
+      return { ok: typeof root === 'string' && this.showRoot(root) };
+    });
     rpc.on(LOG_METHODS.openFileDiff, async (params) => {
       const { sha, file, base } = params as { sha: string; file: CommitFileDto; base?: string };
       await this.openFileDiff(sha, file, base);
@@ -339,12 +409,26 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: true };
     });
 
+    // A repository joining or leaving the workspace changes the `Roots` list
+    // and nothing else, so it is pushed on its own — `evtReset` would restart
+    // paging and drop the selection over a list of repository names.
+    this.rootsSub?.dispose();
+    const notifyRoots = (): void => this.rpc?.notify(LOG_METHODS.evtRoots, { roots: this.roots() });
+    const addSub = this.core.onDidAddRepo(notifyRoots);
+    const removeSub = this.core.onDidRemoveRepo(notifyRoots);
+    this.rootsSub = new vscode.Disposable(() => {
+      addSub.dispose();
+      removeSub.dispose();
+    });
+
     view.onDidDispose(() => {
       rpc.dispose();
       this.rpc = undefined;
       this.view = undefined;
       this.refsSub?.dispose();
       this.refsSub = undefined;
+      this.rootsSub?.dispose();
+      this.rootsSub = undefined;
       this.consoleSub?.dispose();
       this.consoleSub = undefined;
     });
@@ -376,18 +460,28 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     this.rpc?.notify(LOG_METHODS.evtFocusFilter, {});
   }
 
-  private startSession(filterDto: LogFilterDto): LogInitDto {
-    const repo = this.activeRepo();
+  /**
+   * @param repoRoot the repository to show. Naming one is the *explicit act*
+   * that moves the log; omitting it keeps whatever the log is already showing.
+   */
+  private startSession(filterDto: LogFilterDto, repoRoot?: string): LogInitDto {
+    const named = repoRoot !== undefined ? this.core.getRepo(repoRoot) : undefined;
+    const repo = named ?? this.activeRepo();
     if (!repo) {
+      if (this.view) this.view.description = undefined;
       return {
         repoRoot: '',
         repoLabel: vscode.l10n.t('No repository'),
+        roots: [],
         filter: filterDto,
         laneWidth: LANE_WIDTH,
         graphPalette: this.graphPalette(),
         colors: statusColorOverrides(),
       };
     }
+    // Seeded from the focused editor the first time, held from then on.
+    this.pinRoot(repo.root);
+    if (this.view) this.view.description = path.basename(repo.root);
     this.debugTrail.push(`session repo=${repo.root}`);
     this.session = {
       repo,
@@ -413,6 +507,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return {
       repoRoot: repo.root,
       repoLabel: path.basename(repo.root),
+      roots: this.roots(),
       filter: filterDto,
       laneWidth: LANE_WIDTH,
       graphPalette: this.graphPalette(),
@@ -498,8 +593,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     } satisfies LogPageDto);
   }
 
-  private applyFilter(filterDto: LogFilterDto): void {
-    const init = this.startSession(filterDto);
+  private applyFilter(filterDto: LogFilterDto, repoRoot?: string): void {
+    const init = this.startSession(filterDto, repoRoot);
     this.rpc?.notify(LOG_METHODS.evtReset, init);
   }
 
@@ -535,7 +630,16 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const session = this.session;
     if (!session || !this.rpc) return;
     if (repoRoot !== undefined && canonicalKey(repoRoot) !== canonicalKey(session.repo.root)) {
-      this.applyFilter(session.filter);
+      // The re-init used to drop `repoRoot` on the floor and re-resolve from the
+      // focused editor, so "show this commit" landed in whatever repository the
+      // editor was in and then paged 25 times looking for a sha that was never
+      // going to be there. The caller named a repository; honour it.
+      //
+      // Only the sort survives the move. Reveal within one repository respects
+      // that repository's filter, but there is no filter for a repository the
+      // log has not been showing — and carrying another one's author or text
+      // query over would routinely hide the very commit that was asked for.
+      this.applyFilter({ sort: session.filter.sort, refs: 'ALL' }, repoRoot);
     }
     // Load pages until the sha is in the row store (bounded).
     let guard = 0;
@@ -546,12 +650,29 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     this.rpc.notify(LOG_METHODS.evtReveal, { sha });
   }
 
-  async setFilter(filter: LogFilter): Promise<void> {
+  /**
+   * @param repoRoot the repository the filter is written for. `paths` are
+   * repo-relative and `refs` name one repository's branches, so a caller that
+   * built either MUST say where — `showFileHistory` and `compareInLog` both
+   * used to omit it and have their filter land in the focused editor's
+   * repository instead.
+   */
+  async setFilter(filter: LogFilter, repoRoot?: string): Promise<void> {
     await vscode.commands.executeCommand('gittree.log.focus');
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
-    this.applyFilter(filter);
+    this.applyFilter(filter, repoRoot);
+  }
+
+  /** `Paths ▾ · Roots` — show a different workspace repository. */
+  showRoot(repoRoot: string): boolean {
+    const target = this.core.getRepo(repoRoot);
+    if (!target) return false;
+    const current = this.session?.repo.root;
+    if (current !== undefined && canonicalKey(current) === canonicalKey(target.root)) return true;
+    this.applyFilter(rootAgnostic(this.session?.filter ?? DEFAULT_FILTER), target.root);
+    return true;
   }
 
   refresh(): void {
@@ -561,9 +682,16 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     void this.applyFilter(session.filter);
   }
 
-  get currentSession(): { repoRoot: string; filter: LogFilter; rowCount: number } | undefined {
+  get currentSession():
+    | { repoRoot: string; filter: LogFilter; rowCount: number; roots: LogRootDto[] }
+    | undefined {
     return this.session
-      ? { repoRoot: this.session.repo.root, filter: this.session.filter, rowCount: this.session.rows.length }
+      ? {
+          repoRoot: this.session.repo.root,
+          filter: this.session.filter,
+          rowCount: this.session.rows.length,
+          roots: this.roots(),
+        }
       : undefined;
   }
 
@@ -663,6 +791,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return { ok: true };
   }
 
+  /** `Paths ▾ · Select…` — the reference's file chooser. */
   private async pickPaths(): Promise<{ ok: boolean }> {
     const session = this.session;
     if (!session) return { ok: false };
@@ -672,7 +801,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       placeHolder: vscode.l10n.t('Filter by path'),
     });
     if (picked === undefined) return { ok: false };
-    const next: LogFilter = { ...session.filter };
+    let chosen: string[];
     if (picked === browse) {
       const uris = await vscode.window.showOpenDialog({
         canSelectFiles: true,
@@ -682,17 +811,124 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         openLabel: vscode.l10n.t('Filter'),
       });
       if (!uris || uris.length === 0) return { ok: false };
-      next.paths = uris
-        .map((u) => path.relative(session.repo.root, u.fsPath).replace(/\\/g, '/'))
-        .filter((p) => p.length > 0 && !p.startsWith('..'));
+      chosen = [];
+      const outside: string[] = [];
+      for (const uri of uris) {
+        const rel = repoRelative(session.repo.root, uri.fsPath);
+        if (rel === undefined) outside.push(path.basename(uri.fsPath));
+        else chosen.push(rel);
+      }
+      // A path outside the repository used to be dropped in silence, and if
+      // every pick was outside the filter silently *widened* to unfiltered.
+      // Say so — in a multi-root workspace browsing into the wrong repository
+      // is the easy mistake, and the log only shows one at a time.
+      if (outside.length > 0) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            '{0} is not inside {1}. The log filters one repository at a time — switch it under Paths ▾ · Roots.',
+            outside.join(', '),
+            path.basename(session.repo.root),
+          ),
+        );
+      }
+      if (chosen.length === 0) return { ok: false };
     } else {
       const value = await vscode.window.showInputBox({
         prompt: vscode.l10n.t('Repo-relative path or glob (e.g. src/**/*.ts)'),
         ignoreFocusOut: true,
       });
       if (value === undefined || value.trim().length === 0) return { ok: false };
-      next.paths = [value.trim()];
+      chosen = [value.trim()];
     }
+    // Adds, like the panel's own text box — the two used to disagree, this one
+    // replacing the whole selection where typing appended to it.
+    const next: LogFilter = { ...session.filter };
+    next.paths = [...new Set([...(session.filter.paths ?? []), ...chosen])];
+    delete next.follow;
+    this.applyFilter(next);
+    return { ok: true };
+  }
+
+  /**
+   * `Paths ▾ · Select in Tree…` — tick paths out of the repository's own tree.
+   *
+   * A QuickPick cannot expand nodes, so `buildPathTree` supplies tree *order*
+   * and depth and the label indents by it; typing filters the whole tree,
+   * which is what the chooser is for anyway.
+   */
+  private async pickPathsInTree(): Promise<{ ok: boolean }> {
+    const session = this.session;
+    if (!session) return { ok: false };
+    const listed = await session.repo.queue.enqueue({
+      label: 'ls-files (path filter)',
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(session.repo.root, ['ls-files', '-z'], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    if (listed.exitCode !== 0) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Could not read the tracked files of {0}.', path.basename(session.repo.root)),
+      );
+      return { ok: false };
+    }
+    const tree = buildPathTree(listed.stdout.split('\0').filter((p) => p.length > 0));
+    if (tree.items.length === 0) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('{0} has no tracked files yet.', path.basename(session.repo.root)),
+      );
+      return { ok: false };
+    }
+
+    const current = new Set(session.filter.paths ?? []);
+    interface Item extends vscode.QuickPickItem {
+      value: string;
+    }
+    // Non-breaking spaces: a QuickPick label is rendered as HTML text, which
+    // collapses a run of ordinary spaces to one and would flatten the tree.
+    // The full path rides in the description so typing still finds a row
+    // whatever its depth (`matchOnDescription`).
+    const indent = '\u00a0\u00a0\u00a0';
+    const items: Item[] = tree.items.map((node) => ({
+      label: `${indent.repeat(node.depth)}$(${node.kind === 'dir' ? 'folder' : 'file'}) ${node.name}`,
+      description: node.depth > 0 ? node.path : undefined,
+      value: node.path,
+      picked: current.has(node.path),
+    }));
+    const title =
+      tree.mode === 'full'
+        ? vscode.l10n.t('Select in Tree — {0}', path.basename(session.repo.root))
+        : tree.mode === 'dirsOnly'
+          ? vscode.l10n.t(
+              'Select in Tree — {0} folders ({1} paths: files omitted, add them under Select…)',
+              String(tree.items.length),
+              String(tree.total),
+            )
+          : vscode.l10n.t(
+              'Select in Tree — first {0} of {1} folders',
+              String(tree.items.length),
+              String(tree.total),
+            );
+    const picked = await vscode.window.showQuickPick(items, {
+      canPickMany: true,
+      title,
+      placeHolder: vscode.l10n.t('Filter by path'),
+      matchOnDescription: true,
+    });
+    if (picked === undefined) return { ok: false };
+
+    const next: LogFilter = { ...session.filter };
+    const paths = mergeTreeSelection(
+      session.filter.paths ?? [],
+      tree.items.map((node) => node.path),
+      picked.map((p) => p.value),
+    );
+    if (paths.length === 0) delete next.paths;
+    else next.paths = paths;
     delete next.follow;
     this.applyFilter(next);
     return { ok: true };
@@ -770,4 +1006,22 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 function isoDaysAgo(days: number): string {
   const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The part of a filter that still means something in a *different* repository.
+ *
+ * `paths` are repo-relative; an explicit `refs` list and a `range` name one
+ * repository's branches. Carried across a root switch the first empties the
+ * log and the second fails the page read on `unknown revision`, both of which
+ * read to the user as "this repository has no history". Authors, dates, the
+ * text query and the sort order are portable, so they survive.
+ */
+function rootAgnostic(filter: LogFilter): LogFilter {
+  const next: LogFilter = { ...filter };
+  delete next.paths;
+  delete next.follow;
+  delete next.range;
+  if (Array.isArray(next.refs)) next.refs = 'HEAD';
+  return next;
 }

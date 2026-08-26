@@ -23,7 +23,14 @@ export function registerFileHistory(
       if (!repo) return;
       const rel = repoRelative(repo.root, uri.fsPath);
       if (rel === undefined) return;
-      await logView.setFilter({ sort: 'topo', refs: 'ALL', paths: [rel], follow: true });
+      // `rel` is relative to *this* repository — say so. Without the root the
+      // log re-resolved from the focused editor, so a file picked in the
+      // Explorer of one repository was filtered against another one's history
+      // and simply came back empty.
+      await logView.setFilter(
+        { sort: 'topo', refs: 'ALL', paths: [rel], follow: true },
+        repo.root,
+      );
     }),
   );
 }

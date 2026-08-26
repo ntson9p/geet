@@ -332,6 +332,28 @@
   gap: 4px;
 }
 
+/* Section heading inside a filter panel (`Roots`, `Paths`). */
+.gt-filter-section {
+  padding: 4px 2px 1px;
+  margin-top: 2px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.gt-filter-list > .gt-filter-section:first-child {
+  margin-top: 0;
+  border-top: none;
+}
+
+/* Per-root colour chip, drawn from the graph palette. */
+.gt-filter-swatch {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
 .gt-filter-spacer {
   flex: 1 1 auto;
 }

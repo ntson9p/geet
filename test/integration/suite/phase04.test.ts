@@ -21,6 +21,9 @@ suite('P4 log & blame host', () => {
     fsRoot = core.repoForPath(repoRoot)!.root;
     reg = core.debugRegistry.get('phase04') as Phase04Registry;
     assert.ok(reg, 'phase04 registry missing');
+    // The log shows one repository at a time and holds it; claim repoA so this
+    // suite does not inherit whichever root ran before it.
+    reg.logView.showRoot(fsRoot);
   });
 
   test('log view boots a session and streams rows', async function () {

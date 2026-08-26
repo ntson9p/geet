@@ -44,6 +44,11 @@ export class RebaseViewController implements vscode.Disposable {
     return this.session?.state;
   }
 
+  /** The repository the open rebase belongs to — what `Show in Log` targets. */
+  get currentRepoRoot(): string | undefined {
+    return this.session?.repo.root;
+  }
+
   /**
    * Opens the dialog anchored at `anchorSha` (range = anchorSha^..HEAD).
    * Multi-select callers pass the *oldest* selected sha.

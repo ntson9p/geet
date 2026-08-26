@@ -183,6 +183,44 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
   range outranks refs in the command GitTree runs), and picking one now clears
   the range instead of leaving a ticked box the log ignores.
 
+### Fixed — the log showed a repository you never chose
+
+In a multi-root workspace the Log panel picked which repository to show from
+**whichever file happened to be focused**, and it re-picked on every filter
+change, refresh and reload. Changing a filter while a file from another
+repository was focused moved the log there and re-ran the filter against it —
+and a `Paths` entry is relative to one repository while a `Branch` entry names
+one repository's branches, so the log either went empty or the read failed
+outright. Nothing on screen said which repository was on show, and nothing let
+you pick one.
+
+- **`Paths ▾` now has a `Roots` section** listing every repository in the
+  workspace, each with its graph colour. Picking one moves the log there. The
+  panel title carries the name of the repository on show.
+- **The choice is now a decision, not a guess.** The focused editor seeds it the
+  first time; after that only an explicit act moves it — a `Roots` row, or a
+  command that names its repository. It survives a restart.
+- **Moving root drops only what cannot travel** — the paths, and any explicit
+  branch list or two-branch range. Author, date, text and sort survive.
+- **`Show File History`** on a file in another repository now opens *that*
+  repository's history. It used to filter the repository on show by a path
+  belonging to a different one, which simply came back empty. **`Compare with
+  Current`**, and **`Show in Log`** from a blame hover or the rebase editor,
+  were wrong in the same way and are fixed with it.
+- **`Paths ▾` gained `Select in Tree…`** — tick paths out of the repository's
+  own tracked tree, in tree order. A very large repository offers folders only
+  rather than silently truncating the alphabet, and says so. Anything the
+  chooser could not show — a glob, a withheld file — survives the pick.
+- **`Browse…` is now `Select…`**, IntelliJ's name, and it *adds* to the
+  selection like the panel's own text box rather than replacing it. Picking a
+  file outside the repository on show used to be dropped in silence, and if
+  every pick was outside, the filter silently widened to unfiltered; it now says
+  so and points at `Roots`.
+
+The log still renders **one** repository at a time, where IntelliJ merges every
+root into one graph — so the `Roots` rows are radios, not checkboxes. That is
+recorded as **D24** in `docs/deviations.md`, with what it would take to lift.
+
 ### Fixed — the Branches context menu on the branch you are on
 
 Right-clicking the checked-out branch in the Branches view offered four rows

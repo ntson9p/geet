@@ -225,11 +225,15 @@ export class BlameUi implements vscode.Disposable {
     const md = new vscode.MarkdownString(undefined, true);
     md.isTrusted = true;
     const shaArg = encodeURIComponent(JSON.stringify([lb.sha]));
+    // The log shows one repository at a time and no longer re-picks it from
+    // the focused editor, so the blamed line has to name its own — otherwise
+    // "Show in Log" pages a repository that never had this commit.
+    const revealArg = encodeURIComponent(JSON.stringify([lb.sha, repo.root]));
     const diffArg = encodeURIComponent(JSON.stringify([lb.sha, doc.uri.fsPath]));
     md.appendMarkdown(
       `**${lb.author}** · ${new Date(lb.authorTime * 1000).toLocaleString()}\n\n` +
         `\`${lb.sha.slice(0, 12)}\` ${escapeMd(lb.summary)}\n\n` +
-        `[$(git-commit) Show in Log](command:gittree.log.revealCommit?${shaArg}) · ` +
+        `[$(git-commit) Show in Log](command:gittree.log.revealCommit?${revealArg}) · ` +
         `[$(copy) Copy sha](command:gittree.log.copySha?${shaArg}) · ` +
         `[$(diff) Show Diff](command:gittree.blame.showDiff?${diffArg})`,
     );

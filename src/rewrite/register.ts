@@ -176,7 +176,13 @@ export function registerPhase05HistoryRewriting(
   register('gittree.rebase.row.showInLog', async (arg) => {
     const sha = (arg as { sha?: string } | undefined)?.sha;
     if (typeof sha === 'string') {
-      await vscode.commands.executeCommand('gittree.log.revealCommit', sha);
+      // The rebase belongs to a repository; the log shows one at a time and no
+      // longer guesses which from the focused editor.
+      await vscode.commands.executeCommand(
+        'gittree.log.revealCommit',
+        sha,
+        rebaseView.currentRepoRoot,
+      );
     }
   });
   register('gittree.rebase.row.resetAction', (arg) => {
