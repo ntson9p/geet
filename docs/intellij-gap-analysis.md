@@ -624,7 +624,9 @@ row in the branches tree.
 | **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | P13-T6 `gittree.worktrees` view + New Worktree dialog + the T5 submenu row | ✅ |
 | Submodule awareness / operations | status parser reads the submodule field only | ❌ |
 | Multi-repo, "Execute branch operations on all roots" | multi-repo model exists; no all-roots switch | 🟡 |
-| Directory mappings settings page | — | ❌ |
+| **Roots detected below the project directory**, not only at it | downward search under every open folder, `gittree.repositoryScan.maxDepth` (default 1, `-1` unlimited) plus an ignore list — VS Code's `git.repositoryScan*` defaults. Was upward-only, so a folder *containing* checkouts found none of them | ✅ |
+| Roots refreshed when one appears or vanishes | the existing workspace watcher reports a `.git` entry created or deleted and a debounced rediscovery follows; no reload needed | ✅ |
+| Directory mappings settings page (per-root add/remove/ignore UI) | the two `gittree.repositoryScan.*` settings; no per-root table, and they are window-scoped where VS Code's equivalents are per-folder | 🟡 |
 
 ### 3.11 Local History
 

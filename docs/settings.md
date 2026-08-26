@@ -23,6 +23,19 @@ Log every git invocation (argv, duration, exit code — never file contents) to 
 
 - Type: `boolean` · Default: `false`
 
+### `gittree.repositoryScan.maxDepth`
+
+How many directory levels below each open folder to search for repositories, so that opening one folder full of checkouts finds them all. 1 searches the folder's immediate children, 0 searches nothing below the folder itself, and -1 searches without limit.
+
+- Type: `number` · Default: `1`
+- Minimum: `-1`
+
+### `gittree.repositoryScan.ignoredFolders`
+
+Folder names the repository search never descends into. Matched against the folder name alone, where * and ? are wildcards.
+
+- Type: `array` · Default: `["node_modules"]`
+
 ### `gittree.decorations.fileExplorer`
 
 Show GitTree's status colours and letter badges on files in the Explorer. Turn this off if you also run the built-in Git extension and would rather see only its decorations.
