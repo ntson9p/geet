@@ -13,16 +13,32 @@ export interface WorktreeTarget {
   onWorktreeEvent: (fsPath: string, ts: number) => void;
 }
 
+export interface WorkspaceWatcherHooks {
+  /**
+   * A `.git` entry itself appeared or vanished — a clone, a `git init`, a
+   * deleted checkout — so the set of repositories may have changed. Called
+   * before target resolution, because a repository that is not open yet has no
+   * target to resolve to. Bursts are the caller's to coalesce.
+   */
+  onGitEntryChanged?: () => void;
+}
+
 export function createWorkspaceWatcher(
   resolveTarget: (fsPath: string) => WorktreeTarget | undefined,
+  hooks: WorkspaceWatcherHooks = {},
 ): vscode.Disposable {
   const watcher = vscode.workspace.createFileSystemWatcher('**/*');
 
   const handle = (uri: vscode.Uri): void => {
     if (uri.scheme !== 'file') return;
+    const p = normalize(uri.fsPath);
+    // `<something>/.git` — the entry, never its contents.
+    if (p.endsWith('/.git/')) {
+      hooks.onGitEntryChanged?.();
+      return;
+    }
     const target = resolveTarget(uri.fsPath);
     if (!target) return;
-    const p = normalize(uri.fsPath);
     if (p.startsWith(normalize(target.gitDir)) || p.includes('/.git/')) return;
     target.onWorktreeEvent(uri.fsPath, Date.now());
   };

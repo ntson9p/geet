@@ -55,6 +55,22 @@
             "default": false,
             "description": "%gittree.config.trace.description%"
           },
+          "gittree.repositoryScan.maxDepth": {
+            "type": "number",
+            "default": 1,
+            "minimum": -1,
+            "description": "%gittree.config.repositoryScan.maxDepth.description%"
+          },
+          "gittree.repositoryScan.ignoredFolders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "node_modules"
+            ],
+            "description": "%gittree.config.repositoryScan.ignoredFolders.description%"
+          },
           "gittree.decorations.fileExplorer": {
             "type": "boolean",
             "default": true,

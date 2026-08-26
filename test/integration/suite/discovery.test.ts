@@ -1,6 +1,10 @@
 import * as assert from 'node:assert';
+import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { canonicalKey } from '../../../src/core/repoDiscovery';
+import { canonicalKey, RepoDiscovery } from '../../../src/core/repoDiscovery';
 import type { GitTreeApi } from '../../../src/extension';
 
 /**
@@ -61,6 +65,130 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     // workspace never had one.
     const inspected = vscode.workspace.getConfiguration('git').inspect<boolean>('enabled');
     assert.strictEqual(inspected?.workspaceValue, undefined, 'git.enabled must not be written');
+  });
+
+  /**
+   * The reported arrangement: one plain folder holding several checkouts.
+   * Exercised against the real filesystem and the real git probe — the unit
+   * suite fakes both, and this is where Windows path spellings (8.3 names,
+   * drive-letter case) get a say. The fixture lives outside the shared
+   * workspace on purpose: adding a workspace folder would perturb every other
+   * suite in this window.
+   */
+  suite('a folder of checkouts', () => {
+    let parent: string;
+    const expected: string[] = [];
+
+    suiteSetup(function () {
+      this.timeout(60_000);
+      parent = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-scan-'));
+      for (const name of ['alpha', 'beta', 'gamma']) {
+        const repo = path.join(parent, name);
+        fs.mkdirSync(repo);
+        execFileSync('git', ['init', '-q'], { cwd: repo });
+        expected.push(canonicalKey(repo));
+      }
+      // A plain directory alongside them, and a repo one level deeper.
+      fs.mkdirSync(path.join(parent, 'docs'));
+      const deep = path.join(parent, 'group', 'delta');
+      fs.mkdirSync(deep, { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: deep });
+      expected.sort();
+    });
+
+    suiteTeardown(() => {
+      // %TEMP% is not a dumping ground — this fixture is ours to remove.
+      try {
+        fs.rmSync(parent, { recursive: true, force: true, maxRetries: 5 });
+      } catch {
+        // A lingering git handle on Windows must not fail the suite.
+      }
+    });
+
+    /** A RepoDiscovery wired to the real git executor, as Core wires it. */
+    async function realDiscovery(): Promise<RepoDiscovery> {
+      const c = await core();
+      return new RepoDiscovery({
+        getRepoRoot: async (dir) => {
+          const r = await c.git.exec(dir, ['rev-parse', '--show-toplevel'], {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+          });
+          if (r.exitCode !== 0) return undefined;
+          const top = r.stdout.trim();
+          return top.length > 0 ? path.normalize(top) : undefined;
+        },
+      });
+    }
+
+    test('are all found at the default depth, and none without the scan', async function () {
+      this.timeout(60_000);
+      const d = await realDiscovery();
+
+      const found = (await d.scan([parent], { maxDepth: 1 })).map((r) => canonicalKey(r));
+      assert.deepStrictEqual(
+        found.sort(),
+        expected,
+        'the folder of checkouts must yield exactly its checkouts',
+      );
+
+      // The parent-walk alone is what shipped, and it finds nothing here.
+      assert.deepStrictEqual(
+        await d.scan([parent]),
+        [],
+        'without the downward scan this folder resolves to no repository at all',
+      );
+    });
+
+    test('reach a deeper checkout only when the depth allows it', async function () {
+      this.timeout(60_000);
+      const d = await realDiscovery();
+      const delta = canonicalKey(path.join(parent, 'group', 'delta'));
+
+      const shallow = (await d.scan([parent], { maxDepth: 1 })).map((r) => canonicalKey(r));
+      assert.ok(!shallow.includes(delta), 'depth 1 must not reach group/delta');
+
+      const deeper = (await d.scan([parent], { maxDepth: 2 })).map((r) => canonicalKey(r));
+      assert.deepStrictEqual(deeper.sort(), [...expected, delta].sort());
+    });
+
+    test('match opening every checkout as its own workspace folder', async function () {
+      this.timeout(60_000);
+      const d = await realDiscovery();
+      const scanned = (await d.scan([parent], { maxDepth: 1 })).map((r) => canonicalKey(r)).sort();
+      const asFolders = (
+        await d.scan(['alpha', 'beta', 'gamma'].map((n) => path.join(parent, n)))
+      )
+        .map((r) => canonicalKey(r))
+        .sort();
+      assert.deepStrictEqual(scanned, asFolders, 'the two ways of opening must agree');
+    });
+
+    test('are governed by settings that are actually registered', () => {
+      // Core reads these two keys; a typo in either package.json id would
+      // silently fall back to the `get` default and never be tunable.
+      const cfg = vscode.workspace.getConfiguration('gittree');
+      assert.strictEqual(
+        cfg.inspect<number>('repositoryScan.maxDepth')?.defaultValue,
+        1,
+        'gittree.repositoryScan.maxDepth is not contributed with default 1',
+      );
+      assert.deepStrictEqual(
+        cfg.inspect<string[]>('repositoryScan.ignoredFolders')?.defaultValue,
+        ['node_modules'],
+        'gittree.repositoryScan.ignoredFolders is not contributed with the expected default',
+      );
+    });
+
+    test('skip an ignored folder by name', async function () {
+      this.timeout(60_000);
+      const d = await realDiscovery();
+      const found = (
+        await d.scan([parent], { maxDepth: 1, ignoredFolders: ['beta', 'gam*'] })
+      ).map((r) => canonicalKey(r));
+      assert.deepStrictEqual(found, [canonicalKey(path.join(parent, 'alpha'))]);
+    });
   });
 
   test('debug command dumps repository state as JSON', async function () {

@@ -298,6 +298,12 @@ docked bottom, tabs `Log | Console`").
   repository offers folders only rather than truncating the alphabet — the title says so.
   Anything the chooser could not show — a glob, a withheld file — survives the pick untouched.
 * **`Roots`** lists every repository in the workspace, each with its graph-palette swatch.
+  "In the workspace" means found by the same search VS Code's built-in git performs: each
+  open folder, the repository enclosing it, **and the repositories below it** —
+  `gittree.repositoryScan.maxDepth` levels down, default one, skipping
+  `gittree.repositoryScan.ignoredFolders`. Opening a plain directory of checkouts therefore
+  lists exactly what opening each checkout as its own folder would, and a repository cloned
+  or `init`-ed afterwards joins the list without a reload.
   The log renders **one repository at a time**, so the rows are radios: picking one moves the
   log there. The panel title carries the name of the repository on show, and the list
   follows folders joining or leaving the workspace without disturbing the rows on screen.

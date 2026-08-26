@@ -4,6 +4,8 @@
   "gittree.config.title": "GitTree",
   "gittree.config.gitPath.description": "Path to the git executable. Falls back to the built-in `git.path` setting, then PATH, then well-known install locations.",
   "gittree.config.trace.description": "Log every git invocation (argv, duration, exit code — never file contents) to the \"GitTree\" output channel, and reveal debug commands.",
+  "gittree.config.repositoryScan.maxDepth.description": "How many directory levels below each open folder to search for repositories, so that opening one folder full of checkouts finds them all. 1 searches the folder's immediate children, 0 searches nothing below the folder itself, and -1 searches without limit.",
+  "gittree.config.repositoryScan.ignoredFolders.description": "Folder names the repository search never descends into. Matched against the folder name alone, where * and ? are wildcards.",
   "gittree.config.terminalAuth.description": "Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code.",
   "gittree.config.keymap.intellij.description": "Enable the optional IntelliJ-flavored keybinding set (Ctrl+K commit, Ctrl+Shift+K push, Ctrl+T update, Alt+9 log, Ctrl+Alt+Z rollback). See docs/keyboard.md for conflicts with VS Code defaults.",
   "gittree.config.whatsNew.enabled.description": "Show a one-time notification with the changelog when GitTree updates to a new minor version.",

@@ -6,6 +6,42 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a folder full of repositories now shows its repositories
+
+Opening one directory that *contains* several checkouts — the ordinary way to
+keep related projects together — left GitTree **completely empty**: no
+repositories, no branches, no log, every panel blank. Listing the same
+checkouts individually in a `.code-workspace` file worked. The two are now the
+same.
+
+The search only ever looked *upward*. `git rev-parse --show-toplevel` walks
+parents, so an open folder resolved to the repository it sits *inside*, and a
+folder that merely holds repositories resolved to none of them. Nothing ever
+looked down.
+
+- **Repositories below each open folder are now found**, the same search VS
+  Code's built-in git runs, with the same defaults: one level down, skipping
+  `node_modules`. Tune it with `gittree.repositoryScan.maxDepth` (`0` restores
+  the old upward-only search, `-1` is unlimited) and
+  `gittree.repositoryScan.ignoredFolders`. Changing either re-searches
+  immediately rather than at the next reload.
+- **A repository that appears later joins on its own** — clone or `git init`
+  inside the workspace and it shows up, where before it needed a window reload.
+  One that is deleted leaves the same way.
+- **A nested repository found directly is kept**, so opening the parent folder
+  and listing every checkout in a `.code-workspace` file give the identical
+  list. A repository still reached only by walking *up* out of a subfolder
+  loses to the outermost one, exactly as before — with the search off, the rule
+  is unchanged in every case.
+- Candidate directories are filtered on a `.git` entry before git is spawned,
+  so the search costs one process per real repository rather than one per
+  directory, and it is bounded: an unlimited depth stops after 2 000
+  directories and **says so in the trace** instead of quietly reporting a short
+  list.
+- Rediscovery is now serialized. With three triggers instead of one, two
+  overlapping runs could both open the same repository and leak the first one's
+  file watchers.
+
 ### Fixed — multi-root workspaces commit what you ticked
 
 In a workspace with several repositories, the commit window listed them all but

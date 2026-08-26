@@ -19,11 +19,17 @@ import { migrateUnsetGitEnabled } from './migrations/unsetGitEnabled';
 import { RepositoryModel } from './model/repositoryModel';
 import { OperationQueue } from './ops/operationQueue';
 import { StatusRefresher } from './ops/statusRefresher';
-import { canonicalKey, RepoDiscovery } from './repoDiscovery';
+import { canonicalKey, RepoDiscovery, type ScanOptions } from './repoDiscovery';
 import { DisposableStore, Emitter, type Event } from './util/events';
 import { GitDirWatcher, resolveGitDir, type ResolvedGitDir } from './watch/gitDirWatcher';
 import { createWorkspaceWatcher } from './watch/workspaceWatcher';
 import { vscodeProgressAdapter } from '../ui/progress';
+
+/** Repositories opened at once during discovery — each costs several spawns. */
+const OPEN_CONCURRENCY = 4;
+
+/** A clone writes many paths; one rediscovery at the end of the burst is enough. */
+const RESCAN_DEBOUNCE_MS = 500;
 
 export interface RepoHandle {
   id: RepoId;
@@ -50,6 +56,9 @@ export class Core implements vscode.Disposable {
   readonly onDidAddRepo: Event<RepoHandle> = this._onDidAddRepo.event;
   readonly onDidRemoveRepo: Event<RepoHandle> = this._onDidRemoveRepo.event;
   private readonly discovery: RepoDiscovery;
+  private rescanning: Promise<void> = Promise.resolve();
+  private rescanTimer: ReturnType<typeof setTimeout> | undefined;
+  private disposed = false;
 
   constructor(
     readonly git: GitExecutorImpl,
@@ -95,28 +104,44 @@ export class Core implements vscode.Disposable {
    * next thing needing extension state will want it back.
    */
   async initialize(_context: vscode.ExtensionContext): Promise<void> {
-    await this.rescan();
+    await this.queueRescan();
 
     this.store.add(
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
-        void this.rescan();
+        void this.queueRescan();
       }),
     );
 
-    // One workspace-wide watcher routes worktree events to the owning repo.
+    // Re-scan when the search depth or the ignore list changes, so the setting
+    // takes effect where the user changed it rather than on the next reload.
     this.store.add(
-      createWorkspaceWatcher((fsPath) => {
-        const handle = this.repoForPath(fsPath);
-        if (!handle) return undefined;
-        return {
-          root: handle.root,
-          gitDir: handle.dirs.gitDir,
-          onWorktreeEvent: (_p: string, ts: number) => {
-            handle.model.bumpWorkdirGeneration();
-            handle.refresher.poke('worktree', ts);
-          },
-        };
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('gittree.repositoryScan')) void this.queueRescan();
       }),
+    );
+
+    // One workspace-wide watcher routes worktree events to the owning repo —
+    // and reports a `.git` entry appearing or vanishing, so a repository
+    // cloned or `init`-ed after startup joins without a window reload. It is
+    // deliberately the same watcher: a second one over the same folders costs
+    // event-routing latency on every file change in the workspace, and this
+    // one already sees them all.
+    this.store.add(
+      createWorkspaceWatcher(
+        (fsPath) => {
+          const handle = this.repoForPath(fsPath);
+          if (!handle) return undefined;
+          return {
+            root: handle.root,
+            gitDir: handle.dirs.gitDir,
+            onWorktreeEvent: (_p: string, ts: number) => {
+              handle.model.bumpWorkdirGeneration();
+              handle.refresher.poke('worktree', ts);
+            },
+          };
+        },
+        { onGitEntryChanged: () => this.pokeRescan() },
+      ),
     );
 
     if (this.git.caps.belowFloor) {
@@ -126,12 +151,61 @@ export class Core implements vscode.Disposable {
     }
   }
 
+  /**
+   * Rescans are serialized. They used to have exactly one trigger
+   * (`onDidChangeWorkspaceFolders`); now a filesystem watcher and a
+   * configuration listener can fire too, and two interleaved runs would both
+   * see a key as missing, both call `addRepo`, and leak the first handle's
+   * watchers when the second overwrote it in the map.
+   */
+  /** Coalesces a burst of `.git` events into one rediscovery. */
+  private pokeRescan(): void {
+    if (this.rescanTimer) clearTimeout(this.rescanTimer);
+    this.rescanTimer = setTimeout(() => {
+      this.rescanTimer = undefined;
+      if (!this.disposed) void this.queueRescan();
+    }, RESCAN_DEBOUNCE_MS);
+  }
+
+  private queueRescan(): Promise<void> {
+    const next = this.rescanning.then(
+      () => this.rescan(),
+      () => this.rescan(),
+    );
+    // Triggers call this as `void queueRescan()`; a rejection here must not
+    // surface as an unhandled one, nor fail activation over a single repo.
+    this.rescanning = next.catch((err: unknown) => {
+      this.trace(`rescan failed: ${String(err)}`);
+    });
+    return this.rescanning;
+  }
+
+  private scanOptions(): ScanOptions {
+    const cfg = vscode.workspace.getConfiguration('gittree');
+    return {
+      maxDepth: cfg.get<number>('repositoryScan.maxDepth', 1),
+      ignoredFolders: cfg.get<string[]>('repositoryScan.ignoredFolders', ['node_modules']),
+    };
+  }
+
   private async rescan(): Promise<void> {
     const folders = (vscode.workspace.workspaceFolders ?? [])
       .filter((f) => f.uri.scheme === 'file')
       .map((f) => f.uri.fsPath);
-    const roots = await this.discovery.scan(folders);
+    let roots: string[];
+    try {
+      roots = await this.discovery.scan(folders, this.scanOptions());
+    } catch (err) {
+      // Never let a failed rediscovery tear down the repositories already open.
+      this.trace(`rescan failed, keeping the current repositories: ${String(err)}`);
+      return;
+    }
     const nextKeys = new Set(roots.map((r) => canonicalKey(r)));
+    const opts = this.scanOptions();
+    this.trace(
+      `discovery: ${roots.length} repo(s) from ${folders.length} folder(s) ` +
+        `(maxDepth ${String(opts.maxDepth)}): ${roots.join(', ') || '(none)'}`,
+    );
 
     for (const [key, handle] of [...this.handles]) {
       if (!nextKeys.has(key)) {
@@ -141,11 +215,26 @@ export class Core implements vscode.Disposable {
         this.trace(`repo removed: ${handle.root}`);
       }
     }
-    for (const root of roots) {
-      const key = canonicalKey(root);
-      if (!this.handles.has(key)) {
-        await this.addRepo(key, root);
-      }
+    // Opening a repository costs several git invocations, and a folder of
+    // checkouts can now yield dozens, so they open a few at a time rather than
+    // strictly one after another — the difference between a window that is
+    // ready in a moment and one that is ready in several seconds. `handles` is
+    // still filled in `roots` order: addRepo registers its handle before its
+    // first await, so the batch's synchronous prefixes run in order.
+    const pending = roots.filter((root) => !this.handles.has(canonicalKey(root)));
+    for (let i = 0; i < pending.length; i += OPEN_CONCURRENCY) {
+      if (this.disposed) return;
+      await Promise.all(
+        pending.slice(i, i + OPEN_CONCURRENCY).map(async (root) => {
+          try {
+            await this.addRepo(canonicalKey(root), root);
+          } catch (err) {
+            // One repository that will not open (permissions, a corrupt git
+            // dir) must not hide the rest.
+            this.trace(`repo at ${root} failed to open: ${String(err)}`);
+          }
+        }),
+      );
     }
   }
 
@@ -196,6 +285,9 @@ export class Core implements vscode.Disposable {
   }
 
   dispose(): void {
+    // A rescan already in flight must not re-add handles after teardown.
+    this.disposed = true;
+    if (this.rescanTimer) clearTimeout(this.rescanTimer);
     for (const handle of this.handles.values()) {
       handle.disposables.dispose();
     }
