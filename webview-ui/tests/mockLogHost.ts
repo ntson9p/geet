@@ -25,6 +25,14 @@ export const mockLogHostScript = `
     },
   });
   let state;
+  // Opt-in (window.__mockWideDetails): a commit whose message line and file
+  // path are far wider than the pane that shows them. Off by default so the
+  // rest of the suite keeps its narrow fixtures.
+  const wide = () => window.__mockWideDetails === true;
+  const WIDE_LINE =
+    'Applied from change-resource-sheet2.csv: envoy [sidecar] cpu 50m, memory request 256Mi (limit left as-is for burst headroom), go-actuator [sidecar] cpu 10m, memory 128Mi (request = limit)';
+  const WIDE_PATH =
+    'service-group/src/main/java/jp/example/backend/group/firebase/component/UserLogicComponentFactory.java';
   const post = (msg) => setTimeout(() => window.postMessage(msg, '*'), 3);
   const api = {
     postMessage(msg) {
@@ -65,11 +73,15 @@ export const mockLogHostScript = `
             committerTime: 1700000001,
             signature: first ? 'G' : 'N',
             refs: first ? ['HEAD -> main', 'tag: v1.0'] : [],
-            body: 'subject of ' + s.slice(0, 7) + '\\n\\nSee https://example.com/doc and GT-123 for context.',
-            files: [
-              { status: 'M', path: 'src/app.ts' },
-              { status: 'R', path: 'src/new.ts', origPath: 'src/old.ts' },
-            ],
+            body:
+              'subject of ' + s.slice(0, 7) + '\\n\\nSee https://example.com/doc and GT-123 for context.' +
+              (wide() ? '\\n\\n' + WIDE_LINE : ''),
+            files: wide()
+              ? [{ status: 'M', path: WIDE_PATH }]
+              : [
+                  { status: 'M', path: 'src/app.ts' },
+                  { status: 'R', path: 'src/new.ts', origPath: 'src/old.ts' },
+                ],
           });
           break;
         }
@@ -87,10 +99,12 @@ export const mockLogHostScript = `
           const shas = msg.params.shas || [];
           if (shas.length <= 1) {
             res({
-              files: [
-                { status: 'M', path: 'src/app.ts' },
-                { status: 'R', path: 'src/new.ts', origPath: 'src/old.ts' },
-              ],
+              files: wide()
+                ? [{ status: 'M', path: WIDE_PATH }]
+                : [
+                    { status: 'M', path: 'src/app.ts' },
+                    { status: 'R', path: 'src/new.ts', origPath: 'src/old.ts' },
+                  ],
               newest: shas[0],
             });
           } else {

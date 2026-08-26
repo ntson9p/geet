@@ -582,6 +582,45 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(page.getByTestId('details-panel')).toContainText('Alice');
   });
 
+  /**
+   * Only a drag moves a separator. A pane whose flex base size comes from its
+   * own content makes flexbox re-proportion its siblings, so selecting a commit
+   * with a long message line or a deep path used to squeeze Branches and
+   * Commits sideways and Changed Files vertically — a layout that changed under
+   * the user for merely looking at a commit.
+   */
+  test('P12-T1: selecting a wide commit does not move the pane separators', async ({ page }) => {
+    await openLog(page);
+    const geometry = async () => {
+      const of = async (id: string) => {
+        const b = await page.getByTestId(`pane-${id}`).boundingBox();
+        expect(b, `pane-${id} has no box`).not.toBeNull();
+        return b!;
+      };
+      return {
+        branches: (await of('branches')).width,
+        commits: (await of('commits')).width,
+        files: (await of('files')).height,
+      };
+    };
+
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('changed-files')).toContainText('app.ts');
+    const before = await geometry();
+
+    await page.evaluate(() => {
+      (window as unknown as { __mockWideDetails: boolean }).__mockWideDetails = true;
+    });
+    await commitRow(page).locator('[data-gt-row="2"]').click();
+    await expect(page.getByTestId('details-body')).toContainText('change-resource-sheet2.csv');
+    await expect(page.getByTestId('changed-files')).toContainText('UserLogicComponentFactory');
+    const after = await geometry();
+
+    expect(after.branches).toBeCloseTo(before.branches, 1);
+    expect(after.commits).toBeCloseTo(before.commits, 1);
+    expect(after.files).toBeCloseTo(before.files, 1);
+  });
+
   test('P12-T1: layout ratios and collapse flags survive a reload', async ({ page }) => {
     await openLog(page);
     await page

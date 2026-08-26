@@ -6,6 +6,21 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — selecting a commit no longer resizes the panes
+
+In the Git tool window, clicking a commit could re-proportion the whole
+window: Branches and Commits narrowed, Changed Files shortened, and the right
+column swelled to take the room — all without touching a separator. It looked
+random because it depends on the commit: those with a long message line or a
+deep file path moved the layout, and the next commit moved it back.
+
+Separators are set by dragging, and by nothing else. The two panes either side
+of a separator were sized so that the second one's *content* took part in the
+calculation, and flexbox pays for an over-wide pane by shrinking its
+neighbours. A wide commit message was therefore charged to the Branches pane.
+Each pane now keeps exactly the fraction it was given, and content that does
+not fit scrolls inside its own pane, as it already did for long file names.
+
 ### Fixed — a folder full of repositories now shows its repositories
 
 Opening one directory that *contains* several checkouts — the ordinary way to

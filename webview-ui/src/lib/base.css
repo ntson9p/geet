@@ -405,7 +405,15 @@ button {
   flex-direction: column;
 }
 
+/*
+ * The sized pane holds exactly the ratio it was given. `flex-shrink: 0` is the
+ * load-bearing part: with the default `1`, an overflowing line stretches the
+ * other pane's flex base size and flexbox pays for it by shrinking THIS pane —
+ * so selecting a commit with a wide message or a deep file path silently
+ * re-proportioned the whole window. Content must never move a separator.
+ */
 .gt-split-pane {
+  flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -413,8 +421,15 @@ button {
   flex-direction: column;
 }
 
-.gt-split-rest {
-  flex: 1 1 auto;
+/*
+ * The rest takes what is left and nothing more. `flex-basis: 0` (not `auto`)
+ * keeps its own content out of the sizing entirely; it overflows into its
+ * scroll containers instead of pushing the separator. Selector is deliberately
+ * more specific than `.gt-split-pane` so the override cannot depend on source
+ * order.
+ */
+.gt-split-pane.gt-split-rest {
+  flex: 1 1 0;
 }
 
 .gt-split-sash {

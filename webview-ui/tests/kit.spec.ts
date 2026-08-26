@@ -148,13 +148,22 @@ test.describe('P11-T1 splitter', () => {
     const sash = page.getByRole('separator', { name: 'Tree and readout splitter' });
     await expect(page.getByTestId('ratio')).toHaveText('ratio: 0.62');
 
+    // The rendered pane must follow the ratio, not just the readout: the pane
+    // is deliberately unshrinkable so content cannot move it, and a frozen
+    // pane would still report the right number while never actually resizing.
+    const paneWidth = async () =>
+      (await page.locator('.gt-split-pane').first().boundingBox())!.width;
+    const wide = await paneWidth();
+
     await sash.focus();
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('ArrowLeft');
     await expect(page.getByTestId('ratio')).toHaveText('ratio: 0.58');
+    expect(await paneWidth()).toBeLessThan(wide - 1);
 
     await sash.dblclick();
     await expect(page.getByTestId('ratio')).toHaveText('ratio: 0.62');
+    expect(await paneWidth()).toBeCloseTo(wide, 1);
   });
 });
 
