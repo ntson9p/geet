@@ -6,6 +6,28 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — Commit Details now uses the whole pane you gave it
+
+The Commit Details pane wrapped its text inside roughly the left half of itself
+and left the rest blank, and widening the window made the empty strip *bigger*,
+not smaller. Dragging the separator to give the pane more room handed it less
+than half of what you dragged. Squeezed the other way, past about 240 px, the
+text stopped reflowing and ran off the edge behind a scrollbar instead. The
+commit message had a matching problem of its own: it was capped at 30% of the
+pane's height and scrolled inside that cap, with empty pane sitting directly
+below the words it had just cut off.
+
+All of it came from three sizing rules the panel had carried since it sat
+*beside* the commit list rather than in a pane of its own. Back then they
+described how wide it could get; once it became a pane, the splitter decided
+that, and the old rules were left arguing with it on the wrong axis.
+
+The pane's size is the splitter's business now, as it already was for Branches,
+Commits and Changed Files. The commit message takes whatever height is left over
+and scrolls within it, so the subject, hash and author stay in view while you
+read a long one — and if a commit carries so many refs that they alone outgrow a
+short pane, the pane scrolls rather than hiding them.
+
 ### Fixed — selecting a commit no longer resizes the panes
 
 In the Git tool window, clicking a commit could re-proportion the whole

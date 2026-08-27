@@ -565,11 +565,26 @@
   color: var(--vscode-charts-green, #89d185);
 }
 
-/* details panel */
+/*
+ * Commit Details fills its pane, like the other three pane roots
+ * (`.gt-changed-files`, `.gt-branches-pane`, `.gt-console`).
+ *
+ * It carried `flex: 1 1 40%; min-width: 220px; max-width: 45%` from P4, when the
+ * panel sat *beside* the commit list in a row: there all three sized the main
+ * axis and were the whole contract. P12 made it a pane in a column, so they
+ * landed on the cross axis and started fighting the splitter for the width —
+ * capped under half the pane when wide, overflowing it when narrow. The splitter
+ * owns pane size; the readability floor belongs on its `minSecond` (Shell.tsx),
+ * where the drag clamp honours it, not on a `min-width` that overflows instead.
+ *
+ * `overflow: auto` is a fallback, not the normal path: the message below scrolls
+ * itself, and the panel only scrolls when the metadata alone outgrows a short
+ * pane — which is the one case that would otherwise clip refs out of reach.
+ */
 .gt-log-details {
-  flex: 1 1 40%;
-  min-width: 220px;
-  max-width: 45%;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   border-left: 1px solid var(--vscode-panel-border, transparent);
   overflow: auto;
   padding: 8px;
@@ -578,10 +593,23 @@
   gap: 6px;
 }
 
+/*
+ * Everything above the message keeps its own height; only the message flexes.
+ * Written as `:not(the message)` rather than naming today's three blocks so a
+ * field added to DetailsPanel later gets the safe behaviour by default, and so
+ * neither rule depends on which one comes first in this file.
+ */
+.gt-log-details > :not(.gt-details-body) {
+  flex: 0 0 auto;
+}
+
 .gt-details-header {
   display: flex;
   align-items: center;
   gap: 4px;
+  /* The sha, author and both buttons are unshrinkable and cannot ellipsis —
+     without wrapping they overflow a narrow pane instead of reflowing. */
+  flex-wrap: wrap;
 }
 
 .gt-details-sha {
@@ -596,13 +624,21 @@
   margin-top: 4px;
 }
 
+/*
+ * The message takes the height left over and scrolls inside it, so the subject,
+ * hash and author stay on screen while you read a long one. `max-height: 30%`
+ * here was P4's ceiling from when the changed-file list sat below the message in
+ * this same panel; P12 gave the files their own pane and the ceiling stayed,
+ * clipping messages that had empty pane sitting right below them.
+ */
 .gt-details-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   white-space: pre-wrap;
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 0.95em;
   margin: 4px 0;
-  max-height: 30%;
-  overflow: auto;
 }
 
 .gt-details-files {

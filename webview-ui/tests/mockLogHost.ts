@@ -29,6 +29,9 @@ export const mockLogHostScript = `
   // path are far wider than the pane that shows them. Off by default so the
   // rest of the suite keeps its narrow fixtures.
   const wide = () => window.__mockWideDetails === true;
+  // Opt-in (window.__mockLongDetails): a message far taller than the pane, for
+  // the tests about what scrolls and what stays put while you read it.
+  const long = () => window.__mockLongDetails === true;
   const WIDE_LINE =
     'Applied from change-resource-sheet2.csv: envoy [sidecar] cpu 50m, memory request 256Mi (limit left as-is for burst headroom), go-actuator [sidecar] cpu 10m, memory 128Mi (request = limit)';
   const WIDE_PATH =
@@ -75,7 +78,8 @@ export const mockLogHostScript = `
             refs: first ? ['HEAD -> main', 'tag: v1.0'] : [],
             body:
               'subject of ' + s.slice(0, 7) + '\\n\\nSee https://example.com/doc and GT-123 for context.' +
-              (wide() ? '\\n\\n' + WIDE_LINE : ''),
+              (wide() ? '\\n\\n' + WIDE_LINE : '') +
+              (long() ? '\\n\\n' + Array(40).fill(WIDE_LINE).join('\\n') : ''),
             files: wide()
               ? [{ status: 'M', path: WIDE_PATH }]
               : [

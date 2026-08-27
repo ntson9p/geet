@@ -621,6 +621,126 @@ test.describe('P4-T3/T4 log webview', () => {
     expect(after.files).toBeCloseTo(before.files, 1);
   });
 
+  /**
+   * Nothing but the splitter decides how wide Commit Details is. The panel kept
+   * P4's row-layout constraints (`min-width: 220px; max-width: 45%`) after P12
+   * made it a pane in a column, where they land on the cross axis: the text
+   * wrapped inside half the pane at wide sizes and spilled past it at narrow
+   * ones, and dragging the separator returned only 45% of the room it gave.
+   */
+  test('P12-T4: Commit Details fills the width of its pane', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('details-panel')).toBeVisible();
+
+    const geometry = () =>
+      page.evaluate(() => {
+        const pane = document.querySelector('[data-pane-body="details"]') as HTMLElement;
+        const panel = pane.querySelector('.gt-log-details') as HTMLElement;
+        return {
+          fill: panel.getBoundingClientRect().width / pane.clientWidth,
+          overflow: Math.max(
+            panel.scrollWidth - panel.clientWidth,
+            pane.scrollWidth - pane.clientWidth,
+          ),
+        };
+      });
+
+    for (const width of [1024, 1920]) {
+      await page.setViewportSize({ width, height: 768 });
+      const g = await geometry();
+      expect(g.fill, `fill at ${width}px`).toBeCloseTo(1, 2);
+      expect(g.overflow, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(1);
+    }
+
+    // Squeezed against the splitter's floor it reflows rather than spilling —
+    // the header row wraps instead of pushing the sha past the pane edge.
+    await page.setViewportSize({ width: 1024, height: 768 });
+    const sash = page.getByRole('separator', { name: 'Log panes' });
+    await sash.focus();
+    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
+    const narrow = await geometry();
+    expect(narrow.fill, 'fill at the splitter floor').toBeCloseTo(1, 2);
+    expect(narrow.overflow, 'horizontal overflow at the splitter floor').toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * A long message scrolls inside its own box rather than taking the pane with
+   * it. The subject, hash and author are how you know *which* commit you are
+   * reading; they must not scroll away in order to reach the end of the text.
+   */
+  test('P12-T4: a long message scrolls without taking the header with it', async ({ page }) => {
+    await openLog(page);
+    await page.evaluate(() => {
+      (window as unknown as { __mockLongDetails: boolean }).__mockLongDetails = true;
+    });
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('details-body')).toContainText('change-resource-sheet2.csv');
+
+    const state = () =>
+      page.evaluate(() => {
+        const pane = document.querySelector('[data-pane-body="details"]') as HTMLElement;
+        const pre = pane.querySelector('.gt-details-body') as HTMLElement;
+        const s = (pane.querySelector('.gt-details-subject') as HTMLElement).getBoundingClientRect();
+        const p = pane.getBoundingClientRect();
+        return {
+          messageScrolls: pre.scrollHeight - pre.clientHeight > 1,
+          atEnd: pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 1,
+          subjectVisible: s.top >= p.top - 1 && s.bottom <= p.bottom + 1,
+          // Panel padding (8) + the message's own bottom margin (4); anything
+          // beyond that is pane the message was refused.
+          blankBelowMessage: p.bottom - 8 - pre.getBoundingClientRect().bottom,
+        };
+      });
+
+    const before = await state();
+    // Guards the guard: a fixture that fits proves nothing about scrolling.
+    expect(before.messageScrolls, 'the fixture must outgrow the pane').toBe(true);
+    expect(before.subjectVisible, 'the subject starts on screen').toBe(true);
+    // A message too long to fit gets every pixel that is left. `max-height: 30%`
+    // used to cut it off with a third of the pane sitting empty underneath.
+    expect(before.blankBelowMessage, 'empty pane below a clipped message').toBeLessThanOrEqual(12);
+
+    await page.getByTestId('details-body').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const after = await state();
+    expect(after.atEnd, 'the end of the message is reachable').toBe(true);
+    expect(after.subjectVisible, 'the subject stayed on screen').toBe(true);
+  });
+
+  /**
+   * Pinning the header must not clip what it pins. At the splitter's floor
+   * there is less room than the metadata needs, so the panel itself takes over
+   * the scrolling — without that fallback the ref chips, parent links and
+   * `Contained in branches` would be cut off with no way to reach them.
+   */
+  test('P12-T4: a pane at its floor scrolls rather than clipping the metadata', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await expect(page.getByTestId('details-panel')).toBeVisible();
+
+    const sash = page.getByRole('separator', { name: 'Changed files and commit details' });
+    await sash.focus();
+    await page.keyboard.press('End'); // Commit Details down to the splitter's minSecond
+
+    const probe = await page.evaluate(() => {
+      const pane = document.querySelector('[data-pane-body="details"]') as HTMLElement;
+      const panel = pane.querySelector('.gt-log-details') as HTMLElement;
+      const last = pane.querySelector('.gt-details-contained') as HTMLElement;
+      const panelScrolls = panel.scrollHeight - panel.clientHeight > 1;
+      // "Reachable" is exactly what scrollIntoView can do: it moves every
+      // scrollable ancestor, and none at all if they are all `overflow: hidden`.
+      last.scrollIntoView({ block: 'nearest' });
+      const p = pane.getBoundingClientRect();
+      const l = last.getBoundingClientRect();
+      return { panelScrolls, lastRowVisible: l.bottom > p.top + 1 && l.top < p.bottom - 1 };
+    });
+
+    expect(probe.panelScrolls, 'the floor must be tighter than the metadata').toBe(true);
+    expect(probe.lastRowVisible, 'the last metadata row can be scrolled into view').toBe(true);
+  });
+
   test('P12-T1: layout ratios and collapse flags survive a reload', async ({ page }) => {
     await openLog(page);
     await page
