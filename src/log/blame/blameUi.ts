@@ -9,42 +9,30 @@ import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { makeRevUri } from '../../core/vdocs/revContentProvider';
 import { BlameService, type FileBlame, type LineBlame } from './blameService';
+import {
+  BUCKETS,
+  formatBlameLabel,
+  heatBucket,
+  relativeDate,
+  toDecorationText,
+} from './blameLabel';
 
-const BUCKETS = 10;
+export { formatBlameLabel, heatBucket } from './blameLabel';
+
 const LARGE_FILE_LINES = 20_000;
 
-export function formatBlameLabel(
-  format: string,
-  blame: LineBlame,
-  now: number = Date.now(),
-): string {
-  const date = blame.isUncommitted ? '' : relativeDate(blame.authorTime, now);
-  return format
-    .replace(/\$\{author(?:\|(\d+))?\}/g, (_, w) => fit(blame.author, w ? Number(w) : 12))
-    .replace(/\$\{date(?:\|relative)?\}/g, () => fit(date, 10))
-    .replace(/\$\{sha(?:\|(\d+))?\}/g, (_, w) => blame.isUncommitted ? fit('*', w ? Number(w) : 7) : blame.sha.slice(0, w ? Number(w) : 7));
-}
-
-function fit(s: string, width: number): string {
-  return s.length > width ? s.slice(0, width - 1) + '…' : s.padEnd(width);
-}
-
-function relativeDate(unixSeconds: number, now: number): string {
-  const days = Math.floor((now / 1000 - unixSeconds) / 86_400);
-  if (days < 1) return 'today';
-  if (days < 30) return `${days}d ago`;
-  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
-}
-
-/** Decile bucket of a commit time across the file's blame span (0 = newest). */
-export function heatBucket(time: number, sortedTimes: readonly number[]): number {
-  if (sortedTimes.length === 0) return BUCKETS - 1;
-  let idx = sortedTimes.findIndex((t) => t >= time);
-  if (idx === -1) idx = sortedTimes.length - 1;
-  const percentileFromNewest = 1 - idx / Math.max(1, sortedTimes.length - 1 || 1);
-  return Math.min(BUCKETS - 1, Math.floor(percentileFromNewest * BUCKETS));
-}
+/**
+ * The column separator. `before.borderColor` alone never draws (CSS
+ * `border-style` defaults to `none`), and the attachment API cannot express a
+ * single-edge rule: the extension host forwards only `border`/`borderColor`
+ * (`borderStyle`/`borderWidth` are dropped by
+ * `ThemableDecorationAttachmentRenderOptions.from`), and the `border`
+ * shorthand takes no per-side widths. `textDecoration` is forwarded verbatim
+ * into the generated rule, so it is the one seam that can carry the rule; the
+ * theme colour comes in as the CSS variable VS Code publishes for it.
+ */
+const COLUMN_RULE =
+  'none; border-right: 1px solid var(--vscode-editorLineNumber-foreground)';
 
 export class BlameUi implements vscode.Disposable {
   private readonly services = new Map<string, BlameService>();
@@ -104,7 +92,7 @@ export class BlameUi implements vscode.Disposable {
         before: {
           color,
           margin: '0 1ch 0 0',
-          borderColor: new vscode.ThemeColor('editorLineNumber.foreground'),
+          textDecoration: COLUMN_RULE,
         },
       });
     });
@@ -178,7 +166,9 @@ export class BlameUi implements vscode.Disposable {
       const lb = blame.lines[line] as LineBlame;
       const firstOfRun = lb.sha !== prevSha;
       prevSha = lb.sha;
-      const text = firstOfRun ? formatBlameLabel(format, lb, now) : ' '.repeat(formatBlameLabel(format, lb, now).length);
+      const label = formatBlameLabel(format, lb, now);
+      // Spaces collapse inside the decoration's CSS `content`; nbsp does not.
+      const text = toDecorationText(firstOfRun ? label : ' '.repeat(label.length));
       const bucket = lb.isUncommitted ? BUCKETS : heatmapOn ? heatBucket(lb.authorTime, blame.times) : 0;
       byBucket[bucket]!.push({
         range: new vscode.Range(line, 0, line, 0),
