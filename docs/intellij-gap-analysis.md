@@ -378,9 +378,9 @@ row in the branches tree.
 | Popup: **changelist selector** dropdown | — | ❌ |
 | Hollow marker means staged chunk | — | ❌ |
 | Annotate with Git Blame (toggle) | `gittree.blame.toggle` | ✅ |
-| Blame age heat-map fading | `gittree.blame.heatmap` | ✅ |
+| Blame age colouring (IntelliJ "Order": newest strongest, ranked within the file) | `gittree.blame.heatmap` — five themable background anchors, quantised not interpolated (**D25**) | ✅ |
 | Click annotation opens the commit in the log | `gittree.blame.revealCursorCommit` | ✅ |
-| Blame **View** menu: revision info / date / author formats, commit number, colors | `gittree.blame.format` string only | 🟡 |
+| Blame **View** menu: revision info / date / author formats, commit number, colors | colors are themable (`gittree.blame.*`); the field layout is `gittree.blame.format` only, with no in-editor menu | 🟡 |
 | Blame **Options**: Ignore Whitespaces (`-w`) | — | ❌ |
 | Blame Options: Detect Movements Within File (`-M`) | — | ❌ |
 | Blame Options: Detect Movements Across Files (`-C`) | — | ❌ |

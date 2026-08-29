@@ -1,7 +1,7 @@
 /**
  * Blame UI (P4-T7): the IntelliJ "Annotate" gutter column — fixed-width
- * before-decorations on *every* line, per-age heat buckets, alternating
- * background bands per commit group, hover commit card with trusted command
+ * before-decorations on *every* line, each cell's background shaded by the
+ * commit's age on a five-step gradient, hover commit card with trusted command
  * links (Show in Log / Copy / Show Diff), cursor-line status-bar item,
  * per-document toggle from the gutter context menu.
  */
@@ -11,15 +11,14 @@ import { canonicalKey } from '../../core/repoDiscovery';
 import { makeRevUri } from '../../core/vdocs/revContentProvider';
 import { BlameService, type FileBlame, type LineBlame } from './blameService';
 import {
-  BUCKETS,
+  AGE_STEPS,
+  ageStep,
   formatBlameLabel,
-  heatBucket,
   relativeDate,
-  runBands,
   toDecorationText,
 } from './blameLabel';
 
-export { formatBlameLabel, heatBucket } from './blameLabel';
+export { ageStep, formatBlameLabel } from './blameLabel';
 
 const LARGE_FILE_LINES = 20_000;
 
@@ -27,7 +26,7 @@ const LARGE_FILE_LINES = 20_000;
  * Per-line attachment options.
  *
  * A decoration *type* cannot vary per line, so whatever differs between lines
- * — the label and the band — has to travel in each range's own
+ * — the label and the age shade — has to travel in each range's own
  * `renderOptions`. That path is also the unrestricted one: the extension host
  * forwards `renderOptions` verbatim to `$trySetDecorations`, whereas the
  * *type* converter rebuilds the object against a fixed whitelist. A
@@ -36,30 +35,49 @@ const LARGE_FILE_LINES = 20_000;
  *
  * The editor de-duplicates these structurally (`hash(renderOptions)` → one
  * registered sub-type and one CSS rule, unused ones dropped on the next
- * `setDecorations`), so every line of a commit still shares one rule: about
- * one per (commit × band), not one per line.
+ * `setDecorations`). Both fields that vary are derived from the commit, so
+ * that is one rule per *commit* in the file, not one per line.
  */
 type Attachment = vscode.ThemableDecorationAttachmentRenderOptions & {
   borderStyle?: string;
   borderWidth?: string;
 };
 
-const BAND_COLORS = [
-  new vscode.ThemeColor('gittree.blame.bandBackground'),
-  new vscode.ThemeColor('gittree.blame.bandAlternateBackground'),
-] as const;
+/**
+ * The age gradient, newest first.
+ *
+ * IntelliJ's annotation colours are theme data — five anchors a colour scheme
+ * or the user can replace — so these are contributed colours rather than
+ * literals. Themable also means self-updating: the renderer flags any rule
+ * built from a `ThemeColor` and rebuilds its CSS on `onDidColorThemeChange`,
+ * so nothing here has to listen for a theme switch.
+ */
+const AGE_BACKGROUNDS: readonly vscode.ThemeColor[] = Array.from(
+  { length: AGE_STEPS },
+  (_, step) => new vscode.ThemeColor(`gittree.blame.age${step + 1}Background`),
+);
+
+/** Outside the gradient: a line nobody has committed yet has no age to rank. */
+const UNCOMMITTED_BACKGROUND = new vscode.ThemeColor('gittree.blame.uncommittedBackground');
+
+/**
+ * One legible foreground for every line. The age lives in the background now;
+ * fading the text as well would stack two ramps on top of each other and leave
+ * the oldest lines unreadable, which is why IntelliJ only shades the cell.
+ */
+const FOREGROUND = new vscode.ThemeColor('gittree.blame.foreground');
 
 /** Right edge of the annotation column, echoing IntelliJ's gutter separator. */
 const RULE_COLOR = new vscode.ThemeColor('editorLineNumber.foreground');
 
-function attachment(contentText: string, band: number): Attachment {
+function attachment(contentText: string, background: vscode.ThemeColor | undefined): Attachment {
   return {
     contentText,
-    backgroundColor: BAND_COLORS[band] ?? BAND_COLORS[0],
+    ...(background ? { backgroundColor: background } : {}),
     borderColor: RULE_COLOR,
     borderStyle: 'solid',
     borderWidth: '0 1px 0 0',
-    // Fill the row so the bands are solid blocks rather than stripes: an
+    // Fill the row so the shading is a solid block rather than a stripe: an
     // inline box would only paint behind the glyphs. `height` also flips the
     // generated rule to `display: inline-block`, and every `.view-line` is
     // laid out with a definite pixel height *and* a matching `line-height`
@@ -72,7 +90,7 @@ function attachment(contentText: string, band: number): Attachment {
 export class BlameUi implements vscode.Disposable {
   private readonly services = new Map<string, BlameService>();
   private readonly enabled = new Set<string>(); // doc uri strings
-  private decorationTypes: vscode.TextEditorDecorationType[] = [];
+  private readonly decorationType: vscode.TextEditorDecorationType;
   private readonly subs: vscode.Disposable[] = [];
   private readonly statusItem: vscode.StatusBarItem;
   private recomputeTimer: NodeJS.Timeout | undefined;
@@ -81,7 +99,16 @@ export class BlameUi implements vscode.Disposable {
     private readonly context: vscode.ExtensionContext,
     private readonly core: Core,
   ) {
-    this.buildDecorationTypes();
+    // Only the static half of the attachment lives on the type; the label
+    // and the age shade vary per line and travel in each range instead.
+    this.decorationType = vscode.window.createTextEditorDecorationType({
+      isWholeLine: false,
+      before: {
+        color: FOREGROUND,
+        // Outside the shaded cell, so the column reads as a gutter next to the code.
+        margin: '0 1ch 0 0',
+      },
+    });
     this.statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
     this.statusItem.command = 'gittree.blame.revealCursorCommit';
     this.subs.push(
@@ -93,10 +120,6 @@ export class BlameUi implements vscode.Disposable {
           if (this.recomputeTimer) clearTimeout(this.recomputeTimer);
           this.recomputeTimer = setTimeout(() => void this.refresh(), 300);
         }
-      }),
-      vscode.window.onDidChangeActiveColorTheme(() => {
-        this.buildDecorationTypes();
-        void this.refresh();
       }),
       vscode.languages.registerHoverProvider({ scheme: 'file' }, { provideHover: (doc, pos) => this.hover(doc, pos) }),
     );
@@ -111,26 +134,6 @@ export class BlameUi implements vscode.Disposable {
       repo.disposables.add({ dispose: () => this.services.delete(key) });
     }
     return s;
-  }
-
-  private buildDecorationTypes(): void {
-    for (const t of this.decorationTypes) t.dispose();
-    const dark = [vscode.ColorThemeKind.Dark, vscode.ColorThemeKind.HighContrast].includes(
-      vscode.window.activeColorTheme.kind,
-    );
-    this.decorationTypes = Array.from({ length: BUCKETS + 1 }, (_, bucket) => {
-      // bucket BUCKETS = "uncommitted" (brightest).
-      const alpha = bucket === BUCKETS ? 1 : 0.35 + (bucket / BUCKETS) * 0.6;
-      const color = dark ? `rgba(140, 180, 255, ${alpha})` : `rgba(30, 80, 180, ${alpha})`;
-      return vscode.window.createTextEditorDecorationType({
-        isWholeLine: false,
-        before: {
-          color,
-          // Outside the band, so the column reads as a gutter next to the code.
-          margin: '0 1ch 0 0',
-        },
-      });
-    });
   }
 
   async toggle(editor: vscode.TextEditor | undefined = vscode.window.activeTextEditor): Promise<void> {
@@ -158,7 +161,7 @@ export class BlameUi implements vscode.Disposable {
   }
 
   private clear(editor: vscode.TextEditor): void {
-    for (const t of this.decorationTypes) editor.setDecorations(t, []);
+    editor.setDecorations(this.decorationType, []);
     this.statusItem.hide();
   }
 
@@ -189,31 +192,31 @@ export class BlameUi implements vscode.Disposable {
   }
 
   private apply(editor: vscode.TextEditor, blame: FileBlame): void {
-    const format = vscode.workspace
-      .getConfiguration('gittree')
-      .get<string>('blame.format', '${author|12} ${date|relative} ${sha|7}');
-    const heatmapOn = vscode.workspace.getConfiguration('gittree').get<boolean>('blame.heatmap', true);
+    const cfg = vscode.workspace.getConfiguration('gittree');
+    const format = cfg.get<string>('blame.format', '${author|12} ${date|relative} ${sha|7}');
+    const shadeByAge = cfg.get<boolean>('blame.heatmap', true);
     const now = Date.now();
-    const byBucket: vscode.DecorationOptions[][] = Array.from({ length: BUCKETS + 1 }, () => []);
+    const options: vscode.DecorationOptions[] = [];
 
     // Every line carries its own label — IntelliJ repeats the annotation and
-    // groups commits by background band. Blanking the interior of a run left
-    // the reader unable to say who wrote a line without scrolling to the head
-    // of the group, and the band is what makes the repetition readable.
-    const bands = runBands(blame.lines);
+    // lets the cell's shade, not a blank gap, carry how old the commit is.
+    // Blanking the interior of a run left the reader unable to say who wrote
+    // a line without scrolling to the head of the group.
     for (let line = 0; line < blame.lines.length && line < editor.document.lineCount; line++) {
       const lb = blame.lines[line] as LineBlame;
       // Spaces collapse inside the decoration's CSS `content`; nbsp does not.
       const text = toDecorationText(formatBlameLabel(format, lb, now));
-      const bucket = lb.isUncommitted ? BUCKETS : heatmapOn ? heatBucket(lb.authorTime, blame.times) : 0;
-      byBucket[bucket]!.push({
+      const background = !shadeByAge
+        ? undefined
+        : lb.isUncommitted
+          ? UNCOMMITTED_BACKGROUND
+          : AGE_BACKGROUNDS[ageStep(lb.authorTime, blame.times)];
+      options.push({
         range: new vscode.Range(line, 0, line, 0),
-        renderOptions: { before: attachment(text, bands[line] ?? 0) },
+        renderOptions: { before: attachment(text, background) },
       });
     }
-    this.decorationTypes.forEach((type, bucket) => {
-      editor.setDecorations(type, byBucket[bucket] ?? []);
-    });
+    editor.setDecorations(this.decorationType, options);
   }
 
   private updateStatusBar(editor: vscode.TextEditor): void {
@@ -282,7 +285,7 @@ export class BlameUi implements vscode.Disposable {
   }
 
   dispose(): void {
-    for (const t of this.decorationTypes) t.dispose();
+    this.decorationType.dispose();
     for (const s of this.subs) s.dispose();
     if (this.recomputeTimer) clearTimeout(this.recomputeTimer);
   }

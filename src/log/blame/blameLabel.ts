@@ -1,10 +1,21 @@
 /**
- * Pure label/heat helpers for the blame gutter (P4-T7), split out of
+ * Pure label/age helpers for the blame gutter (P4-T7), split out of
  * `blameUi` so they can be unit-tested without a `vscode` host.
  */
 import type { LineBlame } from './blameService';
 
-export const BUCKETS = 10;
+/**
+ * Steps in the annotation age gradient.
+ *
+ * IntelliJ carries a commit's age in the *background* of its annotation cell,
+ * shading it from five anchor colours on the colour-scheme page (Version
+ * Control → Annotations) interpolated across the revisions the file actually
+ * has. A VS Code extension cannot read a resolved `ThemeColor`, so that
+ * interpolation cannot happen here: the five anchors are contributed verbatim
+ * as themable colours and the ramp is quantised to five steps instead, which
+ * is about the resolution the eye gets out of the interpolated version anyway.
+ */
+export const AGE_STEPS = 5;
 
 /**
  * Non-breaking space. VS Code renders `before.contentText` straight into a
@@ -49,30 +60,21 @@ export function relativeDate(unixSeconds: number, now: number): string {
 }
 
 /**
- * Alternating band index (0 or 1) per line, flipping on every commit change so
- * that two adjacent groups never share a band. This is what carries IntelliJ's
- * annotation grouping: the label is printed on *every* line, and it is the
- * background band — not a blank gap — that shows where one commit ends and the
- * next begins.
+ * Age step of a commit: `0` = newest, `AGE_STEPS - 1` = oldest.
+ *
+ * Ranked over the distinct commit times *in this file*, not against the wall
+ * clock — this is IntelliJ's "Order" colouring, and ranking is the whole point
+ * of it: absolute age would leave a file whose history is all from one release
+ * as a single flat colour. The cost is that "faded" means "oldest of this
+ * file" rather than "old", so a file touched only last week still spans the
+ * full gradient.
  */
-export function runBands(lines: readonly LineBlame[]): number[] {
-  const bands: number[] = new Array<number>(lines.length);
-  let prev: string | undefined;
-  let band = 1; // flipped to 0 by the first line
-  for (let i = 0; i < lines.length; i++) {
-    const sha = lines[i]?.sha;
-    if (sha !== prev) band ^= 1;
-    prev = sha;
-    bands[i] = band;
-  }
-  return bands;
-}
-
-/** Decile bucket of a commit time across the file's blame span (0 = newest). */
-export function heatBucket(time: number, sortedTimes: readonly number[]): number {
-  if (sortedTimes.length === 0) return BUCKETS - 1;
+export function ageStep(time: number, sortedTimes: readonly number[]): number {
+  // Nothing to rank against. A file with one revision is that revision's
+  // newest, not its oldest — the far end of the ramp would read as stale.
+  if (sortedTimes.length <= 1) return 0;
   let idx = sortedTimes.findIndex((t) => t >= time);
   if (idx === -1) idx = sortedTimes.length - 1;
-  const percentileFromNewest = 1 - idx / Math.max(1, sortedTimes.length - 1 || 1);
-  return Math.min(BUCKETS - 1, Math.floor(percentileFromNewest * BUCKETS));
+  const distanceFromNewest = 1 - idx / (sortedTimes.length - 1);
+  return Math.min(AGE_STEPS - 1, Math.floor(distanceFromNewest * AGE_STEPS));
 }

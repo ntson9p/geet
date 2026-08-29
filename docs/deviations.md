@@ -39,6 +39,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 | [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
+| [D25](#d25--the-annotation-age-ramp-is-quantised-to-five-steps) | The blame age gradient has five steps instead of a continuous ramp | No (API) |
 
 ---
 
@@ -444,3 +445,32 @@ keeps the parts that travel.
 
 **Revisitable:** yes, as a phase of work. Nothing above is blocked by a VS Code API — the graph,
 the paging model and the per-commit repository identity are all ours to change.
+
+## D25 · The annotation age ramp is quantised to five steps
+
+**IntelliJ:** the annotation gutter shades each cell by its commit's age, interpolating a
+continuous gradient between **five anchor colours** from the colour scheme
+(Editor → Color Scheme → Version Control → Annotations) across the revisions the file actually
+has.
+
+**GitTree:** the same five anchors are contributed as themable colours
+(`gittree.blame.age1Background` … `age5Background`, newest first) and `ageStep` quantises the
+ramp to five steps. The ranking is IntelliJ's — position among the file's own distinct commit
+times, not wall-clock age.
+
+**Why:** interpolating needs the anchors' resolved RGB values, and no VS Code API exposes one.
+A `ThemeColor` is an opaque handle: the id is resolved inside the renderer when the
+decoration's CSS is built, and the extension host never sees a colour. The alternative —
+hard-coding literal colours per theme kind — would buy a smooth ramp at the cost of one no
+theme and no user could change, which is *further* from IntelliJ, where the anchors are theme
+data by design.
+
+**What it costs in practice:** less than it sounds. IntelliJ interpolates, but the eye
+resolves roughly four or five bands out of the result, and the label on every row carries the
+exact date anyway — the colour orders rows, it does not date them.
+
+**Revisitable:** yes, cheaply. Two independent routes, neither blocked today: contribute more
+steps (the only cost is that many more public colour ids — five matches what a user tuning
+IntelliJ's scheme actually sees), or interpolate for real if VS Code ever exposes theme-colour
+resolution. The ramp is one function and the anchors are already contributed colours.
+

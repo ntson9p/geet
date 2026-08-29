@@ -360,7 +360,7 @@ Maximum number of git commands kept in the Console tab's history (read at startu
 
 ### `gittree.blame.heatmap`
 
-Fade blame annotations by commit age (newest brightest).
+Shade blame annotations by commit age, newest strongest. Commits are ranked within the file, matching IntelliJ's annotation colouring.
 
 - Type: `boolean` · Default: `true`
 

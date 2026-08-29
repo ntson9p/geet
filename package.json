@@ -571,23 +571,73 @@
         }
       },
       {
-        "id": "gittree.blame.bandBackground",
-        "description": "%gittree.blame.bandBackground.description%",
+        "id": "gittree.blame.foreground",
+        "description": "%gittree.blame.foreground.description%",
         "defaults": {
-          "light": "#00000008",
-          "dark": "#ffffff0a",
+          "light": "editorLineNumber.foreground",
+          "dark": "editorLineNumber.foreground",
+          "highContrast": "editorLineNumber.foreground",
+          "highContrastLight": "editorLineNumber.foreground"
+        }
+      },
+      {
+        "id": "gittree.blame.age1Background",
+        "description": "%gittree.blame.age1Background.description%",
+        "defaults": {
+          "light": "#0069c233",
+          "dark": "#3794ff40",
+          "highContrast": "#ffffff33",
+          "highContrastLight": "#00000033"
+        }
+      },
+      {
+        "id": "gittree.blame.age2Background",
+        "description": "%gittree.blame.age2Background.description%",
+        "defaults": {
+          "light": "#0069c226",
+          "dark": "#3794ff30",
+          "highContrast": "#ffffff26",
+          "highContrastLight": "#00000026"
+        }
+      },
+      {
+        "id": "gittree.blame.age3Background",
+        "description": "%gittree.blame.age3Background.description%",
+        "defaults": {
+          "light": "#0069c21a",
+          "dark": "#3794ff22",
+          "highContrast": "#ffffff1a",
+          "highContrastLight": "#0000001a"
+        }
+      },
+      {
+        "id": "gittree.blame.age4Background",
+        "description": "%gittree.blame.age4Background.description%",
+        "defaults": {
+          "light": "#0069c211",
+          "dark": "#3794ff16",
+          "highContrast": "#ffffff0d",
+          "highContrastLight": "#0000000d"
+        }
+      },
+      {
+        "id": "gittree.blame.age5Background",
+        "description": "%gittree.blame.age5Background.description%",
+        "defaults": {
+          "light": "#0069c209",
+          "dark": "#3794ff0c",
           "highContrast": "#ffffff00",
           "highContrastLight": "#00000000"
         }
       },
       {
-        "id": "gittree.blame.bandAlternateBackground",
-        "description": "%gittree.blame.bandAlternateBackground.description%",
+        "id": "gittree.blame.uncommittedBackground",
+        "description": "%gittree.blame.uncommittedBackground.description%",
         "defaults": {
-          "light": "#00000014",
-          "dark": "#ffffff1a",
-          "highContrast": "#ffffff29",
-          "highContrastLight": "#00000029"
+          "light": "#89550333",
+          "dark": "#e2c08d33",
+          "highContrast": "#e2c08d4d",
+          "highContrastLight": "#8955034d"
         }
       }
     ],

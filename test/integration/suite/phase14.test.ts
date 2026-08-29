@@ -219,7 +219,16 @@ suite('P14 owning the SCM surface', () => {
     // public surface and has to be added here deliberately.
     assert.deepStrictEqual(
       ids,
-      ['gittree.blame.bandAlternateBackground', 'gittree.blame.bandBackground', ...statusIds],
+      [
+        'gittree.blame.age1Background',
+        'gittree.blame.age2Background',
+        'gittree.blame.age3Background',
+        'gittree.blame.age4Background',
+        'gittree.blame.age5Background',
+        'gittree.blame.foreground',
+        'gittree.blame.uncommittedBackground',
+        ...statusIds,
+      ],
       'every contributed colour is accounted for',
     );
     // Every variant needs a default or the colour goes blank in that theme —

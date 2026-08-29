@@ -51,8 +51,11 @@ ships. Accepted divergences are named here and registered once in
 ### Git blame (shape + behaviour)
 
 * **Toolbar/menu:** `gittree.blame.toggle` (`Ctrl+Alt+G B`), also in the editor title menu.
-* **Shape:** inline **end-of-line decorations**, not a widened gutter column: author · date ·
-  short sha per line, with an **age heat-map** (`gittree.blame.heatmap`) fading older commits.
+* **Shape:** a fixed-width annotation column drawn as `before` decorations at the content
+  edge: author · date · short sha on **every** line. Each cell's background is shaded by the
+  commit's age (`gittree.blame.heatmap`) on a five-step ramp of themable colours, newest
+  strongest — ranked against the other commits in the same file, as IntelliJ's annotation
+  colouring is.
 * **Behaviour:** hovering shows the full commit message; clicking reveals that commit in the
   Git tool window's log. Incremental (`blame --incremental`), so a large file paints as it
   streams rather than blocking.

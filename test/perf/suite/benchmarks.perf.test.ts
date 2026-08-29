@@ -13,6 +13,7 @@ import type { Core, RepoHandle } from '../../../src/core/core';
 import type { GitTreeApi } from '../../../src/extension';
 import { SNAPSHOT_LABELS } from '../../../src/localHistory/hooks';
 import { BlameService } from '../../../src/log/blame/blameService';
+import type { Phase04Registry } from '../../../src/log/register';
 import { GraphLayout } from '../../../src/log/graphLayout/layout';
 import { LogService, PAGE_SIZE } from '../../../src/log/logService';
 import { computeChanges } from '../../../src/scm/gutter/changeModel';
@@ -27,6 +28,7 @@ const BUDGET = {
   blameWarmMs: 30,
   logSessionMemoryMb: 150,
   changeBarsP95Ms: 50,
+  blameAnnotateMs: 150,
 } as const;
 
 const median = (xs: number[]): number => {
@@ -172,6 +174,45 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
       median(warms) <= BUDGET.blameWarmMs * NOISE,
       `cached blame ${round(median(warms))}ms exceeds ${BUDGET.blameWarmMs}ms budget`,
     );
+  });
+
+  test('annotating a 5k-line file ≤ 150 ms once the blame is cached', async function () {
+    this.timeout(120_000);
+    // No §13 row: this guards the *decoration* half of blame, which nothing
+    // measured before POST-P14h. It matters because the gutter emits one
+    // decoration per line with its own `renderOptions`, and the editor
+    // registers a CSS sub-type per distinct `hash(renderOptions)`. Both fields
+    // that vary — the label and the age shade — are commit-derived, so the
+    // rule count tracks the file's *commits*; a change that made it track
+    // *lines* would not fail any other test in this repo.
+    const reg = core.debugRegistry.get('phase04') as Phase04Registry;
+    assert.ok(reg?.blameUi, 'phase04 registry missing');
+    const uri = vscode.Uri.file(path.join(repoLog.root, 'blame.txt'));
+    const editor = await vscode.window.showTextDocument(uri);
+    assert.ok(editor.document.lineCount >= 5000, 'blame fixture is 5k lines');
+
+    try {
+      await reg.blameUi.toggle(editor); // on, and warms the blame cache
+      assert.ok(reg.blameUi.isEnabled(editor.document), 'blame did not turn on');
+
+      const refreshes: number[] = [];
+      for (let run = 0; run < 5; run++) {
+        const t0 = performance.now();
+        await reg.blameUi.refresh();
+        refreshes.push(performance.now() - t0);
+      }
+      const ms = median(refreshes);
+      // The blame lookup inside refresh() is the cached path measured above,
+      // so the decoration share is this minus `blame5k.warmMedianMs`.
+      results['blameAnnotate5k'] = { medianMs: round(ms) };
+      assert.ok(
+        ms <= BUDGET.blameAnnotateMs * NOISE,
+        `annotate 5k lines ${round(ms)}ms exceeds ${BUDGET.blameAnnotateMs}ms budget`,
+      );
+    } finally {
+      if (reg.blameUi.isEnabled(editor.document)) await reg.blameUi.toggle(editor);
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    }
   });
 
   test('P12-T9 selection → Details + Changed Files panes (recorded, no §13 budget)', async function () {

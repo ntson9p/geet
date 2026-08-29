@@ -59,7 +59,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Next/previous change walks into the next file | ✅ | P14-T7 `navigationStep` + `diffSession`: IntelliJ's two-stage gesture, asserted end to end over a 3-file commit diff and asserted never to wrap. VS Code's own arrows cannot do this at all |
 | Differences Viewer toolbar controls | 🟡 | P14-T7 Route A: side-by-side/inline, ignore whitespace, collapse unchanged, scoped to GitTree's diffs. The renderer stays VS Code's, so per-change apply arrows and highlight granularity remain out (**D1**, narrowed) |
 | Blame: author · date · sha per line, toggleable | ✅ | `gittree.blame.toggle` (`Ctrl+Alt+G B`), inline decorations, `blame --incremental` |
-| Blame age heat-map | ✅ | `gittree.blame.heatmap`; unit-tested in the blame suites |
+| Blame age heat-map | ✅ | `gittree.blame.heatmap` — the cell background on a five-step ramp of contributed colours, newest strongest, ranked within the file as IntelliJ's "Order" mode does. `ageStep` unit-tested; the decoration path benchmarked (`blameAnnotate5k`) |
 | Click a blame annotation → the commit in the log | ✅ | `gittree.blame.revealCursorCommit` |
 | VCS status widget: branch + ahead/behind + fetch spinner | 🟡 | `StatusBarController` — status bar, not a top toolbar (**D4**) |
 | Widget click opens the Branches popup | ✅ | `gittree.branches.open` |
