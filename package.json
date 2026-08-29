@@ -569,6 +569,26 @@
           "highContrast": "#c74e39",
           "highContrastLight": "#ad0707"
         }
+      },
+      {
+        "id": "gittree.blame.bandBackground",
+        "description": "%gittree.blame.bandBackground.description%",
+        "defaults": {
+          "light": "#00000008",
+          "dark": "#ffffff0a",
+          "highContrast": "#ffffff00",
+          "highContrastLight": "#00000000"
+        }
+      },
+      {
+        "id": "gittree.blame.bandAlternateBackground",
+        "description": "%gittree.blame.bandAlternateBackground.description%",
+        "defaults": {
+          "light": "#00000014",
+          "dark": "#ffffff1a",
+          "highContrast": "#ffffff29",
+          "highContrastLight": "#00000029"
+        }
       }
     ],
     "commands": [

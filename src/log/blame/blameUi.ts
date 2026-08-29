@@ -1,8 +1,9 @@
 /**
  * Blame UI (P4-T7): the IntelliJ "Annotate" gutter column — fixed-width
- * before-decorations with per-age heat buckets, hover commit card with
- * trusted command links (Show in Log / Copy / Show Diff), cursor-line
- * status-bar item, per-document toggle from the gutter context menu.
+ * before-decorations on *every* line, per-age heat buckets, alternating
+ * background bands per commit group, hover commit card with trusted command
+ * links (Show in Log / Copy / Show Diff), cursor-line status-bar item,
+ * per-document toggle from the gutter context menu.
  */
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
@@ -14,6 +15,7 @@ import {
   formatBlameLabel,
   heatBucket,
   relativeDate,
+  runBands,
   toDecorationText,
 } from './blameLabel';
 
@@ -22,17 +24,50 @@ export { formatBlameLabel, heatBucket } from './blameLabel';
 const LARGE_FILE_LINES = 20_000;
 
 /**
- * The column separator. `before.borderColor` alone never draws (CSS
- * `border-style` defaults to `none`), and the attachment API cannot express a
- * single-edge rule: the extension host forwards only `border`/`borderColor`
- * (`borderStyle`/`borderWidth` are dropped by
- * `ThemableDecorationAttachmentRenderOptions.from`), and the `border`
- * shorthand takes no per-side widths. `textDecoration` is forwarded verbatim
- * into the generated rule, so it is the one seam that can carry the rule; the
- * theme colour comes in as the CSS variable VS Code publishes for it.
+ * Per-line attachment options.
+ *
+ * A decoration *type* cannot vary per line, so whatever differs between lines
+ * — the label and the band — has to travel in each range's own
+ * `renderOptions`. That path is also the unrestricted one: the extension host
+ * forwards `renderOptions` verbatim to `$trySetDecorations`, whereas the
+ * *type* converter rebuilds the object against a fixed whitelist. A
+ * single-edge rule is only expressible here, which is why the column
+ * separator rides along instead of living on the type.
+ *
+ * The editor de-duplicates these structurally (`hash(renderOptions)` → one
+ * registered sub-type and one CSS rule, unused ones dropped on the next
+ * `setDecorations`), so every line of a commit still shares one rule: about
+ * one per (commit × band), not one per line.
  */
-const COLUMN_RULE =
-  'none; border-right: 1px solid var(--vscode-editorLineNumber-foreground)';
+type Attachment = vscode.ThemableDecorationAttachmentRenderOptions & {
+  borderStyle?: string;
+  borderWidth?: string;
+};
+
+const BAND_COLORS = [
+  new vscode.ThemeColor('gittree.blame.bandBackground'),
+  new vscode.ThemeColor('gittree.blame.bandAlternateBackground'),
+] as const;
+
+/** Right edge of the annotation column, echoing IntelliJ's gutter separator. */
+const RULE_COLOR = new vscode.ThemeColor('editorLineNumber.foreground');
+
+function attachment(contentText: string, band: number): Attachment {
+  return {
+    contentText,
+    backgroundColor: BAND_COLORS[band] ?? BAND_COLORS[0],
+    borderColor: RULE_COLOR,
+    borderStyle: 'solid',
+    borderWidth: '0 1px 0 0',
+    // Fill the row so the bands are solid blocks rather than stripes: an
+    // inline box would only paint behind the glyphs. `height` also flips the
+    // generated rule to `display: inline-block`, and every `.view-line` is
+    // laid out with a definite pixel height *and* a matching `line-height`
+    // (`ViewLine.layoutLine`), so the box is exactly one row tall and its
+    // baseline still lines up with the code.
+    height: '100%',
+  };
+}
 
 export class BlameUi implements vscode.Disposable {
   private readonly services = new Map<string, BlameService>();
@@ -91,8 +126,8 @@ export class BlameUi implements vscode.Disposable {
         isWholeLine: false,
         before: {
           color,
+          // Outside the band, so the column reads as a gutter next to the code.
           margin: '0 1ch 0 0',
-          textDecoration: COLUMN_RULE,
         },
       });
     });
@@ -161,18 +196,19 @@ export class BlameUi implements vscode.Disposable {
     const now = Date.now();
     const byBucket: vscode.DecorationOptions[][] = Array.from({ length: BUCKETS + 1 }, () => []);
 
-    let prevSha: string | undefined;
+    // Every line carries its own label — IntelliJ repeats the annotation and
+    // groups commits by background band. Blanking the interior of a run left
+    // the reader unable to say who wrote a line without scrolling to the head
+    // of the group, and the band is what makes the repetition readable.
+    const bands = runBands(blame.lines);
     for (let line = 0; line < blame.lines.length && line < editor.document.lineCount; line++) {
       const lb = blame.lines[line] as LineBlame;
-      const firstOfRun = lb.sha !== prevSha;
-      prevSha = lb.sha;
-      const label = formatBlameLabel(format, lb, now);
       // Spaces collapse inside the decoration's CSS `content`; nbsp does not.
-      const text = toDecorationText(firstOfRun ? label : ' '.repeat(label.length));
+      const text = toDecorationText(formatBlameLabel(format, lb, now));
       const bucket = lb.isUncommitted ? BUCKETS : heatmapOn ? heatBucket(lb.authorTime, blame.times) : 0;
       byBucket[bucket]!.push({
         range: new vscode.Range(line, 0, line, 0),
-        renderOptions: { before: { contentText: text } },
+        renderOptions: { before: attachment(text, bands[line] ?? 0) },
       });
     }
     this.decorationTypes.forEach((type, bucket) => {

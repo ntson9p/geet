@@ -321,6 +321,8 @@
   "gittree.color.untracked.description": "Untracked files in GitTree views, the change tree and the explorer.",
   "gittree.color.ignored.description": "Ignored files in GitTree views, the change tree and the explorer.",
   "gittree.color.conflicted.description": "Conflicting files in GitTree views, the change tree and the explorer.",
+  "gittree.blame.bandBackground.description": "Background of a blame annotation group. Consecutive lines from one commit share a band; adjacent groups alternate with gittree.blame.bandAlternateBackground.",
+  "gittree.blame.bandAlternateBackground.description": "Background of every other blame annotation group, so neighbouring commits are told apart at a glance.",
   "gittree.config.decorations.fileExplorer.description": "Show GitTree's status colours and letter badges on files in the Explorer. Turn this off if you also run the built-in Git extension and would rather see only its decorations.",
   "gittree.command.diff.nextChange.title": "Next Change",
   "gittree.command.diff.prevChange.title": "Previous Change",

@@ -201,18 +201,26 @@ suite('P14 owning the SCM surface', () => {
       defaults?: Record<string, string>;
     }>;
     const ids = colors.map((x) => x.id).sort();
+    const statusIds = [
+      'gittree.color.added',
+      'gittree.color.conflicted',
+      'gittree.color.deleted',
+      'gittree.color.ignored',
+      'gittree.color.modified',
+      'gittree.color.renamed',
+      'gittree.color.untracked',
+    ];
+    assert.deepStrictEqual(
+      ids.filter((id) => id.startsWith('gittree.color.')),
+      statusIds,
+      'GitTree must contribute its own status colours',
+    );
+    // The palette as a whole stays a closed set: a new contributed colour is
+    // public surface and has to be added here deliberately.
     assert.deepStrictEqual(
       ids,
-      [
-        'gittree.color.added',
-        'gittree.color.conflicted',
-        'gittree.color.deleted',
-        'gittree.color.ignored',
-        'gittree.color.modified',
-        'gittree.color.renamed',
-        'gittree.color.untracked',
-      ],
-      'GitTree must contribute its own status colours',
+      ['gittree.blame.bandAlternateBackground', 'gittree.blame.bandBackground', ...statusIds],
+      'every contributed colour is accounted for',
     );
     // Every variant needs a default or the colour goes blank in that theme —
     // which is the exact failure mode `gitDecoration.*` had when the built-in

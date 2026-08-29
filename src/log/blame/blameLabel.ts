@@ -48,6 +48,26 @@ export function relativeDate(unixSeconds: number, now: number): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
+/**
+ * Alternating band index (0 or 1) per line, flipping on every commit change so
+ * that two adjacent groups never share a band. This is what carries IntelliJ's
+ * annotation grouping: the label is printed on *every* line, and it is the
+ * background band — not a blank gap — that shows where one commit ends and the
+ * next begins.
+ */
+export function runBands(lines: readonly LineBlame[]): number[] {
+  const bands: number[] = new Array<number>(lines.length);
+  let prev: string | undefined;
+  let band = 1; // flipped to 0 by the first line
+  for (let i = 0; i < lines.length; i++) {
+    const sha = lines[i]?.sha;
+    if (sha !== prev) band ^= 1;
+    prev = sha;
+    bands[i] = band;
+  }
+  return bands;
+}
+
 /** Decile bucket of a commit time across the file's blame span (0 = newest). */
 export function heatBucket(time: number, sortedTimes: readonly number[]): number {
   if (sortedTimes.length === 0) return BUCKETS - 1;

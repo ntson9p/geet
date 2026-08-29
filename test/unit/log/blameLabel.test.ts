@@ -5,6 +5,7 @@ import {
   formatBlameLabel,
   heatBucket,
   relativeDate,
+  runBands,
   toDecorationText,
 } from '../../../src/log/blame/blameLabel';
 import type { LineBlame } from '../../../src/log/blame/blameService';
@@ -89,11 +90,14 @@ describe('toDecorationText', () => {
     expect(text).toHaveLength(DEFAULT_WIDTH);
   });
 
-  it('keeps blank continuation lines at full column width', () => {
-    const label = formatBlameLabel(DEFAULT_FORMAT, committed(), NOW);
-    const blank = toDecorationText(' '.repeat(label.length));
-    expect(blank).toBe(NBSP.repeat(DEFAULT_WIDTH));
-    expect(blank).not.toContain(' ');
+  it('converts every padding space, wherever it falls in the label', () => {
+    // Leading, interior and trailing runs all collapse in CSS; each of the
+    // three is present in a real label (short author, empty date, short sha).
+    const label = formatBlameLabel(DEFAULT_FORMAT, UNCOMMITTED, NOW);
+    expect(label).toContain('  '); // the plain label really does pad with U+0020
+    const text = toDecorationText(label);
+    expect(text).not.toContain(' ');
+    expect(text.replace(new RegExp(NBSP, 'g'), ' ')).toBe(label);
   });
 
   it('is width-preserving', () => {
@@ -126,5 +130,48 @@ describe('heatBucket', () => {
       expect(b).toBeGreaterThanOrEqual(0);
       expect(b).toBeLessThan(BUCKETS);
     }
+  });
+});
+
+describe('runBands', () => {
+  const withSha = (sha: string): LineBlame => committed({ sha });
+
+  it('gives one commit one band', () => {
+    expect(runBands([withSha('a'), withSha('a'), withSha('a')])).toEqual([0, 0, 0]);
+  });
+
+  it('flips on every commit change so adjacent groups never match', () => {
+    const lines = [withSha('a'), withSha('a'), withSha('b'), withSha('c'), withSha('c')];
+    const bands = runBands(lines);
+    expect(bands).toEqual([0, 0, 1, 0, 0]);
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i]!.sha !== lines[i - 1]!.sha) {
+        expect(bands[i]).not.toBe(bands[i - 1]);
+      } else {
+        expect(bands[i]).toBe(bands[i - 1]);
+      }
+    }
+  });
+
+  it('treats a commit that reappears later as its own group', () => {
+    // Two non-adjacent runs of 'a' need not share a band — what matters is
+    // that each boundary is visible.
+    const bands = runBands([withSha('a'), withSha('b'), withSha('a')]);
+    expect(bands).toEqual([0, 1, 0]);
+  });
+
+  it('alternates on every line when no two neighbours share a commit', () => {
+    expect(runBands(['a', 'b', 'c', 'd'].map(withSha))).toEqual([0, 1, 0, 1]);
+  });
+
+  it('returns one band per line, always 0 or 1', () => {
+    const lines = ['a', 'a', 'b', 'b', 'b', 'c'].map(withSha);
+    const bands = runBands(lines);
+    expect(bands).toHaveLength(lines.length);
+    for (const b of bands) expect([0, 1]).toContain(b);
+  });
+
+  it('handles an empty file', () => {
+    expect(runBands([])).toEqual([]);
   });
 });
