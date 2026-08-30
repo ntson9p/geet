@@ -21,6 +21,27 @@ export interface LogFilter {
 
 export const DEFAULT_FILTER: LogFilter = { refs: 'HEAD', sort: 'topo' };
 
+/**
+ * True when this filter hides nothing the repository has — every commit
+ * reachable from any ref is in the view.
+ *
+ * `sort` is excluded on purpose: it reorders the stream, it never shortens it.
+ * Note that the DEFAULT filter is *not* unfiltered — `refs: 'HEAD'` shows one
+ * branch's history, which is why a commit on an unmerged branch is routinely
+ * absent from a log nobody thinks they have filtered.
+ */
+export function isUnfiltered(f: LogFilter): boolean {
+  return (
+    f.refs === 'ALL' &&
+    f.range === undefined &&
+    (f.authors === undefined || f.authors.length === 0) &&
+    f.dateRange === undefined &&
+    (f.paths === undefined || f.paths.length === 0) &&
+    (f.text === undefined || f.text.q.length === 0) &&
+    f.follow !== true
+  );
+}
+
 /** Canonical cache key: stable field order, undefineds dropped. */
 export function filterKey(f: LogFilter): string {
   const refs = f.refs === undefined ? 'HEAD' : Array.isArray(f.refs) ? [...f.refs].sort() : f.refs;

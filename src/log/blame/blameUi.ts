@@ -94,6 +94,20 @@ export class BlameUi implements vscode.Disposable {
   private readonly subs: vscode.Disposable[] = [];
   private readonly statusItem: vscode.StatusBarItem;
   private recomputeTimer: NodeJS.Timeout | undefined;
+  /** P4-T7 history watch: per-repo model subscriptions, and their coalescer. */
+  private readonly repoSubs = new Map<string, vscode.Disposable>();
+  private readonly lastHeadSha = new Map<string, string | undefined>();
+  /**
+   * Repositories whose HEAD moved since the last flush. The timer is shared —
+   * one re-blame serves them all, since only the active editor is annotated —
+   * but the set is not: a second repository moving must not cancel the first
+   * one's invalidation, which a bare `clearTimeout` on a single pending repo
+   * would do in any multi-root workspace.
+   */
+  private readonly pendingHeadMoves = new Map<string, RepoHandle>();
+  private headMoveTimer: NodeJS.Timeout | undefined;
+  /** Re-blames caused by history moving (integration-test observability). */
+  headRefreshCount = 0;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -122,7 +136,58 @@ export class BlameUi implements vscode.Disposable {
         }
       }),
       vscode.languages.registerHoverProvider({ scheme: 'file' }, { provideHover: (doc, pos) => this.hover(doc, pos) }),
+      // Annotations are a view of history, so they have to follow it. Every
+      // event above is about the *editor*; none of them fires when a commit,
+      // amend, reset or rebase changes what the lines are attributed to.
+      this.core.onDidAddRepo((repo) => this.watchHead(repo)),
+      this.core.onDidRemoveRepo((repo) => this.unwatchHead(repo)),
     );
+    for (const repo of this.core.repos) this.watchHead(repo);
+  }
+
+  /**
+   * Re-blame the annotated file when this repository's HEAD moves.
+   *
+   * Gated on the sha rather than `sections.has('head')`, which also fires for
+   * ahead/behind and `lastFetchAt` — neither changes a single attribution. A
+   * ref moving without HEAD (a branch or tag created elsewhere, a fetch) is
+   * likewise irrelevant: blame walks HEAD's ancestry and nothing else.
+   */
+  private watchHead(repo: RepoHandle): void {
+    const key = canonicalKey(repo.root);
+    if (this.repoSubs.has(key)) return;
+    this.lastHeadSha.set(key, repo.model.snapshot.headSha);
+    const sub = repo.model.onDidChange(() => {
+      const head = repo.model.snapshot.headSha;
+      if (this.lastHeadSha.get(key) === head) return;
+      this.lastHeadSha.set(key, head);
+      this.pendingHeadMoves.set(key, repo);
+      // A rebase moves HEAD once per step and a cold blame is a §13 300 ms
+      // budget, so a burst costs one re-blame rather than one per step.
+      if (this.headMoveTimer) clearTimeout(this.headMoveTimer);
+      this.headMoveTimer = setTimeout(() => {
+        this.headMoveTimer = undefined;
+        // The stamped cache key already stops a superseded blame being
+        // *served*; dropping it here is what makes the column repaint rather
+        // than wait for the next editor switch.
+        for (const moved of this.pendingHeadMoves.values()) this.serviceFor(moved).invalidate();
+        this.pendingHeadMoves.clear();
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || !this.isEnabled(editor.document)) return;
+        this.headRefreshCount++;
+        void this.refresh();
+      }, 300);
+      this.headMoveTimer.unref?.();
+    });
+    this.repoSubs.set(key, sub);
+  }
+
+  private unwatchHead(repo: RepoHandle): void {
+    const key = canonicalKey(repo.root);
+    this.repoSubs.get(key)?.dispose();
+    this.repoSubs.delete(key);
+    this.lastHeadSha.delete(key);
+    this.pendingHeadMoves.delete(key);
   }
 
   private serviceFor(repo: RepoHandle): BlameService {
@@ -287,7 +352,10 @@ export class BlameUi implements vscode.Disposable {
   dispose(): void {
     this.decorationType.dispose();
     for (const s of this.subs) s.dispose();
+    for (const s of this.repoSubs.values()) s.dispose();
+    this.repoSubs.clear();
     if (this.recomputeTimer) clearTimeout(this.recomputeTimer);
+    if (this.headMoveTimer) clearTimeout(this.headMoveTimer);
   }
 }
 

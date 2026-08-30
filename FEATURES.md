@@ -59,6 +59,13 @@ ships. Accepted divergences are named here and registered once in
 * **Behaviour:** hovering shows the full commit message; clicking reveals that commit in the
   Git tool window's log. Incremental (`blame --incremental`), so a large file paints as it
   streams rather than blocking.
+* **Follows history, and never reports a sha that history no longer has.** Committing the
+  lines you just edited, amending, resetting or rebasing re-attributes them, and the column
+  repaints without the buffer being touched — a commit leaves the bytes identical, so the
+  document version alone cannot see it. *Shape:* until the recomputed answer lands, the
+  hover, the status-bar item and `Show in Log` fall silent rather than offering the previous
+  commit's sha behind `Copy sha` / `Show Diff`; after an amend that sha is reachable from
+  nothing. Coalesced across a burst, and only the annotated file is recomputed.
 
 ### The VCS status widget (shape + behaviour)
 
@@ -361,6 +368,12 @@ Right-clicking commits in the graph (native menu, multi-select aware):
   **New Branch/Tag here** · **Compare with Local** · **Branches ›** (lazy `--contains`) ·
   **Go to Parent / Child** · **Show Repository at Revision** (read-only `gittree-tree:`
   virtual tree) · Copy Revision Number · Open on remote (browser URL only).
+* **Every jump to a commit either lands or says why.** `Go to Hash/Branch/Tag`, `Go to
+  Parent`/`Child`, `Show in Log` from blame and from the rebase editor all reveal through one
+  path, and a commit the current filter excludes — a commit on an unmerged branch under the
+  default `refs: HEAD`, or, under `Show File History`, a parent that never touched the file
+  — is reported with **Show All Branches** offered, rather than the click doing nothing at
+  all. A commit no ref can reach (a sha from before an amend) says exactly that instead.
 
 ---
 

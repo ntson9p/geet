@@ -250,6 +250,13 @@ suite('P2 branches', () => {
       tabs.some((t) => t.label.includes('smart/target')),
       `no compare tab: ${tabs.map((t) => t.label).join(' | ')}`,
     );
+    // Close it. A multi-diff tab left open outlives this suite, and while one
+    // is the active tab `vscode.window.showTextDocument` does not win
+    // `activeTextEditor` back — later suites then read *its* inner document
+    // (`main-only.txt`) instead of the file they just opened. The P4 blame
+    // tests, which resolve everything from the active editor, are where that
+    // surfaced.
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   });
 
   test('T6: branches view exposes sections, context values and drag-merge', async function () {

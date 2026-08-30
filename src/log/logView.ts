@@ -29,7 +29,7 @@ import { BranchesPaneBridge } from './branchesPaneBridge';
 import { PALETTE_SIZE } from './graphLayout/colors';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
-import { DEFAULT_FILTER, type LogFilter } from './logFilter';
+import { DEFAULT_FILTER, isUnfiltered, type LogFilter } from './logFilter';
 import { LogService, type LogRow } from './logService';
 import { buildPathTree, mergeTreeSelection } from './pathTree';
 
@@ -372,8 +372,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         );
         return { ok: false };
       }
-      await this.revealCommit(resolved.stdout.trim());
-      return { ok: true };
+      // `ok` is whether the commit is now on screen, not merely whether the
+      // ref parsed. Reporting the parse as success is what let this box tell
+      // the user their ref was real and then show them nothing.
+      return { ok: await this.revealCommit(resolved.stdout.trim()) };
     });
 
     rpc.on(LOG_METHODS.savePreset, async (params) => {
@@ -680,14 +682,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   // ---- public API (blame, file history, compare upgrade) --------------------
 
-  async revealCommit(sha: string, repoRoot?: string): Promise<void> {
+  /** @returns whether the commit ended up selected in the graph. */
+  async revealCommit(sha: string, repoRoot?: string): Promise<boolean> {
     await vscode.commands.executeCommand('gittree.log.focus');
     // Wait for the view to resolve (first open).
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
     const session = this.session;
-    if (!session || !this.rpc) return;
+    if (!session || !this.rpc) return false;
     if (repoRoot !== undefined && canonicalKey(repoRoot) !== canonicalKey(session.repo.root)) {
       // The re-init used to drop `repoRoot` on the floor and re-resolve from the
       // focused editor, so "show this commit" landed in whatever repository the
@@ -700,13 +703,76 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       // query over would routinely hide the very commit that was asked for.
       this.applyFilter({ sort: session.filter.sort, refs: 'ALL' }, repoRoot);
     }
-    // Load pages until the sha is in the row store (bounded).
+    if (await this.pageUntilLoaded(sha)) {
+      this.rpc.notify(LOG_METHODS.evtReveal, { sha });
+      return true;
+    }
+    // The reveal used to fire `evtReveal` here regardless, and the webview
+    // answers a sha it cannot find with `if (idx !== -1)` and no else — so a
+    // miss was discarded at the far end of the RPC, where nothing could report
+    // it. Six gestures land here (blame's Show in Log and its status bar, Go
+    // to Parent, Go to Child, Go to Hash/Branch/Tag, the rebase row action)
+    // and every one of them did nothing at all, silently, whenever the commit
+    // was outside the *filter* — which is not exotic: the default filter is
+    // `refs: 'HEAD'`, so any commit on an unmerged branch qualifies, and under
+    // `Show File History` every parent that did not touch the file does too.
+    this.debugTrail.push(`reveal ${sha.slice(0, 7)} not in view`);
+    this.reportRevealMiss(sha);
+    return false;
+  }
+
+  /** Pages forward until `sha` is loaded. Bounded; true when it landed. */
+  private async pageUntilLoaded(sha: string): Promise<boolean> {
     let guard = 0;
     while (!this.session!.rows.some((r) => r.sha === sha) && !this.session!.eof && guard < 25) {
       await this.sendPage(this.session!.nextPage);
       guard++;
     }
-    this.rpc.notify(LOG_METHODS.evtReveal, { sha });
+    return this.session!.rows.some((r) => r.sha === sha);
+  }
+
+  /**
+   * Says why nothing happened, and offers the one thing that would fix it.
+   *
+   * Deliberately not awaited: the caller's job is done either way, and a
+   * command that blocks on a notification the user may never click would hang
+   * `Go to Parent` on a keypress. The retry runs on its own.
+   */
+  private reportRevealMiss(sha: string): void {
+    const short = sha.slice(0, 7);
+    const session = this.session;
+    if (session === undefined || isUnfiltered(session.filter)) {
+      // Nothing left to widen: the view already shows every ref, so the commit
+      // is genuinely unreachable — a dangling sha from before an amend or a
+      // reset, which is exactly what a stale blame annotation hands over.
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('{0} is not reachable from any branch or tag here.', short),
+      );
+      return;
+    }
+    const widen = vscode.l10n.t('Show All Branches');
+    void vscode.window
+      .showWarningMessage(
+        vscode.l10n.t("{0} is not in the log's current filter.", short),
+        widen,
+      )
+      .then(async (picked) => {
+        if (picked !== widen) return;
+        // The notification outlives the view: a click after the panel closed
+        // would page into a dead rpc and then blame the repository for it.
+        if (!this.rpc) return;
+        // Only the sort survives, on the same rule the cross-repository move
+        // above follows: an author or path query written for another view
+        // would routinely hide the very commit that was just asked for.
+        this.applyFilter({ sort: session.filter.sort, refs: 'ALL' });
+        if (await this.pageUntilLoaded(sha)) {
+          this.rpc?.notify(LOG_METHODS.evtReveal, { sha });
+        } else {
+          void vscode.window.showWarningMessage(
+            vscode.l10n.t('{0} is not reachable from any branch or tag here.', short),
+          );
+        }
+      });
   }
 
   /**

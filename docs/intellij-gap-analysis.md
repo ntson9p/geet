@@ -379,7 +379,7 @@ row in the branches tree.
 | Hollow marker means staged chunk | — | ❌ |
 | Annotate with Git Blame (toggle) | `gittree.blame.toggle` | ✅ |
 | Blame age colouring (IntelliJ "Order": newest strongest, ranked within the file) | `gittree.blame.heatmap` — five themable background anchors, quantised not interpolated (**D25**) | ✅ |
-| Click annotation opens the commit in the log | `gittree.blame.revealCursorCommit` | ✅ |
+| Click annotation opens the commit in the log | `gittree.blame.revealCursorCommit`; annotations follow HEAD, so the sha it opens is never one a commit or amend has superseded | ✅ |
 | Blame **View** menu: revision info / date / author formats, commit number, colors | colors are themable (`gittree.blame.*`); the field layout is `gittree.blame.format` only, with no in-editor menu | 🟡 |
 | Blame **Options**: Ignore Whitespaces (`-w`) | — | ❌ |
 | Blame Options: Detect Movements Within File (`-M`) | — | ❌ |
@@ -476,12 +476,12 @@ row in the branches tree.
 | `Paths ▾` **Select…** / **Select in Tree…** | host file chooser + a tree-ordered pick over `git ls-files` | ✅ |
 | `Paths ▾` **Roots** section (per-root checkbox, colour swatch) | every workspace repository, swatched — but the log renders one at a time, so the rows are radios (**D24**) | 🟡 single-select |
 | Text search plus Regex plus Match Case | search box with toggles | ✅ |
-| **Go to Hash / Branch / Tag** (`Ctrl+F`) | P12-T4 `log.goTo` | ✅ |
+| **Go to Hash / Branch / Tag** (`Ctrl+F`) | P12-T4 `log.goTo`; a commit the current filter excludes is reported with `Show All Branches` rather than silently ignored | ✅ |
 | **Enable Git Log Indexing** | — | ❌ |
 | **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | P12-T5 presentation menu (Collapse linear branches / Show long edges omitted — D) | 🟡 two toggles omitted |
 | **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | P12-T5 highlight menu | ✅ |
 | **Show All Affected Files** (`Alt+Shift+A`) and Paths Affected in Revision dialog | P12-T3 Changed Files pane + `log.showAllAffected` | ✅ |
-| Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild` | ✅ |
+| Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild`, through the same reporting reveal | ✅ |
 | Multi-repo: one graph merging every root | one root at a time, chosen under `Paths ▾ · Roots` and held (**D24**) | 🟡 |
 | Multi-repo root colour stripe / root names | swatch + name in `Paths ▾ · Roots` and in the panel title; no per-row stripe, there being one root per graph | 🟡 |
 | Refresh — the button, and the automatic one on any VCS change | `log.refresh`, plus a debounced re-page on `model.onDidChange` (`refs`/HEAD only), deferred while the panel is hidden | ✅ |

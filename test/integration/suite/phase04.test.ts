@@ -205,6 +205,169 @@ suite('P4 log & blame host', () => {
     assert.strictEqual(await vscode.env.clipboard.readText(), head);
   });
 
+  test('reveal reports a commit the filter hides instead of doing nothing', async function () {
+    this.timeout(90_000);
+    await vscode.commands.executeCommand('gittree.log.focus');
+    await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' } as never, fsRoot);
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+    const head = git('rev-parse', 'HEAD').trim();
+    const baseRows = reg.logView.currentSession!.rowCount;
+
+    // A real commit that HEAD cannot reach: `refs: 'HEAD'` is the DEFAULT
+    // filter, so this is the everyday case, not a contrived one.
+    git('commit', '--allow-empty', '-m', 'p4 off-branch probe');
+    const offBranch = git('rev-parse', 'HEAD').trim();
+    git('reset', '--hard', head);
+    git('branch', 'p4-offbranch', offBranch);
+    try {
+      await repo.refresher.refreshNow();
+      await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) === baseRows, 30_000);
+      assert.strictEqual(
+        git('rev-parse', '--verify', `${offBranch}^{commit}`).trim(),
+        offBranch,
+        'precondition: git agrees the commit is real',
+      );
+
+      assert.strictEqual(
+        await reg.logView.revealCommit(offBranch, fsRoot),
+        false,
+        'a commit outside the filter is reported as not revealed',
+      );
+      assert.ok(
+        !reg.logView.selectedCommits.includes(offBranch),
+        'and nothing was selected behind the report',
+      );
+
+      // The same commit under a filter that does not hide it.
+      await reg.logView.setFilter({ sort: 'topo', refs: 'ALL' } as never, fsRoot);
+      await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > baseRows, 30_000);
+      assert.strictEqual(
+        await reg.logView.revealCommit(offBranch, fsRoot),
+        true,
+        'and it reveals normally once the filter admits it',
+      );
+    } finally {
+      git('branch', '-D', 'p4-offbranch');
+      await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' } as never, fsRoot);
+    }
+  });
+
+  test('blame follows a commit, and never reports a superseded sha', async function () {
+    this.timeout(120_000);
+    const base = git('rev-parse', 'HEAD').trim();
+    const target = path.join(fsRoot, 'src', 'a.ts');
+    const original = fs.readFileSync(target, 'utf8');
+    try {
+      // Start from a known slate. Everything BlameUi does resolves from the
+      // ACTIVE editor, and this shared window accumulates tabs from earlier
+      // suites — including `gittree-rev:` documents opened into a multi-diff
+      // (phase02's compare). While one of those is the active tab,
+      // `showTextDocument` does not win `activeTextEditor` back, so the
+      // annotation would be computed for someone else's file no matter how
+      // many times this test asked for its own.
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+      const editor = await vscode.window.showTextDocument(doc);
+      await editor.edit((b) =>
+        b.replace(new vscode.Range(0, 0, 0, doc.lineAt(0).text.length), 'export const a = 42; // p4'),
+      );
+      await doc.save();
+      const versionAtBlame = doc.version;
+
+      if (!reg.blameUi.isEnabled(doc)) await reg.blameUi.toggle(editor);
+      /**
+       * `cursorCommit` answers for whatever editor is ACTIVE, and this shared
+       * window carries stray tabs between suites (phase02's compare tab is
+       * never closed), so each read re-asserts the target instead of assuming
+       * it still has focus. Polling rather than asserting once is also correct
+       * on its own terms: a blame that straddled a HEAD move is deliberately
+       * not cached, and the head watcher re-runs it a beat later.
+       *
+       * `waitFor` cannot be used — its predicate is synchronous, so an async
+       * one would resolve to a truthy Promise and pass without ever checking.
+       */
+      const blameSettlesOn = async (
+        want: (lb: ReturnType<typeof reg.blameUi.cursorCommit>) => boolean,
+        what: string,
+        /** Drive the recompute (setup), or let the head watcher do it (the assertion). */
+        drive = false,
+      ): Promise<void> => {
+        const started = Date.now();
+        for (;;) {
+          const shown = await vscode.window.showTextDocument(doc);
+          shown.selection = new vscode.Selection(0, 0, 0, 0);
+          if (drive) await reg.blameUi.refresh();
+          const lb = reg.blameUi.cursorCommit();
+          if (want(lb)) return;
+          if (Date.now() - started > 30_000) {
+            throw new Error(
+              `${what}; last read was ${JSON.stringify(lb)} ` +
+                `[active=${vscode.window.activeTextEditor?.document.uri.fsPath ?? 'none'} ` +
+                `want=${target} enabled=${reg.blameUi.isEnabled(doc)} ` +
+                `modelHead=${repo.model.snapshot.headSha?.slice(0, 7)} ` +
+                `headRefreshes=${reg.blameUi.headRefreshCount}]`,
+            );
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      };
+
+      // Setup: drive the recompute, since which editor was active when the
+      // toggle's own refresh ran is this window's business, not the product's.
+      await blameSettlesOn(
+        (lb) => lb?.isUncommitted === true,
+        'precondition: the edited line reads as uncommitted',
+        true,
+      );
+
+      // Committing leaves the buffer byte-for-byte identical, so `doc.version`
+      // never moves — which is exactly what used to pin the stale answer.
+      const watchedBefore = reg.blameUi.headRefreshCount;
+      git('add', '--', 'src/a.ts');
+      git('commit', '-m', 'p4 blame follows history');
+      const committed = git('rev-parse', 'HEAD').trim();
+      await repo.refresher.refreshNow();
+      // No `drive` here: the head watcher has to do this on its own, which is
+      // the whole product claim.
+      await blameSettlesOn((lb) => lb?.sha === committed, 'the annotation never followed the commit');
+      assert.ok(
+        reg.blameUi.headRefreshCount > watchedBefore,
+        'and it followed because HEAD moved, not because something else repainted',
+      );
+      assert.strictEqual(doc.version, versionAtBlame, 'the buffer really did not change');
+
+      // An amend replaces the sha with the bytes still identical. The old sha
+      // is then reachable from nothing, and the hover offers it behind Copy
+      // sha / Show Diff / Show in Log.
+      git('commit', '--amend', '-m', 'p4 blame follows history (amended)');
+      const amended = git('rev-parse', 'HEAD').trim();
+      assert.notStrictEqual(committed, amended);
+      await repo.refresher.refreshNow();
+      await blameSettlesOn((lb) => lb?.sha === amended, 'the annotation kept the superseded sha');
+      assert.strictEqual(
+        git('blame', '-L', '1,1', '--porcelain', '--', 'src/a.ts').split('\n')[0]!.split(' ')[0],
+        amended,
+        'and it agrees with git blame itself',
+      );
+    } finally {
+      const open = vscode.window.activeTextEditor;
+      if (open && reg.blameUi.isEnabled(open.document)) await reg.blameUi.toggle(open);
+      git('reset', '--hard', base);
+      fs.writeFileSync(target, original);
+      git('checkout', '--', 'src/a.ts');
+      // `closeActiveEditor`, not `closeAllEditors`: this window carries tabs
+      // other suites left open, and tearing the whole tab set down races the
+      // next test's `showTextDocument` — which is how the neighbouring blame
+      // test ended up reading phase02's leftover compare tab instead of its
+      // own file. Close only what this test opened.
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      // Settle the model before handing the window on: these are CLI writes,
+      // so the next test would otherwise start its blame while HEAD is still
+      // moving underneath it.
+      await repo.refresher.refreshNow();
+    }
+  });
+
   test('blame toggle annotates and cursorCommit resolves the line author', async function () {
     this.timeout(60_000);
     const file = path.join(fsRoot, 'README.md');

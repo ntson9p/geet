@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildLogArgs, filterKey, DEFAULT_FILTER, type LogFilter } from '../../../src/log/logFilter';
+import {
+  buildLogArgs,
+  filterKey,
+  isUnfiltered,
+  DEFAULT_FILTER,
+  type LogFilter,
+} from '../../../src/log/logFilter';
 
 const FMT = 'FMT';
 const PAGE = { skip: 0, maxCount: 2000 };
@@ -127,5 +133,42 @@ describe('filterKey', () => {
 
   it('treats undefined refs as HEAD', () => {
     expect(filterKey({ sort: 'topo' })).toBe(filterKey({ sort: 'topo', refs: 'HEAD' }));
+  });
+});
+
+describe('isUnfiltered', () => {
+  const all: LogFilter = { refs: 'ALL', sort: 'topo' };
+
+  it('only `refs: ALL` with no predicates hides nothing', () => {
+    expect(isUnfiltered(all)).toBe(true);
+  });
+
+  it('the DEFAULT filter is NOT unfiltered — refs:HEAD is one branch', () => {
+    // The whole reason a reveal misses in a log nobody thinks they filtered.
+    expect(isUnfiltered(DEFAULT_FILTER)).toBe(false);
+  });
+
+  it('sort never shortens the stream, so it does not count as a filter', () => {
+    expect(isUnfiltered({ ...all, sort: 'date' })).toBe(true);
+    expect(isUnfiltered({ ...all, sort: 'intelli' })).toBe(true);
+  });
+
+  it('every narrowing field counts', () => {
+    expect(isUnfiltered({ ...all, refs: ['main'] })).toBe(false);
+    expect(isUnfiltered({ ...all, range: { a: 'main', b: 'dev' } })).toBe(false);
+    expect(isUnfiltered({ ...all, authors: ['a@x.dev'] })).toBe(false);
+    expect(isUnfiltered({ ...all, dateRange: { from: '2026-01-01' } })).toBe(false);
+    expect(isUnfiltered({ ...all, paths: ['src'] })).toBe(false);
+    expect(isUnfiltered({ ...all, text: { q: 'fix', regex: false, matchCase: false } })).toBe(false);
+    expect(isUnfiltered({ ...all, follow: true })).toBe(false);
+  });
+
+  it('an empty narrowing field is not a filter — buildLogArgs ignores it too', () => {
+    // `paths: []` pushes no pathspec, so treating it as narrowing would report
+    // a filter that git was never given.
+    expect(isUnfiltered({ ...all, paths: [] })).toBe(true);
+    expect(isUnfiltered({ ...all, authors: [] })).toBe(true);
+    expect(isUnfiltered({ ...all, text: { q: '', regex: false, matchCase: false } })).toBe(true);
+    expect(args({ refs: 'ALL', paths: [] })).not.toContain('--');
   });
 });
