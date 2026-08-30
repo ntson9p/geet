@@ -16,7 +16,13 @@ import {
 } from 'react';
 
 export interface VirtualListHandle {
-  scrollToIndex(index: number, align?: 'auto' | 'center'): void;
+  /**
+   * `auto` scrolls the minimum needed to bring the row into view, `center`
+   * puts it in the middle, `top` pins it to the first visible line — which is
+   * what restoring a scroll anchor after a reload needs, since `auto` from a
+   * reset list (scrollTop 0) would leave the row at the BOTTOM of the window.
+   */
+  scrollToIndex(index: number, align?: 'auto' | 'center' | 'top'): void;
   focusIndex(index: number): void;
 }
 
@@ -93,13 +99,15 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   );
 
   const scrollToIndex = useCallback(
-    (index: number, align: 'auto' | 'center' = 'auto') => {
+    (index: number, align: 'auto' | 'center' | 'top' = 'auto') => {
       const el = containerRef.current;
       if (!el) return;
       const i = clamp(index);
       const top = i * rowHeight;
       if (align === 'center') {
         el.scrollTop = top - Math.max(0, (height - rowHeight) / 2);
+      } else if (align === 'top') {
+        el.scrollTop = top;
       } else if (top < el.scrollTop) {
         el.scrollTop = top;
       } else if (top + rowHeight > el.scrollTop + height) {

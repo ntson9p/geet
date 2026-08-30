@@ -926,6 +926,14 @@ export interface LogInitDto {
   issue?: { pattern: string; url: string };
   /** P12-T5: saved filter presets (`gittree.log.filterPresets`). */
   presets?: Array<{ name: string; filter: LogFilterDto }>;
+  /**
+   * Set only on an `evtReset` the *host* raised because history moved (a
+   * commit, checkout, rebase, pull…), never on one the user asked for. The
+   * webview keeps its place across it — re-anchoring on the focused commit,
+   * or on the row that was at the top when nothing was selected — instead of
+   * clearing the panes and jumping to the newest commit.
+   */
+  preserve?: boolean;
 }
 
 export interface CommitFileDto {

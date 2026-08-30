@@ -104,6 +104,12 @@ export function App() {
   const filter = init?.filter ?? { sort: 'topo', refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  // The boot effect runs once per rpc, so what it reads at event time has to
+  // come through refs — a closure would hold the first render's empty values.
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
   const pageRef = useRef({ next: 0, loading: false, eof: false });
 
   /** Merge-persist: layout, filter and focus share one state bag. */
@@ -156,7 +162,14 @@ export function App() {
   const size = { width: measured.width || 800, height: measured.height || 400 };
 
   // ---- boot + host events ----
-  const restoreShaRef = useRef<string | undefined>(undefined);
+  /**
+   * The commit to land on once page 0 arrives. `select: true` restores a
+   * focused commit (a reload, or an auto-refresh the user had a selection
+   * for); `select: false` only puts the row back where it was, which is what
+   * an auto-refresh under no selection needs — silently selecting a commit
+   * the user never picked would repaint both right-hand panes.
+   */
+  const restoreRef = useRef<{ sha: string; select: boolean } | undefined>(undefined);
   useEffect(() => {
     const offRows = rpc.onEvent(LOG_METHODS.evtRows, (params) => {
       const page = params as LogPageDto;
@@ -169,21 +182,23 @@ export function App() {
       setEof(page.eof);
       pageRef.current = { next: page.page + 1, loading: false, eof: page.eof };
       setLoading(false);
-      // Reload restore: reselect the previously focused commit (position).
-      const restore = restoreShaRef.current;
-      if (restore !== undefined) {
-        const idx = page.rows.findIndex((r) => r.sha === restore);
-        if (idx !== -1) {
-          restoreShaRef.current = undefined;
-          const absolute = page.page === 0 ? idx : rowsRef.current.length + idx;
-          setSelected([restore]);
-          void loadDetails(restore);
-          requestAnimationFrame(() => listRef.current?.scrollToIndex(absolute, 'center'));
-        }
-      }
     });
     const offReset = rpc.onEvent(LOG_METHODS.evtReset, (params) => {
       const dto = params as LogInitDto;
+      // `preserve` marks a reset the host raised because history moved. The
+      // rows still have to be rebuilt — a new commit renumbers every page and
+      // relays the graph — but the user did not ask to be sent back to the
+      // top, so anchor on what they were looking at and restore it when page 0
+      // lands. A user act (filter, root, Refresh) resets cleanly, as before.
+      restoreRef.current = undefined;
+      if (dto.preserve === true) {
+        const focused = selectedRef.current[0];
+        // `viewport.first` is overscanned — a few rows above the fold — so the
+        // row actually at the top edge is derived from the offset instead.
+        const topRow = rowsRef.current[Math.round(viewportRef.current.scrollTop / ROW_HEIGHT)];
+        const anchor = focused ?? topRow?.sha;
+        if (anchor !== undefined) restoreRef.current = { sha: anchor, select: focused !== undefined };
+      }
       setInit(dto);
       setRows([]);
       setSelected([]);
@@ -213,7 +228,8 @@ export function App() {
     });
 
     const saved = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
-    restoreShaRef.current = saved.focusSha;
+    restoreRef.current =
+      saved.focusSha !== undefined ? { sha: saved.focusSha, select: true } : undefined;
     void rpc.request<LogInitDto>(LOG_METHODS.init, { filter: saved.filter }).then((dto) => {
       setInit(dto);
       requestPage(0);
@@ -253,6 +269,32 @@ export function App() {
     },
     [rpc],
   );
+
+  /**
+   * Reload / auto-refresh restore. This has to run AFTER the rows commit, not
+   * from the `evtRows` handler: a reset empties the list, which collapses its
+   * spacer and makes the browser clamp scrollTop to 0, so a scroll set before
+   * React has painted the new rows is silently thrown away. Waiting for the
+   * committed `rows` also means an anchor that page 0 does not carry is simply
+   * found on whichever later page does.
+   */
+  useEffect(() => {
+    const restore = restoreRef.current;
+    if (restore === undefined) return;
+    const idx = rows.findIndex((r) => r.sha === restore.sha);
+    if (idx === -1) return;
+    restoreRef.current = undefined;
+    if (restore.select) {
+      setSelected([restore.sha]);
+      void loadDetails(restore.sha);
+    }
+    // One frame so the taller spacer is laid out before the offset is applied.
+    requestAnimationFrame(() =>
+      // A restored selection is being read, so centre it; a scroll-only anchor
+      // was the top row and belongs back at the top.
+      listRef.current?.scrollToIndex(idx, restore.select ? 'center' : 'top'),
+    );
+  }, [rows, loadDetails]);
 
   // ---- infinite scroll ----
   const onViewport = useCallback(

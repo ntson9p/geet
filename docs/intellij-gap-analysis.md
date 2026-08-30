@@ -484,7 +484,7 @@ row in the branches tree.
 | Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild` | ✅ |
 | Multi-repo: one graph merging every root | one root at a time, chosen under `Paths ▾ · Roots` and held (**D24**) | 🟡 |
 | Multi-repo root colour stripe / root names | swatch + name in `Paths ▾ · Roots` and in the panel title; no per-row stripe, there being one root per graph | 🟡 |
-| Refresh | `log.refresh` | ✅ |
+| Refresh — the button, and the automatic one on any VCS change | `log.refresh`, plus a debounced re-page on `model.onDidChange` (`refs`/HEAD only), deferred while the panel is hidden | ✅ |
 | Copy Revision Number | `log.copySha` | ✅ |
 | New Branch / New Tag from commit | `createBranchHere` / `createTagHere` | ✅ |
 | Checkout Revision | `log.checkoutRevision` | ✅ |

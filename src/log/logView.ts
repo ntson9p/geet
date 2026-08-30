@@ -35,6 +35,15 @@ import { buildPathTree, mergeTreeSelection } from './pathTree';
 
 const LANE_WIDTH = 12;
 
+/**
+ * Auto-refresh coalescing window. A rebase, a pull or a multi-repo commit
+ * moves `refs` once per step, and each re-page is a §13 ≤600 ms read at 100k
+ * commits — one per burst is the whole point of the wait. Long enough to
+ * swallow a multi-step rewrite, short enough that a single commit still lands
+ * in the graph while the user is still looking at it.
+ */
+const AUTO_REFRESH_DEBOUNCE_MS = 300;
+
 /** Which repository the log is showing, remembered across restarts. */
 const ROOT_MEMENTO_KEY = 'gittree.log.root';
 
@@ -72,6 +81,17 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * change" can leave it for the next file instead of wrapping to its top.
    */
   private lastChangedFiles: CommitFileDto[] = [];
+  /** Auto-refresh: coalescing timer, and the deferral for a hidden panel. */
+  private autoRefreshTimer: NodeJS.Timeout | undefined;
+  private autoRefreshPending = false;
+  /**
+   * The HEAD the current rows were paged at. `sections.has('head')` is too
+   * coarse to gate on — it also fires for ahead/behind and lastFetchAt, which
+   * change nothing the graph draws — so the sha is compared directly.
+   */
+  private lastHeadSha: string | undefined;
+  /** Auto-refreshes actually executed (integration-test observability). */
+  autoRefreshCount = 0;
 
   /** Multi-select in webview order — what commit actions operate on. */
   get selectedCommits(): readonly string[] {
@@ -178,7 +198,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // The one allowed retainContextWhenHidden instance is configured via the
     // package.json view options; still rehydrate on visibility for safety.
     view.onDidChangeVisibility(() => {
-      if (view.visible) this.rpc?.rehydrate();
+      if (!view.visible) return;
+      this.rpc?.rehydrate();
+      // History that moved while the panel was closed is caught up here, so a
+      // hidden log costs no git at all — the whole point of the deferral.
+      if (this.autoRefreshPending) this.runAutoRefresh();
     });
 
     const rpc = new WebviewRpcHost(view.webview, (l) => this.core.output.appendLine(`[webview] ${l}`));
@@ -431,6 +455,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.rootsSub = undefined;
       this.consoleSub?.dispose();
       this.consoleSub = undefined;
+      if (this.autoRefreshTimer !== undefined) {
+        clearTimeout(this.autoRefreshTimer);
+        this.autoRefreshTimer = undefined;
+      }
     });
   }
 
@@ -498,7 +526,19 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // webview's own request dedups bursts naturally.
     this.refsSub?.dispose();
     const notifyRefs = (): void => this.rpc?.notify(LOG_METHODS.evtBranches, {});
-    const modelSub = repo.model.onDidChange(notifyRefs);
+    this.lastHeadSha = repo.model.snapshot.headSha;
+    const modelSub = repo.model.onDidChange((sections) => {
+      notifyRefs();
+      // Only history moving re-pages the graph. `status` fires on every save
+      // and every stage — re-paging on it would cost a `git log` per keypress
+      // in a watched file. `refs` covers heads/remotes/tags, so it catches any
+      // commit that moved a branch; the sha comparison catches the rest, which
+      // is a commit on a detached HEAD (only HEAD moves, no ref does).
+      const headMoved = repo.model.snapshot.headSha !== this.lastHeadSha;
+      if (!sections.has('refs') && !headMoved) return;
+      this.lastHeadSha = repo.model.snapshot.headSha;
+      this.scheduleAutoRefresh();
+    });
     const favSub = this.branchesBridge.refServiceFor(repo)?.onDidChangeFavorites(notifyRefs);
     this.refsSub = new vscode.Disposable(() => {
       modelSub.dispose();
@@ -580,6 +620,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.debugTrail.push(`page ${page} failed: ${String(err)}`);
       throw err;
     }
+    // The session can be replaced while this read is in flight, and now that
+    // history moving re-pages on its own that is the common case, not a rare
+    // one: the OperationQueue CANCELS AND REQUEUES in-flight readers when a
+    // mutation arrives, so a page read started before a commit resolves after
+    // it — after the auto-refresh has already built the next session. Landing
+    // these rows would grow a dead row store, advance a dead layout, and (the
+    // visible harm) arrive at the webview as another `page: 0`, which it
+    // treats as a replacement — overwriting the fresh page with the stale one.
+    if (this.session !== session) {
+      this.debugTrail.push(`page ${page} dropped (stale session)`);
+      return;
+    }
     const ordered = session.filter.sort === 'intelli' ? intelliSort(result.rows) : result.rows;
     const dtoRows = ordered.map((r) => this.toDto(r, session));
     this.debugTrail.push(`page ${page} sent ${dtoRows.length}`);
@@ -593,9 +645,16 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     } satisfies LogPageDto);
   }
 
-  private applyFilter(filterDto: LogFilterDto, repoRoot?: string): void {
+  private applyFilter(
+    filterDto: LogFilterDto,
+    repoRoot?: string,
+    opts?: { preserve?: boolean },
+  ): void {
     const init = this.startSession(filterDto, repoRoot);
-    this.rpc?.notify(LOG_METHODS.evtReset, init);
+    this.rpc?.notify(LOG_METHODS.evtReset, {
+      ...init,
+      ...(opts?.preserve === true ? { preserve: true } : {}),
+    } satisfies LogInitDto);
   }
 
   /** P10-T2: re-init with the current filter (palette/config changes). */
@@ -675,11 +734,52 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return true;
   }
 
-  refresh(): void {
+  /**
+   * @param opts.preserve the reset was raised by the host because history
+   * moved, not asked for by the user — the webview keeps its place across it.
+   */
+  refresh(opts?: { preserve?: boolean }): void {
     const session = this.session;
     if (!session) return;
+    // The page cache is keyed on `headSha` alone, so a ref that moved without
+    // HEAD moving (a fetch, a branch or tag created elsewhere) would be served
+    // from cache with its old decorations. Dropping it is what makes a refresh
+    // mean "re-read", and it is why auto-refresh fixes the chips too.
     session.service.invalidate();
-    void this.applyFilter(session.filter);
+    this.applyFilter(session.filter, undefined, opts);
+  }
+
+  /**
+   * History moved: re-page once the burst settles. Nothing runs while the
+   * panel is hidden — the flag is flushed when it next becomes visible.
+   */
+  private scheduleAutoRefresh(): void {
+    if (this.autoRefreshTimer !== undefined) clearTimeout(this.autoRefreshTimer);
+    this.autoRefreshTimer = setTimeout(() => {
+      this.autoRefreshTimer = undefined;
+      this.runAutoRefresh();
+    }, AUTO_REFRESH_DEBOUNCE_MS);
+    this.autoRefreshTimer.unref?.();
+  }
+
+  private runAutoRefresh(): void {
+    // Reachable from the timer AND from the visibility flush; whichever gets
+    // here first cancels the other so a burst never costs two reads.
+    if (this.autoRefreshTimer !== undefined) {
+      clearTimeout(this.autoRefreshTimer);
+      this.autoRefreshTimer = undefined;
+    }
+    if (this.view?.visible !== true) {
+      this.autoRefreshPending = true;
+      return;
+    }
+    this.autoRefreshPending = false;
+    // No session yet means the webview has not sent `init`; the session it is
+    // about to build reads current history anyway, so there is nothing to do.
+    if (!this.session) return;
+    this.autoRefreshCount++;
+    this.debugTrail.push('auto-refresh');
+    this.refresh({ preserve: true });
   }
 
   get currentSession():

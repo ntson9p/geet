@@ -22,6 +22,20 @@ function commitRow(page: Page) {
   return page.getByTestId('log-rows');
 }
 
+/** Drives a host-raised `log/reset` — the P4 auto-refresh path. */
+async function postReset(page: Page, extra: Record<string, unknown>): Promise<void> {
+  await page.evaluate(
+    (params) => window.postMessage({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params }, '*'),
+    {
+      repoRoot: '/repo',
+      repoLabel: 'repo',
+      filter: { sort: 'topo', refs: 'HEAD' },
+      laneWidth: 12,
+      ...extra,
+    },
+  );
+}
+
 test.describe('P4-T3/T4 log webview', () => {
   test('streams the first page and windows the DOM', async ({ page }) => {
     await openLog(page);
@@ -356,6 +370,57 @@ test.describe('P4-T3/T4 log webview', () => {
         }),
       )
       .toBe(true);
+  });
+
+  test('P4 auto-refresh: a preserved reset keeps the focused commit', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="4"]').click();
+    await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).toHaveClass(
+      /gt-selected/,
+    );
+
+    // What the host sends when history moved under the user (a commit, a
+    // pull, a rebase) rather than because they asked for a new view.
+    await postReset(page, { preserve: true });
+
+    // The rows are rebuilt, but the commit they were reading comes back.
+    await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).toHaveClass(
+      /gt-selected/,
+    );
+    await expect(page.getByTestId('details-body')).toBeVisible();
+  });
+
+  test('P4 auto-refresh: a user-asked reset still clears the selection', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="4"]').click();
+    await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).toHaveClass(
+      /gt-selected/,
+    );
+
+    // No `preserve`: a filter change, a root switch or the Refresh button.
+    await postReset(page, {});
+
+    await expect(page.getByTestId('log-row-0')).toBeVisible();
+    await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).not.toHaveClass(
+      /gt-selected/,
+    );
+  });
+
+  test('P4 auto-refresh: with nothing selected the scroll position survives', async ({ page }) => {
+    await openLog(page);
+    const list = page.getByRole('listbox', { name: 'Commits' });
+    await list.evaluate((el) => {
+      el.scrollTop = 600 * 24;
+    });
+    await expect(page.getByTestId('log-row-600')).toBeVisible();
+
+    await postReset(page, { preserve: true });
+
+    // Anchored on the row that was at the top — not thrown back to the newest
+    // commit, and without inventing a selection the user never made.
+    await expect(page.getByTestId('log-row-600')).toBeVisible();
+    expect(await list.evaluate((el) => el.scrollTop)).toBeGreaterThan(500 * 24);
+    expect(await commitRow(page).locator('.gt-log-row.gt-selected').count()).toBe(0);
   });
 
   test('P12-T5: User ▾ offers Me and searchable authors', async ({ page }) => {

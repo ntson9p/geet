@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { RepoHandle } from '../../../src/core/core';
 import type { Phase04Registry } from '../../../src/log/register';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
@@ -11,6 +12,7 @@ suite('P4 log & blame host', () => {
   let repoRoot: string;
   let fsRoot: string;
   let reg: Phase04Registry;
+  let repo: RepoHandle;
 
   const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
 
@@ -18,7 +20,8 @@ suite('P4 log & blame host', () => {
     this.timeout(60_000);
     repoRoot = workspaceRepoA();
     const core = await activateGitTree();
-    fsRoot = core.repoForPath(repoRoot)!.root;
+    repo = core.repoForPath(repoRoot)!;
+    fsRoot = repo.root;
     reg = core.debugRegistry.get('phase04') as Phase04Registry;
     assert.ok(reg, 'phase04 registry missing');
     // The log shows one repository at a time and holds it; claim repoA so this
@@ -56,6 +59,61 @@ suite('P4 log & blame host', () => {
     const session = reg.logView.currentSession!;
     assert.ok(session.repoRoot.length > 0);
     assert.strictEqual(session.filter.sort, 'topo');
+  });
+
+  test('the graph re-pages itself when history moves — no manual refresh', async function () {
+    this.timeout(90_000);
+    await vscode.commands.executeCommand('gittree.log.focus');
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+    const before = reg.logView.currentSession!.rowCount;
+    const autoBefore = reg.logView.autoRefreshCount;
+    const headBefore = git('rev-parse', 'HEAD').trim();
+
+    // An empty commit moves refs/heads/* without touching the worktree, so the
+    // restore below cannot destroy anything this test did not create.
+    git('commit', '--allow-empty', '-m', 'p4 auto-refresh probe');
+    // Deliberately NOT calling gittree.log.refresh: the model event alone has
+    // to re-page the graph. refreshNow() stands in for the fs watcher so the
+    // assertion measures model→log view, not watcher latency (P0-T6 covers
+    // that path separately).
+    await repo.refresher.refreshNow();
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > before, 30_000);
+    assert.ok(
+      reg.logView.autoRefreshCount > autoBefore,
+      'the re-page came from the auto-refresh path',
+    );
+
+    // ...and it follows history back down again.
+    git('reset', '--hard', headBefore);
+    await repo.refresher.refreshNow();
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) === before, 30_000);
+  });
+
+  test('a status-only change never re-pages the graph', async function () {
+    this.timeout(60_000);
+    await vscode.commands.executeCommand('gittree.log.focus');
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+    const autoBefore = reg.logView.autoRefreshCount;
+
+    // A dirty worktree fires `status` and nothing else. Re-paging on that
+    // would cost a `git log` per save in a watched file.
+    const scratch = path.join(fsRoot, 'p4-status-only.txt');
+    fs.writeFileSync(scratch, `touched ${Date.now()}\n`);
+    try {
+      await waitFor(
+        () => repo.model.snapshot.statusEntries.some((e) => e.path === 'p4-status-only.txt'),
+        20_000,
+      );
+      await repo.refresher.refreshNow();
+      await new Promise((r) => setTimeout(r, 1000)); // past the 300ms debounce
+      assert.strictEqual(
+        reg.logView.autoRefreshCount,
+        autoBefore,
+        'status alone must not re-page the graph',
+      );
+    } finally {
+      fs.rmSync(scratch, { force: true });
+    }
   });
 
   test('revealCommit loads pages until the sha is present', async function () {

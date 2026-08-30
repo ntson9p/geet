@@ -292,6 +292,13 @@ docked bottom, tabs `Log | Console`").
   (`gittree.log.filterPresets`).
 * Right toolbar: refresh · **Go to Hash/Branch/Tag** · Show Details (folds the right
   column) · Highlight my commits.
+* **The graph also refreshes itself.** Any history change — a commit, amend, checkout,
+  merge, rebase, reset or pull, from GitTree, the built-in Git extension or a terminal —
+  re-pages the graph without the button. *Shape:* the rows rebuild but the user's place
+  does not move — the focused commit stays selected with its Changed Files and Commit
+  Details panes, and with nothing selected the scroll position holds. Coalesced across a
+  burst (a rebase moves refs once per step) and deferred entirely while the panel is
+  hidden, so a closed log costs no git. A dirty worktree alone never re-pages it.
 
 ### `Paths ▾` and the repository on show
 
