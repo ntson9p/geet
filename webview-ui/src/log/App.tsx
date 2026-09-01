@@ -30,6 +30,7 @@ import { getVsCodeApi } from '../lib/vscodeApi';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
 import { ConsolePane } from './ConsolePane';
+import { WorktreesPane } from './WorktreesPane';
 import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
 import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
@@ -462,8 +463,12 @@ export function App() {
         tabs={[
           { id: 'log', label: 'Log' },
           { id: 'console', label: 'Console' },
+          { id: 'worktrees', label: 'Worktrees' },
         ]}
       />
+      <TabPanel id="worktrees" active={tab} className="gt-log-tabpanel">
+        <WorktreesPane rpc={rpc} />
+      </TabPanel>
       <TabPanel id="console" active={tab} className="gt-log-tabpanel">
         <ConsolePane
           rpc={rpc}

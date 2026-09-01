@@ -678,3 +678,56 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- POST-P14k: Worktrees tab ---- */
+.gt-worktrees {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gt-worktrees-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.gt-worktree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.gt-worktree-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gt-worktree-row.gt-selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.gt-worktree-branch {
+  flex: 0 0 auto;
+}
+
+/* The path is the row's elastic column: it truncates, the labels never do. */
+.gt-worktree-path {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gt-worktree-tag {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--vscode-badge-background);
+  border-radius: 8px;
+  font-size: 0.85em;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+}

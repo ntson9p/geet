@@ -170,7 +170,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Worktrees view: path, branch, locked/prunable | ✅ | P13-T6 |
+| Worktrees **tab in the Git tool window**: path, branch, Locked/Prunable | ✅ | POST-P14k; the P13-T6 tree view stays hidden-by-default |
 | New Worktree dialog (existing / new-from / detach, location, options) | ✅ | P13-T6 |
 | Open · Remove · Lock · Unlock · Prune | ✅ | P13-T6; dirty removal refused with git's reason |
 | Lock/prunable reported by the porcelain | 🟡 | derived from disk on git < 2.36 (**D16**) |

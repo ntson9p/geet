@@ -20,12 +20,14 @@ import {
   type LogPageDto,
   type LogRootDto,
   type LogRowDto,
+  type LogWorktreeActionParamsDto,
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import type { DiffEntry } from '../diff/diffSession';
 import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
+import { WorktreesPaneBridge } from './worktreesPaneBridge';
 import { PALETTE_SIZE } from './graphLayout/colors';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
@@ -68,11 +70,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private selected: string[] = [];
   /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
   readonly branchesBridge: BranchesPaneBridge;
+  /** POST-P14k: the Worktrees tab's list + `gittree.worktree.*` dispatch. */
+  readonly worktreesBridge: WorktreesPaneBridge;
   private refsSub: vscode.Disposable | undefined;
   /** Keeps `Paths ▾ · Roots` current as folders join and leave the workspace. */
   private rootsSub: vscode.Disposable | undefined;
   /** P12-T8: throttled Console change ping. */
   private consoleSub: vscode.Disposable | undefined;
+  /** POST-P14k: per-repo ref watches behind the Worktrees tab's refresh ping. */
+  private worktreesSub: vscode.Disposable | undefined;
   /** Boot breadcrumbs (integration-test observability). */
   readonly debugTrail: string[] = [];
   /**
@@ -108,6 +114,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     private readonly core: Core,
   ) {
     this.branchesBridge = new BranchesPaneBridge(core);
+    this.worktreesBridge = new WorktreesPaneBridge(core, (command, ...args) =>
+      vscode.commands.executeCommand(command, ...args),
+    );
   }
 
   private serviceFor(repo: RepoHandle): LogService {
@@ -425,6 +434,14 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       if (!repo) return { detached: false, locals: [], remotes: [], tags: [] };
       return this.branchesBridge.buildBranches(repo);
     });
+    rpc.on(LOG_METHODS.worktrees, () => this.worktreesBridge.buildState());
+    rpc.on(LOG_METHODS.worktreeAction, async (params) => {
+      await this.worktreesBridge.dispatch(params as LogWorktreeActionParamsDto);
+      // The command may have created or removed one; the pane re-reads rather
+      // than guessing what changed.
+      this.rpc?.notify(LOG_METHODS.evtWorktrees, {});
+      return { ok: true };
+    });
     rpc.on(LOG_METHODS.branchAction, async (params) => {
       const repo = this.session?.repo ?? this.activeRepo();
       if (!repo) return { ok: false };
@@ -447,6 +464,33 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       removeSub.dispose();
     });
 
+    // POST-P14k: the Worktrees tab lists every repository, so its ping cannot
+    // hang off the session's single repo the way the Branches pane's does.
+    // `refs` is the cheap proxy the tree view already used: adding, removing
+    // or pruning a worktree moves a ref in the repo that owns it.
+    this.worktreesSub?.dispose();
+    const notifyWorktrees = (): void => this.rpc?.notify(LOG_METHODS.evtWorktrees, {});
+    const worktreeSubs: vscode.Disposable[] = [];
+    const watchRepo = (repo: RepoHandle): void => {
+      worktreeSubs.push(
+        repo.model.onDidChange((sections) => {
+          if (sections.has('refs')) notifyWorktrees();
+        }),
+      );
+    };
+    for (const repo of this.core.repos) watchRepo(repo);
+    const wtAddSub = this.core.onDidAddRepo((repo) => {
+      watchRepo(repo);
+      notifyWorktrees();
+    });
+    const wtRemoveSub = this.core.onDidRemoveRepo(notifyWorktrees);
+    this.worktreesSub = new vscode.Disposable(() => {
+      for (const sub of worktreeSubs) sub.dispose();
+      worktreeSubs.length = 0;
+      wtAddSub.dispose();
+      wtRemoveSub.dispose();
+    });
+
     view.onDidDispose(() => {
       rpc.dispose();
       this.rpc = undefined;
@@ -457,6 +501,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.rootsSub = undefined;
       this.consoleSub?.dispose();
       this.consoleSub = undefined;
+      this.worktreesSub?.dispose();
+      this.worktreesSub = undefined;
       if (this.autoRefreshTimer !== undefined) {
         clearTimeout(this.autoRefreshTimer);
         this.autoRefreshTimer = undefined;

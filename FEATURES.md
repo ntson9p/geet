@@ -501,9 +501,12 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
 
 ## 10. Worktrees
 
-* **Shape:** the `gittree.worktrees` tree view — one row per worktree showing its branch (or
-  `detached at <sha>`), its path, and lock/prunable state, with `Open`, `Remove`,
-  `Lock`/`Unlock` and `Prune`.
+* **Shape:** the **`Worktrees` tab of the Git tool window** (`Log | Console | Worktrees`),
+  where IntelliJ keeps it — one row per worktree showing its branch (or `detached at <sha>`)
+  and its path, a `Locked` or `Prunable` label **only** in those two states, double-click to
+  open, and a toolbar of `New Worktree…`, `Remove`, `Lock`/`Unlock`, `Prune`, `Refresh`.
+  The `gittree.worktrees` tree view survives as a hidden-by-default sidebar pane a user can
+  re-add from the container's ⋯ → Views menu.
 * **`New Worktree` dialog:** three branch modes (existing branch · new branch from a start
   point · detach at a revision), a location defaulting to the sibling `../<repo>-<branch>`, and
   `--no-checkout` / `--force` behind Modify options.

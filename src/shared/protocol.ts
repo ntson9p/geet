@@ -989,6 +989,43 @@ export interface LogBranchActionParamsDto {
   type?: 'local' | 'remote' | 'tag';
 }
 
+// ---------------------------------------------------------------------------
+// Worktrees pane (POST-P14k)
+// ---------------------------------------------------------------------------
+
+/**
+ * One worktree row. `path` is the identity the host resolves back to a
+ * `WorktreeInfo` — the pane never holds a live handle, so a row acted on after
+ * the list moved underneath it fails on the host's own lookup rather than on a
+ * stale object.
+ */
+export interface LogWorktreeDto {
+  path: string;
+  /** Branch name, or undefined when detached or bare. */
+  branch?: string;
+  /** Short HEAD sha, for the detached label. */
+  head?: string;
+  isMain: boolean;
+  bare: boolean;
+  locked: boolean;
+  lockReason?: string;
+  prunable: boolean;
+  prunableReason?: string;
+}
+
+export interface LogWorktreesDto {
+  /** One group per workspace repository, in `core.repos` order. */
+  repos: Array<{ root: string; label: string; worktrees: LogWorktreeDto[] }>;
+}
+
+export interface LogWorktreeActionParamsDto {
+  action: 'add' | 'open' | 'remove' | 'lock' | 'unlock' | 'prune' | 'refresh';
+  /** The repository the row belongs to; required for every action but none is trusted blindly. */
+  repoRoot?: string;
+  /** The acted-on worktree; absent for `add` / `prune` / `refresh`. */
+  path?: string;
+}
+
 export interface CommitDetailsDto {
   sha: string;
   parents: string[];
@@ -1049,6 +1086,10 @@ export const LOG_METHODS = {
   consoleEntries: 'log/console',
   /** P12-T8: clear the ring. */
   consoleClear: 'log/consoleClear',
+  /** POST-P14k: the Worktrees tab's list, every repository at once. */
+  worktrees: 'log/worktrees',
+  /** POST-P14k: one row/toolbar action, dispatched to the `gittree.worktree.*` commands. */
+  worktreeAction: 'log/worktreeAction',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',
@@ -1063,6 +1104,8 @@ export const LOG_METHODS = {
   evtRoots: 'log/rootsChanged',
   /** P12-T8: the command ring grew or was cleared (throttled, payload-free). */
   evtConsole: 'log/consoleChanged',
+  /** POST-P14k: a worktree was added/removed/locked, or a repo's refs moved (payload-free). */
+  evtWorktrees: 'log/worktreesChanged',
   /** P10-T2: keyboard parity — move focus into the filter search box. */
   evtFocusFilter: 'log/focusFilter',
 } as const;

@@ -1063,4 +1063,92 @@ test.describe('P4-T3/T4 log webview', () => {
       .evaluate((el) => getComputedStyle(el).borderColor);
     expect(['rgb(0, 114, 178)', 'rgb(86, 180, 233)']).toContain(border);
   });
+// ---- POST-P14k: the Worktrees tab ----------------------------------------
+
+  test('POST-P14k: Worktrees is the third tab and lists every worktree', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Worktrees' }).click();
+    const pane = page.getByTestId('worktrees-pane');
+    await expect(pane).toBeVisible();
+    const rows = page.getByRole('option');
+    await expect(rows).toHaveCount(3);
+    // Branch is the label, path sits beside it.
+    await expect(rows.first().locator('.gt-worktree-branch')).toHaveText('main');
+    await expect(rows.first().locator('.gt-worktree-path')).toHaveText('/repo');
+    // A detached worktree has no branch to name, so it says where its HEAD is.
+    await expect(rows.nth(2).locator('.gt-worktree-branch')).toHaveText('detached at ccccccc');
+  });
+
+  test('POST-P14k: Locked/Prunable labels appear only in those two states', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Worktrees' }).click();
+    const rows = page.getByRole('option');
+    // JetBrains shows a status label only when a worktree is in one of them.
+    await expect(rows.nth(0).locator('.gt-worktree-tag')).toHaveCount(0);
+    await expect(rows.nth(1).locator('.gt-worktree-tag')).toHaveText('Locked');
+    await expect(rows.nth(1).locator('.gt-worktree-tag')).toHaveAttribute(
+      'title',
+      'on a usb stick',
+    );
+    await expect(rows.nth(2).locator('.gt-worktree-tag')).toHaveText('Prunable');
+  });
+
+  test('POST-P14k: double-click opens; Remove and Lock are disabled on main', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Worktrees' }).click();
+    const rows = page.getByRole('option');
+
+    // Nothing selected → the row actions are unavailable.
+    await expect(page.getByRole('button', { name: 'Remove worktree' })).toBeDisabled();
+
+    // The main worktree cannot be removed or locked, so selecting it changes
+    // nothing about those two buttons.
+    await rows.nth(0).click();
+    await expect(page.getByRole('button', { name: 'Remove worktree' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Lock worktree' })).toBeDisabled();
+
+    // A linked worktree enables them, and the locked one offers Unlock.
+    await rows.nth(1).click();
+    await expect(page.getByRole('button', { name: 'Remove worktree' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Unlock worktree' })).toBeEnabled();
+
+    await rows.nth(1).dblclick();
+    await expect
+      .poll(async () =>
+        (await page.evaluate(
+          () => (window as unknown as { __worktreeActions?: unknown[] }).__worktreeActions ?? [],
+        )) as Array<Record<string, unknown>>,
+      )
+      .toContainEqual({ action: 'open', repoRoot: '/repo', path: '/repo-topic' });
+  });
+
+  test('POST-P14k: New Worktree and Prune name a repository, never a row', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Worktrees' }).click();
+    await page.getByRole('button', { name: 'New Worktree…' }).click();
+    await page.getByRole('button', { name: 'Prune stale worktrees' }).click();
+    const acts = (await page.evaluate(
+      () => (window as unknown as { __worktreeActions?: unknown[] }).__worktreeActions ?? [],
+    )) as Array<Record<string, unknown>>;
+    expect(acts).toEqual([
+      { action: 'add', repoRoot: '/repo' },
+      { action: 'prune', repoRoot: '/repo' },
+    ]);
+  });
+
+  test('POST-P14k: a host worktrees event re-reads the list', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('tab', { name: 'Worktrees' }).click();
+    await expect(page.getByRole('option')).toHaveCount(3);
+    const before = (await posted(page)).filter((m) => m.method === 'log/worktrees').length;
+    await page.evaluate(() =>
+      window.postMessage(
+        { v: 1, id: 'evtwt', kind: 'evt', method: 'log/worktreesChanged', params: {} },
+        '*',
+      ),
+    );
+    await expect
+      .poll(async () => (await posted(page)).filter((m) => m.method === 'log/worktrees').length)
+      .toBeGreaterThan(before);
+  });
 });

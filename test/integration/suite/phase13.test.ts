@@ -12,6 +12,13 @@ import {
   type PushRepoSectionDto,
 } from '../../../src/shared/protocol';
 import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoC } from '../setup';
+import type { LogWorktreeActionParamsDto, LogWorktreesDto } from '../../../src/shared/protocol';
+
+/** POST-P14k: the bridge as this suite uses it (module identity differs across the test/dist boundary). */
+interface WorktreesBridgeShape {
+  buildState(): Promise<LogWorktreesDto>;
+  dispatch(params: LogWorktreeActionParamsDto): Promise<void>;
+}
 
 /**
  * P13 dialogs — host half. The dialog UI is Playwright-covered (push.spec.ts);
@@ -1300,6 +1307,60 @@ suite('P13 dialogs', () => {
         !after.some((w) => w.path.replace(/\\/g, '/').toLowerCase() === wtPath.toLowerCase()),
         'the worktree must no longer be listed',
       );
+    });
+
+    test('POST-P14k: the Git tool window pane lists the same worktrees, per repository', async function () {
+      this.timeout(120_000);
+      // JetBrains keeps this list in the Git tool window, so the pane bridge
+      // is what the user actually sees now. It must agree with the service the
+      // (hidden) tree view used, and it must group by repository.
+      const logView = (
+        core.debugRegistry.get('phase04') as { logView: { worktreesBridge: WorktreesBridgeShape } }
+      ).logView;
+      const panePath = path.join(tmpDir, 'wt-pane').replace(/\\/g, '/');
+      const paneBranch = 'p14k/pane-wt';
+      const service = reg.worktrees.serviceFor(repo);
+      const created = await service.add({
+        path: panePath,
+        mode: 'new',
+        ref: branch,
+        newBranch: paneBranch,
+        noCheckout: false,
+        force: false,
+      });
+      assert.ok(created.ok, created.message);
+      try {
+        const state = await logView.worktreesBridge.buildState();
+        const group = state.repos.find(
+          (r) => r.root.replace(/\\/g, '/').toLowerCase() === repo.root.replace(/\\/g, '/').toLowerCase(),
+        );
+        assert.ok(group, `no group for ${repo.root}: ${JSON.stringify(state.repos.map((r) => r.root))}`);
+        const mine = group.worktrees.find(
+          (w) => w.path.replace(/\\/g, '/').toLowerCase() === panePath.toLowerCase(),
+        );
+        assert.ok(mine, `pane did not list the worktree: ${JSON.stringify(group.worktrees.map((w) => w.path))}`);
+        assert.strictEqual(mine.branch, paneBranch);
+        assert.strictEqual(mine.isMain, false);
+        // The main worktree is always row one, which is what the pane relies on
+        // to disable Remove on it.
+        assert.strictEqual(group.worktrees[0]?.isMain, true);
+
+        // A row acted on after the list moved is dropped, not misapplied — the
+        // pane holds paths, never live handles.
+        await logView.worktreesBridge.dispatch({
+          action: 'remove',
+          repoRoot: repo.root,
+          path: path.join(tmpDir, 'wt-never-existed').replace(/\\/g, '/'),
+        });
+        assert.ok(fs.existsSync(panePath), 'a stale row must not remove a live worktree');
+      } finally {
+        await service.remove(panePath, true);
+        try {
+          git('branch', '-D', paneBranch);
+        } catch {
+          /* already gone */
+        }
+      }
     });
 
     test('T6: removing a dirty worktree is refused with git’s own reason', async function () {

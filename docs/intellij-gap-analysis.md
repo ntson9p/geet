@@ -621,7 +621,7 @@ row in the branches tree.
 | **Add to .gitignore** / **Add to .git/info/exclude** | — | ❌ |
 | **Show Ignored Files** toggle | — | ❌ |
 | Manage Remotes | P13-T4 `gittree.remotes.manage` | ✅ |
-| **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | P13-T6 `gittree.worktrees` view + New Worktree dialog + the T5 submenu row | ✅ |
+| **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | POST-P14k Worktrees **tab in the Git tool window** (JetBrains: "Alt+9, then select Worktrees") + P13-T6 New Worktree dialog + the T5 submenu row | ✅ |
 | Submodule awareness / operations | status parser reads the submodule field only | ❌ |
 | Multi-repo, "Execute branch operations on all roots" | multi-repo model exists; no all-roots switch | 🟡 |
 | **Roots detected below the project directory**, not only at it | downward search under every open folder, `gittree.repositoryScan.maxDepth` (default 1, `-1` unlimited) plus an ignore list — VS Code's `git.repositoryScan*` defaults. Was upward-only, so a folder *containing* checkouts found none of them | ✅ |

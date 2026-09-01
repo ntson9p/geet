@@ -156,6 +156,27 @@ export const mockLogHostScript = `
           res({ ok: true });
           break;
         }
+        case 'log/worktrees': {
+          res({
+            repos: [
+              {
+                root: '/repo', label: 'repo',
+                worktrees: [
+                  { path: '/repo', branch: 'main', head: 'aaaaaaaaaaaa', isMain: true, bare: false, locked: false, prunable: false },
+                  { path: '/repo-topic', branch: 'topic', head: 'bbbbbbbbbbbb', isMain: false, bare: false, locked: true, lockReason: 'on a usb stick', prunable: false },
+                  { path: '/repo-gone', head: 'cccccccccccc', isMain: false, bare: false, locked: false, prunable: true, prunableReason: 'directory is missing' },
+                ],
+              },
+            ],
+          });
+          break;
+        }
+        case 'log/worktreeAction': {
+          window.__worktreeActions = window.__worktreeActions || [];
+          window.__worktreeActions.push(msg.params);
+          res({ ok: true });
+          break;
+        }
         case 'log/authors': {
           res({ authors: ['Alice <a@x.dev>', 'Bob <b@x.dev>', 'Carol <c@x.dev>'] });
           break;
