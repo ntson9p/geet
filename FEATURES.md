@@ -425,8 +425,14 @@ Right-clicking commits in the graph (native menu, multi-select aware):
 
 ### Git stash (shape + behaviour)
 
-* **View:** `gittree.stashes` tree — one row per entry (message, branch, date), expanding to
-  its files, each opening a real diff against the working tree.
+* **Shape:** the **`Stash` tab of the Commit tool window** (`Commit | Shelf | Stash`), where
+  IntelliJ keeps it — one row per entry (`stash@{N} · message`, relative time, origin branch),
+  expanding to its files, each opening a real diff against the working tree. Files are read on
+  expand, because `git stash show` costs a run per stash. Actions carry the stash **sha**, not
+  `stash@{N}`, so a row acted on after the list shifted cannot hit a different stash.
+  `gittree.stash.combineWithShelf` is IntelliJ's *Combine stashes and shelves in one tab*
+  (off by default, as there): on, the third tab folds into the Shelf tab. The
+  `gittree.stashes` tree view survives as a hidden-by-default sidebar pane.
 * **Dialogs (P13-T4):** `Stash Changes…` — message plus **Modify options** revealing
   `--keep-index`, `--include-untracked`, `--all` and `--staged` (offered only when the git
   build has it, with the reason stated when it does not). `Unstash Changes…` — the stash list,

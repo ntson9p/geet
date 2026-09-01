@@ -219,6 +219,11 @@
             "type": "boolean",
             "default": true,
             "description": "%gittree.config.stash.includeUntrackedDefault.description%"
+          },
+          "gittree.stash.combineWithShelf": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.stash.combineWithShelf.description%"
           }
         }
       },

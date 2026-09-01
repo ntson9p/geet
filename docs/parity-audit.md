@@ -134,7 +134,8 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Stash view, create/apply/pop/drop/clear/branch | ✅ | P7 |
+| Stash **tab in the Commit tool window**, create/apply/pop/drop/clear/branch | ✅ | P7 engine + POST-P14l tab; the P7 tree view stays hidden-by-default |
+| `Combine stashes and shelves in one tab` | ✅ | POST-P14l `gittree.stash.combineWithShelf`, off by default as in IntelliJ |
 | `Stash Changes` dialog with `--keep-index`, `--all`, `--staged` | ✅ | P13-T4; `--staged` gated on git ≥ 2.35 with the reason stated |
 | `Unstash` dialog: list, pop, reinstate index, changelist, inline diff | ✅ | P13-T4 |
 | Shelf outside `.git`, Shelf tab, partial shelve, import/export | ✅ | P7 + P11-T6/T7 |

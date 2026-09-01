@@ -535,7 +535,7 @@ row in the branches tree.
 
 | IntelliJ | GitTree | |
 | --- | --- | --- |
-| Stash tab: Create Stash / Apply / Pop / Drop / Clear | full `gittree.stash.*` | ✅ |
+| Stash tab: Create Stash / Apply / Pop / Drop / Clear | full `gittree.stash.*`, in the POST-P14l `Stash` tab of the commit window | ✅ |
 | Unstash **as new branch** | `stash.branch` | ✅ |
 | Reinstate Index (`--index`) | `restoreIndex` | ✅ |
 | **Keep index** on create (`--keep-index`) | P13-T4 Stash dialog option | ✅ |
@@ -550,7 +550,7 @@ row in the branches tree.
 | **Already Unshelved** filter | — | ❌ |
 | **Recently Deleted** node plus **Restore** | — | ❌ |
 | Shelve dialog: file list, Group By, Show Differences, Revert | P11-T7 Shelve Changes dialog (tree, counts, inline diff) | ✅ |
-| *Combine stashes and shelves in one tab* | two separate views | ❌ |
+| *Combine stashes and shelves in one tab* | POST-P14l `gittree.stash.combineWithShelf` — the Stash tab folds into the Shelf tab | ✅ |
 | *Shelve base revisions of files* / Change Shelves Location | `shelf.path` only | 🟡 |
 
 ### 3.7 Remote synchronization

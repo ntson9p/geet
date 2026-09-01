@@ -42,7 +42,11 @@ import { computeFileDiff } from './fileDiff';
 import { signChanges, type InclusionModel } from './inclusion';
 import { applyOption, readOptions, type CommitOptionsStore } from './options';
 import type { ShelfBridge } from './shelfBridge';
-import type { CommitShelfActionParamsDto } from '../../shared/protocol';
+import type { StashBridge } from './stashBridge';
+import type {
+  CommitShelfActionParamsDto,
+  CommitStashActionParamsDto,
+} from '../../shared/protocol';
 
 export interface CommitWindowDeps {
   context: vscode.ExtensionContext;
@@ -87,6 +91,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   private busy = 0;
   private lastError: string | undefined;
   private shelfBridge: ShelfBridge | undefined;
+  /** POST-P14l: the Stash tab data source, attached by the same layer. */
+  private stashBridge: StashBridge | undefined;
   private readonly subs: vscode.Disposable[] = [];
   /** Test observability, mirroring the RebaseViewController convention. */
   readonly debugTrail: string[] = [];
@@ -310,6 +316,13 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     this.pushShelf();
   }
 
+  /** POST-P14l: same contract as `attachShelf`, for the `Stash` tab. */
+  attachStash(bridge: StashBridge): void {
+    this.stashBridge = bridge;
+    this.subs.push(bridge.onDidChange(() => this.pushStash()));
+    this.pushStash();
+  }
+
   /** P14-T4 test seam: what the view badge currently shows. */
   get badgeValue(): number | undefined {
     return this.view?.badge?.value;
@@ -318,6 +331,11 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   private pushShelf(): void {
     if (!this.view || !this.shelfBridge) return;
     this.rpc?.notify(COMMIT_METHODS.evtShelf, this.shelfBridge.buildState());
+  }
+
+  private pushStash(): void {
+    if (!this.view || !this.stashBridge) return;
+    this.rpc?.notify(COMMIT_METHODS.evtStash, this.stashBridge.buildState());
   }
 
   push(): void {
@@ -570,6 +588,19 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       this.shelfBridge?.buildState() ?? { repos: [], showUnshelved: false },
     );
 
+    rpc.on(COMMIT_METHODS.stashState, () =>
+      this.stashBridge?.buildState() ?? { repos: [], combined: false },
+    );
+    rpc.on(COMMIT_METHODS.stashFiles, async (raw) => {
+      const { repoRoot, sha } = raw as { repoRoot?: string; sha?: string };
+      if (!this.stashBridge || repoRoot === undefined || sha === undefined) return { files: [] };
+      return { files: await this.stashBridge.filesFor(repoRoot, sha) };
+    });
+    rpc.on(COMMIT_METHODS.stashAction, async (raw) => {
+      if (!this.stashBridge) return { ok: false };
+      await this.stashBridge.dispatch(raw as CommitStashActionParamsDto);
+      return { ok: true };
+    });
     rpc.on(COMMIT_METHODS.shelfAction, async (raw) => {
       if (!this.shelfBridge) return;
       await this.shelfBridge.dispatch(raw as CommitShelfActionParamsDto);

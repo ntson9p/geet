@@ -172,3 +172,14 @@
 .gt-input.gt-invalid {
   outline: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
 }
+
+/* ---- POST-P14l: `Combine stashes and shelves in one tab` ---- */
+/* Embedded in the Shelf tab, the stash list is a second block under the
+   shelves rather than a pane that owns the whole tab height. */
+.gt-commit-subpane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 40%;
+  min-height: 80px;
+  border-top: 1px solid var(--vscode-panel-border);
+}

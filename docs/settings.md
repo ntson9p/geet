@@ -185,6 +185,12 @@ Pre-select "Include untracked files" in the Stash Changes flow.
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.stash.combineWithShelf`
+
+Show stashes inside the Shelf tab instead of their own Stash tab (IntelliJ: "Combine stashes and shelves in one tab").
+
+- Type: `boolean` · Default: `false`
+
 ## GitTree: Shelf
 
 ### `gittree.shelf.path`

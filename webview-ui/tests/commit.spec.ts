@@ -696,3 +696,86 @@ test.describe('P11-T3 per-change inclusion', () => {
     await expect(page.getByTestId('commit-preview')).toBeVisible();
   });
 });
+
+test.describe('POST-P14l stash tab', () => {
+  async function openStash(page: Page): Promise<void> {
+    await openCommit(page);
+    await page.getByRole('tab', { name: 'Stash', exact: true }).click();
+    await expect(page.getByTestId('stash-tab')).toBeVisible();
+  }
+
+  async function stashActions(page: Page): Promise<Array<Record<string, unknown>>> {
+    return (await page.evaluate(
+      () => (window as unknown as { __stashActions?: unknown[] }).__stashActions ?? [],
+    )) as Array<Record<string, unknown>>;
+  }
+
+  test('Stash is the third tab, beside Shelf, and lists the stashes', async ({ page }) => {
+    await openStash(page);
+    // IntelliJ's default shape: Commit | Shelf | Stash, stashes in their own tab.
+    await expect(page.getByRole('tab')).toHaveCount(3);
+    await expect(page.getByRole('treeitem', { name: /stash@\{0\}/ })).toBeVisible();
+    await expect(page.getByRole('treeitem', { name: /stash@\{1\}/ })).toBeVisible();
+  });
+
+  test('files are read on expand, not up front', async ({ page }) => {
+    await openStash(page);
+    // `git stash show` costs a run per stash, so nothing is fetched until a row
+    // is opened.
+    expect((await posted(page)).filter((m) => m.method === 'commit/stashFiles')).toHaveLength(0);
+
+    await page.getByRole('treeitem', { name: /stash@\{0\}/ }).click();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('treeitem', { name: /retry\.ts/ })).toBeVisible();
+    const asked = (await posted(page)).filter((m) => m.method === 'commit/stashFiles');
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.params?.['sha']).toBe('aaaa1111'.repeat(5));
+  });
+
+  test('actions carry the sha, never stash@{N}', async ({ page }) => {
+    await openStash(page);
+    await page.getByRole('treeitem', { name: /stash@\{1\}/ }).click();
+    await page.getByRole('button', { name: 'Pop Stash' }).click();
+    const acts = await stashActions(page);
+    expect(acts).toContainEqual({
+      action: 'pop',
+      repoRoot: 'D:/repos/demo-git',
+      sha: 'bbbb2222'.repeat(5),
+    });
+    // The index would have been 1 here; identity is the sha precisely so that a
+    // list that moved cannot redirect the action to another stash.
+    expect(JSON.stringify(acts)).not.toContain('"index"');
+  });
+
+  test('row actions need a selection; Stash Changes and Clear never do', async ({ page }) => {
+    await openStash(page);
+    await expect(page.getByRole('button', { name: 'Pop Stash' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Drop Stash' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Stash Changes…' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Clear Stashes' })).toBeEnabled();
+
+    await page.getByRole('treeitem', { name: /stash@\{0\}/ }).click();
+    await expect(page.getByRole('button', { name: 'Pop Stash' })).toBeEnabled();
+  });
+
+  test('a dropped stash leaves the list on the host event', async ({ page }) => {
+    await openStash(page);
+    await page.getByRole('treeitem', { name: /stash@\{0\}/ }).click();
+    await page.getByRole('button', { name: 'Drop Stash' }).click();
+    await expect(page.getByRole('treeitem', { name: /stash@\{0\}/ })).toHaveCount(0);
+    await expect(page.getByRole('treeitem', { name: /stash@\{1\}/ })).toBeVisible();
+  });
+
+  test('Combine stashes and shelves folds the tab away', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockCombineStashes?: boolean }).__mockCombineStashes = true;
+    });
+    await openCommit(page);
+    // IntelliJ's setting: one tab fewer, and the stashes render under the shelf.
+    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tab', { name: 'Stash', exact: true })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Shelf' }).click();
+    await expect(page.getByTestId('shelf-tab')).toBeVisible();
+    await expect(page.getByTestId('stash-tab')).toBeVisible();
+  });
+});

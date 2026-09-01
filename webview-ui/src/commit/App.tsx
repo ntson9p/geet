@@ -19,6 +19,7 @@ import {
   type CommitMessageEvtDto,
   type CommitRecentCommitsDto,
   type CommitSetIncludedParamsDto,
+  type CommitStashStateDto,
   type CommitStateDto,
   type CommitSetCheckedParamsDto,
 } from '../../../src/shared/protocol';
@@ -39,6 +40,7 @@ import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
 import { ShelfTab } from './ShelfTab';
+import { StashTab } from './StashTab';
 
 interface Persisted {
   tab?: string;
@@ -84,6 +86,26 @@ export function App() {
   const [state, setState] = useState<CommitStateDto>(EMPTY);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState(saved.tab ?? 'commit');
+  // POST-P14l: IntelliJ's `Combine stashes and shelves in one tab`. Off by
+  // default, so the strip is `Commit | Shelf | Stash`; on, the Stash tab folds
+  // into the Shelf tab and the third tab disappears.
+  const [combined, setCombined] = useState(false);
+
+  useEffect(() => {
+    const off = rpc.onEvent(COMMIT_METHODS.evtStash, (payload) => {
+      setCombined((payload as CommitStashStateDto | undefined)?.combined === true);
+    });
+    rpc
+      .request<CommitStashStateDto>(COMMIT_METHODS.stashState)
+      .then((next) => setCombined(next?.combined === true), () => undefined);
+    return off;
+  }, [rpc]);
+
+  // Turning the setting on while the Stash tab is showing would leave `tab`
+  // naming a tab that no longer exists, and every panel renders null.
+  useEffect(() => {
+    if (combined && tab === 'stash') setTab('shelf');
+  }, [combined, tab]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(saved.expanded ?? []),
   );
@@ -540,6 +562,7 @@ export function App() {
         tabs={[
           { id: 'commit', label: 'Commit' },
           { id: 'shelf', label: 'Shelf' },
+          ...(combined ? [] : [{ id: 'stash', label: 'Stash' }]),
         ]}
       />
 
@@ -708,7 +731,16 @@ export function App() {
 
       <TabPanel id="shelf" active={tab} className="gt-commit-panel">
         <ShelfTab rpc={rpc} send={send} colors={state.colors} />
+        {/* `Combine stashes and shelves in one tab`: the stashes render under
+            the shelves rather than in a tab of their own. */}
+        {combined ? <StashTab rpc={rpc} send={send} colors={state.colors} embedded /> : null}
       </TabPanel>
+
+      {combined ? null : (
+        <TabPanel id="stash" active={tab} className="gt-commit-panel">
+          <StashTab rpc={rpc} send={send} colors={state.colors} />
+        </TabPanel>
+      )}
 
       {optionsOpen && activeRepo !== undefined ? (
         <OptionsPopup rpc={rpc} repoRoot={activeRepo} onClose={() => setOptionsOpen(false)} />

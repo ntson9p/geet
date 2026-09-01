@@ -206,10 +206,18 @@ export const COMMIT_METHODS = {
   shelfState: 'commit/shelfState',
   /** P11-T6: one shelf action (unshelve/rename/delete/…) from the tab. */
   shelfAction: 'commit/shelfAction',
+  /** POST-P14l: the Stash tab's snapshot. */
+  stashState: 'commit/stashState',
+  /** POST-P14l: a stash's file list, read on expand (git runs per stash). */
+  stashFiles: 'commit/stashFiles',
+  /** POST-P14l: one stash action (apply/pop/drop/branch/…) from the tab. */
+  stashAction: 'commit/stashAction',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
   evtShelf: 'commit/shelf',
+  /** POST-P14l: pushed whenever a stash list or the combine setting changes. */
+  evtStash: 'commit/stash',
   /**
    * Host → webview: a *programmatic* message write — history pick, amend
    * prefill, post-commit clear. This is deliberately not part of `evtState`:
@@ -310,6 +318,62 @@ export interface CommitShelfActionParamsDto {
   action: CommitShelfActionDto;
   repoRoot?: string;
   id?: string;
+  relPath?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stash tab (POST-P14l)
+// ---------------------------------------------------------------------------
+
+export interface CommitStashFileDto {
+  relPath: string;
+  /** Mirrors `StashFileStatus` — kept literal so the row colours typecheck. */
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
+}
+
+/**
+ * One stash row. `sha` is the identity every action carries: `index` shifts
+ * under the list whenever a stash is pushed or dropped, so acting on
+ * `stash@{N}` captured at render time can hit a different stash entirely.
+ * The index is still sent, because it is what `stash@{N}` displays.
+ */
+export interface CommitStashEntryDto {
+  sha: string;
+  index: number;
+  selector: string;
+  message: string;
+  branch?: string;
+  /** Epoch ms, matching `CommitShelfEntryDto.createdAt`. */
+  createdAt: number;
+}
+
+export interface CommitStashStateDto {
+  repos: Array<{ root: string; label: string; entries: CommitStashEntryDto[] }>;
+  /**
+   * IntelliJ's *Combine stashes and shelves in one tab* (Settings | Version
+   * Control | Git | Stash). Off by default there and here: stashes get their
+   * own `Stash` tab beside `Shelf`, and turning this on merges the two.
+   */
+  combined: boolean;
+}
+
+export type CommitStashActionDto =
+  | 'push'
+  | 'apply'
+  | 'pop'
+  | 'drop'
+  | 'branch'
+  | 'clear'
+  | 'copyMessage'
+  | 'diffAll'
+  | 'openFileDiff';
+
+export interface CommitStashActionParamsDto {
+  action: CommitStashActionDto;
+  repoRoot?: string;
+  /** Stash identity — never the index. */
+  sha?: string;
+  /** Set only by `openFileDiff`. */
   relPath?: string;
 }
 

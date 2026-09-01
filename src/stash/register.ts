@@ -14,6 +14,7 @@ import { confirmModal, typedConfirm } from '../ui/confirm';
 import type { ConflictSource } from '../merge/conflictSession';
 import type { Phase03Registry } from '../commit/register';
 import { ShelfBridge } from '../commit/window/shelfBridge';
+import { StashBridge } from '../commit/window/stashBridge';
 import { showShelveDialog } from '../shelf/shelveDialog';
 import { ShelfStore, type ShelfFileMeta, type ShelfMeta, type ShelveOptions } from '../shelf/shelfStore';
 import {
@@ -857,16 +858,31 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     storeFor: (repoRoot) => shelves.get(canonicalKey(repoRoot)),
   });
   context.subscriptions.push(shelfBridge);
-  (
+  // POST-P14l: the same tie for the Stash tab. IntelliJ keeps stashes in a tab
+  // of the Commit tool window beside Shelf, not in a sidebar pane.
+  const stashBridge = new StashBridge({
+    core,
+    serviceFor: (repoRoot) => services.get(canonicalKey(repoRoot)),
+  });
+  context.subscriptions.push(stashBridge);
+  const commitWindow = (
     core.debugRegistry.get('phase03') as
-      | { commitWindow?: { attachShelf(bridge: ShelfBridge): void } }
+      | {
+          commitWindow?: {
+            attachShelf(bridge: ShelfBridge): void;
+            attachStash(bridge: StashBridge): void;
+          };
+        }
       | undefined
-  )?.commitWindow?.attachShelf(shelfBridge);
+  )?.commitWindow;
+  commitWindow?.attachShelf(shelfBridge);
+  commitWindow?.attachStash(stashBridge);
 
   core.debugRegistry.set('phase07', {
     getStashService: (repoRoot: string) => services.get(canonicalKey(repoRoot)),
     getShelfStore: (repoRoot: string) => shelves.get(canonicalKey(repoRoot)),
     shelfBridge,
+    stashBridge,
     makeUnshelveEngine: (repoRoot: string) => {
       const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot));
       const store = shelves.get(canonicalKey(repoRoot));

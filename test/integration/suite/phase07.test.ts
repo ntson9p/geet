@@ -12,12 +12,24 @@ import { shelfDiffSides } from '../../../src/shelf/shelfView';
 import type { UnshelveEngine } from '../../../src/shelf/unshelve';
 import type { StashService } from '../../../src/stash/stashService';
 import type { StashNode, StashViewProvider } from '../../../src/stash/stashView';
+import type {
+  CommitStashActionParamsDto,
+  CommitStashFileDto,
+  CommitStashStateDto,
+} from '../../../src/shared/protocol';
 import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
 
 interface Phase07RegistryShape {
   getStashService(repoRoot: string): StashService | undefined;
   getShelfStore(repoRoot: string): ShelfStore | undefined;
   stashViewProvider: StashViewProvider;
+  /** POST-P14l: the Stash tab's data source. Structural — module identity
+   *  differs between the test compile and the dist bundle. */
+  stashBridge: {
+    buildState(): CommitStashStateDto;
+    filesFor(repoRoot: string, sha: string): Promise<CommitStashFileDto[]>;
+    dispatch(params: CommitStashActionParamsDto): Promise<void>;
+  };
 }
 interface Phase06RegistryShape {
   getSession(repoRoot: string): ConflictSession | undefined;
@@ -224,6 +236,61 @@ suite('P7 stash & shelve — StashService', () => {
     assert.strictEqual(git('show', 'stash@{0}:p7m.txt'), 'after\n');
 
     await stash.drop(0);
+  });
+
+  test('POST-P14l: the Stash tab shows the same stashes, keyed by sha not stash@{N}', async function () {
+    this.timeout(90_000);
+    // IntelliJ keeps stashes in a Stash tab of the Commit tool window, so the
+    // bridge is what the user sees now. It must agree with the service the
+    // (hidden) tree view used, and it must survive the list shifting.
+    const bridge = reg07.stashBridge;
+    git('checkout', '-b', 'p7/p14l-stash-tab');
+    write('p14l-a.txt', 'a\n');
+    write('p14l-b.txt', 'b\n');
+    commitAll('p14l base');
+
+    write('p14l-a.txt', 'a changed\n');
+    await stash.push({ message: 'p14l first' });
+    await waitFor(() => stash.list().length === 1, 10_000);
+    const firstSha = stash.list()[0]!.sha;
+
+    write('p14l-b.txt', 'b changed\n');
+    await stash.push({ message: 'p14l second' });
+    await waitFor(() => stash.list().length === 2, 10_000);
+
+    try {
+      // The newest stash is stash@{0}; the first one has been pushed down to 1.
+      const group = bridge
+        .buildState()
+        .repos.find((r) => r.root.toLowerCase() === repoRoot.toLowerCase());
+      assert.ok(group, 'the stash tab must group by repository');
+      assert.strictEqual(group.entries.length, 2);
+      assert.strictEqual(group.entries[0]?.selector, 'stash@{0}');
+      const moved = group.entries.find((e) => e.sha === firstSha);
+      assert.ok(moved, 'the first stash must still be listed');
+      assert.strictEqual(moved.index, 1, 'it was pushed down by the second stash');
+      // Epoch ms, like the shelf's — the tab renders it with the same helper.
+      assert.ok(moved.createdAt > 1e12, `createdAt must be ms, got ${moved.createdAt}`);
+
+      // Files are read per stash, on expand.
+      const files = await bridge.filesFor(repoRoot, firstSha);
+      assert.deepStrictEqual(
+        files.map((f) => f.relPath),
+        ['p14l-a.txt'],
+      );
+
+      // The point of sha identity: dropping the row the user saw as stash@{1}
+      // drops THAT stash, not whatever inherited the index.
+      await bridge.dispatch({ action: 'drop', repoRoot, sha: firstSha });
+      await waitFor(() => stash.list().length === 1, 15_000);
+      assert.strictEqual(stash.list()[0]?.message.includes('p14l second'), true);
+
+      // A sha that is no longer there is dropped, not misapplied.
+      await bridge.dispatch({ action: 'drop', repoRoot, sha: firstSha });
+      assert.strictEqual(stash.list().length, 1, 'a stale sha must drop nothing');
+    } finally {
+      while (stash.list().length > 0) await stash.drop(0);
+    }
   });
 
   test('T2: view reflects external CLI stashes within 500 ms; rows expand to diffable files', async function () {

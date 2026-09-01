@@ -84,6 +84,42 @@ export const mockCommitHostScript = `
     };
   }
 
+  // POST-P14l: stash fixture — two stashes, files served lazily per sha.
+  // window.__mockCombineStashes flips IntelliJ's combine setting.
+  const stashEntries = [
+    {
+      sha: 'aaaa1111'.repeat(5), index: 0, selector: 'stash@{0}',
+      message: 'WIP on main: 1a2b3c retry backoff', branch: 'main',
+      createdAt: Date.now() - 3600e3,
+    },
+    {
+      sha: 'bbbb2222'.repeat(5), index: 1, selector: 'stash@{1}',
+      message: 'On dev: exporter spike', branch: 'dev',
+      createdAt: Date.now() - 86400e3,
+    },
+  ];
+  const stashFiles = {
+    ['aaaa1111'.repeat(5)]: [
+      { relPath: 'src/retry.ts', status: 'modified' },
+      { relPath: 'src/new-file.ts', status: 'untracked' },
+    ],
+    ['bbbb2222'.repeat(5)]: [{ relPath: 'src/exporter.ts', status: 'added' }],
+  };
+
+  function buildStash() {
+    return {
+      repos: [{ root: REPO, label: 'demo-git', entries: stashEntries }],
+      combined: window.__mockCombineStashes === true,
+    };
+  }
+
+  function pushStash() {
+    window.postMessage(
+      { v: 1, id: 'st' + Math.random(), kind: 'evt', method: 'commit/stash', params: buildStash() },
+      '*'
+    );
+  }
+
   function pushShelf() {
     window.postMessage(
       { v: 1, id: 's' + Math.random(), kind: 'evt', method: 'commit/shelf', params: buildShelf() },
@@ -259,6 +295,19 @@ export const mockCommitHostScript = `
       else if (o.kind === 'todoPattern') options.todoPattern = o.value;
       else if (o.kind === 'cleanupKind') options.cleanupKind = o.value;
       else if (o.kind === 'deferAdvanced') options.deferAdvanced = o.value;
+    },
+    // POST-P14l: the Stash tab.
+    'commit/stashState': () => buildStash(),
+    'commit/stashFiles': (p) => ({ files: stashFiles[p.sha] || [] }),
+    'commit/stashAction': (p) => {
+      window.__stashActions = window.__stashActions || [];
+      window.__stashActions.push(p);
+      if (p.action === 'drop') {
+        const at = stashEntries.findIndex((e) => e.sha === p.sha);
+        if (at >= 0) stashEntries.splice(at, 1);
+        setTimeout(pushStash, 5);
+      }
+      // The rest open host-side UI; receiving them is enough.
     },
     // P11-T6: the Shelf tab.
     'commit/shelfState': () => buildShelf(),

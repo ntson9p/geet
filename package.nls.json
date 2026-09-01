@@ -333,5 +333,6 @@
   "gittree.command.diff.prevChange.title": "Previous Change",
   "gittree.command.diff.toggleSideBySide.title": "Toggle Side-by-Side / Inline",
   "gittree.command.diff.toggleIgnoreWhitespace.title": "Toggle Ignore Whitespace",
-  "gittree.command.diff.toggleCollapseUnchanged.title": "Toggle Collapse Unchanged Regions"
+  "gittree.command.diff.toggleCollapseUnchanged.title": "Toggle Collapse Unchanged Regions",
+  "gittree.config.stash.combineWithShelf.description": "Show stashes inside the Shelf tab instead of their own Stash tab (IntelliJ: \"Combine stashes and shelves in one tab\")."
 }
