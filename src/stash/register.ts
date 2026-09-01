@@ -880,6 +880,8 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
 
   core.debugRegistry.set('phase07', {
     getStashService: (repoRoot: string) => services.get(canonicalKey(repoRoot)),
+    /** POST-P14n: lets the gate be asserted against a real view, not the manifest. */
+    stashView: view,
     getShelfStore: (repoRoot: string) => shelves.get(canonicalKey(repoRoot)),
     shelfBridge,
     stashBridge,

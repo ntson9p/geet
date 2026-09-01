@@ -170,6 +170,13 @@ suite('Multi-root commit', () => {
         `${labelOf(repo)} had nothing ticked and must not have been committed`,
       );
     }
+    // `headOf` polls git directly, so the waitFor above returns as soon as the
+    // COMMIT lands — the window's own state is one refresh behind it. Reading
+    // targets straight after was relying on that refresh winning a race it has
+    // no reason to win; POST-P14n changed how many views render at startup and
+    // the timing shifted enough to lose it. Synchronize on the model observing
+    // the commit, the way phase01's T7 does for the same gap.
+    await waitFor(() => ourTargets().length === 0, 30_000);
     assert.deepStrictEqual(
       ourTargets(),
       [],

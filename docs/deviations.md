@@ -485,11 +485,27 @@ from the Git tool window's Worktrees tab; Local History from `Show History`, whi
 own window. None of the four is a permanent section of the commit surface.
 
 **GitTree:** the default shape is now the same — POST-P14k moved worktrees to the Git tool
-window, POST-P14l gave stashes their `Stash` tab, and POST-P14m set
-`gittree.branches`, `gittree.worktrees`, `gittree.localHistory` and `gittree.stashes` to
-`"visibility": "hidden"`. They remain **registered**, so a user can re-add any of them from
-the container's ⋯ → Views menu, and `<viewId>.focus` still reveals one on demand — which is
-exactly how `gittree.history.show` implements IntelliJ's `Show History`.
+window, POST-P14l gave stashes their `Stash` tab, and POST-P14n gates
+`gittree.branches`, `gittree.worktrees`, `gittree.localHistory` and `gittree.stashes` behind
+`gittree.sidebar.extraViews` (default `false`). Turning the setting on brings all four back
+as collapsed sections.
+
+**Why a setting and not `"visibility": "hidden"`, which POST-P14m tried first:** `visibility`
+is only a **first-registration default**. VS Code persists a view container's layout the first
+time it renders and never consults the default again, so on every existing install the four
+panes kept showing — the change reached new profiles only, which is precisely where the tests
+run. A `when` clause is evaluated live and removes the view outright, so it reaches an
+upgraded user. `phase14` now asserts this against a **live view**: it turns the setting on,
+focuses the stashes pane until `TreeView.visible` is true, then turns the setting off and
+requires the pane to disappear. A manifest assertion cannot see that difference, which is how
+the first attempt shipped broken.
+
+Two of the four are also revealed **on demand**, the way `gittree.compare` is, because a view
+that is not contributed cannot be focused and the commands that reveal them would otherwise
+have become silent no-ops: the branches popup's last header button arms
+`gittree.branches.active`, and `gittree.history.show` arms `gittree.localHistory.active`
+before focusing. For Local History that is *closer* to IntelliJ than a standing pane —
+`Show History` opens the window when you ask for it.
 
 **Why keep them at all:** they are genuinely useful in VS Code's idiom, where a docked tree is
 the cheapest way to keep something in view, and the owner asked for them to stay reachable.

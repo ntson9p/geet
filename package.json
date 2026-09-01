@@ -96,6 +96,11 @@
             "type": "boolean",
             "default": false,
             "description": "%gittree.config.telemetry.enabled.description%"
+          },
+          "gittree.sidebar.extraViews": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.sidebar.extraViews.description%"
           }
         }
       },
@@ -3020,14 +3025,16 @@
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
           "icon": "$(git-branch)",
-          "visibility": "hidden"
+          "visibility": "collapsed",
+          "when": "config.gittree.sidebar.extraViews || gittree.branches.active"
         },
         {
           "id": "gittree.worktrees",
           "name": "%gittree.view.worktrees.name%",
           "contextualTitle": "GitTree",
           "icon": "$(repo-forked)",
-          "visibility": "hidden"
+          "visibility": "collapsed",
+          "when": "config.gittree.sidebar.extraViews"
         },
         {
           "id": "gittree.compare",
@@ -3042,7 +3049,8 @@
           "name": "%gittree.view.localHistory.name%",
           "contextualTitle": "GitTree",
           "icon": "$(history)",
-          "visibility": "hidden"
+          "visibility": "collapsed",
+          "when": "config.gittree.sidebar.extraViews || gittree.localHistory.active"
         },
         {
           "id": "gittree.conflicts",
@@ -3056,7 +3064,8 @@
           "name": "%gittree.view.stashes.name%",
           "contextualTitle": "GitTree",
           "icon": "$(archive)",
-          "visibility": "hidden"
+          "visibility": "collapsed",
+          "when": "config.gittree.sidebar.extraViews"
         },
         {
           "id": "gittree.revTree",

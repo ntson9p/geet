@@ -67,6 +67,12 @@ Allow GitTree usage telemetry (activation timing, operation duration buckets, er
 
 - Type: `boolean` · Default: `false`
 
+### `gittree.sidebar.extraViews`
+
+Show the Branches, Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: IntelliJ keeps those surfaces in the Git tool window, the branches popup and the Stash tab, and its Commit tool window has no sections beneath it.
+
+- Type: `boolean` · Default: `false`
+
 ## GitTree Source Control
 
 ### `gittree.quickDiff.base`

@@ -93,8 +93,9 @@ ships. Accepted divergences are named here and registered once in
   with a `‹ Back` row and a breadcrumb title. **Typing collapses the folders** and searches
   flat across every level, so drill-in never traps anyone.
 * **Header buttons:** new branch · fetch · **incoming/outgoing toggle** · **gear** (branch
-  settings) · reveal the Branches tree view (hidden by default, D26 — the branch surfaces
-  IntelliJ has are this popup and the log's Branches pane).
+  settings) · reveal the Branches tree view (off by default behind `gittree.sidebar.extraViews`, D26 — the
+  branch surfaces IntelliJ has are this popup and the log's Branches pane; the button arms the
+  view's own context key, so it works whether or not the setting is on).
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5).
 
@@ -433,7 +434,7 @@ Right-clicking commits in the graph (native menu, multi-select aware):
   `stash@{N}`, so a row acted on after the list shifted cannot hit a different stash.
   `gittree.stash.combineWithShelf` is IntelliJ's *Combine stashes and shelves in one tab*
   (off by default, as there): on, the third tab folds into the Shelf tab. The
-  `gittree.stashes` tree view survives as a hidden-by-default sidebar pane.
+  `gittree.stashes` tree view survives behind `gittree.sidebar.extraViews` (off by default, D26).
 * **Dialogs (P13-T4):** `Stash Changes…` — message plus **Modify options** revealing
   `--keep-index`, `--include-untracked`, `--all` and `--staged` (offered only when the git
   build has it, with the reason stated when it does not). `Unstash Changes…` — the stash list,
@@ -466,8 +467,9 @@ URL and does not enumerate a provider's repositories. Registered as D11.
 ## 8. The Failsafe: Local History
 
 * **Shape:** `Show Local History` opens the `gittree.localHistory` view **on demand**, the
-  way IntelliJ's `Show History` opens its own window — the view is hidden by default rather
-  than a standing sidebar section (D26). Snapshots are grouped by day, each expanding to the
+  way IntelliJ's `Show History` opens its own window — the view is not contributed at all
+  until either `gittree.sidebar.extraViews` is on or the command arms its context key, rather than standing open
+  as a sidebar section (D26). Snapshots are grouped by day, each expanding to the
   files it holds, with `Show Diff`, `Restore` and `Restore Selected Files…`.
 * **Behaviour:** a snapshot is taken **before every destructive operation** (checkout on a
   dirty tree, reset, rebase, merge, cherry-pick, revert, stash pop/apply/drop/clear, unshelve,
@@ -514,8 +516,7 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   where IntelliJ keeps it — one row per worktree showing its branch (or `detached at <sha>`)
   and its path, a `Locked` or `Prunable` label **only** in those two states, double-click to
   open, and a toolbar of `New Worktree…`, `Remove`, `Lock`/`Unlock`, `Prune`, `Refresh`.
-  The `gittree.worktrees` tree view survives as a hidden-by-default sidebar pane a user can
-  re-add from the container's ⋯ → Views menu.
+  The `gittree.worktrees` tree view survives behind `gittree.sidebar.extraViews` (off by default, D26).
 * **`New Worktree` dialog:** three branch modes (existing branch · new branch from a start
   point · detach at a revision), a location defaulting to the sibling `../<repo>-<branch>`, and
   `--no-checkout` / `--force` behind Modify options.

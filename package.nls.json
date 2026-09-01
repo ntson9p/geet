@@ -334,5 +334,6 @@
   "gittree.command.diff.toggleSideBySide.title": "Toggle Side-by-Side / Inline",
   "gittree.command.diff.toggleIgnoreWhitespace.title": "Toggle Ignore Whitespace",
   "gittree.command.diff.toggleCollapseUnchanged.title": "Toggle Collapse Unchanged Regions",
-  "gittree.config.stash.combineWithShelf.description": "Show stashes inside the Shelf tab instead of their own Stash tab (IntelliJ: \"Combine stashes and shelves in one tab\")."
+  "gittree.config.stash.combineWithShelf.description": "Show stashes inside the Shelf tab instead of their own Stash tab (IntelliJ: \"Combine stashes and shelves in one tab\").",
+  "gittree.config.sidebar.extraViews.description": "Show the Branches, Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: IntelliJ keeps those surfaces in the Git tool window, the branches popup and the Stash tab, and its Commit tool window has no sections beneath it."
 }

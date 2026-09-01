@@ -134,7 +134,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Stash **tab in the Commit tool window**, create/apply/pop/drop/clear/branch | ✅ | P7 engine + POST-P14l tab; the P7 tree view stays hidden-by-default |
+| Stash **tab in the Commit tool window**, create/apply/pop/drop/clear/branch | ✅ | P7 engine + POST-P14l tab; the P7 tree view stays off behind `gittree.sidebar.extraViews` |
 | `Combine stashes and shelves in one tab` | ✅ | POST-P14l `gittree.stash.combineWithShelf`, off by default as in IntelliJ |
 | `Stash Changes` dialog with `--keep-index`, `--all`, `--staged` | ✅ | P13-T4; `--staged` gated on git ≥ 2.35 with the reason stated |
 | `Unstash` dialog: list, pop, reinstate index, changelist, inline diff | ✅ | P13-T4 |
@@ -172,7 +172,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Worktrees **tab in the Git tool window**: path, branch, Locked/Prunable | ✅ | POST-P14k; the P13-T6 tree view stays hidden-by-default |
+| Worktrees **tab in the Git tool window**: path, branch, Locked/Prunable | ✅ | POST-P14k; the P13-T6 tree view stays off behind `gittree.sidebar.extraViews` |
 | New Worktree dialog (existing / new-from / detach, location, options) | ✅ | P13-T6 |
 | Open · Remove · Lock · Unlock · Prune | ✅ | P13-T6; dirty removal refused with git's reason |
 | Lock/prunable reported by the porcelain | 🟡 | derived from disk on git < 2.36 (**D16**) |

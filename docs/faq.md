@@ -57,8 +57,13 @@ They moved to where IntelliJ keeps them, so the sidebar shows the commit window 
 * **Local History** — `GitTree: Show Local History`, which opens the view on demand. This is
   what IntelliJ's `Show History` does.
 
-The old panes still exist and are simply hidden. To bring any of them back, right-click the
-GitTree title bar (or use the ⋯ menu at the top of the sidebar) and tick it under **Views**.
+The old panes still exist. To bring all four back, turn on **`gittree.sidebar.extraViews`**
+(Settings → Extensions → GitTree). They reappear as collapsed sections, and turning it off
+removes them again — no reload either way.
+
+(Ticking them under the sidebar's ⋯ → **Views** menu does *not* work, and neither did the
+first attempt at this, which set them to `"visibility": "hidden"`: that is only a default for
+a profile that has never rendered the container, so an existing install kept showing them.)
 
 ### Where does Local History store its data? Does it leave my machine?
 

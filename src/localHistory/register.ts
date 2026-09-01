@@ -119,6 +119,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
   register('gittree.history.show', async (repoRoot) => {
     setFilter(undefined);
     void pickRepo(repoRoot);
+    await vscode.commands.executeCommand('setContext', 'gittree.localHistory.active', true);
     await vscode.commands.executeCommand('gittree.localHistory.focus');
   });
   register('gittree.history.showForPath', async (arg) => {
@@ -129,6 +130,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
     const rel = repoRelative(repo.root, uri.fsPath);
     if (rel === undefined) return;
     setFilter({ repoRoot: repo.root, prefix: rel });
+    await vscode.commands.executeCommand('setContext', 'gittree.localHistory.active', true);
     await vscode.commands.executeCommand('gittree.localHistory.focus');
   });
   register('gittree.history.compareSnapshot', (node) => restoreUx.compareSnapshot(node as HistoryNode));
@@ -161,6 +163,8 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
   core.debugRegistry.set('phase09', {
     getStore: (repoRoot: string) => getSnapshotStore(repoRoot),
     viewProvider,
+    /** POST-P14n: lets the gate be asserted against a real view, not the manifest. */
+    view,
     restoreUx,
     recovery,
   });

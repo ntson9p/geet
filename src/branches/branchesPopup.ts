@@ -372,6 +372,10 @@ export async function showBranchesPopup(
       await vscode.commands.executeCommand('workbench.action.openSettings', 'gittree.branches');
     } else {
       qp.hide();
+      // The tree is gated off by default (D26) — you cannot focus a view that
+      // is not contributed, so the button arms its own context key first, the
+      // way `gittree.compare` does.
+      await vscode.commands.executeCommand('setContext', 'gittree.branches.active', true);
       await vscode.commands.executeCommand('gittree.branches.focus');
     }
   });

@@ -67,11 +67,12 @@ suite('P14 owning the SCM surface', () => {
     assert.deepStrictEqual((views['gittree-panel'] ?? []).map((v) => v.id), ['gittree.log']);
   });
 
-  test('POST-P14m: only the commit window is visible by default in the container', () => {
-    // IntelliJ's Commit tool window is the Commit tab and nothing beneath it.
-    // Branches, Worktrees, Local History and Stashes all moved to the surface
-    // JetBrains keeps them on, so they must not open as sidebar sections; they
-    // stay registered so a user can re-add any of them from ⋯ → Views.
+  test('POST-P14n: the extra sidebar panes are gated on a setting, not a default', () => {
+    // POST-P14m used `"visibility": "hidden"`, which is only a FIRST-REGISTRATION
+    // default: VS Code persists a container's layout the first time it renders
+    // and never consults the default again, so on every existing install the
+    // four panes kept showing. A `when` clause is evaluated live and removes
+    // the view outright, which is what actually reaches an upgraded user.
     const views = contributes()['views'] as Record<
       string,
       Array<{ id: string; visibility?: string; when?: string }>
@@ -83,22 +84,88 @@ suite('P14 owning the SCM surface', () => {
       'gittree.localHistory',
       'gittree.stashes',
     ]) {
-      assert.strictEqual(
-        byId.get(id)?.visibility,
-        'hidden',
-        `${id} must not open as a sidebar section — IntelliJ has no such pane`,
+      const when = byId.get(id)?.when ?? '';
+      assert.ok(
+        when.includes('config.gittree.sidebar.extraViews'),
+        `${id} must be gated on the setting, not on a visibility default; when=${when}`,
       );
+      // Turning the setting on has to SHOW the pane. `hidden` would mean it
+      // appeared only after a second trip through the Views menu.
+      assert.notStrictEqual(byId.get(id)?.visibility, 'hidden', `${id} must not also be hidden`);
     }
-    // The commit window itself is the one thing that IS the sidebar.
-    assert.strictEqual(byId.get('gittree.commit')?.visibility, undefined);
-    // Everything else in the container is already gated on a `when` clause, so
-    // nothing among them opens unasked either.
+    // The two that are revealed on demand keep a second clause, or the command
+    // that reveals them would silently do nothing while the setting is off.
+    assert.ok(byId.get('gittree.branches')?.when?.includes('gittree.branches.active'));
+    assert.ok(byId.get('gittree.localHistory')?.when?.includes('gittree.localHistory.active'));
+
+    // The commit window is the one thing that IS the sidebar.
+    assert.strictEqual(byId.get('gittree.commit')?.when, undefined);
     for (const view of views['gittree']!) {
       const optional = view.visibility === 'hidden' || view.when !== undefined;
       assert.ok(
         view.id === 'gittree.commit' || optional,
         `${view.id} opens unconditionally beneath the commit window`,
       );
+    }
+  });
+
+  test('POST-P14n: the gate overrides a layout that already has the pane showing', async function () {
+    this.timeout(60_000);
+    // This is the upgrade case, and the reason the first attempt shipped broken:
+    // a profile that has ALREADY persisted the pane as visible. Turn the setting
+    // on, reveal the pane for real, then turn it off — a `when` clause has to
+    // win over the persisted state, which a visibility default never does.
+    const core = await activateGitTree();
+    const stashView = (core.debugRegistry.get('phase07') as { stashView: vscode.TreeView<unknown> })
+      .stashView;
+    const cfg = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree');
+    const setExtra = async (value: boolean | undefined): Promise<void> => {
+      await cfg().update('sidebar.extraViews', value, vscode.ConfigurationTarget.Global);
+      await waitFor(
+        () => cfg().get<boolean>('sidebar.extraViews', false) === (value === true),
+        10_000,
+      );
+    };
+
+    try {
+      await setExtra(true);
+      await vscode.commands.executeCommand('gittree.stashes.focus');
+      await waitFor(() => stashView.visible, 20_000);
+      assert.strictEqual(stashView.visible, true, 'the pane must be showing before the gate closes');
+
+      // The layout now records this pane as visible. Close the gate.
+      await setExtra(false);
+      await waitFor(() => !stashView.visible, 20_000);
+      assert.strictEqual(
+        stashView.visible,
+        false,
+        'a persisted-visible pane must still go away when the setting is off',
+      );
+    } finally {
+      await setExtra(undefined);
+    }
+  });
+
+  test('POST-P14n: Show Local History still opens its view with the setting off', async function () {
+    this.timeout(60_000);
+    // The gate's one real hazard: you cannot focus a view that is not
+    // contributed, so `Show Local History` would have become a no-op. It arms
+    // `gittree.localHistory.active` first — IntelliJ's own model, where
+    // `Show History` opens the window rather than leaving it standing open.
+    const core = await activateGitTree();
+    const view = (core.debugRegistry.get('phase09') as { view: vscode.TreeView<unknown> }).view;
+    assert.strictEqual(
+      vscode.workspace.getConfiguration('gittree').get<boolean>('sidebar.extraViews', false),
+      false,
+      'this test is about the default, off state',
+    );
+    try {
+      await vscode.commands.executeCommand('gittree.history.show');
+      await waitFor(() => view.visible, 20_000);
+      assert.strictEqual(view.visible, true, 'Show Local History must reveal the view');
+    } finally {
+      // The key is session-wide once armed; later suites share this window.
+      await vscode.commands.executeCommand('setContext', 'gittree.localHistory.active', false);
     }
   });
 
