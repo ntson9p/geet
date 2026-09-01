@@ -474,3 +474,37 @@ steps (the only cost is that many more public colour ids — five matches what a
 IntelliJ's scheme actually sees), or interpolate for real if VS Code ever exposes theme-colour
 resolution. The ramp is one function and the anchors are already contributed colours.
 
+---
+
+## D26 · Four opt-in sidebar panes IntelliJ has no equivalent of
+
+**IntelliJ:** the Commit tool window holds the `Commit` and `Shelf` tabs (plus `Stash`, and
+one merged tab when *Combine stashes and shelves* is on) and **nothing beneath them**. Branches
+are reached from the branch widget popup and the Git tool window's Branches pane; worktrees
+from the Git tool window's Worktrees tab; Local History from `Show History`, which opens its
+own window. None of the four is a permanent section of the commit surface.
+
+**GitTree:** the default shape is now the same — POST-P14k moved worktrees to the Git tool
+window, POST-P14l gave stashes their `Stash` tab, and POST-P14m set
+`gittree.branches`, `gittree.worktrees`, `gittree.localHistory` and `gittree.stashes` to
+`"visibility": "hidden"`. They remain **registered**, so a user can re-add any of them from
+the container's ⋯ → Views menu, and `<viewId>.focus` still reveals one on demand — which is
+exactly how `gittree.history.show` implements IntelliJ's `Show History`.
+
+**Why keep them at all:** they are genuinely useful in VS Code's idiom, where a docked tree is
+the cheapest way to keep something in view, and the owner asked for them to stay reachable.
+Deleting four working surfaces to reach a shape a user can restore in one click is a worse
+trade than leaving them off by default. Nothing depends on them: every action they offer is
+registered as a command and reachable from the relocated surface.
+
+**What it costs:** one extra surface per registry that has to keep agreeing with the others —
+the POST-P14d failure mode, where three surfaces of the branch registry offered four, one and
+nine menu rows for the same ref. The mitigation is structural rather than procedural: the
+relocated surfaces **dispatch into the same commands** the trees do
+(`worktreesPaneBridge`, `stashBridge`, `shelfBridge`, `branchesPaneBridge` all forward to
+`gittree.*` commands) instead of reimplementing them, so a divergence has to be introduced
+deliberately rather than by omission.
+
+**Revisitable:** yes, in either direction. Deleting the four views and their ~34 menu
+contributions is a mechanical change; so is promoting one back to visible if the tab it moved
+to turns out to be the wrong home.

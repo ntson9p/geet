@@ -93,7 +93,8 @@ ships. Accepted divergences are named here and registered once in
   with a `‹ Back` row and a breadcrumb title. **Typing collapses the folders** and searches
   flat across every level, so drill-in never traps anyone.
 * **Header buttons:** new branch · fetch · **incoming/outgoing toggle** · **gear** (branch
-  settings) · open the Branches view.
+  settings) · reveal the Branches tree view (hidden by default, D26 — the branch surfaces
+  IntelliJ has are this popup and the log's Branches pane).
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5).
 
@@ -464,8 +465,10 @@ URL and does not enumerate a provider's repositories. Registered as D11.
 
 ## 8. The Failsafe: Local History
 
-* **Shape:** the `gittree.localHistory` tree view — snapshots grouped by day, each expanding
-  to the files it holds, with `Show Diff`, `Restore` and `Restore Selected Files…`.
+* **Shape:** `Show Local History` opens the `gittree.localHistory` view **on demand**, the
+  way IntelliJ's `Show History` opens its own window — the view is hidden by default rather
+  than a standing sidebar section (D26). Snapshots are grouped by day, each expanding to the
+  files it holds, with `Show Diff`, `Restore` and `Restore Selected Files…`.
 * **Behaviour:** a snapshot is taken **before every destructive operation** (checkout on a
   dirty tree, reset, rebase, merge, cherry-pick, revert, stash pop/apply/drop/clear, unshelve,
   rollback, clean, force branch delete, smart checkout), plus optional save- and task-end

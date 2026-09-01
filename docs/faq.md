@@ -44,6 +44,22 @@ normally — GitTree talks to git, not to provider APIs. Credential prompts are
 answered through VS Code via GitTree's askpass bridge, which also covers
 integrated terminals when `gittree.terminalAuth` is on.
 
+### The sidebar used to show Branches, Worktrees, Local History and Stashes. Where did they go?
+
+They moved to where IntelliJ keeps them, so the sidebar shows the commit window on its own:
+
+* **Branches** — the branches popup (the status-bar branch widget), and the **Branches** pane
+  in the Git tool window's Log tab.
+* **Worktrees** — the **Worktrees** tab of the Git tool window, beside `Log` and `Console`.
+* **Stashes** — the **Stash** tab of the commit window, beside `Commit` and `Shelf`. Setting
+  `gittree.stash.combineWithShelf` folds it into the Shelf tab, which is IntelliJ's
+  *Combine stashes and shelves in one tab*.
+* **Local History** — `GitTree: Show Local History`, which opens the view on demand. This is
+  what IntelliJ's `Show History` does.
+
+The old panes still exist and are simply hidden. To bring any of them back, right-click the
+GitTree title bar (or use the ⋯ menu at the top of the sidebar) and tick it under **Views**.
+
 ### Where does Local History store its data? Does it leave my machine?
 
 Snapshots are content-addressed, gzip-compressed blobs under VS Code's

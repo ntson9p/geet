@@ -67,6 +67,41 @@ suite('P14 owning the SCM surface', () => {
     assert.deepStrictEqual((views['gittree-panel'] ?? []).map((v) => v.id), ['gittree.log']);
   });
 
+  test('POST-P14m: only the commit window is visible by default in the container', () => {
+    // IntelliJ's Commit tool window is the Commit tab and nothing beneath it.
+    // Branches, Worktrees, Local History and Stashes all moved to the surface
+    // JetBrains keeps them on, so they must not open as sidebar sections; they
+    // stay registered so a user can re-add any of them from ⋯ → Views.
+    const views = contributes()['views'] as Record<
+      string,
+      Array<{ id: string; visibility?: string; when?: string }>
+    >;
+    const byId = new Map(views['gittree']!.map((v) => [v.id, v]));
+    for (const id of [
+      'gittree.branches',
+      'gittree.worktrees',
+      'gittree.localHistory',
+      'gittree.stashes',
+    ]) {
+      assert.strictEqual(
+        byId.get(id)?.visibility,
+        'hidden',
+        `${id} must not open as a sidebar section — IntelliJ has no such pane`,
+      );
+    }
+    // The commit window itself is the one thing that IS the sidebar.
+    assert.strictEqual(byId.get('gittree.commit')?.visibility, undefined);
+    // Everything else in the container is already gated on a `when` clause, so
+    // nothing among them opens unasked either.
+    for (const view of views['gittree']!) {
+      const optional = view.visibility === 'hidden' || view.when !== undefined;
+      assert.ok(
+        view.id === 'gittree.commit' || optional,
+        `${view.id} opens unconditionally beneath the commit window`,
+      );
+    }
+  });
+
   test('T1: the commit view still resolves from the new container', async function () {
     this.timeout(30_000);
     // A container move is only real if the view still resolves from it; the

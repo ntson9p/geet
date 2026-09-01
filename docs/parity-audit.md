@@ -151,6 +151,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
+| `Show History` opens the view on demand, not a standing pane | ✅ | POST-P14m; `gittree.history.show` reveals the hidden view, as IntelliJ's Show History opens its window (**D26**) |
 | Snapshot before every destructive operation | ✅ | P9-T2; table-driven coverage test over `SNAPSHOT_LABELS` |
 | Byte-exact restore, paranoia snapshot, undo restore | ✅ | P9-T3 |
 | Dangling-commit recovery from the reflog | ✅ | P9-T4 |

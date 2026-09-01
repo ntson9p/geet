@@ -3020,14 +3020,14 @@
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
           "icon": "$(git-branch)",
-          "visibility": "collapsed"
+          "visibility": "hidden"
         },
         {
           "id": "gittree.worktrees",
           "name": "%gittree.view.worktrees.name%",
           "contextualTitle": "GitTree",
           "icon": "$(repo-forked)",
-          "visibility": "collapsed"
+          "visibility": "hidden"
         },
         {
           "id": "gittree.compare",
@@ -3042,7 +3042,7 @@
           "name": "%gittree.view.localHistory.name%",
           "contextualTitle": "GitTree",
           "icon": "$(history)",
-          "visibility": "collapsed"
+          "visibility": "hidden"
         },
         {
           "id": "gittree.conflicts",
@@ -3056,7 +3056,7 @@
           "name": "%gittree.view.stashes.name%",
           "contextualTitle": "GitTree",
           "icon": "$(archive)",
-          "visibility": "collapsed"
+          "visibility": "hidden"
         },
         {
           "id": "gittree.revTree",
