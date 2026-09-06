@@ -626,7 +626,8 @@ row in the branches tree.
 | Manage Remotes | P13-T4 `gittree.remotes.manage` | ✅ |
 | **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | POST-P14k Worktrees **tab in the Git tool window** (JetBrains: "Alt+9, then select Worktrees") + P13-T6 New Worktree dialog + the T5 submenu row | ✅ |
 | Submodule awareness / operations | status parser reads the submodule field only | ❌ |
-| Multi-repo, "Execute branch operations on all roots" | multi-repo model exists; no all-roots switch | 🟡 |
+| Multi-repo, "Execute branch operations on all roots" | POST-P14p: the popup opens at a **project level** with a row per repository and `Common Local Branches` / `Common Remote Branches` / `Common Tags`; a common row runs one registry action over every root. Not a switch — the operations that need no per-root input always fan out, and those that would prompt seven times are offered inside a repository instead (**D27**) | 🟡 |
+| Multi-repo: the popup names which repository it is scoped to | POST-P14p: repository rows at the project level, the repository's name in the title once drilled in, and `‹ Back` up to the project. Was a silent `pickRepo` guess at the active editor's root, never shown | ✅ |
 | **Roots detected below the project directory**, not only at it | downward search under every open folder, `gittree.repositoryScan.maxDepth` (default 1, `-1` unlimited) plus an ignore list — VS Code's `git.repositoryScan*` defaults. Was upward-only, so a folder *containing* checkouts found none of them | ✅ |
 | Roots refreshed when one appears or vanishes | the existing workspace watcher reports a `.git` entry created or deleted and a debounced rediscovery follows; no reload needed | ✅ |
 | Directory mappings settings page (per-root add/remove/ignore UI) | the two `gittree.repositoryScan.*` settings; no per-root table, and they are window-scoped where VS Code's equivalents are per-folder | 🟡 |

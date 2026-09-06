@@ -97,8 +97,20 @@ ships. Accepted divergences are named here and registered once in
   settings) · reveal the Branches tree view (off by default behind `gittree.sidebar.extraViews`, D26 — the
   branch surfaces IntelliJ has are this popup and the log's Branches pane; the button arms the
   view's own context key, so it works whether or not the setting is on).
+* **Multi-root — the project level:** with more than one repository the popup **opens at the
+  project**, not inside a guessed root: the verbs, then a row per repository (name · current
+  branch · `↑↓`, `›` to drill in), then `Common Local Branches` · `Common Remote Branches` ·
+  `Common Tags` — the refs *every* root carries. Drilling into a repository gives its own
+  popup unchanged, titled with its name, with `‹ Back` to the project. The status-bar widget
+  opens the project level with its own repository's row selected. A single-root workspace is
+  unchanged.
+* **Common rows act on every root:** `Checkout` · `Update` · `Merge into the current branch` ·
+  `Rebase the current branch onto it` · `Pull into the current branch using Merge`/`… Rebase` ·
+  `Push`, each dispatched per root through the same registry, labelled with the count it will
+  actually touch (`Checkout in 5 of 7 repositories`) and stopping at the first refusal.
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
-  collapsible tree (D5).
+  collapsible tree (D5); and the all-roots set is the operations needing no per-root input,
+  since GitTree's take their input inside the per-repository call (D27).
 
 ### The `›` row submenu (shape + behaviour)
 

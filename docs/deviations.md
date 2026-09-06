@@ -524,3 +524,59 @@ deliberately rather than by omission.
 **Revisitable:** yes, in either direction. Deleting the four views and their ~34 menu
 contributions is a mechanical change; so is promoting one back to visible if the tab it moved
 to turns out to be the wrong home.
+
+## D27 · All-roots branch operations are the ones that need no per-root input
+
+**IntelliJ:** in a multi-root project the branches popup is project-level — repository rows
+with their current branch, then `Common Local Branches` / `Common Remote Branches` /
+`Common Tags`, the refs every root carries. An operation invoked on a common branch runs on
+**all** roots, and where it needs input — a new branch's name, a delete confirmation — it is
+asked for **once** and applied everywhere.
+
+**GitTree (POST-P14p):** the shape is the same, and so is the fan-out, but only for the
+operations that need no input: `Checkout`, `Update`, `Merge into the current branch`,
+`Rebase the current branch onto it`, `Pull into the current branch using Merge` / `… using
+Rebase`, and `Push`. These are `branchActions.ts` entries dispatched by id once per root, so
+the behaviour is the registry's and cannot drift; only the *label* is rewritten, because the
+registry interpolates the current branch ("Merge 'x' into 'main'") and at the project level
+the roots need not share one — a label naming the first root's branch would be wrong about
+the others.
+
+**What is not offered on a common row:** `New Branch from…`, `Rename`, `Delete`,
+`Delete on Remote`, `New Worktree from…` — each takes its input *inside* the per-repository
+call (`BranchOps.newBranchFrom` opens its input box, `deleteBranch` its confirmation), so
+fanning them out would ask seven times for one decision. Also absent are
+`Compare with '<current>'` and `Show Diff with Working Tree`, which would open a diff editor
+per root. All of them stay one click away: pick the repository row, and its own popup is the
+full, unchanged action list.
+
+**Why not hoist the prompts:** it is a real refactor, not a wrapper. Every one of those
+`BranchOps` methods interleaves its prompt with its git work — `newBranchFrom` asks for a
+name, then asks create-or-checkout, then enqueues; `deleteBranch` runs `branch -d`, reads the
+"not fully merged" failure, and only then confirms a force-delete. Hoisting the input means
+splitting each into a *decide* half and an *apply* half and re-pointing the six existing call
+sites (the popup, the tree, the log's Branches pane, the drag-and-drop handler, the command
+ids, the tracked-branch submenu) at the pair. That is worth doing; it is not worth doing
+silently inside a task about which repository a fetch belongs to.
+
+**Two smaller consequences, both deliberate:**
+
+* **An operation offered by only some roots is still offered, and says so** —
+  `Checkout in 5 of 7 repositories`. Requiring every root would hide `Checkout` the moment a
+  single root was already on that branch, which is the ordinary state of a project whose
+  repositories track one branch and exactly when you want to bring the stragglers across.
+  Roots where the action does not apply are skipped, not attempted, and a run where it applies
+  nowhere says "nothing to do" rather than appearing to do nothing.
+* **The fan-out stops at the first refusal**, reporting which roots were already done — the
+  idiom `runCommitAcross` established. Carrying on would start a merge in roots 3…7 while
+  root 2 sits in conflict.
+
+**Also still per repository:** the project level's `Update Project…` and `Push…` verbs open
+their existing single-repository dialogs. Those dialogs are built per root
+(`buildUpdateFetchArgs`, `pushDialog`'s `repoLabel`), and making them multi-root is the same
+decide/apply split as above. `Commit…` and `Fetch` *are* project-wide from that level, because
+both already had a no-argument all-roots form (`runCommitAcross`, and POST-P14o's fan-out).
+
+**Revisitable:** yes, and the order is clear — hoisting the input out of `BranchOps` unlocks
+`New Branch`, `Rename` and `Delete` on a common row, and the same split unlocks a multi-root
+Update Project dialog.

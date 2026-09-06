@@ -66,6 +66,30 @@ Fetch runs `git fetch --prune` against the branch's default remote, not
 Background fetching is off by default — turn on `gittree.autofetch.enabled` to
 keep the incoming/outgoing counts fresh without asking.
 
+### I have several repositories open. Which one does the branches popup act on?
+
+Whichever one you pick — it is no longer inferred. With more than one repository
+the popup opens at the **project level**: the actions, then a row per
+repository showing its current branch, then `Common Local Branches`,
+`Common Remote Branches` and `Common Tags` — the refs every repository carries.
+Picking a repository row drills into that repository's own popup, titled with
+its name, and `‹ Back` returns to the project. The status-bar branch widget
+opens the project level with its own repository's row already selected.
+
+Picking a **common** branch checks it out in every repository. Its `›` submenu
+offers the other all-roots operations — Update, Merge into the current branch,
+Rebase the current branch onto it, Pull into the current branch, Push — each
+labelled with how many repositories it will actually touch, and each stopping
+at the first repository that refuses rather than half-applying.
+
+Operations that need an answer from you — New Branch, Rename, Delete, New
+Worktree — are offered inside a repository rather than across all of them,
+because GitTree asks for that answer per repository and you would be asked
+once for each. See D27 in [deviations.md](deviations.md).
+
+A single-repository workspace sees none of this: the popup opens exactly as
+before.
+
 ### The sidebar used to show Branches, Worktrees, Local History and Stashes. Where did they go?
 
 They moved to where IntelliJ keeps them, so the sidebar shows the commit window on its own:

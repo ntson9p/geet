@@ -73,10 +73,13 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   });
 
   // The real Branches popup replaces the P1 stub (same command id).
+  // POST-P14p: the root passed here is the *entry* repository, not the scope —
+  // with more than one root the popup opens at the project level and only
+  // starts with that repository's row selected.
   setBranchesOpenHandler(async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (!repo) return;
-    await showBranchesPopup(core, repo, serviceFor(repo), ops, actions);
+    await showBranchesPopup(core, repo, serviceFor, ops, actions);
   });
 
   // Branches TreeView + drag-and-drop.
