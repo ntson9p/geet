@@ -45,6 +45,8 @@ export interface OpsItem {
 export interface OpsContext extends DialogContext {
   /** Short name of the current branch, for interpolated labels. */
   readonly currentBranch?: string;
+  /** Roots in the workspace — Fetch is project-wide and names itself so. */
+  readonly repoCount?: number;
 }
 
 /** Ordered group list — the sections the popup renders, top to bottom. */
@@ -129,6 +131,26 @@ export function diffItems(ctx: OpsContext): OpsItem[] {
   ];
 }
 
+/**
+ * Fetch — absent from this popup until POST-P14o, because the enumeration reads
+ * `dialogRegistry` and fetch has no dialog. It is project-wide (IntelliJ's is),
+ * so it dispatches `gittree.fetch.all` with an explicit empty argument list:
+ * the popup otherwise passes the active root and would scope it back down.
+ */
+export function syncItems(ctx: OpsContext): OpsItem[] {
+  if (!ctx.hasRepo || !ctx.hasRemote) return [];
+  const many = (ctx.repoCount ?? 1) > 1;
+  return [
+    {
+      command: 'gittree.fetch.all',
+      label: many ? 'Fetch All Repositories' : 'Fetch',
+      group: 'sync',
+      icon: 'sync',
+      args: [],
+    },
+  ];
+}
+
 /** Actions that only make sense with a commit selected in the log. */
 export function commitItems(ctx: OpsContext): OpsItem[] {
   if (!ctx.commitSelected) return [];
@@ -169,6 +191,7 @@ export function buildOperationsItems(
     ...inProgressItems(ctx),
     ...diffItems(ctx),
     ...commitItems(ctx),
+    ...syncItems(ctx),
     ...fromDialogs,
   ];
 

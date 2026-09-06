@@ -47,3 +47,26 @@ export const NONE_TOKEN: CancelToken = {
   isCancellationRequested: false,
   onCancellationRequested: () => ({ dispose: () => undefined }),
 };
+
+/**
+ * A token cancelled when *any* of its inputs is. An operation running inside
+ * the queue is handed the queue's own token, so work that also answers to an
+ * outer cancellation (the fetch-all progress notification's Cancel) needs the
+ * two joined rather than one of them dropped. Dispose to release the listeners.
+ */
+export function anyToken(...tokens: readonly CancelToken[]): {
+  token: CancelToken;
+  dispose(): void;
+} {
+  const source = new CancellationSource();
+  const subs = tokens.map((t) => t.onCancellationRequested(() => source.cancel()));
+  // A token already cancelled before we subscribed still counts.
+  if (tokens.some((t) => t.isCancellationRequested)) source.cancel();
+  return {
+    token: source.token,
+    dispose: (): void => {
+      for (const s of subs) s.dispose();
+      source.dispose();
+    },
+  };
+}

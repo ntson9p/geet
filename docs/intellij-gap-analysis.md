@@ -558,6 +558,9 @@ row in the branches tree.
 | IntelliJ | GitTree | |
 | --- | --- | --- |
 | Fetch | `gittree.fetch` (`--prune`) | ✅ |
+| Fetch is a **project** operation — one button, every root | POST-P14o: `gittree.fetch` with no argument, `gittree.fetch.all`, and the branches-popup header button all fan out across every root with a remote; an explicit root still fetches only that one. Was a silent guess at the active editor's repository | ✅ |
+| Fetch reaches **every remote** of each root | only the default remote (`fetch --prune`, not `--all`) — a second remote is never refreshed | 🟡 |
+| Fetch in the **VCS Operations Popup** | POST-P14o `gittree.fetch.all` in the `sync` group — absent before, the popup enumerates dialogs and fetch has none | ✅ |
 | *Fetch remote changes automatically* | `autofetch.enabled` | ✅ |
 | **Pull Changes dialog**: repository, remote, branch, **Modify options** (`--rebase`, `--ff-only`, `--no-ff`, `--squash`, `--no-commit`, `--no-verify`) | P13-T2 Update Project dialog (merge/rebase, explicit argv) | 🟡 no per-flag list |
 | **Update Project** (`Ctrl+T`) with Merge / Rebase / **Reset to the Remote Branch** | P13-T2 `gittree.update.dialog`, bound to `Ctrl+T` | ✅ |

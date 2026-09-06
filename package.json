@@ -714,6 +714,11 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.fetch.all",
+        "title": "%gittree.command.fetch.all.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.pull",
         "title": "%gittree.command.pull.title%",
         "category": "GitTree"

@@ -38,6 +38,7 @@
   "gittree.command.cleanUntracked.title": "Delete Untracked Files…",
   "gittree.command.refresh.title": "Refresh",
   "gittree.command.fetch.title": "Fetch",
+  "gittree.command.fetch.all.title": "Fetch All Repositories",
   "gittree.command.pull.title": "Pull",
   "gittree.command.push.title": "Push",
   "gittree.command.pushForceWithLease.title": "Push (Force With Lease)…",

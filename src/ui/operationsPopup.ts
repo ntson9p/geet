@@ -71,6 +71,7 @@ export function readOpsContext(deps: OperationsPopupDeps, repo: RepoHandle | und
     ...(snap.inProgressOp !== undefined ? { inProgressOp: snap.inProgressOp.kind } : {}),
     diffEditorFocused: isDiffEditorFocused(),
     commitSelected: deps.commitSelected?.() ?? false,
+    repoCount: deps.core.repos.length,
     ...(snap.headRef !== undefined ? { currentBranch: snap.headRef } : {}),
   };
 }

@@ -3,15 +3,25 @@
  * auto-fetch. Pull honors the user's pull.rebase config (git does natively);
  * pushing without an upstream offers "Publish Branch"; the branches-popup
  * command is a checkout QuickPick stub that P2 swaps for the real popup.
+ *
+ * POST-P14o: `gittree.fetch` is **project-scoped when it is given no argument**
+ * — IntelliJ's Fetch fetches every root, and inferring one root from the active
+ * editor (as this did) is a coin flip the user cannot see the result of. An
+ * explicit `repoRoot` still means that one repository, so every in-product
+ * caller that knows which repository it means keeps its narrow behaviour.
  */
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
+import type { CancelToken } from '../core/git/executor';
 import { canonicalKey } from '../core/repoDiscovery';
 import { GitError } from '../core/git/errors';
+import { anyToken } from '../core/util/cancellation';
 import { presentGitError } from '../hardening/errorUx';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import type { StatusBarController } from '../ui/statusBar';
+import { runFetchAll, summarizeFetch, type FetchOutcome, type FetchTarget } from './fetchAll';
 
 type BranchesOpenHandler = (repoRoot?: string) => Promise<void>;
 let branchesOpenHandler: BranchesOpenHandler | undefined;
@@ -62,17 +72,136 @@ export function registerSyncOps(
   const bar = (repo: RepoHandle): StatusBarController | undefined =>
     statusBars.get(canonicalKey(repo.root));
 
-  async function fetch(repo: RepoHandle, quiet: boolean): Promise<void> {
+  /**
+   * One repository's fetch. `quietProgress` hands the reporting to the caller:
+   * auto-fetch wants no UI at all (IntelliJ's background fetch is silent), and
+   * the fan-out wants one notification rather than N escalating separately.
+   * `token` is the fan-out's Cancel, joined with the queue's own.
+   */
+  async function fetchOne(
+    repo: RepoHandle,
+    options: { quietProgress?: boolean; token?: CancelToken } = {},
+  ): Promise<void> {
     bar(repo)?.setFetching(true);
     try {
-      await mutate(repo, vscode.l10n.t('Fetch'), ['fetch', '--prune']);
+      await repo.queue.enqueue({
+        label: vscode.l10n.t('Fetch'),
+        kind: 'mutate',
+        ...(options.quietProgress === true ? { quietProgress: true } : {}),
+        run: async (git, queueToken) => {
+          const outer = options.token;
+          const linked = outer ? anyToken(queueToken, outer) : undefined;
+          try {
+            await git.exec(repo.root, ['fetch', '--prune'], {
+              token: linked?.token ?? queueToken,
+            });
+          } finally {
+            linked?.dispose();
+          }
+        },
+      });
       repo.model.update({ lastFetchAt: Date.now() });
-    } catch (err) {
-      if (!quiet) throw err;
-      core.output.appendLine(`[sync] auto-fetch failed: ${String(err)}`);
     } finally {
       bar(repo)?.setFetching(false);
     }
+  }
+
+  /** The auto-fetch wrapper: silent, and a failure is a log line, not a dialog. */
+  async function autoFetch(repo: RepoHandle): Promise<void> {
+    try {
+      await fetchOne(repo, { quietProgress: true });
+    } catch (err) {
+      core.output.appendLine(`[sync] auto-fetch failed: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Repositories worth fetching: those with at least one remote. A root with no
+   * remote can only fail ("No remote repository specified"), and in a workspace
+   * that mixes cloned and local-only repositories that failure is noise, not
+   * news. `git remote` is a cheap read and the only reliable answer — remote
+   * *refs* are absent until the first fetch, which is exactly when you want one.
+   */
+  async function fetchTargets(): Promise<Array<FetchTarget & { repo: RepoHandle }>> {
+    const checked = await Promise.all(
+      core.repos.map(async (repo) => {
+        try {
+          const res = await core.git.exec(repo.root, ['remote']);
+          const hasRemote = res.stdout.split('\n').some((l) => l.trim().length > 0);
+          return hasRemote ? { repo, root: repo.root, name: path.basename(repo.root) } : undefined;
+        } catch {
+          // Unreadable config is the repository's problem, not the fan-out's;
+          // include it and let the fetch report the real error.
+          return { repo, root: repo.root, name: path.basename(repo.root) };
+        }
+      }),
+    );
+    return checked.filter((t): t is FetchTarget & { repo: RepoHandle } => t !== undefined);
+  }
+
+  /** The summary line the fan-out is allowed to raise — one, never one per repo. */
+  function reportFetchAll(outcomes: readonly FetchOutcome[]): void {
+    const { ok, cancelled, failures, total } = summarizeFetch(outcomes);
+    if (failures.length === 0) {
+      if (cancelled > 0) {
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('Fetched {0} of {1} repositories — cancelled.', ok, total),
+        );
+      }
+      return; // A clean fetch of everything speaks through the refreshed counts.
+    }
+    const named = failures
+      .slice(0, 3)
+      .map((f) => `${f.name}: ${f.message ?? ''}`.trim())
+      .join(' · ');
+    const more = failures.length > 3 ? vscode.l10n.t(' (+{0} more)', failures.length - 3) : '';
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t('Fetched {0} of {1} repositories. {2}{3}', ok, total, named, more),
+    );
+  }
+
+  /**
+   * IntelliJ's Fetch: every root, one progress item, one report. A single-root
+   * workspace takes the plain path so nothing changes for the common case —
+   * same progress, same actionable error dialog.
+   */
+  async function fetchAll(): Promise<void> {
+    const targets = await fetchTargets();
+    if (targets.length === 0) {
+      void vscode.window.showInformationMessage(
+        core.repos.length === 0
+          ? vscode.l10n.t('No repository is open.')
+          : vscode.l10n.t('No repository has a remote configured.'),
+      );
+      return;
+    }
+    if (targets.length === 1) {
+      await fetchOne(targets[0]!.repo);
+      return;
+    }
+    const outcomes = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: vscode.l10n.t('Fetching {0} repositories…', targets.length),
+        cancellable: true,
+      },
+      async (progress, token) =>
+        runFetchAll(
+          targets,
+          // vscode's CancellationToken is structurally a CancelToken already.
+          (target) => fetchOne(target.repo, { quietProgress: true, token }),
+          {
+            isCancelled: () => token.isCancellationRequested,
+            onSettled: (outcome, done, total) => {
+              progress.report({
+                increment: 100 / total,
+                message: vscode.l10n.t('{0} of {1} · {2}', done, total, outcome.name),
+              });
+            },
+          },
+        ),
+    );
+    reportFetchAll(outcomes);
   }
 
   async function push(repo: RepoHandle, extraArgs: string[] = []): Promise<void> {
@@ -118,9 +247,19 @@ export function registerSyncOps(
     }
   }
 
+  // Argument presence decides the scope: a caller that knows which repository
+  // it means says so, and everyone else gets IntelliJ's project-wide Fetch.
   register('gittree.fetch', async (repoRoot) => {
-    const repo = pickRepo(core, repoRoot);
-    if (repo) await fetch(repo, false);
+    if (typeof repoRoot === 'string') {
+      const repo = core.getRepo(repoRoot);
+      if (repo) await fetchOne(repo);
+      return;
+    }
+    await fetchAll();
+  });
+
+  register('gittree.fetch.all', async () => {
+    await fetchAll();
   });
 
   register('gittree.pull', async (repoRoot) => {
@@ -203,7 +342,7 @@ export function registerSyncOps(
       const interval = cfg.get<number>('intervalSeconds', 180) * 1000;
       const last = repo.model.snapshot.lastFetchAt ?? 0;
       if (Date.now() - last >= interval) {
-        void fetch(repo, true);
+        void autoFetch(repo);
       }
     }
   }, 15_000);

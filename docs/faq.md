@@ -44,6 +44,28 @@ normally — GitTree talks to git, not to provider APIs. Credential prompts are
 answered through VS Code via GitTree's askpass bridge, which also covers
 integrated terminals when `gittree.terminalAuth` is on.
 
+### How do I fetch — all repositories, or just one?
+
+**All of them, which is the default.** Fetch is a *project* operation in
+IntelliJ and in GitTree: the `$(sync)` button in the branches popup's header
+(click the branch in the status bar to open it), `GitTree: Fetch` from the
+command palette, `GitTree: Fetch All Repositories`, and `Fetch` in the VCS
+Operations Popup (`Alt+\``) all fetch **every** root in the workspace that has
+a remote. Roots without one are skipped rather than failed, one slow or
+unreachable remote never stops the others, and the whole fan-out reports once.
+
+**One of them** is for callers that know which they mean: `gittree.fetch` takes
+a repository root as its argument. Bind it if you want a per-repository fetch:
+
+```json
+{ "key": "ctrl+alt+g 1", "command": "gittree.fetch", "args": "D:\\code\\sample-app-client" }
+```
+
+Fetch runs `git fetch --prune` against the branch's default remote, not
+`--all`; a second remote (an `upstream` fork remote, say) is not refreshed.
+Background fetching is off by default — turn on `gittree.autofetch.enabled` to
+keep the incoming/outgoing counts fresh without asking.
+
 ### The sidebar used to show Branches, Worktrees, Local History and Stashes. Where did they go?
 
 They moved to where IntelliJ keeps them, so the sidebar shows the commit window on its own:

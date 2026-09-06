@@ -92,7 +92,8 @@ ships. Accepted divergences are named here and registered once in
 * **Folder rows:** `feature  12 branches` folds a prefix; picking it drills into a scoped popup
   with a `‹ Back` row and a breadcrumb title. **Typing collapses the folders** and searches
   flat across every level, so drill-in never traps anyone.
-* **Header buttons:** new branch · fetch · **incoming/outgoing toggle** · **gear** (branch
+* **Header buttons:** new branch · **fetch (every root, as IntelliJ's is — the tooltip says
+  *Fetch all repositories* whenever there is more than one)** · **incoming/outgoing toggle** · **gear** (branch
   settings) · reveal the Branches tree view (off by default behind `gittree.sidebar.extraViews`, D26 — the
   branch surfaces IntelliJ has are this popup and the log's Branches pane; the button arms the
   view's own context key, so it works whether or not the setting is on).

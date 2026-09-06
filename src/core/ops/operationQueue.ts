@@ -23,6 +23,15 @@ export interface Operation<T> {
   /** P6-T7: runs even while the mutation lane is held (conflict-resolution
    *  ops — accept/stage/continue/abort — must not queue behind themselves). */
   bypassHold?: boolean;
+  /**
+   * Skip the progress adapter for this mutation. The caller owns the reporting
+   * instead — a fan-out across N repositories wants one "Fetching 7
+   * repositories…" notification, not N of them escalating separately, and
+   * auto-fetch wants none at all. Everything else about the mutation is
+   * unchanged: it still serializes, still fires onDidFinishMutation, and its
+   * cancellation still runs off the queue's own token.
+   */
+  quietProgress?: boolean;
   run(git: GitExecutor, token: CancelToken): Promise<T>;
 }
 
@@ -253,10 +262,13 @@ export class OperationQueue {
           }
         }
       }
-      const result = await this.progress({ label: job.op.label, repo: this.repo }, (progressToken) => {
-        const sub = progressToken.onCancellationRequested(() => job.source.cancel());
-        return this.withLockRetry(job.op, job.source.token).finally(() => sub.dispose());
-      });
+      const result =
+        job.op.quietProgress === true
+          ? await this.withLockRetry(job.op, job.source.token)
+          : await this.progress({ label: job.op.label, repo: this.repo }, (progressToken) => {
+              const sub = progressToken.onCancellationRequested(() => job.source.cancel());
+              return this.withLockRetry(job.op, job.source.token).finally(() => sub.dispose());
+            });
       this.finishMutation();
       job.source.dispose();
       job.resolve(result);

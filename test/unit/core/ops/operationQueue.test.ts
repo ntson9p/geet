@@ -305,6 +305,61 @@ describe('OperationQueue progress adapter', () => {
     expect(wrapped).toEqual(['long-mutation']);
     expect(result).toBe('cancelled-by-progress');
   });
+
+  /**
+   * POST-P14o: a fan-out across N repositories owns its own reporting — one
+   * "Fetching 7 repositories…" notification, not N escalating separately — and
+   * auto-fetch wants none at all. Everything else about the mutation stands.
+   */
+  it('quietProgress skips the adapter but still serializes and still reports', async () => {
+    const wrapped: string[] = [];
+    const finished: string[] = [];
+    const q = makeQueue({
+      progress: (info, run) => {
+        wrapped.push(info.label);
+        return run({
+          isCancellationRequested: false,
+          onCancellationRequested: () => ({ dispose: () => undefined }),
+        });
+      },
+    });
+    q.onDidFinishMutation((e) => finished.push(e.label));
+
+    const order: string[] = [];
+    const quiet = q.enqueue(
+      op(
+        'quiet-fetch',
+        'mutate',
+        async () => {
+          await sleep(20);
+          order.push('quiet-fetch');
+        },
+        { quietProgress: true },
+      ),
+    );
+    const loud = q.enqueue(
+      op('loud-mutation', 'mutate', () => {
+        order.push('loud-mutation');
+        return Promise.resolve();
+      }),
+    );
+    await Promise.all([quiet, loud]);
+
+    expect(wrapped).toEqual(['loud-mutation']); // the quiet one never reached the UI
+    expect(order).toEqual(['quiet-fetch', 'loud-mutation']); // still one lane, still FIFO
+    expect(finished).toEqual(['quiet-fetch', 'loud-mutation']); // still observable
+  });
+
+  it('quietProgress still propagates failures to the caller', async () => {
+    const q = makeQueue({ progress: () => Promise.reject(new Error('adapter must not run')) });
+    await expect(
+      q.enqueue(
+        op('quiet-boom', 'mutate', () => Promise.reject(new Error('fatal: no remote')), {
+          quietProgress: true,
+        }),
+      ),
+    ).rejects.toThrow('fatal: no remote');
+  });
 });
 
 describe('P6-T7 mutation lane holds', () => {

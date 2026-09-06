@@ -59,10 +59,18 @@ const BTN_NEW: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('add'),
   tooltip: vscode.l10n.t('New branch…'),
 };
-const BTN_FETCH: vscode.QuickInputButton = {
-  iconPath: new vscode.ThemeIcon('sync'),
-  tooltip: vscode.l10n.t('Fetch'),
-};
+/**
+ * §2A header: Fetch. It is **project-wide**, as IntelliJ's is — the one button
+ * in this header fetches every root, which is why the tooltip says so whenever
+ * there is more than one.
+ */
+export function fetchButtonTooltip(repoCount: number): string {
+  return repoCount > 1 ? vscode.l10n.t('Fetch all repositories') : vscode.l10n.t('Fetch');
+}
+
+function makeFetchButton(repoCount: number): vscode.QuickInputButton {
+  return { iconPath: new vscode.ThemeIcon('sync'), tooltip: fetchButtonTooltip(repoCount) };
+}
 /** §2A header: the incoming/outgoing toggle. */
 const BTN_INOUT: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('arrow-swap'),
@@ -296,10 +304,12 @@ export async function showBranchesPopup(
     .get<boolean>('branches.showIncomingOutgoing', true);
   let filterText = '';
 
+  const btnFetch = makeFetchButton(core.repos.length);
+
   qp.placeholder = vscode.l10n.t('Search for branches and actions');
   qp.matchOnDescription = true;
   qp.matchOnDetail = true;
-  qp.buttons = [BTN_NEW, BTN_FETCH, BTN_INOUT, BTN_GEAR, BTN_VIEW];
+  qp.buttons = [BTN_NEW, btnFetch, BTN_INOUT, BTN_GEAR, BTN_VIEW];
   qp.busy = true;
   qp.show();
 
@@ -357,9 +367,10 @@ export async function showBranchesPopup(
     if (button === BTN_NEW) {
       qp.hide();
       await ops.newBranchFrom(repo, 'HEAD');
-    } else if (button === BTN_FETCH) {
+    } else if (button === btnFetch) {
       qp.busy = true;
-      await vscode.commands.executeCommand('gittree.fetch', repo.root);
+      // No argument: every root, exactly as IntelliJ's popup Fetch does.
+      await vscode.commands.executeCommand('gittree.fetch');
       await populate();
     } else if (button === BTN_INOUT) {
       showInOut = !showInOut;

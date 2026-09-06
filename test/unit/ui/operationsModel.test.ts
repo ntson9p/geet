@@ -7,6 +7,7 @@ import {
   inProgressItems,
   OPS_GROUP_ORDER,
   recordRecent,
+  syncItems,
   type OpsContext,
 } from '../../../src/ui/operationsModel';
 
@@ -135,6 +136,40 @@ describe('preconditions', () => {
 
   it('offers only Clone with no repository at all', () => {
     expect(commandsOf({ ...EMPTY_DIALOG_CONTEXT })).toEqual(['gittree.clone.dialog']);
+  });
+});
+
+/**
+ * POST-P14o: Fetch was absent from this popup entirely — the item set is
+ * enumerated from `dialogRegistry` and fetch has no dialog.
+ */
+describe('syncItems — Fetch', () => {
+  it('needs a remote: no remote, no Fetch', () => {
+    expect(syncItems(ctx())).toEqual([]);
+    expect(syncItems({ ...EMPTY_DIALOG_CONTEXT })).toEqual([]);
+    expect(syncItems(ctx({ hasRemote: true })).map((i) => i.command)).toEqual([
+      'gittree.fetch.all',
+    ]);
+  });
+
+  it('is project-wide: an explicit empty argument list, so the popup cannot scope it', () => {
+    // The popup passes the active repo root to anything with no args of its
+    // own; Fetch must not be narrowed back down to one root by that.
+    expect(syncItems(ctx({ hasRemote: true }))[0]?.args).toEqual([]);
+  });
+
+  it('names itself for the workspace it is in', () => {
+    expect(syncItems(ctx({ hasRemote: true }))[0]?.label).toBe('Fetch');
+    expect(syncItems(ctx({ hasRemote: true, repoCount: 1 }))[0]?.label).toBe('Fetch');
+    expect(syncItems(ctx({ hasRemote: true, repoCount: 4 }))[0]?.label).toBe(
+      'Fetch All Repositories',
+    );
+  });
+
+  it('reaches the assembled popup, in the sync group', () => {
+    const items = buildOperationsItems(ctx({ hasRemote: true, hasUpstream: true }));
+    const fetch = items.find((i) => i.command === 'gittree.fetch.all');
+    expect(fetch?.group).toBe('sync');
   });
 });
 
