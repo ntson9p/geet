@@ -69,6 +69,7 @@ const BASE_PRIORITY = 100;
 
 export class StatusBarController implements vscode.Disposable {
   private fetching = false;
+  private shown = false;
   private readonly sub: { dispose(): void };
   private readonly items: vscode.StatusBarItem[] = [];
 
@@ -92,6 +93,15 @@ export class StatusBarController implements vscode.Disposable {
    */
   get titles(): string[] {
     return this.items.map((i) => i.text);
+  }
+
+  /**
+   * Last visibility decision. `StatusBarItem` exposes no `visible`, and "the
+   * widget is gone" is precisely the regression that has to be assertable —
+   * reading `titles` cannot see it, because a hidden item keeps its text.
+   */
+  get visible(): boolean {
+    return this.shown;
   }
 
   /** One item per command, created on demand and reused across updates. */
@@ -137,6 +147,7 @@ export class StatusBarController implements vscode.Disposable {
       });
     }
     const visible = this.isActive();
+    this.shown = visible;
     commands.forEach((command, i) => {
       const item = this.itemAt(i);
       item.text = command.title;

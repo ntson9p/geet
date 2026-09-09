@@ -71,15 +71,43 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
       },
     });
   };
+  /**
+   * Every bar's visibility is `activeRepoKey() === key`, and that reads the
+   * live handle set — `repoForUri` resolves against it and the fallback is
+   * `core.repos[0]` — so *the repository set* is an input to the answer just
+   * as much as editor focus is. Membership changes therefore have to
+   * re-evaluate all of them, not only the repository that joined.
+   *
+   * The removal half is the one that was missing. Dropping the repository
+   * whose widget was showing disposed its items and left every surviving
+   * bar holding the `visible = false` it last computed; nothing recomputed
+   * them, because a controller only hears about its own model. The status bar
+   * went empty and stayed empty until an unrelated event happened to call
+   * `update()`. Branch-popup actions write into `.git`, which pokes a
+   * rediscovery, which is why the widget "sometimes disappeared" there.
+   */
+  const updateAll = (): void => {
+    for (const bar of statusBars.values()) bar.update();
+  };
+
   for (const repo of core.repos) attach(repo);
-  const addSub = core.onDidAddRepo((repo) => attach(repo));
+  // `attach` alone is not enough: the new handle can change what
+  // `activeRepoKey()` answers for repositories that already have a bar.
+  const addSub = core.onDidAddRepo((repo) => {
+    attach(repo);
+    updateAll();
+  });
+  // Fired after the handle is out of the map and its own bar disposed, so
+  // this sees exactly the set that remains.
+  const removeSub = core.onDidRemoveRepo(() => updateAll());
   context.subscriptions.push(
-    new vscode.Disposable(() => addSub.dispose()),
+    new vscode.Disposable(() => {
+      addSub.dispose();
+      removeSub.dispose();
+    }),
     // Which repo is "active" is an editor-focus question, so the visibility of
     // every repo's items has to be re-evaluated when focus moves.
-    vscode.window.onDidChangeActiveTextEditor(() => {
-      for (const bar of statusBars.values()) bar.update();
-    }),
+    vscode.window.onDidChangeActiveTextEditor(() => updateAll()),
   );
 
   const changeBars = new ChangeBarsController(core);
