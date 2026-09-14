@@ -197,8 +197,16 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     await vscode.commands.executeCommand('gittree.debug.showState');
     const doc = vscode.window.activeTextEditor?.document;
     assert.ok(doc, 'no active editor after debug command');
-    const parsed = JSON.parse(doc.getText()) as Array<{ root: string; snapshot: unknown }>;
-    assert.strictEqual(parsed.length, 5);
-    assert.ok(parsed[0]?.snapshot);
+    const parsed = JSON.parse(doc.getText()) as {
+      statusBar: { activeRepoKey?: string; repoKeys?: string[]; bars?: unknown[] };
+      repos: Array<{ root: string; snapshot: unknown }>;
+    };
+    assert.strictEqual(parsed.repos.length, 5);
+    assert.ok(parsed.repos[0]?.snapshot);
+    // The status-bar block is why this dump gets opened; an empty one would be
+    // a diagnostic that cannot answer the question it exists for.
+    assert.strictEqual(parsed.statusBar.repoKeys?.length, 5);
+    assert.strictEqual(parsed.statusBar.bars?.length, 5);
+    assert.ok(parsed.statusBar.activeRepoKey, 'no active repo key resolved');
   });
 });

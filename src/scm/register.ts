@@ -26,6 +26,25 @@ export interface Phase01Registry {
   revProvider: RevContentProvider;
   /** P14-T3 — GitTree's own change bars; the test seam for what is painted. */
   changeBars: ChangeBarsController;
+  /**
+   * What the status bar believes it is showing. "The widget is gone" has four
+   * distinguishable causes and no way to tell them apart from the outside:
+   * discovery dropped the repository (`repos` empty), the controller was
+   * unregistered (`bars` empty), GitTree hid it (`visible: false`), or VS Code
+   * is not rendering an item we did show (`visible: true` and still invisible —
+   * status-bar crowding, or an entry the user hid from the status bar's own
+   * context menu). `gittree.debug.showState` prints this.
+   */
+  statusBarDiagnostics(): StatusBarDiagnostics;
+}
+
+export interface StatusBarDiagnostics {
+  /** What `activeRepoKey()` is resolving against right now. */
+  activeEditor: string | undefined;
+  /** The key whose bar should be the visible one. */
+  activeRepoKey: string | undefined;
+  repoKeys: string[];
+  bars: Array<{ key: string; visible: boolean; titles: string[] }>;
 }
 
 export function registerPhase01(context: vscode.ExtensionContext, core: Core): Phase01Registry {
@@ -120,7 +139,23 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
 
-  const registry: Phase01Registry = { statusBars, revProvider, changeBars };
+  const statusBarDiagnostics = (): StatusBarDiagnostics => ({
+    activeEditor: vscode.window.activeTextEditor?.document.uri.toString(),
+    activeRepoKey: activeRepoKey(),
+    repoKeys: core.repos.map((r) => canonicalKey(r.root)),
+    bars: [...statusBars.entries()].map(([key, b]) => ({
+      key,
+      visible: b.visible,
+      titles: b.titles,
+    })),
+  });
+
+  const registry: Phase01Registry = {
+    statusBars,
+    revProvider,
+    changeBars,
+    statusBarDiagnostics,
+  };
   core.debugRegistry.set('phase01', registry);
   return registry;
 }

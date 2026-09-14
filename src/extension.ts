@@ -91,13 +91,26 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.debug.showState', async () => {
       const core = await corePromise;
+      // The status-bar block leads: "the GitTree branch widget is gone" is the
+      // report this command gets opened for, and it is the only part of the
+      // state that cannot be inferred from the repositories below it.
+      const statusBar = core
+        ? (
+            core.debugRegistry.get('phase01') as
+              | { statusBarDiagnostics?: () => unknown }
+              | undefined
+          )?.statusBarDiagnostics?.()
+        : undefined;
       const state = core
-        ? core.repos.map((r) => ({
-            root: r.root,
-            gitDir: r.dirs.gitDir,
-            workdirGeneration: r.model.workdirGeneration,
-            snapshot: r.model.snapshot,
-          }))
+        ? {
+            statusBar: statusBar ?? 'phase01 registry unavailable',
+            repos: core.repos.map((r) => ({
+              root: r.root,
+              gitDir: r.dirs.gitDir,
+              workdirGeneration: r.model.workdirGeneration,
+              snapshot: r.model.snapshot,
+            })),
+          }
         : { error: 'core not available (git not found?)' };
       const doc = await vscode.workspace.openTextDocument({
         language: 'json',

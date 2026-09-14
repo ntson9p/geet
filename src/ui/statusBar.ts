@@ -67,6 +67,9 @@ export function renderStatusBar(snap: RepoSnapshot, fetching: boolean): StatusBa
 /** Left-aligned, just left of where the built-in git extension puts its own. */
 const BASE_PRIORITY = 100;
 
+/** Index-matched to the commands in `update()`. */
+const ITEM_NAMES = ['GitTree Branch', 'GitTree Sync', 'GitTree Rebase'];
+
 export class StatusBarController implements vscode.Disposable {
   private fetching = false;
   private shown = false;
@@ -113,7 +116,12 @@ export class StatusBarController implements vscode.Disposable {
         vscode.StatusBarAlignment.Left,
         BASE_PRIORITY - index,
       );
-      item.name = 'GitTree';
+      // `name` is what the status bar's own right-click "Manage" menu lists,
+      // and that menu is how a user hides an entry — permanently, in a way no
+      // `show()` of ours can undo. Every item calling itself "GitTree" made
+      // that menu unreadable: you could not tell which row was the branch
+      // widget, nor see that it was the one switched off.
+      item.name = ITEM_NAMES[index] ?? `GitTree ${index}`;
       this.items[index] = item;
     }
     return item;
