@@ -40,6 +40,9 @@ surface, which made genuine gaps invisible. Rules:
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 | [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
 | [D25](#d25--the-annotation-age-ramp-is-quantised-to-five-steps) | The blame age gradient has five steps instead of a continuous ramp | No (API) |
+| [D26](#d26--four-opt-in-sidebar-panes-intellij-has-no-equivalent-of) | Branches, Worktrees, Local History and Stashes are opt-in sidebar panes | Yes (`gittree.sidebar.extraViews`) |
+| [D27](#d27--all-roots-branch-operations-are-the-ones-that-need-no-per-root-input) | Only branch operations needing no per-root input are offered across all roots | Yes (costly, low value) |
+| [D28](#d28--the-status-bar-widget-is-an-action-not-a-readout) | The status-bar widget is a button that opens the popup, not a second branch readout | Yes (`gittree.statusBar`) |
 
 ---
 
@@ -580,3 +583,30 @@ both already had a no-argument all-roots form (`runCommitAcross`, and POST-P14o'
 **Revisitable:** yes, and the order is clear — hoisting the input out of `BranchOps` unlocks
 `New Branch`, `Rename` and `Delete` on a common row, and the same split unlocks a multi-root
 Update Project dialog.
+
+## D28 · The status-bar widget is an action, not a readout
+
+**IntelliJ (New UI):** `⌥ <branch> ▾` in the top-left toolbar — a *menu opener* that happens
+to show the branch, with the divergence counts living in the popup it opens (capped there at
+`99+`).
+**VS Code:** the built-in Git extension already contributes a branch name **and** ahead/behind
+counts to the status bar, and does it well.
+**GitTree:** a compact button — `$(git-branch)$(chevron-down)`, one constant width — that opens
+the branches popup. Branch, upstream and exact counts move to its tooltip. It grows only for
+what the built-in widget does *not* show: an in-progress operation, and a conflict count.
+
+**Why:** shipping a second readout beside VS Code's own is duplication, not fidelity — four
+status-bar items saying the same thing — and the duplicate was **unbounded**. `$(arrow-down)
+26050 $(arrow-up) 10893` in a repository far behind its upstream pushed GitTree's entries past
+the edge of a crowded status bar, so the widget appeared to vanish the moment a fetch landed.
+The reporter hit exactly that. IntelliJ's widget is compact because it is an affordance, not a
+report; adopting that shape removes the duplication and bounds the width at the same time.
+
+**The readout is not gone, it is conditional.** `gittree.statusBar: auto` (the default) resolves
+to `full` — branch name plus counts, capped at `99+` — when the built-in Git extension is absent
+or `git.enabled` is false, because then nobody else is drawing one. Detection is deliberately
+conservative: VS Code exposes no way to see that a user hid those entries from the status bar's
+own context menu, so `button`, `full` and `off` are available explicitly. GitTree only ever
+*reads* `git.enabled`; it never writes it (`discovery.test.ts` asserts that).
+
+**Revisitable:** yes, that is what the setting is for.

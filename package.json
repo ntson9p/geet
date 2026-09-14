@@ -101,6 +101,23 @@
             "type": "boolean",
             "default": false,
             "description": "%gittree.config.sidebar.extraViews.description%"
+          },
+          "gittree.statusBar": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "button",
+              "full",
+              "off"
+            ],
+            "default": "auto",
+            "description": "%gittree.config.statusBar.description%",
+            "enumDescriptions": [
+              "%gittree.config.statusBar.auto%",
+              "%gittree.config.statusBar.button%",
+              "%gittree.config.statusBar.full%",
+              "%gittree.config.statusBar.off%"
+            ]
           }
         }
       },
@@ -2839,6 +2856,11 @@
         "command": "gittree.log.focusFilter",
         "key": "ctrl+alt+g f",
         "mac": "cmd+alt+g f"
+      },
+      {
+        "command": "gittree.branches.open",
+        "key": "ctrl+alt+g c",
+        "mac": "cmd+alt+g c"
       },
       {
         "command": "gittree.blame.toggle",

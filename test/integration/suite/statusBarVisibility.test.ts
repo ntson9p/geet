@@ -31,6 +31,7 @@ suite('status bar visibility follows the repository set', () => {
   interface BarShape {
     update(): void;
     titles: string[];
+    tooltips: string[];
     visible: boolean;
   }
   interface Phase01Shape {
@@ -223,13 +224,53 @@ suite('status bar visibility follows the repository set', () => {
     );
 
     // The surviving bar is a real widget, not just a flag: the open file now
-    // resolves to repoA, and that is the branch the button must be offering.
+    // resolves to repoA, and that is the repository the button must be offering.
     const bar = bars.get(repoAKey);
     assert.ok(bar, 'repoA lost its status bar controller');
     assert.match(
       bar.titles[0] ?? '',
-      /^\$\((git-branch|git-commit)\) \S/u,
-      'the checkout item must still render a branch or a detached sha',
+      /^\$\((git-branch|git-commit|sync~spin)\)/u,
+      'the widget must still render something clickable',
     );
+  });
+
+  /**
+   * POST-P14r. The widget's footprint is the whole reason the previous shape
+   * failed: an unbounded `$(arrow-down) 26050 $(arrow-up) 10893` pushed it off
+   * a crowded status bar. These assert the wiring — that the setting reaches
+   * the controller, and that a change to it redraws with no other event.
+   */
+  test('the widget shape follows gittree.statusBar, and the setting alone redraws it', async function () {
+    this.timeout(60_000);
+    const bar = bars.get(repoAKey);
+    assert.ok(bar, 'repoA has no status bar controller');
+    const cfg = (): vscode.WorkspaceConfiguration =>
+      vscode.workspace.getConfiguration('gittree');
+
+    try {
+      // Default is `auto`, and this window always has the built-in Git
+      // extension, so the compact button is what `auto` must resolve to.
+      await cfg().update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
+      await waitFor(() => bar.titles[0] === '$(git-branch)$(chevron-down)', 20_000);
+      assert.ok(bar.visible, 'the button must be showing');
+      assert.ok(
+        (bar.tooltips[0] ?? '').includes('Click for branches and actions'),
+        `tooltip: ${bar.tooltips[0] ?? ''}`,
+      );
+
+      // Nothing but the setting changes — no git operation, no editor event —
+      // so reaching `full` proves the configuration listener is wired.
+      await cfg().update('statusBar', 'full', vscode.ConfigurationTarget.Workspace);
+      await waitFor(() => (bar.titles[0] ?? '').startsWith('$(git-branch) '), 20_000);
+      assert.ok(bar.visible, 'the full widget must be showing');
+
+      // `off` contributes nothing at all, which is not the same as hidden.
+      await cfg().update('statusBar', 'off', vscode.ConfigurationTarget.Workspace);
+      await waitFor(() => bar.visible === false, 20_000);
+      assert.strictEqual(bar.titles.join(''), '', `off must render nothing: ${bar.titles.join()}`);
+    } finally {
+      await cfg().update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
+      await waitFor(() => bar.titles[0] === '$(git-branch)$(chevron-down)', 20_000);
+    }
   });
 });

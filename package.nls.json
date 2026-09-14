@@ -336,5 +336,10 @@
   "gittree.command.diff.toggleIgnoreWhitespace.title": "Toggle Ignore Whitespace",
   "gittree.command.diff.toggleCollapseUnchanged.title": "Toggle Collapse Unchanged Regions",
   "gittree.config.stash.combineWithShelf.description": "Show stashes inside the Shelf tab instead of their own Stash tab (IntelliJ: \"Combine stashes and shelves in one tab\").",
-  "gittree.config.sidebar.extraViews.description": "Show the Branches, Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: IntelliJ keeps those surfaces in the Git tool window, the branches popup and the Stash tab, and its Commit tool window has no sections beneath it."
+  "gittree.config.sidebar.extraViews.description": "Show the Branches, Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: IntelliJ keeps those surfaces in the Git tool window, the branches popup and the Stash tab, and its Commit tool window has no sections beneath it.",
+  "gittree.config.statusBar.description": "Shape of the GitTree status-bar widget. VS Code’s built-in Git extension already shows a branch name and ahead/behind counts, so by default GitTree contributes a compact button that opens the branches popup rather than a second readout beside it.",
+  "gittree.config.statusBar.auto": "A compact button while the built-in Git extension is drawing its own branch readout; the full widget when it is absent or disabled.",
+  "gittree.config.statusBar.button": "Always the compact button: one constant-width icon that opens the branches popup. Branch, upstream and exact counts are in its tooltip.",
+  "gittree.config.statusBar.full": "Always the full widget: branch name plus ahead/behind counts, capped at 99+ the way IntelliJ caps its own. Duplicates the built-in Git widget if that one is also shown.",
+  "gittree.config.statusBar.off": "No GitTree status-bar widget at all."
 }

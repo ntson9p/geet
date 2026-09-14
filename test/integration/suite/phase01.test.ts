@@ -27,8 +27,37 @@ suite('P1 core SCM', () => {
    * `StatusBarItem`s, and `titles` is the seam that replaced reading
    * `SourceControl.statusBarCommands[i].title`.
    */
+  interface BarShape {
+    update(): void;
+    titles: string[];
+    tooltips: string[];
+  }
   interface Phase01RegistryShape {
-    statusBars: Map<string, { update(): void; titles: string[] }>;
+    statusBars: Map<string, BarShape>;
+  }
+
+  /**
+   * POST-P14r: `gittree.statusBar` decides the widget's shape, and `auto` — the
+   * default — picks the compact button whenever the built-in Git extension is
+   * present, which it always is in this window. Assertions about the *readout*
+   * therefore have to say which mode they mean.
+   */
+  async function withStatusBarMode(
+    mode: 'button' | 'full' | 'off',
+    bar: BarShape,
+    fn: () => void | Promise<void>,
+  ): Promise<void> {
+    const cfg = vscode.workspace.getConfiguration('gittree');
+    await cfg.update('statusBar', mode, vscode.ConfigurationTarget.Workspace);
+    try {
+      // The config listener fires on its own; this makes the read deterministic
+      // rather than racing the event.
+      bar.update();
+      await fn();
+    } finally {
+      await cfg.update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
+      bar.update();
+    }
   }
 
   /** P14-T2: file commands now take the commit window's context shape. */
@@ -305,11 +334,27 @@ suite('P1 core SCM', () => {
       15_000,
     );
 
-    const syncTitle = bar.titles[1] ?? '';
-    assert.ok(syncTitle.includes('$(arrow-down) 2'), `sync title: ${syncTitle}`);
-    assert.ok(syncTitle.includes('$(arrow-up) 1'), `sync title: ${syncTitle}`);
-    const checkoutTitle = bar.titles[0] ?? '';
-    assert.ok(checkoutTitle.includes(branch), `checkout title: ${checkoutTitle}`);
+    // POST-P14r: divergence is the `full` widget's job. The default is the
+    // compact button, because VS Code's own Git widget is already reporting
+    // this — so the readout is asserted in the mode that owns it.
+    await withStatusBarMode('full', bar, () => {
+      const title = bar.titles[0] ?? '';
+      assert.ok(title.includes(branch), `widget: ${title}`);
+      assert.ok(title.includes('$(arrow-down) 2'), `widget: ${title}`);
+      assert.ok(title.includes('$(arrow-up) 1'), `widget: ${title}`);
+      // One item now, not two: the sync readout folded into the widget.
+      assert.ok(
+        (bar.titles[1] ?? '') === '',
+        `expected a single widget item, got ${JSON.stringify(bar.titles)}`,
+      );
+    });
+
+    // And in the default mode it costs a fixed width and says none of it.
+    const button = bar.titles[0] ?? '';
+    assert.strictEqual(button, '$(git-branch)$(chevron-down)', `button: ${button}`);
+    const tip = bar.tooltips[0] ?? '';
+    assert.ok(tip.includes('2 behind'), `tooltip must carry the exact counts: ${tip}`);
+    assert.ok(tip.includes('1 ahead'), `tooltip must carry the exact counts: ${tip}`);
 
     await vscode.commands.executeCommand('gittree.sync', repoRoot);
     await refresh();
@@ -333,8 +378,15 @@ suite('P1 core SCM', () => {
     git('checkout', '--detach', 'HEAD');
     await refresh();
     await waitFor(() => repo.model.snapshot.detached, 15_000);
-    const title = bar.titles[0] ?? '';
-    assert.ok(title.includes('$(git-commit)'), `widget: ${title}`);
+    await withStatusBarMode('full', bar, () => {
+      const title = bar.titles[0] ?? '';
+      assert.ok(title.includes('$(git-commit)'), `widget: ${title}`);
+    });
+    // The button says nothing about it — but its tooltip still has to.
+    assert.ok(
+      (bar.tooltips[0] ?? '').includes('Detached at'),
+      `tooltip: ${bar.tooltips[0] ?? ''}`,
+    );
     git('checkout', branch);
     await refresh();
   });

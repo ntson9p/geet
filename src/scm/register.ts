@@ -13,7 +13,12 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { RevContentProvider, REV_SCHEME } from '../core/vdocs/revContentProvider';
-import { StatusBarController } from '../ui/statusBar';
+import {
+  resolveStatusBarMode,
+  StatusBarController,
+  type ResolvedStatusBarMode,
+  type StatusBarMode,
+} from '../ui/statusBar';
 import { wireFileDecorations } from './fileDecorations';
 import { registerFileOps } from './fileOps';
 import { ChangeBarsController } from './gutter/changeBars';
@@ -39,6 +44,10 @@ export interface Phase01Registry {
 }
 
 export interface StatusBarDiagnostics {
+  /** What `auto` resolved to — the shape the widget is currently drawing. */
+  mode: ResolvedStatusBarMode;
+  /** Whether something else is already drawing a branch readout. */
+  builtInGitPresent: boolean;
   /** What `activeRepoKey()` is resolving against right now. */
   activeEditor: string | undefined;
   /** The key whose bar should be the visible one. */
@@ -61,6 +70,27 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     return repo ? canonicalKey(repo.root) : undefined;
   };
 
+  /**
+   * Is something *else* already drawing a branch readout in the status bar?
+   *
+   * Only the two cases we can actually observe count: the built-in Git
+   * extension not being installed, and `git.enabled: false`. What this
+   * deliberately cannot see is a user who hid those entries from the status
+   * bar's own right-click menu — VS Code exposes no API for that — so `auto`
+   * leaves them on the compact button and the setting is their way out. It is
+   * a read; GitTree never writes `git.enabled` (see `unsetGitEnabled`).
+   */
+  const builtInGitPresent = (): boolean => {
+    if (vscode.extensions.getExtension('vscode.git') === undefined) return false;
+    return vscode.workspace.getConfiguration('git').get<boolean>('enabled', true);
+  };
+
+  const statusBarMode = (): ResolvedStatusBarMode =>
+    resolveStatusBarMode(
+      vscode.workspace.getConfiguration('gittree').get<StatusBarMode>('statusBar', 'auto'),
+      builtInGitPresent(),
+    );
+
   // gittree-rev: content provider (P1-T2 / master §2), refreshed on status
   // changes so open diffs and gutter bars track index updates.
   const revProvider = new RevContentProvider(core);
@@ -76,7 +106,12 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     const key = canonicalKey(repo.root);
     if (statusBars.has(key)) return;
     const bar = repo.disposables.add(
-      new StatusBarController(repo, () => activeRepoKey() === key),
+      new StatusBarController(
+        repo,
+        () => activeRepoKey() === key,
+        statusBarMode,
+        () => core.repos.length,
+      ),
     );
     statusBars.set(key, bar);
     repo.disposables.add(
@@ -127,6 +162,14 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     // Which repo is "active" is an editor-focus question, so the visibility of
     // every repo's items has to be re-evaluated when focus moves.
     vscode.window.onDidChangeActiveTextEditor(() => updateAll()),
+    // The widget's *shape* has two inputs and neither is ours alone: the
+    // setting, and whether the built-in Git extension is drawing a readout.
+    // `git.enabled` flipping is what makes `auto` change its mind.
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('gittree.statusBar') || e.affectsConfiguration('git.enabled')) {
+        updateAll();
+      }
+    }),
   );
 
   const changeBars = new ChangeBarsController(core);
@@ -140,6 +183,8 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   wireFileDecorations(context, core);
 
   const statusBarDiagnostics = (): StatusBarDiagnostics => ({
+    mode: statusBarMode(),
+    builtInGitPresent: builtInGitPresent(),
     activeEditor: vscode.window.activeTextEditor?.document.uri.toString(),
     activeRepoKey: activeRepoKey(),
     repoKeys: core.repos.map((r) => canonicalKey(r.root)),
