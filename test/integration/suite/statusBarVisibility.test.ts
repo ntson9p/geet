@@ -30,18 +30,25 @@ suite('status bar visibility follows the repository set', () => {
   /** The `phase01` registry, structurally — never `instanceof` across the bundle. */
   interface BarShape {
     update(): void;
+    setFetching(fetching: boolean): void;
     titles: string[];
     tooltips: string[];
     visible: boolean;
   }
+  interface DiagnosticsShape {
+    rendered: string[];
+    itemIds: string[];
+  }
   interface Phase01Shape {
     statusBars: Map<string, BarShape>;
+    statusBarDiagnostics(): DiagnosticsShape;
   }
 
   /** Untracked inside repoA while it exists, so `.git/info/exclude` hides it. */
   const NESTED = 'gittree-statusbar-tmp';
 
   let core: Core;
+  let phase01: Phase01Shape;
   let bars: Map<string, BarShape>;
   let repoARoot: string;
   let repoAKey: string;
@@ -54,6 +61,9 @@ suite('status bar visibility follows the repository set', () => {
 
   const visibleKeys = (): string[] =>
     [...bars.entries()].filter(([, bar]) => bar.visible).map(([key]) => key).sort();
+
+  /** What the single host actually holds and last drew. */
+  const diagnostics = (): DiagnosticsShape => phase01.statusBarDiagnostics();
 
   /**
    * Forces a rediscovery and waits for its effect.
@@ -93,6 +103,7 @@ suite('status bar visibility follows the repository set', () => {
     core = await activateGitTree();
     const reg = core.debugRegistry.get('phase01') as Phase01Shape | undefined;
     assert.ok(reg, 'phase01 registry missing — registerPhase01 not run?');
+    phase01 = reg;
     bars = reg.statusBars;
 
     repoARoot = workspaceRepoA();
@@ -176,6 +187,80 @@ suite('status bar visibility follows the repository set', () => {
       await repoA.refresher.refreshNow();
       await waitFor(() => repoA.model.snapshot.statusEntries.length === 0, 20_000);
     }
+  });
+
+  /**
+   * POST-P14s — the reported defect, and the one the two previous attempts
+   * missed. `createStatusBarItem(id, …)` says the id "must be unique within the
+   * extension" because VS Code routes the entry by it: every item sharing an id
+   * shares **one** entry, `show()` updates it and `hide()` *disposes* it. A
+   * controller per repository, each creating `gittree.status.0`, therefore gave
+   * six co-owners the power to delete the seventh's widget — which is what a
+   * fetch fan-out did, one `setFetching` at a time.
+   *
+   * Nothing downstream of the violation is observable from in here: `visible`
+   * stayed true and `titles` stayed right while the entry was gone, which is
+   * exactly why it survived two rounds of tests. So the assertion is the
+   * contract itself, on the ids GitTree actually holds.
+   */
+  test('one status-bar item per slot, never one per repository', function () {
+    this.timeout(60_000);
+    // The whole point is N repositories against a fixed number of slots; with
+    // one repository the old shape could not collide and proves nothing.
+    assert.ok(core.repos.length >= 2, `need ≥2 repositories, got ${core.repos.length}`);
+    assert.strictEqual(bars.size, core.repos.length, 'every repository needs a controller');
+
+    const ids = diagnostics().itemIds;
+    assert.ok(ids.length > 0, 'the host created no status bar item at all');
+    assert.deepStrictEqual(
+      ids,
+      [...new Set(ids)],
+      `duplicate status bar ids — VS Code routes these to one entry, so any ` +
+        `holder's hide() disposes every other holder's widget: ${ids.join(', ')}`,
+    );
+    // The count is a property of the slots (branch, and rebase while one is
+    // running), so it must not track the repository count — that scaling is
+    // what the defect looked like from here.
+    assert.ok(
+      ids.length <= 2,
+      `${ids.length} items for ${core.repos.length} repositories: ${ids.join(', ')}`,
+    );
+  });
+
+  /**
+   * The behaviour that failure produced. `fetchOne` brackets each repository's
+   * fetch with `setFetching(true/false)`, so a project-wide fetch updates every
+   * controller in turn — and under the old shape each inactive one disposed the
+   * shared entry as it went. This walks that path directly.
+   */
+  test('an inactive repository updating does not take the widget down', async function () {
+    this.timeout(60_000);
+    const first = core.repos[0];
+    assert.ok(first, 'no repositories discovered');
+    const firstKey = canonicalKey(first.root);
+    await waitFor(() => visibleKeys().join() === firstKey, 20_000);
+
+    const before = diagnostics().rendered;
+    assert.ok(
+      (before[0] ?? '').length > 0,
+      `nothing was rendered to begin with: ${JSON.stringify(before)}`,
+    );
+
+    // Exactly what the fetch fan-out does to every repository that is not the
+    // one on screen — and nothing else, so the widget has no reason to change.
+    for (const repo of core.repos.slice(1)) {
+      const bar = bars.get(canonicalKey(repo.root));
+      assert.ok(bar, `no controller for ${repo.root}`);
+      bar.setFetching(true);
+      bar.setFetching(false);
+    }
+
+    assert.deepStrictEqual(
+      diagnostics().rendered,
+      before,
+      'another repository fetching changed what the status bar is showing',
+    );
+    assert.deepStrictEqual(visibleKeys(), [firstKey], 'the active repository changed');
   });
 
   test('a repository leaving the workspace does not take the widget with it', async function () {

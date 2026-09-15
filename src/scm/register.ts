@@ -16,6 +16,7 @@ import { RevContentProvider, REV_SCHEME } from '../core/vdocs/revContentProvider
 import {
   resolveStatusBarMode,
   StatusBarController,
+  StatusBarHost,
   type ResolvedStatusBarMode,
   type StatusBarMode,
 } from '../ui/statusBar';
@@ -54,6 +55,15 @@ export interface StatusBarDiagnostics {
   activeRepoKey: string | undefined;
   repoKeys: string[];
   bars: Array<{ key: string; visible: boolean; titles: string[] }>;
+  /**
+   * What the host last pushed to the status bar, and under which ids. The
+   * earlier diagnostics could not tell "GitTree is showing it" from "the entry
+   * still exists", because per-repository items shared one id and any of them
+   * could dispose the shared entry (see `ui/statusBar.ts`). A repeated id here
+   * is that bug, visible.
+   */
+  rendered: string[];
+  itemIds: string[];
 }
 
 export function registerPhase01(context: vscode.ExtensionContext, core: Core): Phase01Registry {
@@ -102,6 +112,27 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     }),
   );
 
+  /**
+   * One owner of the status-bar items for the whole extension. Not per
+   * repository: the items are a property of the slot, and giving each
+   * repository its own copy of the same id is what made the widget vanish —
+   * `ui/statusBar.ts` has the mechanism.
+   */
+  const host = new StatusBarHost();
+  context.subscriptions.push(host);
+
+  /**
+   * Draw the active repository's contribution, and only its. Every trigger
+   * funnels through here, so there is exactly one answer to "what is on the
+   * status bar" at any moment — which is the property the previous shape,
+   * where each controller drew itself, could not have.
+   */
+  const render = (): void => {
+    const key = activeRepoKey();
+    const bar = key === undefined ? undefined : statusBars.get(key);
+    host.render(bar?.commands ?? []);
+  };
+
   const attach = (repo: RepoHandle): void => {
     const key = canonicalKey(repo.root);
     if (statusBars.has(key)) return;
@@ -111,6 +142,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
         () => activeRepoKey() === key,
         statusBarMode,
         () => core.repos.length,
+        () => render(),
       ),
     );
     statusBars.set(key, bar);
@@ -142,9 +174,13 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
    */
   const updateAll = (): void => {
     for (const bar of statusBars.values()) bar.update();
+    // Not redundant: with no repositories left there is no controller to
+    // notify, and the widget still has to come down.
+    render();
   };
 
   for (const repo of core.repos) attach(repo);
+  render();
   // `attach` alone is not enough: the new handle can change what
   // `activeRepoKey()` answers for repositories that already have a bar.
   const addSub = core.onDidAddRepo((repo) => {
@@ -193,6 +229,8 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
       visible: b.visible,
       titles: b.titles,
     })),
+    rendered: host.rendered,
+    itemIds: host.itemIds,
   });
 
   const registry: Phase01Registry = {

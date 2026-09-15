@@ -596,11 +596,17 @@ the branches popup. Branch, upstream and exact counts move to its tooltip. It gr
 what the built-in widget does *not* show: an in-progress operation, and a conflict count.
 
 **Why:** shipping a second readout beside VS Code's own is duplication, not fidelity — four
-status-bar items saying the same thing — and the duplicate was **unbounded**. `$(arrow-down)
-26050 $(arrow-up) 10893` in a repository far behind its upstream pushed GitTree's entries past
-the edge of a crowded status bar, so the widget appeared to vanish the moment a fetch landed.
-The reporter hit exactly that. IntelliJ's widget is compact because it is an affordance, not a
-report; adopting that shape removes the duplication and bounds the width at the same time.
+status-bar items saying the same thing. IntelliJ's widget is compact because it is an
+affordance, not a report, and adopting that shape removes the duplication at its source rather
+than making a duplicate smaller. It bounds the width as a side effect: `$(arrow-down) 26050
+$(arrow-up) 10893` had nothing capping either side.
+
+**What this deviation is *not*:** the fix for "the branch button disappears". That was diagnosed
+here as width — a wide widget falling off the end of a crowded status bar — and that diagnosis
+was wrong. The real cause was a shared `StatusBarItem` id across per-repository controllers, so
+any repository's `hide()` disposed the entry the active one had shown; POST-P14s has it, and
+`ui/statusBar.ts` carries the mechanism. This deviation stands on the duplication argument
+alone, which is what it was actually argued from.
 
 **The readout is not gone, it is conditional.** `gittree.statusBar: auto` (the default) resolves
 to `full` — branch name plus counts, capped at `99+` — when the built-in Git extension is absent
