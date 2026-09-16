@@ -3108,7 +3108,7 @@
         {
           "id": "gittree",
           "title": "%gittree.container.title%",
-          "icon": "media/gittree-mark-solid.svg"
+          "icon": "media/gittree-mark.svg"
         }
       ],
       "panel": [
