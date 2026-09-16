@@ -314,7 +314,9 @@ suite('status bar visibility follows the repository set', () => {
     assert.ok(bar, 'repoA lost its status bar controller');
     assert.match(
       bar.titles[0] ?? '',
-      /^\$\((git-branch|git-commit|sync~spin)\)/u,
+      // `list-tree` is the branded button's mark; the git glyphs are `full`
+      // mode's, and `sync~spin` is either mode mid-fetch.
+      /^\$\((list-tree|git-branch|git-commit|sync~spin)\)/u,
       'the widget must still render something clickable',
     );
   });
@@ -336,7 +338,7 @@ suite('status bar visibility follows the repository set', () => {
       // Default is `auto`, and this window always has the built-in Git
       // extension, so the compact button is what `auto` must resolve to.
       await cfg().update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
-      await waitFor(() => bar.titles[0] === '$(git-branch)$(chevron-down)', 20_000);
+      await waitFor(() => bar.titles[0] === '$(list-tree) GitTree $(chevron-down)', 20_000);
       assert.ok(bar.visible, 'the button must be showing');
       assert.ok(
         (bar.tooltips[0] ?? '').includes('Click for branches and actions'),
@@ -355,7 +357,7 @@ suite('status bar visibility follows the repository set', () => {
       assert.strictEqual(bar.titles.join(''), '', `off must render nothing: ${bar.titles.join()}`);
     } finally {
       await cfg().update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
-      await waitFor(() => bar.titles[0] === '$(git-branch)$(chevron-down)', 20_000);
+      await waitFor(() => bar.titles[0] === '$(list-tree) GitTree $(chevron-down)', 20_000);
     }
   });
 });

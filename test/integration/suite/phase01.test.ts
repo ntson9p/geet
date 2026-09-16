@@ -351,7 +351,7 @@ suite('P1 core SCM', () => {
 
     // And in the default mode it costs a fixed width and says none of it.
     const button = bar.titles[0] ?? '';
-    assert.strictEqual(button, '$(git-branch)$(chevron-down)', `button: ${button}`);
+    assert.strictEqual(button, '$(list-tree) GitTree $(chevron-down)', `button: ${button}`);
     const tip = bar.tooltips[0] ?? '';
     assert.ok(tip.includes('2 behind'), `tooltip must carry the exact counts: ${tip}`);
     assert.ok(tip.includes('1 ahead'), `tooltip must carry the exact counts: ${tip}`);

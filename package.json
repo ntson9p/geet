@@ -3115,7 +3115,7 @@
         {
           "id": "gittree-panel",
           "title": "%gittree.panel.title%",
-          "icon": "$(git-branch)"
+          "icon": "$(list-tree)"
         }
       ]
     }

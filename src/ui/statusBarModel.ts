@@ -1,17 +1,39 @@
 /**
- * Status-bar widget shaping (POST-P14r). vscode-free so the width rules are
- * unit-testable — which is the point, because width is what broke.
+ * Status-bar widget shaping (POST-P14r, branded by POST-P14t). vscode-free so
+ * the rules are unit-testable.
  *
- * The defect this file exists to prevent: the sync item rendered
- * `$(arrow-down) 26050 $(arrow-up) 10893` once a fetch landed in a repository
- * far behind its upstream. Nothing bounded it, the status bar is a fixed-width
- * strip, and GitTree's entries sit at the low-priority end of it — so the
- * branch widget stopped being drawn and looked, to the user, like it had
- * vanished. Every rule here is about keeping the widget's footprint bounded and
- * about not paying width for something VS Code's own widget already shows.
+ * Two things this file is responsible for, and it is worth keeping them apart.
+ *
+ * **Footprint.** `$(arrow-down) 26050 $(arrow-up) 10893` had nothing bounding
+ * either side, in a fixed-width strip where GitTree's entries sit at the
+ * low-priority end. That is a real cost and the caps here are the answer to it.
+ * It was *not* the cause of the "branch button disappears" report, whatever an
+ * earlier version of this comment claimed — that was a shared `StatusBarItem`
+ * id, fixed in POST-P14s; see `statusBar.ts`.
+ *
+ * **Identity.** The compact button was an unlabelled `$(git-branch)` sitting
+ * beside the built-in Git extension's own `$(git-branch)` — the same glyph,
+ * two entries apart. It read as a duplicate of VS Code's widget rather than as
+ * GitTree, and told someone who had just installed the extension nothing about
+ * where to click. So the button carries the product's name and a mark that is
+ * deliberately not git's. `full` keeps `$(git-branch)`: there the widget *is*
+ * the branch readout, the branch name is the label, and nothing else is
+ * drawing one.
  */
 import type { RepoSnapshot } from '../core/model/repositoryModel';
 import { isConflicted } from '../core/model/statusEntry';
+
+/**
+ * The brand slot. A stock codicon for now — `contributes.icons` would let this
+ * be `media/gittree-mark.svg` as a font glyph, which is the only way an SVG can
+ * reach status-bar text. `$(list-tree)` is chosen for what it is *not*:
+ * `$(git-branch)`, `$(source-control)` and `$(git-commit)` all already appear
+ * in this strip, drawn by VS Code or by us.
+ */
+export const BRAND_ICON = '$(list-tree)';
+
+/** Never localized, never abbreviated: it is the product's name. */
+export const BRAND_LABEL = 'GitTree';
 
 /** What the user asked for. `auto` resolves against the built-in Git extension. */
 export type StatusBarMode = 'auto' | 'button' | 'full' | 'off';
@@ -80,9 +102,11 @@ export function renderStatusBarText(
 
   let text: string;
   if (mode === 'button') {
-    // Constant width. `$(sync~spin)` occupies the same box as `$(git-branch)`,
-    // so a fetch is visible without the widget changing size at all.
-    text = `${fetching ? '$(sync~spin)' : '$(git-branch)'}$(chevron-down)`;
+    // Constant width, and the spinner takes the *mark's* box — the label and
+    // the chevron never move, so a fetch is a glyph swap with no reflow at all.
+    // The chevron stays through it: it is what says "this opens a menu", and a
+    // fetch is no reason to stop saying so.
+    text = `${fetching ? '$(sync~spin)' : BRAND_ICON} ${BRAND_LABEL} $(chevron-down)`;
   } else {
     text = headLabel(snap);
     if (fetching) {

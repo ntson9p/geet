@@ -591,9 +591,22 @@ to show the branch, with the divergence counts living in the popup it opens (cap
 `99+`).
 **VS Code:** the built-in Git extension already contributes a branch name **and** ahead/behind
 counts to the status bar, and does it well.
-**GitTree:** a compact button — `$(git-branch)$(chevron-down)`, one constant width — that opens
-the branches popup. Branch, upstream and exact counts move to its tooltip. It grows only for
-what the built-in widget does *not* show: an in-progress operation, and a conflict count.
+**GitTree:** a compact button — `$(list-tree) GitTree $(chevron-down)`, one constant width — that
+opens the branches popup. Branch, upstream and exact counts move to its tooltip. It grows only
+for what the built-in widget does *not* show: an in-progress operation, and a conflict count.
+
+**Why it carries the product's name** (POST-P14t). The first cut of this button was
+`$(git-branch)$(chevron-down)`: unlabelled, and drawn with *the same codicon VS Code's own branch
+widget uses*, two entries away from it in the same strip. Compactness had been read as a licence
+to say nothing, and the result failed at both jobs an affordance has — it did not distinguish
+itself from the widget it was deliberately not duplicating, and it gave someone who had just
+installed the extension nothing to aim at. The name is the cheapest fix for both, and it costs
+no information: VS Code is already showing the branch a few centimetres to the left, which is
+the same premise this whole deviation rests on. `$(list-tree)` is a placeholder chosen for what
+it is *not* — `$(git-branch)`, `$(git-commit)` and `$(source-control)` are all already in this
+strip. `media/gittree-mark.svg` belongs here instead, once `contributes.icons` carries it as a
+font glyph; an SVG cannot reach status-bar text any other way. `full` keeps `$(git-branch)`:
+there the widget *is* the branch readout and the branch name is its label.
 
 **Why:** shipping a second readout beside VS Code's own is duplication, not fidelity — four
 status-bar items saying the same thing. IntelliJ's widget is compact because it is an

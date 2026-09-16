@@ -40,10 +40,13 @@
  *
  * The shape itself (POST-P14r) is unchanged and still right: VS Code's
  * built-in Git extension already draws a branch readout, so ours is an action
- * — `$(git-branch)$(chevron-down)`, constant width, opening the branches popup
- * — growing only for what the built-in widget does not show. `full` restores
- * the readout for people who have no other one, which is what `auto` picks
- * when the built-in Git extension is absent or disabled.
+ * — `$(list-tree) GitTree $(chevron-down)`, constant width, opening the
+ * branches popup — growing only for what the built-in widget does not show.
+ * POST-P14t gave it the product's name, because an unlabelled `$(git-branch)`
+ * beside the built-in widget's own `$(git-branch)` was read as a duplicate of
+ * it rather than as us. `full` restores the readout for people who have no
+ * other one, which is what `auto` picks when the built-in Git extension is
+ * absent or disabled.
  *
  * The shaping rules live in `statusBarModel.ts`, vscode-free and unit-tested;
  * this file is the sink and the tooltip, which needs `l10n`.

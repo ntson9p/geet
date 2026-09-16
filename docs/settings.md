@@ -80,7 +80,7 @@ Shape of the GitTree status-bar widget. VS Code’s built-in Git extension alrea
 - Type: `string` · Default: `"auto"`
 - Values:
   - `auto` — A compact button while the built-in Git extension is drawing its own branch readout; the full widget when it is absent or disabled.
-  - `button` — Always the compact button: one constant-width icon that opens the branches popup. Branch, upstream and exact counts are in its tooltip.
+  - `button` — Always the compact button: a constant-width GitTree button that opens the branches popup. Branch, upstream and exact counts are in its tooltip.
   - `full` — Always the full widget: branch name plus ahead/behind counts, capped at 99+ the way IntelliJ caps its own. Duplicates the built-in Git widget if that one is also shown.
   - `off` — No GitTree status-bar widget at all.
 
