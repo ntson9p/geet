@@ -8,7 +8,7 @@
   "private": true,
   "icon": "media/icon.png",
   "galleryBanner": {
-    "color": "#1e2227",
+    "color": "#111111",
     "theme": "dark"
   },
   "repository": {
@@ -3108,7 +3108,7 @@
         {
           "id": "gittree",
           "title": "%gittree.container.title%",
-          "icon": "media/gittree-activitybar.svg"
+          "icon": "media/gittree-mark-solid.svg"
         }
       ],
       "panel": [

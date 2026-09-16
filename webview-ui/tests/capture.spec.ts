@@ -5,6 +5,7 @@
  * Renders the real webview bundles against the mock hosts under a dark
  * VS Code variable set, so the images are the product's actual UI.
  */
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, type Page } from '@playwright/test';
@@ -78,18 +79,16 @@ test.describe('asset capture (manual: GITTREE_CAPTURE=1)', () => {
   });
 
   test('marketplace icon (svg → 256px png)', async ({ page }) => {
+    // Rasterises media/icon.svg rather than restating it, so the PNG cannot
+    // drift away from the vector the rest of the icon family is cut from.
+    const svg = await readFile(out('media', 'icon.svg'), 'utf8');
     await page.setViewportSize({ width: 256, height: 256 });
-    await page.setContent(`<!doctype html><body style="margin:0">
-      <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-        <rect width="256" height="256" rx="56" fill="#1e2227"/>
-        <g fill="none" stroke-linecap="round">
-          <path d="M88 56v144" stroke="#0072b2" stroke-width="14"/>
-          <path d="M88 104c0 36 80 22 80 56v40" stroke="#e69f00" stroke-width="14"/>
-          <circle cx="88" cy="56" r="20" fill="#0072b2"/>
-          <circle cx="88" cy="200" r="20" fill="#0072b2"/>
-          <circle cx="168" cy="200" r="20" fill="#e69f00"/>
-        </g>
-      </svg></body>`);
-    await page.screenshot({ path: out('media', 'icon.png') });
+    await page.setContent(
+      `<!doctype html><body style="margin:0">
+       <style>svg { display: block; width: 256px; height: 256px }</style>
+       ${svg}</body>`,
+    );
+    // The tile is a rounded rect: keep its corners transparent, not page-white.
+    await page.screenshot({ path: out('media', 'icon.png'), omitBackground: true });
   });
 });
