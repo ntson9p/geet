@@ -131,15 +131,6 @@ How many recent branches (by checkout frequency and recency) the Branches popup 
 - Type: `number` · Default: `5`
 - Minimum: `0`
 
-### `gittree.branches.defaultAction`
-
-What pressing Enter on a branch in the Branches popup does.
-
-- Type: `string` · Default: `"checkout"`
-- Values:
-  - `checkout`
-  - `showActions`
-
 ### `gittree.branches.showIncomingOutgoing`
 
 Show incoming (↓) before outgoing (↑) counts in the branches popup. Toggled from the popup's header.

@@ -9,7 +9,12 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { setBranchesOpenHandler } from '../scm/syncOps';
 import { createBranchActions, findBranchAction, type BranchAction } from './branchActions';
 import { BranchOps } from './branchOps';
-import { refTypeOf, showBranchActions, showBranchesPopup } from './branchesPopup';
+import {
+  refTypeOf,
+  showBranchActions,
+  showBranchesPopup,
+  showCommonBranchActions,
+} from './branchesPopup';
 import { BranchHubViewProvider } from './branchHubView';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
 import { CompareService } from './compare';
@@ -387,6 +392,28 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   registerTracked('gittree.branch.tracked.rebaseCurrentOnto', 'rebaseCurrentOnto');
   registerTracked('gittree.branch.tracked.newWorktree', 'newWorktree');
   registerTracked('gittree.branch.tracked.deleteOnRemote', 'deleteOnRemote');
+
+  /**
+   * A branch row opening its own menu — the click target for both trees and the
+   * popup's `›`. The ref is re-resolved from the live snapshot on every
+   * dispatch, so a row clicked after a fetch moved the refs underneath it acts
+   * on what is there now or does nothing, rather than on a stale copy. `type`
+   * disambiguates: a tag and a local branch can carry the same name.
+   */
+  register('gittree.branches.showActions', async (repoRoot, name, type) => {
+    const repo = pickRepo(repoRoot);
+    if (!repo || typeof name !== 'string') return;
+    const ref = repo.model.snapshot.refs.find(
+      (r) => r.name === name && (typeof type !== 'string' || r.type === type),
+    );
+    if (!ref) return;
+    await showBranchActions(core, repo, ops, ref, actions);
+  });
+  register('gittree.branches.showCommonActions', async (name, kind) => {
+    if (typeof name !== 'string') return;
+    if (kind !== 'local' && kind !== 'remote' && kind !== 'tag') return;
+    await showCommonBranchActions(core, { name, kind }, actions);
+  });
 
   // The hub verbs the popup lists need real command ids of their own.
   register('gittree.branch.new', async (repoRoot) => {

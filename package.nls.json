@@ -160,7 +160,6 @@
   "gittree.view.branches.name": "Branches",
   "gittree.view.compare.name": "Compare",
   "gittree.config.branches.recentCount.description": "How many recent branches (by checkout frequency and recency) the Branches popup shows.",
-  "gittree.config.branches.defaultAction.description": "What pressing Enter on a branch in the Branches popup does.",
   "gittree.config.smartCheckout.behavior.description": "When a checkout is blocked by local changes: ask (IntelliJ-style dialog), auto (always smart-checkout via stash), or never (just report).",
   "gittree.config.scm.title": "GitTree Source Control",
   "gittree.config.quickDiff.base.description": "What the editor gutter bars compare against: the index (IntelliJ behavior — bars show unstaged edits) or HEAD (bars show all uncommitted edits).",

@@ -166,15 +166,6 @@
             "minimum": 0,
             "description": "%gittree.config.branches.recentCount.description%"
           },
-          "gittree.branches.defaultAction": {
-            "type": "string",
-            "enum": [
-              "checkout",
-              "showActions"
-            ],
-            "default": "checkout",
-            "description": "%gittree.config.branches.defaultAction.description%"
-          },
           "gittree.branches.showIncomingOutgoing": {
             "type": "boolean",
             "default": true,

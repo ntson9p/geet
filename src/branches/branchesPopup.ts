@@ -645,9 +645,6 @@ export async function showBranchesPopup(
     await vscode.commands.executeCommand(verb.command);
   };
 
-  const defaultAction = (): string =>
-    vscode.workspace.getConfiguration('gittree').get<string>('branches.defaultAction', 'checkout');
-
   qp.onDidChangeValue(async () => {
     await populate();
   });
@@ -703,26 +700,21 @@ export async function showBranchesPopup(
       await runVerb(row.verb);
       return;
     }
+    /**
+     * A leaf opens **its menu**, never an operation. IntelliJ's branch rows are
+     * submenu openers — nothing happens to the repository until you pick a verb
+     * from the list that appears — and clicking one here used to check it out on
+     * the spot, which is a working-tree change one stray click away with no
+     * confirmation between. `Checkout` is still the first row of that menu, so
+     * the deliberate path costs one more click and the accidental one costs
+     * nothing.
+     */
     if (row.common !== undefined) {
-      if (defaultAction() === 'showActions') {
-        qp.hide();
-        await showCommonBranchActions(core, row.common, actions);
-        return;
-      }
       qp.hide();
-      await runCommonAction(core.repos, row.common, actions, 'checkout');
+      await showCommonBranchActions(core, row.common, actions);
       return;
     }
-    if (!row.ref) return;
-    if (defaultAction() === 'showActions') {
-      await openRefActions(row);
-      return;
-    }
-    qp.hide();
-    if (row.ref.isHead === true) return;
-    const repo = repoOf(row);
-    if (row.ref.type === 'remote') await ops.checkoutRemote(repo, row.ref.name);
-    else await ops.checkout(repo, row.ref.name);
+    if (row.ref) await openRefActions(row);
   });
 
   qp.onDidHide(() => qp.dispose());

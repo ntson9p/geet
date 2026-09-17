@@ -142,6 +142,24 @@ export class BranchHubViewProvider
       // No argument, exactly as the popup runs them: these are the project's
       // verbs, so `gittree.commit` spans every root rather than guessing one.
       item.command = { command: row.verb.command, title: row.verb.label };
+    } else if (row.ref !== undefined && row.repoRoot !== undefined) {
+      /**
+       * Clicking a branch opens **its menu**, never an operation — the same
+       * rule the popup follows. IntelliJ's branch rows are submenu openers;
+       * nothing touches the repository until a verb is picked from the list
+       * that appears. `Checkout` is the first row of that menu.
+       */
+      item.command = {
+        command: 'gittree.branches.showActions',
+        title: vscode.l10n.t('Branch actions'),
+        arguments: [row.repoRoot, row.ref.name, row.ref.type],
+      };
+    } else if (row.common !== undefined) {
+      item.command = {
+        command: 'gittree.branches.showCommonActions',
+        title: vscode.l10n.t('Branch actions'),
+        arguments: [row.common.name, row.common.kind],
+      };
     }
     return item;
   }
