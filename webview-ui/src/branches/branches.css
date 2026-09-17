@@ -1,8 +1,11 @@
 /**
- * Branches sidebar. One narrow column, so the layout is a single list with an
- * indent per level — the shape IntelliJ shows inside each of its panels. What
- * the panels themselves give it, side by side, a sidebar cannot: the second
+ * Branches sidebar. One narrow column, so the layout is a single windowed list
+ * with an indent per level — the shape IntelliJ shows inside each of its
+ * panels. What the panels give it side by side, a sidebar cannot: the second
  * search field is drawn inline under the repository it belongs to instead.
+ *
+ * Every row is exactly `ROW_HEIGHT`, because the list is fixed-height windowed.
+ * Separators are rows of their own for the same reason.
  */
 
 .gtb-root {
@@ -21,21 +24,18 @@
   border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
 }
 
-.gtb-search,
-.gtb-row-search {
+.gtb-search {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.gtb-search > .codicon,
-.gtb-row-search > .codicon {
+.gtb-search > .codicon {
   flex: 0 0 auto;
   opacity: 0.7;
 }
 
-.gtb-search-input,
-.gtb-repo-search {
+.gtb-search-input {
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -49,64 +49,62 @@
   padding-top: 2px;
 }
 
-/* ---- rows --------------------------------------------------------------- */
+/* ---- the windowed list -------------------------------------------------- */
 
-.gtb-list {
+.gtb-list-host {
   flex: 1 1 auto;
-  overflow-y: auto;
-  overflow-x: hidden;
-  outline: none;
+  min-height: 0;
 }
 
-.gtb-separator {
-  height: 1px;
-  margin: 4px 8px;
-  background: var(--vscode-menu-separatorBackground, var(--vscode-widget-border, #454545));
+/* The shared list draws a panel border and pads every row; neither belongs in
+   a sidebar section, and the padding would fight the per-level indent. */
+.gtb-list.gt-virtual-list {
+  border: none;
 }
 
-.gtb-separator:not(:empty) {
-  height: auto;
-  background: none;
-  padding: 4px 0 2px;
-  font-size: 0.9em;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.7;
+.gtb-list .gt-virtual-row {
+  padding: 0;
+  overflow: visible;
 }
 
-.gtb-row {
+.gtb-list .gt-virtual-row.gt-focused {
+  background: var(--vscode-list-inactiveSelectionBackground);
+  color: inherit;
+}
+
+.gtb-list:focus-within .gt-virtual-row.gt-focused {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* ---- row bodies --------------------------------------------------------- */
+
+.gtb-body {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
+  height: 100%;
   padding-right: 4px;
   white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
-  user-select: none;
 }
 
-.gtb-row-search {
-  height: 26px;
+.gtb-body-search {
   cursor: default;
-  padding-right: 4px;
 }
 
-.gtb-row-info {
+.gtb-body-info {
   cursor: default;
   opacity: 0.7;
 }
 
-.gtb-row:hover {
-  background: var(--vscode-list-hoverBackground);
-}
-
-.gtb-row.gtb-focused {
-  background: var(--vscode-list-inactiveSelectionBackground);
-}
-
-.gtb-list:focus-within .gtb-row.gtb-focused {
-  background: var(--vscode-list-activeSelectionBackground);
-  color: var(--vscode-list-activeSelectionForeground);
+.gtb-repo-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Fits the fixed row height; VS Code's own in-tree rename input is this size. */
+  height: 18px;
+  padding: 0 4px;
 }
 
 /* A fixed slot, so rows with and without children still line up. */
@@ -133,7 +131,6 @@
 .gtb-label.gtb-current,
 .gtb-icon.gtb-current {
   font-weight: 600;
-  color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-foreground));
 }
 
 .gtb-description {
@@ -146,24 +143,49 @@
   font-size: 0.9em;
 }
 
-/* The row's own buttons appear on hover or when the row has focus, the way a
-   VS Code tree row's inline actions do — they would otherwise be noise on
-   every one of several hundred rows. */
+/* Row buttons appear on hover or focus, as a VS Code tree row's inline actions
+   do — they would otherwise be noise on every one of several hundred rows. */
 .gtb-row-buttons {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  margin-left: 4px;
   visibility: hidden;
 }
 
-.gtb-row:hover .gtb-row-buttons,
-.gtb-row.gtb-focused .gtb-row-buttons {
+.gt-virtual-row:hover .gtb-row-buttons,
+.gt-virtual-row.gt-focused .gtb-row-buttons {
   visibility: visible;
 }
 
 /* A favourite stays visible unhovered: it is state, not an action. */
-.gtb-row-buttons .gtb-star[aria-label^='Remove'] {
+.gtb-row-buttons .gtb-star.gtb-on {
   visibility: visible;
+}
+
+/* ---- separators --------------------------------------------------------- */
+
+.gtb-separator-label {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  padding: 0 8px 2px;
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.gtb-separator-rule {
+  height: 100%;
+  margin: 0 8px;
+  background: linear-gradient(
+    to bottom,
+    transparent calc(50% - 1px),
+    var(--vscode-menu-separatorBackground, var(--vscode-widget-border, #454545)) calc(50% - 1px),
+    var(--vscode-menu-separatorBackground, var(--vscode-widget-border, #454545)) 50%,
+    transparent 50%
+  );
 }
 
 .gtb-empty {

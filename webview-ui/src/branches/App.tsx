@@ -10,8 +10,13 @@
  * It renders and reports gestures; it decides nothing. Every row, and which
  * rows are open, comes from the host's `popupTree` — the same functions the
  * popup flattens — so the two surfaces cannot come to disagree.
+ *
+ * **Windowed.** A repository with every section open is several hundred rows,
+ * and seven of them is thousands; the shared `VirtualList` renders only what
+ * fits. That component owns focus and keyboard, which takes care around the
+ * inline `<input>` — see `SearchRow` and `onRowKeyDown`.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   BRANCHES_METHODS,
   type BranchesActionDto,
@@ -20,15 +25,42 @@ import {
 } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient } from '../lib/rpc';
+import { useElementSize } from '../lib/useElementSize';
+import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 
 const rpc = new RpcClient();
 
-/** One indent step, matching the tree indent VS Code uses in its own views. */
+/** One indent step, and the row height VS Code's own trees use. */
 const INDENT = 12;
+const ROW_HEIGHT = 22;
+
+/**
+ * Separators become rows of their own. `VirtualList` is fixed-height, and a
+ * rule folded into the row beneath it would make that one row taller than
+ * every other — which is exactly what fixed-height windowing cannot express.
+ */
+type DisplayRow =
+  | { readonly kind: 'separator'; readonly id: string; readonly label: string }
+  | { readonly kind: 'row'; readonly id: string; readonly row: BranchesRowDto };
+
+function toDisplayRows(rows: readonly BranchesRowDto[]): DisplayRow[] {
+  const out: DisplayRow[] = [];
+  for (const row of rows) {
+    if (row.separator !== undefined) {
+      out.push({ kind: 'separator', id: `sep:${row.id}`, label: row.separator });
+    }
+    out.push({ kind: 'row', id: row.id, row });
+  }
+  return out;
+}
 
 function Codicon({ name }: { name: string }) {
   return <span className={`codicon codicon-${name}`} aria-hidden="true" />;
 }
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
 
 interface HeaderProps {
   query: string;
@@ -105,114 +137,109 @@ function Header({ query, repoCount, showInOut, onQuery, onHeader }: HeaderProps)
   );
 }
 
-interface RowProps {
-  row: BranchesRowDto;
-  open: boolean;
-  focused: boolean;
-  repoQuery: string;
-  onToggle: (row: BranchesRowDto) => void;
-  onActivate: (row: BranchesRowDto) => void;
-  onActions: (row: BranchesRowDto, at: { x: number; y: number }) => void;
-  onFavorite: (row: BranchesRowDto) => void;
-  onRepoQuery: (root: string, value: string) => void;
-  onFocus: (id: string) => void;
+// ---------------------------------------------------------------------------
+// Rows
+// ---------------------------------------------------------------------------
+
+/**
+ * A repository's own search field — IntelliJ's second panel, drawn inline.
+ *
+ * It sits inside a `VirtualList` row, and that list owns focus and keyboard:
+ * its row `onClick` calls `focusIndex`, which moves DOM focus to the row and
+ * would take it straight back out of this field, and its `onKeyDown` would
+ * read the arrow keys someone is using to move the caret. So every pointer and
+ * key event that belongs to the field is stopped here, at the field.
+ *
+ * **Why typing here does not lose the caret**, given the list keys its rows by
+ * index and a keystroke brings a whole new row set from the host: nothing above
+ * this row can move while you type in it. The verbs, the separators and the
+ * repository rows are fixed, and only *this* repository's subtree is being
+ * filtered — which is entirely below. The index is therefore invariant, React
+ * reconciles the same position, and the `<input>` element survives. The list
+ * cannot scroll it out of view either: a shrinking result set clamps `scrollTop`
+ * upwards, which moves this row towards the viewport, never away from it.
+ */
+function SearchRow({
+  value,
+  padding,
+  onChange,
+}: {
+  value: string;
+  padding: number;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      className="gtb-body gtb-body-search"
+      style={{ paddingLeft: padding }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <Codicon name="search" />
+      <input
+        className="gt-input gtb-repo-search"
+        type="text"
+        value={value}
+        placeholder="Search branches in this repository"
+        aria-label="Search branches in this repository"
+        onChange={(e) => onChange(e.currentTarget.value)}
+      />
+      {value.length > 0 ? (
+        <button
+          className="gt-toolbar-button gtb-clear"
+          title="Clear"
+          aria-label="Clear repository search"
+          onClick={() => onChange('')}
+        >
+          <Codicon name="close" />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
-function Row({
-  row,
-  open,
-  focused,
-  repoQuery,
-  onToggle,
-  onActivate,
-  onActions,
-  onFavorite,
-  onRepoQuery,
-  onFocus,
-}: RowProps) {
-  const pad = 4 + row.depth * INDENT;
+interface RowBodyProps {
+  row: BranchesRowDto;
+  open: boolean;
+  onActions: (row: BranchesRowDto, at: { x: number; y: number }) => void;
+  onFavorite: (row: BranchesRowDto) => void;
+}
 
-  if (row.kind === 'search') {
-    // IntelliJ's second panel has its own field; in one narrow column it sits
-    // directly under the repository it belongs to.
-    return (
-      <div className="gtb-row gtb-row-search" style={{ paddingLeft: pad }}>
-        <Codicon name="search" />
-        <input
-          className="gt-input gtb-repo-search"
-          type="text"
-          value={repoQuery}
-          placeholder="Search branches in this repository"
-          aria-label="Search branches in this repository"
-          onChange={(e) => onRepoQuery(row.repoRoot ?? '', e.currentTarget.value)}
-        />
-        {repoQuery.length > 0 ? (
-          <button
-            className="gt-toolbar-button gtb-clear"
-            title="Clear"
-            aria-label="Clear repository search"
-            onClick={() => onRepoQuery(row.repoRoot ?? '', '')}
-          >
-            <Codicon name="close" />
-          </button>
-        ) : null}
-      </div>
-    );
-  }
+function RowBody({ row, open, onActions, onFavorite }: RowBodyProps) {
+  const padding = row.depth * INDENT;
+  const current = row.ref?.isHead === true;
+  const favouritable = row.ref !== undefined && row.ref.type !== 'tag';
 
   if (row.kind === 'info') {
     return (
-      <div className="gtb-row gtb-row-info" style={{ paddingLeft: pad }}>
+      <div className="gtb-body gtb-body-info" style={{ paddingLeft: padding }}>
         <Codicon name={row.icon} />
         <span className="gtb-label">{row.label}</span>
       </div>
     );
   }
 
-  const isRef = row.ref !== undefined;
-  const favouritable = isRef && row.ref?.type !== 'tag';
-  const activate = (): void => {
-    if (row.expandable) onToggle(row);
-    else onActivate(row);
-  };
-
   return (
-    <div
-      className={`gtb-row gtb-row-${row.kind}${focused ? ' gtb-focused' : ''}`}
-      style={{ paddingLeft: pad }}
-      role="treeitem"
-      tabIndex={focused ? 0 : -1}
-      aria-expanded={row.expandable ? open : undefined}
-      aria-level={row.depth + 1}
-      onClick={() => {
-        onFocus(row.id);
-        activate();
-      }}
-      onContextMenu={(e) => {
-        if (!row.actions) return;
-        e.preventDefault();
-        onFocus(row.id);
-        onActions(row, { x: e.clientX, y: e.clientY });
-      }}
-    >
+    <div className="gtb-body" style={{ paddingLeft: padding }}>
       <span className="gtb-twisty">
         {row.expandable ? <Codicon name={open ? 'chevron-down' : 'chevron-right'} /> : null}
       </span>
-      <span className={`gtb-icon${row.ref?.isHead === true ? ' gtb-current' : ''}`}>
+      <span className={`gtb-icon${current ? ' gtb-current' : ''}`}>
         <Codicon name={row.icon} />
       </span>
-      <span className={`gtb-label${row.ref?.isHead === true ? ' gtb-current' : ''}`}>
-        {row.label}
-      </span>
+      <span className={`gtb-label${current ? ' gtb-current' : ''}`}>{row.label}</span>
       {row.description !== undefined && row.description.length > 0 ? (
         <span className="gtb-description">{row.description}</span>
       ) : null}
       <span className="gtb-row-buttons">
         {favouritable ? (
           <button
-            className="gt-toolbar-button gtb-star"
+            className={`gt-toolbar-button gtb-star${row.favorite === true ? ' gtb-on' : ''}`}
             title={row.favorite === true ? 'Remove from favorites' : 'Add to favorites'}
             aria-label={row.favorite === true ? 'Remove from favorites' : 'Add to favorites'}
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onFavorite(row);
@@ -226,9 +253,9 @@ function Row({
             className="gt-toolbar-button gtb-chevron"
             title="Branch actions"
             aria-label="Branch actions"
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              onFocus(row.id);
               const r = e.currentTarget.getBoundingClientRect();
               onActions(row, { x: r.right, y: r.bottom });
             }}
@@ -241,15 +268,30 @@ function Row({
   );
 }
 
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
 export function App() {
   const [tree, setTree] = useState<BranchesTreeDto | null>(null);
-  const [focus, setFocus] = useState<string>('');
   const [menu, setMenu] = useState<{
     row: BranchesRowDto;
     items: MenuItem[];
     at: { x: number; y: number };
   } | null>(null);
-  const listRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * The fields are driven from here, not from the host's echo. A controlled
+   * input whose value only comes back after a round trip drops characters and
+   * jumps the caret when someone types faster than the trip; the host is told
+   * what was typed, and its echo is read only once, to restore a reloaded view.
+   */
+  const [topQuery, setTopQuery] = useState('');
+  const [repoQueries, setRepoQueries] = useState<Record<string, string>>({});
+  const seeded = useRef(false);
+
+  const [listRef, listSize] = useElementSize<HTMLDivElement>();
+  const virtual = useRef<VirtualListHandle | null>(null);
 
   const apply = useCallback((next: BranchesTreeDto | null) => {
     if (next) setTree(next);
@@ -260,8 +302,12 @@ export function App() {
     return rpc.onEvent(BRANCHES_METHODS.evtTree, (params) => apply(params as BranchesTreeDto));
   }, [apply]);
 
-  const open = useMemo(() => new Set(tree?.open ?? []), [tree]);
-  const repoQueries = useMemo(() => new Map(tree?.repoQueries ?? []), [tree]);
+  useEffect(() => {
+    if (!tree || seeded.current) return;
+    seeded.current = true;
+    setTopQuery(tree.topQuery);
+    setRepoQueries(Object.fromEntries(tree.repoQueries));
+  }, [tree]);
 
   const send = useCallback(
     (method: string, params: unknown) => {
@@ -270,56 +316,127 @@ export function App() {
     [apply],
   );
 
-  const onActions = useCallback(
-    (row: BranchesRowDto, at: { x: number; y: number }) => {
-      void rpc.request<BranchesActionDto[]>(BRANCHES_METHODS.actions, { id: row.id }).then((list) => {
-        if (!Array.isArray(list) || list.length === 0) return;
-        const items: MenuItem[] = [];
-        for (const action of list) {
-          if (action.separator === true && items.length > 0) {
-            items.push({ kind: 'separator', id: `sep-${action.id}` });
-          }
-          items.push({
-            kind: 'item',
-            id: action.id,
-            label: action.label,
-            ...(action.accelerator !== undefined ? { accelerator: action.accelerator } : {}),
-          });
-        }
-        setMenu({ row, items, at });
-      });
+  const open = useMemo(() => new Set(tree?.open ?? []), [tree]);
+  const display = useMemo(() => toDisplayRows(tree?.rows ?? []), [tree]);
+
+  const setTop = useCallback(
+    (value: string) => {
+      setTopQuery(value);
+      send(BRANCHES_METHODS.setTopQuery, { query: value });
     },
-    [],
+    [send],
   );
 
-  const rows = tree?.rows ?? [];
-
-  /** Arrow keys over the rows; Right opens a node, Left closes it. */
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const selectable = rows.filter((r) => r.kind !== 'search');
-      if (selectable.length === 0) return;
-      const index = selectable.findIndex((r) => r.id === focus);
-      const row = index >= 0 ? selectable[index] : undefined;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setFocus((selectable[Math.min(index + 1, selectable.length - 1)] ?? selectable[0])!.id);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setFocus((selectable[Math.max(index - 1, 0)] ?? selectable[0])!.id);
-      } else if (e.key === 'ArrowRight' && row?.expandable && !open.has(row.id)) {
-        e.preventDefault();
-        send(BRANCHES_METHODS.toggle, { id: row.id });
-      } else if (e.key === 'ArrowLeft' && row?.expandable && open.has(row.id)) {
-        e.preventDefault();
-        send(BRANCHES_METHODS.toggle, { id: row.id });
-      } else if (e.key === 'Enter' && row) {
-        e.preventDefault();
-        if (row.expandable) send(BRANCHES_METHODS.toggle, { id: row.id });
-        else send(BRANCHES_METHODS.activate, { id: row.id });
-      }
+  const setRepo = useCallback(
+    (root: string, value: string) => {
+      setRepoQueries((prev) => ({ ...prev, [root]: value }));
+      send(BRANCHES_METHODS.setRepoQuery, { root, query: value });
     },
-    [rows, focus, open, send],
+    [send],
+  );
+
+  const openActions = useCallback((row: BranchesRowDto, at: { x: number; y: number }) => {
+    void rpc.request<BranchesActionDto[]>(BRANCHES_METHODS.actions, { id: row.id }).then((list) => {
+      if (!Array.isArray(list) || list.length === 0) return;
+      const items: MenuItem[] = [];
+      for (const action of list) {
+        if (action.separator === true && items.length > 0) {
+          items.push({ kind: 'separator', id: `sep-${action.id}` });
+        }
+        items.push({
+          kind: 'item',
+          id: action.id,
+          label: action.label,
+          ...(action.accelerator !== undefined ? { accelerator: action.accelerator } : {}),
+        });
+      }
+      setMenu({ row, items, at });
+    });
+  }, []);
+
+  /**
+   * Where a row's menu opens: anchored to the row itself, read from the DOM at
+   * the moment it is needed. Not the pointer position — `onRowClick` does not
+   * carry one, and anchoring to the row is what a submenu should do anyway, so
+   * Enter and a click put the menu in the same place.
+   */
+  const anchorFor = useCallback((index: number): { x: number; y: number } => {
+    const el = document.querySelector<HTMLElement>(`[data-gt-row="${index}"]`);
+    if (!el) return { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + 16), y: Math.round(r.bottom) };
+  }, []);
+
+  /**
+   * What a click means. A branch opens **its menu**, never an operation — the
+   * rule the popup follows: IntelliJ's branch rows are submenu openers, and
+   * nothing touches the repository until a verb is picked.
+   */
+  const activate = useCallback(
+    (index: number) => {
+      const entry = display[index];
+      if (entry?.kind !== 'row') return;
+      const row = entry.row;
+      if (row.kind === 'search' || row.kind === 'info') return;
+      if (row.expandable) {
+        send(BRANCHES_METHODS.toggle, { id: row.id });
+        return;
+      }
+      if (row.ref !== undefined) {
+        openActions(row, anchorFor(index));
+        return;
+      }
+      send(BRANCHES_METHODS.activate, { id: row.id });
+    },
+    [anchorFor, display, openActions, send],
+  );
+
+  /**
+   * Runs before `VirtualList`'s own key model. Arrows step over separators,
+   * which are rows here but are not anything a user wants to land on; Right and
+   * Left open and close; Space is swallowed, because activating a row is what
+   * Enter is for and Space in a list should not check out a branch.
+   */
+  const onRowKeyDown = useCallback(
+    (index: number, e: KeyboardEvent<HTMLDivElement>): boolean => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const step = e.key === 'ArrowDown' ? 1 : -1;
+        let next = index + step;
+        while (display[next]?.kind === 'separator') next += step;
+        if (next < 0 || next >= display.length) {
+          e.preventDefault();
+          return true;
+        }
+        e.preventDefault();
+        virtual.current?.focusIndex(next);
+        return true;
+      }
+      const entry = display[index];
+      const row = entry?.kind === 'row' ? entry.row : undefined;
+      // Enter is handled here rather than through `onActivate`, which the
+      // shared list also fires on double-click: a double-click is two clicks,
+      // each of which has already activated the row, so a third would open a
+      // menu that the second one just opened.
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        activate(index);
+        return true;
+      }
+      if (e.key === ' ') {
+        e.preventDefault();
+        return true;
+      }
+      if (row?.expandable === true && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        const wantOpen = e.key === 'ArrowRight';
+        if (open.has(row.id) !== wantOpen) {
+          e.preventDefault();
+          send(BRANCHES_METHODS.toggle, { id: row.id });
+          return true;
+        }
+      }
+      return false;
+    },
+    [activate, display, open, send],
   );
 
   if (!tree) return <div className="gtb-empty">Loading…</div>;
@@ -327,41 +444,69 @@ export function App() {
   return (
     <div className="gtb-root">
       <Header
-        query={tree.topQuery}
+        query={topQuery}
         repoCount={tree.repoCount}
         showInOut={tree.showInOut}
-        onQuery={(value) => send(BRANCHES_METHODS.setTopQuery, { query: value })}
+        onQuery={setTop}
         onHeader={(id) => send(BRANCHES_METHODS.header, { id })}
       />
-      <div
-        className="gtb-list"
-        role="tree"
-        aria-label="Branches"
-        ref={listRef}
-        tabIndex={0}
-        onKeyDown={onKeyDown}
-      >
-        {rows.map((row) => (
-          <div key={row.id}>
-            {row.separator !== undefined ? (
-              <div className="gtb-separator">{row.separator}</div>
-            ) : null}
-            <Row
-              row={row}
-              open={open.has(row.id)}
-              focused={focus === row.id}
-              repoQuery={repoQueries.get(row.repoRoot ?? '') ?? ''}
-              onToggle={(r) => send(BRANCHES_METHODS.toggle, { id: r.id })}
-              onActivate={(r) => send(BRANCHES_METHODS.activate, { id: r.id })}
-              onActions={onActions}
-              onFavorite={(r) => send(BRANCHES_METHODS.toggleFavorite, { id: r.id })}
-              onRepoQuery={(root, value) =>
-                send(BRANCHES_METHODS.setRepoQuery, { root, query: value })
+      <div className="gtb-list-host" ref={listRef}>
+        {listSize.height > 0 ? (
+          <VirtualList
+            ref={virtual}
+            className="gtb-list"
+            rowCount={display.length}
+            rowHeight={ROW_HEIGHT}
+            height={listSize.height}
+            ariaLabel="Branches"
+            role="tree"
+            rowRole="treeitem"
+            overscan={8}
+            rowAria={(i) => {
+              const entry = display[i];
+              if (entry?.kind !== 'row') return { 'aria-level': 1 };
+              return {
+                'aria-level': entry.row.depth + 1,
+                ...(entry.row.expandable ? { 'aria-expanded': open.has(entry.row.id) } : {}),
+              };
+            }}
+            rowAriaLabel={(i) => {
+              const entry = display[i];
+              return entry?.kind === 'row' ? entry.row.label : entry?.label;
+            }}
+            onRowKeyDown={onRowKeyDown}
+            onRowClick={(i) => activate(i)}
+            renderRow={(i) => {
+              const entry = display[i];
+              if (entry === undefined) return null;
+              if (entry.kind === 'separator') {
+                return entry.label.length > 0 ? (
+                  <div className="gtb-separator-label">{entry.label}</div>
+                ) : (
+                  <div className="gtb-separator-rule" />
+                );
               }
-              onFocus={setFocus}
-            />
-          </div>
-        ))}
+              const row = entry.row;
+              if (row.kind === 'search') {
+                return (
+                  <SearchRow
+                    value={repoQueries[row.repoRoot ?? ''] ?? ''}
+                    padding={row.depth * INDENT}
+                    onChange={(value) => setRepo(row.repoRoot ?? '', value)}
+                  />
+                );
+              }
+              return (
+                <RowBody
+                  row={row}
+                  open={open.has(row.id)}
+                  onActions={openActions}
+                  onFavorite={(r) => send(BRANCHES_METHODS.toggleFavorite, { id: r.id })}
+                />
+              );
+            }}
+          />
+        ) : null}
       </div>
       {menu ? (
         <Menu
