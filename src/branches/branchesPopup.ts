@@ -23,6 +23,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
+import { canonicalKey } from '../core/repoDiscovery';
 import { repoLabels } from '../core/util/repoLabels';
 import {
   applicableBranchActions,
@@ -37,7 +38,6 @@ import {
   HUB_VERBS,
   nodeIds,
   type CommonRef,
-  type HubVerb,
   type RepoRefs,
   type TreeRow,
 } from './popupTree';
@@ -92,6 +92,14 @@ function makeFetchButton(repoCount: number): vscode.QuickInputButton {
 const BTN_INOUT: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('arrow-swap'),
   tooltip: vscode.l10n.t('Show incoming/outgoing counts'),
+};
+/**
+ * Shown only while a search is confined to one repository: widens it back to
+ * every repository without closing the one you are in.
+ */
+const BTN_UNSCOPE: vscode.QuickInputButton = {
+  iconPath: new vscode.ThemeIcon('close'),
+  tooltip: vscode.l10n.t('Search all repositories'),
 };
 /** §2A header: collapse every open level back to the top. */
 const BTN_COLLAPSE: vscode.QuickInputButton = {
@@ -500,7 +508,7 @@ interface TreeItem extends vscode.QuickPickItem {
  */
 export function toQuickPickItems(
   rows: readonly TreeRow[],
-  expanded: ReadonlySet<string>,
+  open: ReadonlySet<string>,
 ): TreeItem[] {
   const items: TreeItem[] = [];
   for (const row of rows) {
@@ -508,7 +516,7 @@ export function toQuickPickItems(
       items.push({ label: row.separator, kind: vscode.QuickPickItemKind.Separator });
     }
     const disclosure = row.expandable
-      ? expanded.has(row.id)
+      ? open.has(row.id)
         ? '$(chevron-down) '
         : '$(chevron-right) '
       : '';
@@ -559,17 +567,31 @@ export async function showBranchesPopup(
     .getConfiguration('gittree')
     .get<boolean>('branches.showIncomingOutgoing', true);
 
+  /**
+   * The repository a search is confined to: the one the user last opened by
+   * clicking its row. IntelliJ gives a repository its own panel with its own
+   * search box; a `QuickPick` has one box, so the box follows the repository
+   * you went into. Unset, a search covers every repository.
+   *
+   * It is deliberately *not* preset from `entry`, even though that repository
+   * starts open: someone who opens the popup and types at once is searching
+   * the project, which is what IntelliJ's first panel does too.
+   */
+  let searchScope: string | undefined;
+  /** Nodes shut inside the current results; forgotten whenever the query changes. */
+  const searchCollapsed = new Set<string>();
+  const searching = (): boolean => qp.value.trim().length > 0;
+  const sameRoot = (a: string, b: string): boolean => canonicalKey(a) === canonicalKey(b);
+
   // What is open when the popup appears: the repository you came from, and its
   // local branches, which is the list anyone opening this is looking for.
   if (multiRoot) expanded.add(nodeIds.repo(entry.root));
   expanded.add(nodeIds.locals(entry.root));
 
   const btnFetch = makeFetchButton(core.repos.length);
-  qp.placeholder = vscode.l10n.t('Search for branches, actions, repositories');
   // Our own filter owns the matching; see `toQuickPickItems`.
   qp.matchOnDescription = false;
   qp.matchOnDetail = false;
-  qp.buttons = [BTN_COLLAPSE, btnFetch, BTN_INOUT, BTN_GEAR];
   qp.busy = true;
   qp.show();
 
@@ -603,6 +625,10 @@ export async function showBranchesPopup(
   let generation = 0;
   const populate = async (keepId?: string): Promise<void> => {
     const mine = ++generation;
+    // A repository that left while it was the scope takes the scope with it.
+    if (searchScope !== undefined && !core.repos.some((r) => sameRoot(r.root, searchScope!))) {
+      searchScope = undefined;
+    }
     const labels = repoLabels(core.repos.map((r) => r.root));
     const repos = await Promise.all(core.repos.map((r) => repoRefs(r, labels)));
     const ctx = {
@@ -613,7 +639,27 @@ export async function showBranchesPopup(
       showInOut,
     };
     if (mine !== generation) return;
-    qp.items = toQuickPickItems(flattenTree(ctx, expanded, qp.value), expanded);
+
+    const scopeRoot =
+      searchScope !== undefined ? repos.find((r) => sameRoot(r.root, searchScope!))?.root : undefined;
+    const scopeName = scopeRoot !== undefined ? labels.get(scopeRoot) : undefined;
+
+    // The box says what it searches. Once someone is typing the placeholder is
+    // gone, but by then the results name the repository in every section title.
+    qp.placeholder =
+      scopeName !== undefined
+        ? vscode.l10n.t('Search branches in {0}', scopeName)
+        : vscode.l10n.t('Search for branches, actions, repositories');
+    qp.buttons =
+      scopeName !== undefined
+        ? [BTN_UNSCOPE, BTN_COLLAPSE, btnFetch, BTN_INOUT, BTN_GEAR]
+        : [BTN_COLLAPSE, btnFetch, BTN_INOUT, BTN_GEAR];
+
+    const flat = flattenTree(ctx, expanded, qp.value, {
+      ...(scopeRoot !== undefined ? { scope: scopeRoot } : {}),
+      searchCollapsed,
+    });
+    qp.items = toQuickPickItems(flat.rows, flat.open);
     if (keepId !== undefined) {
       const found = qp.items.find((i) => i.row?.id === keepId);
       if (found) qp.activeItems = [found];
@@ -638,14 +684,63 @@ export async function showBranchesPopup(
     await populate(row.id);
   };
 
-  const runVerb = async (verb: HubVerb): Promise<void> => {
+  /**
+   * A repository row: **the first click goes in, the next one comes out.**
+   *
+   * Going in opens the repository and makes it what the search box searches.
+   * Clicking the repository you are already in closes it and widens the search
+   * back to the whole project. A repository that was merely open — the one the
+   * popup started on — is gone *into* by its first click, not closed by it,
+   * because nobody clicks a repository to make it disappear.
+   *
+   * Picked from search results, it is gone into with an empty box: the words
+   * that found the repository are not words that will find its branches.
+   */
+  const openRepository = async (row: TreeRow): Promise<void> => {
+    const root = row.repoRoot;
+    if (root === undefined) return;
+    searchCollapsed.clear();
+    if (searching()) {
+      searchScope = root;
+      expanded.add(row.id);
+      expanded.add(nodeIds.locals(root));
+      qp.value = '';
+      await populate(row.id);
+      return;
+    }
+    const inside = searchScope !== undefined && sameRoot(searchScope, root);
+    if (inside && expanded.has(row.id)) {
+      expanded.delete(row.id);
+      searchScope = undefined;
+    } else {
+      expanded.add(row.id);
+      searchScope = root;
+    }
+    await populate(row.id);
+  };
+
+  /** A section or folder inside search results opens and shuts on its own set. */
+  const toggleInSearch = async (row: TreeRow): Promise<void> => {
+    if (searchCollapsed.has(row.id)) searchCollapsed.delete(row.id);
+    else searchCollapsed.add(row.id);
+    await populate(row.id);
+  };
+
+  const runVerb = async (row: TreeRow): Promise<void> => {
+    if (!row.verb) return;
     qp.hide();
-    // No argument at the project level, exactly as before: `gittree.commit`
-    // spans every root and `gittree.update.dialog` asks which one it means.
-    await vscode.commands.executeCommand(verb.command);
+    // A repository's own copy of a verb runs there. The project-level ones take
+    // no argument, exactly as before: `gittree.commit` spans every root and
+    // `gittree.update.dialog` asks which one it means.
+    if (row.repoRoot !== undefined) {
+      await vscode.commands.executeCommand(row.verb.command, row.repoRoot);
+    } else {
+      await vscode.commands.executeCommand(row.verb.command);
+    }
   };
 
   qp.onDidChangeValue(async () => {
+    searchCollapsed.clear();
     await populate();
   });
 
@@ -654,6 +749,7 @@ export async function showBranchesPopup(
     if (!row) return;
     if (e.button === ACTIONS) {
       if (row.kind === 'ref') await openRefActions(row);
+      else if (row.kind === 'repo') await openRepository(row);
       else if (row.common !== undefined) {
         qp.hide();
         await showCommonBranchActions(core, row.common, actions);
@@ -680,6 +776,11 @@ export async function showBranchesPopup(
       await populate();
     } else if (button === BTN_COLLAPSE) {
       expanded.clear();
+      searchCollapsed.clear();
+      await populate();
+    } else if (button === BTN_UNSCOPE) {
+      searchScope = undefined;
+      searchCollapsed.clear();
       await populate();
     } else if (button === BTN_GEAR) {
       qp.hide();
@@ -689,15 +790,20 @@ export async function showBranchesPopup(
 
   qp.onDidAccept(async () => {
     const row = qp.selectedItems[0]?.row;
-    if (!row) return;
+    if (!row || row.kind === 'info') return;
+    if (row.kind === 'repo') {
+      await openRepository(row);
+      return;
+    }
     // A node with children opens where it stands. This is the whole point:
     // nothing is replaced, so the row you clicked is still under your cursor.
     if (row.expandable) {
-      await toggle(row);
+      if (searching()) await toggleInSearch(row);
+      else await toggle(row);
       return;
     }
     if (row.verb !== undefined) {
-      await runVerb(row.verb);
+      await runVerb(row);
       return;
     }
     /**

@@ -119,7 +119,8 @@ export interface TreeContext {
 // Output
 // ---------------------------------------------------------------------------
 
-export type RowKind = 'verb' | 'group' | 'repo' | 'ref' | 'common';
+/** `info` is a line of text — the "no matches" row — and does nothing when picked. */
+export type RowKind = 'verb' | 'group' | 'repo' | 'ref' | 'common' | 'info';
 export type SectionKey = 'local' | 'remote' | 'tag';
 
 export interface TreeRow {
@@ -154,7 +155,9 @@ export interface TreeRow {
 // ---------------------------------------------------------------------------
 
 export const nodeIds = {
-  verb: (command: string): string => `verb:${command}`,
+  /** A verb at the project level, or the same verb scoped to one repository. */
+  verb: (command: string, root?: string): string =>
+    root === undefined ? `verb:${command}` : `verb:${command}|${root}`,
   repo: (root: string): string => `repo:${root}`,
   section: (root: string, section: SectionKey): string => `repo:${root}|${section}`,
   folder: (root: string, section: SectionKey, prefix: string): string =>
@@ -218,12 +221,16 @@ export function refDescription(ref: RefInfo, showInOut: boolean): string {
   return parts.join('  ');
 }
 
-/** The glyph a ref row leads with. Current wins over favourite wins over type. */
+/**
+ * The glyph a ref row leads with. Current wins over favourite wins over type.
+ * Remote branches take the branch glyph, as IntelliJ draws them: they sit under
+ * `Remote Branches` and an `origin` folder, and in a flat search their label
+ * keeps its `origin/` prefix, so a cloud would only repeat what is written.
+ */
 export function refIcon(ref: RefInfo, favorite: boolean): string {
   if (ref.isHead === true) return 'check';
   if (favorite) return 'star-full';
   if (ref.type === 'tag') return 'tag';
-  if (ref.type === 'remote') return 'cloud';
   return 'git-branch';
 }
 
@@ -284,11 +291,17 @@ function repoOf(ctx: TreeContext, root: string | undefined): RepoRefs | undefine
 // Rows
 // ---------------------------------------------------------------------------
 
-function verbRow(verb: HubVerb, separator: boolean): TreeRow {
+/**
+ * A verb row. With `repoRoot` it is that repository's copy of the verb — the
+ * `New Branch…` / `Checkout Tag or Revision…` pair IntelliJ puts at the top of
+ * a repository's own level — and it runs against that repository, never
+ * against whichever one the editor happens to be in.
+ */
+function verbRow(verb: HubVerb, separator: boolean, repoRoot?: string, depth = 0): TreeRow {
   return {
-    id: nodeIds.verb(verb.command),
+    id: nodeIds.verb(verb.command, repoRoot),
     kind: 'verb',
-    depth: 0,
+    depth,
     icon: verb.icon,
     label: verb.label,
     ...(verb.accelerator !== undefined ? { description: verb.accelerator } : {}),
@@ -297,8 +310,12 @@ function verbRow(verb: HubVerb, separator: boolean): TreeRow {
     searchText: `${verb.label} ${verb.keywords ?? ''}`,
     ...(separator ? { separator: '' } : {}),
     verb,
+    ...(repoRoot !== undefined ? { repoRoot } : {}),
   };
 }
+
+/** The verbs that make sense inside one repository. */
+const REPO_VERBS = HUB_VERBS.filter((v) => v.group === 'branch');
 
 function repoRow(ctx: TreeContext, repo: RepoRefs, separator: boolean): TreeRow {
   return {
@@ -490,7 +507,11 @@ export function childRows(ctx: TreeContext, row: TreeRow): TreeRow[] {
   const depth = row.depth + 1;
   if (row.kind === 'repo') {
     const repo = repoOf(ctx, row.repoRoot);
-    return repo ? repoSectionRows(repo, depth, true) : [];
+    if (!repo) return [];
+    return [
+      ...REPO_VERBS.map((verb) => verbRow(verb, false, repo.root, depth)),
+      ...repoSectionRows(repo, depth, true),
+    ];
   }
   if (row.kind === 'group' && row.commonKind !== undefined) {
     const names =
@@ -516,38 +537,158 @@ export function childRows(ctx: TreeContext, row: TreeRow): TreeRow[] {
 }
 
 /**
- * The flattened list the popup renders, against its own expansion set. A closed
- * node contributes nothing below it, so a repository with 400 refs costs one row
- * until it is opened.
+ * Every whitespace-separated term must appear, in any order, case-insensitive.
+ * `jack son3` finds `#235568-dev-jackfruit-son3`; `origin/#235` finds every
+ * `origin/#235…` branch, because remote refs are matched by their full name —
+ * which is how the owner's reference search reads.
+ */
+export function matchesQuery(text: string, query: string): boolean {
+  const hay = text.toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/u)
+    .filter((term) => term.length > 0)
+    .every((term) => hay.includes(term));
+}
+
+/** A flattened tree, and which of its expandable rows are showing their children. */
+export interface FlatTree {
+  readonly rows: TreeRow[];
+  readonly open: ReadonlySet<string>;
+}
+
+export interface FlattenOptions {
+  /**
+   * The repository a search is confined to — the one the user last opened.
+   * Without it, a search in a multi-root workspace covers every repository.
+   */
+  readonly scope?: string;
+  /**
+   * Nodes the user closed *inside the current search results*. A search opens
+   * every path that leads to a match; this is how one of them is shut again
+   * without disturbing what the unfiltered tree remembers.
+   */
+  readonly searchCollapsed?: ReadonlySet<string>;
+}
+
+/**
+ * The list the popup renders. Unfiltered, it walks the tree against the
+ * popup's expansion set, so a closed repository with 400 refs costs one row.
+ * Filtered, it is either one repository's matches **as a tree**, or — with no
+ * repository chosen in a multi-root workspace — every match everywhere.
  */
 export function flattenTree(
   ctx: TreeContext,
   expanded: ReadonlySet<string>,
   filter = '',
-): TreeRow[] {
-  const query = filter.trim().toLowerCase();
-  if (query.length > 0) return flatSearch(ctx, query);
+  options: FlattenOptions = {},
+): FlatTree {
+  const query = filter.trim();
+  if (query.length > 0) {
+    const scoped =
+      (options.scope !== undefined ? repoOf(ctx, options.scope) : undefined) ??
+      (ctx.repos.length === 1 ? ctx.repos[0] : undefined);
+    if (scoped) {
+      return scopedSearch(ctx, scoped, query, options.searchCollapsed ?? new Set(), ctx.repos.length === 1);
+    }
+    return { rows: flatSearch(ctx, query), open: new Set() };
+  }
 
   const out: TreeRow[] = [];
+  const open = new Set<string>();
   const walk = (rows: readonly TreeRow[]): void => {
     for (const row of rows) {
       out.push(row);
-      if (row.expandable && expanded.has(row.id)) walk(childRows(ctx, row));
+      if (row.expandable && expanded.has(row.id)) {
+        open.add(row.id);
+        walk(childRows(ctx, row));
+      }
     }
   };
   walk(rootRows(ctx));
-  return out;
+  return { rows: out, open };
 }
 
 /**
- * Typing searches everything at once — every repository, every folder depth,
- * every ref kind, plus the verbs — as one flat list. Opening a level can
- * therefore never hide a match, which is the one property of the old drill-in
- * popup worth keeping.
+ * One repository's search, **keeping the tree** — the shape of the owner's
+ * reference: `Remote Branches in X` → `origin` → the matching leaves, each shown
+ * by its own segment rather than by the path it is already under. Every path
+ * that leads to a match opens by itself; folders and sections with no match
+ * vanish, and a folder's count is the number of *matches* under it, which is
+ * the number that is useful while searching.
+ *
+ * The repository's own verbs are searched too, so typing `new` still finds
+ * `New Branch…` — scoped to this repository, as that row always is.
+ */
+function scopedSearch(
+  ctx: TreeContext,
+  repo: RepoRefs,
+  query: string,
+  collapsed: ReadonlySet<string>,
+  soloRoot: boolean,
+): FlatTree {
+  const rows: TreeRow[] = [];
+  const open = new Set<string>();
+  const verbs = soloRoot ? HUB_VERBS : REPO_VERBS;
+  for (const verb of verbs) {
+    if (matchesQuery(`${verb.label} ${verb.keywords ?? ''}`, query)) {
+      rows.push(verbRow(verb, false, soloRoot ? undefined : repo.root));
+    }
+  }
+
+  const walk = (section: SectionKey, refs: readonly RefInfo[], prefix: string, depth: number): void => {
+    const { folders, refs: direct } = splitLevel(refs, prefix);
+    for (const bucket of folders) {
+      const row = folderRow(repo, section, bucket, depth);
+      rows.push(row);
+      if (collapsed.has(row.id)) continue;
+      open.add(row.id);
+      walk(section, refs, bucket.prefix, depth + 1);
+    }
+    for (const ref of direct) rows.push(refRow(repo, ref, prefix, depth, ctx.showInOut));
+  };
+
+  // A rule between the matching verbs and the first section, as in the
+  // unfiltered level; none between the sections themselves.
+  const verbsMatched = rows.length > 0;
+  let firstSection = true;
+  const sections: SectionKey[] = ['local', 'remote', 'tag'];
+  for (const section of sections) {
+    const hits = refsOf(repo, section).filter((ref) => matchesQuery(ref.name, query));
+    if (hits.length === 0) continue;
+    const row = sectionRow(repo, section, hits.length, 0, !soloRoot);
+    rows.push(firstSection && verbsMatched ? { ...row, separator: '' } : row);
+    firstSection = false;
+    if (collapsed.has(row.id)) continue;
+    open.add(row.id);
+    walk(section, hits, '', 1);
+  }
+
+  if (rows.length === 0) {
+    rows.push({
+      id: 'info:no-match',
+      kind: 'info',
+      depth: 0,
+      icon: 'info',
+      label: soloRoot
+        ? `No branches match "${query}"`
+        : `No branches in ${repo.name} match "${query}"`,
+      expandable: false,
+      actions: false,
+      searchText: '',
+    });
+  }
+  return { rows, open };
+}
+
+/**
+ * With no repository chosen, typing searches everything at once — every
+ * repository, every folder depth, every ref kind, plus the verbs — as one flat
+ * list, each ref naming the repository it lives in.
  */
 function flatSearch(ctx: TreeContext, query: string): TreeRow[] {
   const rows: TreeRow[] = [];
-  const hit = (text: string): boolean => text.toLowerCase().includes(query);
+  const hit = (text: string): boolean => matchesQuery(text, query);
 
   for (const verb of HUB_VERBS) {
     if (hit(`${verb.label} ${verb.keywords ?? ''}`)) rows.push(verbRow(verb, false));

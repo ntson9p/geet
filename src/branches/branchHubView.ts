@@ -139,9 +139,14 @@ export class BranchHubViewProvider
     item.contextValue = this.contextValue(row);
     item.tooltip = this.tooltip(row);
     if (row.verb !== undefined) {
-      // No argument, exactly as the popup runs them: these are the project's
-      // verbs, so `gittree.commit` spans every root rather than guessing one.
-      item.command = { command: row.verb.command, title: row.verb.label };
+      // A repository's own copy of a verb (the `New Branch…` under an open
+      // repository) runs there. The project's verbs take no argument, exactly as
+      // the popup runs them, so `gittree.commit` spans every root.
+      item.command = {
+        command: row.verb.command,
+        title: row.verb.label,
+        ...(row.repoRoot !== undefined ? { arguments: [row.repoRoot] } : {}),
+      };
     } else if (row.ref !== undefined && row.repoRoot !== undefined) {
       /**
        * Clicking a branch opens **its menu**, never an operation — the same
