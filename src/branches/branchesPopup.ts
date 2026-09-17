@@ -4,23 +4,26 @@
  *
  * Still a native `QuickPick` — master §6 chose it over a webview for real focus,
  * search and keyboard parity, and the reference screenshot vindicates that: its
- * field reads *"Search for branches **and actions**"*. The gap was content and
- * structure, not the widget. What changed here:
+ * field reads *"Search for branches, actions, repositories"*.
  *
- *   - **top-level verbs first** (Update Project · Commit · Push · New Branch ·
- *     Checkout Tag or Revision), so typing `merge` or `push` finds an action and
- *     the popup is a hub rather than a branch list;
- *   - **folder rows** built from the ref names: picking `feature` drills into a
- *     scoped popup with a `‹ Back` row and a breadcrumb title (deviation D5 —
- *     `QuickPick` cannot render a collapsible tree), while typing searches flat
- *     across every level so drill-in never traps anyone;
- *   - a **`›` submenu per row**, built from `branchActions.ts` so the popup, the
- *     branches tree view and the log's Branches pane cannot drift.
+ * **new-way-2 reshaped how it goes deeper.** It used to *drill in*: picking a
+ * repository or a folder replaced the list and added a `‹ Back` row, so every
+ * step threw away what you were looking at. IntelliJ opens its levels as a tree,
+ * in place, and so does this now — repositories, sections and folders carry
+ * `˅`/`›` and expand underneath themselves. `popupTree.ts` holds that shape, and
+ * the sidebar's Branches view renders the same rows, so the two surfaces cannot
+ * come to disagree about what the tree contains.
+ *
+ * The one step that still changes surface is a ref's `›` action menu, because
+ * that is a menu rather than a level: VS Code has no way to float a cascading
+ * submenu beside a `QuickPick`, which is what deviation D5 records. That menu is
+ * built from `branchActions.ts`, shared with both trees.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
+import { repoLabels } from '../core/util/repoLabels';
 import {
   applicableBranchActions,
   type BranchAction,
@@ -28,6 +31,16 @@ import {
   type BranchRefType,
 } from './branchActions';
 import type { BranchOps } from './branchOps';
+import {
+  commonRefNames,
+  flattenTree,
+  HUB_VERBS,
+  nodeIds,
+  type CommonRef,
+  type HubVerb,
+  type RepoRefs,
+  type TreeRow,
+} from './popupTree';
 import type { RefService } from './refService';
 
 interface BranchItem extends vscode.QuickPickItem {
@@ -47,18 +60,8 @@ interface BranchItem extends vscode.QuickPickItem {
   common?: CommonRef;
 }
 
-/**
- * A ref name that exists in **every** root, which is what makes it actionable
- * across all of them. IntelliJ calls these `Common Local Branches` / `Common
- * Remote Branches` / `Common Tags`, and shows nothing else at the project
- * level — a branch only two of five roots have is reachable by drilling into
- * one of those two, not from here, because there is no coherent all-roots
- * operation to offer for it.
- */
-export interface CommonRef {
-  readonly name: string;
-  readonly kind: 'local' | 'remote' | 'tag';
-}
+export { HUB_VERBS, commonRefNames } from './popupTree';
+export type { CommonRef, HubVerb, RepoRefs, TreeRow } from './popupTree';
 
 const STAR_ON: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('star-full'),
@@ -72,10 +75,6 @@ const STAR_OFF: vscode.QuickInputButton = {
 const ACTIONS: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('chevron-right'),
   tooltip: vscode.l10n.t('Branch actions (→)'),
-};
-const BTN_NEW: vscode.QuickInputButton = {
-  iconPath: new vscode.ThemeIcon('add'),
-  tooltip: vscode.l10n.t('New branch…'),
 };
 /**
  * §2A header: Fetch. It is **project-wide**, as IntelliJ's is — the one button
@@ -94,14 +93,15 @@ const BTN_INOUT: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('arrow-swap'),
   tooltip: vscode.l10n.t('Show incoming/outgoing counts'),
 };
+/** §2A header: collapse every open level back to the top. */
+const BTN_COLLAPSE: vscode.QuickInputButton = {
+  iconPath: new vscode.ThemeIcon('collapse-all'),
+  tooltip: vscode.l10n.t('Collapse all'),
+};
 /** §2A header: the gear (branch settings). */
 const BTN_GEAR: vscode.QuickInputButton = {
   iconPath: new vscode.ThemeIcon('gear'),
   tooltip: vscode.l10n.t('Branch settings'),
-};
-const BTN_VIEW: vscode.QuickInputButton = {
-  iconPath: new vscode.ThemeIcon('list-tree'),
-  tooltip: vscode.l10n.t('Open Branches view'),
 };
 
 function trackDescription(ref: RefInfo, showInOut: boolean): string {
@@ -119,58 +119,19 @@ function trackDescription(ref: RefInfo, showInOut: boolean): string {
   return parts.join(' · ');
 }
 
-/** The top-level verbs, before any branch (§2A step 2). */
-export interface HubVerb {
-  readonly command: string;
-  readonly label: string;
-  readonly accelerator?: string;
-  readonly icon: string;
-  /** Extra words the flat search should match (`merge` finding Update Project). */
-  readonly keywords?: string;
-}
-
-export const HUB_VERBS: readonly HubVerb[] = [
-  {
-    command: 'gittree.update.dialog',
-    label: 'Update Project…',
-    accelerator: 'Ctrl+T',
-    icon: 'sync',
-    keywords: 'pull fetch merge rebase update',
-  },
-  {
-    command: 'gittree.commit',
-    label: 'Commit…',
-    accelerator: 'Ctrl+K',
-    icon: 'check',
-    keywords: 'commit stage',
-  },
-  {
-    command: 'gittree.push.dialog',
-    label: 'Push…',
-    accelerator: 'Ctrl+Shift+K',
-    icon: 'repo-push',
-    keywords: 'push upload',
-  },
-  {
-    command: 'gittree.branch.new',
-    label: 'New Branch…',
-    accelerator: 'Ctrl+Alt+N',
-    icon: 'add',
-    keywords: 'branch create new',
-  },
-  {
-    command: 'gittree.branches.checkoutRevision',
-    label: 'Checkout Tag or Revision…',
-    icon: 'tag',
-    keywords: 'checkout tag revision detach',
-  },
-];
-
 /** `RefInfo.type` → the registry's ref kind, distinguishing the current branch. */
 export function refTypeOf(ref: RefInfo): BranchRefType {
   if (ref.type !== 'head') return ref.type;
   return ref.isHead === true ? 'head' : 'local';
 }
+
+// ===========================================================================
+// SUPERSEDED by `popupTree.ts` (new-way-2). Nothing in the product calls the
+// four exports below any more — the drill-in popup they shaped is gone. They
+// stay only because `phase02`, `phase13branches` and `projectPopup` still
+// assert against them, and those suites are being left alone while the new
+// shape settles. Delete all of this together with those assertions.
+// ===========================================================================
 
 /** Everything before the first `/`, for the folder rows. */
 export function folderOf(name: string, prefix: string): string | undefined {
@@ -419,23 +380,6 @@ export function buildProjectPopupItems(input: ProjectPopupInput): BranchItem[] {
 }
 
 /**
- * Names carried by every one of `perRepo`, sorted. An empty workspace, or one
- * root with no refs of that kind, yields nothing — "common to all" of an empty
- * set would otherwise be "everything the others have", which is the opposite
- * of what the row promises.
- */
-export function commonRefNames(perRepo: readonly (readonly string[])[]): string[] {
-  const [first, ...rest] = perRepo;
-  if (first === undefined || perRepo.length === 0) return [];
-  const shared = new Set(first);
-  for (const names of rest) {
-    const here = new Set(names);
-    for (const name of [...shared]) if (!here.has(name)) shared.delete(name);
-  }
-  return [...shared].sort((a, b) => a.localeCompare(b));
-}
-
-/**
  * An operation a common ref can carry out on **every** root at once — the
  * gap-analysis §3.10 row "Multi-repo, *Execute branch operations on all roots*".
  *
@@ -542,23 +486,64 @@ export interface BranchesPopupDeps {
   actions: readonly BranchAction[];
 }
 
-/** One popup level: the project (`repo` undefined) or one root at a prefix. */
-interface PopupLevel {
-  readonly repo?: RepoHandle;
-  readonly prefix: string;
+/** Three non-breaking spaces per level — a `QuickPick` collapses plain ones. */
+const INDENT = '   ';
+
+interface TreeItem extends vscode.QuickPickItem {
+  row?: TreeRow;
 }
 
 /**
- * The branches popup. With more than one root it opens at the **project
- * level** — repository rows plus the refs every root shares — and picking a
- * repository drills into that root's own popup, which is the popup that
- * existed before and is unchanged. With one root it opens straight there, so
- * nothing changes for a single-repository workspace.
+ * One row → one `QuickPickItem`. `alwaysShow` is set on every item because the
+ * filtering is ours: `buildTree` decides what matches, against the *ref names*
+ * rather than against a label carrying indentation and disclosure glyphs.
+ */
+export function toQuickPickItems(
+  rows: readonly TreeRow[],
+  expanded: ReadonlySet<string>,
+): TreeItem[] {
+  const items: TreeItem[] = [];
+  for (const row of rows) {
+    if (row.separator !== undefined) {
+      items.push({ label: row.separator, kind: vscode.QuickPickItemKind.Separator });
+    }
+    const disclosure = row.expandable
+      ? expanded.has(row.id)
+        ? '$(chevron-down) '
+        : '$(chevron-right) '
+      : '';
+    const buttons: vscode.QuickInputButton[] = [];
+    if (row.kind === 'ref' && row.ref?.type !== 'tag') {
+      buttons.push(row.favorite === true ? STAR_ON : STAR_OFF);
+    }
+    if (row.actions) buttons.push(ACTIONS);
+    items.push({
+      label: `${INDENT.repeat(row.depth)}${disclosure}$(${row.icon}) ${row.label}`,
+      ...(row.description !== undefined ? { description: row.description } : {}),
+      alwaysShow: true,
+      ...(buttons.length > 0 ? { buttons } : {}),
+      row,
+    });
+  }
+  return items;
+}
+
+/**
+ * The branches popup: **one list that opens in place**.
  *
- * `entry` is the root the caller named (the status bar names its own). At the
- * project level it is not the popup's scope — it only decides which repository
- * row starts selected, so clicking the status-bar widget lands you on your
- * repository inside the whole project rather than alone inside it.
+ * It used to drill in — picking a repository or a folder replaced the whole
+ * list and added a `‹ Back` row — so going deeper threw away what you were
+ * looking at and every step changed the surface under your cursor. IntelliJ
+ * opens levels as a tree instead, and so does this now: repositories, sections
+ * and folders carry `˅`/`›` and expand underneath themselves.
+ *
+ * The one step that still changes surface is a ref's action menu, because that
+ * is a menu rather than a level, and VS Code has no way to float a cascading
+ * submenu beside a `QuickPick` (deviation D5).
+ *
+ * `entry` is the repository the caller came from: it decides what starts open,
+ * so clicking the status-bar widget lands you inside your own repository rather
+ * than at a closed list of seven.
  */
 export async function showBranchesPopup(
   core: Core,
@@ -567,157 +552,125 @@ export async function showBranchesPopup(
   ops: BranchOps,
   actions: readonly BranchAction[] = [],
 ): Promise<void> {
-  const qp = vscode.window.createQuickPick<BranchItem>();
+  const qp = vscode.window.createQuickPick<TreeItem>();
   const multiRoot = core.repos.length > 1;
-  const stack: PopupLevel[] = [multiRoot ? { prefix: '' } : { repo: entry, prefix: '' }];
+  const expanded = new Set<string>();
   let showInOut = vscode.workspace
     .getConfiguration('gittree')
     .get<boolean>('branches.showIncomingOutgoing', true);
-  let filterText = '';
+
+  // What is open when the popup appears: the repository you came from, and its
+  // local branches, which is the list anyone opening this is looking for.
+  if (multiRoot) expanded.add(nodeIds.repo(entry.root));
+  expanded.add(nodeIds.locals(entry.root));
 
   const btnFetch = makeFetchButton(core.repos.length);
-
-  qp.placeholder = vscode.l10n.t('Search for branches and actions');
-  qp.matchOnDescription = true;
-  qp.matchOnDetail = true;
-  /**
-   * `New branch` acts on *a* repository, and at the project level there is not
-   * one — `newBranchFrom` takes its name inside the per-repository call, so
-   * fanning it out would ask seven times. It comes back the moment a
-   * repository is in scope. (Fetch is the opposite case and stays: it is a
-   * project operation everywhere.)
-   */
-  const buttonsFor = (at: PopupLevel): vscode.QuickInputButton[] =>
-    at.repo === undefined
-      ? [btnFetch, BTN_INOUT, BTN_GEAR, BTN_VIEW]
-      : [BTN_NEW, btnFetch, BTN_INOUT, BTN_GEAR, BTN_VIEW];
+  qp.placeholder = vscode.l10n.t('Search for branches, actions, repositories');
+  // Our own filter owns the matching; see `toQuickPickItems`.
+  qp.matchOnDescription = false;
+  qp.matchOnDetail = false;
+  qp.buttons = [BTN_COLLAPSE, btnFetch, BTN_INOUT, BTN_GEAR];
   qp.busy = true;
   qp.show();
 
-  const level = (): PopupLevel => stack[stack.length - 1] ?? { prefix: '' };
-  /** The root in scope, or the entry root when the project level is showing. */
-  const scopedOr = (): RepoHandle => level().repo ?? entry;
-
-  const push = async (next: PopupLevel): Promise<void> => {
-    stack.push(next);
-    qp.value = '';
-    filterText = '';
-    await populate();
-  };
-
-  const repoRows = (): RepoRow[] =>
-    core.repos.map((r) => {
-      const snap = r.model.snapshot;
-      return {
-        root: r.root,
-        name: path.basename(r.root),
-        ...(snap.headRef !== undefined ? { currentBranch: snap.headRef } : {}),
-        ...(snap.detached ? { detached: true } : {}),
-        ...(snap.headSha !== undefined ? { headSha: snap.headSha } : {}),
-        ...(snap.ahead !== undefined ? { ahead: snap.ahead } : {}),
-        ...(snap.behind !== undefined ? { behind: snap.behind } : {}),
-      };
-    });
-
-  const populateProject = (): void => {
-    const services = core.repos.map((r) => refServiceFor(r));
-    qp.title = vscode.l10n.t('{0} repositories', core.repos.length);
-    qp.items = buildProjectPopupItems({
-      repos: repoRows(),
-      commonLocals: commonRefNames(services.map((s) => s.localBranches.map((b) => b.name))),
-      commonRemotes: commonRefNames(services.map((s) => s.remoteBranches.map((b) => b.name))),
-      commonTags: commonRefNames(services.map((s) => s.tags.map((t) => t.name))),
-      filtering: filterText.trim().length > 0,
-      showInOut,
-    });
-  };
-
-  const populateRepo = async (repo: RepoHandle, prefix: string): Promise<void> => {
-    const refService = refServiceFor(repo);
-    const [recent, favorites] = await Promise.all([
-      refService.getRecentBranches(),
-      refService.getFavorites(),
-    ]);
+  const repoRefs = async (repo: RepoHandle, labels: Map<string, string>): Promise<RepoRefs> => {
+    const service = refServiceFor(repo);
     const snap = repo.model.snapshot;
-    // The repository is named whenever it is one of several — the popup used
-    // to be scoped to a root it never identified.
-    const crumbs = [
-      ...(multiRoot ? [path.basename(repo.root)] : []),
-      ...(prefix.length > 0 ? [prefix.replace(/\/$/u, '')] : []),
-    ];
-    qp.title = crumbs.length > 0 ? crumbs.join(' · ') : undefined;
-    qp.items = buildPopupItems({
-      current: refService.currentBranch,
-      locals: refService.localBranches,
-      remotes: refService.remoteBranches,
-      tags: snap.refs.filter((r) => r.type === 'tag'),
-      recent,
+    const favorites = await service.getFavorites();
+    return {
+      root: repo.root,
+      // The same naming rule the sidebar's two lists use, so a repository reads
+      // the same in all three (`core/util/repoLabels`).
+      name: labels.get(repo.root) ?? path.basename(repo.root),
+      ...(snap.headRef !== undefined ? { currentBranch: snap.headRef } : {}),
+      ...(snap.detached ? { detached: true } : {}),
+      ...(snap.headSha !== undefined ? { headSha: snap.headSha } : {}),
+      ...(snap.ahead !== undefined ? { ahead: snap.ahead } : {}),
+      ...(snap.behind !== undefined ? { behind: snap.behind } : {}),
+      locals: service.localBranches,
+      remotes: service.remoteBranches,
+      tags: service.tags,
       favorites,
-      prefix,
-      // Typing searches flat across every level — drill-in never traps anyone.
-      filtering: filterText.trim().length > 0,
-      showInOut,
-      // At the project level there is a level above this one to go back to.
-      forceBack: multiRoot && prefix.length === 0,
-    });
+    };
   };
 
-  const populate = async (): Promise<void> => {
-    const at = level();
-    qp.buttons = buttonsFor(at);
-    if (at.repo === undefined) populateProject();
-    else await populateRepo(at.repo, at.prefix);
+  /**
+   * Rebuild, keeping the cursor on `keepId` so opening a node never scrolls
+   * away. `generation` drops a build whose favourites resolved after a newer
+   * one started — typing quickly starts several, and the last to *finish* is
+   * not necessarily the one that matches what is in the box.
+   */
+  let generation = 0;
+  const populate = async (keepId?: string): Promise<void> => {
+    const mine = ++generation;
+    const labels = repoLabels(core.repos.map((r) => r.root));
+    const repos = await Promise.all(core.repos.map((r) => repoRefs(r, labels)));
+    const ctx = {
+      repos,
+      commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
+      commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
+      commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
+      showInOut,
+    };
+    if (mine !== generation) return;
+    qp.items = toQuickPickItems(flattenTree(ctx, expanded, qp.value), expanded);
+    if (keepId !== undefined) {
+      const found = qp.items.find((i) => i.row?.id === keepId);
+      if (found) qp.activeItems = [found];
+    }
     qp.busy = false;
   };
   await populate();
 
-  // Clicking the status-bar widget should land on that widget's repository.
-  if (multiRoot) {
-    const mine = qp.items.find((i) => i.repoRoot === entry.root);
-    if (mine) qp.activeItems = [mine];
-  }
+  /** The repository a row belongs to, or the entry root for rows that have none. */
+  const repoOf = (row: TreeRow): RepoHandle =>
+    (row.repoRoot !== undefined ? core.getRepo(row.repoRoot) : undefined) ?? entry;
 
-  const openSubmenu = async (branch: RefInfo): Promise<void> => {
+  const openRefActions = async (row: TreeRow): Promise<void> => {
+    if (!row.ref) return;
     qp.hide();
-    await showBranchActions(core, scopedOr(), ops, branch, actions);
+    await showBranchActions(core, repoOf(row), ops, row.ref, actions);
   };
 
-  const openCommonSubmenu = async (common: CommonRef): Promise<void> => {
-    qp.hide();
-    await showCommonBranchActions(core, common, actions);
+  const toggle = async (row: TreeRow): Promise<void> => {
+    if (expanded.has(row.id)) expanded.delete(row.id);
+    else expanded.add(row.id);
+    await populate(row.id);
   };
 
-  qp.onDidChangeValue(async (value) => {
-    const wasFiltering = filterText.trim().length > 0;
-    filterText = value;
-    if (wasFiltering !== (value.trim().length > 0)) await populate();
-  });
+  const runVerb = async (verb: HubVerb): Promise<void> => {
+    qp.hide();
+    // No argument at the project level, exactly as before: `gittree.commit`
+    // spans every root and `gittree.update.dialog` asks which one it means.
+    await vscode.commands.executeCommand(verb.command);
+  };
 
-  qp.onDidTriggerItemButton(async (e) => {
-    if (e.item.repoRoot !== undefined) {
-      const repo = core.getRepo(e.item.repoRoot);
-      if (repo) await push({ repo, prefix: '' });
-      return;
-    }
-    if (e.item.common !== undefined) {
-      await openCommonSubmenu(e.item.common);
-      return;
-    }
-    const branch = e.item.branch;
-    if (!branch) return;
-    if (e.button === ACTIONS) {
-      await openSubmenu(branch);
-      return;
-    }
-    await refServiceFor(scopedOr()).toggleFavorite(branch.name);
+  const defaultAction = (): string =>
+    vscode.workspace.getConfiguration('gittree').get<string>('branches.defaultAction', 'checkout');
+
+  qp.onDidChangeValue(async () => {
     await populate();
   });
 
+  qp.onDidTriggerItemButton(async (e) => {
+    const row = e.item.row;
+    if (!row) return;
+    if (e.button === ACTIONS) {
+      if (row.kind === 'ref') await openRefActions(row);
+      else if (row.common !== undefined) {
+        qp.hide();
+        await showCommonBranchActions(core, row.common, actions);
+      } else if (row.expandable) await toggle(row);
+      return;
+    }
+    // The star.
+    if (row.ref === undefined) return;
+    await refServiceFor(repoOf(row)).toggleFavorite(row.ref.name);
+    await populate(row.id);
+  });
+
   qp.onDidTriggerButton(async (button) => {
-    if (button === BTN_NEW) {
-      qp.hide();
-      await ops.newBranchFrom(scopedOr(), 'HEAD');
-    } else if (button === btnFetch) {
+    if (button === btnFetch) {
       qp.busy = true;
       // No argument: every root, exactly as IntelliJ's popup Fetch does.
       await vscode.commands.executeCommand('gittree.fetch');
@@ -728,73 +681,48 @@ export async function showBranchesPopup(
         .getConfiguration('gittree')
         .update('branches.showIncomingOutgoing', showInOut, vscode.ConfigurationTarget.Workspace);
       await populate();
+    } else if (button === BTN_COLLAPSE) {
+      expanded.clear();
+      await populate();
     } else if (button === BTN_GEAR) {
       qp.hide();
       await vscode.commands.executeCommand('workbench.action.openSettings', 'gittree.branches');
-    } else {
-      qp.hide();
-      // POST-P14u: the Branches view is contributed unconditionally now, so
-      // the context key this used to arm first (D26's reveal-on-demand dance)
-      // has nothing left to unlock.
-      await vscode.commands.executeCommand('gittree.branches.focus');
     }
   });
 
   qp.onDidAccept(async () => {
-    const item = qp.selectedItems[0];
-    if (!item) return;
-    const at = level();
-    if (item.back === true) {
-      if (stack.length > 1) stack.pop();
-      qp.value = '';
-      filterText = '';
-      await populate();
+    const row = qp.selectedItems[0]?.row;
+    if (!row) return;
+    // A node with children opens where it stands. This is the whole point:
+    // nothing is replaced, so the row you clicked is still under your cursor.
+    if (row.expandable) {
+      await toggle(row);
       return;
     }
-    if (item.repoRoot !== undefined) {
-      const picked = core.getRepo(item.repoRoot);
-      if (picked) await push({ repo: picked, prefix: '' });
+    if (row.verb !== undefined) {
+      await runVerb(row.verb);
       return;
     }
-    if (item.folder !== undefined) {
-      await push({ ...(at.repo ? { repo: at.repo } : {}), prefix: item.folder });
-      return;
-    }
-    if (item.command !== undefined) {
-      qp.hide();
-      // The level decides the scope. Inside a repository the verbs carry its
-      // root, as they always have; at the project level they carry none, so
-      // `gittree.commit` spans every root and `gittree.fetch` fetches all of
-      // them — which is what those verbs mean in IntelliJ's project popup.
-      if (at.repo === undefined) await vscode.commands.executeCommand(item.command);
-      else await vscode.commands.executeCommand(item.command, at.repo.root);
-      return;
-    }
-    if (item.common !== undefined) {
-      const defaultAction = vscode.workspace
-        .getConfiguration('gittree')
-        .get<string>('branches.defaultAction', 'checkout');
-      if (defaultAction === 'showActions') {
-        await openCommonSubmenu(item.common);
+    if (row.common !== undefined) {
+      if (defaultAction() === 'showActions') {
+        qp.hide();
+        await showCommonBranchActions(core, row.common, actions);
         return;
       }
       qp.hide();
-      await runCommonAction(core.repos, item.common, actions, 'checkout');
+      await runCommonAction(core.repos, row.common, actions, 'checkout');
       return;
     }
-    if (!item.branch) return;
-    const scoped = at.repo ?? entry;
-    const defaultAction = vscode.workspace
-      .getConfiguration('gittree')
-      .get<string>('branches.defaultAction', 'checkout');
-    if (defaultAction === 'showActions') {
-      await openSubmenu(item.branch);
+    if (!row.ref) return;
+    if (defaultAction() === 'showActions') {
+      await openRefActions(row);
       return;
     }
     qp.hide();
-    if (item.branch.isHead) return;
-    if (item.isRemote) await ops.checkoutRemote(scoped, item.branch.name);
-    else await ops.checkout(scoped, item.branch.name);
+    if (row.ref.isHead === true) return;
+    const repo = repoOf(row);
+    if (row.ref.type === 'remote') await ops.checkoutRemote(repo, row.ref.name);
+    else await ops.checkout(repo, row.ref.name);
   });
 
   qp.onDidHide(() => qp.dispose());

@@ -1702,12 +1702,6 @@
         "command": "gittree.repositories.select",
         "title": "%gittree.command.repositories.select.title%",
         "category": "GitTree"
-      },
-      {
-        "command": "gittree.branches.newHere",
-        "title": "%gittree.command.branches.newHere.title%",
-        "category": "GitTree",
-        "icon": "$(add)"
       }
     ],
     "submenus": [
@@ -2085,10 +2079,6 @@
         {
           "command": "gittree.repositories.select",
           "when": "false"
-        },
-        {
-          "command": "gittree.branches.newHere",
-          "when": "false"
         }
       ],
       "editor/title": [
@@ -2255,7 +2245,7 @@
           "group": "1_accept@2"
         },
         {
-          "command": "gittree.branches.newHere",
+          "command": "gittree.branch.new",
           "when": "view == gittree.branches",
           "group": "navigation@1"
         },

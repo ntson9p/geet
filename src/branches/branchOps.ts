@@ -34,16 +34,37 @@ export class BranchOps {
     await checkoutWithSmart(this.core, repo, branch);
   }
 
-  /** Remote branch → tracking local (name validated, pre-filled). */
+  /**
+   * Remote branch → tracking local, **without asking for a name**.
+   *
+   * IntelliJ's `Checkout` on a remote branch creates the local branch named
+   * after it and switches to it, in one gesture. GitTree used to open an input
+   * box pre-filled with that very name, so the overwhelmingly common answer was
+   * to press Enter on a name the user had not chosen and did not need to see.
+   * The name is still reachable when it is actually wanted: `New Branch from
+   * 'origin/x'…` is a separate row in the same menu, and that one does prompt.
+   *
+   * A local branch of that name already existing is not a conflict — it is the
+   * branch you were asking for. IntelliJ checks it out rather than refusing, so
+   * a second `Checkout` on `origin/develop` lands on `develop` instead of
+   * failing with "already exists".
+   */
   async checkoutRemote(repo: RepoHandle, remoteBranch: string): Promise<void> {
     const remote = repo.model.snapshot.refs.find(
       (r) => r.type === 'remote' && r.name === remoteBranch,
     );
-    const defaultName = remote?.remote !== undefined
-      ? remoteBranch.slice(remote.remote.length + 1)
-      : remoteBranch.replace(/^[^/]+\//, '');
-    const name = await this.promptBranchName(repo, defaultName, vscode.l10n.t('Local branch name'));
-    if (name === undefined) return;
+    const name =
+      remote?.remote !== undefined
+        ? remoteBranch.slice(remote.remote.length + 1)
+        : remoteBranch.replace(/^[^/]+\//, '');
+    if (name.length === 0) return;
+    const existing = repo.model.snapshot.refs.some((r) => r.type === 'head' && r.name === name);
+    if (existing) {
+      // Straight through Smart Checkout, so uncommitted work is handled the
+      // same way it is for any other local branch.
+      await this.checkout(repo, name);
+      return;
+    }
     await repo.queue.enqueue({
       label: vscode.l10n.t('Checkout {0} tracking {1}', name, remoteBranch),
       kind: 'mutate',

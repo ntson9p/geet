@@ -205,26 +205,16 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   context.subscriptions.push(hubView);
 
   /**
-   * Amendment 2 to the owner's spec: the section *names* the repository rather
-   * than repeating the Repositories list in a dropdown directly beneath it.
-   * One selector cannot fall out of step with itself.
+   * new-way-2: the view is project-level, exactly as the popup is, so its
+   * header no longer names one repository — naming one would be a lie about
+   * what the tree contains. The scope decides only which repository node opens
+   * first, which is what the Repositories section above it is now for.
    */
   const paintHub = (): void => {
-    hubView.description = core.repos.length > 1 ? scope.label(scope.current ?? '') : undefined;
+    hubView.description = undefined;
     hub.refresh();
   };
   paintHub();
-  /**
-   * The title strip's `+`. A `view/title` button carries no argument, so the
-   * plain `gittree.branches.new` would fall back to the active editor's
-   * repository — which is the one repository this view may not be showing.
-   */
-  context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.branches.newHere', async () => {
-      const repo = hub.repo();
-      if (repo) await ops.newBranchFrom(repo, 'HEAD');
-    }),
-  );
   const hubScopeSub = scope.onDidChange(paintHub);
   // A repository joining or leaving can change whether the name is shown at
   // all (it appears only when there is more than one) without moving the scope.

@@ -344,6 +344,5 @@
   "gittree.config.statusBar.off": "No GitTree status-bar widget at all.",
   "gittree.view.repositories.name": "Repositories",
   "gittree.view.branchesLegacy.name": "Branches (All Repositories)",
-  "gittree.command.repositories.select.title": "Show This Repository in Branches",
-  "gittree.command.branches.newHere.title": "New Branch in This Repository…"
+  "gittree.command.repositories.select.title": "Show This Repository in Branches"
 }
