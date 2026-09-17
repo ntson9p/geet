@@ -2237,17 +2237,17 @@
         },
         {
           "command": "gittree.branch.new",
-          "when": "view == gittree.branches",
+          "when": "view == gittree.branchesTree",
           "group": "navigation@1"
         },
         {
           "command": "gittree.fetch.all",
-          "when": "view == gittree.branches",
+          "when": "view == gittree.branchesTree",
           "group": "navigation@2"
         },
         {
           "command": "gittree.refresh",
-          "when": "view == gittree.branches",
+          "when": "view == gittree.branchesTree",
           "group": "navigation@3"
         }
       ],
@@ -2359,97 +2359,97 @@
         },
         {
           "command": "gittree.branches.checkout",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "inline@1"
         },
         {
           "command": "gittree.branches.toggleFavorite",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
           "group": "inline@2"
         },
         {
           "command": "gittree.branches.checkout",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "1_checkout@1"
         },
         {
           "command": "gittree.branches.newFrom",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:/",
           "group": "1_checkout@2"
         },
         {
           "command": "gittree.branches.rebaseOntoCurrent",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
           "group": "1_checkout@3"
         },
         {
           "command": "gittree.branches.compareWithCurrentNode",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "2_compare@1"
         },
         {
           "command": "gittree.branches.diffWithWorkingTreeNode",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current|remote)(:|$)/",
           "group": "2_compare@2"
         },
         {
           "command": "gittree.branch.rebaseCurrentOnto",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "3_integrate@1"
         },
         {
           "command": "gittree.branch.mergeIntoCurrent",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "3_integrate@2"
         },
         {
           "command": "gittree.branch.pullIntoCurrent",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
           "group": "3_integrate@3"
         },
         {
           "command": "gittree.branch.pullIntoCurrentRebase",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
           "group": "3_integrate@4"
         },
         {
           "command": "gittree.branch.newWorktree",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current|remote)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current|remote)(:|$)/",
           "group": "4_worktree@1"
         },
         {
           "command": "gittree.branch.update",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):tracked$/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):tracked$/",
           "group": "5_push@1"
         },
         {
           "command": "gittree.branches.push",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "5_push@2"
         },
         {
           "submenu": "gittree.branches.trackedSubmenu",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):tracked$/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):tracked$/",
           "group": "6_tracked@1"
         },
         {
           "command": "gittree.branches.rename",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "7_manage@1"
         },
         {
           "command": "gittree.branches.delete",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
           "group": "7_manage@2"
         },
         {
           "command": "gittree.branches.toggleFavorite",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "7_manage@3"
         },
         {
           "command": "gittree.branch.deleteOnRemote",
-          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
           "group": "9_danger@1"
         },
         {
@@ -3124,7 +3124,16 @@
           "id": "gittree.branches",
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
-          "icon": "$(list-tree)"
+          "icon": "$(list-tree)",
+          "type": "webview"
+        },
+        {
+          "id": "gittree.branchesTree",
+          "name": "%gittree.view.branchesTree.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(list-tree)",
+          "when": "config.gittree.sidebar.extraViews",
+          "visibility": "collapsed"
         },
         {
           "id": "gittree.branchesLegacy",

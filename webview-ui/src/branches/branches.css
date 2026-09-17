@@ -1,0 +1,172 @@
+/**
+ * Branches sidebar. One narrow column, so the layout is a single list with an
+ * indent per level — the shape IntelliJ shows inside each of its panels. What
+ * the panels themselves give it, side by side, a sidebar cannot: the second
+ * search field is drawn inline under the repository it belongs to instead.
+ */
+
+.gtb-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  font-size: var(--vscode-font-size);
+}
+
+/* ---- header ------------------------------------------------------------- */
+
+.gtb-header {
+  flex: 0 0 auto;
+  padding: 4px 4px 2px;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+}
+
+.gtb-search,
+.gtb-row-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gtb-search > .codicon,
+.gtb-row-search > .codicon {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.gtb-search-input,
+.gtb-repo-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gtb-clear {
+  flex: 0 0 auto;
+}
+
+.gtb-actions {
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+/* ---- rows --------------------------------------------------------------- */
+
+.gtb-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  outline: none;
+}
+
+.gtb-separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--vscode-menu-separatorBackground, var(--vscode-widget-border, #454545));
+}
+
+.gtb-separator:not(:empty) {
+  height: auto;
+  background: none;
+  padding: 4px 0 2px;
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.gtb-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding-right: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gtb-row-search {
+  height: 26px;
+  cursor: default;
+  padding-right: 4px;
+}
+
+.gtb-row-info {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.gtb-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gtb-row.gtb-focused {
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.gtb-list:focus-within .gtb-row.gtb-focused {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* A fixed slot, so rows with and without children still line up. */
+.gtb-twisty {
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+}
+
+.gtb-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.gtb-label {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gtb-label.gtb-current,
+.gtb-icon.gtb-current {
+  font-weight: 600;
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-foreground));
+}
+
+.gtb-description {
+  flex: 0 1 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+  font-size: 0.9em;
+}
+
+/* The row's own buttons appear on hover or when the row has focus, the way a
+   VS Code tree row's inline actions do — they would otherwise be noise on
+   every one of several hundred rows. */
+.gtb-row-buttons {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  visibility: hidden;
+}
+
+.gtb-row:hover .gtb-row-buttons,
+.gtb-row.gtb-focused .gtb-row-buttons {
+  visibility: visible;
+}
+
+/* A favourite stays visible unhovered: it is state, not an action. */
+.gtb-row-buttons .gtb-star[aria-label^='Remove'] {
+  visibility: visible;
+}
+
+.gtb-empty {
+  padding: 8px;
+  opacity: 0.7;
+}

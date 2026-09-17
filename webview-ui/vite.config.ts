@@ -9,6 +9,7 @@ import { defineConfig } from 'vite';
  * required for vscode-webview resource URIs. No CDN resources, ever.
  */
 const apps: Record<string, string> = {
+  branches: path.resolve(__dirname, 'src/branches/main.tsx'),
   commit: path.resolve(__dirname, 'src/commit/main.tsx'),
   demo: path.resolve(__dirname, 'src/demo/main.tsx'),
   dialogs: path.resolve(__dirname, 'src/dialogs/main.tsx'),

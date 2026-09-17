@@ -15,6 +15,7 @@ import {
   showBranchesPopup,
   showCommonBranchActions,
 } from './branchesPopup';
+import { BranchesWebViewProvider } from './branchesWebView';
 import { BranchHubViewProvider } from './branchHubView';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
 import { CompareService } from './compare';
@@ -35,6 +36,8 @@ export interface Phase02Registry {
   /** Exposed so an integration test can drive the real view, not just the provider. */
   reposView: vscode.TreeView<string>;
   hub: BranchHubViewProvider;
+  /** new-way-2: the sidebar Branches view, as a webview. */
+  branchesWeb: BranchesWebViewProvider;
   /**
    * P13-T5: the single branch-action registry the popup, the branches tree and
    * the log's Branches pane all consume, so the three cannot drift.
@@ -202,12 +205,36 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   });
   context.subscriptions.push({ dispose: () => hub.dispose() });
 
-  const hubView = vscode.window.createTreeView('gittree.branches', {
+  const hubView = vscode.window.createTreeView('gittree.branchesTree', {
     treeDataProvider: hub,
     dragAndDropController: hub,
     showCollapseAll: true,
   });
   context.subscriptions.push(hubView);
+
+  /**
+   * The Branches view itself. It is a webview for one reason: IntelliJ keeps
+   * **two search fields live at once** — the project's and the opened
+   * repository's — and neither a `QuickPick` nor a `TreeView` can hold an
+   * `<input>`. The tree above still draws the same rows and is one setting
+   * (`gittree.sidebar.extraViews`) away if this turns out to be the wrong
+   * trade.
+   */
+  const branchesWeb = new BranchesWebViewProvider({
+    core,
+    scope,
+    context,
+    refServiceFor: serviceFor,
+    actions,
+  });
+  context.subscriptions.push({ dispose: () => branchesWeb.dispose() });
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      BranchesWebViewProvider.viewType,
+      branchesWeb,
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
+  );
 
   /**
    * new-way-2: the view is project-level, exactly as the popup is, so its
@@ -218,6 +245,12 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   const paintHub = (): void => {
     hubView.description = undefined;
     hub.refresh();
+    // Clicking a row in the Repositories section opens that repository here,
+    // which is the one thing the section still drives now that this view shows
+    // the whole project. It only ever *opens* — it never closes what you left
+    // open, because that would undo a deliberate act with an incidental one.
+    const focused = scope.current;
+    if (focused !== undefined) branchesWeb.revealRepository(focused);
   };
   paintHub();
   const hubScopeSub = scope.onDidChange(paintHub);
@@ -445,6 +478,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     repositories,
     reposView,
     hub,
+    branchesWeb,
     actions,
   };
   core.debugRegistry.set('phase02', registry);

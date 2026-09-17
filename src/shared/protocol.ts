@@ -16,6 +16,7 @@ import type { ResetMode } from '../scm/dialogs/resetArgs';
 import type { RollbackKind } from '../scm/dialogs/rollbackPlan';
 import type { StashPushArgsOptions } from '../scm/dialogs/stashArgs';
 import type { NewWorktreeOptions } from '../branches/worktreeArgs';
+import type { TreeRow } from '../branches/popupTree';
 
 export type {
   CherryPickOptions,
@@ -1233,3 +1234,58 @@ export const REBASE_METHODS = {
   /** Context-menu "Reset Action" on a row → back to pick. */
   evtResetAction: 'rebase/resetAction',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Branches sidebar (new-way-2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The rows the sidebar draws are the rows `popupTree` builds, imported rather
+ * than mirrored — the same reason the dialog option shapes above are imported.
+ * A hand-copied row type is a row type that drifts from the one that runs.
+ */
+export type BranchesRowDto = TreeRow;
+
+export interface BranchesTreeDto {
+  readonly rows: readonly BranchesRowDto[];
+  /** Ids of the expandable rows currently showing their children. */
+  readonly open: readonly string[];
+  /** The top field's text, echoed so a rehydrated view restores it. */
+  readonly topQuery: string;
+  /** `[root, query]` for every repository whose inline field has text. */
+  readonly repoQueries: ReadonlyArray<readonly [string, string]>;
+  readonly repoCount: number;
+  readonly showInOut: boolean;
+}
+
+export const BRANCHES_METHODS = {
+  /** webview → host: the first paint. */
+  init: 'branches/init',
+  /** webview → host: open or close one node. */
+  toggle: 'branches/toggle',
+  /** webview → host: the top field changed. */
+  setTopQuery: 'branches/setTopQuery',
+  /** webview → host: one repository's inline field changed. */
+  setRepoQuery: 'branches/setRepoQuery',
+  /** webview → host: run a row's default gesture (a verb, or a ref's menu). */
+  activate: 'branches/activate',
+  /** webview → host: the action list for a row, for the `›` menu. */
+  actions: 'branches/actions',
+  /** webview → host: run one action from that list. */
+  runAction: 'branches/runAction',
+  /** webview → host: toggle a ref's favourite star. */
+  toggleFavorite: 'branches/toggleFavorite',
+  /** webview → host: a header button. */
+  header: 'branches/header',
+  /** host → webview: a new set of rows. */
+  evtTree: 'branches/tree',
+} as const;
+
+/** One entry of the `›` menu, flattened from the shared branch-action registry. */
+export interface BranchesActionDto {
+  readonly id: string;
+  readonly label: string;
+  readonly accelerator?: string;
+  /** Group boundary before this entry — the menu draws a rule. */
+  readonly separator?: boolean;
+}
