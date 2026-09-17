@@ -1697,6 +1697,17 @@
         "title": "%gittree.command.diff.toggleCollapseUnchanged.title%",
         "category": "GitTree",
         "icon": "$(fold)"
+      },
+      {
+        "command": "gittree.repositories.select",
+        "title": "%gittree.command.repositories.select.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branches.newHere",
+        "title": "%gittree.command.branches.newHere.title%",
+        "category": "GitTree",
+        "icon": "$(add)"
       }
     ],
     "submenus": [
@@ -2070,6 +2081,14 @@
         {
           "command": "gittree.merge.magicWandSession",
           "when": "gittree.hasConflicts"
+        },
+        {
+          "command": "gittree.repositories.select",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branches.newHere",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -2182,12 +2201,12 @@
         },
         {
           "command": "gittree.branches.new",
-          "when": "view == gittree.branches",
+          "when": "view == gittree.branchesLegacy",
           "group": "navigation@1"
         },
         {
           "command": "gittree.refresh",
-          "when": "view == gittree.branches",
+          "when": "view == gittree.branchesLegacy",
           "group": "navigation@2"
         },
         {
@@ -2234,6 +2253,21 @@
           "command": "gittree.merge.acceptAllTheirs",
           "when": "view == gittree.conflicts",
           "group": "1_accept@2"
+        },
+        {
+          "command": "gittree.branches.newHere",
+          "when": "view == gittree.branches",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittree.fetch.all",
+          "when": "view == gittree.branches",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.refresh",
+          "when": "view == gittree.branches",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -2344,97 +2378,97 @@
         },
         {
           "command": "gittree.branches.checkout",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "inline@1"
         },
         {
           "command": "gittree.branches.toggleFavorite",
-          "when": "view == gittree.branches && viewItem =~ /^branch:local(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
           "group": "inline@2"
         },
         {
           "command": "gittree.branches.checkout",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "1_checkout@1"
         },
         {
           "command": "gittree.branches.newFrom",
-          "when": "view == gittree.branches && viewItem =~ /^branch:/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:/",
           "group": "1_checkout@2"
         },
         {
           "command": "gittree.branches.rebaseOntoCurrent",
-          "when": "view == gittree.branches && viewItem =~ /^branch:local(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
           "group": "1_checkout@3"
         },
         {
           "command": "gittree.branches.compareWithCurrentNode",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "2_compare@1"
         },
         {
           "command": "gittree.branches.diffWithWorkingTreeNode",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current|remote)(:|$)/",
           "group": "2_compare@2"
         },
         {
           "command": "gittree.branch.rebaseCurrentOnto",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "3_integrate@1"
         },
         {
           "command": "gittree.branch.mergeIntoCurrent",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|remote)(:|$)/",
           "group": "3_integrate@2"
         },
         {
           "command": "gittree.branch.pullIntoCurrent",
-          "when": "view == gittree.branches && viewItem =~ /^branch:remote(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
           "group": "3_integrate@3"
         },
         {
           "command": "gittree.branch.pullIntoCurrentRebase",
-          "when": "view == gittree.branches && viewItem =~ /^branch:remote(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
           "group": "3_integrate@4"
         },
         {
           "command": "gittree.branch.newWorktree",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current|remote)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current|remote)(:|$)/",
           "group": "4_worktree@1"
         },
         {
           "command": "gittree.branch.update",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current):tracked$/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):tracked$/",
           "group": "5_push@1"
         },
         {
           "command": "gittree.branches.push",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "5_push@2"
         },
         {
           "submenu": "gittree.branches.trackedSubmenu",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current):tracked$/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):tracked$/",
           "group": "6_tracked@1"
         },
         {
           "command": "gittree.branches.rename",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "7_manage@1"
         },
         {
           "command": "gittree.branches.delete",
-          "when": "view == gittree.branches && viewItem =~ /^branch:local(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:local(:|$)/",
           "group": "7_manage@2"
         },
         {
           "command": "gittree.branches.toggleFavorite",
-          "when": "view == gittree.branches && viewItem =~ /^branch:(local|current)(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "7_manage@3"
         },
         {
           "command": "gittree.branch.deleteOnRemote",
-          "when": "view == gittree.branches && viewItem =~ /^branch:remote(:|$)/",
+          "when": "(view == gittree.branches || view == gittree.branchesLegacy) && viewItem =~ /^branch:remote(:|$)/",
           "group": "9_danger@1"
         },
         {
@@ -2471,6 +2505,56 @@
           "command": "gittree.merge.open",
           "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
           "group": "1_resolve@3"
+        },
+        {
+          "command": "gittree.update.dialog",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "1_update@1"
+        },
+        {
+          "command": "gittree.push.dialog",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "1_update@2"
+        },
+        {
+          "command": "gittree.fetch",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "1_update@3"
+        },
+        {
+          "command": "gittree.commit",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "2_commit@1"
+        },
+        {
+          "command": "gittree.branches.open",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "3_branch@1"
+        },
+        {
+          "command": "gittree.branch.new",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "3_branch@2"
+        },
+        {
+          "command": "gittree.branches.checkoutRevision",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "3_branch@3"
+        },
+        {
+          "command": "gittree.stash.dialog",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "4_stash@1"
+        },
+        {
+          "command": "gittree.unstash.dialog",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "4_stash@2"
+        },
+        {
+          "command": "gittree.remotes.manage",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "5_manage@1"
         }
       ],
       "webview/context": [
@@ -3048,12 +3132,26 @@
           "icon": "$(check-all)"
         },
         {
+          "id": "gittree.repositories",
+          "name": "%gittree.view.repositories.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(repo)",
+          "visibility": "collapsed",
+          "when": "gittree.multiRepo"
+        },
+        {
           "id": "gittree.branches",
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
+          "icon": "$(list-tree)"
+        },
+        {
+          "id": "gittree.branchesLegacy",
+          "name": "%gittree.view.branchesLegacy.name%",
+          "contextualTitle": "GitTree",
           "icon": "$(git-branch)",
           "visibility": "collapsed",
-          "when": "config.gittree.sidebar.extraViews || gittree.branches.active"
+          "when": "config.gittree.sidebar.extraViews"
         },
         {
           "id": "gittree.worktrees",

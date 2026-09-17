@@ -11,6 +11,7 @@ import type { Core, RepoHandle } from '../core/core';
 import { parseDecorations } from '../core/git/parsers/logFormat';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoRelative } from '../core/util/paths';
+import { repoLabels } from '../core/util/repoLabels';
 import {
   LOG_METHODS,
   type CommitDetailsDto,
@@ -170,25 +171,20 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * The `Roots` section: every repository the workspace has. Two repositories
-   * can share a basename (`web/api` and `mobile/api`), which would render as
-   * two identical rows, so a colliding label grows its parent directory.
+   * The `Roots` section: every repository the workspace has. The naming rule
+   * (a colliding basename grows its parent directory) moved to
+   * `core/util/repoLabels` when POST-P14u gave the sidebar two more lists of
+   * the same repositories — a root called one thing here and another thing
+   * there is a root the user cannot match across the two.
    */
   private roots(): LogRootDto[] {
     const repos = [...this.core.repos].sort((a, b) => a.root.localeCompare(b.root));
-    const basenames = new Map<string, number>();
-    for (const repo of repos) {
-      const base = path.basename(repo.root);
-      basenames.set(base, (basenames.get(base) ?? 0) + 1);
-    }
-    return repos.map((repo, idx) => {
-      const base = path.basename(repo.root);
-      const label =
-        (basenames.get(base) ?? 0) > 1
-          ? `${path.basename(path.dirname(repo.root))}/${base}`
-          : base;
-      return { root: repo.root, label, colorIdx: idx % PALETTE_SIZE };
-    });
+    const labels = repoLabels(repos.map((r) => r.root));
+    return repos.map((repo, idx) => ({
+      root: repo.root,
+      label: labels.get(repo.root) ?? path.basename(repo.root),
+      colorIdx: idx % PALETTE_SIZE,
+    }));
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {

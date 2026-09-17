@@ -31,7 +31,12 @@ suite('P14 owning the SCM surface', () => {
    */
   const EXPECTED_VIEWS = [
     'gittree.commit',
+    // POST-P14u: the repository selector, and the Branches view that follows
+    // it. `gittree.branches` is now the repository-scoped hub; the
+    // all-repositories tree it replaced moved to `gittree.branchesLegacy`.
+    'gittree.repositories',
     'gittree.branches',
+    'gittree.branchesLegacy',
     'gittree.worktrees',
     'gittree.compare',
     'gittree.localHistory',
@@ -79,7 +84,10 @@ suite('P14 owning the SCM surface', () => {
     >;
     const byId = new Map(views['gittree']!.map((v) => [v.id, v]));
     for (const id of [
-      'gittree.branches',
+      // POST-P14u: `gittree.branches` left this list by being promoted — it is
+      // the sidebar's Branches view now. What it used to draw is
+      // `gittree.branchesLegacy`, and that is still gated exactly as before.
+      'gittree.branchesLegacy',
       'gittree.worktrees',
       'gittree.localHistory',
       'gittree.stashes',
@@ -93,17 +101,30 @@ suite('P14 owning the SCM surface', () => {
       // appeared only after a second trip through the Views menu.
       assert.notStrictEqual(byId.get(id)?.visibility, 'hidden', `${id} must not also be hidden`);
     }
-    // The two that are revealed on demand keep a second clause, or the command
-    // that reveals them would silently do nothing while the setting is off.
-    assert.ok(byId.get('gittree.branches')?.when?.includes('gittree.branches.active'));
+    // Local History is still revealed on demand and keeps its second clause,
+    // or `gittree.history.show` would silently do nothing with the setting off.
+    // (`gittree.branches.active` went with POST-P14u: the view it unlocked is
+    // now contributed unconditionally, so there is nothing left to unlock.)
     assert.ok(byId.get('gittree.localHistory')?.when?.includes('gittree.localHistory.active'));
+    for (const view of views['gittree']!) {
+      assert.ok(
+        (view.when ?? '') !== 'gittree.branches.active',
+        'a context key nothing arms would leave the view permanently hidden',
+      );
+    }
 
-    // The commit window is the one thing that IS the sidebar.
-    assert.strictEqual(byId.get('gittree.commit')?.when, undefined);
+    /**
+     * Two views open unconditionally, and only two. The commit window IS the
+     * sidebar; POST-P14u added the Branches view beside it, because the status
+     * bar cannot be the way in — Cursor has no status bar at all, and a user
+     * who has just installed GitTree has to find branches somewhere.
+     */
+    const UNCONDITIONAL = ['gittree.commit', 'gittree.branches'];
+    for (const id of UNCONDITIONAL) assert.strictEqual(byId.get(id)?.when, undefined, id);
     for (const view of views['gittree']!) {
       const optional = view.visibility === 'hidden' || view.when !== undefined;
       assert.ok(
-        view.id === 'gittree.commit' || optional,
+        UNCONDITIONAL.includes(view.id) || optional,
         `${view.id} opens unconditionally beneath the commit window`,
       );
     }

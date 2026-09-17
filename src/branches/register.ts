@@ -10,15 +10,26 @@ import { setBranchesOpenHandler } from '../scm/syncOps';
 import { createBranchActions, findBranchAction, type BranchAction } from './branchActions';
 import { BranchOps } from './branchOps';
 import { refTypeOf, showBranchActions, showBranchesPopup } from './branchesPopup';
+import { BranchHubViewProvider } from './branchHubView';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
 import { CompareService } from './compare';
 import { RefService, type FavoritesStorage } from './refService';
+import { RepoScope } from './repoScope';
+import { RepositoriesViewProvider } from './repositoriesView';
+
+const SCOPE_MEMENTO_KEY = 'gittree.sidebar.focusedRepo';
 
 export interface Phase02Registry {
   refServices: Map<string, RefService>;
   ops: BranchOps;
   viewProvider: BranchesViewProvider;
   compare: CompareService;
+  /** POST-P14u: which repository the sidebar's two sections are showing. */
+  scope: RepoScope;
+  repositories: RepositoriesViewProvider;
+  /** Exposed so an integration test can drive the real view, not just the provider. */
+  reposView: vscode.TreeView<string>;
+  hub: BranchHubViewProvider;
   /**
    * P13-T5: the single branch-action registry the popup, the branches tree and
    * the log's Branches pane all consume, so the three cannot drift.
@@ -82,14 +93,148 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     await showBranchesPopup(core, repo, serviceFor, ops, actions);
   });
 
-  // Branches TreeView + drag-and-drop.
+  // ---- POST-P14u: the sidebar's repository scope, and the Repositories view -
+  const scope = new RepoScope({
+    get: () => context.workspaceState.get<string>(SCOPE_MEMENTO_KEY),
+    set: (value) => void context.workspaceState.update(SCOPE_MEMENTO_KEY, value),
+  });
+  scope.setRoots(core.repos.map((r) => r.root));
+  context.subscriptions.push({ dispose: () => scope.dispose() });
+
+  const repositories = new RepositoriesViewProvider(core, scope, () =>
+    vscode.workspace
+      .getConfiguration('gittree')
+      .get<boolean>('branches.showIncomingOutgoing', true),
+  );
+  context.subscriptions.push({ dispose: () => repositories.dispose() });
+
+  const reposView = vscode.window.createTreeView('gittree.repositories', {
+    treeDataProvider: repositories,
+  });
+  context.subscriptions.push(reposView);
+
+  /**
+   * The focused row stays *selected*, which is where its background comes
+   * from — a `TreeItem` cannot colour itself. `focus: false` because the
+   * selection is a statement about the list, not a request for the keyboard.
+   */
+  const syncSelection = (): void => {
+    const current = scope.current;
+    if (current === undefined || !reposView.visible) return;
+    void reposView.reveal(current, { select: true, focus: false }).then(undefined, () => undefined);
+  };
+  const paintRepositories = (): void => {
+    // The section exists only where it means something. A single-root
+    // workspace has nothing to choose between, and the Branches view below
+    // names its repository anyway.
+    void vscode.commands.executeCommand('setContext', 'gittree.multiRepo', core.repos.length > 1);
+    // `REPOSITORIES  7` — the section is collapsed by default, so the count is
+    // the only thing it says until someone opens it.
+    reposView.description = core.repos.length > 1 ? String(core.repos.length) : undefined;
+    repositories.refresh();
+    syncSelection();
+  };
+  paintRepositories();
+  const onRoots = (): void => {
+    scope.setRoots(core.repos.map((r) => r.root));
+    paintRepositories();
+  };
+  const joinSub = core.onDidAddRepo(onRoots);
+  const leaveSub = core.onDidRemoveRepo(onRoots);
+  const scopeSub = scope.onDidChange(() => {
+    repositories.refresh();
+    syncSelection();
+  });
+  context.subscriptions.push(
+    new vscode.Disposable(() => joinSub.dispose()),
+    new vscode.Disposable(() => leaveSub.dispose()),
+    new vscode.Disposable(() => scopeSub.dispose()),
+    reposView.onDidChangeVisibility(() => syncSelection()),
+    /**
+     * `select`, not `focus`: VS Code auto-registers `<viewId>.focus` for every
+     * contributed view, so `gittree.repositories.focus` is already taken by the
+     * command that reveals this very section — the one the branches popup's
+     * last header button uses for `gittree.branches`. Squatting on it would
+     * shadow one of the two depending on which registry answered first.
+     */
+    vscode.commands.registerCommand('gittree.repositories.select', (arg?: unknown) => {
+      const root =
+        typeof arg === 'string'
+          ? arg
+          : typeof arg === 'object' && arg !== null && 'root' in arg
+            ? String(arg.root)
+            : undefined;
+      if (root !== undefined) scope.focus(root);
+    }),
+  );
+
+  /**
+   * The legacy Branches tree, under its own id and gated on
+   * `gittree.sidebar.extraViews`. POST-P14u replaced what `gittree.branches`
+   * draws; this keeps the all-repositories tree one setting away, and keeps the
+   * provider constructed unconditionally because `phase02` and
+   * `phase14branchmenu` assert against it directly.
+   */
   const viewProvider = new BranchesViewProvider(core, serviceFor, ops);
-  const view = vscode.window.createTreeView('gittree.branches', {
+  const view = vscode.window.createTreeView('gittree.branchesLegacy', {
     treeDataProvider: viewProvider,
     dragAndDropController: viewProvider,
     showCollapseAll: true,
   });
   context.subscriptions.push(view);
+
+  // ---- The Branches view proper --------------------------------------------
+  const hub = new BranchHubViewProvider({
+    core,
+    scope,
+    refServiceFor: serviceFor,
+    showInOut: () =>
+      vscode.workspace
+        .getConfiguration('gittree')
+        .get<boolean>('branches.showIncomingOutgoing', true),
+    // The legacy tree's own drop handler: one merge/rebase/compare prompt.
+    onDrop: (repo, source, target) => viewProvider.showDropActions(repo, source, target),
+  });
+  context.subscriptions.push({ dispose: () => hub.dispose() });
+
+  const hubView = vscode.window.createTreeView('gittree.branches', {
+    treeDataProvider: hub,
+    dragAndDropController: hub,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(hubView);
+
+  /**
+   * Amendment 2 to the owner's spec: the section *names* the repository rather
+   * than repeating the Repositories list in a dropdown directly beneath it.
+   * One selector cannot fall out of step with itself.
+   */
+  const paintHub = (): void => {
+    hubView.description = core.repos.length > 1 ? scope.label(scope.current ?? '') : undefined;
+    hub.refresh();
+  };
+  paintHub();
+  /**
+   * The title strip's `+`. A `view/title` button carries no argument, so the
+   * plain `gittree.branches.new` would fall back to the active editor's
+   * repository — which is the one repository this view may not be showing.
+   */
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gittree.branches.newHere', async () => {
+      const repo = hub.repo();
+      if (repo) await ops.newBranchFrom(repo, 'HEAD');
+    }),
+  );
+  const hubScopeSub = scope.onDidChange(paintHub);
+  // A repository joining or leaving can change whether the name is shown at
+  // all (it appears only when there is more than one) without moving the scope.
+  const hubJoinSub = core.onDidAddRepo(paintHub);
+  const hubLeaveSub = core.onDidRemoveRepo(paintHub);
+  context.subscriptions.push(
+    new vscode.Disposable(() => hubScopeSub.dispose()),
+    new vscode.Disposable(() => hubJoinSub.dispose()),
+    new vscode.Disposable(() => hubLeaveSub.dispose()),
+  );
 
   // Compare view + commands.
   const compare = new CompareService(core);
@@ -274,7 +419,17 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     await ops.checkout(repo, value.trim());
   });
 
-  const registry: Phase02Registry = { refServices, ops, viewProvider, compare, actions };
+  const registry: Phase02Registry = {
+    refServices,
+    ops,
+    viewProvider,
+    compare,
+    scope,
+    repositories,
+    reposView,
+    hub,
+    actions,
+  };
   core.debugRegistry.set('phase02', registry);
   return registry;
 }

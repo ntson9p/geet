@@ -489,9 +489,15 @@ own window. None of the four is a permanent section of the commit surface.
 
 **GitTree:** the default shape is now the same — POST-P14k moved worktrees to the Git tool
 window, POST-P14l gave stashes their `Stash` tab, and POST-P14n gates
-`gittree.branches`, `gittree.worktrees`, `gittree.localHistory` and `gittree.stashes` behind
-`gittree.sidebar.extraViews` (default `false`). Turning the setting on brings all four back
-as collapsed sections.
+`gittree.branchesLegacy`, `gittree.worktrees`, `gittree.localHistory` and `gittree.stashes`
+behind `gittree.sidebar.extraViews` (default `false`). Turning the setting on brings all four
+back as collapsed sections.
+
+**Amended by POST-P14u (D29).** Branches is no longer one of the four. `gittree.branches` was
+promoted to the repository-scoped Branches view, which opens unconditionally; the
+all-repositories tree this deviation is about kept its provider and moved to
+`gittree.branchesLegacy`, still behind the same setting. Everything below still describes
+that tree and the other three.
 
 **Why a setting and not `"visibility": "hidden"`, which POST-P14m tried first:** `visibility`
 is only a **first-registration default**. VS Code persists a view container's layout the first
@@ -629,3 +635,72 @@ own context menu, so `button`, `full` and `off` are available explicitly. GitTre
 *reads* `git.enabled`; it never writes it (`discovery.test.ts` asserts that).
 
 **Revisitable:** yes, that is what the setting is for.
+
+## D29 · A Repositories section, and a Branches view in the sidebar
+
+**IntelliJ:** there is no repositories window. A multi-root project surfaces its roots inside
+the branch widget's popup — a row per repository, then `Common Local Branches` /
+`Common Remote Branches` / `Common Tags` — and inside the Git tool window's own root filter.
+Branches themselves live in two places: that popup, and the Git tool window's Branches pane.
+There is no notion of a "current repository" anywhere in the UI; scope is picked per
+operation (which is what D27 is about).
+
+**GitTree:** the sidebar gains two sections. **Branches** (`gittree.branches`) is the popup's
+content standing open, scoped to one repository. **Repositories** (`gittree.repositories`)
+lists every root with its current branch and its distance from upstream, and chooses which
+repository Branches shows; it is contributed only when `gittree.multiRepo` is set, and starts
+collapsed with the root count beside its title.
+
+**Why, against a project whose first principle is IntelliJ fidelity.** Two reasons, and only
+the second is about IntelliJ.
+
+The first is that **the status bar cannot carry a primary entry point.** Cursor has no status
+bar at all — confirmed from the owner's own window, where GitTree's Git tool window and
+activity-bar icon are both present and the bottom strip simply does not exist. Everything
+POST-P14r through POST-P14t did to that widget is invisible to every Cursor user. A surface
+that some IDEs in our supported set do not render is a surface nothing may depend on.
+
+The second is that the persistent branches surface **is** IntelliJ's — P12-T2 built it, as the
+Git tool window's Branches pane, where JetBrains keeps it. What POST-P14u changes is where a
+VS Code user meets it. That is the Tier-1 failure this project already has a name for from
+POST-P14k, *capability specified without container*, pointed the other way: the container was
+faithful and nobody found it. GitTree's own sidebar is the container a VS Code user opens.
+
+**What this deliberately is not.** Focus is a **view filter, not a mode.** It scopes the two
+sections that draw it. `Ctrl+K`, `Ctrl+T`, Push and every other command keep resolving their
+repository from the active editor, unchanged. Both references split it exactly this way —
+VS Code's Source Control selection filters that view while its status-bar branch follows the
+editor; IntelliJ's log has a root filter while its widget follows the editor — and the
+alternative is the failure mode: wiring focus into *some* commands lets the sidebar name one
+repository while `Ctrl+K` commits another, with nothing on screen to say so. The section
+header names its repository, so the filter is never silent. Making focus global is a real
+option and a separate one; it is a refactor of the six copies of `pickRepo`, not a side
+effect of adding a view.
+
+**Where it differs from VS Code, deliberately.** Three places, because "like the Source
+Control view" turns out to describe two different VS Code views:
+
+* **Rows do not expand.** VS Code's *Source Control* view expands a repository to its
+  changes; its *Repositories* view does not expand at all. Ours is the selector, so it does
+  not expand — changes belong to the Commit view.
+* **Selection is single and total.** VS Code's Repositories view is multi-select and its
+  selection is a visibility filter; ours focuses exactly one and cannot focus none, because
+  the Branches view below it must always have something to draw.
+* **Right-click reaches the verbs.** In VS Code the repository verbs are on the row's `⋯`
+  button (`scm/repository`, 14 entries) and right-click gives `scm/sourceControl`, which is
+  *Close Repository* and two worktree rows. Ours puts the verbs on right-click, where a user
+  expects them. They are named GitTree's way, not VS Code's — `Update Project…`, not `Pull`
+  — because that is what those commands are called everywhere else in this extension.
+
+**What it costs.** One more surface over the branch-action registry, which is the POST-P14d
+failure mode and is mitigated the same structural way: the Branches view emits the **same**
+`contextValue`s from the **same** `branchActions.branchContextValue`, so all 21
+`view/item/context` clauses serve both trees with no second menu to maintain; its `Actions`
+rows are literally `HUB_VERBS`, the popup's own list; its sections come from
+`branchHubModel.hubSections`, lifted out of the popup's `buildPopupItems`; and its
+drag-and-drop dispatches into the legacy tree's existing `showDropActions`. A unit test
+asserts every branch-row clause names both view ids, and fails if one is narrowed back.
+
+**Revisitable:** yes. Deleting the two views is mechanical, and the legacy tree is one setting
+away in the meantime. The open question is whether focus should become the global repository
+scope — deliberately left for its own task.

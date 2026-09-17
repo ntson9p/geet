@@ -94,8 +94,9 @@ before.
 
 They moved to where IntelliJ keeps them, so the sidebar shows the commit window on its own:
 
-* **Branches** — the branches popup (the status-bar branch widget), and the **Branches** pane
-  in the Git tool window's Log tab.
+* **Branches** — came back, in a different shape. The sidebar's **Branches** section is the
+  branches popup standing open, scoped to one repository; **Repositories** above it chooses
+  which (it appears only when the workspace has more than one). See the next entry.
 * **Worktrees** — the **Worktrees** tab of the Git tool window, beside `Log` and `Console`.
 * **Stashes** — the **Stash** tab of the commit window, beside `Commit` and `Shelf`. Setting
   `gittree.stash.combineWithShelf` folds it into the Shelf tab, which is IntelliJ's
@@ -110,6 +111,35 @@ removes them again — no reload either way.
 (Ticking them under the sidebar's ⋯ → **Views** menu does *not* work, and neither did the
 first attempt at this, which set them to `"visibility": "hidden"`: that is only a default for
 a profile that has never rendered the container, so an existing install kept showing them.)
+
+### What are the Repositories and Branches sections in the sidebar?
+
+**Branches** is the branches popup, standing open: the same `Actions` verbs, the same
+Current / Favorites / Recent / Local / Remote / Tags sections, the same right-click menu.
+Two differences, both in its favour — `feature/` is a real expandable folder rather than a
+drill-in (a popup cannot nest; see D5), and it does not close when you look away.
+
+**Repositories** lists every repository with its current branch and how far that branch is
+from its upstream. Click one to show it in Branches. It appears only when the workspace has
+more than one repository, and starts collapsed, so a single-repository workspace never sees
+it and a multi-repository one pays one row for it.
+
+Why it exists, when IntelliJ puts branches in the branch widget and the Git tool window:
+the status bar cannot be the way in. **Cursor has no status bar at all**, so the GitTree
+button does not exist there — and a VS Code user who has just installed the extension looks
+in the sidebar, not at a widget two entries from the one the built-in Git extension draws.
+Both surfaces still work exactly as before; this is a third way in, not a replacement.
+
+**What focusing a repository does *not* do:** it does not change what `Ctrl+K`, `Ctrl+T` or
+Push act on. Those still resolve their repository from the active editor, as they always
+have. Focus scopes the two sections that draw it and nothing else — the same split VS Code
+has (its Source Control selection filters that view; the status-bar branch follows the
+editor) and IntelliJ has (the log has a root filter; the branch widget follows the editor).
+The Branches section names its repository in the header so there is never a question which
+one it means.
+
+The all-repositories branch tree that used to be here is still available as
+**Branches (All Repositories)** under `gittree.sidebar.extraViews`.
 
 ### Where does Local History store its data? Does it leave my machine?
 

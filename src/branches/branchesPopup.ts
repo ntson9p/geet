@@ -733,10 +733,9 @@ export async function showBranchesPopup(
       await vscode.commands.executeCommand('workbench.action.openSettings', 'gittree.branches');
     } else {
       qp.hide();
-      // The tree is gated off by default (D26) — you cannot focus a view that
-      // is not contributed, so the button arms its own context key first, the
-      // way `gittree.compare` does.
-      await vscode.commands.executeCommand('setContext', 'gittree.branches.active', true);
+      // POST-P14u: the Branches view is contributed unconditionally now, so
+      // the context key this used to arm first (D26's reveal-on-demand dance)
+      // has nothing left to unlock.
       await vscode.commands.executeCommand('gittree.branches.focus');
     }
   });

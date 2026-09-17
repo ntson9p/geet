@@ -9,6 +9,7 @@ import type { Core, RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
+import { branchContextValue } from './branchActions';
 import type { BranchOps } from './branchOps';
 import type { RefService } from './refService';
 
@@ -164,24 +165,10 @@ export class BranchesViewProvider
         item.iconPath = new vscode.ThemeIcon(
           isCurrent ? 'check' : ref.type === 'tag' ? 'tag' : ref.type === 'remote' ? 'cloud' : 'git-branch',
         );
-        // `branch:<kind>` plus an optional `:tracked` bit. The suffix exists
-        // because a `when` clause cannot read a node's fields, and two rows —
-        // `Update` and the `Tracked Branch` submenu — are meaningless without
-        // a live upstream; `branchActions.upstreamOf` is the definition this
-        // projects, and the two have to keep answering the same thing.
-        // Every clause therefore matches with `(:|$)`, never a bare `$`.
-        const kind = isCurrent
-          ? 'current'
-          : ref.type === 'remote'
-            ? 'remote'
-            : ref.type === 'tag'
-              ? 'tag'
-              : 'local';
-        const tracked =
-          (kind === 'current' || kind === 'local') &&
-          ref.upstream !== undefined &&
-          ref.upstreamGone !== true;
-        item.contextValue = tracked ? `branch:${kind}:tracked` : `branch:${kind}`;
+        // `branch:<kind>` plus an optional `:tracked` bit, shared with the
+        // POST-P14u Branches view so the same ref cannot categorise itself
+        // two ways and collect two different menus.
+        item.contextValue = branchContextValue(ref);
         return item;
       }
     }

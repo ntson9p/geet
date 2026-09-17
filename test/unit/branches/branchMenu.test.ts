@@ -194,3 +194,70 @@ describe('the Tracked Branch submenu', () => {
     for (const row of rows) expect(hidden.has(row.command)).toBe(true);
   });
 });
+
+/**
+ * POST-P14u split the one branch tree into two: `gittree.branches` is the
+ * repository-scoped hub the sidebar shows, `gittree.branchesLegacy` the
+ * all-repositories tree behind `gittree.sidebar.extraViews`. Both draw branch
+ * rows, both label them with `branchActions.branchContextValue`, and a clause
+ * that named only one of them would hand the same ref two different menus —
+ * the defect at the top of this file, one level up.
+ */
+describe('both branch trees', () => {
+  it('share every row, so neither is missing what the other offers', () => {
+    expect(entries.length).toBeGreaterThan(0);
+    for (const e of entries) {
+      expect(e.when).toContain('view == gittree.branches ');
+      expect(e.when).toContain('view == gittree.branchesLegacy');
+    }
+  });
+});
+
+describe('the Repositories row context menu', () => {
+  const repoEntries = pkg.contributes.menus['view/item/context']!.filter((m) =>
+    String(m.when ?? '').includes('view == gittree.repositories'),
+  );
+
+  it('covers the same ground as VS Code’s own repository ⋯ menu, in GitTree’s words', () => {
+    // VS Code's `scm/repository` is Pull · Push · Clone · Checkout to… · Fetch,
+    // then Commit/Changes/Pull-Push/Branch/Remote/Stash/Tags submenus, then
+    // Show Git Output. This is the same ground named the way the rest of
+    // GitTree names it — Update Project rather than Pull, because that is what
+    // the command actually is everywhere else in this extension.
+    expect(
+      repoEntries
+        .sort((a, b) => String(a.group).localeCompare(String(b.group)))
+        .map((e) => titles.get(e.command!)),
+    ).toEqual([
+      'Update Project…',
+      'Push…',
+      'Fetch',
+      'Commit',
+      'Checkout Branch…',
+      'New Branch…',
+      'Checkout Tag or Revision…',
+      'Stash Changes…',
+      'Unstash Changes…',
+      'Manage Remotes…',
+    ]);
+  });
+
+  it('only offers commands that take the repository as their first argument', () => {
+    // The tree's element *is* the root string, so VS Code hands each of these
+    // the repository the row stands for. A command that ignored its first
+    // argument would silently act on whichever repository the editor is in.
+    const repoScoped = new Set([
+      'gittree.update.dialog',
+      'gittree.push.dialog',
+      'gittree.fetch',
+      'gittree.commit',
+      'gittree.branches.open',
+      'gittree.branch.new',
+      'gittree.branches.checkoutRevision',
+      'gittree.stash.dialog',
+      'gittree.unstash.dialog',
+      'gittree.remotes.manage',
+    ]);
+    for (const e of repoEntries) expect(repoScoped.has(e.command!)).toBe(true);
+  });
+});

@@ -7,6 +7,7 @@
  */
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
+import type { RefInfo } from '../core/model/refs';
 import type { BranchOps } from './branchOps';
 import type { RefService } from './refService';
 
@@ -79,6 +80,35 @@ export function upstreamOf(ctx: BranchActionContext): string | undefined {
   );
   if (!ref || ref.upstream === undefined || ref.upstreamGone === true) return undefined;
   return ref.upstream;
+}
+
+/**
+ * The `viewItem` a branch row carries, which is what every `when` clause in
+ * `view/item/context` matches against. Two tree views draw branch rows — the
+ * POST-P14u Branches view and the legacy all-repositories tree — and both read
+ * this, because a row that categorises itself differently in one of them gets a
+ * different menu for the same ref, which is the POST-P14d defect exactly.
+ *
+ * The `:tracked` suffix exists because a `when` clause cannot read a node's
+ * fields, and two rows — `Update` and the `Tracked Branch` submenu — are
+ * meaningless without a live upstream. `upstreamOf` above is the definition this
+ * projects; the two have to keep answering the same thing, so every clause
+ * matches with `(:|$)` and never a bare `$`.
+ */
+export function branchContextValue(ref: RefInfo): string {
+  const kind =
+    ref.isHead === true
+      ? 'current'
+      : ref.type === 'remote'
+        ? 'remote'
+        : ref.type === 'tag'
+          ? 'tag'
+          : 'local';
+  const tracked =
+    (kind === 'current' || kind === 'local') &&
+    ref.upstream !== undefined &&
+    ref.upstreamGone !== true;
+  return tracked ? `branch:${kind}:tracked` : `branch:${kind}`;
 }
 
 export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
