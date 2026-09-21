@@ -706,6 +706,12 @@
         "icon": "$(plus)"
       },
       {
+        "command": "gittree.gitignore.add",
+        "title": "%gittree.command.gitignoreAdd.title%",
+        "category": "GitTree",
+        "icon": "$(eye-closed)"
+      },
+      {
         "command": "gittree.rollbackFile",
         "title": "%gittree.command.rollbackFile.title%",
         "category": "GitTree",
@@ -2629,6 +2635,11 @@
           "command": "gittree.rollbackFile",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile'",
           "group": "2_file@2"
+        },
+        {
+          "command": "gittree.gitignore.add",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && fileUnversioned",
+          "group": "3_ignore@1"
         },
         {
           "command": "gittree.log.branch.checkout",

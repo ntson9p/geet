@@ -2,6 +2,7 @@
  * File-level operations & diff commands (P1-T4). Every git call goes through
  * the repo's OperationQueue; destructive ones declare the P9 snapshot labels.
  */
+import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
@@ -10,6 +11,7 @@ import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
+import { appendPatterns, planIgnoreEdits } from './gitignoreRules';
 
 interface Selection {
   repo: RepoHandle;
@@ -204,6 +206,74 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
         }
       },
     });
+  });
+
+  /**
+   * POST-P14w — IntelliJ's `Add to .gitignore` on the Unversioned Files rows.
+   *
+   * The pattern goes into the **nearest existing** `.gitignore` at or above
+   * the file, falling back to one at the repository root: a monorepo that
+   * keeps a `.gitignore` per package expects the rule to land in that
+   * package, not in a root file the whole tree reads. Writing is a plain file
+   * edit, not a git call — `.gitignore` is ordinary content, and the status
+   * refresh that follows is what makes the rows disappear.
+   */
+  register('gittree.gitignore.add', async (...args) => {
+    const sel = normalize(core, args);
+    if (!sel || sel.entries.length === 0) return;
+    const { repo } = sel;
+    // Only paths git does not track: ignoring a tracked file changes nothing
+    // (the index wins) and would leave a rule that quietly does nothing.
+    const relPaths = sel.entries.filter((e) => e.kind === 'untracked').map((e) => e.path);
+    if (relPaths.length === 0) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('Only unversioned files can be added to .gitignore.'),
+      );
+      return;
+    }
+
+    // Every directory on the way up from each file, asked once.
+    const candidates = new Set<string>();
+    for (const rel of relPaths) {
+      const parts = rel.split('/');
+      for (let depth = 1; depth < parts.length; depth++) {
+        candidates.add(parts.slice(0, depth).join('/'));
+      }
+    }
+    const ignoreDirs = new Set<string>();
+    await Promise.all(
+      [...candidates].map(async (dir) => {
+        try {
+          await fsp.access(path.join(repo.root, dir, '.gitignore'));
+          ignoreDirs.add(dir);
+        } catch {
+          // No ignore file here; the next directory up gets its turn.
+        }
+      }),
+    );
+
+    const written: string[] = [];
+    for (const edit of planIgnoreEdits(relPaths, ignoreDirs)) {
+      const file = path.join(repo.root, edit.dir, '.gitignore');
+      let existing = '';
+      try {
+        existing = await fsp.readFile(file, 'utf8');
+      } catch {
+        existing = ''; // the root fallback, which this call creates
+      }
+      const next = appendPatterns(existing, edit.patterns);
+      if (next === undefined) continue;
+      await fsp.writeFile(file, next, 'utf8');
+      written.push(edit.dir === '' ? '.gitignore' : `${edit.dir}/.gitignore`);
+    }
+    if (written.length === 0) return;
+    // The workspace watcher would get here on its own, debounced; the rows
+    // vanishing the moment the menu closes is what makes the action legible.
+    await repo.refresher.refreshNow();
+    void vscode.window.setStatusBarMessage(
+      vscode.l10n.t('Ignored {0} file(s) in {1}', relPaths.length, written.join(', ')),
+      4000,
+    );
   });
 
   register('gittree.rollbackFile', async (...args) => {

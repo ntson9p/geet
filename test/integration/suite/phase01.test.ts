@@ -244,6 +244,53 @@ suite('P1 core SCM', () => {
     await refresh();
   });
 
+  test('POST-P14w: Add to .gitignore writes the nearest ignore file', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const entry = (rel: string) =>
+      core.repoForPath(repoRoot)!.model.snapshot.statusEntries.find((e) => e.path === rel);
+    const pkgDir = path.join(repoRoot, 'pkg');
+    const rootIgnore = path.join(repoRoot, '.gitignore');
+    const pkgIgnore = path.join(pkgDir, '.gitignore');
+
+    fs.mkdirSync(pkgDir, { recursive: true });
+    // The package already keeps its own ignore file; the root does not, so the
+    // command has to create one — both halves of the rule in one run.
+    fs.writeFileSync(pkgIgnore, '*.tmp\n');
+    write('w-root.log', 'x\n');
+    fs.writeFileSync(path.join(pkgDir, 'gen.ts'), 'x\n');
+    await refresh();
+    await waitFor(() => entry('w-root.log') !== undefined && entry('pkg/gen.ts') !== undefined, 15_000);
+
+    try {
+      await vscode.commands.executeCommand('gittree.gitignore.add', {
+        repoRoot,
+        relPath: 'w-root.log',
+        relPaths: ['w-root.log', 'pkg/gen.ts'],
+      });
+      // Anchored and relative to the file it is written into: `/gen.ts` in the
+      // package, not `/pkg/gen.ts`, which would match nothing from there.
+      await waitFor(() => fs.existsSync(rootIgnore), 15_000);
+      assert.match(fs.readFileSync(rootIgnore, 'utf8'), /^\/w-root\.log$/mu);
+      const pkgText = fs.readFileSync(pkgIgnore, 'utf8');
+      assert.match(pkgText, /^\/gen\.ts$/mu);
+      assert.match(pkgText, /^\*\.tmp$/mu, 'existing rules must survive the append');
+
+      // The rows are gone from the commit window because git no longer reports
+      // them — which is the whole point of the action.
+      await refresh();
+      await waitFor(() => entry('w-root.log') === undefined && entry('pkg/gen.ts') === undefined, 15_000);
+    } finally {
+      // Every byte this test wrote goes, or the next suite inherits an
+      // untracked file it never made — the pollution `discovery.test.ts`
+      // records as the cause of cascading false failures.
+      fs.rmSync(rootIgnore, { force: true });
+      fs.rmSync(path.join(repoRoot, 'w-root.log'), { force: true });
+      fs.rmSync(pkgDir, { recursive: true, force: true });
+      await refresh();
+    }
+  });
+
   test('T7: commit from the commit window message box (staged + amend)', async function () {
     this.timeout(60_000);
     // P14-T2: the SCM input box is gone; the commit window's message box is the
