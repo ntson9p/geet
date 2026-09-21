@@ -343,6 +343,79 @@ suite('P3 commit lifecycle', () => {
     }
   });
 
+  test('POST-P14v: Add to VCS versions a selection into the default changelist', async function () {
+    this.timeout(60_000);
+    const service = reg.changelistsFor(repo);
+    // A list that is ACTIVE but not default: adoption sends new tracked files
+    // here, and IntelliJ's rule sends added files to the default list instead.
+    // Without that distinction this test cannot tell the two apart.
+    const side = service.create('P14v side list', undefined, true);
+    write('v-one.txt', 'one\n');
+    write('nested/v-two.txt', 'two\n');
+    await refresh();
+    await waitFor(
+      () => service.unversioned().includes('v-one.txt') && service.unversioned().includes('nested/v-two.txt'),
+      15_000,
+    );
+
+    try {
+      await vscode.commands.executeCommand('gittree.addToVcs', {
+        repoRoot: fsRoot,
+        relPath: 'v-one.txt',
+        relPaths: ['v-one.txt', 'nested/v-two.txt'],
+      });
+      await refresh();
+
+      // Versioned: git tracks them now, so they leave Unversioned Files. Only
+      // these two — earlier tests in this suite leave unversioned files of
+      // their own in repoC, and asserting the bucket is empty would fail on
+      // work this command never touched.
+      await waitFor(
+        () =>
+          !service.unversioned().includes('v-one.txt') &&
+          !service.unversioned().includes('nested/v-two.txt'),
+        15_000,
+      );
+      // `ls-files`, not `diff --cached`: git deliberately hides intent-to-add
+      // entries from `diff --cached` (they need `--ita-visible-in-index`), so
+      // the diff is empty for a file that IS in the index. Asking the index
+      // directly is the only honest question here.
+      const tracked = git('ls-files', '--', 'v-one.txt', 'nested/v-two.txt')
+        .trim()
+        .split(/\r?\n/u)
+        .filter(Boolean)
+        .sort();
+      assert.deepStrictEqual(
+        tracked,
+        ['nested/v-two.txt', 'v-one.txt'],
+        'add -N must record both paths in the index',
+      );
+      // Intent-to-add, not a content stage: the changelists paradigm keeps the
+      // index free of content nobody asked to stage, and commitChangelistPartial
+      // builds its own tree on the assumption that it is.
+      assert.strictEqual(
+        git('cat-file', '-p', ':v-one.txt'),
+        '',
+        'add -N must not put file content in the index',
+      );
+
+      // In the DEFAULT list, not the active one.
+      const def = service.getLists().find((l) => l.isDefault)!;
+      assert.ok(def.files.includes('v-one.txt'), 'v-one.txt not in the default list');
+      assert.ok(def.files.includes('nested/v-two.txt'), 'nested/v-two.txt not in the default list');
+      assert.deepStrictEqual(service.getList(side.id)?.files, [], 'active list must not claim them');
+      // Ticked, the way a changelist file is.
+      assert.ok(service.isChecked('v-one.txt'));
+    } finally {
+      git('reset', '-q', '--', 'v-one.txt', 'nested/v-two.txt');
+      fs.rmSync(path.join(repoRoot, 'v-one.txt'), { force: true });
+      fs.rmSync(path.join(repoRoot, 'nested'), { recursive: true, force: true });
+      service.setActive(service.getLists().find((l) => l.isDefault)!.id);
+      service.remove(side.id);
+      await refresh();
+    }
+  });
+
   test('T5: amend toggle loads previous message and rewrites HEAD', async function () {
     this.timeout(60_000);
     const before = git('rev-parse', 'HEAD').trim();

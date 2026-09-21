@@ -359,3 +359,11 @@ Date and time are two `Intl.DateTimeFormat`s joined with a space rather than one
 Testing: **+5 unit** over the formatter with locale and zone pinned (en-GB/en-US/de-DE field order, a zone shift, a `+14` zone that puts the same instant on the *next day* — the thing an age hides completely, no locale comma, and stability). **+1 webview** on the real row, locale-tolerant by construction: it requires a calendar date **and** a clock time in both the text and the `aria-label`, and rejects the `N(m|h|d) ·` shape it replaced.
 
 Gates (scoped): typecheck (both tsconfigs) + lint clean, **5 unit** on `dateFormat`, **55 webview passing / 0 failing** in `log.spec` at `--workers=1` (see POST-P14x for why that flag, and why a parallel run here proves nothing about the product).
+
+POST-P14v (addendum) ✅ 2026-09-21 — **`gittree.addToVcs` gets the end-to-end test it shipped without.** The original commit tested the *payload* the menu hands over and left the command itself covered only by inspection.
+
+**+1 integration** in `P3 commit lifecycle`, over a two-file selection including a nested path, with an **active list that is not the default** — without that distinction the test cannot tell reconcile's adoption rule (active) from IntelliJ's (default), which is the one thing the command adds over doing nothing. It was **watched to fail**: replacing `service.moveFiles(targets, DEFAULT_LIST_ID)` with a no-op turns it red on `v-one.txt not in the default list`, then green again restored.
+
+**Two things the assertions had to be taught about `add -N`.** `git diff --cached` reports *nothing* for an intent-to-add entry — git hides them there unless asked with `--ita-visible-in-index` — so the first draft failed against a working command; `git ls-files` asks the index directly and is the honest question. And "no content was staged" is checked as `git cat-file -p :v-one.txt` being empty rather than by a blob hash, which would have pinned the test to SHA-1 repositories. The unversioned assertion names its own two files rather than claiming the bucket is empty: earlier tests in the suite leave unversioned files in repoC that this command never touched.
+
+Gates (scoped): typecheck + lint clean, **11 integration passing / 0 failing** in `P3 commit lifecycle`.
