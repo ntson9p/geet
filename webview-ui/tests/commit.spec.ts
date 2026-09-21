@@ -76,6 +76,39 @@ test.describe('P11-T2 commit window layout', () => {
     expect(await row(page, 'api, 2 files').getAttribute('data-vscode-context')).toBeNull();
   });
 
+  test('POST-P14v: a Ctrl-clicked selection travels in the file row context', async ({ page }) => {
+    await openCommit(page);
+    const ctxOf = async (name: string): Promise<Record<string, unknown>> =>
+      JSON.parse((await row(page, name).getAttribute('data-vscode-context')) ?? '{}') as Record<
+        string,
+        unknown
+      >;
+    const first = 'ArticleDataController.java, src/main/java/api';
+    const second = 'CommentController.java, src/main/java/api';
+
+    await row(page, first).click();
+    await row(page, second).click({ modifiers: ['Control'] });
+    const many = await ctxOf(first);
+    // What "Add to VCS on several files" rests on: VS Code reads this attribute
+    // during the contextmenu event, so it has to be right before the click.
+    expect(many['relPaths']).toEqual([
+      'src/main/java/api/ArticleDataController.java',
+      'src/main/java/api/CommentController.java',
+    ]);
+    expect(many['relPath']).toBe('src/main/java/api/ArticleDataController.java');
+    expect(many['fileUnversioned']).toBe(false);
+
+    // A right-click outside the selection acts on the row under the cursor
+    // only — and moves the selection there, as IntelliJ's tree does.
+    await row(page, 'guide.md, docs').click({ button: 'right' });
+    expect((await ctxOf('guide.md, docs'))['relPaths']).toEqual(['docs/guide.md']);
+    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, first)).toHaveAttribute('aria-selected', 'false');
+
+    // The unversioned row is the one that may offer Add to VCS.
+    expect((await ctxOf('2.txt'))['fileUnversioned']).toBe(true);
+  });
+
   test('opens with everything expanded, like the IntelliJ commit window', async ({ page }) => {
     await openCommit(page);
     await expect(row(page, 'Changes, 4 files')).toHaveAttribute('aria-expanded', 'true');

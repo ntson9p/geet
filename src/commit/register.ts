@@ -229,13 +229,23 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const one = listArg(node);
     return one ? [one] : [];
   };
-  /** Commit-window file rows carry {repoRoot, relPath}; tree nodes do not. */
-  const fileCtxArg = (arg: unknown): { repo: RepoHandle; relPath: string } | undefined => {
+  /**
+   * Commit-window file rows carry {repoRoot, relPath, relPaths}; tree nodes do
+   * not. `relPath` is the row the menu was opened on and leads the list;
+   * `relPaths` (POST-P14v) is the rest of the Ctrl-clicked selection.
+   */
+  const fileCtxArg = (
+    arg: unknown,
+  ): { repo: RepoHandle; relPath: string; relPaths: string[] } | undefined => {
     if (typeof arg !== 'object' || arg === null) return undefined;
-    const c = arg as { repoRoot?: unknown; relPath?: unknown };
+    const c = arg as { repoRoot?: unknown; relPath?: unknown; relPaths?: unknown };
     if (typeof c.repoRoot !== 'string' || typeof c.relPath !== 'string') return undefined;
     const repo = core.getRepo(c.repoRoot);
-    return repo ? { repo, relPath: c.relPath } : undefined;
+    if (!repo) return undefined;
+    const rest = Array.isArray(c.relPaths)
+      ? c.relPaths.filter((p): p is string => typeof p === 'string' && p !== c.relPath)
+      : [];
+    return { repo, relPath: c.relPath, relPaths: [c.relPath, ...rest] };
   };
   register('gittree.changelist.new', async (arg) => {
     // A changelist is a project-level idea. Creating it in every repository is
@@ -335,8 +345,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   register('gittree.changelist.moveTo', async (...args) => {
     const ctx = args.map(fileCtxArg).find((c) => c !== undefined);
     if (!ctx) return;
-    const { repo } = ctx;
-    const relPaths = [ctx.relPath];
+    const { repo, relPaths } = ctx;
     const service = changelistsFor(repo);
     const newListLabel = vscode.l10n.t('$(add) New changelist…');
     const options = [
@@ -357,6 +366,40 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       targetId = service.create(name.trim()).id;
     }
     service.moveFiles(relPaths, targetId);
+  });
+
+  /**
+   * POST-P14v — IntelliJ's `Add to VCS` on the Unversioned Files rows: the
+   * files become versioned and land in the **default** changelist, ticked.
+   *
+   * `add -N` rather than a plain `add`: intent-to-add makes git track the
+   * path without copying its content into the index, which is the invariant
+   * the changelists paradigm and per-change inclusion both rest on (the commit
+   * path assembles its own tree — see `commitChangelistPartial`). The file
+   * still reads as `A` in status, so it shows up green exactly as IntelliJ
+   * draws it.
+   */
+  register('gittree.addToVcs', async (...args) => {
+    const ctx = args.map(fileCtxArg).find((c) => c !== undefined);
+    if (!ctx) return;
+    const { repo, relPaths } = ctx;
+    const service = changelistsFor(repo);
+    // The menu is gated on the selection being unversioned, but a status
+    // refresh can land while the menu is open. Re-adding a tracked file would
+    // stage content nobody asked to stage.
+    const targets = relPaths.filter((p) => service.isUntrackedPath(p));
+    if (targets.length === 0) return;
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Add {0} file(s) to VCS', targets.length),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['add', '-N', '--', ...targets], { token });
+      },
+    });
+    // IntelliJ puts newly added files in the default list, not in whichever
+    // list happens to be active — and reconcile's adoption rule is the latter,
+    // so saying so explicitly is the only way to get it.
+    service.moveFiles(targets, DEFAULT_LIST_ID);
   });
 
   // Template prefill per repo (P14-T2 dropped acceptInputCommand with the box).

@@ -700,6 +700,12 @@
         "icon": "$(remove)"
       },
       {
+        "command": "gittree.addToVcs",
+        "title": "%gittree.command.addToVcs.title%",
+        "category": "GitTree",
+        "icon": "$(plus)"
+      },
+      {
         "command": "gittree.rollbackFile",
         "title": "%gittree.command.rollbackFile.title%",
         "category": "GitTree",
@@ -2598,6 +2604,11 @@
           "command": "gittree.shelf.shelve",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && listCheckable",
           "group": "3_shelf@1"
+        },
+        {
+          "command": "gittree.addToVcs",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && fileUnversioned",
+          "group": "0_add@1"
         },
         {
           "command": "gittree.openDiff",

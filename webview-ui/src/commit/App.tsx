@@ -35,7 +35,14 @@ import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStr
 import { allDirPaths, countFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
 import { useElementSize } from '../lib/useElementSize';
 import { getVsCodeApi } from '../lib/vscodeApi';
-import { assembleCommitTree, fileCountLabel, iconFor, partialLabel, splitDelta } from './commitTree';
+import {
+  assembleCommitTree,
+  fileCountLabel,
+  fileRowContext,
+  iconFor,
+  partialLabel,
+  splitDelta,
+} from './commitTree';
 import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
@@ -277,6 +284,9 @@ export function App() {
    * used to be the only place a changelist could be renamed, deleted or made
    * active; once it goes, this is that home. Labels are static, so master §9's
    * native-menu rule applies (the kit `Menu` is for interpolated labels).
+   *
+   * POST-P14v: file rows carry the whole selection, so `Add to VCS` and the
+   * other file verbs act on a Ctrl-clicked set rather than on one row.
    */
   const rowContext = useCallback(
     (node: TreeNode): Record<string, unknown> | undefined => {
@@ -295,16 +305,9 @@ export function App() {
           listSpansRepos: group.targets.length > 1,
         };
       }
-      const ref = model.files.get(node.path);
-      if (!ref) return undefined;
-      return {
-        preventDefaultContextMenuItems: true,
-        webviewSection: 'commitFile',
-        repoRoot: ref.repoRoot,
-        relPath: ref.relPath,
-      };
+      return fileRowContext(model, node.path, selection);
     },
-    [model],
+    [model, selection],
   );
 
   const selectedRelPaths = useCallback((): { repoRoot: string; paths: string[] } | undefined => {

@@ -308,6 +308,50 @@ export function splitDelta(
   }));
 }
 
+/**
+ * POST-P14v: the native context payload for one file row.
+ *
+ * Built from the selection as it stands *when the menu opens*, because that is
+ * what VS Code reads off `data-vscode-context` during the same contextmenu
+ * event — a selection change made in response to the right-click has not
+ * rendered yet and must never be relied on here. A click inside a
+ * multi-selection therefore carries the whole selection; a click outside it
+ * carries only the row under the cursor, which is also what the tree then
+ * selects.
+ *
+ * Scoped to one repository: `gittree.*` file commands take a single
+ * `repoRoot`, and a cross-repository selection silently acting on half of
+ * itself is worse than acting on the clicked repository's half by contract.
+ */
+export function fileRowContext(
+  model: CommitTreeModel,
+  nodePath: string,
+  selection: ReadonlySet<string>,
+): Record<string, unknown> | undefined {
+  const ref = model.files.get(nodePath);
+  if (!ref) return undefined;
+  // `model.files` is populated in tree-leaf order, so filtering it keeps the
+  // payload in the order the rows are read on screen. A `Set` would not.
+  const selected = selection.has(nodePath)
+    ? [...model.files.entries()]
+        .filter(([key, f]) => selection.has(key) && f.repoRoot === ref.repoRoot)
+        .map(([, f]) => f)
+    : [ref];
+  const paths = selected.length > 1 ? selected : [ref];
+  return {
+    preventDefaultContextMenuItems: true,
+    webviewSection: 'commitFile',
+    repoRoot: ref.repoRoot,
+    // Kept beside `relPaths` so every pre-existing single-file command keeps
+    // working untouched; the clicked row is always the one it names.
+    relPath: ref.relPath,
+    relPaths: paths.map((f) => f.relPath),
+    // Gates `Add to VCS` and `Add to .gitignore`: both are meaningless on a
+    // file git already tracks, and a mixed selection would half-apply.
+    fileUnversioned: paths.every((f) => f.change.kind === 'untracked'),
+  };
+}
+
 export function iconFor(
   change: CommitChangeDto,
   overrides?: StatusColorOverrides,

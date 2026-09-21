@@ -43,6 +43,13 @@ export interface VirtualListProps {
   rowAriaLabel?: (index: number) => string | undefined;
   /** Click with modifier info (multi-selection models live above the list). */
   onRowClick?: (index: number, e: { ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => void;
+  /**
+   * Right-click on a row, before the native menu opens. Consumers use it to
+   * move the selection onto the row under the cursor — never to *build* the
+   * menu payload, which VS Code reads straight off `data-vscode-context` and
+   * so has to be right for the selection as it stood before the click.
+   */
+  onRowContextMenu?: (index: number) => void;
   /** Viewport tracker for overlay layers (log graph canvas) + infinite scroll. */
   onViewport?: (view: { scrollTop: number; first: number; last: number }) => void;
   className?: string;
@@ -79,6 +86,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     rowContext,
     rowAriaLabel,
     onRowClick,
+    onRowContextMenu,
     onViewport,
     className,
     role = 'listbox',
@@ -231,6 +239,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
           if (!e.ctrlKey && !e.metaKey && !e.shiftKey) focusIndex(i);
           onRowClick?.(i, { ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, metaKey: e.metaKey });
         }}
+        onContextMenu={() => onRowContextMenu?.(i)}
         onDoubleClick={() => onActivate?.(i)}
       >
         {renderRow(i)}

@@ -35,18 +35,30 @@ export class GitTreeResourceState {
 /**
  * P14-T2: the commit window's native context menu passes a plain
  * `{repoRoot, relPath}` object rather than a resource state or a tree node.
+ *
+ * POST-P14v added `relPaths`, the whole Ctrl-clicked selection. `relPath`
+ * stays beside it and always names the row the menu was opened on, so a
+ * command that can only mean one file keeps a defined answer.
  */
 interface FileContextArg {
   repoRoot: string;
-  relPath: string;
+  relPaths: string[];
 }
 function fileContextFrom(args: unknown[]): FileContextArg | undefined {
   for (const a of args) {
     if (typeof a !== 'object' || a === null) continue;
-    const c = a as Partial<FileContextArg>;
-    if (typeof c.repoRoot === 'string' && typeof c.relPath === 'string') {
-      return { repoRoot: c.repoRoot, relPath: c.relPath };
-    }
+    const c = a as { repoRoot?: unknown; relPath?: unknown; relPaths?: unknown };
+    if (typeof c.repoRoot !== 'string') continue;
+    const many = Array.isArray(c.relPaths)
+      ? c.relPaths.filter((p): p is string => typeof p === 'string')
+      : [];
+    // The clicked row leads, then the rest of the selection — `entries[0]` is
+    // what the single-file commands act on, and it must be the row the user
+    // actually pointed at.
+    const one = typeof c.relPath === 'string' ? c.relPath : undefined;
+    const relPaths = one === undefined ? many : [one, ...many.filter((p) => p !== one)];
+    if (relPaths.length === 0) continue;
+    return { repoRoot: c.repoRoot, relPaths };
   }
   return undefined;
 }
@@ -57,8 +69,10 @@ function normalize(core: Core, args: unknown[]): Selection | undefined {
   if (ctx) {
     const repo = core.getRepo(ctx.repoRoot);
     if (!repo) return undefined;
-    const entry = repo.model.snapshot.statusEntries.find((e) => e.path === ctx.relPath);
-    return entry ? { repo, entries: [entry] } : { repo, entries: [] };
+    const entries = ctx.relPaths
+      .map((rel) => repo.model.snapshot.statusEntries.find((e) => e.path === rel))
+      .filter((e): e is StatusEntry => e !== undefined);
+    return { repo, entries };
   }
   const uri = args.find((a): a is vscode.Uri => a instanceof vscode.Uri) ?? vscode.window.activeTextEditor?.document.uri;
   if (!uri || uri.scheme !== 'file') return undefined;

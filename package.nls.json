@@ -33,6 +33,7 @@
   "gittree.command.openDiffHead.title": "Compare with HEAD",
   "gittree.command.openFile.title": "Open File",
   "gittree.command.add.title": "Stage Changes",
+  "gittree.command.addToVcs.title": "Add to VCS",
   "gittree.command.unstage.title": "Unstage Changes",
   "gittree.command.rollbackFile.title": "Roll Back…",
   "gittree.command.cleanUntracked.title": "Delete Untracked Files…",

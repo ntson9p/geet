@@ -3,6 +3,7 @@ import type { CommitChangeDto, CommitGroupDto, CommitStateDto } from '../../../s
 import {
   assembleCommitTree,
   fileCountLabel,
+  fileRowContext,
   splitDelta,
 } from '../../../webview-ui/src/commit/commitTree';
 import {
@@ -367,5 +368,79 @@ describe('fileCountLabel', () => {
     expect(fileCountLabel(1)).toBe('1 file');
     expect(fileCountLabel(4)).toBe('4 files');
     expect(fileCountLabel(0)).toBe('0 files');
+  });
+});
+
+describe('fileRowContext (POST-P14v)', () => {
+  /** Tree path of a file row, found by the repo-relative path it stands for. */
+  function pathOf(model: ReturnType<typeof assembleCommitTree>, relPath: string): string {
+    const hit = [...model.files.entries()].find(([, f]) => f.relPath === relPath);
+    if (!hit) throw new Error(`no row for ${relPath}`);
+    return hit[0];
+  }
+
+  it('carries only the clicked row when nothing is selected', () => {
+    const model = assembleCommitTree(state());
+    const ctx = fileRowContext(model, pathOf(model, 'api/a.ts'), new Set());
+    expect(ctx).toMatchObject({
+      webviewSection: 'commitFile',
+      repoRoot: 'D:/repos/demo',
+      relPath: 'api/a.ts',
+      relPaths: ['api/a.ts'],
+      fileUnversioned: false,
+    });
+  });
+
+  it('carries the whole selection when the click lands inside it', () => {
+    const model = assembleCommitTree(state());
+    const a = pathOf(model, 'api/a.ts');
+    const b = pathOf(model, 'api/b.ts');
+    const ctx = fileRowContext(model, a, new Set([a, b]));
+    // Tree order, not click order: this is what the menu's label counts and
+    // what a rollback confirmation lists.
+    expect(ctx?.['relPaths']).toEqual(['api/a.ts', 'api/b.ts']);
+  });
+
+  it('ignores a selection the click landed outside of', () => {
+    const model = assembleCommitTree(state());
+    const ctx = fileRowContext(
+      model,
+      pathOf(model, 'docs/x.md'),
+      new Set([pathOf(model, 'api/a.ts'), pathOf(model, 'api/b.ts')]),
+    );
+    expect(ctx?.['relPaths']).toEqual(['docs/x.md']);
+  });
+
+  it('flags a selection as unversioned only when every file is', () => {
+    const model = assembleCommitTree(state());
+    const tracked = pathOf(model, 'api/a.ts');
+    const untracked = pathOf(model, 'api/new.ts');
+    expect(fileRowContext(model, untracked, new Set())?.['fileUnversioned']).toBe(true);
+    // The gate for Add to VCS / Add to .gitignore: a mixed selection would
+    // half-apply, so the menu must not offer either.
+    expect(
+      fileRowContext(model, untracked, new Set([tracked, untracked]))?.['fileUnversioned'],
+    ).toBe(false);
+  });
+
+  it('never crosses a repository boundary', () => {
+    const model = assembleCommitTree(twoRepos());
+    const mine = [...model.files.entries()].filter(([, f]) => f.repoRoot === 'D:/repos/demo');
+    const theirs = [...model.files.entries()].filter(([, f]) => f.repoRoot === 'D:/repos/other');
+    const clicked = mine[0]![0];
+    const ctx = fileRowContext(
+      model,
+      clicked,
+      new Set([clicked, mine[1]![0], theirs[0]![0]]),
+    );
+    expect(ctx?.['repoRoot']).toBe('D:/repos/demo');
+    // Every `gittree.*` file command takes one repoRoot; the other repo's row
+    // would silently be dropped by the host instead of here.
+    expect(ctx?.['relPaths']).toEqual([mine[0]![1].relPath, mine[1]![1].relPath]);
+  });
+
+  it('has nothing to say about a directory row', () => {
+    const model = assembleCommitTree(state());
+    expect(fileRowContext(model, model.groupPaths[0]!, new Set())).toBeUndefined();
   });
 });

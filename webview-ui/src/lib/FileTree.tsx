@@ -152,6 +152,24 @@ export function FileTree({
     [onSelectionChange, rows, selection],
   );
 
+  /**
+   * IntelliJ moves the selection to the row you right-click, and leaves a
+   * multi-selection alone when the click lands inside it. Purely cosmetic:
+   * the menu's payload comes from `data-vscode-context`, which VS Code reads
+   * in this same event, so the payload has to be built for the selection as it
+   * stood *before* the click — see `rowContext` in the commit window.
+   */
+  const onRowContextMenu = useCallback(
+    (index: number): void => {
+      if (!onSelectionChange) return;
+      const row = rows[index];
+      if (!row || selection?.has(row.node.path) === true) return;
+      anchorRef.current = index;
+      onSelectionChange([row.node.path]);
+    },
+    [onSelectionChange, rows, selection],
+  );
+
   const onRowKeyDown = useCallback(
     (index: number, e: ReactKeyboardEvent<HTMLDivElement>): boolean => {
       const row = rows[index];
@@ -294,6 +312,7 @@ export function FileTree({
         if (row) onFocusPath?.(row.node.path);
       }}
       onRowClick={(i, mods) => select(i, mods)}
+      onRowContextMenu={onRowContextMenu}
       onActivate={(i) => {
         const row = rows[i];
         if (!row) return;
