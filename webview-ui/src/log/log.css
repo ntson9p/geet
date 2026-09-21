@@ -731,3 +731,24 @@
   color: var(--vscode-badge-foreground);
   background: var(--vscode-badge-background);
 }
+
+/* POST-P14x: the commit-row hover card. `pre-wrap` is the point — a commit
+   message's own line breaks are how it was written, and reflowing them turns
+   a bulleted body into a paragraph. */
+.gt-commit-tooltip {
+  position: fixed;
+  z-index: 120;
+  max-width: 560px;
+  max-height: 40vh;
+  overflow: hidden;
+  padding: 6px 9px;
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-contrastBorder, transparent));
+  border-radius: 4px;
+  background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editorWidget-foreground));
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* It follows the pointer around; it must never be the thing under it. */
+  pointer-events: none;
+}

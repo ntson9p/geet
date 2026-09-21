@@ -87,6 +87,21 @@ describe('LogService (real git)', () => {
     expect(details!.body.length).toBeGreaterThan(0);
   }, 60_000);
 
+  it('POST-P14x: getCommitMessage returns the whole body, trailing blanks trimmed', async () => {
+    const fixture = FixtureRepo.create();
+    const handle = await handleFor(fixture);
+    // The hover card's whole reason to exist is the part of a message the
+    // subject column cannot show.
+    const message = 'subject line\n\nbody paragraph one\nbody paragraph two';
+    const sha = fixture.commit(message, { 'a.txt': '1\n' });
+
+    const service = new LogService(handle);
+    // `%B` pads with the newlines its own format adds; unhandled, the card
+    // would carry a blank line under every message it ever shows.
+    expect(await service.getCommitMessage(sha)).toBe(message);
+    expect(await service.getCommitMessage('not-a-sha')).toBeUndefined();
+  }, 60_000);
+
   it('author autocomplete dedupes and caches by HEAD', async () => {
     const fixture = FixtureRepo.create();
     const handle = await handleFor(fixture);

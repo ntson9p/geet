@@ -80,6 +80,39 @@ test.describe('P4-T3/T4 log webview', () => {
     expect(parsedMulti.shas.length).toBe(2);
   });
 
+  test('POST-P14x: hovering a commit shows its whole message, fetched once', async ({ page }) => {
+    await openLog(page);
+    const calls = async (): Promise<number> =>
+      page.evaluate(() => (window as unknown as { __messageCalls?: number }).__messageCalls ?? 0);
+    const tooltip = page.getByTestId('commit-tooltip');
+    const rowAt = (i: number) => commitRow(page).locator(`[data-gt-row="${i}"]`);
+
+    // Nothing on arrival: the card is a dwell, not a mousemove artefact.
+    await expect(tooltip).toHaveCount(0);
+
+    await rowAt(3).hover();
+    await expect(tooltip).toBeVisible();
+    // The row shows only the subject; the body is the reason to hover at all.
+    await expect(tooltip).toContainText('Body line one.');
+    await expect(tooltip).toContainText('Body line two.');
+
+    await rowAt(5).hover();
+    await expect.poll(calls).toBe(2);
+    await expect(tooltip).toHaveCount(1);
+
+    // Back to a row already read: cached, so git is not asked again.
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toHaveCount(0);
+    await rowAt(3).hover();
+    await expect(tooltip).toBeVisible();
+    expect(await calls()).toBe(2);
+
+    // Clicking is a selection gesture; the card must not survive it and sit
+    // over the rows the user just aimed at.
+    await rowAt(3).click();
+    await expect(tooltip).toHaveCount(0);
+  });
+
   test('selection fills Commit Details and Changed Files; activate posts openFileDiff', async ({ page }) => {
     await openLog(page);
     await commitRow(page).locator('[data-gt-row="1"]').click();

@@ -89,6 +89,11 @@ export const mockLogHostScript = `
           });
           break;
         }
+        case 'log/commitMessage': {
+          window.__messageCalls = (window.__messageCalls || 0) + 1;
+          res({ message: 'commit ' + msg.params.sha.slice(0, 7) + '\\n\\nBody line one.\\nBody line two.' });
+          break;
+        }
         case 'log/containedBranches': {
           window.__containsCalls = (window.__containsCalls || 0) + 1;
           res({ branches: ['main', 'release'] });

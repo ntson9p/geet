@@ -1112,6 +1112,13 @@ export const LOG_METHODS = {
   init: 'log/init',
   page: 'log/page',
   details: 'log/details',
+  /**
+   * POST-P14x: one commit's full message, for the row hover. Deliberately not
+   * a field on `LogRowDto` — a 100k-commit page would carry every body it
+   * will never show, and `details` costs a `--name-status` nobody hovering
+   * has asked for.
+   */
+  commitMessage: 'log/commitMessage',
   setFilter: 'log/setFilter',
   pickAuthors: 'log/pickAuthors',
   pickDates: 'log/pickDates',

@@ -50,6 +50,13 @@ export interface VirtualListProps {
    * so has to be right for the selection as it stood before the click.
    */
   onRowContextMenu?: (index: number) => void;
+  /**
+   * Pointer entered a row. On the row element, not on whatever `renderRow`
+   * draws inside it: a row's content is usually narrower than the row, and a
+   * hover handler on the content would miss the empty half the pointer
+   * spends most of its time over.
+   */
+  onRowMouseEnter?: (index: number, row: HTMLElement) => void;
   /** Viewport tracker for overlay layers (log graph canvas) + infinite scroll. */
   onViewport?: (view: { scrollTop: number; first: number; last: number }) => void;
   className?: string;
@@ -87,6 +94,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     rowAriaLabel,
     onRowClick,
     onRowContextMenu,
+    onRowMouseEnter,
     onViewport,
     className,
     role = 'listbox',
@@ -240,6 +248,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
           onRowClick?.(i, { ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, metaKey: e.metaKey });
         }}
         onContextMenu={() => onRowContextMenu?.(i)}
+        onMouseEnter={(e) => onRowMouseEnter?.(i, e.currentTarget)}
         onDoubleClick={() => onActivate?.(i)}
       >
         {renderRow(i)}

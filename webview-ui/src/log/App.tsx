@@ -29,6 +29,7 @@ import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import { getVsCodeApi } from '../lib/vscodeApi';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
+import { CommitTooltip } from './CommitTooltip';
 import { ConsolePane } from './ConsolePane';
 import { WorktreesPane } from './WorktreesPane';
 import { DetailsPanel } from './DetailsPanel';
@@ -90,6 +91,20 @@ export function App() {
   const [highlightMine, setHighlightMine] = useState(boot.highlightMine ?? false);
   // P12-T8: the Log | Console strip; the active tab persists (step 1).
   const [tab, setTab] = useState(boot.tab ?? 'log');
+  // POST-P14x: the row hover card. `text` is the full commit message, fetched
+  // lazily — see LOG_METHODS.commitMessage for why it is not on the row DTO.
+  const [hover, setHover] = useState<
+    { sha: string; text: string; anchor: { left: number; top: number; bottom: number } } | undefined
+  >(undefined);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  /**
+   * sha → message, kept for the life of the view. Re-hovering a row the user
+   * has already read must not re-run git, and the same rows are hovered over
+   * and over while the pointer travels down the list.
+   */
+  const messages = useRef(new Map<string, string>());
+  /** The sha the pointer is over right now — a late reply for any other is dropped. */
+  const hoverSha = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const reload = (): void => {
@@ -154,6 +169,48 @@ export function App() {
   useEffect(() => {
     void rpc.request(LOG_METHODS.select, { shas: selected }).catch(() => undefined);
   }, [rpc, selected]);
+
+  /** IntelliJ's own dwell before a commit tooltip appears. */
+  const HOVER_DELAY_MS = 450;
+
+  const cancelHover = useCallback(() => {
+    if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = undefined;
+    hoverSha.current = undefined;
+    setHover(undefined);
+  }, []);
+
+  const beginHover = useCallback(
+    (sha: string, el: HTMLElement) => {
+      if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
+      hoverSha.current = sha;
+      // The rectangle is read now, not in the timer: by then the row may have
+      // scrolled, and a card anchored to where the row *is* would jump away
+      // from the message it describes.
+      const rect = el.getBoundingClientRect();
+      const anchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
+      const show = (text: string): void => {
+        if (hoverSha.current !== sha || text.length === 0) return;
+        setHover({ sha, text, anchor });
+      };
+      hoverTimer.current = window.setTimeout(() => {
+        const cached = messages.current.get(sha);
+        if (cached !== undefined) {
+          show(cached);
+          return;
+        }
+        rpc
+          .request<{ message?: string }>(LOG_METHODS.commitMessage, { sha })
+          .then((res) => {
+            const text = res?.message ?? '';
+            messages.current.set(sha, text);
+            show(text);
+          })
+          .catch(() => undefined);
+      }, HOVER_DELAY_MS);
+    },
+    [rpc],
+  );
 
   // ---- container sizing ----
   // useElementSize (callback ref) survives the Log tab unmounting/remounting
@@ -370,7 +427,19 @@ export function App() {
   const listHeight = Math.max(size.height, 100);
 
   const commitsPane = (
-    <div className="gt-log-rows" ref={containerRef} data-testid="log-rows">
+    <div
+      className="gt-log-rows"
+      ref={containerRef}
+      data-testid="log-rows"
+      // One listener for the whole pane rather than one per row: rows are
+      // recycled by the windowing, so a scroll that swaps the row under a
+      // stationary pointer fires no mouseleave on the row that left. Clicking
+      // is a selection gesture — the card must not outlive it and sit over
+      // the rows the user was aiming at.
+      onMouseLeave={cancelHover}
+      onWheel={cancelHover}
+      onMouseDown={cancelHover}
+    >
       <GraphCanvas
         rows={rows}
         viewport={viewport}
@@ -388,6 +457,11 @@ export function App() {
             ariaLabel="Commits"
             onFocusIndex={onFocusIndex}
             onRowClick={onRowClick}
+            onRowMouseEnter={(i, el) => {
+              const row = rows[i];
+              if (row) beginHover(row.sha, el);
+              else cancelHover();
+            }}
             onViewport={onViewport}
             rowAriaLabel={(i) => {
               const row = rows[i];
@@ -609,6 +683,8 @@ export function App() {
           }}
         />
       </TabPanel>
+
+      {hover !== undefined ? <CommitTooltip text={hover.text} anchor={hover.anchor} /> : null}
     </div>
   );
 }

@@ -228,6 +228,12 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const { sha } = params as { sha: string };
       return this.getDetails(sha);
     });
+    rpc.on(LOG_METHODS.commitMessage, async (params) => {
+      const { sha } = params as { sha: string };
+      const session = this.session;
+      if (!session || typeof sha !== 'string') return { message: undefined };
+      return { message: await session.service.getCommitMessage(sha) };
+    });
     rpc.on(LOG_METHODS.setFilter, (params) => {
       const { filter } = params as { filter: LogFilterDto };
       this.applyFilter(filter);

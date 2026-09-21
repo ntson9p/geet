@@ -207,6 +207,31 @@ export class LogService {
     };
   }
 
+  /**
+   * POST-P14x — the full message of one commit, and nothing else.
+   *
+   * `getCommitDetails` would answer this too, but it pays for a
+   * `--name-status -M` diff on the way; a hover must not cost a rename
+   * detection over the whole commit.
+   */
+  async getCommitMessage(sha: string): Promise<string | undefined> {
+    const result = await this.repo.queue.enqueue({
+      label: `message ${sha.slice(0, 7)}`,
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(this.repo.root, ['log', '-1', '--format=%B', sha], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    if (result.exitCode !== 0) return undefined;
+    // git pads the body with the trailing newlines its own format adds; a
+    // tooltip sized to them would have a blank line under every message.
+    return result.stdout.replace(/(?:\r?\n)+$/u, '');
+  }
+
   async getCommitDetails(sha: string): Promise<CommitDetails | undefined> {
     // %G? — GPG signature state (P12-T4): G good, B bad, U/X/Y/R unverified
     // shades, E cannot check, N none. Costs nothing when gpg is absent.
