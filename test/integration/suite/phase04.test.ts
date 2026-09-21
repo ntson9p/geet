@@ -58,7 +58,8 @@ suite('P4 log & blame host', () => {
     });
     const session = reg.logView.currentSession!;
     assert.ok(session.repoRoot.length > 0);
-    assert.strictEqual(session.filter.sort, 'topo');
+    // POST-P14y: the log opens in date order, IntelliJ's default.
+    assert.strictEqual(session.filter.sort, 'date');
   });
 
   test('the graph re-pages itself when history moves — no manual refresh', async function () {

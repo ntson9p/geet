@@ -15,15 +15,22 @@ function args(f: Partial<LogFilter>): string[] {
 }
 
 describe('buildLogArgs', () => {
-  it('default filter: HEAD history, topo order, paging', () => {
+  // POST-P14y: date order, not topo — see DEFAULT_FILTER for why.
+  it('default filter: HEAD history, date order, paging', () => {
     expect(args({})).toEqual([
       'log',
       `--format=${FMT}`,
       '--parents',
-      '--topo-order',
+      '--date-order',
       '--skip=0',
       '--max-count=2000',
     ]);
+  });
+
+  it('POST-P14y: the sort the dropdown shows is the one that is applied', () => {
+    // The bar renders `filter.sort` directly, so a default that disagrees
+    // with the argv would label the view with an order it is not in.
+    expect(DEFAULT_FILTER.sort).toBe('date');
   });
 
   it('sort modes map to git orderings (intelli reorders client-side over topo)', () => {

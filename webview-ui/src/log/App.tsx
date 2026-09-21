@@ -117,7 +117,9 @@ export function App() {
     return rpc.onEvent(LOG_METHODS.evtBranches, reload);
   }, [rpc]);
 
-  const filter = init?.filter ?? { sort: 'topo', refs: 'HEAD' as const };
+  // Only reached before the host's first `log/init` answers; it has to agree
+  // with DEFAULT_FILTER or the sort dropdown reads wrong for that one frame.
+  const filter = init?.filter ?? { sort: 'date' as const, refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   // The boot effect runs once per rpc, so what it reads at event time has to

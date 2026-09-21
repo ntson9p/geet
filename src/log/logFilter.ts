@@ -19,7 +19,13 @@ export interface LogFilter {
   follow?: boolean;
 }
 
-export const DEFAULT_FILTER: LogFilter = { refs: 'HEAD', sort: 'topo' };
+/**
+ * POST-P14y: **date order is the default**, as it is in IntelliJ. Topological
+ * order groups a branch's commits together wherever they were made, which
+ * reads well for archaeology and badly for "what happened this week" — and
+ * the second question is the one the log is opened for.
+ */
+export const DEFAULT_FILTER: LogFilter = { refs: 'HEAD', sort: 'date' };
 
 /**
  * True when this filter hides nothing the repository has — every commit
