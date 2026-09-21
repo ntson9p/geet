@@ -163,6 +163,21 @@
   visibility: visible;
 }
 
+/* So does the `›`, because it is now the only way into a branch's menu — a
+   click on the row does nothing. An affordance that has to be hovered before it
+   admits it exists is fine while the row itself is clickable and wrong once it
+   is not. It is also what the popup shows, where a QuickPick's item buttons are
+   always drawn, and what IntelliJ puts on a row that opens a submenu. */
+.gtb-row-buttons .gtb-chevron {
+  visibility: visible;
+  opacity: 0.55;
+}
+
+.gt-virtual-row:hover .gtb-row-buttons .gtb-chevron,
+.gt-virtual-row.gt-focused .gtb-row-buttons .gtb-chevron {
+  opacity: 1;
+}
+
 /* ---- separators --------------------------------------------------------- */
 
 .gtb-separator-label {

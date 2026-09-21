@@ -427,11 +427,18 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   registerTracked('gittree.branch.tracked.deleteOnRemote', 'deleteOnRemote');
 
   /**
-   * A branch row opening its own menu — the click target for both trees and the
-   * popup's `›`. The ref is re-resolved from the live snapshot on every
-   * dispatch, so a row clicked after a fetch moved the refs underneath it acts
-   * on what is there now or does nothing, rather than on a stale copy. `type`
-   * disambiguates: a tag and a local branch can carry the same name.
+   * A branch's own menu, by repository and ref name.
+   *
+   * **Nothing dispatches this on a click any more** — that was the tree row's
+   * command until branch rows were made inert, and the menu is now reached by
+   * the `›` button or a right-click. It stays registered because it is the one
+   * addressable way in: a keybinding, another view, or a palette entry can open
+   * a named branch's menu without owning a row.
+   *
+   * The ref is re-resolved from the live snapshot on every dispatch, so a call
+   * made after a fetch moved the refs underneath it acts on what is there now or
+   * does nothing, rather than on a stale copy. `type` disambiguates: a tag and a
+   * local branch can carry the same name.
    */
   register('gittree.branches.showActions', async (repoRoot, name, type) => {
     const repo = pickRepo(repoRoot);

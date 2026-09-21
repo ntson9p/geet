@@ -147,25 +147,18 @@ export class BranchHubViewProvider
         title: row.verb.label,
         ...(row.repoRoot !== undefined ? { arguments: [row.repoRoot] } : {}),
       };
-    } else if (row.ref !== undefined && row.repoRoot !== undefined) {
-      /**
-       * Clicking a branch opens **its menu**, never an operation — the same
-       * rule the popup follows. IntelliJ's branch rows are submenu openers;
-       * nothing touches the repository until a verb is picked from the list
-       * that appears. `Checkout` is the first row of that menu.
-       */
-      item.command = {
-        command: 'gittree.branches.showActions',
-        title: vscode.l10n.t('Branch actions'),
-        arguments: [row.repoRoot, row.ref.name, row.ref.type],
-      };
-    } else if (row.common !== undefined) {
-      item.command = {
-        command: 'gittree.branches.showCommonActions',
-        title: vscode.l10n.t('Branch actions'),
-        arguments: [row.common.name, row.common.kind],
-      };
     }
+    /**
+     * **A branch row carries no command**, so clicking one does nothing: not a
+     * checkout, not a menu. It used to open the actions `QuickPick`, and that is
+     * the swap being taken off the click gesture everywhere — a menu arriving
+     * over the whole window is not what pointing at a row should cost.
+     *
+     * Here the menu needs no replacement affordance: this is a `TreeView`, so
+     * right-click already gives the same actions from `view/item/context`, which
+     * is where a tree's menu belongs. The popup and the sidebar, which have no
+     * such menu, put it on a `›` button instead.
+     */
     return item;
   }
 

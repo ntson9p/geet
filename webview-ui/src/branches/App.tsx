@@ -211,6 +211,16 @@ function RowBody({ row, open, onActions, onFavorite }: RowBodyProps) {
   const padding = row.depth * INDENT;
   const current = row.ref?.isHead === true;
   const favouritable = row.ref !== undefined && row.ref.type !== 'tag';
+  /**
+   * Which rows own a menu *here*. Not `row.actions`, which is the shared
+   * model's flag and is also true of a repository row, because in the popup a
+   * repository's `›` means "go into it" — a thing this view already does by
+   * clicking the row, and a `›` that duplicated the twisty would be a second
+   * button for the same gesture. Drawing one on a repository row was worse than
+   * redundant while the menu was hover-revealed and is now plainly wrong, since
+   * the button is always visible and would never do anything.
+   */
+  const hasMenu = row.ref !== undefined || row.common !== undefined;
 
   if (row.kind === 'info') {
     return (
@@ -248,7 +258,7 @@ function RowBody({ row, open, onActions, onFavorite }: RowBodyProps) {
             <Codicon name={row.favorite === true ? 'star-full' : 'star-empty'} />
           </button>
         ) : null}
-        {row.actions ? (
+        {hasMenu ? (
           <button
             className="gt-toolbar-button gtb-chevron"
             title="Branch actions"
@@ -355,6 +365,22 @@ export function App() {
   }, []);
 
   /**
+   * The `›` button, for the two kinds of row that own a menu. A ref's is drawn
+   * here, over the rows; a common ref's is the host's, because its actions run
+   * once per repository and are picked from a list this view does not hold.
+   */
+  const rowMenu = useCallback(
+    (row: BranchesRowDto, at: { x: number; y: number }) => {
+      if (row.ref !== undefined) {
+        openActions(row, at);
+        return;
+      }
+      if (row.common !== undefined) send(BRANCHES_METHODS.activate, { id: row.id });
+    },
+    [openActions, send],
+  );
+
+  /**
    * Where a row's menu opens: anchored to the row itself, read from the DOM at
    * the moment it is needed. Not the pointer position — `onRowClick` does not
    * carry one, and anchoring to the row is what a submenu should do anyway, so
@@ -368,12 +394,26 @@ export function App() {
   }, []);
 
   /**
-   * What a click means. A branch opens **its menu**, never an operation — the
-   * rule the popup follows: IntelliJ's branch rows are submenu openers, and
-   * nothing touches the repository until a verb is picked.
+   * What activating a row means, and **where a branch row differs by gesture**.
+   *
+   * A click on a branch does nothing: not a checkout, not a menu. Only the `›`
+   * button opens the menu, because a menu is a surface arriving over the list
+   * and that does not belong on the gesture people use to move around the list.
+   * (IntelliJ can put it there — its submenu opens beside the row and leaves the
+   * list standing. Nothing in VS Code floats a submenu beside a `QuickPick`,
+   * which is D5, so the popup cannot follow IntelliJ here and this view matches
+   * the popup rather than drifting from it.)
+   *
+   * Enter still opens it. A `QuickPick` reports one accept and cannot tell a
+   * click from Enter, but this list can, and Enter is the only key that reaches
+   * a row's menu — the `›` button is not in the tab order, since the list holds
+   * a single roving tabstop across several hundred rows.
+   *
+   * Verb rows — `New Branch…`, `Checkout Tag or Revision…` — run on a click as
+   * before. They are actions that say what they do; a branch is a noun.
    */
   const activate = useCallback(
-    (index: number) => {
+    (index: number, source: 'click' | 'key') => {
       const entry = display[index];
       if (entry?.kind !== 'row') return;
       const row = entry.row;
@@ -383,9 +423,13 @@ export function App() {
         return;
       }
       if (row.ref !== undefined) {
+        if (source === 'click') return;
         openActions(row, anchorFor(index));
         return;
       }
+      // A ref every root shares: its menu is the host's, since the actions run
+      // once per repository and are chosen from a list this view does not hold.
+      if (row.common !== undefined && source === 'click') return;
       send(BRANCHES_METHODS.activate, { id: row.id });
     },
     [anchorFor, display, openActions, send],
@@ -419,7 +463,7 @@ export function App() {
       // menu that the second one just opened.
       if (e.key === 'Enter') {
         e.preventDefault();
-        activate(index);
+        activate(index, 'key');
         return true;
       }
       if (e.key === ' ') {
@@ -475,7 +519,7 @@ export function App() {
               return entry?.kind === 'row' ? entry.row.label : entry?.label;
             }}
             onRowKeyDown={onRowKeyDown}
-            onRowClick={(i) => activate(i)}
+            onRowClick={(i) => activate(i, 'click')}
             renderRow={(i) => {
               const entry = display[i];
               if (entry === undefined) return null;
@@ -500,7 +544,7 @@ export function App() {
                 <RowBody
                   row={row}
                   open={open.has(row.id)}
-                  onActions={openActions}
+                  onActions={rowMenu}
                   onFavorite={(r) => send(BRANCHES_METHODS.toggleFavorite, { id: r.id })}
                 />
               );

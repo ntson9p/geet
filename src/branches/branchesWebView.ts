@@ -327,6 +327,13 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
       return null;
     });
 
+    /**
+     * Verbs, and a common ref's all-roots menu. **A branch row never arrives
+     * here**: a click on one does nothing and Enter opens the `›` menu in the
+     * view, which asks for `actions` instead. The gesture is the view's to
+     * judge — the host cannot see whether a click or a key caused this — so the
+     * rule lives there and this handler only needs to not grow a ref branch.
+     */
     rpc.on(BRANCHES_METHODS.activate, async (params) => {
       const row = this.rowById((params as { id?: unknown } | undefined)?.id);
       if (!row) return null;

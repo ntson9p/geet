@@ -18,6 +18,9 @@
  * that is a menu rather than a level: VS Code has no way to float a cascading
  * submenu beside a `QuickPick`, which is what deviation D5 records. That menu is
  * built from `branchActions.ts`, shared with both trees.
+ *
+ * Because that step is a surface swap, **it is on the `›` button alone**: a
+ * click on a branch row does nothing at all. See `onDidAccept`.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -807,20 +810,24 @@ export async function showBranchesPopup(
       return;
     }
     /**
-     * A leaf opens **its menu**, never an operation. IntelliJ's branch rows are
-     * submenu openers — nothing happens to the repository until you pick a verb
-     * from the list that appears — and clicking one here used to check it out on
-     * the spot, which is a working-tree change one stray click away with no
-     * confirmation between. `Checkout` is still the first row of that menu, so
-     * the deliberate path costs one more click and the accidental one costs
-     * nothing.
+     * **A branch row is inert.** Clicking one neither checks it out nor opens
+     * its menu; it lands the cursor there and nothing else. Its `›` button
+     * opens the menu.
+     *
+     * The reason is that the menu cannot be what IntelliJ's is. IntelliJ floats
+     * a submenu *beside* the row and leaves the branch list standing; VS Code
+     * has no way to float anything next to a `QuickPick` (D5), so opening a menu
+     * here means replacing the whole list with a second `QuickPick`. That is a
+     * surface swap, and a surface swap bound to the one gesture people use to
+     * move around a list means the list cannot be read without being thrown out
+     * of it. On the `›` button the same swap is fine: pressing a button that
+     * says "menu" is a request for one, not a side effect of pointing at a row.
+     *
+     * Enter goes the same way, not because Enter deserves to be inert but
+     * because `onDidAccept` is the whole of what a `QuickPick` reports — a click
+     * and Enter arrive here indistinguishable. The sidebar can tell them apart
+     * and keeps Enter as its keyboard path to the menu.
      */
-    if (row.common !== undefined) {
-      qp.hide();
-      await showCommonBranchActions(core, row.common, actions);
-      return;
-    }
-    if (row.ref) await openRefActions(row);
   });
 
   qp.onDidHide(() => qp.dispose());
@@ -858,7 +865,7 @@ export function buildBranchActionItems(
   return items;
 }
 
-/** Per-branch actions QuickPick (the `›` button, `→`, or Enter with showActions). */
+/** Per-branch actions QuickPick — the `›` button on a row, never a click on it. */
 export async function showBranchActions(
   core: Core,
   repo: RepoHandle,
