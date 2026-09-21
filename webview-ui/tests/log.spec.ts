@@ -626,6 +626,20 @@ test.describe('P4-T3/T4 log webview', () => {
     expect(plain).not.toContain('branch');
   });
 
+  test('POST-P14z: the row dates the commit exactly, and says so to a reader', async ({ page }) => {
+    await openLog(page);
+    const row = commitRow(page).locator('[data-gt-row="0"]');
+    // Locale-tolerant on purpose — the separator and the field order are the
+    // host's business. What must be there is a calendar date AND a clock time,
+    // which is exactly what an age (`10d`, `3mo`) cannot give.
+    const dateAndTime = /\d{1,4}[./-]\d{1,2}[./-]\d{1,4}\s+\d{1,2}:\d{2}/u;
+    await expect(row).toHaveText(dateAndTime);
+    expect(await row.getAttribute('aria-label')).toMatch(dateAndTime);
+    // The shapes this replaced. A reader had no way to tell two `2mo` rows
+    // six weeks apart from each other.
+    await expect(row).not.toHaveText(/\b\d+(?:m|h|d)\s+·/u);
+  });
+
   test('P12-T1: four named panes render inside the Log tab', async ({ page }) => {
     await openLog(page);
     await expect(page.getByRole('tab', { name: 'Log' })).toBeVisible();

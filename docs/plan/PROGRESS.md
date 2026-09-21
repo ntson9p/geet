@@ -349,3 +349,13 @@ Two places had to agree, not one. The webview carries its own fallback filter fo
 Testing: **1 unit changed** — the default-filter argv assertion now expects `--date-order`, which is the change's own proof: it read `--topo-order` until this commit. **+1 unit** pinning `DEFAULT_FILTER.sort` itself, because the dropdown and the argv are two readers of one value. **1 integration changed**, `P4`'s boot assertion on `session.filter.sort`.
 
 Gates (scoped): typecheck (all three tsconfigs) + lint clean, **19 unit** in `logFilter`, **18 integration passing / 0 failing** across `P1 core SCM` and `P4 log & blame host`. **Narrow the grep too far and `P4`'s `commit actions` test fails on its own** with `unknown revision HEAD~1`: it reads `HEAD~1` in repoA, which only has a second commit because `P1` ran first. Reproduced identically on the unmodified tree. The two suites have to be grepped together — worth knowing before it is mistaken for a regression.
+
+POST-P14z ✅ 2026-09-21 — **The commit row shows the exact date and time, not an age.** Owner request; IntelliJ's Date column.
+
+`10d` is compact and answers a question nobody asked. Two rows both reading `2mo` can be six weeks apart, and *was this before or after the release* — the reason the column is read at all — cannot be answered from an age at any precision. The old ramp also degraded to a bare `toLocaleDateString()` past 60 days, so the row lost its clock time exactly where a date was least ambiguous and gained nothing.
+
+Date and time are two `Intl.DateTimeFormat`s joined with a space rather than one combined format, whose locale separator (`, ` in en-US) buys nothing in a dense row. Both are built **once per formatter**, not per row: this runs for every visible row on every repaint, and constructing an `Intl` formatter is not free. Locale and zone are the host's — a date order is a regional convention, and 09/21 against 21/09 is not a detail. The screen-reader label moved with the visible text; it was reading the age too.
+
+Testing: **+5 unit** over the formatter with locale and zone pinned (en-GB/en-US/de-DE field order, a zone shift, a `+14` zone that puts the same instant on the *next day* — the thing an age hides completely, no locale comma, and stability). **+1 webview** on the real row, locale-tolerant by construction: it requires a calendar date **and** a clock time in both the text and the `aria-label`, and rejects the `N(m|h|d) ·` shape it replaced.
+
+Gates (scoped): typecheck (both tsconfigs) + lint clean, **5 unit** on `dateFormat`, **55 webview passing / 0 failing** in `log.spec` at `--workers=1` (see POST-P14x for why that flag, and why a parallel run here proves nothing about the product).

@@ -27,6 +27,7 @@ import { useElementSize } from '../lib/useElementSize';
 import { useVsCodeTheme } from '../lib/useVsCodeTheme';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import { getVsCodeApi } from '../lib/vscodeApi';
+import { commitDate } from './dateFormat';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
 import { CommitTooltip } from './CommitTooltip';
@@ -48,17 +49,6 @@ interface PersistedState {
   previewOnClick?: boolean;
   highlightMine?: boolean;
   tab?: string;
-}
-
-function relativeDate(unixSeconds: number): string {
-  const deltaMin = Math.round((Date.now() / 1000 - unixSeconds) / 60);
-  if (deltaMin < 1) return 'now';
-  if (deltaMin < 60) return `${deltaMin}m`;
-  const h = Math.round(deltaMin / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.round(h / 24);
-  if (d < 60) return `${d}d`;
-  return new Date(unixSeconds * 1000).toLocaleDateString();
 }
 
 export function App() {
@@ -469,7 +459,7 @@ export function App() {
               const row = rows[i];
               if (!row) return loading ? 'Loading…' : 'Load more';
               const refs = row.refs.length > 0 ? `, branch ${row.refs.map((r) => r.name).join(', ')}` : '';
-              return `commit ${row.subject} by ${row.authorName}, ${relativeDate(row.authorTime)}${refs}`;
+              return `commit ${row.subject} by ${row.authorName}, ${commitDate(row.authorTime)}${refs}`;
             }}
             rowContext={(i) => {
               const row = rows[i];
@@ -521,7 +511,7 @@ export function App() {
                   ))}
                   <span className="gt-log-subject">{row.subject}</span>
                   <span className="gt-log-meta gt-muted">
-                    {row.authorName} · {relativeDate(row.authorTime)} · {row.sha.slice(0, 7)}
+                    {row.authorName} · {commitDate(row.authorTime)} · {row.sha.slice(0, 7)}
                   </span>
                 </span>
               );
