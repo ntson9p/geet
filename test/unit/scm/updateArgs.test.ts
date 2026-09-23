@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import type { StatusEntry } from '../../../src/core/git/parsers/statusV2';
 import { formatGitCommands } from '../../../src/scm/dialogs/commandLine';
 import {
+  buildDetachArgs,
   buildIntegrateArgs,
+  buildReattachArgs,
   buildResetToRemoteArgs,
   buildUpdatePlan,
   buildUpdateFetchArgs,
   buildUpdateQuestion,
+  hasStagedChanges,
+  hasStashableChanges,
+  intentToAddPaths,
   normalizeStrategySetting,
+  planSetAside,
 } from '../../../src/scm/dialogs/updateArgs';
 
 /**
@@ -118,5 +125,103 @@ describe('buildUpdateQuestion (POST-P14ab)', () => {
     );
     expect(commands.rebase).toBe('git fetch --prune origin && git rebase origin/feature/x');
     expect(commands.reset).toBe('git fetch --prune origin && git reset --hard origin/feature/x');
+  });
+});
+
+describe('setting local changes aside (POST-P14ac)', () => {
+  /** A porcelain-v2 entry, as `parseStatusV2` would produce it. */
+  const entry = (
+    path: string,
+    x: string,
+    y: string,
+    kind: StatusEntry['kind'] = 'ordinary',
+  ): StatusEntry => ({ kind, path, x, y, submodule: 'N...' });
+  const edited = entry('src/a.ts', '.', 'M');
+  const staged = entry('src/b.ts', 'M', '.');
+  const halfStaged = entry('src/c.ts', 'M', 'M');
+  const intentToAdd = entry('src/new.ts', '.', 'A');
+
+  it('passes --autostash between the verb and the ref', () => {
+    expect(buildIntegrateArgs('rebase', 'origin/main', true)).toEqual([
+      'rebase',
+      '--autostash',
+      'origin/main',
+    ]);
+    expect(buildIntegrateArgs('merge', 'origin/main', true)).toEqual([
+      'merge',
+      '--autostash',
+      'origin/main',
+    ]);
+  });
+
+  it('recognises intent-to-add entries, and nothing else, as intent-to-add', () => {
+    expect(intentToAddPaths([edited, staged, halfStaged, intentToAdd])).toEqual(['src/new.ts']);
+    // A really staged new file is `A.`, not `.A` — it has content in the index.
+    expect(intentToAddPaths([entry('src/staged-new.ts', 'A', '.')])).toEqual([]);
+  });
+
+  it('autostashes an edited tree, which a bare rebase refuses outright', () => {
+    expect(planSetAside([edited], 'rebase', true)).toEqual({ autostash: true, detach: [] });
+    expect(planSetAside([edited], 'merge', true)).toEqual({ autostash: true, detach: [] });
+  });
+
+  it('detaches intent-to-add entries, which git stash cannot save', () => {
+    // Measured: with one of these present, --autostash dies with "Cannot
+    // autostash" even though a plain merge succeeds — so they go around it.
+    expect(planSetAside([edited, intentToAdd], 'merge', true)).toEqual({
+      autostash: true,
+      detach: ['src/new.ts'],
+    });
+  });
+
+  it('never autostashes over staged content — it would come back unstaged', () => {
+    // Measured: `MM` returns from an autostash as ` M`. Content survives, the
+    // user's staging does not, so the plain command runs and git decides.
+    for (const e of [staged, halfStaged]) {
+      expect(planSetAside([e], 'rebase', true).autostash).toBe(false);
+      expect(planSetAside([e], 'merge', true).autostash).toBe(false);
+    }
+    // An intent-to-add entry is not staged content: it has none.
+    expect(hasStagedChanges([intentToAdd])).toBe(false);
+  });
+
+  it('only asks the merge half whether git can autostash (2.27)', () => {
+    expect(planSetAside([edited], 'merge', false).autostash).toBe(false);
+    expect(planSetAside([edited], 'rebase', false).autostash).toBe(true);
+  });
+
+  it('counts only what a stash would carry', () => {
+    expect(hasStashableChanges([])).toBe(false);
+    expect(hasStashableChanges([intentToAdd])).toBe(false);
+    expect(hasStashableChanges([entry('x.txt', '.', '.', 'untracked')])).toBe(false);
+    expect(hasStashableChanges([edited])).toBe(true);
+  });
+
+  it('wraps the integrate step, and only it, in the detach', () => {
+    const aside = { autostash: true, detach: ['src/new.ts'] };
+    expect(buildUpdatePlan('update', 'merge', 'origin/main', 'origin', aside)).toEqual([
+      ['fetch', '--prune', 'origin'],
+      ['rm', '--cached', '-q', '--', 'src/new.ts'],
+      ['merge', '--autostash', 'origin/main'],
+      ['add', '-N', '--', 'src/new.ts'],
+    ]);
+    expect(buildDetachArgs(['a', 'b'])).toEqual(['rm', '--cached', '-q', '--', 'a', 'b']);
+    expect(buildReattachArgs(['a'])).toEqual(['add', '-N', '--', 'a']);
+  });
+
+  it('never sets anything aside around a reset, whose whole job is to discard it', () => {
+    const aside = { autostash: true, detach: ['src/new.ts'] };
+    expect(buildUpdatePlan('reset', 'merge', 'origin/main', 'origin', aside)).toEqual([
+      ['fetch', '--prune', 'origin'],
+      ['reset', '--hard', 'origin/main'],
+    ]);
+  });
+
+  it('shows the set-aside in the question, per strategy', () => {
+    const q = buildUpdateQuestion('merge', 'origin/main', 'origin', (s) =>
+      s === 'rebase' ? { autostash: true, detach: [] } : { autostash: false, detach: [] },
+    );
+    expect(q.commands.rebase).toBe('git fetch --prune origin && git rebase --autostash origin/main');
+    expect(q.commands.merge).toBe('git fetch --prune origin && git merge origin/main');
   });
 });

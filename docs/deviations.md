@@ -45,6 +45,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D28](#d28--the-status-bar-widget-is-an-action-not-a-readout) | The status-bar widget is a button that opens the popup, not a second branch readout | Yes (`gittree.statusBar`) |
 | [D29](#d29--a-repositories-section-and-a-branches-view-in-the-sidebar) | A Repositories section, and a Branches view that follows it, in the sidebar | Yes (mechanical) |
 | [D30](#d30--update-project-asks-with-a-message-box-not-a-dialog) | Update Project asks Merge or Rebase with a native message box; `Don't show again` moves to the result | No (no modal surface can hold a radio button) |
+| [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
 
 ---
 
@@ -745,3 +746,35 @@ setting: it changes on every answer, and writing a setting that often would keep
 `workspace.xml` for the same reason.
 
 **Revisitable:** only with a new API — a modal webview, or checkboxes in `showInformationMessage`.
+
+## D31 · Updates set local changes aside with git's autostash, not the shelf
+
+**IntelliJ:** Update Project never refuses because you are mid-work. It saves your uncommitted
+changes first — to the shelf by default, or a stash (*Settings → Version Control → Git*) —
+merges or rebases, and puts them back, opening its merge dialog if putting them back conflicts.
+**GitTree:** the same guarantee, through git's own `--autostash` on the `merge` or `rebase`.
+When putting the changes back conflicts, the files are left conflicted, a copy stays in the stash,
+the result is a warning that says so, and GitTree's conflict session opens as `stash-pop`.
+Before this, a bare `git rebase` refused on any uncommitted change and a bare `git merge`
+refused whenever an incoming commit touched a file you had edited.
+
+**Why the stash and not the shelf:** `--autostash` is the one mechanism that survives the
+integrate step *stopping*. On a conflicted merge or rebase, git holds the stash and re-applies it
+when the user finishes, whichever tool they finish in; a saver of GitTree's own would have to
+remember a pending unshelve across a conflict resolution it does not control.
+
+**Two refinements, both measured rather than assumed.**
+* **Intent-to-add entries** (`git add -N`, which *Add to VCS* and the changelist commit path
+  create) make `git stash` fail outright — "Cannot save the current worktree state" — so
+  `--autostash` alone would have *broken* updates that plain `git merge` handles. They are taken
+  out of the index around the step and put back after; stopped on a conflict, they stay
+  untracked until it is finished (they remain in their changelist, and the result says so).
+* **Staged content is never stashed.** `--autostash` restores content but not the index — a
+  half-staged file comes back wholly unstaged — which would silently undo deliberate staging in
+  the staging paradigm. With anything staged, the plain command runs and git either proceeds
+  with the index intact or refuses in its own words, before changing anything.
+
+`git merge --autostash` needs git 2.27; below that, the merge half runs as before.
+
+**Revisitable:** yes — a shelf-based saver with its own pending-restore bookkeeping would match
+IntelliJ's default exactly. The stash was chosen because git already owns that bookkeeping.

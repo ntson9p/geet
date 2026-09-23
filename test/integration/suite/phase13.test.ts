@@ -409,9 +409,10 @@ suite('P13 dialogs', () => {
       assert.deepStrictEqual(prompt.choices, ['merge', 'rebase', 'reset']);
       assert.deepStrictEqual(prompt.buttons, ['Merge', 'Rebase', 'Reset to the Remote Branch']);
       // Each button's exact commands, from the same argv the host runs.
+      // POST-P14ac: with nothing staged, the rebase sets local changes aside.
       assert.ok(
         prompt.detail.includes(
-          `Rebase: git fetch --prune ${REMOTE} && git rebase ${REMOTE}/${branch}`,
+          `Rebase: git fetch --prune ${REMOTE} && git rebase --autostash ${REMOTE}/${branch}`,
         ),
         prompt.detail,
       );
@@ -603,6 +604,172 @@ suite('P13 dialogs', () => {
       } finally {
         git('branch', `--set-upstream-to=${REMOTE}/${branch}`);
         await repo.refresher.refreshNow();
+      }
+    });
+
+    // ---- POST-P14ac · local changes are set aside, never refused over ----------
+
+    /** A tracked file both sides already have — the earlier merge test pulled it. */
+    const SHARED = 'p13/t2-incoming.txt';
+    const abs = (rel: string): string => path.join(repoRoot, rel);
+    const read = (rel: string): string => fs.readFileSync(abs(rel), 'utf8');
+    const stashes = (): string => git('stash', 'list').trim();
+    const lifecycle = (): { get(root: string): { source: string } | undefined } =>
+      (core.debugRegistry.get('phase06') as {
+        lifecycle: { get(root: string): { source: string } | undefined };
+      }).lifecycle;
+
+    /**
+     * A conflict session holds the repository's mutation lane until it ends,
+     * so a test that makes one must end it — or every later suite on repoC
+     * queues behind it forever.
+     *
+     * Polled until the model has been back to normal for several reads in a
+     * row, not until the first one: `refreshNow()` coalesces into a refresh
+     * already in flight and can resolve before any read that post-dates the
+     * call, so a refresh that began while the rebase was still stopped can
+     * land *after* the cleanup and repaint the detached, conflicted state.
+     * Measured: T3, the next suite, then read `currentBranch === 'HEAD'`.
+     */
+    const endConflicts = async (): Promise<void> => {
+      const deadline = Date.now() + 20_000;
+      let settledReads = 0;
+      while (settledReads < 3) {
+        await repo.refresher.refreshNow();
+        const snap = repo.model.snapshot;
+        const settled =
+          snap.headRef === branch &&
+          snap.inProgressOp === undefined &&
+          !snap.statusEntries.some((e) => e.kind === 'unmerged') &&
+          lifecycle().get(repo.root) === undefined;
+        settledReads = settled ? settledReads + 1 : 0;
+        if (settledReads < 3 && Date.now() > deadline) {
+          throw new Error(`repoC never settled: head=${String(snap.headRef)}`);
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    };
+
+    suiteSetup(async function () {
+      this.timeout(30_000);
+      await repo.refresher.refreshNow();
+      await waitFor(() => repo.model.snapshot.upstream !== undefined, 15_000);
+    });
+
+    test('POST-P14ac: a rebase over uncommitted edits sets them aside and puts them back', async function () {
+      this.timeout(90_000);
+      const mine = 'from the remote\nmy uncommitted edit\n';
+      fs.writeFileSync(abs(SHARED), mine);
+      incoming('p13/t2-aside-a.txt', 'a\n', 'P13-T2 incoming, aside A');
+      try {
+        // The defect: a bare `git rebase` refuses on any uncommitted change —
+        // "cannot rebase: You have unstaged changes" — before doing anything.
+        const outcome = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'rebase' });
+        assert.ok(outcome.ok, outcome.message);
+        assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+        assert.strictEqual(read(SHARED), mine, 'the edit must come back exactly');
+        assert.strictEqual(stashes(), '', 'a clean restore leaves nothing in the stash');
+        assert.strictEqual(outcome.restoreConflicts, undefined);
+      } finally {
+        git('checkout', '--', SHARED);
+      }
+    });
+
+    test('POST-P14ac: a file added to VCS survives an update, still added', async function () {
+      this.timeout(90_000);
+      const added = 'p13/t2-added.txt';
+      fs.writeFileSync(abs(added), 'brand new\n');
+      git('add', '-N', '--', added);
+      // A tracked edit too, so the autostash has something to carry: with only
+      // the intent-to-add entry, the defect never reaches `git stash`.
+      const mine = 'from the remote\nalongside a new file\n';
+      fs.writeFileSync(abs(SHARED), mine);
+      incoming('p13/t2-aside-b.txt', 'b\n', 'P13-T2 incoming, aside B');
+      try {
+        // The defect this guards: `git stash` cannot save an intent-to-add
+        // entry ("Cannot autostash"), which would have made --autostash break
+        // an update that a plain merge handles.
+        const outcome = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'merge' });
+        assert.ok(outcome.ok, outcome.message);
+        assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+        // Intent-to-add again — `1 .A` — exactly what Add to VCS made it.
+        assert.match(git('status', '--porcelain=v2', '--', added), /^1 \.A /mu);
+        assert.strictEqual(read(added), 'brand new\n');
+        assert.strictEqual(read(SHARED), mine);
+        assert.strictEqual(stashes(), '');
+      } finally {
+        git('rm', '--cached', '-q', '--', added);
+        fs.rmSync(abs(added), { force: true });
+        git('checkout', '--', SHARED);
+      }
+    });
+
+    test('POST-P14ac: staged content is never unstaged by an update', async function () {
+      this.timeout(90_000);
+      // `--autostash` restores content but not the index — measured, `MM`
+      // comes back as ` M`. Staged work must therefore never ride it.
+      fs.writeFileSync(abs(SHARED), 'from the remote\nstaged on purpose\n');
+      git('add', '--', SHARED);
+      incoming('p13/t2-aside-c.txt', 'c\n', 'P13-T2 incoming, aside C');
+      try {
+        const outcome = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'merge' });
+        assert.ok(outcome.ok, outcome.message);
+        assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+        assert.deepStrictEqual(
+          git('diff', '--cached', '--name-only').trim().split(/\r?\n/u),
+          [SHARED],
+          'the staged change must still be staged',
+        );
+      } finally {
+        git('reset', '-q', '--', SHARED);
+        git('checkout', '--', SHARED);
+      }
+    });
+
+    test('POST-P14ac: a conflicting restore is reported, and filed as a stash pop', async function () {
+      this.timeout(90_000);
+      fs.writeFileSync(abs(SHARED), 'from the remote\nMINE\n');
+      incoming(SHARED, 'from the remote\nTHEIRS\n', 'P13-T2 incoming, conflicts with my edit');
+      try {
+        const outcome = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'merge' });
+        // The update itself landed; only putting my edit back collided. git
+        // exits 0 here, so a result that trusted the exit code said "Merged".
+        assert.ok(outcome.ok, outcome.message);
+        assert.strictEqual(outcome.restoreConflicts, 1, outcome.message);
+        assert.match(outcome.message, /conflict/iu);
+        assert.match(stashes(), /autostash/u, 'git keeps a copy of the changes in the stash');
+        // No merge or rebase is in progress, so only the hint names it.
+        await waitFor(() => lifecycle().get(repo.root) !== undefined, 20_000);
+        assert.strictEqual(lifecycle().get(repo.root)?.source, 'stash-pop');
+      } finally {
+        git('reset', '-q', '--hard');
+        git('stash', 'drop');
+        await endConflicts();
+      }
+    });
+
+    test('POST-P14ac: a rebase stopped on a conflict leaves added files untracked, and says so', async function () {
+      this.timeout(90_000);
+      const upstreamRef = `refs/remotes/${REMOTE}/${branch}`;
+      localCommit(SHARED, 'from the remote\nTHEIRS\nLOCAL COMMIT\n', 'P13-T2 local, will conflict');
+      git('fetch', REMOTE);
+      incoming(SHARED, 'from the remote\nTHEIRS\nREMOTE COMMIT\n', 'P13-T2 remote, will conflict');
+      const added = 'p13/t2-added-e.txt';
+      fs.writeFileSync(abs(added), 'mid-rebase\n');
+      git('add', '-N', '--', added);
+      try {
+        const outcome = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'rebase' });
+        assert.strictEqual(outcome.ok, false, 'the rebase stops on its own conflict');
+        // Not put back mid-rebase: the autostash still has to be re-applied
+        // when it finishes, and git stash cannot stand intent-to-add entries.
+        assert.match(outcome.message, /unversioned until the rebase is finished/u);
+        assert.match(git('status', '--porcelain', '--', added), /^\?\? /mu);
+        assert.strictEqual(read(added), 'mid-rebase\n', 'the file itself is untouched');
+      } finally {
+        git('rebase', '--abort');
+        git('reset', '-q', '--hard', upstreamRef);
+        fs.rmSync(abs(added), { force: true });
+        await endConflicts();
       }
     });
   });

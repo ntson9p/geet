@@ -41,6 +41,7 @@ describe('buildCapabilities', () => {
     expect(caps.forceIfIncludes).toBe(true);
     expect(caps.fsmonitor).toBe(true);
     expect(caps.rebaseUpdateRefs).toBe(true);
+    expect(caps.mergeAutostash).toBe(true);
   });
 
   it('degrades for git 2.28 (below floor)', () => {
@@ -50,6 +51,9 @@ describe('buildCapabilities', () => {
     expect(caps.commitGraph).toBe(true); // 2.24+
     expect(caps.forceIfIncludes).toBe(false);
     expect(caps.fsmonitor).toBe(false);
+    // 2.27 taught `merge` --autostash; this machine's own git sits just above it.
+    expect(caps.mergeAutostash).toBe(true);
+    expect(buildCapabilities('2.26.2').mergeAutostash).toBe(false);
   });
 
   it('boundary: 2.35 has stash --staged but is below floor', () => {

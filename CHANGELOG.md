@@ -211,7 +211,10 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
     names the branch, its upstream and the exact commands, with your last
     answer as the default and *Reset to the Remote Branch* behind a
     confirmation and a Local History snapshot. *Don't Ask Again* on the result
-    makes `Ctrl+T` act directly.
+    makes `Ctrl+T` act directly. Like IntelliJ's, it does not refuse because
+    you are mid-work: uncommitted changes are set aside and put back, files you
+    added to VCS stay added, and if putting your changes back conflicts you get
+    a warning and the conflict view, with a copy kept in the stash.
   - **Reset** finally offers git's fourth mode, **Keep**, with a live
     "this will discard N local changes" line.
   - **Branches popup becomes an action hub**: top-level verbs before any

@@ -13,18 +13,26 @@
  * Every command comes from the vscode-free `updateArgs.ts`, so the question's
  * command lines and the execution cannot drift apart.
  */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
+import { parseStatusV2 } from '../../core/git/parsers/statusV2';
+import { detectInProgressOp } from '../../core/model/inProgressOp';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import { confirmModal } from '../../ui/confirm';
 import { splitUpstream } from './pushArgs';
 import {
+  buildDetachArgs,
   buildIntegrateArgs,
+  buildReattachArgs,
   buildResetToRemoteArgs,
   buildUpdateFetchArgs,
   buildUpdateQuestion,
+  hasStashableChanges,
   normalizeStrategySetting,
+  planSetAside,
   type UpdateChoice,
   type UpdateStrategy,
   type UpdateStrategySetting,
@@ -62,6 +70,17 @@ export interface UpdateOutcome {
   from: string;
   to: string;
   message: string;
+  /**
+   * POST-P14ac: files left conflicted when git put the user's own changes
+   * back after the update. git calls that success (exit 0, "Your changes are
+   * safe in the stash"), so it has to be counted to be reported at all.
+   */
+  restoreConflicts?: number;
+}
+
+/** Structural slice of phase06's conflict lifecycle — imported by shape, not module. */
+interface ConflictLifecycleShape {
+  lifecycle?: { expectConflict(repoRoot: string, source: 'stash-pop'): void };
 }
 
 function readSetting(): UpdateStrategySetting {
@@ -139,7 +158,15 @@ export async function buildUpdatePrompt(
   const upstream = snap.upstream;
   if (upstream === undefined) return undefined;
   const remote = splitUpstream(upstream, await remoteNames(deps.core, repo))?.remote;
-  const question = buildUpdateQuestion(rememberedUpdateStrategy(deps.state), upstream, remote);
+  const question = buildUpdateQuestion(
+    rememberedUpdateStrategy(deps.state),
+    upstream,
+    remote,
+    // The command lines show what would be put aside given the tree as last
+    // seen; the run reads status again and decides for itself.
+    (strategy) =>
+      planSetAside(snap.statusEntries, strategy, deps.core.git.caps.mergeAutostash),
+  );
 
   const lines = [
     vscode.l10n.t(
@@ -301,6 +328,11 @@ export async function applyUpdateResult(
   }
 
   const strategy: UpdateStrategy = result.strategy === 'rebase' ? 'rebase' : 'merge';
+  // Intent-to-add paths still out of the index when the integrate step stopped
+  // half-way — reported rather than put back, see the `finally` below.
+  let leftUntracked: string[] = [];
+  // Files left conflicted by git putting the user's own changes back.
+  let restoreConflicts = 0;
   try {
     await repo.queue.enqueue({
       label:
@@ -312,16 +344,90 @@ export async function applyUpdateResult(
       snapshotLabel:
         strategy === 'rebase' ? SNAPSHOT_LABELS.rebaseStart : SNAPSHOT_LABELS.merge,
       run: async (git, token) => {
-        await git.exec(repo.root, buildIntegrateArgs(strategy, upstream), { token });
+        // POST-P14ac: decided from a status read *now*, inside the queue — the
+        // model snapshot can be older than the working tree it describes.
+        const status = await git.exec(
+          repo.root,
+          ['status', '--porcelain=v2', '-z', '--untracked-files=no'],
+          { structured: true, noOptionalLocks: true, token },
+        );
+        const entries = parseStatusV2(status.stdout).entries;
+        const aside = planSetAside(entries, strategy, core.git.caps.mergeAutostash);
+        const stashes = aside.autostash && hasStashableChanges(entries);
+        if (aside.detach.length > 0) {
+          await git.exec(repo.root, buildDetachArgs(aside.detach), { token });
+        }
+        try {
+          await git.exec(repo.root, buildIntegrateArgs(strategy, upstream, aside.autostash), {
+            token,
+          });
+        } finally {
+          if (aside.detach.length > 0) {
+            // Put back only once the merge or rebase is over. Stopped on a
+            // conflict, the autostash is still waiting to be re-applied when
+            // the user finishes, and `git stash` cannot stand intent-to-add
+            // entries — re-adding them now could fail that very step. Left
+            // untracked they lose nothing: the file is on disk, and it stays
+            // in its changelist, whose commit path adds it back with `-N`.
+            const present = aside.detach.filter((p) => fs.existsSync(path.join(repo.root, p)));
+            if (detectInProgressOp(repo.dirs.gitDir) !== undefined) {
+              leftUntracked = present;
+            } else if (present.length > 0) {
+              await git.exec(repo.root, buildReattachArgs(present), {
+                token,
+                allowNonZeroExit: true,
+              });
+            }
+          }
+        }
+        // Reached only when the merge or rebase itself finished. If putting
+        // the stashed changes back then conflicted, git still exits 0, with no
+        // merge or rebase in progress for the conflict lifecycle to name it
+        // by — so count it here, and tell the lifecycle what it was. Told only
+        // once it has happened, as the stash service does: a hint registered
+        // in advance would outlive a clean update and mislabel the next,
+        // unrelated conflict in this repository.
+        if (stashes) {
+          const after = await git.exec(
+            repo.root,
+            ['status', '--porcelain=v2', '-z', '--untracked-files=no'],
+            { structured: true, noOptionalLocks: true, token },
+          );
+          restoreConflicts = parseStatusV2(after.stdout).entries.filter(
+            (e) => e.kind === 'unmerged',
+          ).length;
+          if (restoreConflicts > 0) {
+            (core.debugRegistry.get('phase06') as ConflictLifecycleShape | undefined)
+              ?.lifecycle?.expectConflict(repo.root, 'stash-pop');
+          }
+        }
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const first = err instanceof Error ? err.message : String(err);
+    // One line: the notification shows only the first one.
+    const message =
+      leftUntracked.length === 0
+        ? first
+        : `${first} — ${vscode.l10n.t(
+            '{0} file(s) added to VCS are unversioned until the {1} is finished; they stay in their changelist.',
+            leftUntracked.length,
+            strategy,
+          )}`;
     await repo.refresher.refreshNow();
     return { ok: false, commitsPulled: counted.commits, filesChanged: counted.files, from: before, to: after, message };
   }
   await repo.refresher.refreshNow();
 
+  const summary =
+    counted.commits === 0
+      ? vscode.l10n.t('Already up to date.')
+      : vscode.l10n.t(
+          '{0}: {1} commit(s), {2} file(s) changed.',
+          strategy === 'rebase' ? vscode.l10n.t('Rebased') : vscode.l10n.t('Merged'),
+          counted.commits,
+          counted.files,
+        );
   return {
     ok: true,
     commitsPulled: counted.commits,
@@ -329,14 +435,13 @@ export async function applyUpdateResult(
     from: before,
     to: after,
     message:
-      counted.commits === 0
-        ? vscode.l10n.t('Already up to date.')
-        : vscode.l10n.t(
-            '{0}: {1} commit(s), {2} file(s) changed.',
-            strategy === 'rebase' ? vscode.l10n.t('Rebased') : vscode.l10n.t('Merged'),
-            counted.commits,
-            counted.files,
-          ),
+      restoreConflicts === 0
+        ? summary
+        : `${summary} ${vscode.l10n.t(
+            'Your local changes conflict with it in {0} file(s); a copy is kept in the stash.',
+            restoreConflicts,
+          )}`,
+    ...(restoreConflicts > 0 ? { restoreConflicts } : {}),
   };
 }
 
@@ -393,7 +498,13 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
   // Deliberately not awaited: a notification carrying an action button stays
   // pending until the user dismisses it, and the update is already finished —
   // awaiting it would leave `showUpdateDialog` hanging on the notification.
-  void vscode.window.showInformationMessage(outcome.message, ...actions).then(async (choice) => {
+  // A conflicted restore is a warning, not a success toast: the update landed,
+  // but the user now has conflict markers in files they were editing.
+  const shown =
+    (outcome.restoreConflicts ?? 0) > 0
+      ? vscode.window.showWarningMessage(outcome.message, ...actions)
+      : vscode.window.showInformationMessage(outcome.message, ...actions);
+  void shown.then(async (choice) => {
     if (choice === showInLog) {
       await vscode.commands.executeCommand('gittree.log.setFilter', {
         sort: 'topo',

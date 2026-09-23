@@ -514,7 +514,10 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   panel — `[Merge] [Rebase] [Reset to the Remote Branch] [Cancel]`, the last answer first so
   `Enter` repeats it, the branch, its upstream and each button's commands in the text. Its
   `Don't show again` is `Don't Ask Again` on the result notification, after which `Ctrl+T`
-  runs directly.
+  runs directly. **It never refuses because you are mid-work**: uncommitted changes are set
+  aside around the merge or rebase and put back (git's `--autostash`; files added to VCS
+  survive as added; staged content is left alone rather than unstaged), and a conflict putting
+  them back is a warning plus a `stash-pop` conflict session (D31).
 * **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
   tags/hooks footer, `[Push ▾]` with Force Push) · `Merge` ·
   `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`

@@ -10,6 +10,11 @@ export interface GitCapabilities {
   readonly belowFloor: boolean;
   /** `git stash push --staged` (2.35). */
   readonly stashStaged: boolean;
+  /**
+   * `git merge --autostash` (2.27). `git rebase --autostash` is far older
+   * (1.8.4), so only the merge half of Update Project needs asking.
+   */
+  readonly mergeAutostash: boolean;
   /** `git commit-graph write --reachable` maintenance (2.24). */
   readonly commitGraph: boolean;
   /** `git push --force-with-lease --force-if-includes` (2.30). */
@@ -50,6 +55,7 @@ export function buildCapabilities(version: string): GitCapabilities {
     version,
     belowFloor: compareVersion(version, GIT_FLOOR) < 0,
     stashStaged: atLeast(2, 35),
+    mergeAutostash: atLeast(2, 27),
     commitGraph: atLeast(2, 24),
     forceIfIncludes: atLeast(2, 30),
     fsmonitor: atLeast(2, 37),
