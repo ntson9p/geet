@@ -364,20 +364,30 @@ export class BranchOps {
 
   /**
    * `Update` on a branch row. On the checked-out branch this *is* Update
-   * Project — same fetch, same merge/rebase choice, same `Show in Log`
-   * follow-up — so it delegates instead of growing a second implementation
-   * that could answer differently.
+   * Project — same fetch, same merge/rebase, same `Show in Log` follow-up —
+   * so it delegates instead of growing a second implementation that could
+   * answer differently. It delegates to the half that **does not ask**
+   * (POST-P14ad): IntelliJ's branch `Update` runs with the saved update
+   * method, and only `Update Project…` puts the question. Picking a branch
+   * and `Update` already said what to do.
    *
    * Any other branch cannot be integrated without checking it out, so GitTree
    * does what IntelliJ does and moves the ref in place, fast-forward only. The
    * refusal is git's own (see `updateBranchArgs.ts`); a diverged branch is
    * reported with its counts rather than rewritten, because the user cannot
    * see what they would lose from a branch that is not in front of them.
+   *
+   * Resolves `true` when the branch is now level with its upstream, `false`
+   * when it is not — every outcome is already reported to the user either
+   * way. The all-repositories fan-out stops on `false`.
    */
-  async updateBranch(repo: RepoHandle, branch: string, isCurrent: boolean): Promise<void> {
+  async updateBranch(repo: RepoHandle, branch: string, isCurrent: boolean): Promise<boolean> {
     if (isCurrent) {
-      await vscode.commands.executeCommand('gittree.update.dialog', repo.root);
-      return;
+      const outcome = await vscode.commands.executeCommand<{ ok: boolean } | undefined>(
+        'gittree.update.run',
+        repo.root,
+      );
+      return outcome?.ok === true;
     }
     const ref = repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === branch);
     const upstream = ref?.upstreamGone === true ? undefined : ref?.upstream;
@@ -385,7 +395,7 @@ export class BranchOps {
       void vscode.window.showWarningMessage(
         vscode.l10n.t('"{0}" has no upstream branch to update from.', branch),
       );
-      return;
+      return false;
     }
     const remoteList = await this.core.git.exec(repo.root, ['remote'], { structured: true });
     const remotes = remoteList.stdout
@@ -447,7 +457,7 @@ export class BranchOps {
         void vscode.window.showInformationMessage(
           vscode.l10n.t('{0} is already up to date with {1}.', branch, upstream),
         );
-        return;
+        return true;
       case 'diverged':
         void vscode.window.showWarningMessage(
           vscode.l10n.t(
@@ -458,16 +468,17 @@ export class BranchOps {
             outcome.behind,
           ),
         );
-        return;
+        return false;
       case 'updated':
         void vscode.window.showInformationMessage(
           vscode.l10n.t('Updated {0} to {1}: {2} commit(s).', branch, upstream, outcome.commits),
         );
-        return;
+        return true;
       case 'failed':
         void vscode.window.showErrorMessage(
           vscode.l10n.t('Could not update "{0}": {1}', branch, outcome.message),
         );
+        return false;
     }
   }
 

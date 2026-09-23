@@ -435,7 +435,7 @@ Record a labeled snapshot when a build/test task finishes, so states like "after
 
 ### `gittree.update.strategy`
 
-What Ctrl+T (Update Project) does. "Ask every time" asks Merge or Rebase and offers the last answer first; choosing "Don't Ask Again" on the update's result writes that strategy here.
+What Ctrl+T (Update Project) does. "Ask every time" asks Merge or Rebase and offers the last answer first; choosing "Don't Ask Again" on the update's result writes that strategy here. A branch's Update never asks: it uses this strategy, or your last answer while this is "Ask every time".
 
 - Type: `string` · Default: `"ask"`
 - Values:

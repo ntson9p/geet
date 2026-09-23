@@ -35,6 +35,7 @@ import {
   lastUpdatePrompt,
   rememberedUpdateStrategy,
   reportUpdate,
+  runRememberedUpdate,
   setUpdateStrategy,
   showUpdateDialog,
   type UpdateDialogDeps,
@@ -204,6 +205,14 @@ export function registerPhase13Dialogs(
         return;
       }
       await showUpdateDialog(updateDeps, repo);
+    }),
+    // POST-P14ad: the half that does not ask — a branch row's `Update` on the
+    // checked-out branch. Internal: not contributed, so not in the palette,
+    // where `Update Project…` is the verb. Returns the outcome so the caller
+    // can tell a fan-out whether to carry on.
+    vscode.commands.registerCommand('gittree.update.run', async (arg?: unknown) => {
+      const repo = resolveRepo(core, arg);
+      return repo ? runRememberedUpdate(updateDeps, repo) : undefined;
     }),
     // The "gear" that brings the question back after Don't Ask Again.
     vscode.commands.registerCommand('gittree.update.configure', async () => {

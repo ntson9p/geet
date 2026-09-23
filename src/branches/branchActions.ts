@@ -27,7 +27,14 @@ export interface BranchAction {
   /** Interpolated label — what the popup (P13-T5) renders. */
   label(ctx: BranchActionContext, currentBranch: string | undefined): string;
   applies(ctx: BranchActionContext): boolean;
-  run(ctx: BranchActionContext): Promise<void>;
+  /**
+   * Resolves `false` when the action did not complete and has already told
+   * the user why (POST-P14ad). A fan-out across repositories stops there —
+   * `runCommonAction` — while a single row's caller can ignore it: the
+   * report is the action's own, so nobody has anything to add. Throwing would
+   * have meant a second report from every one of the four single-row callers.
+   */
+  run(ctx: BranchActionContext): Promise<void | false>;
   /**
    * Separator group, in the order the reference submenu shows them
    * (`docs/intellij-gap-analysis.md` §2A "Branch row submenu expanded"). The
@@ -239,7 +246,8 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       group: 'push',
       label: () => vscode.l10n.t('Update'),
       applies: (ctx) => isLocalBranch(ctx) && upstreamOf(ctx) !== undefined,
-      run: (ctx) => deps.ops.updateBranch(ctx.repo, ctx.name, ctx.isCurrent),
+      run: async (ctx) =>
+        (await deps.ops.updateBranch(ctx.repo, ctx.name, ctx.isCurrent)) ? undefined : false,
     },
     {
       id: 'push',

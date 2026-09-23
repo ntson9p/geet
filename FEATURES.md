@@ -135,8 +135,10 @@ merging it into itself, deleting it. Both the tree's context menu and the popup 
 show that same set, in the reference's own order.
 
 **`Update`** appears only while the branch tracks a remote branch that still exists. On the
-checked-out branch it *is* Update Project (fetch, then merge or rebase per
-`gittree.update.strategy`). On any other branch git cannot integrate without a checkout, so
+checked-out branch it runs Update Project's fetch-and-integrate **without asking** — IntelliJ's
+branch `Update` uses the saved update method, and only `Update Project…` puts the question — with
+the remembered strategy: `gittree.update.strategy`, else the last answer to that question, else
+Merge. On any other branch git cannot integrate without a checkout, so
 GitTree fast-forwards the ref in place — `git fetch . <upstream>:<branch>`, which git performs
 only when it is a genuine fast-forward. A diverged branch is reported with its counts, never
 rewritten.

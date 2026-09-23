@@ -249,6 +249,24 @@ suite('POST-P14p project-level branches popup', () => {
 
   // ---- the live half -------------------------------------------------------
 
+  test('POST-P14ad: a fan-out stops at the first root whose action reports a failure', async function () {
+    this.timeout(30_000);
+    const ran: string[] = [];
+    // Shaped like `Update`: it reports its own failure and resolves `false`
+    // rather than throwing, which is exactly the case that used to slip past.
+    const fake: BranchAction = {
+      id: 'p14ad/fake-update',
+      label: () => 'Fake update',
+      applies: () => true,
+      run: (ctx) => {
+        ran.push(ctx.repo.root);
+        return Promise.resolve(ctx.repo === repoD ? false : undefined);
+      },
+    };
+    await runCommonAction([repoD, repoE], { name: 'p14ad/any', kind: 'local' }, [fake], fake.id);
+    assert.deepStrictEqual(ran, [repoD.root], 'a root after a failed one must not run');
+  });
+
   test('runCommonAction really runs the operation in every root it applies to', async function () {
     this.timeout(120_000);
     const beforeD = headOf(repoD);

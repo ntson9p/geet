@@ -12,6 +12,7 @@ import type { Phase02Registry } from '../../../src/branches/register';
 import type { BranchNode } from '../../../src/branches/branchesView';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
+import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 /**
@@ -276,6 +277,118 @@ suite('P14 branch menu parity', () => {
     // And the upstream really was ahead, so the refusal was a decision rather
     // than an absence of work.
     assert.strictEqual(git('rev-parse', `${REMOTE}/${TARGET}`).trim(), theirs);
+  });
+
+  // ---- POST-P14ad · Update on the checked-out branch does not ask -----------------
+
+  /** Points the checked-out branch's upstream at `sha` and waits for the model to see it. */
+  const trackCurrentAt = async (sha: string): Promise<void> => {
+    git('push', '--force', REMOTE, `${sha}:refs/heads/${current}`);
+    git('fetch', REMOTE);
+    git('branch', `--set-upstream-to=${REMOTE}/${current}`, current);
+    const upstream = `${REMOTE}/${current}`;
+    await refreshUntil(
+      () =>
+        repo.model.snapshot.upstream === upstream &&
+        repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === current)
+          ?.upstream === upstream &&
+        repo.model.snapshot.behind === (sha === git('rev-parse', 'HEAD').trim() ? 0 : 1),
+    );
+  };
+
+  /**
+   * Runs `body` with the question answered by `GITTREE_TEST_UPDATE_CHOICE`,
+   * then puts back the branch, its tracking and the answer seam.
+   *
+   * `cancel` is the hang guard for tests that expect no question: a
+   * regression that asked after all gets Cancel, leaves the branch where it
+   * was and fails its assertions, instead of waiting forever on a modal no
+   * test can click.
+   */
+  const withCurrentBranch = async (
+    body: (base: string, reg13: Phase13Registry) => Promise<void>,
+  ): Promise<void> => {
+    const reg13 = core.debugRegistry.get('phase13') as Phase13Registry;
+    assert.ok(reg13, 'phase13 registry missing');
+    const base = git('rev-parse', 'HEAD').trim();
+    const saved = process.env['GITTREE_TEST_UPDATE_CHOICE'];
+    process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'cancel';
+    reg13.clearLastUpdatePrompt();
+    try {
+      await body(base, reg13);
+    } finally {
+      if (saved === undefined) delete process.env['GITTREE_TEST_UPDATE_CHOICE'];
+      else process.env['GITTREE_TEST_UPDATE_CHOICE'] = saved;
+      git('reset', '-q', '--hard', base);
+      git('branch', '--unset-upstream', current);
+      await refreshUntil(() => repo.model.snapshot.upstream === undefined);
+    }
+  };
+
+  test('POST-P14ad: Update on the checked-out branch updates it without asking', async function () {
+    this.timeout(120_000);
+    await withCurrentBranch(async (base, reg13) => {
+      const ahead = commitOnto(base, "p14bm: the checked-out branch's upstream moves on");
+      await trackCurrentAt(ahead);
+      await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(current));
+      // IntelliJ's branch Update runs with the saved method; only Update
+      // Project asks. Before this, the row opened the question.
+      assert.strictEqual(reg13.lastUpdatePrompt(), undefined, "a branch row's Update must not ask");
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), ahead, 'the branch must be updated');
+    });
+  });
+
+  test('POST-P14ad: Update on the checked-out branch uses the last answer to the question', async function () {
+    this.timeout(150_000);
+    await withCurrentBranch(async (base, reg13) => {
+      // Answer the question Rebase, without ticking anything: the setting stays
+      // `ask`. Nothing is incoming yet, so the answer moves nothing.
+      await trackCurrentAt(base);
+      process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'rebase';
+      const answered = await reg13.showUpdateDialog(repo);
+      assert.ok(answered?.ok, answered?.message ?? 'no outcome');
+      assert.strictEqual(reg13.currentUpdateStrategy(), 'ask', 'nobody chose Don\'t Ask Again');
+      assert.strictEqual(reg13.rememberedUpdateStrategy(), 'rebase');
+
+      // Now the upstream moves on while there is local work, so merge and
+      // rebase would give different histories.
+      process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'cancel';
+      reg13.clearLastUpdatePrompt();
+      const ahead = commitOnto(base, "p14bm: the checked-out branch's upstream moves on");
+      fs.writeFileSync(path.join(repoRoot, 'p14bm-local.txt'), 'local work\n');
+      git('add', '--', 'p14bm-local.txt');
+      git(
+        '-c',
+        'user.name=GitTree Test',
+        '-c',
+        'user.email=test@example.invalid',
+        'commit',
+        '-m',
+        'p14bm: local work on the checked-out branch',
+      );
+      await trackCurrentAt(ahead);
+      try {
+        await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(current));
+        assert.strictEqual(reg13.lastUpdatePrompt(), undefined, "a branch row's Update must not ask");
+        // Rebased, not merged: the local commit sits on the upstream's with a
+        // single parent. A merge would have made HEAD^ the local commit.
+        assert.strictEqual(git('rev-parse', 'HEAD^').trim(), ahead);
+        assert.strictEqual(
+          git('log', '-1', '--format=%s').trim(),
+          'p14bm: local work on the checked-out branch',
+        );
+        assert.strictEqual(
+          git('rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ').length,
+          2,
+        );
+      } finally {
+        // Answer Merge again — IntelliJ's default — so later suites start clean.
+        // The branch is level with its upstream now, so this moves nothing.
+        process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'merge';
+        await reg13.showUpdateDialog(repo);
+        assert.strictEqual(reg13.rememberedUpdateStrategy(), 'merge');
+      }
+    });
   });
 
   test('Update on an untracked branch reports rather than guessing a remote', async function () {

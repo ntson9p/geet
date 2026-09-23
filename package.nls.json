@@ -302,7 +302,7 @@
   "gittree.command.operationsPopup.title": "VCS Operations Popup",
   "gittree.config.branches.showIncomingOutgoing.description": "Show incoming (↓) before outgoing (↑) counts in the branches popup. Toggled from the popup's header.",
   "gittree.config.dialogs.title": "GitTree: Dialogs",
-  "gittree.config.update.strategy.description": "What Ctrl+T (Update Project) does. \"Ask every time\" asks Merge or Rebase and offers the last answer first; choosing \"Don't Ask Again\" on the update's result writes that strategy here.",
+  "gittree.config.update.strategy.description": "What Ctrl+T (Update Project) does. \"Ask every time\" asks Merge or Rebase and offers the last answer first; choosing \"Don't Ask Again\" on the update's result writes that strategy here. A branch's Update never asks: it uses this strategy, or your last answer while this is \"Ask every time\".",
   "gittree.config.update.strategy.ask": "Ask Merge or Rebase on every update.",
   "gittree.config.update.strategy.merge": "Merge incoming changes into the current branch.",
   "gittree.config.update.strategy.rebase": "Rebase the current branch on top of incoming changes.",

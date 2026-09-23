@@ -576,6 +576,31 @@ export async function showUpdateDialog(
   return outcome;
 }
 
+/**
+ * Update without asking (POST-P14ad): the remembered strategy — the setting,
+ * else the last answer, else Merge — as IntelliJ's branch `Update` uses its
+ * saved update method. What a branch row's `Update` runs on the checked-out
+ * branch; `Update Project…` is the one that asks.
+ */
+export async function runRememberedUpdate(
+  deps: UpdateDialogDeps,
+  repo: RepoHandle,
+): Promise<UpdateOutcome | undefined> {
+  const snap = repo.model.snapshot;
+  if (snap.upstream === undefined) {
+    void vscode.window.showInformationMessage(
+      vscode.l10n.t('"{0}" has no upstream branch to update from.', snap.headRef ?? ''),
+    );
+    return undefined;
+  }
+  const outcome = await applyUpdateResult(deps, repo, {
+    action: 'update',
+    strategy: rememberedUpdateStrategy(deps.state),
+  });
+  reportUpdate(outcome);
+  return outcome;
+}
+
 /** What `Ctrl+T` will do right now — `ask` means the question is still asked. */
 export function currentUpdateStrategy(): UpdateStrategySetting {
   return readSetting();

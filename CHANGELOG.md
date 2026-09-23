@@ -315,8 +315,9 @@ row for HEAD.
   your uncommitted work; the worktree dialog opens in *create a new branch*
   mode, since git cannot check a branch out twice.
 - **`Update`** is new: fetch and bring a branch level with the remote branch it
-  tracks. On the checked-out branch it is Update Project, honouring
-  `gittree.update.strategy`. On any other branch it fast-forwards the ref in
+  tracks. On the checked-out branch it updates straight away, as IntelliJ's
+  does — merge or rebase, whichever you last chose in Update Project (Merge
+  until you choose otherwise); only **Update Project…** asks. On any other branch it fast-forwards the ref in
   place without checking it out, and **refuses rather than rewrites** when the
   branch has diverged — it reports how far apart the two are instead.
 - **`Tracked Branch`** is new: a submenu carrying the upstream's own actions —

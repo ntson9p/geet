@@ -918,6 +918,11 @@ export function commonContexts(
  * failure** — the idiom `runCommitAcross` established. Carrying on past a
  * refusal would start a merge in roots 3…7 while root 2 sits in conflict, and
  * the report would have to describe a half-applied operation.
+ *
+ * A failure is a thrown error, or (POST-P14ad) an action resolving `false`:
+ * one that reported its own failure and returned, as `Update` does. Before
+ * that was honoured, only exceptions stopped the fan-out, and `Update in all
+ * N repositories` ran on past a conflicted root.
  */
 export async function runCommonAction(
   repos: readonly RepoHandle[],
@@ -941,7 +946,16 @@ export async function runCommonAction(
   for (const ctx of targets) {
     const name = path.basename(ctx.repo.root);
     try {
-      await action.run(ctx);
+      if ((await action.run(ctx)) === false) {
+        // The action has said what went wrong; what it cannot know is that it
+        // was one of several, and which of the others already happened.
+        void vscode.window.showWarningMessage(
+          done.length > 0
+            ? vscode.l10n.t('Stopped at {0}. Already done in: {1}.', name, done.join(', '))
+            : vscode.l10n.t('Stopped at {0}. Nothing was changed.', name),
+        );
+        return;
+      }
       done.push(name);
     } catch (err) {
       const reason = (err instanceof Error ? err.message : String(err)).split('\n', 1)[0] ?? '';
