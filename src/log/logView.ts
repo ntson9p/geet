@@ -21,6 +21,7 @@ import {
   type LogPageDto,
   type LogRootDto,
   type LogRowDto,
+  type LogTab,
   type LogWorktreeActionParamsDto,
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
@@ -99,6 +100,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private lastHeadSha: string | undefined;
   /** Auto-refreshes actually executed (integration-test observability). */
   autoRefreshCount = 0;
+  /** POST-P14af: a tab asked for while the view was still starting — see `showTab`. */
+  private pendingTab: LogTab | undefined;
 
   /** Multi-select in webview order — what commit actions operate on. */
   get selectedCommits(): readonly string[] {
@@ -216,7 +219,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     rpc.on(LOG_METHODS.init, (params) => {
       this.debugTrail.push('rpc:init');
       const requested = (params as { filter?: LogFilterDto } | undefined)?.filter;
-      return this.startSession(requested ?? this.session?.filter ?? DEFAULT_FILTER);
+      const init = this.startSession(requested ?? this.session?.filter ?? DEFAULT_FILTER);
+      const tab = this.pendingTab;
+      this.pendingTab = undefined;
+      return tab !== undefined ? { ...init, tab } : init;
     });
     rpc.on(LOG_METHODS.page, async (params) => {
       const { page } = params as { page: number };
@@ -536,6 +542,24 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   /** P10-T2: keyboard parity — move focus into the filter search box. */
   focusFilter(): void {
     this.rpc?.notify(LOG_METHODS.evtFocusFilter, {});
+  }
+
+  /**
+   * POST-P14af: opens the Git tool window on one of its tabs — IntelliJ's
+   * "Show details in console" after a failed or rejected push.
+   *
+   * A view that is already up takes the event. One that the focus below is
+   * only now creating may not be listening yet, so the tab also rides on its
+   * `init` — kept for that case alone, or some later, unrelated start would
+   * open on the Console too.
+   */
+  async showTab(tab: LogTab): Promise<void> {
+    if (!this.rpc) this.pendingTab = tab;
+    await vscode.commands.executeCommand('gittree.log.focus');
+    for (let i = 0; i < 50 && !this.rpc; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    this.rpc?.notify(LOG_METHODS.evtShowTab, { tab });
   }
 
   /**

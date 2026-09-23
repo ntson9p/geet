@@ -254,7 +254,9 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       group: 'push',
       label: () => vscode.l10n.t('Push…'),
       applies: (ctx) => isLocalBranch(ctx),
-      run: (ctx) => deps.ops.pushBranch(ctx.repo, ctx.name),
+      // A rejected or failed push is reported, not thrown (POST-P14af), so it
+      // says so here — or the all-repositories fan-out would push on past it.
+      run: async (ctx) => ((await deps.ops.pushBranch(ctx.repo, ctx.name)) ? undefined : false),
     },
     {
       /**

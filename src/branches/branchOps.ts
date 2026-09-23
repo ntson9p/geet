@@ -207,12 +207,28 @@ export class BranchOps {
     }
   }
 
-  async pushBranch(repo: RepoHandle, branch: string): Promise<void> {
+  /**
+   * Resolves `true` once the branch is on the remote. A tracked branch's
+   * failures are reported rather than thrown (POST-P14af), so `false` is what
+   * tells the all-repositories fan-out to stop, as it does for `Update`.
+   */
+  async pushBranch(repo: RepoHandle, branch: string): Promise<boolean> {
     const ref = repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === branch);
+    // POST-P14af: a tracked branch goes to its upstream through the shared
+    // runner — on its own remote rather than always `origin`, with IntelliJ's
+    // report, and on the checked-out branch with the Merge / Rebase question
+    // when the remote has moved on.
+    if (ref?.upstream !== undefined && !ref.upstreamGone) {
+      const results = await vscode.commands.executeCommand<
+        ReadonlyArray<{ kind: string }> | undefined
+      >('gittree.push.run', repo.root, branch);
+      if (results !== undefined) return results.every((r) => r.kind === 'pushed');
+    }
     const args =
       ref?.upstream !== undefined && !ref.upstreamGone
         ? ['push', 'origin', `${branch}:${ref.upstream.replace(/^[^/]+\//, '')}`]
         : ['push', '-u', 'origin', branch];
+    // Failures here still throw, which stops a fan-out on its own.
     await repo.queue.enqueue({
       label: vscode.l10n.t('Push {0}', branch),
       kind: 'mutate',
@@ -220,6 +236,7 @@ export class BranchOps {
         await git.exec(repo.root, args, { token });
       },
     });
+    return true;
   }
 
   /** `git rebase <current> <sel>`: checks out sel and rebases it onto current. */

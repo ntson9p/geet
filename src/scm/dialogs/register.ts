@@ -19,6 +19,7 @@ import {
   showConflictsDialog,
 } from '../../merge/conflictsDialog';
 import type { ConflictSession } from '../../merge/conflictSession';
+import { presentGitError } from '../../hardening/errorUx';
 import {
   applyPushResult,
   buildPushParams,
@@ -26,6 +27,14 @@ import {
   showPushDialog,
   type PushDialogDeps,
 } from './pushDialog';
+import {
+  clearLastPushRejectedPrompt,
+  lastPushRejectedPrompt,
+  pushAndReport,
+  setAutoUpdateIfRejected,
+  upstreamPushTarget,
+  type PushResult,
+} from './pushRun';
 import {
   applyUpdateResult,
   buildUpdatePrompt,
@@ -105,6 +114,11 @@ export interface Phase13Registry {
   applyPushResult: (result: Parameters<typeof applyPushResult>[1]) => Promise<string[]>;
   /** Test seam: the request handlers the dialog registers, verbatim. */
   pushHandlers: () => Record<string, (params: unknown) => unknown>;
+  /** POST-P14af: the Push Rejected question most recently put, and its reset. */
+  lastPushRejectedPrompt: typeof lastPushRejectedPrompt;
+  clearLastPushRejectedPrompt: typeof clearLastPushRejectedPrompt;
+  /** What `Don't Ask Again` on a pushed-after-update result writes. */
+  setAutoUpdateIfRejected: typeof setAutoUpdateIfRejected;
   /** P13-T2 test seams. POST-P14ab: the question is a native modal now. */
   buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
   /** POST-P14ae: the question and the run for a whole project. */
@@ -200,6 +214,9 @@ export function registerPhase13Dialogs(
   const deps: PushDialogDeps = { core, extensionUri: context.extensionUri, trace };
   // Update Project also remembers the last Merge/Rebase answer, per workspace.
   const updateDeps: UpdateDialogDeps = { ...deps, state: context.workspaceState };
+  // POST-P14af: a push the remote rejects asks that same question, so every
+  // push path carries the same state.
+  const pushDeps: PushDialogDeps = updateDeps;
 
   // P13-T1: Push. `gittree.sync.push` (P1) stays as the no-questions path; this
   // is the dialog that exposes the flags behind it.
@@ -208,8 +225,30 @@ export function registerPhase13Dialogs(
       const one = resolveRepo(core, arg);
       // No unambiguous repo: offer every pushable repo at once, which is also
       // the multi-repo shape the dialog is built for.
-      await showPushDialog(deps, one ? [one] : core.repos);
+      await showPushDialog(pushDeps, one ? [one] : core.repos);
     }),
+    // POST-P14af: a tracked branch pushed to its upstream, the IntelliJ way —
+    // `gittree.push` (so Commit and Push, and Sync) and a branch row's `Push…`
+    // come through here. Internal, as `gittree.update.run` is. Resolves to
+    // what happened, or `undefined` for a branch that tracks nothing, which
+    // the caller publishes its own way.
+    vscode.commands.registerCommand(
+      'gittree.push.run',
+      async (arg?: unknown, branchArg?: unknown): Promise<PushResult[] | undefined> => {
+        const repo = namedRepo(core, arg);
+        if (!repo) return undefined;
+        const branch =
+          typeof branchArg === 'string' && branchArg.length > 0
+            ? branchArg
+            : repo.model.snapshot.headRef;
+        if (branch === undefined) return undefined;
+        const target = await upstreamPushTarget(core, repo, branch);
+        if (!target) return undefined;
+        return pushAndReport(updateDeps, [target], {
+          presentFailure: (err) => presentGitError(context, core, err),
+        });
+      },
+    ),
   );
 
   // P13-T2: Update Project. `gittree.pull` (P1) stays as the raw pull; this is
@@ -369,8 +408,11 @@ export function registerPhase13Dialogs(
 
   const registry: Phase13Registry = {
     buildPushParams,
-    applyPushResult: (result) => applyPushResult(deps, result),
+    applyPushResult: (result) => applyPushResult(pushDeps, result),
     pushHandlers: () => pushDialogHandlers(deps),
+    lastPushRejectedPrompt,
+    clearLastPushRejectedPrompt,
+    setAutoUpdateIfRejected,
     buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, { targets: [repo], skipped: [] }),
     buildProjectPrompt: (repos) => buildUpdatePrompt(updateDeps, updateScope(repos)),
     showProjectUpdate: (repos) => showProjectUpdate(updateDeps, repos),

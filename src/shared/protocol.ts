@@ -972,6 +972,12 @@ export interface LogInitDto {
    * clearing the panes and jumping to the newest commit.
    */
   preserve?: boolean;
+  /**
+   * POST-P14af: the tab to open on — set only when something asked for one
+   * (`LOG_METHODS.evtShowTab`) while this view was still starting, too early
+   * to hear the event itself.
+   */
+  tab?: LogTab;
 }
 
 export interface CommitFileDto {
@@ -1153,7 +1159,16 @@ export const LOG_METHODS = {
   evtWorktrees: 'log/worktreesChanged',
   /** P10-T2: keyboard parity — move focus into the filter search box. */
   evtFocusFilter: 'log/focusFilter',
+  /**
+   * POST-P14af: switch to one of the tool window's tabs (`{ tab }`) — what a
+   * push notification's `Show Details` does, IntelliJ's "Show details in
+   * console".
+   */
+  evtShowTab: 'log/showTab',
 } as const;
+
+/** The Git tool window's tabs, as `LOG_METHODS.evtShowTab` names them. */
+export type LogTab = 'log' | 'console' | 'worktrees';
 
 // ---------------------------------------------------------------------------
 // Interactive rebase editor (P5-T2) — host ⇄ webview DTOs

@@ -6,6 +6,39 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — a rejected push asks Merge or Rebase, then pushes again
+
+When the remote had commits you did not have yet, a push stopped at an error:
+"Pull (or fetch and rebase) before pushing", or, from the Push dialog,
+"Push failed: To <url>" — the remote's address, not the problem. GitTree now
+does what IntelliJ does. A **Push Rejected** question — *Push of the current
+branch "main" was rejected. Remote changes need to be merged before pushing.* —
+offers **Merge**, **Rebase** and Cancel. Your answer runs the same update as
+Update Project, setting your uncommitted changes aside and putting them back,
+then pushes again: *Pushed 2 commits to origin/main*.
+
+- It covers every way you push the branch you are on to the branch it tracks:
+  the Push dialog (`Ctrl+Shift+K`), **Commit and Push**, Sync, and a branch's
+  **Push…**. Any other rejected push is reported with the remote's reason.
+- The default button is your last Merge/Rebase answer, shared with Update
+  Project, as IntelliJ keeps one update method for both.
+- **Don't Ask Again** on the result — IntelliJ's *Remember the update method
+  and update silently in the future* — turns on
+  `gittree.push.autoUpdateIfRejected` (*Auto-update if push of the current
+  branch was rejected*); a rejected push then updates and pushes without asking.
+- With merge commits of your own not yet pushed, it recommends Merge, offers
+  *Rebase Anyway*, and asks even with auto-update on: rebasing would flatten
+  them.
+- If the update stops on conflicts nothing is pushed — *Push was canceled,
+  because there were conflicts during the update* — and the merge is left for
+  you to finish. Cancel reports *Push to origin/main was rejected*. **Show
+  Details** opens the Console tab.
+- Every push now reports in IntelliJ's words (*Pushed 1 commit to
+  origin/main*, *Pushed feature to new branch origin/feature*); a plain push
+  used to say nothing at all.
+- A branch's **Push…** now pushes to the remote its upstream is on; it always
+  used `origin`.
+
 ### Fixed — Commit Details now uses the whole pane you gave it
 
 The Commit Details pane wrapped its text inside roughly the left half of itself

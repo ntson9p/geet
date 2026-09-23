@@ -504,6 +504,11 @@
             "default": true,
             "description": "%gittree.config.push.runHooks.description%"
           },
+          "gittree.push.autoUpdateIfRejected": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.push.autoUpdateIfRejected.description%"
+          },
           "gittree.push.tags": {
             "type": "string",
             "enum": [

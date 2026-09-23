@@ -46,6 +46,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D29](#d29--a-repositories-section-and-a-branches-view-in-the-sidebar) | A Repositories section, and a Branches view that follows it, in the sidebar | Yes (mechanical) |
 | [D30](#d30--update-project-asks-with-a-message-box-not-a-dialog) | Update Project asks Merge or Rebase with a native message box; `Don't show again` moves to the result | No (no modal surface can hold a radio button) |
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
+| [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, and *Update all repositories* is not offered | No (API) for the box; update-all awaits an owner decision |
 
 ---
 
@@ -781,3 +782,37 @@ remember a pending unshelve across a conflict resolution it does not control.
 
 **Revisitable:** yes — a shelf-based saver with its own pending-restore bookkeeping would match
 IntelliJ's default exactly. The stash was chosen because git already owns that bookkeeping.
+
+## D32 · Push Rejected asks with a message box; its checkboxes move out of it
+
+**IntelliJ:** a push the remote rejects because it has commits you do not opens *Push
+Rejected* — a warning icon, *Push of the current branch "X" was rejected. Remote changes need to
+be merged before pushing.*, `☐ Remember the update method and update silently in the future`,
+and `[Merge] [Rebase] [Cancel]` with the saved update method as the default. In a project with
+several repositories it also has *Update all repositories*.
+**GitTree:** the same question as a native modal message box, a warning as IntelliJ's is: its
+sentence (naming the repository too when the workspace has several), then — with
+`gittree.dialogs.showCommandLine` on — what each button runs, the update and then the same push
+again. The buttons are `Merge`, `Rebase` and VS Code's own `Cancel`, the last answer first; the
+answer is shared with Update Project, as IntelliJ keeps one update method for both. `Remember…`
+is `Don't Ask Again` on the result, and it writes IntelliJ's own setting — *Auto-update if push
+of the current branch was rejected* — as `gittree.push.autoUpdateIfRejected`.
+
+**Why:** D30's reason, and D30's answer: no modal surface an extension can open holds a
+checkbox, and GitTree's two update questions should behave alike.
+
+**Also different:**
+* **No *Update all repositories*.** Only the repositories whose push was rejected are updated.
+  A message box cannot carry the checkbox, and whether updating the others should be a setting,
+  always, or never is an owner decision not yet taken.
+* **The result's links.** "Show details in console" is `Show Details`, which opens the Console
+  tab. "View files updated during the push" is `Show in Log`, filtered to what came in (D9: no
+  Update Info tab). "Create pull request" is absent (D11).
+* **Unpushed merge commits.** IntelliJ's warning is kept — Merge first, `Rebase Anyway`, no
+  `Remember` — and, since a silent rebase would flatten them, the question is asked even with
+  auto-update on while Rebase is the remembered answer.
+* **Rounds.** If the remote moves again while GitTree updates, it updates and pushes again with
+  the same answer, at most three times. IntelliJ also retries; its bound is not known here.
+
+**Revisitable:** the box only with a new API, as D30. *Update all repositories* as soon as its
+behaviour is decided.

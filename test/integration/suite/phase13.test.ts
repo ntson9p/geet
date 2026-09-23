@@ -947,6 +947,236 @@ suite('P13 dialogs', () => {
         });
       });
     });
+
+    // ---- POST-P14af · a rejected push asks Merge or Rebase, then pushes again --------
+
+    suite('POST-P14af push rejected', () => {
+      /**
+       * The Push Rejected question is a native modal, which no test can
+       * click: `GITTREE_TEST_PUSH_REJECTED_CHOICE` answers it. `cancel` is the
+       * safe answer for a test that expects no question at all — asked anyway,
+       * the push stays rejected and the test fails instead of hanging.
+       */
+      const withPushChoice = async <T>(
+        choice: 'merge' | 'rebase' | 'cancel',
+        fn: () => Promise<T>,
+      ): Promise<T> => {
+        const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+        process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = choice;
+        try {
+          return await fn();
+        } finally {
+          if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+          else process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = saved;
+        }
+      };
+      /** Brings the second clone level with the remote, which repoC now pushes to. */
+      const catchUpTeammate = (): void => {
+        gitWithRetry(workDir, ['fetch', 'origin']);
+        gitWithRetry(workDir, ['reset', '-q', '--hard', `origin/${branch}`]);
+      };
+      /** A teammate's push: a commit on the remote that repoC does not have. */
+      const teammate = (rel: string, content: string, subject: string): string => {
+        catchUpTeammate();
+        return incoming(rel, content, subject);
+      };
+      const remoteHead = (ref = branch): string => bare('rev-parse', `refs/heads/${ref}`).trim();
+      /** Exactly what the Push dialog posts for repoC's branch to its upstream. */
+      const pushFromDialog = (remoteBranch = branch): Promise<string[]> =>
+        reg.applyPushResult({
+          repos: [{ root: repo.root, remote: REMOTE, remoteBranch }],
+          tags: 'none',
+          runHooks: true,
+          force: false,
+        });
+
+      setup(async function () {
+        this.timeout(60_000);
+        // Level with the remote and clean, whatever the last test left.
+        git('fetch', REMOTE);
+        git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+        await repo.refresher.refreshNow();
+        await waitFor(
+          () =>
+            repo.model.snapshot.headRef === branch &&
+            repo.model.snapshot.upstream === `${REMOTE}/${branch}`,
+          20_000,
+        );
+        reg.clearLastPushRejectedPrompt();
+      });
+
+      suiteTeardown(async function () {
+        this.timeout(30_000);
+        await reg.setAutoUpdateIfRejected(false);
+      });
+
+      test('POST-P14af: a rejected push asks Merge or Rebase, merges, and pushes again', async function () {
+        this.timeout(120_000);
+        const theirs = teammate('p13/push-theirs-a.txt', 'theirs\n', 'P14af teammate A');
+        const mine = localCommit('p13/push-mine-a.txt', 'mine\n', 'P14af mine A');
+        await repo.refresher.refreshNow();
+
+        const outcomes = await withPushChoice('merge', () => pushFromDialog());
+        assert.deepStrictEqual(outcomes, [`${branch} → ${REMOTE}/${branch}: pushed after merge`]);
+
+        // It asked, in IntelliJ's words, with the default answer first.
+        const prompt = reg.lastPushRejectedPrompt();
+        assert.ok(prompt, 'a rejected push must ask Merge or Rebase');
+        assert.strictEqual(prompt.message, 'Push Rejected');
+        assert.ok(prompt.detail.includes(`Push of the current branch "${branch}"`), prompt.detail);
+        assert.ok(
+          prompt.detail.includes('was rejected. Remote changes need to be merged before pushing.'),
+          prompt.detail,
+        );
+        assert.deepStrictEqual(prompt.buttons, ['Merge', 'Rebase']);
+        // What Merge runs: Update Project's commands, then the same push again.
+        assert.ok(
+          prompt.detail.includes(
+            `Merge: git fetch --prune ${REMOTE} && git merge --autostash ${REMOTE}/${branch} && git push ${REMOTE} ${branch}:refs/heads/${branch}`,
+          ),
+          prompt.detail,
+        );
+
+        // A merge of both, and it reached the remote.
+        const head = git('rev-parse', 'HEAD').trim();
+        assert.strictEqual(remoteHead(), head, 'the second push must land');
+        const parents = git('rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ').slice(1);
+        assert.deepStrictEqual(parents.sort(), [mine, theirs].sort());
+      });
+
+      test('POST-P14af: Rebase replays the local commit on top of theirs, then pushes', async function () {
+        this.timeout(120_000);
+        const theirs = teammate('p13/push-theirs-b.txt', 'theirs\n', 'P14af teammate B');
+        localCommit('p13/push-mine-b.txt', 'mine\n', 'P14af mine B');
+        await repo.refresher.refreshNow();
+
+        const outcomes = await withPushChoice('rebase', () => pushFromDialog());
+        assert.deepStrictEqual(outcomes, [`${branch} → ${REMOTE}/${branch}: pushed after rebase`]);
+        assert.strictEqual(git('rev-parse', 'HEAD^').trim(), theirs, 'mine now sits on top of theirs');
+        assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'P14af mine B');
+        assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim());
+        // IntelliJ keeps one update method for both questions: the answer here
+        // is Update Project's default from now on too.
+        assert.strictEqual(reg.rememberedUpdateStrategy(), 'rebase');
+      });
+
+      test('POST-P14af: Cancel pushes nothing, updates nothing, and asked with the last answer first', async function () {
+        this.timeout(90_000);
+        const theirs = teammate('p13/push-theirs-c.txt', 'theirs\n', 'P14af teammate C');
+        const mine = localCommit('p13/push-mine-c.txt', 'mine\n', 'P14af mine C');
+        const tracking = git('rev-parse', `refs/remotes/${REMOTE}/${branch}`).trim();
+        await repo.refresher.refreshNow();
+
+        const outcomes = await withPushChoice('cancel', () => pushFromDialog());
+        assert.deepStrictEqual(outcomes, [`${branch} → ${REMOTE}/${branch}: rejected (fetch first)`]);
+        assert.deepStrictEqual(reg.lastPushRejectedPrompt()?.buttons, ['Rebase', 'Merge']);
+        assert.strictEqual(git('rev-parse', 'HEAD').trim(), mine);
+        assert.strictEqual(remoteHead(), theirs);
+        assert.strictEqual(
+          git('rev-parse', `refs/remotes/${REMOTE}/${branch}`).trim(),
+          tracking,
+          'a declined question runs not even the fetch',
+        );
+        assert.strictEqual(reg.rememberedUpdateStrategy(), 'rebase', 'Cancel remembers nothing');
+      });
+
+      test('POST-P14af: with auto-update on, gittree.push updates and pushes without asking', async function () {
+        this.timeout(120_000);
+        const theirs = teammate('p13/push-theirs-d.txt', 'theirs\n', 'P14af teammate D');
+        localCommit('p13/push-mine-d.txt', 'mine\n', 'P14af mine D');
+        await repo.refresher.refreshNow();
+        await reg.setAutoUpdateIfRejected(true);
+        try {
+          // `gittree.push` is what Commit and Push and Sync run.
+          await withPushChoice('cancel', async () => {
+            await vscode.commands.executeCommand('gittree.push', repo.root);
+          });
+        } finally {
+          await reg.setAutoUpdateIfRejected(false);
+        }
+        assert.strictEqual(reg.lastPushRejectedPrompt(), undefined, 'auto-update must not ask');
+        // The remembered strategy — Rebase, from two tests ago — ran.
+        assert.strictEqual(git('rev-parse', 'HEAD^').trim(), theirs);
+        assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim());
+      });
+
+      test('POST-P14af: over unpushed merge commits it recommends Merge, and asks even with auto-update on', async function () {
+        this.timeout(120_000);
+        assert.strictEqual(reg.rememberedUpdateStrategy(), 'rebase', 'precondition: Rebase remembered');
+        const theirs = teammate('p13/push-theirs-e.txt', 'theirs\n', 'P14af teammate E');
+        // A side branch merged locally and not pushed — what a rebase flattens.
+        git('checkout', '-q', '-b', 'p14af-side');
+        localCommit('p13/push-side-e.txt', 'side\n', 'P14af side E');
+        git('checkout', '-q', branch);
+        localCommit('p13/push-mine-e.txt', 'mine\n', 'P14af mine E');
+        git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'merge', '--no-ff', '-m', 'P14af local merge', 'p14af-side');
+        const head = git('rev-parse', 'HEAD').trim();
+        await repo.refresher.refreshNow();
+        await reg.setAutoUpdateIfRejected(true);
+        try {
+          const outcomes = await withPushChoice('cancel', () => pushFromDialog());
+          const prompt = reg.lastPushRejectedPrompt();
+          assert.ok(prompt, 'a remembered Rebase over merge commits must not run silently');
+          assert.deepStrictEqual(prompt.buttons, ['Merge', 'Rebase Anyway']);
+          assert.ok(prompt.detail.includes('Merge is highly recommended'), prompt.detail);
+          assert.deepStrictEqual(outcomes, [`${branch} → ${REMOTE}/${branch}: rejected (fetch first)`]);
+          assert.strictEqual(git('rev-parse', 'HEAD').trim(), head);
+          assert.strictEqual(remoteHead(), theirs);
+        } finally {
+          await reg.setAutoUpdateIfRejected(false);
+          git('branch', '-D', 'p14af-side');
+        }
+      });
+
+      test('POST-P14af: an update that stops on conflicts cancels the push and leaves the merge to finish', async function () {
+        this.timeout(120_000);
+        const theirs = teammate(SHARED, 'push: theirs\n', 'P14af teammate, conflicting');
+        localCommit(SHARED, 'push: mine\n', 'P14af mine, conflicting');
+        await repo.refresher.refreshNow();
+        try {
+          const outcomes = await withPushChoice('merge', () => pushFromDialog());
+          assert.strictEqual(outcomes.length, 1);
+          assert.match(outcomes[0]!, /not pushed, the update stopped on conflicts/u, outcomes[0]);
+          assert.strictEqual(remoteHead(), theirs, 'nothing is pushed over an unfinished merge');
+          assert.ok(
+            fs.existsSync(path.join(repo.dirs.gitDir, 'MERGE_HEAD')),
+            'the merge is left in progress for the user to resolve',
+          );
+          // Answered Merge, so Merge is the default again from here on.
+          assert.strictEqual(reg.rememberedUpdateStrategy(), 'merge');
+        } finally {
+          git('merge', '--abort');
+          git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+          await endConflicts();
+        }
+      });
+
+      test('POST-P14af: a push anywhere but the upstream is only reported, never updated', async function () {
+        this.timeout(90_000);
+        // The remote's `p14af-elsewhere` holds a commit repoC has never seen.
+        catchUpTeammate();
+        fs.writeFileSync(path.join(workDir, 'p13-elsewhere.txt'), 'elsewhere\n');
+        gitWithRetry(workDir, ['add', '--', 'p13-elsewhere.txt']);
+        gitWithRetry(workDir, [
+          '-c', 'user.name=Remote', '-c', 'user.email=remote@example.com',
+          'commit', '-m', 'P14af elsewhere',
+        ]);
+        gitWithRetry(workDir, ['push', 'origin', 'HEAD:refs/heads/p14af-elsewhere']);
+        const elsewhere = gitWithRetry(workDir, ['rev-parse', 'HEAD']).trim();
+        catchUpTeammate();
+        const mine = localCommit('p13/push-mine-f.txt', 'mine\n', 'P14af mine F');
+        await repo.refresher.refreshNow();
+
+        const outcomes = await withPushChoice('cancel', () => pushFromDialog('p14af-elsewhere'));
+        assert.deepStrictEqual(outcomes, [
+          `${branch} → ${REMOTE}/p14af-elsewhere: rejected (fetch first)`,
+        ]);
+        // IntelliJ updates only a branch pushed to the branch it tracks.
+        assert.strictEqual(reg.lastPushRejectedPrompt(), undefined);
+        assert.strictEqual(git('rev-parse', 'HEAD').trim(), mine);
+        assert.strictEqual(remoteHead('p14af-elsewhere'), elsewhere);
+      });
+    });
   });
 
   // ---- P13-T3 · Merge · Rebase · Reset · Rollback ---------------------------

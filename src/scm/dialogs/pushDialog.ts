@@ -31,6 +31,7 @@ import { openDialog } from '../../ui/dialogHost';
 import { statusColorOverrides } from '../../ui/statusColors';
 import { formatGitCommand } from './commandLine';
 import { buildPushArgs, shouldSetUpstream, splitUpstream } from './pushArgs';
+import { pushAndReport, pushOutcomeLine, type PushTarget } from './pushRun';
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const COMMIT_CAP = 100;
@@ -39,6 +40,11 @@ export interface PushDialogDeps {
   core: Core;
   extensionUri: vscode.Uri;
   trace?: (line: string) => void;
+  /**
+   * POST-P14af: where Update Project's last Merge/Rebase answer is kept —
+   * a rejected push asks the same question, defaulting to the same answer.
+   */
+  state?: vscode.Memento;
 }
 
 async function listRemotes(core: Core, repo: RepoHandle): Promise<string[]> {
@@ -298,7 +304,9 @@ export function pushDialogHandlers(
 /**
  * The accept half, separated so integration tests drive it with exactly the
  * payload the webview posts (the dialog UI itself is Playwright-covered).
- * Returns the per-repo outcome messages, for tests and the notification.
+ * Returns the per-repo outcome lines, for tests; the user gets one
+ * notification (POST-P14af: `pushRun.ts`, which also answers a rejected push
+ * with IntelliJ's Merge / Rebase question).
  */
 export async function applyPushResult(
   deps: PushDialogDeps,
@@ -309,7 +317,7 @@ export async function applyPushResult(
 
   // Plan first so the force confirmation can name the exact commands — a
   // "rewrites the remote" warning that hides its own argv is not a warning.
-  const plan: Array<{ repo: RepoHandle; branch: string; target: (typeof result.repos)[number]; args: string[] }> = [];
+  const plan: PushTarget[] = [];
   for (const target of result.repos) {
     // Canonical-key resolution with NO fallback — the P12-T2 lesson.
     const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(target.root));
@@ -325,7 +333,8 @@ export async function applyPushResult(
     plan.push({
       repo,
       branch,
-      target,
+      remote: target.remote,
+      remoteBranch: target.remoteBranch,
       args: buildPushArgs({
         remote: target.remote,
         localBranch: branch,
@@ -354,27 +363,8 @@ export async function applyPushResult(
     if (!ok) return [];
   }
 
-  for (const { repo, branch, target, args } of plan) {
-    try {
-      await repo.queue.enqueue({
-        label: vscode.l10n.t('Push {0}', branch),
-        kind: 'mutate',
-        run: async (git, token) => {
-          await git.exec(repo.root, args, { token });
-        },
-      });
-      await repo.refresher.refreshNow();
-      outcomes.push(
-        `${branch} → ${target.remote}/${target.remoteBranch}: ${vscode.l10n.t('pushed')}`,
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      outcomes.push(`${branch} → ${target.remote}/${target.remoteBranch}: ${message}`);
-      void vscode.window.showErrorMessage(
-        vscode.l10n.t('Push failed: {0}', message.split('\n', 1)[0] ?? message),
-      );
-    }
-  }
+  const results = await pushAndReport(deps, plan);
+  outcomes.push(...results.map(pushOutcomeLine));
   return outcomes;
 }
 
@@ -409,9 +399,7 @@ export async function showPushDialog(
   await cfg.update('push.tags', result.tags, vscode.ConfigurationTarget.Workspace);
   await cfg.update('push.runHooks', result.runHooks, vscode.ConfigurationTarget.Workspace);
 
+  // `applyPushResult` reports; a second summary here would say it all twice.
   const outcomes = await applyPushResult(deps, result);
-  if (outcomes.length > 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('Push: {0}', outcomes.join(' · ')));
-  }
   return outcomes.length > 0;
 }

@@ -279,6 +279,51 @@ suite('P14 branch menu parity', () => {
     assert.strictEqual(git('rev-parse', `${REMOTE}/${TARGET}`).trim(), theirs);
   });
 
+  test("POST-P14af: Push… goes to the upstream's own remote, and says when it did not go through", async function () {
+    this.timeout(120_000);
+    const reg13 = core.debugRegistry.get('phase13') as Phase13Registry;
+    const onRemote = (): string =>
+      execFileSync('git', ['--git-dir', bareUrl, 'rev-parse', `refs/heads/${TARGET}`], {
+        encoding: 'utf8',
+      }).trim();
+    const push = p2.actions.find((a) => a.id === 'push');
+    assert.ok(push && reg13, 'push action or phase13 registry missing');
+    const ctx: BranchActionContext = { repo, name: TARGET, type: 'local', isCurrent: false };
+
+    // Tracking a remote that is not `origin` — the row pushed to `origin`
+    // whatever the upstream said.
+    const base = git('rev-parse', 'HEAD').trim();
+    git('branch', '-f', TARGET, base);
+    git('push', '--force', REMOTE, `${base}:refs/heads/${TARGET}`);
+    git('fetch', REMOTE);
+    git('branch', `--set-upstream-to=${REMOTE}/${TARGET}`, TARGET);
+    await refreshUntil(() => targetUpstream() === `${REMOTE}/${TARGET}`);
+
+    const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+    // The hang guard: this branch is not checked out, so nothing may ask.
+    process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = 'cancel';
+    reg13.clearLastPushRejectedPrompt();
+    try {
+      const mine = commitOnto(base, 'p14bm: a commit to push');
+      git('branch', '-f', TARGET, mine);
+      assert.strictEqual(await push.run(ctx), undefined, 'a push that went through carries on');
+      assert.strictEqual(onRemote(), mine);
+
+      // The remote moves on. Rejected, and never updated — the branch is not
+      // checked out — so the row reports it and returns `false`: what stops
+      // `Push` across all repositories now that the failure is not thrown.
+      const theirs = commitOnto(base, 'p14bm: the remote moves on');
+      git('push', '--force', REMOTE, `${theirs}:refs/heads/${TARGET}`);
+      git('branch', '-f', TARGET, commitOnto(mine, 'p14bm: another commit to push'));
+      assert.strictEqual(await push.run(ctx), false);
+      assert.strictEqual(reg13.lastPushRejectedPrompt(), undefined);
+      assert.strictEqual(onRemote(), theirs);
+    } finally {
+      if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+      else process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = saved;
+    }
+  });
+
   // ---- POST-P14ad · Update on the checked-out branch does not ask -----------------
 
   /** Points the checked-out branch's upstream at `sha` and waits for the model to see it. */

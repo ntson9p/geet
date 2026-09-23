@@ -1081,6 +1081,34 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBe(true);
   });
 
+  test('POST-P14af: Show Details opens the Console tab, and an unknown tab is ignored', async ({
+    page,
+  }) => {
+    await openLog(page);
+    const show = (tab: string): Promise<void> =>
+      page.evaluate((t) => {
+        window.postMessage({ v: 1, id: `evtst-${t}`, kind: 'evt', method: 'log/showTab', params: { tab: t } }, '*');
+      }, tab);
+    await show('console');
+    await expect(page.getByTestId('console-pane')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Console' })).toHaveAttribute('aria-selected', 'true');
+    // Nothing the strip does not have: the Console stays where it is.
+    await show('no-such-tab');
+    await expect(page.getByRole('tab', { name: 'Console' })).toHaveAttribute('aria-selected', 'true');
+    await show('log');
+    await expect(page.getByTestId('log-row-0')).toBeVisible();
+  });
+
+  test('POST-P14af: a view started by Show Details opens on the Console', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockInitTab?: string }).__mockInitTab = 'console';
+    });
+    await page.addInitScript(mockLogHostScript);
+    await page.goto('/log.html');
+    await expect(page.getByTestId('console-pane')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Console' })).toHaveAttribute('aria-selected', 'true');
+  });
+
   test('P12-T8: the active tab survives a reload', async ({ page }) => {
     await openLog(page);
     await page.getByRole('tab', { name: 'Console' }).click();

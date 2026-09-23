@@ -525,6 +525,19 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   and the run stops at the first failure. A repository it cannot update (detached, no upstream,
   a merge or rebase in progress) is skipped and named, and `Reset` is offered only when a single
   repository is in play. A Repositories row's own `Update Project…` updates just that one.
+* **A rejected push asks, updates, and pushes again** (IntelliJ's *Push Rejected*, D32). When
+  the remote has commits the branch does not, the push is not left as an error: a warning box —
+  *Push of the current branch "X" was rejected. Remote changes need to be merged before
+  pushing.* — offers `[Merge] [Rebase] [Cancel]`, the last answer (shared with Update Project)
+  first. The answer runs Update Project's update, local changes set aside and all, then the
+  same push again; the result reads *Pushed 2 commits to origin/X*. It covers every push of the
+  checked-out branch to the branch it tracks — the Push dialog, **Commit and Push**, Sync and a
+  branch's `Push…`; any other rejected push is reported with the remote's reason. An update that
+  stops on conflicts cancels the push and leaves the merge to finish; unpushed merge commits of
+  your own get IntelliJ's *merge is highly recommended* and `Rebase Anyway`. `Don't Ask Again`
+  on the result turns on `gittree.push.autoUpdateIfRejected` (*Auto-update if push of the
+  current branch was rejected*), and `Show Details` opens the Console tab. Every push now
+  reports in IntelliJ's words — *Pushed 1 commit to origin/X*, *Push to origin/X was rejected*.
 * **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
   tags/hooks footer, `[Push ▾]` with Force Push) · `Merge` ·
   `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`

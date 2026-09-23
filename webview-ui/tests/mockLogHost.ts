@@ -56,6 +56,9 @@ export const mockLogHostScript = `
             presets: [
               { name: 'mine only', filter: { sort: 'topo', refs: 'HEAD', authors: ['a@x.dev'] } },
             ],
+            // Opt-in (window.__mockInitTab): a tab asked for before the view
+            // could hear the event, as logView.showTab hands it over.
+            tab: window.__mockInitTab,
           });
           break;
         case 'log/page': {

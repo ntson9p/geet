@@ -455,6 +455,12 @@ Run Git hooks (pre-push) when pushing from the Push dialog. Off adds --no-verify
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.push.autoUpdateIfRejected`
+
+Auto-update if push of the current branch was rejected: when the remote has commits the branch does not, update it with your last Merge/Rebase answer and push again, without asking. Off asks Merge or Rebase first, as IntelliJ's Push Rejected dialog does; choosing "Don't Ask Again" on the result turns this on. It still asks when rebasing would flatten merge commits you have not pushed.
+
+- Type: `boolean` · Default: `false`
+
 ### `gittree.push.tags`
 
 Which tags the Push dialog pushes alongside the branch.

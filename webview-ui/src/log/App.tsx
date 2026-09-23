@@ -19,6 +19,7 @@ import {
   type LogPageDto,
   type LogRootDto,
   type LogRowDto,
+  type LogTab,
 } from '../../../src/shared/protocol';
 import { RpcClient } from '../lib/rpc';
 import { TabPanel, Tabs } from '../lib/Tabs';
@@ -39,6 +40,11 @@ import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
 import { DEFAULT_LAYOUT, Shell, type ShellLayout } from './Shell';
 
 const ROW_HEIGHT = 24;
+
+/** A tab the strip below actually has — anything else from the host is ignored. */
+function isLogTab(value: unknown): value is LogTab {
+  return value === 'log' || value === 'console' || value === 'worktrees';
+}
 
 interface PersistedState {
   filter?: LogFilterDto;
@@ -270,6 +276,11 @@ export function App() {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
     });
+    // POST-P14af: a push notification's `Show Details` lands on the Console.
+    const offShowTab = rpc.onEvent(LOG_METHODS.evtShowTab, (params) => {
+      const next = (params as { tab?: unknown } | undefined)?.tab;
+      if (isLogTab(next)) setTab(next);
+    });
     // Roots-only update: merged into init rather than replacing it, so a
     // folder joining the workspace does not cost the rows or the selection.
     const offRoots = rpc.onEvent(LOG_METHODS.evtRoots, (params) => {
@@ -282,6 +293,8 @@ export function App() {
       saved.focusSha !== undefined ? { sha: saved.focusSha, select: true } : undefined;
     void rpc.request<LogInitDto>(LOG_METHODS.init, { filter: saved.filter }).then((dto) => {
       setInit(dto);
+      // Asked for before this view could hear `evtShowTab` (see `showTab`).
+      if (isLogTab(dto.tab)) setTab(dto.tab);
       requestPage(0);
     });
     return () => {
@@ -289,6 +302,7 @@ export function App() {
       offReset();
       offReveal();
       offFocusFilter();
+      offShowTab();
       offRoots();
     };
     // Boot effect: intentionally runs once per rpc instance.

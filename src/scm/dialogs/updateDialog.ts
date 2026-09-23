@@ -17,6 +17,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
+import { GitError } from '../../core/git/errors';
 import { parseStatusV2 } from '../../core/git/parsers/statusV2';
 import { detectInProgressOp } from '../../core/model/inProgressOp';
 import { canonicalKey } from '../../core/repoDiscovery';
@@ -78,6 +79,12 @@ export interface UpdateOutcome {
    * safe in the stash"), so it has to be counted to be reported at all.
    */
   restoreConflicts?: number;
+  /**
+   * POST-P14af: the merge or rebase itself stopped on conflicts and is still
+   * in progress — as opposed to one git refused to start. A push waiting on
+   * this update is cancelled with IntelliJ's "conflicts during the update".
+   */
+  conflicts?: boolean;
 }
 
 /** Structural slice of phase06's conflict lifecycle — imported by shape, not module. */
@@ -107,7 +114,12 @@ export function rememberedUpdateStrategy(state: vscode.Memento | undefined): Upd
   return state?.get<string>(LAST_STRATEGY_KEY) === 'rebase' ? 'rebase' : 'merge';
 }
 
-async function rememberStrategy(
+/**
+ * Keeps an answer as "what you chose last time". Shared with the push flow's
+ * Push Rejected question (POST-P14af): IntelliJ keeps one update method for
+ * both, and saves it from either dialog.
+ */
+export async function rememberStrategy(
   state: vscode.Memento | undefined,
   strategy: UpdateStrategy,
 ): Promise<void> {
@@ -491,8 +503,21 @@ export async function applyUpdateResult(
             leftUntracked.length,
             strategy,
           )}`;
+    // Stopped on conflicts — still in progress — or refused before starting?
+    // The operation left on disk is the reliable answer; git's wording is not.
+    const conflicts =
+      (err instanceof GitError && err.kind === 'merge-conflict') ||
+      detectInProgressOp(repo.dirs.gitDir) !== undefined;
     await repo.refresher.refreshNow();
-    return { ok: false, commitsPulled: counted.commits, filesChanged: counted.files, from: before, to: after, message };
+    return {
+      ok: false,
+      commitsPulled: counted.commits,
+      filesChanged: counted.files,
+      from: before,
+      to: after,
+      message,
+      ...(conflicts ? { conflicts: true } : {}),
+    };
   }
   await repo.refresher.refreshNow();
 
@@ -817,7 +842,7 @@ function reportProjectUpdate(
 }
 
 /** The log, filtered to exactly what one update brought in — in *that* repository. */
-async function showRangeInLog(outcome: UpdateOutcome, root: string): Promise<void> {
+export async function showRangeInLog(outcome: UpdateOutcome, root: string): Promise<void> {
   await vscode.commands.executeCommand(
     'gittree.log.setFilter',
     { sort: 'topo', range: { a: outcome.from, b: outcome.to } },

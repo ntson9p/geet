@@ -205,6 +205,22 @@ export function registerSyncOps(
   }
 
   async function push(repo: RepoHandle, extraArgs: string[] = []): Promise<void> {
+    // POST-P14af: a plain push of a tracked branch goes through the shared
+    // runner — IntelliJ's report, and its Merge / Rebase question when the
+    // remote has moved on. A force push and a first publish keep this path.
+    const snap = repo.model.snapshot;
+    if (
+      extraArgs.length === 0 &&
+      !snap.detached &&
+      snap.headRef !== undefined &&
+      snap.upstream !== undefined
+    ) {
+      const results = await vscode.commands.executeCommand<unknown[] | undefined>(
+        'gittree.push.run',
+        repo.root,
+      );
+      if (results !== undefined) return;
+    }
     try {
       await mutate(repo, vscode.l10n.t('Push'), ['push', ...extraArgs]);
     } catch (err) {

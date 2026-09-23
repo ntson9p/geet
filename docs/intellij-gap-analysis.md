@@ -457,7 +457,7 @@ row in the branches tree.
 | Commit-message inspections / spellcheck | — | ❌ |
 | **Commit and Push** | `commitAndPush` | ✅ |
 | **Push dialog**: left pane = editable target (`branch → origin : branch`) plus the exact commits being pushed; right pane = **the full changed-file tree of the push**, status-coloured, with per-folder counts and its own toolbar; footer = `☐ Push tags [All ▾]`, `☑ Run Git hooks`, `[Push ▾]` split button | P13-T1 Push dialog — every listed element | ✅ |
-| **Push Rejected dialog** (Rebase / Merge, update-all, remember choice) | — | ❌ |
+| **Push Rejected dialog** (Rebase / Merge, update-all, remember choice) | POST-P14af message box: Merge / Rebase (last answer first), update then push again, `Don't Ask Again` → `gittree.push.autoUpdateIfRejected`; no update-all (**D32**) | 🟡 no update-all |
 | *Show Push dialog for Commit and Push* setting | — | ❌ |
 | Warn if CRLF separators are about to be committed | — | ❌ |
 | Warn when committing in detached HEAD or during rebase | — | ❌ |
