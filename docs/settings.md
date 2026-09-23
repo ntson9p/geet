@@ -111,6 +111,12 @@ Files longer than this get no change bars. The line diff is quadratic in the wor
 - Type: `number` · Default: `20000`
 - Minimum: `100`
 
+### `gittree.changeBars.hoverActions`
+
+Hovering a changed line shows its previous text with Rollback, Stage and Commit View links. Off by default: IntelliJ shows nothing on hover, and the popup sits on top of the language server's own hover on exactly the lines you are editing. The same actions are always one key away at the cursor with `GitTree: Show Change Actions` (`Ctrl+Alt+G H`).
+
+- Type: `boolean` · Default: `false`
+
 ### `gittree.autofetch.enabled`
 
 Periodically run `git fetch` in the background so incoming/outgoing counts stay fresh.

@@ -149,6 +149,11 @@
             "minimum": 100,
             "description": "%gittree.config.changeBars.maxFileLines.description%"
           },
+          "gittree.changeBars.hoverActions": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.changeBars.hoverActions.description%"
+          },
           "gittree.autofetch.enabled": {
             "type": "boolean",
             "default": false,

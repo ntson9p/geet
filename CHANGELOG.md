@@ -121,9 +121,12 @@ more**, and nothing about the built-in extension is changed on your behalf.
   badge on the commit view.
 - **Its own change bars.** The gutter bars are GitTree-painted against the
   index (or HEAD — `gittree.changeBars.base`), with overview-ruler marks, and
-  work whether or not the built-in Git extension is installed. Hover a changed
-  line, or press `Ctrl+Alt+G H`, for the previous text plus Rollback / Stage /
-  Commit View / navigate.
+  work whether or not the built-in Git extension is installed. Press
+  `Ctrl+Alt+G H` on a changed line for Rollback / Stage / Commit View. Turn on
+  `gittree.changeBars.hoverActions` to get the same actions, with the previous
+  text and navigation, by hovering the line instead — it is off by default,
+  because IntelliJ opens nothing on hover and the popup would otherwise sit on
+  top of your language server's hover on every line you have edited.
 - **Cross-file change navigation** — the thing VS Code's diff editor cannot do.
   At the last change of a file, next-change offers to continue into the *next
   file* instead of wrapping to the top of the current one; press again and it

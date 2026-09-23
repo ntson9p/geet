@@ -620,7 +620,27 @@ suite('P14 owning the SCM surface', () => {
       // shutdown, every later run would silently paint no bars at all. Reset to
       // the default here rather than trusting the previous run's teardown.
       await resetCutoff();
+      // Same reasoning, and the stakes are the opposite way round: a leaked
+      // `true` would make the "off by default" assertion fail on a product
+      // that is behaving correctly.
+      await setHoverActions(undefined);
     });
+
+    /**
+     * POST-P14aa: write `changeBars.hoverActions` globally and wait until the
+     * value is readable. `undefined` restores the default.
+     */
+    async function setHoverActions(value: boolean | undefined): Promise<void> {
+      await vscode.workspace
+        .getConfiguration('gittree')
+        .update('changeBars.hoverActions', value, vscode.ConfigurationTarget.Global);
+      await waitFor(
+        () =>
+          vscode.workspace.getConfiguration('gittree').get<boolean>('changeBars.hoverActions') ===
+          (value ?? false),
+        10_000,
+      );
+    }
 
     /** Put `changeBars.maxFileLines` back to its default and wait for it. */
     async function resetCutoff(): Promise<void> {
@@ -637,6 +657,7 @@ suite('P14 owning the SCM surface', () => {
 
     suiteTeardown(async () => {
       await resetCutoff();
+      await setHoverActions(undefined);
     });
 
     teardown(async () => {
@@ -683,7 +704,7 @@ suite('P14 owning the SCM surface', () => {
       fs.rmSync(abs('p14untracked.txt'));
     });
 
-    test('the hover fires on a changed line and stays silent on an unchanged one', async function () {
+    test('POST-P14aa: the hover is opt-in — silent by default, live when turned on', async function () {
       this.timeout(90_000);
       const body = Array.from({ length: 10 }, (_, i) => `row ${i + 1}`).join('\n') + '\n';
       fs.writeFileSync(abs('p14hover.txt'), body);
@@ -710,12 +731,41 @@ suite('P14 owning the SCM surface', () => {
           ),
         );
       };
-      assert.strictEqual(await ours(3), true, 'no GitTree hover on the changed line');
-      assert.strictEqual(await ours(8), false, 'GitTree hovered a line with no change');
+      /**
+       * The provider is registered and disposed by a configuration listener,
+       * which runs some time after the new value is readable. So poll the
+       * observable contract — what a hover actually returns — rather than the
+       * setting, which would race the listener and pass or fail by luck.
+       */
+      const settles = async (line: number, want: boolean): Promise<void> => {
+        const deadline = Date.now() + 10_000;
+        while ((await ours(line)) !== want) {
+          if (Date.now() > deadline) {
+            throw new Error(`GitTree hover on line ${line} never became ${String(want)}`);
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      };
 
-      git('checkout', '--', 'p14hover.txt');
-      git('rm', '-q', '-f', 'p14hover.txt');
-      git('commit', '-m', 'p14 hover cleanup');
+      try {
+        // Same bars, same line that answered before this change. Only the
+        // setting stands between it and a popup, so silence here is the
+        // setting's doing and not a missing change.
+        assert.strictEqual(await ours(3), false, 'the hover must be off by default');
+
+        await setHoverActions(true);
+        await settles(3, true);
+        assert.strictEqual(await ours(8), false, 'GitTree hovered a line with no change');
+
+        // Turning it back off takes effect without a reload.
+        await setHoverActions(false);
+        await settles(3, false);
+      } finally {
+        await setHoverActions(undefined);
+        git('checkout', '--', 'p14hover.txt');
+        git('rm', '-q', '-f', 'p14hover.txt');
+        git('commit', '-m', 'p14 hover cleanup');
+      }
     });
 
     test('a file over the line cutoff paints nothing rather than stalling', async function () {

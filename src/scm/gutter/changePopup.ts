@@ -5,9 +5,13 @@
  * to open a diff peek at a location, so the bar itself cannot be the trigger
  * (deviation D19). Two invocations stand in, and between them they cover the
  * mouse and the keyboard:
+ *   - `gittree.change.showActions`, keybound, acting at the cursor — always on;
  *   - a `HoverProvider` scoped to changed lines only, rendering the previous
- *     text plus actions — IntelliJ's popup reproduced in content;
- *   - `gittree.change.showActions`, keybound, acting at the cursor.
+ *     text plus actions — IntelliJ's popup reproduced in content. **Opt-in**
+ *     (`gittree.changeBars.hoverActions`, POST-P14aa): IntelliJ shows nothing
+ *     on hover, and a widget that opens whenever the pointer crosses an edited
+ *     line stacks on top of the language server's own hover on exactly the
+ *     lines being worked on.
  *
  * A `CodeLens` variant was rejected: it costs a text line per change, which
  * IntelliJ's marker does not.
@@ -47,6 +51,13 @@ function fenceFor(body: string): string {
 
 function link(title: string, command: string, ref: ChangeRef): string {
   return `[${title}](command:${command}?${encodeURIComponent(JSON.stringify(ref))})`;
+}
+
+/** The setting that turns the hover on, relative to the `gittree` section. */
+export const HOVER_ACTIONS_SETTING = 'changeBars.hoverActions';
+
+function hoverActionsEnabled(): boolean {
+  return vscode.workspace.getConfiguration('gittree').get<boolean>(HOVER_ACTIONS_SETTING, false);
 }
 
 export function registerChangePopup(
@@ -143,50 +154,77 @@ export function registerChangePopup(
         index,
       );
     }),
+  );
 
-    vscode.languages.registerHoverProvider(
-      { scheme: 'file' },
-      {
-        provideHover(document, position) {
-          const doc = bars.changesFor(document.uri);
-          if (!doc) return undefined;
-          const change = changeAt(doc.changes, position.line);
-          // Scoped to changed lines only: a hover on every line of every file
-          // would be noise, and would fight the language server's own hovers.
-          if (!change) return undefined;
-          const index = doc.changes.indexOf(change);
-          const ref: ChangeRef = { uri: document.uri.toString(), index };
+  const hoverProvider: vscode.HoverProvider = {
+    provideHover(document, position) {
+      const doc = bars.changesFor(document.uri);
+      if (!doc) return undefined;
+      const change = changeAt(doc.changes, position.line);
+      // Scoped to changed lines only: a hover on every line of every file
+      // would be noise, and would fight the language server's own hovers.
+      if (!change) return undefined;
+      const index = doc.changes.indexOf(change);
+      const ref: ChangeRef = { uri: document.uri.toString(), index };
 
-          const md = new vscode.MarkdownString();
-          md.isTrusted = true;
-          md.supportThemeIcons = true;
-          md.appendMarkdown(`**${label(change)}**\n\n`);
+      const md = new vscode.MarkdownString();
+      md.isTrusted = true;
+      md.supportThemeIcons = true;
+      md.appendMarkdown(`**${label(change)}**\n\n`);
 
-          const original = originalLinesOf(doc.baseText, change);
-          if (original.length > 0) {
-            const body = original.join('\n');
-            const fence = fenceFor(body);
-            md.appendMarkdown(`${fence}${document.languageId}\n${body}\n${fence}\n`);
-          }
+      const original = originalLinesOf(doc.baseText, change);
+      if (original.length > 0) {
+        const body = original.join('\n');
+        const fence = fenceFor(body);
+        md.appendMarkdown(`${fence}${document.languageId}\n${body}\n${fence}\n`);
+      }
 
-          const actions = [
-            link(vscode.l10n.t('$(discard) Rollback'), 'gittree.change.rollback', ref),
-            link(vscode.l10n.t('$(add) Stage'), 'gittree.change.stage', ref),
-            link(vscode.l10n.t('$(git-commit) Commit View'), 'gittree.change.openCommitView', ref),
-          ];
-          if (prevChange(doc.changes, change.startLine)) {
-            actions.push(link('$(arrow-up)', 'gittree.change.prev', ref));
-          }
-          if (nextChange(doc.changes, change.endLine)) {
-            actions.push(link('$(arrow-down)', 'gittree.change.next', ref));
-          }
-          md.appendMarkdown(actions.join(' · '));
+      const actions = [
+        link(vscode.l10n.t('$(discard) Rollback'), 'gittree.change.rollback', ref),
+        link(vscode.l10n.t('$(add) Stage'), 'gittree.change.stage', ref),
+        link(vscode.l10n.t('$(git-commit) Commit View'), 'gittree.change.openCommitView', ref),
+      ];
+      if (prevChange(doc.changes, change.startLine)) {
+        actions.push(link('$(arrow-up)', 'gittree.change.prev', ref));
+      }
+      if (nextChange(doc.changes, change.endLine)) {
+        actions.push(link('$(arrow-down)', 'gittree.change.next', ref));
+      }
+      md.appendMarkdown(actions.join(' · '));
 
-          const range = new vscode.Range(change.startLine, 0, change.endLine, 0);
-          return new vscode.Hover(md, range);
-        },
+      const range = new vscode.Range(change.startLine, 0, change.endLine, 0);
+      return new vscode.Hover(md, range);
+    },
+  };
+
+  /**
+   * POST-P14aa: the provider exists only while the setting is on. Registered
+   * and disposed rather than consulted inside `provideHover`, so "off" means
+   * VS Code never calls GitTree on a hover at all — not a call per hover that
+   * answers nothing. The listener makes the toggle live: no reload, and the
+   * very next hover reflects it.
+   */
+  let hoverRegistration: vscode.Disposable | undefined;
+  const syncHover = (): void => {
+    const want = hoverActionsEnabled();
+    if (want && hoverRegistration === undefined) {
+      hoverRegistration = vscode.languages.registerHoverProvider({ scheme: 'file' }, hoverProvider);
+    } else if (!want && hoverRegistration !== undefined) {
+      hoverRegistration.dispose();
+      hoverRegistration = undefined;
+    }
+  };
+  syncHover();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration(`gittree.${HOVER_ACTIONS_SETTING}`)) syncHover();
+    }),
+    // Whatever is registered at deactivation goes with the extension.
+    {
+      dispose: () => {
+        hoverRegistration?.dispose();
       },
-    ),
+    },
   );
   void core;
 }

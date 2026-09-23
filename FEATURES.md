@@ -22,15 +22,16 @@ ships. Accepted divergences are named here and registered once in
   `SourceControl.quickDiffProvider` route, which died with the SourceControl itself. Colours
   are `editorGutter.*`, a VS Code **core** token, so they theme correctly whether or not the
   built-in Git extension is installed.
-* **Popup:** previous text plus **Rollback · Stage · Commit View · ↑ ↓**, on hover over a
-  changed line or from `gittree.change.showActions` (`Ctrl+Alt+G H`).
+* **Popup:** **Rollback · Stage · Commit View** at the cursor from `gittree.change.showActions`
+  (`Ctrl+Alt+G H`). The full popup — previous text plus those actions and **↑ ↓** — also opens
+  on hover over a changed line when `gittree.changeBars.hoverActions` is on (off by default).
 * **Bounds:** untracked and ignored files get no bars (as in IntelliJ); files over
   `gittree.changeBars.maxFileLines` (default 20 000) are skipped loudly in the trace rather
   than stalling the editor. Recompute is debounced and measured — p95 0.6 ms at 5 000 lines.
 * **Deviations:** the bars sit ~21px right of VS Code's own lane, which no public API can
-  target (D18); the popup opens on hover or a key rather than by clicking the bar, because
-  decorations expose no click handler (D19); and anchoring can differ from VS Code's by one
-  line where an insertion sits between equally plausible anchors (D21).
+  target (D18); the popup opens from a key — or, opted in, on hover — rather than by clicking
+  the bar, because decorations expose no click handler (D19); and anchoring can differ from
+  VS Code's by one line where an insertion sits between equally plausible anchors (D21).
 
 ### Diff controls and cross-file navigation (shape + behaviour)
 

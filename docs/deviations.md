@@ -33,7 +33,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D16](#d16--worktree-lockprunable-flags-are-derived-on-git--236) | Worktree lock/prunable derived from disk on git &lt; 2.36 | Yes (drop when git 2.36 is the floor) |
 | [D17](#d17--apply-non-conflicting-changes-acts-on-conflict-blocks-not-the-whole-diff) | `Apply non-conflicting changes` acts on conflict blocks; git pre-applies the rest | Only by dropping git's own re-merge |
 | [D18](#d18--change-bars-sit-at-the-content-edge) | Change bars sit at the content edge, ~21px right of VS Code's own lane | No (no public API targets that lane) |
-| [D19](#d19--the-change-popup-is-hover--and-keyboard-invoked) | The change popup opens on hover or a key, not by clicking the bar | No (decorations expose no click handler) |
+| [D19](#d19--the-change-popup-is-keyboard-invoked-hover-is-opt-in) | The change popup opens from a key (hover is opt-in), not by clicking the bar | No (decorations expose no click handler) |
 | [D20](#d20--vs-codes-own-diff-arrows-remain-beside-gittrees) | VS Code's next/prev-change arrows remain beside GitTree's | Only via Route B |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
 | [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
@@ -326,18 +326,25 @@ renders in the **glyph margin**: 54px the *other* way, only 2px wide, and sharin
 breakpoints. The border was chosen on width fidelity and to keep breakpoints uncontested.
 **Revisitable:** no, absent a new API.
 
-## D19 · The change popup is hover- and keyboard-invoked
+## D19 · The change popup is keyboard-invoked; hover is opt-in
 
 **IntelliJ:** clicking a gutter marker opens a compact popup with the previous text and a
-toolbar.
-**GitTree:** the same content — previous text plus Rollback / Stage / Commit View / navigate —
-opens on hover over a changed line, or from `gittree.change.showActions` (`Ctrl+Alt+G H`).
+toolbar. Hovering the marker shows nothing.
+**GitTree:** the same actions — Rollback / Stage / Commit View — open at the cursor from
+`gittree.change.showActions` (`Ctrl+Alt+G H`). The full popup, previous text included, also
+opens on hover over a changed line when `gittree.changeBars.hoverActions` is on; it is **off by
+default** (POST-P14aa).
 
 **Why:** VS Code exposes no click handler for a `TextEditorDecorationType`, and no API opens a
 diff peek widget at a location. Native quick-diff bars are clickable because VS Code core
 implements that itself. A `CodeLens` variant was rejected: it costs a text line per change,
-which a gutter marker does not.
-**Revisitable:** no, absent a new API.
+which a gutter marker does not. Hover shipped on by default until the owner asked for it gone:
+IntelliJ opens nothing on hover, and a popup that appears whenever the pointer crosses an edited
+line lands on top of the language server's own hover on exactly the lines being worked on. It
+was kept behind a setting rather than deleted because it is the only **mouse** route to hunk
+actions — off, they are keyboard-only.
+**Revisitable:** no, absent a new API. A click handler on the bar would make both the hover
+and this entry unnecessary.
 
 ## D20 · VS Code's own diff arrows remain beside GitTree's
 
