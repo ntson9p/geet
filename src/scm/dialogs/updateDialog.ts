@@ -1,29 +1,31 @@
 /**
- * Update Project dialog, host half (P13-T2, gap analysis S4 · §2A "Update
- * Project dialog"): the merge/rebase radio, the `Do not show again` shortcut
- * that turns Ctrl+T into a direct action, `Reset to the Remote Branch` behind
- * a destructive confirmation and a P9 snapshot, and the result notification
- * that stands in for IntelliJ's `Update Info` tab (deviation D9).
+ * Update Project, host half (P13-T2, gap analysis S4 · §2A "Update Project
+ * dialog"): the Merge / Rebase question, the `Don't Ask Again` shortcut that
+ * turns Ctrl+T into a direct action, `Reset to the Remote Branch` behind a
+ * destructive confirmation and a P9 snapshot, and the result notification that
+ * stands in for IntelliJ's `Update Info` tab (deviation D9).
  *
- * Every command comes from the vscode-free `updateArgs.ts`, so the dialog's
- * "will run" line and the execution cannot drift apart.
+ * POST-P14ab: the question is a native modal message box rather than a
+ * webview dialog in an editor tab (D30). A whole editor tab for two radio
+ * buttons read as a stray page; the message box is modal and centred the way
+ * IntelliJ's dialog is, and a two-way choice is what a pair of buttons is for.
+ *
+ * Every command comes from the vscode-free `updateArgs.ts`, so the question's
+ * command lines and the execution cannot drift apart.
  */
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
-import {
-  type UpdateDialogParamsDto,
-  type UpdateDialogResultDto,
-} from '../../shared/protocol';
 import { confirmModal } from '../../ui/confirm';
-import { openDialog } from '../../ui/dialogHost';
 import { splitUpstream } from './pushArgs';
 import {
   buildIntegrateArgs,
   buildResetToRemoteArgs,
   buildUpdateFetchArgs,
+  buildUpdateQuestion,
   normalizeStrategySetting,
+  type UpdateChoice,
   type UpdateStrategy,
   type UpdateStrategySetting,
 } from './updateArgs';
@@ -32,7 +34,23 @@ export interface UpdateDialogDeps {
   core: Core;
   extensionUri: vscode.Uri;
   trace?: (line: string) => void;
+  /**
+   * Where the last Merge/Rebase answer is kept. Workspace *state*, not a
+   * setting: it changes on every answer, and writing a setting that often
+   * would keep rewriting `.vscode/settings.json` — a file many repositories
+   * track. IntelliJ keeps its equivalent in `workspace.xml` for the same
+   * reason. Optional so a caller without one still gets IntelliJ's default.
+   */
+  state?: vscode.Memento;
 }
+
+/** What Update Project is asked to do — the question's answer, as data. */
+export interface UpdateRequest {
+  action: 'update' | 'reset';
+  strategy: UpdateStrategy;
+}
+
+const LAST_STRATEGY_KEY = 'gittree.update.lastStrategy';
 
 /** What the update actually did — returned so integration tests can assert it. */
 export interface UpdateOutcome {
@@ -52,31 +70,139 @@ function readSetting(): UpdateStrategySetting {
   );
 }
 
-export async function buildUpdateParams(
-  core: Core,
-  repo: RepoHandle,
-): Promise<UpdateDialogParamsDto> {
-  const snap = repo.model.snapshot;
-  const cfg = vscode.workspace.getConfiguration('gittree');
+/**
+ * The strategy an update uses when nobody is asked: the setting when it names
+ * one, else the last answer to the question, else Merge — IntelliJ's default.
+ *
+ * IntelliJ keeps two things apart here and GitTree used to fold them into one
+ * setting: *which* strategy (saved on every OK) and *whether to ask* (`Don't
+ * show again`). Keeping the answer even while the question is still asked is
+ * what lets an update that asks nothing — a branch row's `Update` — do what
+ * the user chose last time.
+ */
+export function rememberedUpdateStrategy(state: vscode.Memento | undefined): UpdateStrategy {
   const setting = readSetting();
-  const remotesRes = await core.git.exec(repo.root, ['remote']);
-  const remotes = remotesRes.stdout
+  if (setting !== 'ask') return setting;
+  return state?.get<string>(LAST_STRATEGY_KEY) === 'rebase' ? 'rebase' : 'merge';
+}
+
+async function rememberStrategy(
+  state: vscode.Memento | undefined,
+  strategy: UpdateStrategy,
+): Promise<void> {
+  await state?.update(LAST_STRATEGY_KEY, strategy);
+}
+
+async function remoteNames(core: Core, repo: RepoHandle): Promise<string[]> {
+  const res = await core.git.exec(repo.root, ['remote']);
+  return res.stdout
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-  const parsed = snap.upstream !== undefined ? splitUpstream(snap.upstream, remotes) : undefined;
+}
+
+/** The modal as it will be shown — kept whole so tests can read what was asked. */
+export interface UpdatePrompt {
+  message: string;
+  detail: string;
+  /** Button labels, index-aligned with `choices`. */
+  buttons: string[];
+  choices: UpdateChoice[];
+}
+
+function choiceLabel(choice: UpdateChoice): string {
+  switch (choice) {
+    case 'merge':
+      return vscode.l10n.t('Merge');
+    case 'rebase':
+      return vscode.l10n.t('Rebase');
+    case 'reset':
+      return vscode.l10n.t('Reset to the Remote Branch');
+  }
+}
+
+/**
+ * The Update Project question for one repository, or `undefined` when there is
+ * nothing to update from.
+ *
+ * The buttons carry the verbs; the detail line says what they act on, which a
+ * dialog title alone never did — `develop ← origin/develop · 3 behind`. With
+ * `gittree.dialogs.showCommandLine` on, each button's exact commands follow,
+ * the same lines the P13 dialogs showed as `will run:`; off, IntelliJ's own
+ * wording for the two options stands in for them.
+ */
+export async function buildUpdatePrompt(
+  deps: UpdateDialogDeps,
+  repo: RepoHandle,
+): Promise<UpdatePrompt | undefined> {
+  const snap = repo.model.snapshot;
+  const upstream = snap.upstream;
+  if (upstream === undefined) return undefined;
+  const remote = splitUpstream(upstream, await remoteNames(deps.core, repo))?.remote;
+  const question = buildUpdateQuestion(rememberedUpdateStrategy(deps.state), upstream, remote);
+
+  const lines = [
+    vscode.l10n.t(
+      '{0} ← {1} · {2} behind · {3} ahead',
+      snap.headRef ?? '',
+      upstream,
+      snap.behind ?? 0,
+      snap.ahead ?? 0,
+    ),
+    '',
+  ];
+  if (vscode.workspace.getConfiguration('gittree').get<boolean>('dialogs.showCommandLine', true)) {
+    for (const choice of question.choices) {
+      lines.push(`${choiceLabel(choice)}: ${question.commands[choice]}`);
+    }
+  } else {
+    lines.push(
+      vscode.l10n.t(
+        'Merge incoming changes into the current branch, or rebase the current branch on top of incoming changes.',
+      ),
+    );
+  }
   return {
-    repoRoot: repo.root,
-    repoLabel: repo.root.split(/[\\/]/u).pop() ?? repo.root,
-    branch: snap.headRef ?? '',
-    ...(snap.upstream !== undefined ? { upstream: snap.upstream } : {}),
-    ...(parsed !== undefined ? { remote: parsed.remote } : {}),
-    ahead: snap.ahead ?? 0,
-    behind: snap.behind ?? 0,
-    // `ask` means "no remembered choice" — open on merge, IntelliJ's default.
-    strategy: setting === 'rebase' ? 'rebase' : 'merge',
-    showCommandLine: cfg.get<boolean>('dialogs.showCommandLine', true),
+    message: vscode.l10n.t('Update Project'),
+    detail: lines.join('\n'),
+    buttons: question.choices.map(choiceLabel),
+    choices: [...question.choices],
   };
+}
+
+let lastPrompt: UpdatePrompt | undefined;
+
+/** Test seam: the question most recently put to the user, if any. */
+export function lastUpdatePrompt(): UpdatePrompt | undefined {
+  return lastPrompt;
+}
+
+/** Test seam: forget the last question, so a test can prove none was asked. */
+export function clearLastUpdatePrompt(): void {
+  lastPrompt = undefined;
+}
+
+/**
+ * Puts the question. `undefined` is Cancel, Escape or closing the box.
+ *
+ * A native modal cannot be clicked from a test, so `GITTREE_TEST_UPDATE_CHOICE`
+ * answers it (`merge` | `rebase` | `reset` | `cancel`), the same kind of seam
+ * as `GITTREE_TEST_AUTOCONFIRM`. The prompt is recorded either way, so a test
+ * sees exactly what a user would have been asked.
+ */
+async function askUpdate(prompt: UpdatePrompt): Promise<UpdateChoice | undefined> {
+  lastPrompt = prompt;
+  const seam = process.env['GITTREE_TEST_UPDATE_CHOICE'];
+  if (seam !== undefined) {
+    return prompt.choices.find((c) => c === seam);
+  }
+  const picked = await vscode.window.showInformationMessage(
+    prompt.message,
+    { modal: true, detail: prompt.detail },
+    ...prompt.buttons,
+  );
+  const index = picked === undefined ? -1 : prompt.buttons.indexOf(picked);
+  return index >= 0 ? prompt.choices[index] : undefined;
 }
 
 async function revParse(core: Core, repo: RepoHandle, ref: string): Promise<string | undefined> {
@@ -88,13 +214,13 @@ async function revParse(core: Core, repo: RepoHandle, ref: string): Promise<stri
 
 /**
  * The accept half, separated so integration tests drive it with exactly the
- * payload the webview posts. Returns what happened, for the notification and
+ * answer the question returns. Returns what happened, for the notification and
  * for the tests.
  */
 export async function applyUpdateResult(
   deps: UpdateDialogDeps,
   repo: RepoHandle,
-  result: UpdateDialogResultDto,
+  result: UpdateRequest,
 ): Promise<UpdateOutcome> {
   const { core } = deps;
   const snap = repo.model.snapshot;
@@ -109,12 +235,7 @@ export async function applyUpdateResult(
       message: vscode.l10n.t('"{0}" has no upstream branch to update from.', snap.headRef ?? ''),
     };
   }
-  const remotesRes = await core.git.exec(repo.root, ['remote']);
-  const remotes = remotesRes.stdout
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-  const remote = splitUpstream(upstream, remotes)?.remote;
+  const remote = splitUpstream(upstream, await remoteNames(core, repo))?.remote;
 
   const before = (await revParse(core, repo, upstream)) ?? '';
   try {
@@ -242,12 +363,22 @@ async function countIncoming(
   return { commits, files };
 }
 
+export interface ReportOptions {
+  /**
+   * The strategy the user just answered the question with. Set only when a
+   * question was actually asked: it puts `Don't Ask Again` on the result,
+   * where IntelliJ has a `Don't show again` checkbox in the dialog — a native
+   * message box cannot hold a checkbox (D30).
+   */
+  dontAskAgain?: UpdateStrategy;
+}
+
 /**
  * The result notification standing in for IntelliJ's `Update Info` tab (D9):
  * what came in, and a "Show in Log" that opens the log filtered to exactly the
  * fetched range.
  */
-export function reportUpdate(outcome: UpdateOutcome): void {
+export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}): void {
   if (!outcome.ok) {
     void vscode.window.showErrorMessage(
       vscode.l10n.t('Update Project: {0}', outcome.message.split('\n', 1)[0] ?? outcome.message),
@@ -255,22 +386,40 @@ export function reportUpdate(outcome: UpdateOutcome): void {
     return;
   }
   const showInLog = vscode.l10n.t('Show in Log');
+  const dontAsk = vscode.l10n.t("Don't Ask Again");
   const actions = outcome.commitsPulled > 0 ? [showInLog] : [];
+  const remember = options.dontAskAgain;
+  if (remember !== undefined) actions.push(dontAsk);
   // Deliberately not awaited: a notification carrying an action button stays
   // pending until the user dismisses it, and the update is already finished —
   // awaiting it would leave `showUpdateDialog` hanging on the notification.
-  void vscode.window.showInformationMessage(outcome.message, ...actions).then((choice) => {
-    if (choice !== showInLog) return undefined;
-    return vscode.commands.executeCommand('gittree.log.setFilter', {
-      sort: 'topo',
-      range: { a: outcome.from, b: outcome.to },
-    });
+  void vscode.window.showInformationMessage(outcome.message, ...actions).then(async (choice) => {
+    if (choice === showInLog) {
+      await vscode.commands.executeCommand('gittree.log.setFilter', {
+        sort: 'topo',
+        range: { a: outcome.from, b: outcome.to },
+      });
+      return;
+    }
+    if (choice === dontAsk && remember !== undefined) {
+      await setUpdateStrategy(remember);
+      // Say how to undo it: the question will not be there to remind anyone.
+      void vscode.window.showInformationMessage(
+        remember === 'rebase'
+          ? vscode.l10n.t(
+              'Update Project will rebase without asking. Change this with "GitTree: Update Project Strategy…".',
+            )
+          : vscode.l10n.t(
+              'Update Project will merge without asking. Change this with "GitTree: Update Project Strategy…".',
+            ),
+      );
+    }
   });
 }
 
 /**
- * `Ctrl+T`. Opens the dialog unless the user ticked `Do not show again`, in
- * which case the remembered strategy runs directly — IntelliJ's behaviour, and
+ * `Ctrl+T`. Asks Merge or Rebase unless the user chose `Don't Ask Again`, in
+ * which case that strategy runs directly — IntelliJ's behaviour, and
  * restorable through `gittree.update.configure`.
  */
 export async function showUpdateDialog(
@@ -287,42 +436,43 @@ export async function showUpdateDialog(
 
   const setting = readSetting();
   if (setting !== 'ask') {
+    const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy: setting });
+    reportUpdate(outcome);
+    return outcome;
+  }
+
+  const prompt = await buildUpdatePrompt(deps, repo);
+  if (!prompt) return undefined;
+  const choice = await askUpdate(prompt);
+  if (choice === undefined) return undefined;
+
+  if (choice === 'reset') {
+    // `strategy` is unused on the reset path; the remembered one is passed so
+    // the request stays a complete answer rather than a special case.
     const outcome = await applyUpdateResult(deps, repo, {
-      action: 'update',
-      strategy: setting,
-      dontShowAgain: true,
+      action: 'reset',
+      strategy: rememberedUpdateStrategy(deps.state),
     });
     reportUpdate(outcome);
     return outcome;
   }
 
-  const params = await buildUpdateParams(deps.core, repo);
-  const result = await openDialog<UpdateDialogParamsDto, UpdateDialogResultDto>({
-    app: 'dialogs',
-    dialog: 'update',
-    title: vscode.l10n.t('Update Project'),
-    params,
-    extensionUri: deps.extensionUri,
-    ...(deps.trace ? { trace: deps.trace } : {}),
-  });
-  if (!result) return undefined;
-
-  if (result.dontShowAgain && result.action === 'update') {
-    await setUpdateStrategy(result.strategy);
-  }
-  const outcome = await applyUpdateResult(deps, repo, result);
-  reportUpdate(outcome);
+  // Saved before the update runs, as IntelliJ saves the radio on OK: the answer
+  // is the user's choice whether or not this particular update succeeds.
+  await rememberStrategy(deps.state, choice);
+  const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy: choice });
+  reportUpdate(outcome, { dontAskAgain: choice });
   return outcome;
 }
 
-/** What `Ctrl+T` will do right now — `ask` means the dialog still opens. */
+/** What `Ctrl+T` will do right now — `ask` means the question is still asked. */
 export function currentUpdateStrategy(): UpdateStrategySetting {
   return readSetting();
 }
 
 /**
  * The persistence half of the gear, separated from the QuickPick so tests (and
- * the dialog's `Do not show again`) drive the same code path the picker does.
+ * the result's `Don't Ask Again`) drive the same code path the picker does.
  */
 export async function setUpdateStrategy(value: UpdateStrategySetting): Promise<void> {
   await vscode.workspace
@@ -331,7 +481,7 @@ export async function setUpdateStrategy(value: UpdateStrategySetting): Promise<v
 }
 
 /**
- * The "gear" that brings the dialog back after `Do not show again` — IntelliJ
+ * The "gear" that brings the question back after `Don't Ask Again` — IntelliJ
  * puts this in Settings; here it is a command, and the setting itself stays
  * editable in the Settings UI.
  */
@@ -343,7 +493,7 @@ export async function configureUpdateStrategy(): Promise<UpdateStrategySetting |
   const items: Choice[] = [
     {
       label: vscode.l10n.t('Ask every time'),
-      description: vscode.l10n.t('Show the Update Project dialog'),
+      description: vscode.l10n.t('Ask Merge or Rebase on every update'),
       value: 'ask',
     },
     {

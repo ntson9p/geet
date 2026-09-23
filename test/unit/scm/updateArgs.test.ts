@@ -5,6 +5,7 @@ import {
   buildResetToRemoteArgs,
   buildUpdatePlan,
   buildUpdateFetchArgs,
+  buildUpdateQuestion,
   normalizeStrategySetting,
 } from '../../../src/scm/dialogs/updateArgs';
 
@@ -83,5 +84,39 @@ describe('buildUpdatePlan', () => {
     expect(formatGitCommands(buildUpdatePlan('update', 'rebase', 'origin/main', 'origin'))).toBe(
       'git fetch --prune origin && git rebase origin/main',
     );
+  });
+});
+
+describe('buildUpdateQuestion (POST-P14ab)', () => {
+  it('offers the remembered strategy first, so Enter repeats it', () => {
+    // The first button of a modal is its default. IntelliJ pre-selects the
+    // radio you used last and OK runs it; this is the same gesture.
+    expect(buildUpdateQuestion('merge', 'origin/main', 'origin').choices).toEqual([
+      'merge',
+      'rebase',
+      'reset',
+    ]);
+    expect(buildUpdateQuestion('rebase', 'origin/main', 'origin').choices).toEqual([
+      'rebase',
+      'merge',
+      'reset',
+    ]);
+  });
+
+  it('never lets Enter reach Reset to the Remote Branch', () => {
+    for (const remembered of ['merge', 'rebase'] as const) {
+      const { choices } = buildUpdateQuestion(remembered, 'origin/main', 'origin');
+      expect(choices[0]).not.toBe('reset');
+      expect(choices[choices.length - 1]).toBe('reset');
+    }
+  });
+
+  it('describes each button with the exact commands the host runs', () => {
+    const { commands } = buildUpdateQuestion('merge', 'origin/feature/x', 'origin');
+    expect(commands.merge).toBe(
+      formatGitCommands(buildUpdatePlan('update', 'merge', 'origin/feature/x', 'origin')),
+    );
+    expect(commands.rebase).toBe('git fetch --prune origin && git rebase origin/feature/x');
+    expect(commands.reset).toBe('git fetch --prune origin && git reset --hard origin/feature/x');
   });
 });

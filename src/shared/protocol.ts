@@ -586,33 +586,6 @@ export const PUSH_DIALOG_METHODS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Update Project dialog (P13-T2) — host ⇄ webview DTOs
-// ---------------------------------------------------------------------------
-
-export interface UpdateDialogParamsDto {
-  repoRoot: string;
-  repoLabel: string;
-  branch: string;
-  /** `origin/main`. Absent means the branch has no upstream and cannot update. */
-  upstream?: string;
-  remote?: string;
-  ahead: number;
-  behind: number;
-  /** Pre-selected radio — the last used strategy, or the configured default. */
-  strategy: 'merge' | 'rebase';
-  /** Render the dim "will run: git …" line. */
-  showCommandLine: boolean;
-}
-
-export interface UpdateDialogResultDto {
-  /** `reset` is the footer's `Reset to the Remote Branch`, not the OK path. */
-  action: 'update' | 'reset';
-  strategy: 'merge' | 'rebase';
-  /** Persist the strategy to `gittree.update.strategy` and skip the dialog next time. */
-  dontShowAgain: boolean;
-}
-
-// ---------------------------------------------------------------------------
 // Merge · Rebase · Reset · Rollback dialogs (P13-T3) — host ⇄ webview DTOs
 // ---------------------------------------------------------------------------
 

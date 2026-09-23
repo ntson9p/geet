@@ -105,9 +105,8 @@ with its own undo, file and commit recovery from the reflog, size/age-budgeted G
 
 ### 9 · Dialogs, popups and the action hub ✅
 
-Twelve **option-bearing dialogs** — Push, Update Project, Merge, Rebase, Reset, Rollback,
-Cherry-Pick, Stash, Unstash, Apply Patch, Clone, Manage Remotes — on IntelliJ's *Modify
-options* pattern: a compact form plus a dropdown of the real git flags, with contradictory
+Eleven **option-bearing dialogs** — Push, Merge, Rebase, Reset, Rollback, Cherry-Pick,
+Stash, Unstash, Apply Patch, Clone, Manage Remotes — on IntelliJ's *Modify options* pattern: a compact form plus a dropdown of the real git flags, with contradictory
 combinations rejected *with reasons*. **Every dialog shows the exact command it will run.**
 `` Alt+` `` opens the **VCS Operations Popup**, listing every action applicable right now.
 

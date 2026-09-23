@@ -198,20 +198,20 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
     code, duration and output — with URL credentials, askpass values and
     author identities redacted before anything enters the buffer.
 - **Dialogs, popups and the action hub (Tier-1 rebuild, Phase 13).**
-  - **Twelve option-bearing dialogs** replace the QuickPick/InputBox chains:
-    Push, Update Project, Merge, Rebase, Reset, Rollback, Cherry-Pick, Stash,
-    Unstash, Apply Patch, Clone and **Manage Remotes** (which had no command
-    at all before). Each follows IntelliJ's *Modify options* pattern — a
+  - **Eleven option-bearing dialogs** replace the QuickPick/InputBox chains:
+    Push, Merge, Rebase, Reset, Rollback, Cherry-Pick, Stash, Unstash, Apply
+    Patch, Clone and **Manage Remotes** (which had no command at all before). Each follows IntelliJ's *Modify options* pattern — a
     compact form plus a dropdown of the real git flags — rejects contradictory
     combinations **with reasons**, and shows the exact command it will run.
   - **Push dialog**: per-repository sections, an editable
     `branch → remote : branch` target row, the push's full changed-file tree,
     `Push tags` / `Run Git hooks`, and a `[Push ▾]` split button whose Force
     path is always `--force-with-lease`.
-  - **Update Project** on `Ctrl+T` with a merge/rebase radio,
-    `Do not show again` (which makes `Ctrl+T` act directly), and
-    *Reset to the Remote Branch* behind a confirmation and a Local History
-    snapshot.
+  - **Update Project** on `Ctrl+T` asks Merge or Rebase in a modal box that
+    names the branch, its upstream and the exact commands, with your last
+    answer as the default and *Reset to the Remote Branch* behind a
+    confirmation and a Local History snapshot. *Don't Ask Again* on the result
+    makes `Ctrl+T` act directly.
   - **Reset** finally offers git's fourth mode, **Keep**, with a live
     "this will discard N local changes" line.
   - **Branches popup becomes an action hub**: top-level verbs before any
@@ -234,8 +234,8 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
   (*"Failed checks will not prevent a commit"*). Untick *Run advanced checks
   after a commit is done* in the gear popup (or set
   `gittree.commit.checks.deferAdvanced: false`) to restore pre-commit gating.
-- Under the IntelliJ keymap, `Ctrl+T` and `Ctrl+Shift+K` now open the
-  **Update Project** and **Push** dialogs rather than acting silently — as
+- Under the IntelliJ keymap, `Ctrl+T` now asks before updating and
+  `Ctrl+Shift+K` opens the **Push** dialog, rather than acting silently — as
   they do in IntelliJ. The no-questions `gittree.pull` and `gittree.push`
   commands are unchanged and still in the palette.
 - `FEATURES.md` has been rewritten so every item carries a *shape* criterion

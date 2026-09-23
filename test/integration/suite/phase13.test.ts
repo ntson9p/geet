@@ -3,7 +3,6 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import {
@@ -375,15 +374,47 @@ suite('P13 dialogs', () => {
       await reg.setUpdateStrategy('ask');
     });
 
-    test('T2: params carry the branch, upstream and divergence, defaulting to merge', async () => {
+    /**
+     * POST-P14ab: the question is a native modal, which no test can click.
+     * `GITTREE_TEST_UPDATE_CHOICE` answers it — and `cancel` is the safe
+     * answer for a test that expects no question at all: a modal asked for
+     * real would hang the run instead of failing it.
+     */
+    const withUpdateChoice = async <T>(
+      choice: 'merge' | 'rebase' | 'reset' | 'cancel',
+      fn: () => Promise<T>,
+    ): Promise<T> => {
+      const saved = process.env['GITTREE_TEST_UPDATE_CHOICE'];
+      process.env['GITTREE_TEST_UPDATE_CHOICE'] = choice;
+      try {
+        return await fn();
+      } finally {
+        if (saved === undefined) delete process.env['GITTREE_TEST_UPDATE_CHOICE'];
+        else process.env['GITTREE_TEST_UPDATE_CHOICE'] = saved;
+      }
+    };
+
+    test('T2: the question names the branch and its upstream, and offers Merge first', async () => {
       await repo.refresher.refreshNow();
-      const params = await reg.buildUpdateParams(repo);
-      assert.strictEqual(params.branch, branch);
-      assert.strictEqual(params.upstream, `${REMOTE}/${branch}`);
-      assert.strictEqual(params.remote, REMOTE);
-      // `ask` (the default) opens the dialog on Merge, IntelliJ's default.
+      const prompt = await reg.buildUpdatePrompt(repo);
+      assert.ok(prompt, 'a tracked branch must get a question');
+      assert.strictEqual(prompt.message, 'Update Project');
+      // What the buttons act on — the thing a bare dialog title never said.
+      assert.ok(
+        prompt.detail.includes(`${branch} ← ${REMOTE}/${branch}`),
+        `detail does not name the branch and upstream:\n${prompt.detail}`,
+      );
+      // `ask` (the default) with nothing remembered opens on Merge, IntelliJ's default.
       assert.strictEqual(reg.currentUpdateStrategy(), 'ask');
-      assert.strictEqual(params.strategy, 'merge');
+      assert.deepStrictEqual(prompt.choices, ['merge', 'rebase', 'reset']);
+      assert.deepStrictEqual(prompt.buttons, ['Merge', 'Rebase', 'Reset to the Remote Branch']);
+      // Each button's exact commands, from the same argv the host runs.
+      assert.ok(
+        prompt.detail.includes(
+          `Rebase: git fetch --prune ${REMOTE} && git rebase ${REMOTE}/${branch}`,
+        ),
+        prompt.detail,
+      );
     });
 
     test('T2: the merge strategy fetches, integrates and reports what came in', async function () {
@@ -393,7 +424,6 @@ suite('P13 dialogs', () => {
       const outcome = await reg.applyUpdateResult(repo, {
         action: 'update',
         strategy: 'merge',
-        dontShowAgain: false,
       });
       assert.ok(outcome.ok, outcome.message);
       assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
@@ -418,7 +448,6 @@ suite('P13 dialogs', () => {
       const outcome = await reg.applyUpdateResult(repo, {
         action: 'update',
         strategy: 'rebase',
-        dontShowAgain: false,
       });
       assert.ok(outcome.ok, outcome.message);
       assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
@@ -432,23 +461,64 @@ suite('P13 dialogs', () => {
       assert.strictEqual(git('status', '--porcelain').trim(), '');
     });
 
-    test('T2: Do not show again runs Ctrl+T directly, and the gear restores the dialog', async function () {
+    test('POST-P14ab: the answer runs, and is the first button next time', async function () {
+      this.timeout(90_000);
+      incoming('p13/t2-answer.txt', 'answered\n', 'P13-T2 incoming by answer');
+      reg.clearLastUpdatePrompt();
+
+      const outcome = await withUpdateChoice('rebase', () => reg.showUpdateDialog(repo));
+      assert.ok(outcome?.ok, outcome?.message ?? 'no outcome');
+      assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+      // It really asked, and asked with Merge first — nothing was remembered yet.
+      assert.deepStrictEqual(reg.lastUpdatePrompt()?.choices, ['merge', 'rebase', 'reset']);
+
+      // The answer is kept even though the question is still asked: IntelliJ
+      // saves the radio on every OK, independently of `Don't show again`.
+      assert.strictEqual(reg.currentUpdateStrategy(), 'ask');
+      assert.strictEqual(reg.rememberedUpdateStrategy(), 'rebase');
+      const next = await reg.buildUpdatePrompt(repo);
+      assert.deepStrictEqual(next?.choices, ['rebase', 'merge', 'reset']);
+      assert.strictEqual(next?.buttons[0], 'Rebase', 'Enter must repeat the last answer');
+
+      // Put Merge back the way a user would — by answering — so later suites
+      // start from IntelliJ's default. Nothing is incoming, so nothing moves.
+      const restore = await withUpdateChoice('merge', () => reg.showUpdateDialog(repo));
+      assert.ok(restore?.ok, restore?.message ?? 'no outcome');
+      assert.strictEqual(reg.rememberedUpdateStrategy(), 'merge');
+    });
+
+    test('POST-P14ab: Cancel runs nothing and remembers nothing', async function () {
+      this.timeout(60_000);
+      incoming('p13/t2-cancelled.txt', 'never pulled\n', 'P13-T2 incoming, cancelled');
+      const head = git('rev-parse', 'HEAD').trim();
+      const upstreamBefore = git('rev-parse', `refs/remotes/${REMOTE}/${branch}`).trim();
+
+      const outcome = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo));
+      assert.strictEqual(outcome, undefined);
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), head);
+      // Not even the fetch: a cancelled question is no update at all.
+      assert.strictEqual(
+        git('rev-parse', `refs/remotes/${REMOTE}/${branch}`).trim(),
+        upstreamBefore,
+      );
+      assert.strictEqual(reg.rememberedUpdateStrategy(), 'merge');
+    });
+
+    test("T2: Don't Ask Again runs Ctrl+T directly, and the gear restores the question", async function () {
       this.timeout(90_000);
       incoming('p13/t2-incoming3.txt', 'third\n', 'P13-T2 incoming C');
       await reg.setUpdateStrategy('rebase');
       assert.strictEqual(reg.currentUpdateStrategy(), 'rebase');
 
-      const before = tabTitles();
-      // With a remembered strategy this must NOT open a dialog — if it did, the
-      // call would hang here waiting for a user that does not exist.
-      const outcome = await reg.showUpdateDialog(repo);
+      reg.clearLastUpdatePrompt();
+      // With a remembered strategy this must NOT ask. `cancel` guards the
+      // regression: asked anyway, the update is cancelled and fails below
+      // rather than hanging on a modal nobody can answer.
+      const outcome = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo));
       assert.ok(outcome?.ok, outcome?.message ?? 'no outcome');
-      assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
-      assert.deepStrictEqual(
-        tabTitles().filter((t) => !before.includes(t)),
-        [],
-        'the remembered strategy must bypass the dialog entirely',
-      );
+      // Two commits: this test's, and the one the Cancel test left incoming.
+      assert.strictEqual(outcome.commitsPulled, 2, outcome.message);
+      assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'the setting must bypass the question');
 
       // The gear puts it back.
       await reg.setUpdateStrategy('ask');
@@ -472,16 +542,17 @@ suite('P13 dialogs', () => {
       await waitForStatus((entries) => entries.some((e) => e.path === dirtyRel));
 
       // Declined: the branch and the working tree are left exactly as they are.
+      // Driven through the question's own `Reset to the Remote Branch` button,
+      // which must land on the confirmation, not on the reset itself.
       const headBefore = git('rev-parse', 'HEAD').trim();
-      const declined = await withAutoConfirm('0', () =>
-        reg.applyUpdateResult(repo, {
-          action: 'reset',
-          strategy: 'merge',
-          dontShowAgain: false,
-        }),
+      const declined = await withUpdateChoice('reset', () =>
+        withAutoConfirm('0', () => reg.showUpdateDialog(repo)),
       );
+      assert.ok(declined, 'the reset button produced no outcome');
       assert.strictEqual(declined.ok, false);
       assert.match(declined.message, /cancelled/i);
+      // A destructive answer is never kept as "what you chose last time".
+      assert.strictEqual(reg.rememberedUpdateStrategy(), 'merge');
       assert.strictEqual(git('rev-parse', 'HEAD').trim(), headBefore);
       assert.strictEqual(
         fs.readFileSync(path.join(repoRoot, dirtyRel), 'utf8'),
@@ -494,7 +565,6 @@ suite('P13 dialogs', () => {
         reg.applyUpdateResult(repo, {
           action: 'reset',
           strategy: 'merge',
-          dontShowAgain: false,
         }),
       );
       assert.ok(outcome.ok, outcome.message);
@@ -526,7 +596,6 @@ suite('P13 dialogs', () => {
         const outcome = await reg.applyUpdateResult(repo, {
           action: 'update',
           strategy: 'merge',
-          dontShowAgain: false,
         });
         assert.strictEqual(outcome.ok, false);
         assert.match(outcome.message, /no upstream/);
@@ -1465,8 +1534,3 @@ suite('P13 dialogs', () => {
     });
   });
 });
-
-/** Open editor tabs, by label — used to assert a dialog panel did NOT appear. */
-function tabTitles(): string[] {
-  return vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
-}

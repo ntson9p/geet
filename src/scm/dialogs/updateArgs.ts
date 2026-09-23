@@ -1,6 +1,7 @@
 /**
  * Update Project argv (P13-T2), vscode-free so the flag matrix is unit-testable
- * and the dialog's "will run" line is built from the same source the host runs.
+ * and the question's command lines are built from the same source the host
+ * runs.
  *
  * IntelliJ's Update Project is fetch-then-integrate, and GitTree runs it that
  * way rather than as a bare `git pull`, for two reasons:
@@ -14,10 +15,15 @@
  *     D9: this notification replaces IntelliJ's `Update Info` tab).
  */
 
+import { formatGitCommands } from './commandLine';
+
 export type UpdateStrategy = 'merge' | 'rebase';
 
-/** How `gittree.update.strategy` is stored: `ask` keeps the dialog. */
+/** How `gittree.update.strategy` is stored: `ask` keeps the question. */
 export type UpdateStrategySetting = 'ask' | UpdateStrategy;
+
+/** One button of the Update Project question. */
+export type UpdateChoice = UpdateStrategy | 'reset';
 
 export function normalizeStrategySetting(raw: string | undefined): UpdateStrategySetting {
   return raw === 'merge' || raw === 'rebase' ? raw : 'ask';
@@ -59,4 +65,42 @@ export function buildUpdatePlan(
   return action === 'reset'
     ? [fetch, buildResetToRemoteArgs(upstreamRef)]
     : [fetch, buildIntegrateArgs(strategy, upstreamRef)];
+}
+
+/**
+ * The Update Project question as data (POST-P14ab).
+ *
+ * IntelliJ asks with a small modal dialog: two radio buttons, `Don't show
+ * again`, OK. VS Code gives an extension no modal surface that can hold a
+ * radio button (D30), but it does give a native modal message box, and a
+ * two-way choice is exactly what a pair of buttons is for — so each radio
+ * becomes a button, and pressing it is the OK.
+ */
+export interface UpdateQuestion {
+  /**
+   * Button order. The strategy chosen last time comes first, because the
+   * first button is the default: Enter repeats it, which is what IntelliJ's
+   * pre-selected radio plus OK does. `Reset to the Remote Branch` is always
+   * last — the destructive answer is never the one Enter reaches.
+   */
+  readonly choices: readonly UpdateChoice[];
+  /** What each button runs, formatted as the dim command line. */
+  readonly commands: Readonly<Record<UpdateChoice, string>>;
+}
+
+export function buildUpdateQuestion(
+  remembered: UpdateStrategy,
+  upstreamRef: string,
+  remote?: string,
+): UpdateQuestion {
+  const strategies: UpdateStrategy[] =
+    remembered === 'rebase' ? ['rebase', 'merge'] : ['merge', 'rebase'];
+  return {
+    choices: [...strategies, 'reset'],
+    commands: {
+      merge: formatGitCommands(buildUpdatePlan('update', 'merge', upstreamRef, remote)),
+      rebase: formatGitCommands(buildUpdatePlan('update', 'rebase', upstreamRef, remote)),
+      reset: formatGitCommands(buildUpdatePlan('reset', 'merge', upstreamRef, remote)),
+    },
+  };
 }

@@ -79,8 +79,8 @@ sort first (deviation D20).
 
 Both open the P13 dialogs rather than acting silently, matching IntelliJ. The
 no-questions commands are still there — `gittree.push` and `gittree.pull` — and
-`Ctrl+T` becomes a direct action once you tick *Do not show again* in the Update
-Project dialog (restore it with **GitTree: Update Project Strategy…**).
+`Ctrl+T` becomes a direct action once you choose *Don't Ask Again* on an update's
+result (restore the question with **GitTree: Update Project Strategy…**).
 
 ## Webview-internal keys
 

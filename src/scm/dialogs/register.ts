@@ -28,13 +28,19 @@ import {
 } from './pushDialog';
 import {
   applyUpdateResult,
-  buildUpdateParams,
+  buildUpdatePrompt,
+  clearLastUpdatePrompt,
   configureUpdateStrategy,
   currentUpdateStrategy,
+  lastUpdatePrompt,
+  rememberedUpdateStrategy,
   reportUpdate,
   setUpdateStrategy,
   showUpdateDialog,
+  type UpdateDialogDeps,
   type UpdateOutcome,
+  type UpdatePrompt,
+  type UpdateRequest,
 } from './updateDialog';
 import {
   applyMergeResult,
@@ -86,7 +92,6 @@ import type {
   RollbackDialogResultDto,
   StashDialogResultDto,
   UnstashDialogResultDto,
-  UpdateDialogResultDto,
 } from '../../shared/protocol';
 
 export interface Phase13Registry {
@@ -96,9 +101,14 @@ export interface Phase13Registry {
   applyPushResult: (result: Parameters<typeof applyPushResult>[1]) => Promise<string[]>;
   /** Test seam: the request handlers the dialog registers, verbatim. */
   pushHandlers: () => Record<string, (params: unknown) => unknown>;
-  /** P13-T2 test seams. */
-  buildUpdateParams: (repo: RepoHandle) => ReturnType<typeof buildUpdateParams>;
-  applyUpdateResult: (repo: RepoHandle, result: UpdateDialogResultDto) => Promise<UpdateOutcome>;
+  /** P13-T2 test seams. POST-P14ab: the question is a native modal now. */
+  buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
+  /** The question most recently put to the user — what the modal showed. */
+  lastUpdatePrompt: typeof lastUpdatePrompt;
+  clearLastUpdatePrompt: typeof clearLastUpdatePrompt;
+  /** The strategy an update that asks nothing would use right now. */
+  rememberedUpdateStrategy: () => ReturnType<typeof rememberedUpdateStrategy>;
+  applyUpdateResult: (repo: RepoHandle, result: UpdateRequest) => Promise<UpdateOutcome>;
   showUpdateDialog: (repo: RepoHandle) => Promise<UpdateOutcome | undefined>;
   reportUpdate: typeof reportUpdate;
   /** The gear's persistence half, and what Ctrl+T would do right now. */
@@ -167,6 +177,8 @@ export function registerPhase13Dialogs(
 ): Phase13Registry {
   const trace = (line: string): void => core.output.appendLine(`[dialogs] ${line}`);
   const deps: PushDialogDeps = { core, extensionUri: context.extensionUri, trace };
+  // Update Project also remembers the last Merge/Rebase answer, per workspace.
+  const updateDeps: UpdateDialogDeps = { ...deps, state: context.workspaceState };
 
   // P13-T1: Push. `gittree.sync.push` (P1) stays as the no-questions path; this
   // is the dialog that exposes the flags behind it.
@@ -180,7 +192,8 @@ export function registerPhase13Dialogs(
   );
 
   // P13-T2: Update Project. `gittree.pull` (P1) stays as the raw pull; this is
-  // Ctrl+T's dialog, and it runs directly once the user ticks Do not show again.
+  // Ctrl+T's question (a native modal since POST-P14ab, D30), and it runs
+  // directly once the user chooses Don't Ask Again.
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.update.dialog', async (arg?: unknown) => {
       const repo = resolveRepo(core, arg);
@@ -190,9 +203,9 @@ export function registerPhase13Dialogs(
         );
         return;
       }
-      await showUpdateDialog(deps, repo);
+      await showUpdateDialog(updateDeps, repo);
     }),
-    // The "gear" that brings the dialog back after Do not show again.
+    // The "gear" that brings the question back after Don't Ask Again.
     vscode.commands.registerCommand('gittree.update.configure', async () => {
       await configureUpdateStrategy();
     }),
@@ -320,9 +333,12 @@ export function registerPhase13Dialogs(
     buildPushParams,
     applyPushResult: (result) => applyPushResult(deps, result),
     pushHandlers: () => pushDialogHandlers(deps),
-    buildUpdateParams: (repo) => buildUpdateParams(core, repo),
-    applyUpdateResult: (repo, result) => applyUpdateResult(deps, repo, result),
-    showUpdateDialog: (repo) => showUpdateDialog(deps, repo),
+    buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, repo),
+    lastUpdatePrompt,
+    clearLastUpdatePrompt,
+    rememberedUpdateStrategy: () => rememberedUpdateStrategy(updateDeps.state),
+    applyUpdateResult: (repo, result) => applyUpdateResult(updateDeps, repo, result),
+    showUpdateDialog: (repo) => showUpdateDialog(updateDeps, repo),
     reportUpdate,
     currentUpdateStrategy,
     setUpdateStrategy,

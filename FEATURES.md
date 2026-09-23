@@ -510,9 +510,13 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   Contradictory combinations are reported **with reasons** and disable the action.
 * **Every dialog shows the exact command it will run** in a dim `will run:` line, built by the
   same argv function the host executes (`gittree.dialogs.showCommandLine`).
+* **Update Project is the exception** (D30): a native modal message box, not an editor-tab
+  panel — `[Merge] [Rebase] [Reset to the Remote Branch] [Cancel]`, the last answer first so
+  `Enter` repeats it, the branch, its upstream and each button's commands in the text. Its
+  `Don't show again` is `Don't Ask Again` on the result notification, after which `Ctrl+T`
+  runs directly.
 * **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
-  tags/hooks footer, `[Push ▾]` with Force Push) · `Update Project` (merge/rebase radio,
-  `Do not show again` → `Ctrl+T` runs directly, `Reset to the Remote Branch`) · `Merge` ·
+  tags/hooks footer, `[Push ▾]` with Force Push) · `Merge` ·
   `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`
   (checkbox tree + inline diff + `Delete local copies of added files`) · `Cherry-Pick` ·
   `Stash` · `Unstash` · `Apply Patch` (pre-apply summary with missing-file warnings) ·

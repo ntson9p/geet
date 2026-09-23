@@ -43,6 +43,8 @@ surface, which made genuine gaps invisible. Rules:
 | [D26](#d26--four-opt-in-sidebar-panes-intellij-has-no-equivalent-of) | Branches, Worktrees, Local History and Stashes are opt-in sidebar panes | Yes (`gittree.sidebar.extraViews`) |
 | [D27](#d27--all-roots-branch-operations-are-the-ones-that-need-no-per-root-input) | Only branch operations needing no per-root input are offered across all roots | Yes (costly, low value) |
 | [D28](#d28--the-status-bar-widget-is-an-action-not-a-readout) | The status-bar widget is a button that opens the popup, not a second branch readout | Yes (`gittree.statusBar`) |
+| [D29](#d29--a-repositories-section-and-a-branches-view-in-the-sidebar) | A Repositories section, and a Branches view that follows it, in the sidebar | Yes (mechanical) |
+| [D30](#d30--update-project-asks-with-a-message-box-not-a-dialog) | Update Project asks Merge or Rebase with a native message box; `Don't show again` moves to the result | No (no modal surface can hold a radio button) |
 
 ---
 
@@ -711,3 +713,35 @@ asserts every branch-row clause names both view ids, and fails if one is narrowe
 **Revisitable:** yes. Deleting the two views is mechanical, and the legacy tree is one setting
 away in the meantime. The open question is whether focus should become the global repository
 scope — deliberately left for its own task.
+
+## D30 · Update Project asks with a message box, not a dialog
+
+**IntelliJ:** `Ctrl+T` opens a small modal dialog — *Merge incoming changes into the current
+branch* / *Rebase the current branch on top of incoming changes* as two radio buttons,
+`Don't show again`, `OK` / `Cancel`, and in some states `Reset to the Remote Branch`.
+**GitTree:** a native modal message box titled *Update Project*. Its text names what is being
+updated — `develop ← origin/develop · 3 behind · 0 ahead` — and, with
+`gittree.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
+`Merge`, `Rebase`, `Reset to the Remote Branch` and VS Code's own `Cancel`; pressing one is
+the `OK`. The strategy answered last comes first, so `Enter` repeats it the way IntelliJ's
+pre-selected radio does. `Don't show again` moved to the update's result notification as
+`Don't Ask Again`.
+
+**Why:** VS Code gives an extension no modal surface that can hold a radio button or a checkbox
+(D2). P13 answered with a webview dialog in an editor tab, and for this dialog that was the wrong
+trade: a whole tab, pushed into the editor area, for one two-way choice — the owner's word for it
+was "a weird page". The message box *is* modal and centred, as IntelliJ's dialog is, and a
+two-way choice is exactly what a pair of buttons expresses. A checkbox is the one thing it cannot
+hold, so the opt-out moved to the one place the user is looking right after answering. The
+other eleven P13 dialogs keep their editor-tab panels: they hold file trees, commit lists and
+flag dropdowns, which no message box can.
+
+**Two smaller differences.** IntelliJ shows `Reset to the Remote Branch` only in some states —
+it is in one reference screenshot and absent from another, and its rule is not known here — so
+GitTree always offers it, last, where `Enter` cannot reach it, behind its own confirmation and a
+Local History snapshot. And the answer is remembered in workspace *state* rather than in a
+setting: it changes on every answer, and writing a setting that often would keep rewriting a
+`.vscode/settings.json` that many repositories track. IntelliJ keeps its equivalent in
+`workspace.xml` for the same reason.
+
+**Revisitable:** only with a new API — a modal webview, or checkboxes in `showInformationMessage`.

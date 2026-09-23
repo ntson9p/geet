@@ -1,9 +1,10 @@
 /**
  * dialogHost (P11-T1): the one place a GitTree "dialog" is opened. P11-P13
- * route Push, Update Project, Merge, Rebase, Reset, Rollback, Shelve,
- * Cherry-pick, Apply Patch, Clone and Manage Remotes through here, replacing
- * the QuickPick/InputBox chains that stand in for IntelliJ's option-bearing
- * dialogs today (gap analysis S4).
+ * route Push, Merge, Rebase, Reset, Rollback, Shelve, Cherry-pick, Apply
+ * Patch, Clone and Manage Remotes through here, replacing the QuickPick/InputBox
+ * chains that stand in for IntelliJ's option-bearing dialogs today (gap
+ * analysis S4). Update Project left in POST-P14ab: one two-way choice is a
+ * native modal message box, not a tab (D30).
  *
  * Deviation D2 (docs/deviations.md): VS Code has no modal webview, so this is
  * an editor-area panel that behaves modally within itself — focus-trapped,

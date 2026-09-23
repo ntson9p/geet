@@ -21,7 +21,6 @@ import { Rollback } from './Rollback';
 import { ShelveChanges } from './ShelveChanges';
 import { Stash } from './Stash';
 import { Unstash } from './Unstash';
-import { UpdateProject } from './UpdateProject';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('missing #root');
@@ -35,8 +34,6 @@ function pick(): JSX.Element {
       return <ShelveChanges />;
     case 'push':
       return <Push />;
-    case 'update':
-      return <UpdateProject />;
     case 'merge':
       return <Merge />;
     case 'rebase':
