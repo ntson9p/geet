@@ -260,7 +260,8 @@ export async function runCommitFlow(
   );
 
   if (committed) {
-    await postCommit(deps, repo, message, options.andPush === true);
+    await postCommit(deps, repo, message);
+    if (options.andPush === true) await pushAfterCommit([repo]);
     if (deferAdvanced) {
       // Fire-and-forget by design: the commit is done and the flow must not
       // block on a diagnostics quiesce. The notification carries the findings.
@@ -371,32 +372,58 @@ export async function runCommitAcross(
     ? [messageRepo, ...participants.filter((r) => r !== messageRepo)]
     : participants;
 
-  const committed: string[] = [];
+  // POST-P14ah: the push waits for every commit, so that it is one step —
+  // IntelliJ's push-after-commit is one Push dialog for all the repositories
+  // committed, not a dialog (or a push) per repository as each one lands.
+  const andPush = options.andPush === true;
+  const landed: RepoHandle[] = [];
   for (const repo of ordered) {
-    const ok = await runCommitFlow(deps, repo, { ...optionsFor(repo), message });
+    const listId = listOf(repo);
+    const ok = await runCommitFlow(deps, repo, {
+      ...(listId !== undefined ? { listId } : {}),
+      message,
+    });
     if (!ok) {
       // Stop rather than carry on: a refused check or a cancelled dialog is a
       // decision about this commit, and committing the rest anyway would be
       // the opposite of what was just asked for. Say what already landed —
       // those commits are real and cannot be quietly implied away.
-      if (committed.length > 0) {
+      if (landed.length > 0) {
         void vscode.window.showWarningMessage(
           vscode.l10n.t(
             'Committed {0}. Stopped at {1}; the remaining repositories were left untouched.',
-            committed.join(', '),
+            landed.map(nameOf).join(', '),
             nameOf(repo),
           ),
         );
       }
+      // What did land is still pushed — or offered in the dialog — as it was
+      // when each repository pushed straight after its own commit.
+      if (andPush) await pushAfterCommit(landed);
       return false;
     }
-    committed.push(nameOf(repo));
+    landed.push(repo);
   }
   // Each repo's own post-commit cleared its own box; if the message box the
   // user typed into belongs to a repo that committed nothing, it still holds
   // the text of a commit that has already happened.
   clearTypedMessage(deps, messageRepo);
+  if (andPush) await pushAfterCommit(landed);
   return true;
+}
+
+/**
+ * "and Push", once the commits have landed (POST-P14ah): IntelliJ's
+ * push-after-commit — the Push dialog for the repositories just committed,
+ * or, with `gittree.push.showDialogForCommitAndPush` off, the push itself.
+ * The push module decides which; the dialog is not waited for.
+ */
+async function pushAfterCommit(repos: readonly RepoHandle[]): Promise<void> {
+  if (repos.length === 0) return;
+  await vscode.commands.executeCommand(
+    'gittree.push.afterCommit',
+    repos.map((r) => r.root),
+  );
 }
 
 /**
@@ -408,17 +435,9 @@ function clearTypedMessage(deps: CommitFlowDeps, repo: RepoHandle): void {
   if (box && box.value.length > 0) box.value = '';
 }
 
-async function postCommit(
-  deps: CommitFlowDeps,
-  repo: RepoHandle,
-  message: string,
-  andPush: boolean,
-): Promise<void> {
+async function postCommit(deps: CommitFlowDeps, repo: RepoHandle, message: string): Promise<void> {
   const inputBox = deps.inputBoxFor(repo);
   if (inputBox) inputBox.value = '';
   await deps.history.push(repo, message);
   await repo.refresher.refreshNow();
-  if (andPush) {
-    await vscode.commands.executeCommand('gittree.push', repo.root);
-  }
 }

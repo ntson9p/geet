@@ -257,6 +257,12 @@ The `⚙` beside the action buttons opens the §2A popup inside the window:
 
 * `[Commit]` `[Commit and Push…]` in the bottom block; amend alone commits without a new
   message; GPG sign toggle (`-S`) kept from P3.
+* **`Commit and Push…` opens the Push dialog** once its commits have landed — IntelliJ's
+  *Show Push dialog for Commit and Push*, on by default (`gittree.push.showDialogForCommitAndPush`)
+  — for exactly the repositories it committed: one dialog when the commit spans several, and
+  nothing pushed until you press Push. The commit window does not wait on the dialog, so it is
+  ready for the next commit while the dialog is open. Off, it pushes straight away, through the
+  same Push Rejected handling as every push.
 * **Multi-root commit (IntelliJ's behaviour):** the tree spans every repository, so `Commit`
   commits *every* repository that has something ticked — one message, one commit each, run in
   order and stopped at the first refusal with a report of what already landed. The button says

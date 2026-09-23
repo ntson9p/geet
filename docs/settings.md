@@ -467,6 +467,12 @@ Update all repositories: when a push is rejected and you choose Merge or Rebase,
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.push.showDialogForCommitAndPush`
+
+Show Push dialog for Commit and Push: once Commit and Push has committed, open the Push dialog for the repositories it committed, so you can review the commits and their target before anything leaves your machine — as IntelliJ does by default. Off pushes them straight away.
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.push.tags`
 
 Which tags the Push dialog pushes alongside the branch.

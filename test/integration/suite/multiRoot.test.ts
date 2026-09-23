@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { Core, RepoHandle } from '../../../src/core/core';
+import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import {
   activateGitTree,
   gitWithRetry,
@@ -71,6 +72,21 @@ suite('Multi-root commit', () => {
     } finally {
       if (saved === undefined) delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
       else process.env['GITTREE_TEST_CHECKS_CHOICE'] = saved;
+    }
+  }
+
+  /**
+   * POST-P14ah: the Push dialog is a webview no test can answer. `cancel`
+   * records what it was opened for and closes it unanswered, as Escape would.
+   */
+  async function withPushDialogCancelled<T>(fn: () => Thenable<T>): Promise<T> {
+    const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
+    process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+    try {
+      return await fn();
+    } finally {
+      if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
+      else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
     }
   }
 
@@ -182,6 +198,43 @@ suite('Multi-root commit', () => {
       [],
       'both repos are clean again, so nothing is targeted',
     );
+  });
+
+  test('POST-P14ah: Commit and Push opens one Push dialog for every repository it committed', async function () {
+    this.timeout(90_000);
+    const p13 = core.debugRegistry.get('phase13') as Phase13Registry;
+    assert.ok(p13, 'phase13 registry missing');
+    await tick(repoD, '# repoD commit and push\n');
+    await tick(repoE, '# repoE commit and push\n');
+    await focus(repoD);
+    assert.deepStrictEqual(
+      reg.commitWindow.buildState().targets.sort(),
+      [labelOf(repoD), labelOf(repoE)].sort(),
+      'another suite left changes ticked; a spanning commit would swallow them',
+    );
+    const beforeD = headOf(repoD);
+    const beforeE = headOf(repoE);
+    const since = core.commandLog.entries().at(-1)?.seq ?? 0;
+    p13.clearLastPushDialogRequest();
+    reg.commitWindow.messageBoxFor(repoD).value = 'multi-root: commit and push';
+
+    // No repo argument: the commit window's `Commit and Push…` button.
+    await withPushDialogCancelled(() =>
+      commitWith(() => vscode.commands.executeCommand('gittree.commitAndPush')),
+    );
+
+    await waitFor(() => headOf(repoD) !== beforeD && headOf(repoE) !== beforeE, 60_000);
+    // IntelliJ's push-after-commit: one dialog, for exactly what was committed
+    // — not a push, or a dialog, per repository as each commit landed.
+    const asked = p13.lastPushDialogRequest();
+    assert.ok(asked, 'Commit and Push must open the Push dialog');
+    assert.deepStrictEqual([...asked].sort(), [repoD.root, repoE.root].sort());
+    assert.strictEqual(
+      core.commandLog.entriesAfter(since).filter((e) => e.argv[0] === 'push').length,
+      0,
+      'nothing is pushed before the dialog says so',
+    );
+    await waitFor(() => ourTargets().length === 0, 30_000);
   });
 
   test('the message follows the box the user typed in, not the repo being committed', async function () {

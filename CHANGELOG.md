@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — Commit and Push… opens the Push dialog first
+
+**Commit and Push…** pushed the moment its commit landed. It now does what
+IntelliJ does by default: once the commit is made, the Push dialog opens for
+the repositories it committed — one dialog when the commit spans several — so
+you can check the commits and where they are going before anything leaves your
+machine. The commit window is free for the next commit while the dialog is
+open. To push straight away as before, turn off
+`gittree.push.showDialogForCommitAndPush` (IntelliJ's *Show Push dialog for
+Commit and Push*).
+
 ### Added — a rejected push asks Merge or Rebase, then pushes again
 
 When the remote had commits you did not have yet, a push stopped at an error:

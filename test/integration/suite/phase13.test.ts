@@ -3,7 +3,9 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { Phase03Registry } from '../../../src/commit/register';
 import type { Core, RepoHandle } from '../../../src/core/core';
+import { isStaged } from '../../../src/core/model/statusEntry';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import {
   PUSH_DIALOG_METHODS,
@@ -1260,6 +1262,73 @@ suite('P13 dialogs', () => {
         assert.strictEqual(reg.lastPushRejectedPrompt(), undefined);
         assert.strictEqual(git('rev-parse', 'HEAD').trim(), mine);
         assert.strictEqual(remoteHead('p14af-elsewhere'), elsewhere);
+      });
+
+      // ---- POST-P14ah · Commit and Push opens the Push dialog first ---------------
+
+      /**
+       * One change committed in repoC through `gittree.commitAndPush` with the
+       * repository named — a context menu's form — in whichever commit
+       * paradigm an earlier suite left behind: ticked in changelists, staged
+       * in staging. The Push dialog, if opened, is closed unanswered.
+       */
+      const commitAndPushRepoC = async (subject: string): Promise<void> => {
+        const p3 = core.debugRegistry.get('phase03') as Phase03Registry;
+        assert.ok(p3, 'phase03 registry missing');
+        fs.writeFileSync(path.join(repoRoot, SHARED), `${subject}\n`);
+        if (p3.paradigm.paradigm === 'staging') {
+          git('add', '--', SHARED);
+          await repo.refresher.refreshNow();
+          await waitFor(
+            () => repo.model.snapshot.statusEntries.some((e) => e.path === SHARED && isStaged(e)),
+            20_000,
+          );
+        } else {
+          await repo.refresher.refreshNow();
+          const lists = p3.changelistsFor(repo);
+          await waitFor(() => lists.getLists().some((l) => l.files.includes(SHARED)), 20_000);
+          const list = lists.getLists().find((l) => l.files.includes(SHARED))!;
+          lists.setListChecked(list.id, true);
+        }
+        p3.commitWindow.messageBoxFor(repo).value = subject;
+        reg.clearLastPushDialogRequest();
+        const saved = {
+          checks: process.env['GITTREE_TEST_CHECKS_CHOICE'],
+          dialog: process.env['GITTREE_TEST_PUSH_DIALOG'],
+        };
+        process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+        process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+        try {
+          await vscode.commands.executeCommand('gittree.commitAndPush', repo.root);
+        } finally {
+          if (saved.checks === undefined) delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+          else process.env['GITTREE_TEST_CHECKS_CHOICE'] = saved.checks;
+          if (saved.dialog === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
+          else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved.dialog;
+        }
+        await waitFor(() => git('log', '-1', '--format=%s').trim() === subject, 30_000);
+      };
+
+      test('POST-P14ah: Commit and Push opens the Push dialog for what it committed, and pushes nothing itself', async function () {
+        this.timeout(90_000);
+        const before = remoteHead();
+        await commitAndPushRepoC('P14ah commit and push, dialog');
+        // IntelliJ's default, *Show Push dialog for Commit and Push*: the
+        // dialog decides, so the commit is local until the user pushes it.
+        assert.deepStrictEqual(reg.lastPushDialogRequest(), [repo.root]);
+        assert.strictEqual(remoteHead(), before, 'nothing is pushed before the dialog says so');
+      });
+
+      test('POST-P14ah: with the setting off, Commit and Push pushes straight away', async function () {
+        this.timeout(90_000);
+        await reg.setShowPushDialogForCommitAndPush(false);
+        try {
+          await commitAndPushRepoC('P14ah commit and push, direct');
+        } finally {
+          await reg.setShowPushDialogForCommitAndPush(undefined);
+        }
+        assert.strictEqual(reg.lastPushDialogRequest(), undefined, 'no dialog with the setting off');
+        assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim(), 'the commit reached the remote');
       });
     });
   });

@@ -458,7 +458,7 @@ row in the branches tree.
 | **Commit and Push** | `commitAndPush` | ✅ |
 | **Push dialog**: left pane = editable target (`branch → origin : branch`) plus the exact commits being pushed; right pane = **the full changed-file tree of the push**, status-coloured, with per-folder counts and its own toolbar; footer = `☐ Push tags [All ▾]`, `☑ Run Git hooks`, `[Push ▾]` split button | P13-T1 Push dialog — every listed element | ✅ |
 | **Push Rejected dialog** (Rebase / Merge, update-all, remember choice) | POST-P14af message box: Merge / Rebase (last answer first), update then push again, `Don't Ask Again` → `gittree.push.autoUpdateIfRejected`; update-all is `gittree.push.updateAllRepositoriesIfRejected`, on by default (POST-P14ag, **D32**) | ✅ |
-| *Show Push dialog for Commit and Push* setting | — | ❌ |
+| *Show Push dialog for Commit and Push* setting | POST-P14ah `gittree.push.showDialogForCommitAndPush`, on by default: the Push dialog for the repositories just committed, one for all; off pushes directly. Its nested *only when committing to protected branches* is absent — GitTree has no protected-branch list | 🟡 no protected-only variant |
 | Warn if CRLF separators are about to be committed | — | ❌ |
 | Warn when committing in detached HEAD or during rebase | — | ❌ |
 | *Do not run Git commit hooks* option | P13-T1 `Run Git hooks` (push); commit hooks still always run | 🟡 push only |

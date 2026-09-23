@@ -368,11 +368,50 @@ export async function applyPushResult(
   return outcomes;
 }
 
+/**
+ * IntelliJ's *Show Push dialog for Commit and Push* (POST-P14ah), on by
+ * default as it is there: `Commit and Push…` opens this dialog for the
+ * repositories it just committed. Off, it pushes them straight away.
+ */
+const SHOW_FOR_COMMIT_AND_PUSH = 'push.showDialogForCommitAndPush';
+
+export function showPushDialogForCommitAndPush(): boolean {
+  return vscode.workspace
+    .getConfiguration('gittree')
+    .get<boolean>(SHOW_FOR_COMMIT_AND_PUSH, true);
+}
+
+/** Test seam; `undefined` puts the default back. */
+export async function setShowPushDialogForCommitAndPush(value: boolean | undefined): Promise<void> {
+  await vscode.workspace
+    .getConfiguration('gittree')
+    .update(SHOW_FOR_COMMIT_AND_PUSH, value, vscode.ConfigurationTarget.Workspace);
+}
+
+let lastRequest: string[] | undefined;
+
+/** Test seam: the repositories the dialog was last opened for, if any. */
+export function lastPushDialogRequest(): readonly string[] | undefined {
+  return lastRequest;
+}
+
+/** Test seam: forget it, so a test can prove the dialog was not opened. */
+export function clearLastPushDialogRequest(): void {
+  lastRequest = undefined;
+}
+
 /** Opens the dialog; resolves true when at least one push ran. */
 export async function showPushDialog(
   deps: PushDialogDeps,
   repos: readonly RepoHandle[],
 ): Promise<boolean> {
+  lastRequest = repos.map((r) => r.root);
+  // A webview dialog cannot be answered from an integration test:
+  // `GITTREE_TEST_PUSH_DIALOG=cancel` closes it unanswered, as Escape would,
+  // after recording what it was opened for. Read before the first await: a
+  // caller that does not wait for the dialog (Commit and Push) has moved on
+  // by then, and a test restores the seam as soon as its command returns.
+  const cancelledByTest = process.env['GITTREE_TEST_PUSH_DIALOG'] === 'cancel';
   const params = await buildPushParams(deps.core, repos);
   if (params.repos.length === 0) {
     void vscode.window.showInformationMessage(
@@ -380,6 +419,7 @@ export async function showPushDialog(
     );
     return false;
   }
+  if (cancelledByTest) return false;
   const result = await openDialog<PushDialogParamsDto, PushDialogResultDto>({
     app: 'dialogs',
     dialog: 'push',

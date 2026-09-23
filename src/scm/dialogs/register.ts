@@ -23,8 +23,12 @@ import { presentGitError } from '../../hardening/errorUx';
 import {
   applyPushResult,
   buildPushParams,
+  clearLastPushDialogRequest,
+  lastPushDialogRequest,
   pushDialogHandlers,
+  setShowPushDialogForCommitAndPush,
   showPushDialog,
+  showPushDialogForCommitAndPush,
   type PushDialogDeps,
 } from './pushDialog';
 import {
@@ -131,6 +135,11 @@ export interface Phase13Registry {
     repo: RepoHandle,
     project?: readonly RepoHandle[],
   ) => Promise<PushResult[] | undefined>;
+  /** POST-P14ah: the repositories the Push dialog was last opened for, and its reset. */
+  lastPushDialogRequest: typeof lastPushDialogRequest;
+  clearLastPushDialogRequest: typeof clearLastPushDialogRequest;
+  /** IntelliJ's *Show Push dialog for Commit and Push*. */
+  setShowPushDialogForCommitAndPush: typeof setShowPushDialogForCommitAndPush;
   /** P13-T2 test seams. POST-P14ab: the question is a native modal now. */
   buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
   /** POST-P14ae: the question and the run for a whole project. */
@@ -268,6 +277,37 @@ export function registerPhase13Dialogs(
         return pushTracked(repo, branch);
       },
     ),
+    // POST-P14ah: `Commit and Push…` once its commits have landed — IntelliJ's
+    // push-after-commit. With *Show Push dialog for Commit and Push* on (its
+    // default) that is the Push dialog, for the repositories just committed;
+    // off, they are pushed straight away. Internal: the commit flow is the
+    // only caller, and hands over every repository it committed at once, so a
+    // commit spanning several opens one dialog, not one each.
+    vscode.commands.registerCommand('gittree.push.afterCommit', async (arg?: unknown) => {
+      const repos = (Array.isArray(arg) ? arg : [])
+        .map((root: unknown) => namedRepo(core, root))
+        .filter((r): r is RepoHandle => r !== undefined);
+      if (repos.length === 0) return;
+      if (showPushDialogForCommitAndPush()) {
+        // Not awaited. The dialog is a tab the user may leave open while they
+        // read it, and the commit window stays busy — refusing the next
+        // commit — for as long as the commit call that got here is running.
+        showPushDialog(pushDeps, repos).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          trace(`push dialog after commit failed: ${message}`);
+          void vscode.window.showErrorMessage(
+            vscode.l10n.t('The Push dialog could not open: {0}', message),
+          );
+        });
+        return;
+      }
+      // One repository at a time, as the push always ran here: a branch that
+      // tracks nothing is offered Publish, a tracked one goes through the
+      // Push Rejected flow when the remote has moved on.
+      for (const repo of repos) {
+        await vscode.commands.executeCommand('gittree.push', repo.root);
+      }
+    }),
   );
 
   // P13-T2: Update Project. `gittree.pull` (P1) stays as the raw pull; this is
@@ -434,6 +474,9 @@ export function registerPhase13Dialogs(
     setAutoUpdateIfRejected,
     setUpdateAllRepositoriesIfRejected,
     pushTracked: (repo, project) => pushTracked(repo, undefined, project),
+    lastPushDialogRequest,
+    clearLastPushDialogRequest,
+    setShowPushDialogForCommitAndPush,
     buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, { targets: [repo], skipped: [] }),
     buildProjectPrompt: (repos) => buildUpdatePrompt(updateDeps, updateScope(repos)),
     showProjectUpdate: (repos) => showProjectUpdate(updateDeps, repos),

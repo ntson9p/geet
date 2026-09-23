@@ -514,6 +514,11 @@
             "default": true,
             "description": "%gittree.config.push.updateAllRepositoriesIfRejected.description%"
           },
+          "gittree.push.showDialogForCommitAndPush": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.push.showDialogForCommitAndPush.description%"
+          },
           "gittree.push.tags": {
             "type": "string",
             "enum": [
