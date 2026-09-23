@@ -46,7 +46,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D29](#d29--a-repositories-section-and-a-branches-view-in-the-sidebar) | A Repositories section, and a Branches view that follows it, in the sidebar | Yes (mechanical) |
 | [D30](#d30--update-project-asks-with-a-message-box-not-a-dialog) | Update Project asks Merge or Rebase with a native message box; `Don't show again` moves to the result | No (no modal surface can hold a radio button) |
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
-| [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, and *Update all repositories* is not offered | No (API) for the box; update-all awaits an owner decision |
+| [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, *Update all repositories* to a setting | No (API) |
 
 ---
 
@@ -802,9 +802,12 @@ of the current branch was rejected* — as `gittree.push.autoUpdateIfRejected`.
 checkbox, and GitTree's two update questions should behave alike.
 
 **Also different:**
-* **No *Update all repositories*.** Only the repositories whose push was rejected are updated.
-  A message box cannot carry the checkbox, and whether updating the others should be a setting,
-  always, or never is an owner decision not yet taken.
+* ***Update all repositories* is a setting** (POST-P14ag), `gittree.push.updateAllRepositoriesIfRejected`,
+  on by default — the owner's decision, matching the checkbox as IntelliJ first shows it. The
+  question names the other repositories it will update, where IntelliJ shows the ticked box. As
+  in IntelliJ, every update runs before anything is pushed again, and nothing is pushed again
+  unless all of them went through; the updates run in workspace order and stop at the first
+  failure, as Update Project's do.
 * **The result's links.** "Show details in console" is `Show Details`, which opens the Console
   tab. "View files updated during the push" is `Show in Log`, filtered to what came in (D9: no
   Update Info tab). "Create pull request" is absent (D11).
@@ -814,5 +817,5 @@ checkbox, and GitTree's two update questions should behave alike.
 * **Rounds.** If the remote moves again while GitTree updates, it updates and pushes again with
   the same answer, at most three times. IntelliJ also retries; its bound is not known here.
 
-**Revisitable:** the box only with a new API, as D30. *Update all repositories* as soon as its
-behaviour is decided.
+**Revisitable:** only with a new API, as D30 — the two checkboxes would move back into the
+question.

@@ -461,6 +461,12 @@ Auto-update if push of the current branch was rejected: when the remote has comm
 
 - Type: `boolean` · Default: `false`
 
+### `gittree.push.updateAllRepositoriesIfRejected`
+
+Update all repositories: when a push is rejected and you choose Merge or Rebase, also update every other repository of the workspace that tracks a remote branch, as the Update all repositories checkbox of IntelliJ's Push Rejected dialog does. Every update runs before anything is pushed again, and nothing is pushed again unless all of them went through. Off updates only the repositories whose push was rejected.
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.push.tags`
 
 Which tags the Push dialog pushes alongside the branch.

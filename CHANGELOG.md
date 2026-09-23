@@ -22,6 +22,12 @@ then pushes again: *Pushed 2 commits to origin/main*.
   **Push…**. Any other rejected push is reported with the remote's reason.
 - The default button is your last Merge/Rebase answer, shared with Update
   Project, as IntelliJ keeps one update method for both.
+- In a workspace with several repositories, the update also covers every
+  other repository that tracks a remote branch, as IntelliJ's *Update all
+  repositories* does. The question names them, and nothing is pushed again
+  unless every update went through. Turn it off with
+  `gittree.push.updateAllRepositoriesIfRejected` to update only the
+  repositories whose push was rejected.
 - **Don't Ask Again** on the result — IntelliJ's *Remember the update method
   and update silently in the future* — turns on
   `gittree.push.autoUpdateIfRejected` (*Auto-update if push of the current

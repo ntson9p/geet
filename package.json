@@ -509,6 +509,11 @@
             "default": false,
             "description": "%gittree.config.push.autoUpdateIfRejected.description%"
           },
+          "gittree.push.updateAllRepositoriesIfRejected": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.push.updateAllRepositoriesIfRejected.description%"
+          },
           "gittree.push.tags": {
             "type": "string",
             "enum": [

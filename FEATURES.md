@@ -538,6 +538,10 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   on the result turns on `gittree.push.autoUpdateIfRejected` (*Auto-update if push of the
   current branch was rejected*), and `Show Details` opens the Console tab. Every push now
   reports in IntelliJ's words — *Pushed 1 commit to origin/X*, *Push to origin/X was rejected*.
+  In a workspace with several repositories the update covers **every repository that tracks a
+  remote branch**, as IntelliJ's *Update all repositories* does (`gittree.push.updateAllRepositoriesIfRejected`,
+  on by default); the question names them, and nothing is pushed again unless every update went
+  through.
 * **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
   tags/hooks footer, `[Push ▾]` with Force Push) · `Merge` ·
   `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`

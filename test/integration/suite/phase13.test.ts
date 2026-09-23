@@ -371,6 +371,37 @@ suite('P13 dialogs', () => {
       return git('rev-parse', 'HEAD').trim();
     };
 
+    /**
+     * POST-P14af: the Push Rejected question is a native modal, which no test
+     * can click: `GITTREE_TEST_PUSH_REJECTED_CHOICE` answers it. `cancel` is
+     * the safe answer for a test that expects no question at all — asked
+     * anyway, the push stays rejected and the test fails instead of hanging.
+     */
+    const withPushChoice = async <T>(
+      choice: 'merge' | 'rebase' | 'cancel',
+      fn: () => Promise<T>,
+    ): Promise<T> => {
+      const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+      process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = choice;
+      try {
+        return await fn();
+      } finally {
+        if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+        else process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = saved;
+      }
+    };
+    /** Brings the second clone level with the remote, which repoC pushes to from POST-P14af on. */
+    const catchUpTeammate = (): void => {
+      gitWithRetry(workDir, ['fetch', 'origin']);
+      gitWithRetry(workDir, ['reset', '-q', '--hard', `origin/${branch}`]);
+    };
+    /** A teammate's push: a commit on the remote that repoC does not have. */
+    const teammate = (rel: string, content: string, subject: string): string => {
+      catchUpTeammate();
+      return incoming(rel, content, subject);
+    };
+    const remoteHead = (ref = branch): string => bare('rev-parse', `refs/heads/${ref}`).trim();
+
     suiteSetup(function () {
       this.timeout(60_000);
       workDir = path.join(tmpDir, 'work');
@@ -946,41 +977,85 @@ suite('P13 dialogs', () => {
           }
         });
       });
+
+      // ---- POST-P14ag · Update all repositories -----------------------------------
+
+      /** repoC rejected: a teammate pushed first, and repoC has a commit of its own. */
+      const rejectRepoC = async (tag: string): Promise<string> => {
+        const theirs = teammate(`p13/push-all-theirs-${tag}.txt`, 'theirs\n', `P14ag teammate ${tag}`);
+        localCommit(`p13/push-all-mine-${tag}.txt`, 'mine\n', `P14ag mine ${tag}`);
+        await settle(repo, () => (repo.model.snapshot.ahead ?? 0) > 0);
+        reg.clearLastPushRejectedPrompt();
+        return theirs;
+      };
+
+      test('POST-P14ag: a rejected push updates the other repositories too, then pushes again', async function () {
+        this.timeout(180_000);
+        await withProject(async (dAhead) => {
+          await rejectRepoC('a');
+          const results = await withPushChoice('merge', () =>
+            reg.pushTracked(repo, [repo, repoD, repoE]),
+          );
+          assert.deepStrictEqual(results?.map((r) => r.kind), ['pushed']);
+          // One question, naming the repository it updates as well — IntelliJ's
+          // ticked checkbox, spelled out — and not the one it cannot update.
+          const prompt = reg.lastPushRejectedPrompt();
+          assert.ok(prompt, 'a rejected push must ask');
+          assert.ok(prompt.detail.includes(`Also updates ${label(repoD)} `), prompt.detail);
+          assert.ok(!prompt.detail.includes(label(repoE)), prompt.detail);
+          // repoD, which nobody pushed, was brought up to date…
+          assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dAhead);
+          // …and repoC merged theirs and went through.
+          assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim());
+          assert.strictEqual(git('rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ').length, 3);
+        });
+      });
+
+      test('POST-P14ag: with the setting off, only the rejected repository is updated', async function () {
+        this.timeout(180_000);
+        await withProject(async (_dAhead, dBase) => {
+          await reg.setUpdateAllRepositoriesIfRejected(false);
+          try {
+            await rejectRepoC('b');
+            const results = await withPushChoice('merge', () =>
+              reg.pushTracked(repo, [repo, repoD, repoE]),
+            );
+            assert.deepStrictEqual(results?.map((r) => r.kind), ['pushed']);
+            assert.ok(!reg.lastPushRejectedPrompt()?.detail.includes('Also updates'));
+            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dBase, 'repoD is left alone');
+          } finally {
+            await reg.setUpdateAllRepositoriesIfRejected(undefined);
+          }
+        });
+      });
+
+      test('POST-P14ag: nothing is pushed again unless every update went through', async function () {
+        this.timeout(180_000);
+        try {
+          await withProject(async (_dAhead, dBase) => {
+            // repoD cannot fetch, so its update fails — after repoC's, which runs first.
+            cli(repoD.root, 'remote', 'set-url', D_REMOTE, path.join(tmpDir, 'no-such-remote.git'));
+            const theirs = await rejectRepoC('c');
+            const results = await withPushChoice('merge', () =>
+              reg.pushTracked(repo, [repo, repoD, repoE]),
+            );
+            assert.ok(results?.length === 1, JSON.stringify(results?.map((r) => r.kind)));
+            const only = results[0] as { kind: string; stoppedAt?: { root: string } };
+            assert.strictEqual(only.kind, 'rejected');
+            assert.strictEqual(only.stoppedAt?.root, repoD.root, 'the result names where it stopped');
+            assert.strictEqual(remoteHead(), theirs, "repoC's push must not run again");
+            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dBase);
+          });
+        } finally {
+          // repoC merged theirs but was not pushed; level it for the suites after.
+          git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+        }
+      });
     });
 
     // ---- POST-P14af · a rejected push asks Merge or Rebase, then pushes again --------
 
     suite('POST-P14af push rejected', () => {
-      /**
-       * The Push Rejected question is a native modal, which no test can
-       * click: `GITTREE_TEST_PUSH_REJECTED_CHOICE` answers it. `cancel` is the
-       * safe answer for a test that expects no question at all — asked anyway,
-       * the push stays rejected and the test fails instead of hanging.
-       */
-      const withPushChoice = async <T>(
-        choice: 'merge' | 'rebase' | 'cancel',
-        fn: () => Promise<T>,
-      ): Promise<T> => {
-        const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
-        process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = choice;
-        try {
-          return await fn();
-        } finally {
-          if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
-          else process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = saved;
-        }
-      };
-      /** Brings the second clone level with the remote, which repoC now pushes to. */
-      const catchUpTeammate = (): void => {
-        gitWithRetry(workDir, ['fetch', 'origin']);
-        gitWithRetry(workDir, ['reset', '-q', '--hard', `origin/${branch}`]);
-      };
-      /** A teammate's push: a commit on the remote that repoC does not have. */
-      const teammate = (rel: string, content: string, subject: string): string => {
-        catchUpTeammate();
-        return incoming(rel, content, subject);
-      };
-      const remoteHead = (ref = branch): string => bare('rev-parse', `refs/heads/${ref}`).trim();
       /** Exactly what the Push dialog posts for repoC's branch to its upstream. */
       const pushFromDialog = (remoteBranch = branch): Promise<string[]> =>
         reg.applyPushResult({
@@ -1005,9 +1080,19 @@ suite('P13 dialogs', () => {
         reg.clearLastPushRejectedPrompt();
       });
 
+      suiteSetup(async function () {
+        this.timeout(30_000);
+        // One repository's question is what these tests are about. Update all
+        // repositories has its own tests (POST-P14ag), with the project
+        // narrowed; here it would update the rest of the shared workspace,
+        // whose repositories other suites leave tracking remotes they deleted.
+        await reg.setUpdateAllRepositoriesIfRejected(false);
+      });
+
       suiteTeardown(async function () {
         this.timeout(30_000);
         await reg.setAutoUpdateIfRejected(false);
+        await reg.setUpdateAllRepositoriesIfRejected(undefined);
       });
 
       test('POST-P14af: a rejected push asks Merge or Rebase, merges, and pushes again', async function () {

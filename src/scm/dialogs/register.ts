@@ -32,6 +32,7 @@ import {
   lastPushRejectedPrompt,
   pushAndReport,
   setAutoUpdateIfRejected,
+  setUpdateAllRepositoriesIfRejected,
   upstreamPushTarget,
   type PushResult,
 } from './pushRun';
@@ -119,6 +120,17 @@ export interface Phase13Registry {
   clearLastPushRejectedPrompt: typeof clearLastPushRejectedPrompt;
   /** What `Don't Ask Again` on a pushed-after-update result writes. */
   setAutoUpdateIfRejected: typeof setAutoUpdateIfRejected;
+  /** IntelliJ's `Update all repositories`, as a setting (D32). */
+  setUpdateAllRepositoriesIfRejected: typeof setUpdateAllRepositoriesIfRejected;
+  /**
+   * `gittree.push.run` for `repo`'s checked-out branch, with `Update all
+   * repositories` narrowed to `project` — the shared fixture repositories
+   * track remotes other suites have long deleted.
+   */
+  pushTracked: (
+    repo: RepoHandle,
+    project?: readonly RepoHandle[],
+  ) => Promise<PushResult[] | undefined>;
   /** P13-T2 test seams. POST-P14ab: the question is a native modal now. */
   buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
   /** POST-P14ae: the question and the run for a whole project. */
@@ -217,6 +229,20 @@ export function registerPhase13Dialogs(
   // POST-P14af: a push the remote rejects asks that same question, so every
   // push path carries the same state.
   const pushDeps: PushDialogDeps = updateDeps;
+  /** A branch — the checked-out one by default — pushed to the branch it tracks. */
+  const pushTracked = async (
+    repo: RepoHandle,
+    branch = repo.model.snapshot.headRef,
+    project?: readonly RepoHandle[],
+  ): Promise<PushResult[] | undefined> => {
+    if (branch === undefined) return undefined;
+    const target = await upstreamPushTarget(core, repo, branch);
+    if (!target) return undefined;
+    return pushAndReport(updateDeps, [target], {
+      presentFailure: (err) => presentGitError(context, core, err),
+      ...(project !== undefined ? { project } : {}),
+    });
+  };
 
   // P13-T1: Push. `gittree.sync.push` (P1) stays as the no-questions path; this
   // is the dialog that exposes the flags behind it.
@@ -238,15 +264,8 @@ export function registerPhase13Dialogs(
         const repo = namedRepo(core, arg);
         if (!repo) return undefined;
         const branch =
-          typeof branchArg === 'string' && branchArg.length > 0
-            ? branchArg
-            : repo.model.snapshot.headRef;
-        if (branch === undefined) return undefined;
-        const target = await upstreamPushTarget(core, repo, branch);
-        if (!target) return undefined;
-        return pushAndReport(updateDeps, [target], {
-          presentFailure: (err) => presentGitError(context, core, err),
-        });
+          typeof branchArg === 'string' && branchArg.length > 0 ? branchArg : undefined;
+        return pushTracked(repo, branch);
       },
     ),
   );
@@ -413,6 +432,8 @@ export function registerPhase13Dialogs(
     lastPushRejectedPrompt,
     clearLastPushRejectedPrompt,
     setAutoUpdateIfRejected,
+    setUpdateAllRepositoriesIfRejected,
+    pushTracked: (repo, project) => pushTracked(repo, undefined, project),
     buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, { targets: [repo], skipped: [] }),
     buildProjectPrompt: (repos) => buildUpdatePrompt(updateDeps, updateScope(repos)),
     showProjectUpdate: (repos) => showProjectUpdate(updateDeps, repos),

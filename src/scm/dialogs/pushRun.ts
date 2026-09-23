@@ -14,7 +14,8 @@
  * and for the same reason `Remember the update method and update silently in
  * the future` moves to the result as `Don't Ask Again` (D32). What that writes
  * is IntelliJ's own setting, `Auto-update if push of the current branch was
- * rejected` — `gittree.push.autoUpdateIfRejected`.
+ * rejected` — `gittree.push.autoUpdateIfRejected`. The dialog's other
+ * checkbox, `Update all repositories`, is `gittree.push.updateAllRepositoriesIfRejected`.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -38,6 +39,7 @@ import {
   rememberedUpdateStrategy,
   rememberStrategy,
   showRangeInLog,
+  updateScope,
   type UpdateDialogDeps,
   type UpdateOutcome,
 } from './updateDialog';
@@ -82,6 +84,11 @@ export type PushResult =
       ref: RejectedRef;
       /** IntelliJ would have offered Merge or Rebase (`canUpdateAndRetry`). */
       updatable: boolean;
+      /**
+       * Answered, but not pushed again: the update stopped at this repository
+       * first — IntelliJ pushes again only once every update went through.
+       */
+      stoppedAt?: RepoHandle;
     }
   | { kind: 'update-failed'; target: PushTarget; update: PushUpdate }
   | { kind: 'failed'; target: PushTarget; message: string; error: unknown };
@@ -97,6 +104,24 @@ export async function setAutoUpdateIfRejected(value: boolean): Promise<void> {
   await vscode.workspace
     .getConfiguration('gittree')
     .update(AUTO_UPDATE_SETTING, value, vscode.ConfigurationTarget.Workspace);
+}
+
+/**
+ * IntelliJ's `Update all repositories` — a checkbox in its dialog, which a
+ * message box cannot hold, so a setting here (D32). On by default: the owner's
+ * decision, matching the checkbox as IntelliJ first shows it.
+ */
+const UPDATE_ALL_SETTING = 'push.updateAllRepositoriesIfRejected';
+
+function updateAllRepositoriesIfRejected(): boolean {
+  return vscode.workspace.getConfiguration('gittree').get<boolean>(UPDATE_ALL_SETTING, true);
+}
+
+/** Test seam; `undefined` puts the default back. */
+export async function setUpdateAllRepositoriesIfRejected(value: boolean | undefined): Promise<void> {
+  await vscode.workspace
+    .getConfiguration('gittree')
+    .update(UPDATE_ALL_SETTING, value, vscode.ConfigurationTarget.Workspace);
 }
 
 function showCommandLine(): boolean {
@@ -201,37 +226,99 @@ async function pushOnce(core: Core, target: PushTarget): Promise<PushResult> {
   return { kind: 'pushed', target, commits: outgoing.commits, newBranch: outgoing.newBranch };
 }
 
+/** Everything one push did, the updates a rejection led to included. */
+export interface PushRun {
+  results: PushResult[];
+  /**
+   * Repositories the push did not cover but the update did — IntelliJ's
+   * `Update all repositories` — in the order they ran. One that failed is
+   * where the run stopped.
+   */
+  alsoUpdated: Array<{ repo: RepoHandle; outcome: UpdateOutcome }>;
+}
+
+export interface PushRunOptions {
+  /**
+   * What `Update all repositories` covers: the workspace, unless a caller
+   * narrows it. The tests do — other suites leave the shared fixture
+   * repositories tracking remotes that no longer exist.
+   */
+  project?: readonly RepoHandle[];
+}
+
 /**
  * Runs every push, then answers the rejected ones the IntelliJ way.
  *
  * All pushes go first, as IntelliJ's do, so one question covers every
- * repository the remote turned away. The update-and-push rounds then run in
- * order and **stop at the first that does not go through** — the idiom Update
- * Project and every other fan-out share, so a conflict in one repository is
- * not followed by merges in the rest. Those keep their rejection.
+ * repository the remote turned away. Then IntelliJ's order: **update
+ * everything, then push again** — the rejected repositories and, with
+ * `gittree.push.updateAllRepositoriesIfRejected` on, every other one that can
+ * be updated. The updates run in workspace order and stop at the first
+ * failure, as Update Project's do, and nothing is pushed again unless every
+ * one of them went through.
  */
 export async function runPushes(
   deps: UpdateDialogDeps,
   targets: readonly PushTarget[],
-): Promise<PushResult[]> {
+  options: PushRunOptions = {},
+): Promise<PushRun> {
   const results: PushResult[] = [];
   for (const target of targets) results.push(await pushOnce(deps.core, target));
 
   const rejected = results.flatMap((r, i) => (r.kind === 'rejected' && r.updatable ? [i] : []));
-  if (rejected.length === 0) return results;
+  if (rejected.length === 0) return { results, alsoUpdated: [] };
+  const rejectedTargets = rejected.map((i) => results[i]!.target);
+  const rejectedRepos = new Set(rejectedTargets.map((t) => t.repo));
 
-  const decision = await decideUpdate(
-    deps,
-    rejected.map((i) => results[i]!.target),
-  );
-  if (decision === undefined) return results;
+  // Update Project's scope: a repository detached, tracking nothing or
+  // mid-operation cannot be updated, so it is not among the others.
+  const project = options.project ?? deps.core.repos;
+  const others = updateAllRepositoriesIfRejected()
+    ? updateScope(project).targets.filter((r) => !rejectedRepos.has(r))
+    : [];
+
+  const decision = await decideUpdate(deps, rejectedTargets, others);
+  if (decision === undefined) return { results, alsoUpdated: [] };
+
+  const order = [
+    ...project.filter((r) => rejectedRepos.has(r) || others.includes(r)),
+    ...[...rejectedRepos].filter((r) => !project.includes(r)),
+  ];
+  const updated = new Map<RepoHandle, UpdateOutcome>();
+  let stoppedAt: RepoHandle | undefined;
+  for (const repo of order) {
+    const outcome = await applyUpdateResult(deps, repo, {
+      action: 'update',
+      strategy: decision.strategy,
+    });
+    updated.set(repo, outcome);
+    if (!outcome.ok) {
+      stoppedAt = repo;
+      break;
+    }
+  }
+  const alsoUpdated = others.flatMap((repo) => {
+    const outcome = updated.get(repo);
+    return outcome === undefined ? [] : [{ repo, outcome }];
+  });
 
   for (const i of rejected) {
-    const next = await updateAndPush(deps, results[i]!.target, decision);
-    results[i] = next;
-    if (next.kind !== 'pushed') break;
+    const was = results[i];
+    if (was?.kind !== 'rejected') continue;
+    const own = updated.get(was.target.repo);
+    if (own !== undefined && !own.ok) {
+      results[i] = {
+        kind: 'update-failed',
+        target: was.target,
+        update: { strategy: decision.strategy, asked: decision.asked, outcome: own },
+      };
+    } else if (own === undefined || stoppedAt !== undefined) {
+      results[i] = stoppedAt !== undefined ? { ...was, stoppedAt } : was;
+    } else {
+      results[i] = await pushAgain(deps, was.target, decision, own);
+    }
   }
-  return results;
+  return { results, alsoUpdated };
 }
 
 interface UpdateDecision {
@@ -241,20 +328,18 @@ interface UpdateDecision {
 
 /**
  * Unpushed merge commits of the user's own — what a rebase would flatten.
- * IntelliJ checks the same range (`GitRebaseOverMergeProblem`).
+ * IntelliJ checks the same range (`GitRebaseOverMergeProblem`): for a push,
+ * its tracking ref up to the branch; for another repository the update
+ * covers, its upstream up to HEAD.
  */
-async function hasUnpushedMerges(core: Core, targets: readonly PushTarget[]): Promise<boolean> {
-  for (const t of targets) {
-    const res = await core.git.exec(
-      t.repo.root,
-      [
-        'rev-list',
-        '--merges',
-        '--count',
-        `refs/remotes/${t.remote}/${t.remoteBranch}..refs/heads/${t.branch}`,
-      ],
-      { allowNonZeroExit: true },
-    );
+async function hasUnpushedMerges(
+  core: Core,
+  ranges: ReadonlyArray<{ root: string; range: string }>,
+): Promise<boolean> {
+  for (const { root, range } of ranges) {
+    const res = await core.git.exec(root, ['rev-list', '--merges', '--count', range], {
+      allowNonZeroExit: true,
+    });
     if (res.exitCode === 0 && (Number(res.stdout.trim()) || 0) > 0) return true;
   }
   return false;
@@ -263,15 +348,22 @@ async function hasUnpushedMerges(core: Core, targets: readonly PushTarget[]): Pr
 async function decideUpdate(
   deps: UpdateDialogDeps,
   targets: readonly PushTarget[],
+  others: readonly RepoHandle[],
 ): Promise<UpdateDecision | undefined> {
-  const merges = await hasUnpushedMerges(deps.core, targets);
+  const merges = await hasUnpushedMerges(deps.core, [
+    ...targets.map((t) => ({
+      root: t.repo.root,
+      range: `refs/remotes/${t.remote}/${t.remoteBranch}..refs/heads/${t.branch}`,
+    })),
+    ...others.map((r) => ({ root: r.root, range: '@{upstream}..HEAD' })),
+  ]);
   const remembered = rememberedUpdateStrategy(deps.state);
   // Silent only while that is safe: a remembered Rebase over unpushed merge
   // commits would flatten them, so the question comes back for that one case.
   if (autoUpdateIfRejected() && !(merges && remembered === 'rebase')) {
     return { strategy: remembered, asked: false };
   }
-  const prompt = buildPushRejectedPrompt(deps, targets, merges);
+  const prompt = buildPushRejectedPrompt(deps, targets, merges, others);
   const choice = await askPushRejected(prompt);
   if (choice === undefined) return undefined;
   // The answer is the update method from now on, as it is in IntelliJ — save
@@ -297,20 +389,20 @@ function fold(first: UpdateOutcome, next: UpdateOutcome, total: number): UpdateO
       };
 }
 
-async function updateAndPush(
+/**
+ * The push again, after `first` updated the branch. If the remote moved again
+ * meanwhile, another round of update and push with the same answer — IntelliJ
+ * goes round again rather than asking twice.
+ */
+async function pushAgain(
   deps: UpdateDialogDeps,
   target: PushTarget,
   decision: UpdateDecision,
+  first: UpdateOutcome,
 ): Promise<PushResult> {
-  let first: UpdateOutcome | undefined;
-  let total = 0;
+  let outcome = first;
+  let total = first.commitsPulled;
   for (let attempt = 1; ; attempt++) {
-    const outcome = await applyUpdateResult(deps, target.repo, {
-      action: 'update',
-      strategy: decision.strategy,
-    });
-    total += outcome.commitsPulled;
-    first ??= outcome;
     const update: PushUpdate = {
       strategy: decision.strategy,
       asked: decision.asked,
@@ -319,10 +411,14 @@ async function updateAndPush(
     if (!outcome.ok) return { kind: 'update-failed', target, update };
     const pushed = await pushOnce(deps.core, target);
     if (pushed.kind === 'pushed') return { ...pushed, update };
-    // The remote moved again while this round ran: IntelliJ goes round again
-    // with the same answer rather than asking twice.
-    if (pushed.kind === 'rejected' && pushed.updatable && attempt < MAX_PUSH_ATTEMPTS) continue;
-    return pushed;
+    if (!(pushed.kind === 'rejected' && pushed.updatable && attempt < MAX_PUSH_ATTEMPTS)) {
+      return pushed;
+    }
+    outcome = await applyUpdateResult(deps, target.repo, {
+      action: 'update',
+      strategy: decision.strategy,
+    });
+    total += outcome.commitsPulled;
   }
 }
 
@@ -344,13 +440,16 @@ function choiceLabel(choice: UpdateStrategy, merges: boolean): string {
 
 /**
  * IntelliJ's `Push Rejected` dialog as a message box: its sentence, naming
- * the branch — and the repository, in a workspace with more than one — then,
- * with `gittree.dialogs.showCommandLine` on, what each button runs.
+ * the branch — and the repository, in a workspace with more than one — and
+ * the other repositories `Update all repositories` will update too, which the
+ * dialog shows as a ticked checkbox; then, with
+ * `gittree.dialogs.showCommandLine` on, what each button runs.
  */
 export function buildPushRejectedPrompt(
   deps: UpdateDialogDeps,
   targets: readonly PushTarget[],
   merges: boolean,
+  others: readonly RepoHandle[] = [],
 ): PushRejectedPrompt {
   const label = labelsFor(deps.core);
   const choices = pushRejectedChoices(rememberedUpdateStrategy(deps.state), merges);
@@ -376,6 +475,14 @@ export function buildPushRejectedPrompt(
     }
     lines.push(vscode.l10n.t('Remote changes need to be merged before pushing.'));
   }
+  if (others.length > 0) {
+    lines.push(
+      vscode.l10n.t(
+        'Also updates {0} (Update all repositories: gittree.push.updateAllRepositoriesIfRejected).',
+        others.map(label).join(', '),
+      ),
+    );
+  }
   if (merges) {
     lines.push(
       '',
@@ -394,10 +501,24 @@ export function buildPushRejectedPrompt(
         const plan = [...buildUpdatePlan('update', choice, upstream, only.remote, aside), [...only.args]];
         lines.push(`${choiceLabel(choice, merges)}: ${formatGitCommands(plan)}`);
       }
+      if (others.length > 0) {
+        lines.push(
+          vscode.l10n.t(
+            'The others run git fetch --prune <their remote>, then the same merge or rebase onto their upstream.',
+          ),
+        );
+      }
     } else {
       lines.push(
         vscode.l10n.t(
-          'Each repository runs git fetch --prune <its remote>, then git merge or git rebase onto its upstream, then pushes again, in the order listed. The update stops at the first repository that fails.',
+          'Each repository runs git fetch --prune <its remote>, then git merge or git rebase onto its upstream.',
+        ),
+      );
+    }
+    if (only === undefined || others.length > 0) {
+      lines.push(
+        vscode.l10n.t(
+          'The updates run in workspace order and stop at the first that fails; nothing is pushed again unless every update goes through.',
         ),
       );
     }
@@ -486,8 +607,11 @@ function updateSentence(update: PushUpdate): string {
   return parts.join(' ');
 }
 
-/** One push's outcome, in IntelliJ's words where IntelliJ has them. */
-export function describePush(r: PushResult): string {
+/**
+ * One push's outcome, in IntelliJ's words where IntelliJ has them. `label`
+ * names a repository the way the sidebar does.
+ */
+export function describePush(r: PushResult, label: (repo: RepoHandle) => string): string {
   const where = `${r.target.remote}/${r.target.remoteBranch}`;
   switch (r.kind) {
     case 'pushed':
@@ -495,6 +619,13 @@ export function describePush(r: PushResult): string {
         ? pushedSentence(r)
         : [pushedSentence(r), updateSentence(r.update)].filter((s) => s.length > 0).join(' ');
     case 'rejected':
+      if (r.stoppedAt !== undefined) {
+        return vscode.l10n.t(
+          'Push to {0} was rejected, and not pushed again: the update stopped at {1}.',
+          where,
+          label(r.stoppedAt),
+        );
+      }
       if (r.ref.rejection === 'behind') return vscode.l10n.t('Push to {0} was rejected.', where);
       if (r.ref.rejection === 'stale') {
         return vscode.l10n.t(
@@ -521,6 +652,40 @@ export function describePush(r: PushResult): string {
   }
 }
 
+/**
+ * A repository updated alongside the rejected ones (`Update all
+ * repositories`). Nothing to say when nothing came in and nothing went wrong:
+ * a line per repository that was already up to date would bury the push.
+ */
+function describeAlsoUpdated(outcome: UpdateOutcome): string {
+  if (!outcome.ok) {
+    return outcome.conflicts === true
+      ? vscode.l10n.t(
+          'The update stopped on conflicts. Check that they were resolved correctly, then push again.',
+        )
+      : vscode.l10n.t('The update failed: {0}', firstLineOf(outcome.message));
+  }
+  const parts: string[] = [];
+  const n = outcome.commitsPulled;
+  if (n > 0) {
+    parts.push(
+      n === 1
+        ? vscode.l10n.t('Updated as well: 1 incoming commit.')
+        : vscode.l10n.t('Updated as well: {0} incoming commits.', n),
+    );
+  }
+  const conflicted = outcome.restoreConflicts ?? 0;
+  if (conflicted > 0) {
+    parts.push(
+      vscode.l10n.t(
+        'Your local changes conflict with what came in, in {0} file(s); a copy is kept in the stash.',
+        conflicted,
+      ),
+    );
+  }
+  return parts.join(' ');
+}
+
 /** The line a test — or a log — reads for one push. Not shown to the user. */
 export function pushOutcomeLine(r: PushResult): string {
   const where = `${r.target.branch} → ${r.target.remote}/${r.target.remoteBranch}`;
@@ -528,7 +693,9 @@ export function pushOutcomeLine(r: PushResult): string {
     case 'pushed':
       return `${where}: ${r.update === undefined ? 'pushed' : `pushed after ${r.update.strategy}`}`;
     case 'rejected':
-      return `${where}: rejected (${r.ref.reason})`;
+      return r.stoppedAt === undefined
+        ? `${where}: rejected (${r.ref.reason})`
+        : `${where}: rejected (${r.ref.reason}), not pushed again: the update stopped at ${path.basename(r.stoppedAt.root)}`;
     case 'update-failed':
       return `${where}: not pushed, the update ${r.update.outcome.conflicts === true ? 'stopped on conflicts' : 'failed'}: ${firstLineOf(r.update.outcome.message)}`;
     case 'failed':
@@ -567,13 +734,10 @@ async function rememberAutoUpdate(strategy: UpdateStrategy): Promise<void> {
  * console"), `Show in Log` stands in for "View files updated during the push"
  * (D9: no Update Info tab), and `Don't Ask Again` is the dialog's checkbox.
  */
-export function reportPushes(
-  core: Core,
-  results: readonly PushResult[],
-  options: PushReportOptions = {},
-): void {
+export function reportPushes(core: Core, run: PushRun, options: PushReportOptions = {}): void {
+  const { results, alsoUpdated } = run;
   if (results.length === 0) return;
-  const only = results.length === 1 ? results[0] : undefined;
+  const only = results.length === 1 && alsoUpdated.length === 0 ? results[0] : undefined;
   if (
     only?.kind === 'failed' &&
     options.presentFailure !== undefined &&
@@ -585,26 +749,43 @@ export function reportPushes(
   }
 
   const label = labelsFor(core);
-  const sentences = results.map((r) =>
-    results.length > 1 ? `${label(r.target.repo)}: ${describePush(r)}` : describePush(r),
-  );
-  const failed = results.some(
-    (r) => r.kind === 'failed' || (r.kind === 'update-failed' && r.update.outcome.conflicts !== true),
-  );
-  const warned = results.some(
-    (r) =>
-      r.kind === 'rejected' ||
-      r.kind === 'update-failed' ||
-      (r.kind === 'pushed' && (r.update?.outcome.restoreConflicts ?? 0) > 0),
-  );
-  const trouble = results.some((r) => r.kind !== 'pushed');
-  const updated = results.flatMap((r) =>
-    (r.kind === 'pushed' || r.kind === 'update-failed') &&
-    r.update !== undefined &&
-    r.update.outcome.commitsPulled > 0
-      ? [{ root: r.target.repo.root, outcome: r.update.outcome }]
-      : [],
-  );
+  const others = alsoUpdated.flatMap(({ repo, outcome }) => {
+    const said = describeAlsoUpdated(outcome);
+    return said.length > 0 ? [{ repo, outcome, said }] : [];
+  });
+  const named = results.length + others.length > 1;
+  const sentences = [
+    ...results.map((r) =>
+      named ? `${label(r.target.repo)}: ${describePush(r, label)}` : describePush(r, label),
+    ),
+    ...others.map((o) => `${label(o.repo)}: ${o.said}`),
+  ];
+  const failed =
+    results.some(
+      (r) =>
+        r.kind === 'failed' || (r.kind === 'update-failed' && r.update.outcome.conflicts !== true),
+    ) || alsoUpdated.some((o) => !o.outcome.ok && o.outcome.conflicts !== true);
+  const warned =
+    results.some(
+      (r) =>
+        r.kind === 'rejected' ||
+        r.kind === 'update-failed' ||
+        (r.kind === 'pushed' && (r.update?.outcome.restoreConflicts ?? 0) > 0),
+    ) || alsoUpdated.some((o) => !o.outcome.ok || (o.outcome.restoreConflicts ?? 0) > 0);
+  const trouble =
+    results.some((r) => r.kind !== 'pushed') || alsoUpdated.some((o) => !o.outcome.ok);
+  const updated = [
+    ...results.flatMap((r) =>
+      (r.kind === 'pushed' || r.kind === 'update-failed') &&
+      r.update !== undefined &&
+      r.update.outcome.commitsPulled > 0
+        ? [{ root: r.target.repo.root, outcome: r.update.outcome }]
+        : [],
+    ),
+    ...alsoUpdated.flatMap((o) =>
+      o.outcome.commitsPulled > 0 ? [{ root: o.repo.root, outcome: o.outcome }] : [],
+    ),
+  ];
   // The log shows one repository at a time (D24): a range spanning several
   // has nowhere to go.
   const single = updated.length === 1 ? updated[0] : undefined;
@@ -644,9 +825,9 @@ export function reportPushes(
 export async function pushAndReport(
   deps: UpdateDialogDeps,
   targets: readonly PushTarget[],
-  options: PushReportOptions = {},
+  options: PushReportOptions & PushRunOptions = {},
 ): Promise<PushResult[]> {
-  const results = await runPushes(deps, targets);
-  reportPushes(deps.core, results, options);
-  return results;
+  const run = await runPushes(deps, targets, options);
+  reportPushes(deps.core, run, options);
+  return run.results;
 }
