@@ -590,15 +590,18 @@ silently inside a task about which repository a fetch belongs to.
   idiom `runCommitAcross` established. Carrying on would start a merge in roots 3…7 while
   root 2 sits in conflict.
 
-**Also still per repository:** the project level's `Update Project…` and `Push…` verbs open
-their existing single-repository dialogs. Those dialogs are built per root
-(`buildUpdateFetchArgs`, `pushDialog`'s `repoLabel`), and making them multi-root is the same
-decide/apply split as above. `Commit…` and `Fetch` *are* project-wide from that level, because
-both already had a no-argument all-roots form (`runCommitAcross`, and POST-P14o's fan-out).
+**Also still per repository:** the project level's `Push…` verb opens its existing
+single-repository dialog, which is built per root (`pushDialog`'s `repoLabel`); making it
+multi-root is the same decide/apply split as above. `Commit…` and `Fetch` *are* project-wide
+from that level, because both already had a no-argument all-roots form (`runCommitAcross`, and
+POST-P14o's fan-out). **`Update Project…` joined them in POST-P14ae**: once its question became a
+message box (D30) there was no per-root dialog left to split — one question covers every
+repository, which then updates in order and stops at the first failure, skipping any it cannot
+update and naming them in the question.
 
 **Revisitable:** yes, and the order is clear — hoisting the input out of `BranchOps` unlocks
 `New Branch`, `Rename` and `Delete` on a common row, and the same split unlocks a multi-root
-Update Project dialog.
+Push dialog.
 
 ## D28 · The status-bar widget is an action, not a readout
 

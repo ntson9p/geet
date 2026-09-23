@@ -37,7 +37,10 @@ import {
   reportUpdate,
   runRememberedUpdate,
   setUpdateStrategy,
+  showProjectUpdate,
   showUpdateDialog,
+  updateScope,
+  type ProjectUpdateResult,
   type UpdateDialogDeps,
   type UpdateOutcome,
   type UpdatePrompt,
@@ -104,6 +107,9 @@ export interface Phase13Registry {
   pushHandlers: () => Record<string, (params: unknown) => unknown>;
   /** P13-T2 test seams. POST-P14ab: the question is a native modal now. */
   buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
+  /** POST-P14ae: the question and the run for a whole project. */
+  buildProjectPrompt: (repos: readonly RepoHandle[]) => Promise<UpdatePrompt | undefined>;
+  showProjectUpdate: (repos: readonly RepoHandle[]) => Promise<ProjectUpdateResult | undefined>;
   /** The question most recently put to the user — what the modal showed. */
   lastUpdatePrompt: typeof lastUpdatePrompt;
   clearLastUpdatePrompt: typeof clearLastUpdatePrompt;
@@ -154,6 +160,20 @@ export interface Phase13Registry {
   conflictsDialogEnabled: typeof conflictsDialogEnabled;
 }
 
+/**
+ * The repository an argument names — a root string, or a file Uri — and
+ * nothing else: no guess from the active editor. For a command whose
+ * no-argument form means something other than "the repository I am looking
+ * at" — Update Project, whose no-argument form is the whole project.
+ */
+export function namedRepo(core: Core, arg?: unknown): RepoHandle | undefined {
+  if (typeof arg === 'string' && arg.length > 0) {
+    return core.repos.find((r) => canonicalKey(r.root) === canonicalKey(arg));
+  }
+  if (arg instanceof vscode.Uri) return core.repoForPath(arg.fsPath);
+  return undefined;
+}
+
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
 export function resolveRepo(core: Core, arg?: unknown): RepoHandle | undefined {
   if (typeof arg === 'string' && arg.length > 0) {
@@ -197,14 +217,23 @@ export function registerPhase13Dialogs(
   // directly once the user chooses Don't Ask Again.
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.update.dialog', async (arg?: unknown) => {
-      const repo = resolveRepo(core, arg);
-      if (!repo) {
+      // POST-P14ae: a named repository — a Repositories row — updates just
+      // that one. With nothing named this is the *project*, IntelliJ's meaning
+      // of Update Project: every repository, after one question. It used to
+      // update the active editor's repository, or none at all with no editor
+      // open and several repositories in the workspace.
+      const repo = namedRepo(core, arg);
+      if (repo) {
+        await showUpdateDialog(updateDeps, repo);
+        return;
+      }
+      if (core.repos.length === 0) {
         void vscode.window.showInformationMessage(
           vscode.l10n.t('Open a repository to update.'),
         );
         return;
       }
-      await showUpdateDialog(updateDeps, repo);
+      await showProjectUpdate(updateDeps, core.repos);
     }),
     // POST-P14ad: the half that does not ask — a branch row's `Update` on the
     // checked-out branch. Internal: not contributed, so not in the palette,
@@ -342,7 +371,9 @@ export function registerPhase13Dialogs(
     buildPushParams,
     applyPushResult: (result) => applyPushResult(deps, result),
     pushHandlers: () => pushDialogHandlers(deps),
-    buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, repo),
+    buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, { targets: [repo], skipped: [] }),
+    buildProjectPrompt: (repos) => buildUpdatePrompt(updateDeps, updateScope(repos)),
+    showProjectUpdate: (repos) => showProjectUpdate(updateDeps, repos),
     lastUpdatePrompt,
     clearLastUpdatePrompt,
     rememberedUpdateStrategy: () => rememberedUpdateStrategy(updateDeps.state),

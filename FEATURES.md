@@ -519,7 +519,12 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   runs directly. **It never refuses because you are mid-work**: uncommitted changes are set
   aside around the merge or rebase and put back (git's `--autostash`; files added to VCS
   survive as added; staged content is left alone rather than unstaged), and a conflict putting
-  them back is a warning plus a `stash-pop` conflict session (D31).
+  them back is a warning plus a `stash-pop` conflict session (D31). **It updates the project**:
+  with no repository named — `Ctrl+T`, the popup's verb, the Operations Popup — one question
+  covers every repository, each named with its branch and upstream, then they update in order
+  and the run stops at the first failure. A repository it cannot update (detached, no upstream,
+  a merge or rebase in progress) is skipped and named, and `Reset` is offered only when a single
+  repository is in play. A Repositories row's own `Update Project…` updates just that one.
 * **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
   tags/hooks footer, `[Push ▾]` with Force Push) · `Merge` ·
   `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`

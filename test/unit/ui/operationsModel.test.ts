@@ -129,6 +129,15 @@ describe('preconditions', () => {
     expect(wired).toContain('gittree.update.dialog');
   });
 
+  it('POST-P14ae: dispatches Update Project for the project, not the popup\'s repository', () => {
+    // The popup passes its repository to any item without args of its own;
+    // an explicit empty list is how Fetch already stays project-wide.
+    const update = buildOperationsItems(ctx({ hasRemote: true, hasUpstream: true })).find(
+      (i) => i.command === 'gittree.update.dialog',
+    );
+    expect(update?.args).toEqual([]);
+  });
+
   it('never offers Unstash with no stash', () => {
     expect(commandsOf(ctx())).not.toContain('gittree.unstash.dialog');
     expect(commandsOf(ctx({ hasStash: true }))).toContain('gittree.unstash.dialog');

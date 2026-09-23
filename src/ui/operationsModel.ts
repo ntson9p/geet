@@ -185,6 +185,7 @@ export function buildOperationsItems(
     group: DIALOG_GROUP_TO_OPS[d.group],
     ...(d.icon !== undefined ? { icon: d.icon } : {}),
     ...(d.accelerator !== undefined ? { accelerator: d.accelerator } : {}),
+    ...(d.args !== undefined ? { args: d.args } : {}),
   }));
 
   const all = [

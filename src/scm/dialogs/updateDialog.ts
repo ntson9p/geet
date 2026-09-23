@@ -20,6 +20,7 @@ import type { Core, RepoHandle } from '../../core/core';
 import { parseStatusV2 } from '../../core/git/parsers/statusV2';
 import { detectInProgressOp } from '../../core/model/inProgressOp';
 import { canonicalKey } from '../../core/repoDiscovery';
+import { repoLabels } from '../../core/util/repoLabels';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import { confirmModal } from '../../ui/confirm';
 import { splitUpstream } from './pushArgs';
@@ -33,6 +34,7 @@ import {
   hasStashableChanges,
   normalizeStrategySetting,
   planSetAside,
+  updateChoices,
   type UpdateChoice,
   type UpdateStrategy,
   type UpdateStrategySetting,
@@ -140,49 +142,124 @@ function choiceLabel(choice: UpdateChoice): string {
   }
 }
 
+/** A repository a project-wide update leaves alone, and why. */
+export interface SkippedRepo {
+  repo: RepoHandle;
+  reason: string;
+}
+
+/** What one Update Project run covers. */
+export interface UpdateScope {
+  targets: RepoHandle[];
+  skipped: SkippedRepo[];
+}
+
 /**
- * The Update Project question for one repository, or `undefined` when there is
- * nothing to update from.
+ * The repositories a project-wide Update Project touches (POST-P14ae) — every
+ * one, as IntelliJ's does, except those it cannot update: a detached HEAD or a
+ * branch with no upstream has nothing to update from, and a merge or rebase
+ * already in progress is one git refuses to update over. Those are *skipped*,
+ * not attempted — `runCommonAction`'s rule — so one repository mid-rebase
+ * cannot stop the other six, and the question says so before anything runs.
+ */
+export function updateScope(repos: readonly RepoHandle[]): UpdateScope {
+  const scope: UpdateScope = { targets: [], skipped: [] };
+  for (const repo of repos) {
+    const snap = repo.model.snapshot;
+    const op = snap.inProgressOp?.kind;
+    if (op !== undefined) {
+      const name = op.startsWith('rebase') ? 'rebase' : op;
+      scope.skipped.push({ repo, reason: vscode.l10n.t('a {0} is in progress', name) });
+    } else if (snap.detached) {
+      scope.skipped.push({ repo, reason: vscode.l10n.t('detached HEAD') });
+    } else if (snap.upstream === undefined) {
+      scope.skipped.push({ repo, reason: vscode.l10n.t('no upstream branch') });
+    } else {
+      scope.targets.push(repo);
+    }
+  }
+  return scope;
+}
+
+/** Workspace-wide names, so a repository is called here what the sidebar calls it. */
+function labelsFor(core: Core): (repo: RepoHandle) => string {
+  const labels = repoLabels(core.repos.map((r) => r.root));
+  return (repo) => labels.get(repo.root) ?? path.basename(repo.root);
+}
+
+function summaryOf(repo: RepoHandle): string {
+  const snap = repo.model.snapshot;
+  return vscode.l10n.t(
+    '{0} ← {1} · {2} behind · {3} ahead',
+    snap.headRef ?? '',
+    snap.upstream ?? '',
+    snap.behind ?? 0,
+    snap.ahead ?? 0,
+  );
+}
+
+/**
+ * The Update Project question, or `undefined` when nothing can be updated.
  *
- * The buttons carry the verbs; the detail line says what they act on, which a
- * dialog title alone never did — `develop ← origin/develop · 3 behind`. With
- * `gittree.dialogs.showCommandLine` on, each button's exact commands follow,
- * the same lines the P13 dialogs showed as `will run:`; off, IntelliJ's own
- * wording for the two options stands in for them.
+ * The buttons carry the verbs; the detail says what they act on, which a
+ * dialog title alone never did — `develop ← origin/develop · 3 behind`, one
+ * line per repository, named when the workspace has more than one, then any
+ * repository being skipped and why. With `gittree.dialogs.showCommandLine`
+ * on, one repository gets each button's exact commands, the lines the P13
+ * dialogs showed as `will run:`; several get one sentence saying what each of
+ * them runs, rather than two command lines per repository.
  */
 export async function buildUpdatePrompt(
   deps: UpdateDialogDeps,
-  repo: RepoHandle,
+  scope: UpdateScope,
 ): Promise<UpdatePrompt | undefined> {
-  const snap = repo.model.snapshot;
-  const upstream = snap.upstream;
-  if (upstream === undefined) return undefined;
-  const remote = splitUpstream(upstream, await remoteNames(deps.core, repo))?.remote;
-  const question = buildUpdateQuestion(
-    rememberedUpdateStrategy(deps.state),
-    upstream,
-    remote,
-    // The command lines show what would be put aside given the tree as last
-    // seen; the run reads status again and decides for itself.
-    (strategy) =>
-      planSetAside(snap.statusEntries, strategy, deps.core.git.caps.mergeAutostash),
-  );
+  const { targets, skipped } = scope;
+  const only = targets.length === 1 ? targets[0] : undefined;
+  if (targets.length === 0) return undefined;
+  const label = labelsFor(deps.core);
+  const named = deps.core.repos.length > 1;
+  const remembered = rememberedUpdateStrategy(deps.state);
+  const showCommands = vscode.workspace
+    .getConfiguration('gittree')
+    .get<boolean>('dialogs.showCommandLine', true);
 
-  const lines = [
-    vscode.l10n.t(
-      '{0} ← {1} · {2} behind · {3} ahead',
-      snap.headRef ?? '',
+  const lines = targets.map((repo) =>
+    named ? `${label(repo)}: ${summaryOf(repo)}` : summaryOf(repo),
+  );
+  for (const s of skipped) {
+    lines.push(vscode.l10n.t('{0}: skipped — {1}', label(s.repo), s.reason));
+  }
+  lines.push('');
+
+  let choices: UpdateChoice[];
+  if (only !== undefined) {
+    const snap = only.model.snapshot;
+    const upstream = snap.upstream ?? '';
+    const remote = splitUpstream(upstream, await remoteNames(deps.core, only))?.remote;
+    const question = buildUpdateQuestion(
+      remembered,
       upstream,
-      snap.behind ?? 0,
-      snap.ahead ?? 0,
-    ),
-    '',
-  ];
-  if (vscode.workspace.getConfiguration('gittree').get<boolean>('dialogs.showCommandLine', true)) {
-    for (const choice of question.choices) {
-      lines.push(`${choiceLabel(choice)}: ${question.commands[choice]}`);
+      remote,
+      // The command lines show what would be put aside given the tree as last
+      // seen; the run reads status again and decides for itself.
+      (strategy) =>
+        planSetAside(snap.statusEntries, strategy, deps.core.git.caps.mergeAutostash),
+    );
+    choices = [...question.choices];
+    if (showCommands) {
+      for (const choice of choices) lines.push(`${choiceLabel(choice)}: ${question.commands[choice]}`);
     }
   } else {
+    choices = updateChoices(remembered, false);
+    if (showCommands) {
+      lines.push(
+        vscode.l10n.t(
+          'Each repository runs git fetch --prune <its remote>, then git merge or git rebase onto its upstream, in the order listed. The update stops at the first repository that fails.',
+        ),
+      );
+    }
+  }
+  if (!showCommands) {
     lines.push(
       vscode.l10n.t(
         'Merge incoming changes into the current branch, or rebase the current branch on top of incoming changes.',
@@ -192,8 +269,8 @@ export async function buildUpdatePrompt(
   return {
     message: vscode.l10n.t('Update Project'),
     detail: lines.join('\n'),
-    buttons: question.choices.map(choiceLabel),
-    choices: [...question.choices],
+    buttons: choices.map(choiceLabel),
+    choices,
   };
 }
 
@@ -476,6 +553,12 @@ export interface ReportOptions {
    * message box cannot hold a checkbox (D30).
    */
   dontAskAgain?: UpdateStrategy;
+  /**
+   * The repository updated, so `Show in Log` filters *its* log. Without it the
+   * range went to whichever repository the log happened to show, where in a
+   * multi-root workspace neither end of it need exist.
+   */
+  root?: string;
 }
 
 /**
@@ -506,32 +589,27 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
       : vscode.window.showInformationMessage(outcome.message, ...actions);
   void shown.then(async (choice) => {
     if (choice === showInLog) {
-      await vscode.commands.executeCommand('gittree.log.setFilter', {
-        sort: 'topo',
-        range: { a: outcome.from, b: outcome.to },
-      });
+      if (options.root !== undefined) {
+        await showRangeInLog(outcome, options.root);
+      } else {
+        await vscode.commands.executeCommand('gittree.log.setFilter', {
+          sort: 'topo',
+          range: { a: outcome.from, b: outcome.to },
+        });
+      }
       return;
     }
     if (choice === dontAsk && remember !== undefined) {
-      await setUpdateStrategy(remember);
-      // Say how to undo it: the question will not be there to remind anyone.
-      void vscode.window.showInformationMessage(
-        remember === 'rebase'
-          ? vscode.l10n.t(
-              'Update Project will rebase without asking. Change this with "GitTree: Update Project Strategy…".',
-            )
-          : vscode.l10n.t(
-              'Update Project will merge without asking. Change this with "GitTree: Update Project Strategy…".',
-            ),
-      );
+      await rememberDontAskAgain(remember);
     }
   });
 }
 
 /**
- * `Ctrl+T`. Asks Merge or Rebase unless the user chose `Don't Ask Again`, in
- * which case that strategy runs directly — IntelliJ's behaviour, and
- * restorable through `gittree.update.configure`.
+ * `Ctrl+T` on one named repository — a Repositories row's context menu. Asks
+ * Merge or Rebase unless the user chose `Don't Ask Again`, in which case that
+ * strategy runs directly — IntelliJ's behaviour, and restorable through
+ * `gittree.update.configure`.
  */
 export async function showUpdateDialog(
   deps: UpdateDialogDeps,
@@ -544,15 +622,23 @@ export async function showUpdateDialog(
     );
     return undefined;
   }
+  return updateOne(deps, repo, { targets: [repo], skipped: [] });
+}
 
+/** One repository: exact commands, `Reset` offered, `Show in Log` for it. */
+async function updateOne(
+  deps: UpdateDialogDeps,
+  repo: RepoHandle,
+  scope: UpdateScope,
+): Promise<UpdateOutcome | undefined> {
   const setting = readSetting();
   if (setting !== 'ask') {
     const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy: setting });
-    reportUpdate(outcome);
+    reportUpdate(outcome, { root: repo.root });
     return outcome;
   }
 
-  const prompt = await buildUpdatePrompt(deps, repo);
+  const prompt = await buildUpdatePrompt(deps, scope);
   if (!prompt) return undefined;
   const choice = await askUpdate(prompt);
   if (choice === undefined) return undefined;
@@ -564,7 +650,7 @@ export async function showUpdateDialog(
       action: 'reset',
       strategy: rememberedUpdateStrategy(deps.state),
     });
-    reportUpdate(outcome);
+    reportUpdate(outcome, { root: repo.root });
     return outcome;
   }
 
@@ -572,8 +658,185 @@ export async function showUpdateDialog(
   // is the user's choice whether or not this particular update succeeds.
   await rememberStrategy(deps.state, choice);
   const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy: choice });
-  reportUpdate(outcome, { dontAskAgain: choice });
+  reportUpdate(outcome, { dontAskAgain: choice, root: repo.root });
   return outcome;
+}
+
+/** What a project-wide update did, repository by repository. */
+export interface ProjectUpdateResult {
+  /** In the order they ran; a stopped run ends with the one that failed. */
+  results: Array<{ repo: RepoHandle; outcome: UpdateOutcome }>;
+  skipped: SkippedRepo[];
+  /** The repository the run stopped at, when one failed. */
+  stoppedAt?: RepoHandle;
+}
+
+/**
+ * `Ctrl+T` and `Update Project…` with no repository named: the **project**,
+ * as IntelliJ's Update Project is (POST-P14ae). One question covers every
+ * repository it can update; they then run in order and the run **stops at the
+ * first failure** — the idiom `runCommitAcross` and `runCommonAction` share,
+ * so a conflict in one repository is not followed by merges in the rest.
+ *
+ * With a single repository to update the flow is exactly the one-repository
+ * one, so a single-root workspace — and a multi-root one where only one
+ * repository tracks anything — sees no difference at all.
+ */
+export async function showProjectUpdate(
+  deps: UpdateDialogDeps,
+  repos: readonly RepoHandle[],
+): Promise<ProjectUpdateResult | undefined> {
+  const scope = updateScope(repos);
+  const label = labelsFor(deps.core);
+  if (scope.targets.length === 0) {
+    void vscode.window.showInformationMessage(
+      scope.skipped.length === 1 && scope.skipped[0] !== undefined
+        ? vscode.l10n.t(
+            'Nothing to update: {0} — {1}.',
+            label(scope.skipped[0].repo),
+            scope.skipped[0].reason,
+          )
+        : vscode.l10n.t('Nothing to update: no repository tracks a remote branch.'),
+    );
+    return undefined;
+  }
+  const first = scope.targets[0];
+  if (scope.targets.length === 1 && first !== undefined) {
+    const outcome = await updateOne(deps, first, scope);
+    return outcome
+      ? { results: [{ repo: first, outcome }], skipped: scope.skipped }
+      : undefined;
+  }
+
+  const setting = readSetting();
+  let strategy: UpdateStrategy;
+  let asked = false;
+  if (setting !== 'ask') {
+    strategy = setting;
+  } else {
+    const prompt = await buildUpdatePrompt(deps, scope);
+    if (!prompt) return undefined;
+    const choice = await askUpdate(prompt);
+    // `reset` is never offered across several repositories; treat anything
+    // else the same as Cancel rather than trust an answer nobody was shown.
+    if (choice !== 'merge' && choice !== 'rebase') return undefined;
+    await rememberStrategy(deps.state, choice);
+    strategy = choice;
+    asked = true;
+  }
+
+  const result: ProjectUpdateResult = { results: [], skipped: scope.skipped };
+  for (const repo of scope.targets) {
+    const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy });
+    result.results.push({ repo, outcome });
+    if (!outcome.ok) {
+      result.stoppedAt = repo;
+      break;
+    }
+  }
+  reportProjectUpdate(deps, result, scope, asked ? strategy : undefined);
+  return result;
+}
+
+/**
+ * One notification for the whole run — N toasts for N repositories would bury
+ * the one that matters. A stop names where, what was already done and what
+ * was never attempted; a finished run totals what came in and names anything
+ * skipped or conflicted. `Show in Log` is offered only when exactly one
+ * repository received commits: the log shows one repository at a time (D24),
+ * and a range spanning several has nowhere to go.
+ */
+function reportProjectUpdate(
+  deps: UpdateDialogDeps,
+  result: ProjectUpdateResult,
+  scope: UpdateScope,
+  dontAskAgain: UpdateStrategy | undefined,
+): void {
+  const label = labelsFor(deps.core);
+  const names = (repos: readonly RepoHandle[]): string => repos.map(label).join(', ');
+  const done = result.results.filter((r) => r.outcome.ok).map((r) => r.repo);
+
+  if (result.stoppedAt !== undefined) {
+    const failed = result.results[result.results.length - 1]?.outcome;
+    const reason = failed?.message.split('\n', 1)[0] ?? '';
+    const untouched = scope.targets.slice(result.results.length);
+    const parts = [vscode.l10n.t('Update Project stopped at {0}: {1}', label(result.stoppedAt), reason)];
+    if (done.length > 0) parts.push(vscode.l10n.t('Already updated: {0}.', names(done)));
+    if (untouched.length > 0) parts.push(vscode.l10n.t('Not attempted: {0}.', names(untouched)));
+    void vscode.window.showErrorMessage(parts.join(' '));
+    return;
+  }
+
+  const commits = result.results.reduce((n, r) => n + r.outcome.commitsPulled, 0);
+  const files = result.results.reduce((n, r) => n + r.outcome.filesChanged, 0);
+  const conflicted = result.results.filter((r) => (r.outcome.restoreConflicts ?? 0) > 0);
+  const parts = [
+    commits === 0
+      ? vscode.l10n.t('{0} repositories already up to date.', result.results.length)
+      : vscode.l10n.t(
+          'Updated {0} repositories: {1} commit(s), {2} file(s) changed.',
+          result.results.length,
+          commits,
+          files,
+        ),
+  ];
+  if (conflicted.length > 0) {
+    parts.push(
+      vscode.l10n.t(
+        'Your local changes conflict with what came in, in {0}; a copy is kept in the stash.',
+        names(conflicted.map((r) => r.repo)),
+      ),
+    );
+  }
+  if (result.skipped.length > 0) {
+    parts.push(vscode.l10n.t('Skipped: {0}.', names(result.skipped.map((s) => s.repo))));
+  }
+
+  const showInLog = vscode.l10n.t('Show in Log');
+  const dontAsk = vscode.l10n.t("Don't Ask Again");
+  const pulled = result.results.filter((r) => r.outcome.commitsPulled > 0);
+  const single = pulled.length === 1 ? pulled[0] : undefined;
+  const actions = [
+    ...(single !== undefined ? [showInLog] : []),
+    ...(dontAskAgain !== undefined ? [dontAsk] : []),
+  ];
+  const message = parts.join(' ');
+  const shown =
+    conflicted.length > 0
+      ? vscode.window.showWarningMessage(message, ...actions)
+      : vscode.window.showInformationMessage(message, ...actions);
+  void shown.then(async (choice) => {
+    if (choice === showInLog && single !== undefined) {
+      await showRangeInLog(single.outcome, single.repo.root);
+      return;
+    }
+    if (choice === dontAsk && dontAskAgain !== undefined) {
+      await rememberDontAskAgain(dontAskAgain);
+    }
+  });
+}
+
+/** The log, filtered to exactly what one update brought in — in *that* repository. */
+async function showRangeInLog(outcome: UpdateOutcome, root: string): Promise<void> {
+  await vscode.commands.executeCommand(
+    'gittree.log.setFilter',
+    { sort: 'topo', range: { a: outcome.from, b: outcome.to } },
+    root,
+  );
+}
+
+async function rememberDontAskAgain(strategy: UpdateStrategy): Promise<void> {
+  await setUpdateStrategy(strategy);
+  // Say how to undo it: the question will not be there to remind anyone.
+  void vscode.window.showInformationMessage(
+    strategy === 'rebase'
+      ? vscode.l10n.t(
+          'Update Project will rebase without asking. Change this with "GitTree: Update Project Strategy…".',
+        )
+      : vscode.l10n.t(
+          'Update Project will merge without asking. Change this with "GitTree: Update Project Strategy…".',
+        ),
+  );
 }
 
 /**
@@ -597,7 +860,7 @@ export async function runRememberedUpdate(
     action: 'update',
     strategy: rememberedUpdateStrategy(deps.state),
   });
-  reportUpdate(outcome);
+  reportUpdate(outcome, { root: repo.root });
   return outcome;
 }
 

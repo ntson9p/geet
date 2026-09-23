@@ -190,6 +190,22 @@ export interface UpdateQuestion {
 }
 
 /**
+ * The buttons, in order: the remembered strategy first, `Reset` last and only
+ * when offered.
+ *
+ * POST-P14ae: a project-wide update covering several repositories does not
+ * offer `Reset to the Remote Branch`. One button hard-resetting every
+ * repository at once — each behind its own confirmation, which would train the
+ * user to click through them — is not something IntelliJ's single-repository
+ * dialog ever put in front of anyone.
+ */
+export function updateChoices(remembered: UpdateStrategy, offerReset = true): UpdateChoice[] {
+  const strategies: UpdateStrategy[] =
+    remembered === 'rebase' ? ['rebase', 'merge'] : ['merge', 'rebase'];
+  return offerReset ? [...strategies, 'reset'] : strategies;
+}
+
+/**
  * `asideFor` says what each strategy would put aside, judged from the status
  * the question was built from; the run re-reads status and decides again, so
  * the lines describe the likely run rather than bind it.
@@ -200,12 +216,10 @@ export function buildUpdateQuestion(
   remote?: string,
   asideFor: (strategy: UpdateStrategy) => SetAside = () => NOTHING_SET_ASIDE,
 ): UpdateQuestion {
-  const strategies: UpdateStrategy[] =
-    remembered === 'rebase' ? ['rebase', 'merge'] : ['merge', 'rebase'];
   const plan = (strategy: UpdateStrategy): string =>
     formatGitCommands(buildUpdatePlan('update', strategy, upstreamRef, remote, asideFor(strategy)));
   return {
-    choices: [...strategies, 'reset'],
+    choices: updateChoices(remembered),
     commands: {
       merge: plan('merge'),
       rebase: plan('rebase'),

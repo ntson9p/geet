@@ -10,7 +10,17 @@ import {
   REMOTES_DIALOG_METHODS as REMOTES_METHODS,
   type PushRepoSectionDto,
 } from '../../../src/shared/protocol';
-import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoC } from '../setup';
+import * as vscode from 'vscode';
+import { repoLabels } from '../../../src/core/util/repoLabels';
+import {
+  activateGitTree,
+  gitWithRetry,
+  waitFor,
+  withAutoConfirm,
+  workspaceRepoC,
+  workspaceRepoD,
+  workspaceRepoE,
+} from '../setup';
 import type { LogWorktreeActionParamsDto, LogWorktreesDto } from '../../../src/shared/protocol';
 
 /** POST-P14k: the bridge as this suite uses it (module identity differs across the test/dist boundary). */
@@ -771,6 +781,171 @@ suite('P13 dialogs', () => {
         fs.rmSync(abs(added), { force: true });
         await endConflicts();
       }
+    });
+
+    // ---- POST-P14ae · Update Project updates the project ----------------------------
+
+    suite('POST-P14ae update project across repositories', () => {
+      let repoD: RepoHandle;
+      let repoE: RepoHandle;
+      const D_REMOTE = 'p13dremote';
+      const cli = (cwd: string, ...args: string[]): string => gitWithRetry(cwd, args);
+      const label = (r: RepoHandle): string =>
+        repoLabels(core.repos.map((x) => x.root)).get(r.root) ?? path.basename(r.root);
+      const withChoice = async <T>(choice: string, fn: () => Promise<T>): Promise<T> => {
+        const saved = process.env['GITTREE_TEST_UPDATE_CHOICE'];
+        process.env['GITTREE_TEST_UPDATE_CHOICE'] = choice;
+        try {
+          return await fn();
+        } finally {
+          if (saved === undefined) delete process.env['GITTREE_TEST_UPDATE_CHOICE'];
+          else process.env['GITTREE_TEST_UPDATE_CHOICE'] = saved;
+        }
+      };
+      /** Refreshes until `cond` holds — `refreshNow()` alone can resolve early. */
+      const settle = async (r: RepoHandle, cond: () => boolean): Promise<void> => {
+        await r.refresher.refreshNow();
+        await waitFor(cond, 20_000);
+      };
+
+      /**
+       * repoD gets a remote of its own with one commit it does not have, for the
+       * length of `body`; repoE is made sure to track nothing, so it is the
+       * repository the update has to skip. Both are put back exactly: other
+       * suites own them.
+       */
+      let projects = 0;
+      /** Runs every restore step, so one failure cannot strand the others. */
+      const bestEffort = (step: () => void): void => {
+        try {
+          step();
+        } catch {
+          /* the rest of the cleanup still has to run */
+        }
+      };
+      const withProject = async (
+        body: (dAhead: string, dBase: string) => Promise<void>,
+      ): Promise<void> => {
+        const dRoot = repoD.root;
+        const dBranch = cli(dRoot, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+        const dBase = cli(dRoot, 'rev-parse', 'HEAD').trim();
+        // A fresh remote per call: the last one's branch is ahead of this
+        // one's base, so reusing it would make the push a non-fast-forward.
+        // Both directories stay under tmpDir, which the suite teardown deletes
+        // — pack files are read-only on Windows, and a delete here fails EPERM.
+        projects++;
+        const bare = path.join(tmpDir, `remote-d-${projects}.git`).replace(/\\/g, '/');
+        execFileSync('git', ['init', '--bare', bare], { cwd: tmpDir, encoding: 'utf8' });
+        cli(dRoot, 'remote', 'add', D_REMOTE, bare);
+        cli(dRoot, 'push', D_REMOTE, `HEAD:refs/heads/${dBranch}`);
+        const work = path.join(tmpDir, `work-d-${projects}`);
+        execFileSync('git', ['clone', '-b', dBranch, bare, work], { cwd: tmpDir, encoding: 'utf8' });
+        fs.writeFileSync(path.join(work, 'p13-project.txt'), 'from the remote\n');
+        cli(work, 'add', '--', 'p13-project.txt');
+        cli(work, '-c', 'user.name=Remote', '-c', 'user.email=remote@example.com', 'commit', '-m', 'P13 project: incoming for repoD');
+        cli(work, 'push', 'origin', `HEAD:refs/heads/${dBranch}`);
+        const dAhead = cli(work, 'rev-parse', 'HEAD').trim();
+        cli(dRoot, 'fetch', D_REMOTE);
+        cli(dRoot, 'branch', `--set-upstream-to=${D_REMOTE}/${dBranch}`, dBranch);
+
+        const eBranch = repoE.model.snapshot.headRef;
+        const eUpstream = repoE.model.snapshot.upstream;
+        if (eUpstream !== undefined && eBranch !== undefined) {
+          cli(repoE.root, 'branch', '--unset-upstream', eBranch);
+        }
+        await settle(repoD, () => repoD.model.snapshot.upstream === `${D_REMOTE}/${dBranch}`);
+        await settle(repoE, () => repoE.model.snapshot.upstream === undefined);
+        try {
+          await body(dAhead, dBase);
+        } finally {
+          bestEffort(() => cli(dRoot, 'reset', '-q', '--hard', dBase));
+          bestEffort(() => cli(dRoot, 'branch', '--unset-upstream', dBranch));
+          bestEffort(() => cli(dRoot, 'remote', 'remove', D_REMOTE));
+          if (eUpstream !== undefined && eBranch !== undefined) {
+            bestEffort(() => cli(repoE.root, 'branch', `--set-upstream-to=${eUpstream}`, eBranch));
+          }
+          await settle(repoD, () => repoD.model.snapshot.upstream === undefined);
+        }
+      };
+
+      suiteSetup(async function () {
+        this.timeout(30_000);
+        repoD = core.repoForPath(workspaceRepoD())!;
+        repoE = core.repoForPath(workspaceRepoE())!;
+        assert.ok(repoD && repoE, 'repoD/repoE missing');
+        await settle(repo, () => repo.model.snapshot.upstream !== undefined);
+      });
+
+      test('POST-P14ae: Update Project with nothing named asks once, about every repository', async function () {
+        this.timeout(60_000);
+        reg.clearLastUpdatePrompt();
+        const headsBefore = core.repos.map((r) => cli(r.root, 'rev-parse', 'HEAD').trim());
+        // Cancelled, so nothing runs anywhere: this reads the question only.
+        await withChoice('cancel', async () => {
+          await vscode.commands.executeCommand('gittree.update.dialog');
+        });
+        const prompt = reg.lastUpdatePrompt();
+        assert.ok(prompt, 'the project must be asked about, once');
+        // Every repository is on it — as one to update or as one skipped, and
+        // why. Before this, the command picked the active editor's repository,
+        // or gave up with several repositories and no editor open.
+        for (const r of core.repos) {
+          assert.ok(prompt.detail.includes(label(r)), `${label(r)} is missing from:\n${prompt.detail}`);
+        }
+        assert.deepStrictEqual(
+          core.repos.map((r) => cli(r.root, 'rev-parse', 'HEAD').trim()),
+          headsBefore,
+          'a cancelled question updates nothing',
+        );
+      });
+
+      test('POST-P14ae: one answer updates every repository, and skips the one it cannot', async function () {
+        this.timeout(120_000);
+        const cAhead = incoming('p13/project-c.txt', 'c\n', 'P13 project: incoming for repoC');
+        await withProject(async (dAhead) => {
+          reg.clearLastUpdatePrompt();
+          const result = await withChoice('merge', () => reg.showProjectUpdate([repo, repoD, repoE]));
+          assert.ok(result, 'no result');
+
+          const prompt = reg.lastUpdatePrompt();
+          assert.ok(prompt, 'one question for the lot');
+          // No Reset across several repositories, and the skipped one is named.
+          assert.deepStrictEqual(prompt.choices, ['merge', 'rebase']);
+          assert.ok(prompt.detail.includes(`${label(repoE)}: skipped — no upstream branch`), prompt.detail);
+
+          assert.strictEqual(result.stoppedAt, undefined);
+          assert.deepStrictEqual(
+            result.results.map((r) => [r.repo.root, r.outcome.ok]),
+            [
+              [repo.root, true],
+              [repoD.root, true],
+            ],
+          );
+          assert.deepStrictEqual(result.skipped.map((s) => s.repo.root), [repoE.root]);
+          assert.strictEqual(git('rev-parse', 'HEAD').trim(), cAhead);
+          assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dAhead);
+        });
+      });
+
+      test('POST-P14ae: the run stops at the first repository that fails', async function () {
+        this.timeout(120_000);
+        await withProject(async (_dAhead, dBase) => {
+          // repoC runs first and cannot fetch; repoD, behind by one, must then
+          // be left exactly where it was rather than merged after a failure.
+          const url = git('remote', 'get-url', REMOTE).trim();
+          git('remote', 'set-url', REMOTE, path.join(tmpDir, 'no-such-remote.git'));
+          try {
+            const result = await withChoice('merge', () => reg.showProjectUpdate([repo, repoD]));
+            assert.ok(result, 'no result');
+            assert.strictEqual(result.stoppedAt?.root, repo.root);
+            assert.strictEqual(result.results.length, 1, 'nothing may run after the failure');
+            assert.strictEqual(result.results[0]?.outcome.ok, false);
+            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dBase);
+          } finally {
+            git('remote', 'set-url', REMOTE, url);
+          }
+        });
+      });
     });
   });
 

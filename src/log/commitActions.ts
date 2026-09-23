@@ -233,9 +233,12 @@ export function registerCommitActions(
     await vscode.env.openExternal(vscode.Uri.parse(url));
   });
 
-  register('gittree.log.setFilter', async (filter) => {
+  // An optional root, so a caller acting on one repository of several filters
+  // *that* repository's log rather than whichever one the log shows (POST-P14ae:
+  // Update Project's `Show in Log`, whose range exists only in its own repo).
+  register('gittree.log.setFilter', async (filter, root) => {
     if (typeof filter === 'object' && filter !== null) {
-      await logView.setFilter(filter as never);
+      await logView.setFilter(filter as never, typeof root === 'string' ? root : undefined);
     }
   });
 

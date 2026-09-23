@@ -733,8 +733,8 @@ export async function showBranchesPopup(
     if (!row.verb) return;
     qp.hide();
     // A repository's own copy of a verb runs there. The project-level ones take
-    // no argument, exactly as before: `gittree.commit` spans every root and
-    // `gittree.update.dialog` asks which one it means.
+    // no argument: `gittree.commit` spans every root, and so does
+    // `gittree.update.dialog` (POST-P14ae) — one question, every repository.
     if (row.repoRoot !== undefined) {
       await vscode.commands.executeCommand(row.verb.command, row.repoRoot);
     } else {

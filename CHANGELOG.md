@@ -214,7 +214,10 @@ diff arrows remaining beside GitTree's, and one-line anchoring differences.
     makes `Ctrl+T` act directly. Like IntelliJ's, it does not refuse because
     you are mid-work: uncommitted changes are set aside and put back, files you
     added to VCS stay added, and if putting your changes back conflicts you get
-    a warning and the conflict view, with a copy kept in the stash.
+    a warning and the conflict view, with a copy kept in the stash. In a
+    workspace with several repositories it updates all of them after one
+    question, stopping at the first that fails — it used to update only the
+    repository of the file you had open, and nothing at all with no file open.
   - **Reset** finally offers git's fourth mode, **Keep**, with a live
     "this will discard N local changes" line.
   - **Branches popup becomes an action hub**: top-level verbs before any

@@ -14,6 +14,7 @@ import {
   intentToAddPaths,
   normalizeStrategySetting,
   planSetAside,
+  updateChoices,
 } from '../../../src/scm/dialogs/updateArgs';
 
 /**
@@ -223,5 +224,18 @@ describe('setting local changes aside (POST-P14ac)', () => {
     );
     expect(q.commands.rebase).toBe('git fetch --prune origin && git rebase --autostash origin/main');
     expect(q.commands.merge).toBe('git fetch --prune origin && git merge origin/main');
+  });
+});
+
+describe('updateChoices (POST-P14ae)', () => {
+  it('offers Reset for one repository, last', () => {
+    expect(updateChoices('merge')).toEqual(['merge', 'rebase', 'reset']);
+  });
+
+  it('never offers Reset across several repositories', () => {
+    // One button hard-resetting every repository at once is not a question
+    // IntelliJ's single-repository dialog ever asked.
+    expect(updateChoices('merge', false)).toEqual(['merge', 'rebase']);
+    expect(updateChoices('rebase', false)).toEqual(['rebase', 'merge']);
   });
 });

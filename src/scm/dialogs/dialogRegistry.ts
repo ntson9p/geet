@@ -50,6 +50,12 @@ export interface DialogEntry {
   /** Codicon name without the prefix. */
   readonly icon?: string;
   /**
+   * Arguments to dispatch with. Omitted, a caller that knows a repository
+   * passes its root; an explicit `[]` keeps a project-wide command from
+   * being scoped back down to one repository — Fetch's idiom (POST-P14o).
+   */
+  readonly args?: readonly unknown[];
+  /**
    * Whether the entry is offered in this context. The rule for T7 is that no
    * item may appear that would immediately fail its own precondition.
    */
@@ -65,6 +71,9 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
     group: 'sync',
     accelerator: 'Ctrl+T',
     icon: 'sync',
+    // POST-P14ae: the project, as IntelliJ's is — never just the repository
+    // the popup happened to open over.
+    args: [],
     applies: (ctx) => ctx.hasRepo && ctx.hasUpstream,
   },
   {
