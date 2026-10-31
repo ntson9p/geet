@@ -22,6 +22,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { branchContextValue } from './branchActions';
 import {
+  applyShowTags,
   childRows,
   commonRefNames,
   nodeIds,
@@ -32,6 +33,7 @@ import {
 } from './popupTree';
 import type { RefService } from './refService';
 import type { RepoScope } from './repoScope';
+import { showTagsSetting } from './showTags';
 
 const DND_MIME = 'application/vnd.code.tree.gittree.branches';
 
@@ -116,13 +118,16 @@ export class BranchHubViewProvider
   private async context(): Promise<TreeContext> {
     if (this.ctx) return this.ctx;
     const repos = await Promise.all(this.deps.core.repos.map((r) => this.repoRefs(r)));
-    this.ctx = {
-      repos,
-      commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
-      commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
-      commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
-      showInOut: this.deps.showInOut(),
-    };
+    this.ctx = applyShowTags(
+      {
+        repos,
+        commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
+        commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
+        commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
+        showInOut: this.deps.showInOut(),
+      },
+      showTagsSetting(),
+    );
     return this.ctx;
   }
 

@@ -17,13 +17,15 @@ export interface CommitTooltipProps {
   text: string;
   /** Anchor — the hovered row's rectangle, in viewport coordinates. */
   anchor: { left: number; top: number; bottom: number };
+  /** The same card names a commit's tags over an icon-only tag chip; tests tell the two apart. */
+  testId?: string;
 }
 
 /** Gap between the row and the card, and the margin it keeps from the edges. */
 const GAP = 6;
 const MARGIN = 8;
 
-export function CommitTooltip({ text, anchor }: CommitTooltipProps) {
+export function CommitTooltip({ text, anchor, testId = 'commit-tooltip' }: CommitTooltipProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   // Rendered off-screen for one frame, then placed: the card's height depends
   // on the message, and flipping it above the row needs that height. Measuring
@@ -51,7 +53,7 @@ export function CommitTooltip({ text, anchor }: CommitTooltipProps) {
       ref={ref}
       className="gt-commit-tooltip"
       role="tooltip"
-      data-testid="commit-tooltip"
+      data-testid={testId}
       style={
         placed === undefined
           ? { visibility: 'hidden', left: 0, top: 0 }

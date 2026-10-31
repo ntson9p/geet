@@ -262,6 +262,14 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     new vscode.Disposable(() => hubScopeSub.dispose()),
     new vscode.Disposable(() => hubJoinSub.dispose()),
     new vscode.Disposable(() => hubLeaveSub.dispose()),
+    // Show Tags is toggled from the log's Branches pane as often as from the
+    // Settings editor, so the sidebar trees cannot wait for the next ref change
+    // to drop or regain their Tags node. The popup reads it each time it opens.
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (!e.affectsConfiguration('gittree.branches.showTags')) return;
+      hub.refresh();
+      branchesWeb.refresh();
+    }),
   );
 
   // Compare view + commands.

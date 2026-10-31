@@ -13,12 +13,14 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { repoRelative } from '../core/util/paths';
 import { repoLabels } from '../core/util/repoLabels';
 import {
+  DEFAULT_LOG_PRESENTATION,
   LOG_METHODS,
   type CommitDetailsDto,
   type CommitFileDto,
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
+  type LogPresentationDto,
   type LogRootDto,
   type LogRowDto,
   type LogTab,
@@ -36,6 +38,12 @@ import { intelliSort } from './graphLayout/intelliSort';
 import { DEFAULT_FILTER, isUnfiltered, type LogFilter } from './logFilter';
 import { LogService, type LogRow } from './logService';
 import { buildPathTree, mergeTreeSelection } from './pathTree';
+import {
+  PRESENTATION_SETTINGS,
+  presentationPatch,
+  writeScope,
+  type PresentationKey,
+} from './presentation';
 
 const LANE_WIDTH = 12;
 
@@ -425,6 +433,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: true };
     });
 
+    // `Presentation Settings ▾` and `Branches Pane Settings`. The answer is
+    // what the settings say once written, so a write that did not take (a
+    // scope that cannot be written) puts the checkbox back rather than leaving
+    // it claiming a state the view does not have.
+    rpc.on(LOG_METHODS.setPresentation, async (params) => {
+      await this.writePresentation(presentationPatch(params));
+      return this.presentation();
+    });
+
     rpc.on(LOG_METHODS.showFileHistory, async (params) => {
       const { path: relPath } = params as { path: string };
       const session = this.session;
@@ -525,6 +542,43 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return v === 'colorBlind' ? 'colorBlind' : 'default';
   }
 
+  /** How refs are drawn: `gittree.log.showTagNames` and `gittree.branches.showTags`. */
+  private presentation(): LogPresentationDto {
+    const read = (name: PresentationKey): boolean => {
+      const { section, key } = PRESENTATION_SETTINGS[name];
+      const value = vscode.workspace.getConfiguration(section).get<unknown>(key);
+      return typeof value === 'boolean' ? value : DEFAULT_LOG_PRESENTATION[name];
+    };
+    return { showTagNames: read('showTagNames'), showTags: read('showTags') };
+  }
+
+  private async writePresentation(patch: Partial<LogPresentationDto>): Promise<void> {
+    const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+    for (const name of Object.keys(patch) as PresentationKey[]) {
+      const value = patch[name];
+      if (value === undefined) continue;
+      const { section, key, scope } = PRESENTATION_SETTINGS[name];
+      const config = vscode.workspace.getConfiguration(section);
+      const target =
+        writeScope(config.inspect(key), scope, hasWorkspace) === 'workspace'
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global;
+      try {
+        await config.update(key, value, target);
+      } catch (err) {
+        this.core.output.appendLine(`[log] could not write ${section}.${key}: ${String(err)}`);
+      }
+    }
+  }
+
+  /**
+   * A presentation setting changed. The view redraws its rows and Branches pane
+   * from what it already holds; nothing is re-paged.
+   */
+  pushPresentation(): void {
+    this.rpc?.notify(LOG_METHODS.evtPresentation, this.presentation());
+  }
+
   /** P12-T4: issue-key linkification config for the details body. */
   private issueConfig(): { pattern: string; url: string } | undefined {
     const config = vscode.workspace.getConfiguration('gittree.log');
@@ -579,6 +633,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         laneWidth: LANE_WIDTH,
         graphPalette: this.graphPalette(),
         colors: statusColorOverrides(),
+        presentation: this.presentation(),
       };
     }
     // Seeded from the focused editor the first time, held from then on.
@@ -628,6 +683,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       colors: statusColorOverrides(),
       ...(this.issueConfig() !== undefined ? { issue: this.issueConfig() } : {}),
       presets: vscode.workspace.getConfiguration('gittree.log').get('filterPresets') ?? [],
+      presentation: this.presentation(),
     };
   }
 

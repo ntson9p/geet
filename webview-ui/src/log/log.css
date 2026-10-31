@@ -548,6 +548,20 @@
   color: var(--vscode-charts-yellow, #cca700);
 }
 
+/* The tag icon: beside the name with Tag Names on, on its own with it off. */
+.gt-ref-chip .codicon {
+  font-size: 11px;
+  vertical-align: -1px;
+}
+
+.gt-ref-chip .gt-ref-icon {
+  margin-right: 3px;
+}
+
+.gt-ref-icon-only {
+  padding: 0 4px;
+}
+
 .gt-ref-head,
 .gt-ref-headTarget {
   outline: 1px solid var(--vscode-focusBorder);

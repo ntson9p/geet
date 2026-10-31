@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  DEFAULT_LOG_PRESENTATION,
   LOG_METHODS,
   type CommitDetailsDto,
   type CommitFileDto,
@@ -17,6 +18,7 @@ import {
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
+  type LogPresentationDto,
   type LogRootDto,
   type LogRowDto,
   type LogTab,
@@ -37,6 +39,7 @@ import { WorktreesPane } from './WorktreesPane';
 import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
 import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
+import { refLabels, tagsTooltip } from './refLabels';
 import { DEFAULT_LAYOUT, Shell, type ShellLayout } from './Shell';
 
 const ROW_HEIGHT = 24;
@@ -44,6 +47,15 @@ const ROW_HEIGHT = 24;
 /** A tab the strip below actually has — anything else from the host is ignored. */
 function isLogTab(value: unknown): value is LogTab {
   return value === 'log' || value === 'console' || value === 'worktrees';
+}
+
+/** A whole `LogPresentationDto`, or nothing: a stray `{ ok: true }` must not blank both toggles. */
+function asPresentation(value: unknown): LogPresentationDto | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const { showTagNames, showTags } = value as Partial<LogPresentationDto>;
+  return typeof showTagNames === 'boolean' && typeof showTags === 'boolean'
+    ? { showTagNames, showTags }
+    : undefined;
 }
 
 interface PersistedState {
@@ -85,12 +97,23 @@ export function App() {
   // P12-T5: refs data is shared by the Branches pane AND the filter row.
   const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
   const [highlightMine, setHighlightMine] = useState(boot.highlightMine ?? false);
+  // Tag Names and Show Tags. Settings, not view state, so the host owns them:
+  // they arrive with `init`/`reset` and on `evtPresentation`, never from
+  // `getState`.
+  const [presentation, setPresentation] = useState<LogPresentationDto>(DEFAULT_LOG_PRESENTATION);
   // P12-T8: the Log | Console strip; the active tab persists (step 1).
   const [tab, setTab] = useState(boot.tab ?? 'log');
   // POST-P14x: the row hover card. `text` is the full commit message, fetched
   // lazily — see LOG_METHODS.commitMessage for why it is not on the row DTO.
+  // `kind: 'tags'` is the same card over an icon-only tag chip, naming the tags.
   const [hover, setHover] = useState<
-    { sha: string; text: string; anchor: { left: number; top: number; bottom: number } } | undefined
+    | {
+        sha: string;
+        text: string;
+        anchor: { left: number; top: number; bottom: number };
+        kind?: 'tags';
+      }
+    | undefined
   >(undefined);
   const hoverTimer = useRef<number | undefined>(undefined);
   /**
@@ -210,6 +233,55 @@ export function App() {
     [rpc],
   );
 
+  /**
+   * Over an icon-only tag chip the card names the tags instead of showing the
+   * message, as IntelliJ's tooltip does over a commit's labels: with Tag Names
+   * off, hovering is the way to read them. The key is not the bare sha, so a
+   * message fetch still in flight for this row cannot land over the names.
+   */
+  const beginTagHover = useCallback((sha: string, names: readonly string[], chip: HTMLElement) => {
+    if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
+    const key = `tags:${sha}`;
+    hoverSha.current = key;
+    setHover(undefined);
+    const rect = chip.getBoundingClientRect();
+    const anchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
+    const text = tagsTooltip(names);
+    hoverTimer.current = window.setTimeout(() => {
+      if (hoverSha.current === key) setHover({ sha, text, anchor, kind: 'tags' });
+    }, HOVER_DELAY_MS);
+  }, []);
+
+  /**
+   * Off the chip but still on its row: back to the row's own card. The row's
+   * `mouseenter` does not fire again for a move inside it, so it is restarted
+   * here; leaving the row or the pane at the same time overrides this, because
+   * those handlers run after this one.
+   */
+  const endTagHover = useCallback(
+    (sha: string, chip: HTMLElement) => {
+      cancelHover();
+      const row = chip.closest<HTMLElement>('.gt-virtual-row');
+      if (row) beginHover(sha, row);
+    },
+    [beginHover, cancelHover],
+  );
+
+  /** A toggle in either settings menu: drawn at once, then confirmed by the host. */
+  const changePresentation = useCallback(
+    (patch: Partial<LogPresentationDto>) => {
+      setPresentation((prev) => ({ ...prev, ...patch }));
+      rpc.request<unknown>(LOG_METHODS.setPresentation, patch).then(
+        (res) => {
+          const next = asPresentation(res);
+          if (next) setPresentation(next);
+        },
+        () => undefined,
+      );
+    },
+    [rpc],
+  );
+
   // ---- container sizing ----
   // useElementSize (callback ref) survives the Log tab unmounting/remounting
   // around the Console tab — an object-ref ResizeObserver would keep watching
@@ -256,6 +328,7 @@ export function App() {
         if (anchor !== undefined) restoreRef.current = { sha: anchor, select: focused !== undefined };
       }
       setInit(dto);
+      if (dto.presentation) setPresentation(dto.presentation);
       setRows([]);
       setSelected([]);
       setDetails(undefined);
@@ -287,12 +360,19 @@ export function App() {
       const { roots } = params as { roots: LogRootDto[] };
       setInit((prev) => (prev ? { ...prev, roots } : prev));
     });
+    // Tag Names / Show Tags changed, here or in the Settings editor. Only the
+    // drawing changes: the rows, the selection and the scroll stay.
+    const offPresentation = rpc.onEvent(LOG_METHODS.evtPresentation, (params) => {
+      const next = asPresentation(params);
+      if (next) setPresentation(next);
+    });
 
     const saved = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
     restoreRef.current =
       saved.focusSha !== undefined ? { sha: saved.focusSha, select: true } : undefined;
     void rpc.request<LogInitDto>(LOG_METHODS.init, { filter: saved.filter }).then((dto) => {
       setInit(dto);
+      if (dto.presentation) setPresentation(dto.presentation);
       // Asked for before this view could hear `evtShowTab` (see `showTab`).
       if (isLogTab(dto.tab)) setTab(dto.tab);
       requestPage(0);
@@ -304,6 +384,7 @@ export function App() {
       offFocusFilter();
       offShowTab();
       offRoots();
+      offPresentation();
     };
     // Boot effect: intentionally runs once per rpc instance.
   }, [rpc]); // requestPage/loadDetails are stable enough for the boot path
@@ -514,15 +595,37 @@ export function App() {
                       {row.side === 'left' ? '◀' : '▶'}
                     </span>
                   ) : null}
-                  {row.refs.map((r) => (
-                    <span
-                      key={`${r.type}:${r.name}`}
-                      className={`gt-ref-chip gt-ref-${r.type}${r.isHeadTarget === true ? ' gt-ref-headTarget' : ''}`}
-                      style={{ borderColor: laneColor(row.graph.colorIdx, dark, init.graphPalette ?? 'default') }}
-                    >
-                      {r.name}
-                    </span>
-                  ))}
+                  {refLabels(row.refs, presentation.showTagNames).map((label) => {
+                    const borderColor = laneColor(row.graph.colorIdx, dark, init.graphPalette ?? 'default');
+                    if (label.kind === 'tags') {
+                      return (
+                        <span
+                          key="tags"
+                          className="gt-ref-chip gt-ref-tag gt-ref-icon-only"
+                          style={{ borderColor }}
+                          data-testid="tag-chip"
+                          aria-label={`Tags: ${label.names.join(', ')}`}
+                          onMouseEnter={(e) => beginTagHover(row.sha, label.names, e.currentTarget)}
+                          onMouseLeave={(e) => endTagHover(row.sha, e.currentTarget)}
+                        >
+                          <span className="codicon codicon-tag" aria-hidden="true" />
+                        </span>
+                      );
+                    }
+                    const r = label.ref;
+                    return (
+                      <span
+                        key={`${r.type}:${r.name}`}
+                        className={`gt-ref-chip gt-ref-${r.type}${r.isHeadTarget === true ? ' gt-ref-headTarget' : ''}`}
+                        style={{ borderColor }}
+                      >
+                        {r.type === 'tag' ? (
+                          <span className="codicon codicon-tag gt-ref-icon" aria-hidden="true" />
+                        ) : null}
+                        {r.name}
+                      </span>
+                    );
+                  })}
                   <span className="gt-log-subject">{row.subject}</span>
                   <span className="gt-log-meta gt-muted">
                     {row.authorName} · {commitDate(row.authorTime)} · {row.sha.slice(0, 7)}
@@ -588,6 +691,8 @@ export function App() {
           highlightMine={highlightMine}
           onToggleHighlightMine={() => setHighlightMine((v) => !v)}
           canHighlightMine={branchesData?.myName !== undefined}
+          presentation={presentation}
+          onPresentationChange={changePresentation}
           searchInputRef={searchInputRef}
         />
         {/* P10-T2: async loads announced to screen readers. */}
@@ -610,6 +715,8 @@ export function App() {
                   collapsed: { ...prev.collapsed, branches: true },
                 }))
               }
+              showTags={presentation.showTags}
+              onShowTagsChange={(showTags) => changePresentation({ showTags })}
             />
           }
           commits={commitsPane}
@@ -690,7 +797,13 @@ export function App() {
         />
       </TabPanel>
 
-      {hover !== undefined ? <CommitTooltip text={hover.text} anchor={hover.anchor} /> : null}
+      {hover !== undefined ? (
+        <CommitTooltip
+          text={hover.text}
+          anchor={hover.anchor}
+          testId={hover.kind === 'tags' ? 'tags-tooltip' : 'commit-tooltip'}
+        />
+      ) : null}
     </div>
   );
 }

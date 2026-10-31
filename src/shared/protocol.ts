@@ -946,6 +946,26 @@ export interface LogRootDto {
   colorIdx: number;
 }
 
+/**
+ * How the Git tool window draws refs. IntelliJ splits this across two menus: the
+ * Commits pane's `Presentation Settings ▾ · Show · Tag Names` and the Branches
+ * pane's `Branches Pane Settings · Show Tags`. Both are real settings, so they also
+ * sit in VS Code's Settings editor, where IntelliJ's sit on its Version Control
+ * pages.
+ */
+export interface LogPresentationDto {
+  /**
+   * `gittree.log.showTagNames`: a commit's tags are named chips, or one tag icon
+   * whose names are a hover away.
+   */
+  showTagNames: boolean;
+  /** `gittree.branches.showTags`: the Branches pane lists a `Tags` node. */
+  showTags: boolean;
+}
+
+/** What a view draws before the host has said otherwise: IntelliJ's own defaults. */
+export const DEFAULT_LOG_PRESENTATION: LogPresentationDto = { showTagNames: false, showTags: true };
+
 export interface LogInitDto {
   repoRoot: string;
   repoLabel: string;
@@ -964,6 +984,8 @@ export interface LogInitDto {
   issue?: { pattern: string; url: string };
   /** P12-T5: saved filter presets (`gittree.log.filterPresets`). */
   presets?: Array<{ name: string; filter: LogFilterDto }>;
+  /** How refs are drawn — see `LogPresentationDto`. */
+  presentation?: LogPresentationDto;
   /**
    * Set only on an `evtReset` the *host* raised because history moved (a
    * commit, checkout, rebase, pull…), never on one the user asked for. The
@@ -1141,6 +1163,11 @@ export const LOG_METHODS = {
   worktrees: 'log/worktrees',
   /** POST-P14k: one row/toolbar action, dispatched to the `gittree.worktree.*` commands. */
   worktreeAction: 'log/worktreeAction',
+  /**
+   * A toggle in `Presentation Settings ▾` or `Branches Pane Settings`:
+   * `Partial<LogPresentationDto>` in, the resulting `LogPresentationDto` out.
+   */
+  setPresentation: 'log/setPresentation',
   /** host → webview events */
   evtRows: 'log/rows',
   evtReset: 'log/reset',
@@ -1153,6 +1180,12 @@ export const LOG_METHODS = {
    * drops the selection — too much for a list that only names repositories.
    */
   evtRoots: 'log/rootsChanged',
+  /**
+   * A presentation setting changed (`LogPresentationDto`), from a menu or from the
+   * Settings editor. Sent on its own rather than through `evtReset`: how a ref is
+   * drawn is no reason to re-run `git log` or drop the selection.
+   */
+  evtPresentation: 'log/presentationChanged',
   /** P12-T8: the command ring grew or was cleared (throttled, payload-free). */
   evtConsole: 'log/consoleChanged',
   /** POST-P14k: a worktree was added/removed/locked, or a repo's refs moved (payload-free). */

@@ -176,6 +176,11 @@
             "default": true,
             "description": "%gittree.config.branches.showIncomingOutgoing.description%"
           },
+          "gittree.branches.showTags": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.branches.showTags.description%"
+          },
           "gittree.smartCheckout.behavior": {
             "type": "string",
             "enum": [
@@ -389,6 +394,11 @@
             ],
             "default": "default",
             "description": "%gittree.config.log.graphPalette.description%"
+          },
+          "gittree.log.showTagNames": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.log.showTagNames.description%"
           },
           "gittree.log.issuePattern": {
             "type": "string",

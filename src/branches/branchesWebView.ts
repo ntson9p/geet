@@ -37,6 +37,7 @@ import {
 } from './branchActions';
 import { refTypeOf } from './branchesPopup';
 import {
+  applyShowTags,
   buildSidebarRows,
   commonRefNames,
   nodeIds,
@@ -46,6 +47,7 @@ import {
 } from './popupTree';
 import type { RefService } from './refService';
 import type { RepoScope } from './repoScope';
+import { showTagsSetting } from './showTags';
 
 export interface BranchesWebViewDeps {
   readonly core: Core;
@@ -178,13 +180,16 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
   private async context(): Promise<TreeContext> {
     const labels = repoLabels(this.deps.core.repos.map((r) => r.root));
     const repos = await Promise.all(this.deps.core.repos.map((r) => this.repoRefs(r, labels)));
-    return {
-      repos,
-      commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
-      commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
-      commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
-      showInOut: this.showInOut(),
-    };
+    return applyShowTags(
+      {
+        repos,
+        commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
+        commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
+        commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
+        showInOut: this.showInOut(),
+      },
+      showTagsSetting(),
+    );
   }
 
   /**

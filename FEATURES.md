@@ -303,7 +303,14 @@ docked bottom, tabs `Log | Console`").
 * Sections `HEAD (Current)` → `Local` (favorites ★ flat-first, then **folder nodes** —
   `feature/f1`, `f1-1`, `f2` collapse under one `feature` row) → `Remote` per remote →
   `Tags`, with a **vertical icon rail** on the pane's left edge: new branch · delete ·
-  compare-with-current · search · favorites-only · show-my-commits · collapse.
+  compare-with-current · search · favorites-only · show-my-commits · **Branches Pane
+  Settings** (gear) · collapse.
+* **Branches Pane Settings** holds **Show Tags** (`gittree.branches.showTags`, on): off,
+  the `Tags` node is gone. As in IntelliJ it is one setting for every branch list, so the
+  Branches popup and the sidebar's Branches views drop their tags with it; the `Branch ▾`
+  filter keeps offering them. IntelliJ's menu also has the single-click action and
+  `Group By Directory`; GitTree lists neither (a click always filters; branches always
+  group by directory).
 * **Selecting a ref filters the Commits pane** through the filter model (Ctrl adds;
   `HEAD (Current)` restores). Branch rows have a native context menu (checkout, new from,
   compare, diff with working tree, rebase onto current, push, rename, delete, favorite)
@@ -321,8 +328,16 @@ docked bottom, tabs `Log | Console`").
   (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (see below).
   Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
   (`gittree.log.filterPresets`).
-* Right toolbar: refresh · **Go to Hash/Branch/Tag** · Show Details (folds the right
-  column) · Highlight my commits.
+* Right toolbar: refresh · **Presentation Settings** (eye) · **Go to Hash/Branch/Tag** ·
+  Show Details (folds the right column) · Highlight my commits.
+* **Presentation Settings ▾ · Show · Tag Names** (`gittree.log.showTagNames`, off as in
+  IntelliJ): off, a commit's tags are **one icon-only tag chip**, and hovering over it opens
+  a card naming them (in place of the commit-message card); on, each tag is a chip with the
+  tag icon and its name. Branches are always named. A change, from the menu or the Settings
+  editor, redraws the rows in place: no re-page, the selection and scroll kept. The rest of
+  IntelliJ's `Show` group (Compact References View, Long Edges, Commit Timestamp,
+  References on the Left, Show Root Names, Columns) and its `Highlight` group are not in
+  the menu; *Highlight my commits* is the toolbar toggle above.
 * **The graph also refreshes itself.** Any history change — a commit, amend, checkout,
   merge, rebase, reset or pull, from GitTree, the built-in Git extension or a terminal —
   re-pages the graph without the button. *Shape:* the rows rebuild but the user's place

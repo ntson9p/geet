@@ -6,6 +6,24 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — Presentation Settings: Tag Names, and Show Tags for the Branches pane
+
+The log's toolbar has IntelliJ's **Presentation Settings** button (the eye,
+between Refresh and Go to Hash/Branch/Tag). Under **Show**, **Tag Names**
+decides how a commit's tags are drawn. Off, which is IntelliJ's default and
+now GitTree's, they are one tag icon, and hovering over it shows their names.
+On, each tag is a chip with the tag icon and its name. The setting is
+`gittree.log.showTagNames`. Branches are always named either way.
+
+The Branches pane's rail has IntelliJ's **Branches Pane Settings** gear, with
+**Show Tags**. Turning it off removes the **Tags** node. Like IntelliJ's Show
+Tags, it is one setting for every branch list: the Branches popup and the
+sidebar's Branches views drop their tags too (`gittree.branches.showTags`, on
+by default). The log's **Branch ▾** filter still offers tags.
+
+Changing either setting, from its menu or from the Settings editor, redraws
+the log in place, keeping the selection and scroll position.
+
 ### Changed — Commit and Push… opens the Push dialog first
 
 **Commit and Push…** pushed the moment its commit landed. It now does what

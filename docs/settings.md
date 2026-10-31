@@ -143,6 +143,12 @@ Show incoming (↓) before outgoing (↑) counts in the branches popup. Toggled 
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.branches.showTags`
+
+List tags as a separate Tags node in the branches popup, the Branches views and the log's Branches pane. Toggled from the log's Branches Pane Settings menu (the gear button).
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.smartCheckout.behavior`
 
 When a checkout is blocked by local changes: ask (IntelliJ-style dialog), auto (always smart-checkout via stash), or never (just report).
@@ -352,6 +358,12 @@ Color palette for the commit graph lanes.
 - Values:
   - `default` — Hue-cycled palette matching the editor theme.
   - `colorBlind` — Okabe–Ito color-blind-safe palette (distinct under deutan, protan and tritan vision).
+
+### `gittree.log.showTagNames`
+
+Show tag names in the commit list. When off, a commit's tags are one tag icon, and hovering over it shows their names. Toggled from the log's Presentation Settings menu (the eye button).
+
+- Type: `boolean` · Default: `false`
 
 ### `gittree.log.issuePattern`
 

@@ -38,7 +38,12 @@ export type MenuItem =
       readonly items: readonly MenuItem[];
       readonly disabled?: boolean;
     }
-  | { readonly kind: 'separator'; readonly id: string };
+  | { readonly kind: 'separator'; readonly id: string }
+  /**
+   * A group's caption, IntelliJ's `Show` / `Highlight` above a run of toggles.
+   * Not an item: the pointer and the arrow keys pass over it.
+   */
+  | { readonly kind: 'header'; readonly id: string; readonly label: string };
 
 export interface MenuProps {
   items: readonly MenuItem[];
@@ -54,7 +59,7 @@ export interface MenuProps {
 const MARGIN = 4;
 
 function isEnabled(item: MenuItem): boolean {
-  return item.kind !== 'separator' && item.disabled !== true;
+  return (item.kind === 'item' || item.kind === 'submenu') && item.disabled !== true;
 }
 
 export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuProps) {
@@ -200,6 +205,13 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuPr
         {items.map((item, index) => {
           if (item.kind === 'separator') {
             return <div key={item.id} role="separator" className="gt-menu-sep" />;
+          }
+          if (item.kind === 'header') {
+            return (
+              <div key={item.id} role="presentation" className="gt-menu-header">
+                {item.label}
+              </div>
+            );
           }
           const isActive = index === active;
           const checkedState = item.kind === 'item' ? item.checked : undefined;

@@ -5,6 +5,7 @@
  * the Commits pane; `HEAD (Current)` restores the default; selection is
  * additive with Ctrl. Context menus are native (`data-vscode-context` →
  * `gittree.log.branch.*`), dispatching the same registry as the tree view.
+ * The rail's gear is IntelliJ's `Branches Pane Settings`, holding `Show Tags`.
  */
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -13,19 +14,12 @@ import {
   type LogFilterDto,
 } from '../../../src/shared/protocol';
 import { FileTree } from '../lib/FileTree';
+import { Menu, type MenuItem } from '../lib/Menu';
 import type { RpcClient } from '../lib/rpc';
 import { ToolbarButton } from '../lib/Toolbar';
-import { buildTree, type TreeDirNode, type TreeNode } from '../lib/treeModel';
+import type { TreeNode } from '../lib/treeModel';
 import { useElementSize } from '../lib/useElementSize';
-
-type RefType = 'local' | 'remote' | 'tag';
-
-interface RefEntry {
-  name: string;
-  type: RefType;
-  favorite?: boolean;
-  isCurrent?: boolean;
-}
+import { buildBranchesPaneTree, type RefEntry } from './branchesPaneModel';
 
 export interface BranchesPaneProps {
   rpc: RpcClient;
@@ -35,22 +29,21 @@ export interface BranchesPaneProps {
   filter: LogFilterDto;
   onFilterChange: (next: LogFilterDto) => void;
   onCollapsePane: () => void;
+  /** `Branches Pane Settings · Show Tags` (`gittree.branches.showTags`). */
+  showTags: boolean;
+  onShowTagsChange: (next: boolean) => void;
 }
 
-function shiftDepth(node: TreeNode, delta: number): TreeNode {
-  if (node.kind === 'file') return { ...node, depth: node.depth + delta };
-  return {
-    ...node,
-    depth: node.depth + delta,
-    children: node.children.map((c) => shiftDepth(c, delta)),
-  };
-}
-
-function section(path: string, name: string, children: TreeNode[], fileCount: number): TreeDirNode {
-  return { kind: 'dir', path, name, depth: 0, children, fileCount };
-}
-
-export function BranchesPane({ rpc, data, repoRoot, filter, onFilterChange, onCollapsePane }: BranchesPaneProps) {
+export function BranchesPane({
+  rpc,
+  data,
+  repoRoot,
+  filter,
+  onFilterChange,
+  onCollapsePane,
+  showTags,
+  onShowTagsChange,
+}: BranchesPaneProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(['@local', '@remotes']),
   );
@@ -58,78 +51,20 @@ export function BranchesPane({ rpc, data, repoRoot, filter, onFilterChange, onCo
   const [favOnly, setFavOnly] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [settingsAt, setSettingsAt] = useState<{ x: number; y: number } | null>(null);
   const [paneRef, paneSize] = useElementSize<HTMLDivElement>();
 
-  const { nodes, refs } = useMemo(() => {
-    const lookup = new Map<string, RefEntry>();
-    const out: TreeNode[] = [];
-    if (!data) return { nodes: out, refs: lookup };
-    const query = search.trim().toLowerCase();
+  const { nodes, refs } = useMemo(
+    () => buildBranchesPaneTree(data, { favOnly, search, showTags }),
+    [data, favOnly, search, showTags],
+  );
 
-    // HEAD row restores the default filter.
-    out.push({ kind: 'file', path: '@head', name: 'HEAD (Current)', depth: 0 });
-
-    const locals = data.locals
-      .filter((b) => !favOnly || b.favorite)
-      .filter((b) => query.length === 0 || b.name.toLowerCase().includes(query));
-    const favorites = locals.filter((b) => b.favorite);
-    const rest = locals.filter((b) => !b.favorite);
-    const localChildren: TreeNode[] = [];
-    for (const [names, prefix] of [
-      [favorites.map((b) => b.name), '@localfav'],
-      [rest.map((b) => b.name), '@local'],
-    ] as const) {
-      for (const node of buildTree(names, { pathPrefix: prefix })) {
-        localChildren.push(shiftDepth(node, 1));
-      }
-      for (const name of names) {
-        const local = data.locals.find((b) => b.name === name);
-        lookup.set(`${prefix}/${name}`, {
-          name,
-          type: 'local',
-          favorite: local?.favorite === true,
-          isCurrent: data.current === name,
-        });
-      }
-    }
-    if (localChildren.length > 0 || query.length === 0) {
-      out.push(section('@local', 'Local', localChildren, locals.length));
-    }
-
-    const remoteChildren: TreeNode[] = [];
-    let remoteCount = 0;
-    for (const group of data.remotes) {
-      const shortNames = group.branches
-        .map((b) => (b.startsWith(`${group.remote}/`) ? b.slice(group.remote.length + 1) : b))
-        .filter((b) => query.length === 0 || b.toLowerCase().includes(query));
-      if (shortNames.length === 0) continue;
-      remoteCount += shortNames.length;
-      const prefix = `@remote:${group.remote}`;
-      const children = buildTree(shortNames, { pathPrefix: prefix }).map((n) => shiftDepth(n, 2));
-      remoteChildren.push({
-        kind: 'dir',
-        path: prefix,
-        name: group.remote,
-        depth: 1,
-        children,
-        fileCount: shortNames.length,
-      });
-      for (const short of shortNames) {
-        lookup.set(`${prefix}/${short}`, { name: `${group.remote}/${short}`, type: 'remote' });
-      }
-    }
-    if (remoteChildren.length > 0) {
-      out.push(section('@remotes', 'Remote', remoteChildren, remoteCount));
-    }
-
-    const tags = data.tags.filter((t) => query.length === 0 || t.toLowerCase().includes(query));
-    if (tags.length > 0) {
-      const children = buildTree(tags, { pathPrefix: '@tags' }).map((n) => shiftDepth(n, 1));
-      out.push(section('@tags', 'Tags', children, tags.length));
-      for (const t of tags) lookup.set(`@tags/${t}`, { name: t, type: 'tag' });
-    }
-    return { nodes: out, refs: lookup };
-  }, [data, favOnly, search]);
+  // IntelliJ's menu also holds the single-click action and Group By Directory.
+  // Only what GitTree does is listed: a click filters the log, and branches
+  // always group by directory.
+  const settingsItems: MenuItem[] = [
+    { kind: 'item', id: 'showTags', label: 'Show Tags', checked: showTags },
+  ];
 
   const applyRefSelection = useCallback(
     (paths: string[]) => {
@@ -262,8 +197,29 @@ export function BranchesPane({ rpc, data, repoRoot, filter, onFilterChange, onCo
           toggled={myCommitsOn}
           onClick={toggleMyCommits}
         />
+        <ToolbarButton
+          icon="gear"
+          label="Branches Pane Settings"
+          onClick={(e) => {
+            // The rail is a vertical strip on the pane's left edge, so the
+            // menu opens beside the button rather than under it.
+            const box = e.currentTarget.getBoundingClientRect();
+            setSettingsAt({ x: box.right + 2, y: box.top });
+          }}
+        />
         <ToolbarButton icon="chevron-left" label="Collapse pane" onClick={onCollapsePane} />
       </div>
+      {settingsAt !== null ? (
+        <Menu
+          items={settingsItems}
+          at={settingsAt}
+          ariaLabel="Branches Pane Settings"
+          onClose={() => setSettingsAt(null)}
+          onSelect={(id) => {
+            if (id === 'showTags') onShowTagsChange(!showTags);
+          }}
+        />
+      ) : null}
       <div className="gt-branches-body" ref={paneRef}>
         {searchOpen ? (
           <input

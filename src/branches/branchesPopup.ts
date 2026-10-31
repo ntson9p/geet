@@ -36,6 +36,7 @@ import {
 } from './branchActions';
 import type { BranchOps } from './branchOps';
 import {
+  applyShowTags,
   commonRefNames,
   flattenTree,
   HUB_VERBS,
@@ -45,6 +46,7 @@ import {
   type TreeRow,
 } from './popupTree';
 import type { RefService } from './refService';
+import { showTagsSetting } from './showTags';
 
 interface BranchItem extends vscode.QuickPickItem {
   branch?: RefInfo;
@@ -634,13 +636,16 @@ export async function showBranchesPopup(
     }
     const labels = repoLabels(core.repos.map((r) => r.root));
     const repos = await Promise.all(core.repos.map((r) => repoRefs(r, labels)));
-    const ctx = {
-      repos,
-      commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
-      commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
-      commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
-      showInOut,
-    };
+    const ctx = applyShowTags(
+      {
+        repos,
+        commonLocals: commonRefNames(repos.map((r) => r.locals.map((b) => b.name))),
+        commonRemotes: commonRefNames(repos.map((r) => r.remotes.map((b) => b.name))),
+        commonTags: commonRefNames(repos.map((r) => r.tags.map((t) => t.name))),
+        showInOut,
+      },
+      showTagsSetting(),
+    );
     if (mine !== generation) return;
 
     const scopeRoot =

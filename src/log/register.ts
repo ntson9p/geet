@@ -63,6 +63,14 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
       ) {
         logView.refreshInit();
       }
+      // Its own event, not a re-init: re-paging the log over how a ref is drawn
+      // would cost a `git log` and the selection.
+      if (
+        e.affectsConfiguration('gittree.log.showTagNames') ||
+        e.affectsConfiguration('gittree.branches.showTags')
+      ) {
+        logView.pushPresentation();
+      }
     }),
   );
 

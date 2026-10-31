@@ -1226,4 +1226,128 @@ test.describe('P4-T3/T4 log webview', () => {
       .poll(async () => (await posted(page)).filter((m) => m.method === 'log/worktrees').length)
       .toBeGreaterThan(before);
   });
+
+  // ---- Presentation Settings ▾ · Tag Names, Branches Pane Settings · Show Tags ----
+
+  /** Row 7 of the mock carries two tags and nothing else. */
+  const taggedRow = (page: Page) => commitRow(page).locator('[data-gt-row="7"]');
+
+  async function setPresentationCalls(page: Page): Promise<Array<Record<string, unknown>>> {
+    return (await posted(page))
+      .filter((m) => m.kind === 'req' && m.method === 'log/setPresentation')
+      .map((m) => m.params ?? {});
+  }
+
+  test('Tag Names off (the default): a commit\'s tags are one icon, named on hover', async ({ page }) => {
+    await openLog(page);
+    const chip = taggedRow(page).getByTestId('tag-chip');
+    await expect(chip).toHaveCount(1);
+    await expect(chip.locator('.codicon-tag')).toHaveCount(1);
+    await expect(chip).toHaveText('');
+    await expect(taggedRow(page).locator('.gt-ref-chip')).toHaveCount(1);
+
+    await chip.hover();
+    const tooltip = page.getByTestId('tags-tooltip');
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toContainText('v1.0');
+    await expect(tooltip).toContainText('v1.0.1');
+    // Over the icon, the card is about the tags, not the commit message.
+    await expect(page.getByTestId('commit-tooltip')).toHaveCount(0);
+
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toHaveCount(0);
+  });
+
+  test('Presentation Settings ▾ turns Tag Names on, and the host is told', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    const menu = page.getByRole('menu', { name: 'Presentation Settings' });
+    await expect(menu).toBeVisible();
+    // IntelliJ's group caption: not an item the keyboard can land on.
+    await expect(menu.locator('.gt-menu-header')).toHaveText('Show');
+    const tagNames = menu.getByRole('menuitemcheckbox', { name: 'Tag Names' });
+    await expect(tagNames).toHaveAttribute('aria-checked', 'false');
+
+    await tagNames.click();
+    await expect(menu).toHaveCount(0);
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showTagNames: true }]);
+
+    // Each tag is now a named chip with the tag icon beside its name.
+    const chips = taggedRow(page).locator('.gt-ref-tag');
+    await expect(chips).toHaveText(['v1.0', 'v1.0.1']);
+    await expect(chips.locator('.codicon-tag')).toHaveCount(2);
+    await expect(taggedRow(page).getByTestId('tag-chip')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    await expect(
+      page.getByRole('menuitemcheckbox', { name: 'Tag Names' }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('Presentation Settings ▾ opens at the keyboard on Tag Names, past the caption', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    const tagNames = page.getByRole('menuitemcheckbox', { name: 'Tag Names' });
+    await expect(tagNames).toHaveClass(/gt-active/);
+    await page.keyboard.press('Enter');
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showTagNames: true }]);
+  });
+
+  test('a host presentation event redraws the rows without re-paging', async ({ page }) => {
+    await openLog(page);
+    await expect(taggedRow(page).getByTestId('tag-chip')).toHaveCount(1);
+    const pages = async (): Promise<number> =>
+      (await posted(page)).filter((m) => m.method === 'log/page').length;
+    const before = await pages();
+    await page.getByTestId('log-rows').locator('[data-gt-row="2"]').click();
+
+    // As the Settings editor would: both settings changed at once.
+    await page.evaluate(() =>
+      window.postMessage(
+        {
+          v: 1,
+          id: 'evtpres',
+          kind: 'evt',
+          method: 'log/presentationChanged',
+          params: { showTagNames: true, showTags: false },
+        },
+        '*',
+      ),
+    );
+    await expect(taggedRow(page).locator('.gt-ref-tag')).toHaveText(['v1.0', 'v1.0.1']);
+    await expect(
+      page.getByTestId('branches-pane').getByRole('treeitem', { name: /^Tags, 1$/ }),
+    ).toHaveCount(0);
+    // No `git log` for a drawing change, and the selection survives it.
+    expect(await pages()).toBe(before);
+    await expect(page.getByTestId('log-rows').locator('[data-gt-row="2"]')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  test('Branches Pane Settings · Show Tags hides the Tags node, and the host is told', async ({ page }) => {
+    await openLog(page);
+    const pane = page.getByTestId('branches-pane');
+    await expect(pane.getByRole('treeitem', { name: /^Tags, 1$/ })).toBeVisible();
+
+    await pane.getByRole('button', { name: 'Branches Pane Settings' }).click();
+    const menu = page.getByRole('menu', { name: 'Branches Pane Settings' });
+    const showTags = menu.getByRole('menuitemcheckbox', { name: 'Show Tags' });
+    await expect(showTags).toHaveAttribute('aria-checked', 'true');
+    await showTags.click();
+
+    await expect(pane.getByRole('treeitem', { name: /^Tags, 1$/ })).toHaveCount(0);
+    await expect(pane.getByRole('treeitem', { name: /HEAD \(Current\)/ })).toBeVisible();
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showTags: false }]);
+    // The Branch ▾ filter still offers tags: hiding the node is about the pane.
+    await page.getByTestId('filter-branch').click();
+    await expect(
+      page.getByTestId('filter-branch-panel').getByText('v1.0', { exact: true }),
+    ).toBeVisible();
+
+    await pane.getByRole('button', { name: 'Branches Pane Settings' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Show Tags' }).click();
+    await expect(pane.getByRole('treeitem', { name: /^Tags, 1$/ })).toBeVisible();
+  });
 });

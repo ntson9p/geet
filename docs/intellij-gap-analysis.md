@@ -478,8 +478,8 @@ row in the branches tree.
 | Text search plus Regex plus Match Case | search box with toggles | ✅ |
 | **Go to Hash / Branch / Tag** (`Ctrl+F`) | P12-T4 `log.goTo`; a commit the current filter excludes is reported with `Show All Branches` rather than silently ignored | ✅ |
 | **Enable Git Log Indexing** | — | ❌ |
-| **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | P12-T5 presentation menu (Collapse linear branches / Show long edges omitted — D) | 🟡 two toggles omitted |
-| **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | P12-T5 highlight menu | ✅ |
+| **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | The eye button's menu, `Show` · **Tag Names** (`gittree.log.showTagNames`: one icon-only tag chip named on hover, or named chips). *Corrected 2026-10-31:* this row read "P12-T5 presentation menu, two toggles omitted", but P12-T5 shipped no such menu; Tag Names is the first item in it, and the rest of the group is still absent | 🟡 Tag Names only |
+| **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | The toolbar's *Highlight my commits* toggle. *Corrected 2026-10-31:* this row read ✅ for a "P12-T5 highlight menu" that was never built; the other three are absent | 🟡 My Commits only |
 | **Show All Affected Files** (`Alt+Shift+A`) and Paths Affected in Revision dialog | P12-T3 Changed Files pane + `log.showAllAffected` | ✅ |
 | Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild`, through the same reporting reveal | ✅ |
 | Multi-repo: one graph merging every root | one root at a time, chosen under `Paths ▾ · Roots` and held (**D24**) | 🟡 |

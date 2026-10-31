@@ -115,6 +115,22 @@ export interface TreeContext {
   readonly showInOut: boolean;
 }
 
+/**
+ * IntelliJ's **Show Tags** turned off (`gittree.branches.showTags`): the context
+ * every branch surface builds from loses its tags, and with them the `Tags` and
+ * `Common Tags` nodes, which are only drawn when non-empty, and the tag hits in
+ * a search. Cutting them here, once, keeps the popup and both sidebar trees from
+ * disagreeing about what the setting means.
+ */
+export function applyShowTags(ctx: TreeContext, showTags: boolean): TreeContext {
+  if (showTags) return ctx;
+  return {
+    ...ctx,
+    repos: ctx.repos.map((repo) => ({ ...repo, tags: [] })),
+    commonTags: [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Output
 // ---------------------------------------------------------------------------

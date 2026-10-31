@@ -539,6 +539,15 @@ button {
   background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, transparent));
 }
 
+/* A group caption (IntelliJ's `Show`), dimmer and smaller than the items under it. */
+.gt-menu-header {
+  padding: 4px 10px 2px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+  cursor: default;
+  white-space: nowrap;
+}
+
 /* ---- Dialog (D2: focus-trapped panel, not an OS-modal window) ---- */
 .gt-dialog {
   display: flex;

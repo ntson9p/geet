@@ -1,9 +1,10 @@
 /**
  * Filter row (P12-T5) — the §2A shape: `Branch or tag` combo · `Text or hash`
  * with `.*`/`Cc` toggles · real multi-select `Branch ▾ User ▾ Date ▾ Paths ▾`
- * dropdowns with search · right-side toolbar (refresh · Go to Hash/Branch/Tag
- * · Show Details · Highlight my commits · Saved filters ▾). Every filter
- * composes into the one LogFilter; the host argv build is unchanged.
+ * dropdowns with search · right-side toolbar (refresh · Presentation Settings ▾
+ * · Go to Hash/Branch/Tag · Show Details · Highlight my commits · Saved
+ * filters ▾). Every filter composes into the one LogFilter; the host argv
+ * build is unchanged.
  */
 import {
   useCallback,
@@ -13,7 +14,12 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { LogBranchesDto, LogFilterDto, LogRootDto } from '../../../src/shared/protocol';
+import type {
+  LogBranchesDto,
+  LogFilterDto,
+  LogPresentationDto,
+  LogRootDto,
+} from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { ToolbarButton } from '../lib/Toolbar';
 
@@ -137,6 +143,9 @@ export interface FilterBarProps {
   highlightMine: boolean;
   onToggleHighlightMine: () => void;
   canHighlightMine: boolean;
+  /** `Presentation Settings ▾`, the eye button: how the rows draw their refs. */
+  presentation: LogPresentationDto;
+  onPresentationChange: (patch: Partial<LogPresentationDto>) => void;
   /** P10-T2: lets the host's focus-filter command reach the search box. */
   searchInputRef?: RefObject<HTMLInputElement>;
 }
@@ -196,6 +205,8 @@ export function FilterBar({
   highlightMine,
   onToggleHighlightMine,
   canHighlightMine,
+  presentation,
+  onPresentationChange,
   searchInputRef,
 }: FilterBarProps) {
   const text = filter.text ?? { q: '', regex: false, matchCase: false };
@@ -205,6 +216,16 @@ export function FilterBar({
   const [pathDraft, setPathDraft] = useState('');
   const [comboDraft, setComboDraft] = useState('');
   const [presetsAt, setPresetsAt] = useState<{ x: number; y: number } | null>(null);
+  const [presentationAt, setPresentationAt] = useState<{ x: number; y: number } | null>(null);
+
+  // IntelliJ's `Show` group holds more toggles (Compact References View, Long
+  // Edges, Commit Timestamp, References on the Left, Show Root Names, Columns)
+  // and a `Highlight` group follows it. Only what GitTree does is listed; a
+  // checkbox that changes nothing would be worse than its absence.
+  const presentationItems: MenuItem[] = [
+    { kind: 'header', id: 'show', label: 'Show' },
+    { kind: 'item', id: 'tagNames', label: 'Tag Names', checked: presentation.showTagNames },
+  ];
 
   const selectedRefs = Array.isArray(filter.refs) ? filter.refs : [];
 
@@ -673,6 +694,25 @@ export function FilterBar({
       <span className="gt-filter-spacer" />
 
       <ToolbarButton label="Refresh log" icon="refresh" onClick={onRefresh} />
+      <ToolbarButton
+        label="Presentation Settings"
+        icon="eye"
+        onClick={(e) => {
+          const box = e.currentTarget.getBoundingClientRect();
+          setPresentationAt({ x: box.left, y: box.bottom + 2 });
+        }}
+      />
+      {presentationAt !== null ? (
+        <Menu
+          items={presentationItems}
+          at={presentationAt}
+          ariaLabel="Presentation Settings"
+          onClose={() => setPresentationAt(null)}
+          onSelect={(id) => {
+            if (id === 'tagNames') onPresentationChange({ showTagNames: !presentation.showTagNames });
+          }}
+        />
+      ) : null}
       <ToolbarButton label="Go to Hash/Branch/Tag" icon="arrow-right" onClick={() => onGoToRef()} />
       <ToolbarButton
         label="Show Details"

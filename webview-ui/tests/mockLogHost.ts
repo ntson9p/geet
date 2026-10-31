@@ -14,7 +14,12 @@ export const mockLogHostScript = `
     authorName: i % 3 === 0 ? 'Alice' : 'Bob',
     authorTime: Math.floor(Date.now() / 1000) - i * 3600,
     parents: i + 1 < TOTAL ? [sha(i + 1)] : [],
-    refs: i === 0 ? [{ name: 'main', type: 'branch', isHeadTarget: true }] : [],
+    refs:
+      i === 0
+        ? [{ name: 'main', type: 'branch', isHeadTarget: true }]
+        : i === 7
+          ? [{ name: 'v1.0', type: 'tag' }, { name: 'v1.0.1', type: 'tag' }]
+          : [],
     graph: {
       nodeLane: 0,
       colorIdx: 0,
@@ -37,6 +42,10 @@ export const mockLogHostScript = `
   const WIDE_PATH =
     'service-group/src/main/java/jp/example/backend/group/firebase/component/UserLogicComponentFactory.java';
   const post = (msg) => setTimeout(() => window.postMessage(msg, '*'), 3);
+  // Tag Names / Show Tags as the host's settings hold them. Opt-in starting
+  // values (window.__mockPresentation); IntelliJ's defaults otherwise.
+  const presentation = () =>
+    (window.__mockPresentation = window.__mockPresentation || { showTagNames: false, showTags: true });
   const api = {
     postMessage(msg) {
       (window.__postedMessages = window.__postedMessages || []).push(msg);
@@ -59,8 +68,15 @@ export const mockLogHostScript = `
             // Opt-in (window.__mockInitTab): a tab asked for before the view
             // could hear the event, as logView.showTab hands it over.
             tab: window.__mockInitTab,
+            presentation: presentation(),
           });
           break;
+        case 'log/setPresentation': {
+          // As logView answers: what the settings say once written.
+          window.__mockPresentation = Object.assign({}, presentation(), msg.params);
+          res(window.__mockPresentation);
+          break;
+        }
         case 'log/page': {
           const page = msg.params.page;
           const start = page * PAGE;
