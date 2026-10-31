@@ -1,9 +1,15 @@
 /**
  * Tabs (P11-T1): the `Commit | Shelf` and `Log | Console` strips (gap analysis
  * S13). Follows the ARIA tabs pattern — one tab stop, arrows move selection,
- * Home/End jump to the ends.
+ * Home/End jump to the ends. A tab can be closable (the Git tool window's
+ * extra Log tabs): a `×` on it, middle-click, or the strip's own menu.
  */
-import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 
 export interface TabDef {
   readonly id: string;
@@ -12,6 +18,10 @@ export interface TabDef {
   readonly icon?: string;
   /** Trailing count badge, e.g. unread console errors. */
   readonly badge?: string;
+  /** Shows a `×`, and middle-click closes it. Needs `onClose`. */
+  readonly closable?: boolean;
+  /** Hover text; a long label is cut short in the strip, so this carries all of it. */
+  readonly title?: string;
 }
 
 export interface TabsProps {
@@ -21,9 +31,23 @@ export interface TabsProps {
   ariaLabel: string;
   /** Rendered to the right of the tab strip — per-window actions. */
   actions?: ReactNode;
+  /** Rendered right after the last tab, as IntelliJ's `+` is. */
+  trailing?: ReactNode;
+  onClose?: (id: string) => void;
+  /** Right-click (or the context-menu key) on a tab, at viewport coordinates. */
+  onTabContextMenu?: (id: string, at: { x: number; y: number }) => void;
 }
 
-export function Tabs({ tabs, active, onChange, ariaLabel, actions }: TabsProps) {
+export function Tabs({
+  tabs,
+  active,
+  onChange,
+  ariaLabel,
+  actions,
+  trailing,
+  onClose,
+  onTabContextMenu,
+}: TabsProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
 
   const move = (delta: number): void => {
@@ -60,17 +84,28 @@ export function Tabs({ tabs, active, onChange, ariaLabel, actions }: TabsProps) 
     e.preventDefault();
   };
 
+  const openMenu = (id: string, e: ReactMouseEvent<HTMLElement>): void => {
+    if (!onTabContextMenu) return;
+    // Handled here, so VS Code's own webview menu (Cut/Copy/Paste) stays shut.
+    e.preventDefault();
+    // The context-menu key reports no pointer; open under the tab instead.
+    const box = e.currentTarget.getBoundingClientRect();
+    const keyboard = e.clientX === 0 && e.clientY === 0;
+    onTabContextMenu(id, keyboard ? { x: box.left, y: box.bottom } : { x: e.clientX, y: e.clientY });
+  };
+
   return (
     <div className="gt-tabs-strip">
       <div
         ref={stripRef}
         role="tablist"
         aria-label={ariaLabel}
-        className="gt-tabs"
+        className={`gt-tabs${trailing !== undefined ? ' gt-tabs-fit' : ''}`}
         onKeyDown={onKeyDown}
       >
         {tabs.map((tab) => {
           const selected = tab.id === active;
+          const closable = tab.closable === true && onClose !== undefined;
           return (
             <button
               key={tab.id}
@@ -81,20 +116,47 @@ export function Tabs({ tabs, active, onChange, ariaLabel, actions }: TabsProps) 
               aria-selected={selected}
               aria-controls={`gt-tabpanel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
-              className={`gt-tab${selected ? ' gt-active' : ''}`}
+              title={tab.title}
+              className={`gt-tab${selected ? ' gt-active' : ''}${closable ? ' gt-closable' : ''}`}
               onClick={() => onChange(tab.id)}
+              onMouseDown={(e) => {
+                // A middle press would start the browser's autoscroll.
+                if (e.button === 1 && closable) e.preventDefault();
+              }}
+              onAuxClick={(e) => {
+                if (e.button !== 1 || !closable) return;
+                e.preventDefault();
+                onClose(tab.id);
+              }}
+              onContextMenu={(e) => openMenu(tab.id, e)}
             >
               {tab.icon !== undefined ? (
                 <span className={`codicon codicon-${tab.icon}`} aria-hidden="true" />
               ) : null}
-              <span>{tab.label}</span>
+              <span className="gt-tab-label">{tab.label}</span>
               {tab.badge !== undefined && tab.badge !== '' ? (
                 <span className="gt-tab-badge">{tab.badge}</span>
+              ) : null}
+              {closable ? (
+                // Not a button of its own: a button inside the tab would be a
+                // second tab stop per tab. The keyboard closes through the menu.
+                <span
+                  className="codicon codicon-close gt-tab-close"
+                  aria-hidden="true"
+                  title="Close Tab"
+                  data-testid={`tab-close-${tab.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose(tab.id);
+                  }}
+                />
               ) : null}
             </button>
           );
         })}
       </div>
+      {trailing}
+      {trailing !== undefined ? <span className="gt-tabs-spacer" /> : null}
       {actions !== undefined ? <div className="gt-tabs-actions">{actions}</div> : null}
     </div>
   );

@@ -96,6 +96,9 @@ arrows move within):
 | `Ctrl+C` (`Cmd+C`) | copy selected revision number(s) |
 | `Ctrl+Click` / `Shift+Click` | multi-select (keyboard: arrows + details panel actions) |
 | `Tab` | filter chips → search box → regex/case toggles → sort → list |
+| `←` / `→` / `Home` / `End` (tab strip) | move between Log, Console, Worktrees and the extra Log tabs |
+| `Shift+F10` / context-menu key (tab strip) | the tab menu: Close Tab · Close Other Tabs · Close All Tabs — the keyboard's way to close a tab |
+| Middle-click (tab strip) | close an extra Log tab |
 
 **Interactive rebase editor**
 

@@ -381,6 +381,44 @@ button {
   font-size: 0.85em;
 }
 
+/* A strip with something after its last tab (the Git tool window's `+`): the
+   tabs take only their own width, so the `+` sits right after them. */
+.gt-tabs.gt-tabs-fit {
+  flex: 0 1 auto;
+}
+
+.gt-tabs-spacer {
+  flex: 1 1 auto;
+}
+
+/* A filter-made title can run long; the full text is the tab's hover. */
+.gt-tab-label {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gt-tab.gt-closable {
+  padding-right: 6px;
+}
+
+.gt-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 14px;
+  border-radius: 3px;
+  opacity: 0.75;
+}
+
+.gt-tab-close:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
 .gt-tabpanel {
   display: flex;
   flex-direction: column;

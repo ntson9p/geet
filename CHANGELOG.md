@@ -6,6 +6,28 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — more than one Log tab, as IntelliJ's Open Another Log Tab
+
+The Git tool window's strip has IntelliJ's **+** after its last tab. It
+opens another Log tab with the same filters as the one you were in, so you
+can try a different filter without losing the first. Each tab keeps its own
+filters, selection, scroll and pane layout. A new tab starts with the Branches
+pane folded. Each tab is titled by what it shows: **Log** when unfiltered,
+**Log: 2026.1** with a branch filter, **History: store.ts** for a file's
+history. Close an extra tab with its **×**, a middle-click, or the right-click
+menu (**Close Tab**, **Close Other Tabs**, **Close All Tabs**). The first Log
+tab, Console and Worktrees always stay.
+
+**File History**, **Compare with Current** and an update's **Show in Log** now
+open in a tab of their own instead of replacing the filter you had set.
+Running one again for the same thing brings its tab back rather than opening
+another. Blame's Show in Log and Go to Hash/Branch/Tag still move within the
+tab in front.
+
+Tabs come back after a restart without slowing it down: a restored tab runs no
+git until you first look at it. Only the tab in front refreshes when history
+changes. The others catch up when you bring them forward.
+
 ### Added — Presentation Settings: Tag Names, and Show Tags for the Branches pane
 
 The log's toolbar has IntelliJ's **Presentation Settings** button (the eye,

@@ -933,6 +933,8 @@ export interface LogPageDto {
   page: number;
   rows: LogRowDto[];
   eof: boolean;
+  /** The Log tab these rows are for; absent means the main tab. */
+  logTab?: string;
 }
 
 /**
@@ -986,6 +988,8 @@ export interface LogInitDto {
   presets?: Array<{ name: string; filter: LogFilterDto }>;
   /** How refs are drawn — see `LogPresentationDto`. */
   presentation?: LogPresentationDto;
+  /** The Log tab this init is for (`LogTabDto.id`); absent means the main tab. */
+  logTab?: string;
   /**
    * Set only on an `evtReset` the *host* raised because history moved (a
    * commit, checkout, rebase, pull…), never on one the user asked for. The
@@ -994,12 +998,29 @@ export interface LogInitDto {
    * clearing the panes and jumping to the newest commit.
    */
   preserve?: boolean;
+}
+
+/** One Log tab in the Git tool window's strip. */
+export interface LogTabDto {
+  id: string;
+  /** What the tab shows; its title is made from this (`Log`, `Log: main`, `History: a.ts`). */
+  filter: LogFilterDto;
+  /** Every tab but the first, which is the log itself. */
+  closable: boolean;
+}
+
+/** The Log tabs, and which one commands act on. */
+export interface LogTabsDto {
+  /** The main tab first, then the extra tabs in the order they were opened. */
+  tabs: LogTabDto[];
+  active: string;
   /**
-   * POST-P14af: the tab to open on — set only when something asked for one
-   * (`LOG_METHODS.evtShowTab`) while this view was still starting, too early
-   * to hear the event itself.
+   * A strip item to bring forward: a Log tab id, `console` or `worktrees`.
+   * Set when a command opened or picked a tab, and on the first `log/tabs`
+   * when something asked for a tab (`evtShowTab`) before this view could hear
+   * the event itself (POST-P14af).
    */
-  tab?: LogTab;
+  show?: string;
 }
 
 export interface CommitFileDto {
@@ -1108,8 +1129,23 @@ export interface CommitDetailsDto {
   files: CommitFileDto[];
 }
 
+/**
+ * Requests and events about one Log tab carry its id as `logTab` (absent means
+ * the main tab, `MAIN_LOG_TAB`): init, page, details, commitMessage, setFilter,
+ * the pickers, setRoot, the diffs, select, branches, branchAction,
+ * changedFiles, showFileHistory, containedBranches, goTo, authors, refresh and
+ * goToRef; and back, rows, reset, reveal, branchesChanged and focusFilter.
+ */
 export const LOG_METHODS = {
   /** webview → host */
+  /** The Log tabs (`LogTabsDto`), asked for once before any tab starts. */
+  tabs: 'log/tabs',
+  /** The strip's `+`: a new tab copying `{ from }`'s filters; answers `{ logTab }`. */
+  openTab: 'log/openTab',
+  /** `{ tabs }`: × and the tab menu's Close Tab / Close Other Tabs / Close All Tabs. */
+  closeTabs: 'log/closeTabs',
+  /** `{ logTab }`: the user brought a Log tab forward; commands act on it from now on. */
+  activateTab: 'log/activateTab',
   init: 'log/init',
   page: 'log/page',
   details: 'log/details',
@@ -1186,6 +1222,8 @@ export const LOG_METHODS = {
    * drawn is no reason to re-run `git log` or drop the selection.
    */
   evtPresentation: 'log/presentationChanged',
+  /** The Log tabs changed (`LogTabsDto`): opened, closed, refiltered, or one picked by a command. */
+  evtTabs: 'log/tabsChanged',
   /** P12-T8: the command ring grew or was cleared (throttled, payload-free). */
   evtConsole: 'log/consoleChanged',
   /** POST-P14k: a worktree was added/removed/locked, or a repo's refs moved (payload-free). */
@@ -1193,14 +1231,17 @@ export const LOG_METHODS = {
   /** P10-T2: keyboard parity — move focus into the filter search box. */
   evtFocusFilter: 'log/focusFilter',
   /**
-   * POST-P14af: switch to one of the tool window's tabs (`{ tab }`) — what a
-   * push notification's `Show Details` does, IntelliJ's "Show details in
-   * console".
+   * POST-P14af: switch to one of the tool window's tabs (`{ tab }`: a Log tab
+   * id, `console` or `worktrees`) — what a push notification's `Show Details`
+   * does, IntelliJ's "Show details in console".
    */
   evtShowTab: 'log/showTab',
 } as const;
 
-/** The Git tool window's tabs, as `LOG_METHODS.evtShowTab` names them. */
+/**
+ * What callers ask the Git tool window to show: `log` is whichever Log tab is
+ * active, which is the main tab unless the user brought another forward.
+ */
 export type LogTab = 'log' | 'console' | 'worktrees';
 
 // ---------------------------------------------------------------------------

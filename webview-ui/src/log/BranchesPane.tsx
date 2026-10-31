@@ -32,6 +32,8 @@ export interface BranchesPaneProps {
   /** `Branches Pane Settings · Show Tags` (`gittree.branches.showTags`). */
   showTags: boolean;
   onShowTagsChange: (next: boolean) => void;
+  /** The Log tab this pane belongs to, so a rail action runs in its repository. */
+  logTab?: string;
 }
 
 export function BranchesPane({
@@ -43,6 +45,7 @@ export function BranchesPane({
   onCollapsePane,
   showTags,
   onShowTagsChange,
+  logTab,
 }: BranchesPaneProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(['@local', '@remotes']),
@@ -94,10 +97,11 @@ export function BranchesPane({
         .request(LOG_METHODS.branchAction, {
           action,
           ...(ref !== undefined ? { name: ref.name, type: ref.type } : {}),
+          ...(logTab !== undefined ? { logTab } : {}),
         })
         .catch(() => undefined);
     },
-    [rpc],
+    [logTab, rpc],
   );
 
   const myCommitsOn = useMemo(

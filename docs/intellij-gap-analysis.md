@@ -485,6 +485,7 @@ row in the branches tree.
 | Multi-repo: one graph merging every root | one root at a time, chosen under `Paths ▾ · Roots` and held (**D24**) | 🟡 |
 | Multi-repo root colour stripe / root names | swatch + name in `Paths ▾ · Roots` and in the panel title; no per-row stripe, there being one root per graph | 🟡 |
 | Refresh — the button, and the automatic one on any VCS change | `log.refresh`, plus a debounced re-page on `model.onDidChange` (`refs`/HEAD only), deferred while the panel is hidden | ✅ |
+| **Open Another Log Tab** (`+` beside the tabs): a new Log tab matching the current filters; tabs titled by their filter (`Log: 2026.1`), closed with `×` or Close Tab / Close Other Tabs / Close All Tabs | `+` after the last tab; one session per tab, restored lazily after a restart; File History, Compare with Current and Show in Log open (or reuse) a tab of their own instead of refiltering yours. *Added 2026-11-01; not in the 2026-08 inventory.* Console and Worktrees stay open (**D33**) | ✅ |
 | Copy Revision Number | `log.copySha` | ✅ |
 | New Branch / New Tag from commit | `createBranchHere` / `createTagHere` | ✅ |
 | Checkout Revision | `log.checkoutRevision` | ✅ |
@@ -502,7 +503,7 @@ row in the branches tree.
 | View in browser / Open on GitHub-GitLab | `log.openOnRemote` | ✅ |
 | **Changed Files pane toolbar**: Show Diff, Revert Selected Changes, History Up to Here, View Options (Group By / Show Details / Show Diff Preview), Expand/Collapse | P12-T3 Changed Files pane with its own toolbar | ✅ |
 | Changed Files context menu: Compare Before with Local, Open Repository Version, Revert Selected Changes, Cherry-Pick Selected Changes, **Extract Selected Changes to Separate Commit**, Drop Selected Changes, Create Patch, Get from Revision, History Up to Here, Show Changes to Parents | open diff only | ❌ (10 actions) |
-| File **History** tab with diff preview | `showFileHistory` (log filtered by path) | 🟡 |
+| File **History** tab with diff preview | `showFileHistory` opens a Log tab of its own, `History: <file>` (path filter with `--follow`), reused for the same file; no diff preview in the tab | 🟡 |
 | **Console** tab sits directly beside **Log** in the Git tool window (verified) | P12-T8 `Log \| Console` tabs in one window (read-only — D10) | ✅ |
 | **Repository** / **Incoming** / **Update Info** tabs | — | ❌ |
 | Branches pane has its own **vertical icon rail** (new branch, delete, update, search, favorite, settings) | P12-T2 Branches pane + vertical rail | ✅ |

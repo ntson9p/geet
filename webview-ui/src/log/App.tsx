@@ -1,52 +1,67 @@
 /**
- * Git tool window (P12-T1, over the P4 machinery): `Log` tab → filter bar →
- * the §2A four-pane layout `[Branches | Commits] | [Changed Files / Commit
- * Details]`, every ratio and collapse persisted. Rows stay in a VirtualList
- * with the canvas graph layer; infinite scroll pages over RPC; the selection
- * is mirrored host-side (`log/select`) so multi-commit actions read one model.
- * The `Console` tab arrives with P12-T8 — a dead tab is a worse affordance
- * than none (the P11-T2 precedent).
+ * Git tool window (P12-T1, P12-T8, POST-P14k): the tab strip and whichever tab
+ * is in front. The strip is IntelliJ's: `Log`, `Console`, `Worktrees`, then
+ * any extra Log tabs in the order they were opened, each with a `×`, and `+`
+ * (`Open Another Log Tab`) after the last. Right-clicking a tab offers Close
+ * Tab / Close Other Tabs / Close All Tabs; only the extra Log tabs ever close.
+ *
+ * The host owns the Log tabs: it opens them for File History, Compare with
+ * Current and an update's Show in Log, and keeps them across restarts. The
+ * strip asks for the list once and then follows `evtTabs`. A Log tab is
+ * mounted the first time it is shown and kept from then on, so a tab restored
+ * after a restart costs nothing until it is looked at, and one already seen
+ * keeps its rows, selection and scroll when another is in front. The active
+ * Log tab, the one commands act on, is always mounted.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_LOG_PRESENTATION,
   LOG_METHODS,
-  type CommitDetailsDto,
-  type CommitFileDto,
-  type LogBranchesDto,
-  type LogChangedFilesDto,
-  type LogFilterDto,
-  type LogInitDto,
-  type LogPageDto,
   type LogPresentationDto,
-  type LogRootDto,
-  type LogRowDto,
-  type LogTab,
+  type LogTabDto,
+  type LogTabsDto,
 } from '../../../src/shared/protocol';
+import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient } from '../lib/rpc';
-import { TabPanel, Tabs } from '../lib/Tabs';
+import { TabPanel, Tabs, type TabDef } from '../lib/Tabs';
 import { ToolbarButton } from '../lib/Toolbar';
-import { useElementSize } from '../lib/useElementSize';
 import { useVsCodeTheme } from '../lib/useVsCodeTheme';
-import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import { getVsCodeApi } from '../lib/vscodeApi';
-import { commitDate } from './dateFormat';
-import { BranchesPane } from './BranchesPane';
-import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
-import { CommitTooltip } from './CommitTooltip';
 import { ConsolePane } from './ConsolePane';
+import { LogTab, type LogTabUiState } from './LogTab';
+import {
+  FIXED_TABS,
+  MAIN_LOG_TAB,
+  afterClose,
+  closeTargets,
+  stripOrder,
+  tabTitle,
+  type CloseAction,
+} from './logTabsModel';
+import type { ShellLayout } from './Shell';
 import { WorktreesPane } from './WorktreesPane';
-import { DetailsPanel } from './DetailsPanel';
-import { FilterBar } from './FilterBar';
-import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
-import { refLabels, tagsTooltip } from './refLabels';
-import { DEFAULT_LAYOUT, Shell, type ShellLayout } from './Shell';
 
-const ROW_HEIGHT = 24;
+interface PersistedState {
+  /** Before tabs, the single log kept these at the top level; read once for the main tab. */
+  filter?: LogTabUiState['filter'];
+  focusSha?: string;
+  layout?: ShellLayout;
+  filesRollup?: boolean;
+  previewOnClick?: boolean;
+  highlightMine?: boolean;
+  /** The strip item in front: a Log tab id, `console` or `worktrees`. */
+  tab?: string;
+  /** Each Log tab's focus and layout. */
+  tabsUi?: Record<string, LogTabUiState>;
+}
 
-/** A tab the strip below actually has — anything else from the host is ignored. */
-function isLogTab(value: unknown): value is LogTab {
-  return value === 'log' || value === 'console' || value === 'worktrees';
+/** Until the host answers `log/tabs` (or if it cannot): the main tab alone. */
+const MAIN_ONLY: LogTabDto[] = [{ id: MAIN_LOG_TAB, filter: { sort: 'date', refs: 'HEAD' }, closable: false }];
+
+const isFixed = (id: string): boolean => (FIXED_TABS as readonly string[]).includes(id);
+
+function readState(): PersistedState {
+  return (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
 }
 
 /** A whole `LogPresentationDto`, or nothing: a stray `{ ok: true }` must not blank both toggles. */
@@ -58,214 +73,145 @@ function asPresentation(value: unknown): LogPresentationDto | undefined {
     : undefined;
 }
 
-interface PersistedState {
-  filter?: LogFilterDto;
-  focusSha?: string;
-  /** P12-T1: pane ratios + collapse flags, restored exactly across reload. */
-  layout?: ShellLayout;
-  filesRollup?: boolean;
-  previewOnClick?: boolean;
-  highlightMine?: boolean;
-  tab?: string;
+/** A usable tab list, or nothing (a host from before tabs answers `{ ok: true }`). */
+function asTabs(value: unknown): LogTabsDto | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const dto = value as Partial<LogTabsDto>;
+  if (!Array.isArray(dto.tabs) || typeof dto.active !== 'string') return undefined;
+  const tabs = dto.tabs.filter(
+    (t): t is LogTabDto => t !== null && typeof t === 'object' && typeof t.id === 'string',
+  );
+  if (!tabs.some((t) => t.id === MAIN_LOG_TAB)) return undefined;
+  return { tabs, active: dto.active, ...(typeof dto.show === 'string' ? { show: dto.show } : {}) };
+}
+
+/** The Log tab an event names (no `logTab` means the main tab). */
+function logTabOf(params: unknown): string {
+  const tab = (params as { logTab?: unknown } | undefined)?.logTab;
+  return typeof tab === 'string' ? tab : MAIN_LOG_TAB;
 }
 
 export function App() {
   const rpc = useMemo(() => new RpcClient(), []);
   const theme = useVsCodeTheme();
   const dark = theme === 'dark' || theme === 'high-contrast';
-  const listRef = useRef<VirtualListHandle>(null);
+  const boot = useMemo(readState, []);
 
-  const [init, setInit] = useState<LogInitDto | undefined>();
-  const [rows, setRows] = useState<LogRowDto[]>([]);
-  const [eof, setEof] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [viewport, setViewport] = useState<GraphViewport>({ scrollTop: 0, first: 0, last: 0 });
-  const [selected, setSelected] = useState<string[]>([]);
-  const [details, setDetails] = useState<CommitDetailsDto | undefined>();
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-  // P12-T1: layout + pane preferences, persisted with the filter.
-  const boot = useMemo(() => (getVsCodeApi().getState() as PersistedState | undefined) ?? {}, []);
-  const [layout, setLayout] = useState<ShellLayout>(boot.layout ?? DEFAULT_LAYOUT);
-  const [filesRollup, setFilesRollup] = useState(boot.filesRollup ?? true);
-  // P12-T3: the Changed Files pane's own data (single commit or aggregate).
-  const [changed, setChanged] = useState<LogChangedFilesDto | undefined>(undefined);
-  const [changedLoading, setChangedLoading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<CommitFileDto | undefined>(undefined);
-  const [previewOnClick, setPreviewOnClick] = useState(boot.previewOnClick ?? false);
-  // P12-T5: refs data is shared by the Branches pane AND the filter row.
-  const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
-  const [highlightMine, setHighlightMine] = useState(boot.highlightMine ?? false);
+  const [tabs, setTabs] = useState<LogTabDto[]>(MAIN_ONLY);
+  /** The strip item in front: a Log tab id, `console` or `worktrees`. */
+  const [strip, setStrip] = useState<string>(boot.tab ?? MAIN_LOG_TAB);
+  /** The Log tab commands act on: the last one shown. */
+  const [activeLog, setActiveLog] = useState<string>(MAIN_LOG_TAB);
+  /** Log tabs shown at least once, kept mounted so they keep their place. */
+  const [mounted, setMounted] = useState<ReadonlySet<string>>(() => new Set());
+  /** Nothing mounts before the host has said which tabs exist. */
+  const [ready, setReady] = useState(false);
+  const [tabMenu, setTabMenu] = useState<{ id: string; at: { x: number; y: number } } | null>(null);
   // Tag Names and Show Tags. Settings, not view state, so the host owns them:
-  // they arrive with `init`/`reset` and on `evtPresentation`, never from
-  // `getState`.
+  // they arrive with each tab's `init`/`reset` and on `evtPresentation`.
   const [presentation, setPresentation] = useState<LogPresentationDto>(DEFAULT_LOG_PRESENTATION);
-  // P12-T8: the Log | Console strip; the active tab persists (step 1).
-  const [tab, setTab] = useState(boot.tab ?? 'log');
-  // POST-P14x: the row hover card. `text` is the full commit message, fetched
-  // lazily — see LOG_METHODS.commitMessage for why it is not on the row DTO.
-  // `kind: 'tags'` is the same card over an icon-only tag chip, naming the tags.
-  const [hover, setHover] = useState<
-    | {
-        sha: string;
-        text: string;
-        anchor: { left: number; top: number; bottom: number };
-        kind?: 'tags';
-      }
-    | undefined
-  >(undefined);
-  const hoverTimer = useRef<number | undefined>(undefined);
+  // Pane preferences: one for the window, the same in every Log tab.
+  const [filesRollup, setFilesRollup] = useState(boot.filesRollup ?? true);
+  const [previewOnClick, setPreviewOnClick] = useState(boot.previewOnClick ?? false);
+  const [highlightMine, setHighlightMine] = useState(boot.highlightMine ?? false);
+
+  // Callbacks registered once read the current values through these.
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  const stripRef = useRef(strip);
+  stripRef.current = strip;
+  const activeLogRef = useRef(activeLog);
+  activeLogRef.current = activeLog;
+
+  useEffect(() => {
+    const prev = readState();
+    getVsCodeApi().setState({ ...prev, filesRollup, previewOnClick, highlightMine, tab: strip });
+  }, [filesRollup, highlightMine, previewOnClick, strip]);
+
   /**
-   * sha → message, kept for the life of the view. Re-hovering a row the user
-   * has already read must not re-run git, and the same rows are hovered over
-   * and over while the pointer travels down the list.
+   * Brings a strip item forward. A Log tab is mounted the first time and
+   * becomes the one commands act on; `tell: false` when the host already
+   * knows (it picked the tab itself).
    */
-  const messages = useRef(new Map<string, string>());
-  /** The sha the pointer is over right now — a late reply for any other is dropped. */
-  const hoverSha = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    const reload = (): void => {
-      rpc.request<LogBranchesDto>(LOG_METHODS.branches).then(
-        (next) => setBranchesData(next ?? null),
-        () => setBranchesData(null),
-      );
-    };
-    reload();
-    return rpc.onEvent(LOG_METHODS.evtBranches, reload);
-  }, [rpc]);
-
-  // Only reached before the host's first `log/init` answers; it has to agree
-  // with DEFAULT_FILTER or the sort dropdown reads wrong for that one frame.
-  const filter = init?.filter ?? { sort: 'date' as const, refs: 'HEAD' as const };
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
-  // The boot effect runs once per rpc, so what it reads at event time has to
-  // come through refs — a closure would hold the first render's empty values.
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
-  const viewportRef = useRef(viewport);
-  viewportRef.current = viewport;
-  const pageRef = useRef({ next: 0, loading: false, eof: false });
-
-  /** Merge-persist: layout, filter and focus share one state bag. */
-  const persist = useCallback((patch: Partial<PersistedState>) => {
-    const prev = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
-    getVsCodeApi().setState({ ...prev, ...patch });
-  }, []);
-
-  useEffect(() => {
-    persist({ layout, filesRollup, previewOnClick, highlightMine, tab });
-  }, [filesRollup, highlightMine, layout, persist, previewOnClick, tab]);
-
-  // P12-T3: the pane follows the selection — one commit's files, or the
-  // aggregate change set of a multi-select.
-  useEffect(() => {
-    if (selected.length === 0) {
-      setChanged(undefined);
-      return;
-    }
-    let cancelled = false;
-    setChangedLoading(true);
-    rpc.request<LogChangedFilesDto>(LOG_METHODS.changedFiles, { shas: selected }).then(
-      (next) => {
-        if (cancelled) return;
-        setChanged(next ?? { files: [] });
-        setChangedLoading(false);
-      },
-      () => {
-        if (cancelled) return;
-        setChanged({ files: [] });
-        setChangedLoading(false);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [rpc, selected]);
-
-  // P12-T1: the selection is one host-side model — every pane and every
-  // command reads the same list, pushed here on each change.
-  useEffect(() => {
-    void rpc.request(LOG_METHODS.select, { shas: selected }).catch(() => undefined);
-  }, [rpc, selected]);
-
-  /** IntelliJ's own dwell before a commit tooltip appears. */
-  const HOVER_DELAY_MS = 450;
-
-  const cancelHover = useCallback(() => {
-    if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = undefined;
-    hoverSha.current = undefined;
-    setHover(undefined);
-  }, []);
-
-  const beginHover = useCallback(
-    (sha: string, el: HTMLElement) => {
-      if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
-      hoverSha.current = sha;
-      // The rectangle is read now, not in the timer: by then the row may have
-      // scrolled, and a card anchored to where the row *is* would jump away
-      // from the message it describes.
-      const rect = el.getBoundingClientRect();
-      const anchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
-      const show = (text: string): void => {
-        if (hoverSha.current !== sha || text.length === 0) return;
-        setHover({ sha, text, anchor });
-      };
-      hoverTimer.current = window.setTimeout(() => {
-        const cached = messages.current.get(sha);
-        if (cached !== undefined) {
-          show(cached);
-          return;
-        }
-        rpc
-          .request<{ message?: string }>(LOG_METHODS.commitMessage, { sha })
-          .then((res) => {
-            const text = res?.message ?? '';
-            messages.current.set(sha, text);
-            show(text);
-          })
-          .catch(() => undefined);
-      }, HOVER_DELAY_MS);
+  const show = useCallback(
+    (id: string, opts?: { tell?: boolean }) => {
+      setStrip(id);
+      if (isFixed(id)) return;
+      setMounted((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+      setActiveLog(id);
+      if (opts?.tell !== false) {
+        void rpc.request(LOG_METHODS.activateTab, { logTab: id }).catch(() => undefined);
+      }
     },
     [rpc],
   );
 
-  /**
-   * Over an icon-only tag chip the card names the tags instead of showing the
-   * message, as IntelliJ's tooltip does over a commit's labels: with Tag Names
-   * off, hovering is the way to read them. The key is not the bare sha, so a
-   * message fetch still in flight for this row cannot land over the names.
-   */
-  const beginTagHover = useCallback((sha: string, names: readonly string[], chip: HTMLElement) => {
-    if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
-    const key = `tags:${sha}`;
-    hoverSha.current = key;
-    setHover(undefined);
-    const rect = chip.getBoundingClientRect();
-    const anchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
-    const text = tagsTooltip(names);
-    hoverTimer.current = window.setTimeout(() => {
-      if (hoverSha.current === key) setHover({ sha, text, anchor, kind: 'tags' });
-    }, HOVER_DELAY_MS);
-  }, []);
+  useEffect(() => {
+    let disposed = false;
+    rpc.request<unknown>(LOG_METHODS.tabs).then(
+      (raw) => {
+        if (disposed) return;
+        const dto = asTabs(raw) ?? { tabs: MAIN_ONLY, active: MAIN_LOG_TAB };
+        setTabs(dto.tabs);
+        setActiveLog(dto.active);
+        const known = (id: string | undefined): id is string =>
+          id !== undefined && (isFixed(id) || dto.tabs.some((t) => t.id === id));
+        // Something asked for a tab before this view could hear it (POST-P14af),
+        // else the item that was in front before the reload, else the host's.
+        const first = known(dto.show) ? dto.show : known(boot.tab) ? boot.tab : dto.active;
+        show(first, { tell: !isFixed(first) && first !== dto.active });
+        setReady(true);
+      },
+      () => {
+        if (disposed) return;
+        show(MAIN_LOG_TAB, { tell: false });
+        setReady(true);
+      },
+    );
 
-  /**
-   * Off the chip but still on its row: back to the row's own card. The row's
-   * `mouseenter` does not fire again for a move inside it, so it is restarted
-   * here; leaving the row or the pane at the same time overrides this, because
-   * those handlers run after this one.
-   */
-  const endTagHover = useCallback(
-    (sha: string, chip: HTMLElement) => {
-      cancelHover();
-      const row = chip.closest<HTMLElement>('.gt-virtual-row');
-      if (row) beginHover(sha, row);
-    },
-    [beginHover, cancelHover],
-  );
+    const offTabs = rpc.onEvent(LOG_METHODS.evtTabs, (params) => {
+      const dto = asTabs(params);
+      if (!dto) return;
+      setTabs(dto.tabs);
+      const alive = (id: string): boolean => dto.tabs.some((t) => t.id === id);
+      setMounted((prev) => {
+        const kept = [...prev].filter(alive);
+        return kept.length === prev.size ? prev : new Set(kept);
+      });
+      if (dto.show !== undefined) {
+        // A command opened or picked this tab; the host already made it active.
+        show(dto.show, { tell: false });
+        return;
+      }
+      if (!alive(activeLogRef.current)) setActiveLog(dto.active);
+      if (!isFixed(stripRef.current) && !alive(stripRef.current)) setStrip(dto.active);
+    });
+    // POST-P14af: a push notification's `Show Details` lands on the Console.
+    const offShowTab = rpc.onEvent(LOG_METHODS.evtShowTab, (params) => {
+      const tab = (params as { tab?: unknown } | undefined)?.tab;
+      if (typeof tab === 'string') show(tab, { tell: false });
+    });
+    // A reveal or a focus-the-filter is about a Log tab, which then has to be in front.
+    const offReveal = rpc.onEvent(LOG_METHODS.evtReveal, (params) => show(logTabOf(params), { tell: false }));
+    const offFocus = rpc.onEvent(LOG_METHODS.evtFocusFilter, (params) =>
+      show(logTabOf(params), { tell: false }),
+    );
+    // Tag Names / Show Tags changed, here or in the Settings editor. Only the
+    // drawing changes: the rows, the selection and the scroll stay.
+    const offPresentation = rpc.onEvent(LOG_METHODS.evtPresentation, (params) => {
+      const next = asPresentation(params);
+      if (next) setPresentation(next);
+    });
+    return () => {
+      disposed = true;
+      offTabs();
+      offShowTab();
+      offReveal();
+      offFocus();
+      offPresentation();
+    };
+    // Boot effect: intentionally runs once per rpc instance.
+  }, [rpc]); // `show` and `boot` are stable for the boot path
 
   /** A toggle in either settings menu: drawn at once, then confirmed by the host. */
   const changePresentation = useCallback(
@@ -282,528 +228,139 @@ export function App() {
     [rpc],
   );
 
-  // ---- container sizing ----
-  // useElementSize (callback ref) survives the Log tab unmounting/remounting
-  // around the Console tab — an object-ref ResizeObserver would keep watching
-  // the detached node (the P11-T4 lesson).
-  const [containerRef, measured] = useElementSize<HTMLDivElement>();
-  const size = { width: measured.width || 800, height: measured.height || 400 };
-
-  // ---- boot + host events ----
-  /**
-   * The commit to land on once page 0 arrives. `select: true` restores a
-   * focused commit (a reload, or an auto-refresh the user had a selection
-   * for); `select: false` only puts the row back where it was, which is what
-   * an auto-refresh under no selection needs — silently selecting a commit
-   * the user never picked would repaint both right-hand panes.
-   */
-  const restoreRef = useRef<{ sha: string; select: boolean } | undefined>(undefined);
-  useEffect(() => {
-    const offRows = rpc.onEvent(LOG_METHODS.evtRows, (params) => {
-      const page = params as LogPageDto;
-      setRows((prev) => {
-        // Pages arrive in order; page.page * PAGE alignment is guaranteed by
-        // the host (it replays from its row store on rehydrate).
-        const next = page.page === 0 ? [...page.rows] : [...prev, ...page.rows];
-        return next;
-      });
-      setEof(page.eof);
-      pageRef.current = { next: page.page + 1, loading: false, eof: page.eof };
-      setLoading(false);
-    });
-    const offReset = rpc.onEvent(LOG_METHODS.evtReset, (params) => {
-      const dto = params as LogInitDto;
-      // `preserve` marks a reset the host raised because history moved. The
-      // rows still have to be rebuilt — a new commit renumbers every page and
-      // relays the graph — but the user did not ask to be sent back to the
-      // top, so anchor on what they were looking at and restore it when page 0
-      // lands. A user act (filter, root, Refresh) resets cleanly, as before.
-      restoreRef.current = undefined;
-      if (dto.preserve === true) {
-        const focused = selectedRef.current[0];
-        // `viewport.first` is overscanned — a few rows above the fold — so the
-        // row actually at the top edge is derived from the offset instead.
-        const topRow = rowsRef.current[Math.round(viewportRef.current.scrollTop / ROW_HEIGHT)];
-        const anchor = focused ?? topRow?.sha;
-        if (anchor !== undefined) restoreRef.current = { sha: anchor, select: focused !== undefined };
-      }
-      setInit(dto);
-      if (dto.presentation) setPresentation(dto.presentation);
-      setRows([]);
-      setSelected([]);
-      setDetails(undefined);
-      setEof(false);
-      pageRef.current = { next: 0, loading: false, eof: false };
-      requestPage(0);
-    });
-    const offReveal = rpc.onEvent(LOG_METHODS.evtReveal, (params) => {
-      const { sha } = params as { sha: string };
-      const idx = rowsRef.current.findIndex((r) => r.sha === sha);
-      if (idx !== -1) {
-        listRef.current?.focusIndex(idx);
-        setSelected([sha]);
-        void loadDetails(sha);
-      }
-    });
-    const offFocusFilter = rpc.onEvent(LOG_METHODS.evtFocusFilter, () => {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    });
-    // POST-P14af: a push notification's `Show Details` lands on the Console.
-    const offShowTab = rpc.onEvent(LOG_METHODS.evtShowTab, (params) => {
-      const next = (params as { tab?: unknown } | undefined)?.tab;
-      if (isLogTab(next)) setTab(next);
-    });
-    // Roots-only update: merged into init rather than replacing it, so a
-    // folder joining the workspace does not cost the rows or the selection.
-    const offRoots = rpc.onEvent(LOG_METHODS.evtRoots, (params) => {
-      const { roots } = params as { roots: LogRootDto[] };
-      setInit((prev) => (prev ? { ...prev, roots } : prev));
-    });
-    // Tag Names / Show Tags changed, here or in the Settings editor. Only the
-    // drawing changes: the rows, the selection and the scroll stay.
-    const offPresentation = rpc.onEvent(LOG_METHODS.evtPresentation, (params) => {
-      const next = asPresentation(params);
-      if (next) setPresentation(next);
-    });
-
-    const saved = (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
-    restoreRef.current =
-      saved.focusSha !== undefined ? { sha: saved.focusSha, select: true } : undefined;
-    void rpc.request<LogInitDto>(LOG_METHODS.init, { filter: saved.filter }).then((dto) => {
-      setInit(dto);
-      if (dto.presentation) setPresentation(dto.presentation);
-      // Asked for before this view could hear `evtShowTab` (see `showTab`).
-      if (isLogTab(dto.tab)) setTab(dto.tab);
-      requestPage(0);
-    });
-    return () => {
-      offRows();
-      offReset();
-      offReveal();
-      offFocusFilter();
-      offShowTab();
-      offRoots();
-      offPresentation();
-    };
-    // Boot effect: intentionally runs once per rpc instance.
-  }, [rpc]); // requestPage/loadDetails are stable enough for the boot path
-
-  const requestPage = useCallback(
-    (page: number) => {
-      if (pageRef.current.loading) return;
-      pageRef.current.loading = true;
-      setLoading(true);
-      void rpc.request(LOG_METHODS.page, { page }).catch(() => {
-        pageRef.current.loading = false;
-        setLoading(false);
-      });
-    },
-    [rpc],
-  );
-
-  const loadDetails = useCallback(
-    async (sha: string) => {
-      setDetailsLoading(true);
-      try {
-        const d = await rpc.request<CommitDetailsDto | undefined>(LOG_METHODS.details, { sha });
-        setDetails(d ?? undefined);
-      } finally {
-        setDetailsLoading(false);
-      }
-    },
-    [rpc],
-  );
-
-  /**
-   * Reload / auto-refresh restore. This has to run AFTER the rows commit, not
-   * from the `evtRows` handler: a reset empties the list, which collapses its
-   * spacer and makes the browser clamp scrollTop to 0, so a scroll set before
-   * React has painted the new rows is silently thrown away. Waiting for the
-   * committed `rows` also means an anchor that page 0 does not carry is simply
-   * found on whichever later page does.
-   */
-  useEffect(() => {
-    const restore = restoreRef.current;
-    if (restore === undefined) return;
-    const idx = rows.findIndex((r) => r.sha === restore.sha);
-    if (idx === -1) return;
-    restoreRef.current = undefined;
-    if (restore.select) {
-      setSelected([restore.sha]);
-      void loadDetails(restore.sha);
-    }
-    // One frame so the taller spacer is laid out before the offset is applied.
-    requestAnimationFrame(() =>
-      // A restored selection is being read, so centre it; a scroll-only anchor
-      // was the top row and belongs back at the top.
-      listRef.current?.scrollToIndex(idx, restore.select ? 'center' : 'top'),
+  /** IntelliJ's `+`: a new tab matching the current Log tab's filters, shown at once. */
+  const openAnother = useCallback(() => {
+    rpc.request<{ logTab?: unknown }>(LOG_METHODS.openTab, { from: activeLogRef.current }).then(
+      (res) => {
+        if (typeof res?.logTab === 'string') show(res.logTab, { tell: false });
+      },
+      () => undefined,
     );
-  }, [rows, loadDetails]);
+  }, [rpc, show]);
 
-  // ---- infinite scroll ----
-  const onViewport = useCallback(
-    (v: GraphViewport) => {
-      setViewport(v);
-      const nearEnd = v.last >= rowsRef.current.length - 40;
-      if (nearEnd && !pageRef.current.eof && !pageRef.current.loading && rowsRef.current.length > 0) {
-        requestPage(pageRef.current.next);
+  /** `×`, middle-click, and the tab menu: gone at once, the host told after. */
+  const closeLogTabs = useCallback(
+    (ids: readonly string[]) => {
+      if (ids.length === 0) return;
+      const gone = new Set(ids);
+      const next = afterClose(stripOrder(tabsRef.current), stripRef.current, ids);
+      setTabs((prev) => prev.filter((t) => !gone.has(t.id)));
+      setMounted((prev) => new Set([...prev].filter((id) => !gone.has(id))));
+      const state = readState();
+      if (state.tabsUi !== undefined) {
+        const tabsUi = Object.fromEntries(Object.entries(state.tabsUi).filter(([id]) => !gone.has(id)));
+        getVsCodeApi().setState({ ...state, tabsUi });
       }
+      // Sent first, so the host's own fallback (the main tab) is overridden by
+      // the tab actually brought forward, below.
+      void rpc.request(LOG_METHODS.closeTabs, { tabs: ids }).catch(() => undefined);
+      if (gone.has(activeLogRef.current)) setActiveLog(MAIN_LOG_TAB);
+      if (next !== stripRef.current || !isFixed(next)) show(next, { tell: !isFixed(next) });
     },
-    [requestPage],
+    [rpc, show],
   );
 
-  // ---- selection ----
-  const onFocusIndex = useCallback(
-    (index: number) => {
-      const row = rowsRef.current[index];
-      if (!row) return;
-      setSelected([row.sha]);
-      persist({ filter, focusSha: row.sha });
-      void loadDetails(row.sha);
-    },
-    [filter, loadDetails, persist],
-  );
-
-  const onRowClick = useCallback(
-    (index: number, mods: { ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => {
-      const row = rowsRef.current[index];
-      if (!row) return;
-      if (mods.ctrlKey || mods.metaKey) {
-        setSelected((prev) =>
-          prev.includes(row.sha) ? prev.filter((s) => s !== row.sha) : [...prev, row.sha],
-        );
-      } else if (mods.shiftKey && selected.length > 0) {
-        const anchor = rowsRef.current.findIndex((r) => r.sha === selected[0]);
-        if (anchor !== -1) {
-          const [a, b] = anchor < index ? [anchor, index] : [index, anchor];
-          setSelected(rowsRef.current.slice(a, b + 1).map((r) => r.sha));
-        }
-      }
-      // plain click handled by onFocusIndex
-    },
-    [selected],
-  );
-
-  // ---- keyboard: ctrl+c copies selected shas ----
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selected.length > 0) {
-        void rpc.request(LOG_METHODS.copy, { text: selected.join('\n') });
-      }
+  const uiFor = (id: string): LogTabUiState => {
+    const state = readState();
+    const own = state.tabsUi?.[id];
+    if (own !== undefined) return own;
+    if (id !== MAIN_LOG_TAB) return {};
+    // The single log's state, from before tabs.
+    return {
+      ...(state.focusSha !== undefined ? { focusSha: state.focusSha } : {}),
+      ...(state.layout !== undefined ? { layout: state.layout } : {}),
+      ...(state.filter !== undefined ? { filter: state.filter } : {}),
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [rpc, selected]);
+  };
 
-  const applyFilter = useCallback(
-    (next: LogFilterDto) => {
-      persist({ filter: next });
-      void rpc.request(LOG_METHODS.setFilter, { filter: next });
+  const saveUi = (id: string, patch: Partial<LogTabUiState>): void => {
+    const state = readState();
+    const tabsUi = state.tabsUi ?? {};
+    getVsCodeApi().setState({ ...state, tabsUi: { ...tabsUi, [id]: { ...tabsUi[id], ...patch } } });
+  };
+
+  const stripTabs: TabDef[] = stripOrder(tabs).map((id) => {
+    if (id === 'console') return { id, label: 'Console' };
+    if (id === 'worktrees') return { id, label: 'Worktrees' };
+    const tab = tabs.find((t) => t.id === id);
+    const title = tab !== undefined ? tabTitle(tab.filter) : 'Log';
+    return { id, label: title, title, closable: tab?.closable === true };
+  });
+
+  const menuItems = (id: string): MenuItem[] => [
+    { kind: 'item', id: 'close', label: 'Close Tab', disabled: closeTargets(tabs, id, 'close').length === 0 },
+    {
+      kind: 'item',
+      id: 'others',
+      label: 'Close Other Tabs',
+      disabled: closeTargets(tabs, id, 'others').length === 0,
     },
-    [persist, rpc],
-  );
+    { kind: 'item', id: 'all', label: 'Close All Tabs', disabled: closeTargets(tabs, id, 'all').length === 0 },
+  ];
 
-  if (!init) {
-    return <div className="gt-muted" style={{ padding: 12 }}>Loading log…</div>;
-  }
-
-  const laneWidth = init.laneWidth;
-  const maxLane = rows.reduce((m, r) => Math.max(m, r.graph.nodeLane, ...r.graph.lanesBefore.map((l) => l.lane)), 0);
-  const graphWidth = Math.min((maxLane + 1) * laneWidth + 8, 220);
-  const listHeight = Math.max(size.height, 100);
-
-  const commitsPane = (
-    <div
-      className="gt-log-rows"
-      ref={containerRef}
-      data-testid="log-rows"
-      // One listener for the whole pane rather than one per row: rows are
-      // recycled by the windowing, so a scroll that swaps the row under a
-      // stationary pointer fires no mouseleave on the row that left. Clicking
-      // is a selection gesture — the card must not outlive it and sit over
-      // the rows the user was aiming at.
-      onMouseLeave={cancelHover}
-      onWheel={cancelHover}
-      onMouseDown={cancelHover}
-    >
-      <GraphCanvas
-        rows={rows}
-        viewport={viewport}
-        rowHeight={ROW_HEIGHT}
-        laneWidth={laneWidth}
-        width={graphWidth}
-        height={listHeight}
-        palette={init.graphPalette ?? 'default'}
-      />
-      <VirtualList
-            ref={listRef}
-            rowCount={rows.length + (eof ? 0 : 1)}
-            rowHeight={ROW_HEIGHT}
-            height={listHeight}
-            ariaLabel="Commits"
-            onFocusIndex={onFocusIndex}
-            onRowClick={onRowClick}
-            onRowMouseEnter={(i, el) => {
-              const row = rows[i];
-              if (row) beginHover(row.sha, el);
-              else cancelHover();
-            }}
-            onViewport={onViewport}
-            rowAriaLabel={(i) => {
-              const row = rows[i];
-              if (!row) return loading ? 'Loading…' : 'Load more';
-              const refs = row.refs.length > 0 ? `, branch ${row.refs.map((r) => r.name).join(', ')}` : '';
-              return `commit ${row.subject} by ${row.authorName}, ${commitDate(row.authorTime)}${refs}`;
-            }}
-            rowContext={(i) => {
-              const row = rows[i];
-              if (!row) return undefined;
-              const shas = selected.includes(row.sha) && selected.length > 1 ? selected : [row.sha];
-              return {
-                webviewSection: 'commit',
-                sha: row.sha,
-                shas,
-                preventDefaultContextMenuItems: true,
-              };
-            }}
-            renderRow={(i) => {
-              const row = rows[i];
-              if (!row) {
-                return (
-                  <span className="gt-muted" data-testid="skeleton-row">
-                    {loading ? 'Loading…' : ''}
-                    {!loading && !eof ? (
-                      <button type="button" className="gt-chip-main" onClick={() => requestPage(pageRef.current.next)}>
-                        Load more
-                      </button>
-                    ) : null}
-                  </span>
-                );
-              }
-              const isSelected = selected.includes(row.sha);
-              const isMine =
-                highlightMine && branchesData?.myName !== undefined && row.authorName === branchesData.myName;
-              return (
-                <span
-                  className={`gt-log-row${isSelected ? ' gt-selected' : ''}${isMine ? ' gt-mine' : ''}`}
-                  style={{ paddingLeft: graphWidth }}
-                  data-testid={`log-row-${i}`}
-                >
-                  {row.side !== undefined ? (
-                    <span className={`gt-side-badge gt-side-${row.side}`}>
-                      {row.side === 'left' ? '◀' : '▶'}
-                    </span>
-                  ) : null}
-                  {refLabels(row.refs, presentation.showTagNames).map((label) => {
-                    const borderColor = laneColor(row.graph.colorIdx, dark, init.graphPalette ?? 'default');
-                    if (label.kind === 'tags') {
-                      return (
-                        <span
-                          key="tags"
-                          className="gt-ref-chip gt-ref-tag gt-ref-icon-only"
-                          style={{ borderColor }}
-                          data-testid="tag-chip"
-                          aria-label={`Tags: ${label.names.join(', ')}`}
-                          onMouseEnter={(e) => beginTagHover(row.sha, label.names, e.currentTarget)}
-                          onMouseLeave={(e) => endTagHover(row.sha, e.currentTarget)}
-                        >
-                          <span className="codicon codicon-tag" aria-hidden="true" />
-                        </span>
-                      );
-                    }
-                    const r = label.ref;
-                    return (
-                      <span
-                        key={`${r.type}:${r.name}`}
-                        className={`gt-ref-chip gt-ref-${r.type}${r.isHeadTarget === true ? ' gt-ref-headTarget' : ''}`}
-                        style={{ borderColor }}
-                      >
-                        {r.type === 'tag' ? (
-                          <span className="codicon codicon-tag gt-ref-icon" aria-hidden="true" />
-                        ) : null}
-                        {r.name}
-                      </span>
-                    );
-                  })}
-                  <span className="gt-log-subject">{row.subject}</span>
-                  <span className="gt-log-meta gt-muted">
-                    {row.authorName} · {commitDate(row.authorTime)} · {row.sha.slice(0, 7)}
-                  </span>
-                </span>
-              );
-            }}
-          />
-    </div>
-  );
+  const logIds = tabs.map((t) => t.id).filter((id) => mounted.has(id) || id === activeLog);
 
   return (
     <div className="gt-log-root">
       <Tabs
         ariaLabel="Git tool window"
-        active={tab}
-        onChange={setTab}
-        tabs={[
-          { id: 'log', label: 'Log' },
-          { id: 'console', label: 'Console' },
-          { id: 'worktrees', label: 'Worktrees' },
-        ]}
+        active={strip}
+        onChange={(id) => show(id)}
+        tabs={stripTabs}
+        onClose={(id) => closeLogTabs([id])}
+        onTabContextMenu={(id, at) => setTabMenu({ id, at })}
+        trailing={<ToolbarButton icon="add" label="Open Another Log Tab" onClick={openAnother} />}
       />
-      <TabPanel id="worktrees" active={tab} className="gt-log-tabpanel">
+      {tabMenu !== null ? (
+        <Menu
+          items={menuItems(tabMenu.id)}
+          at={tabMenu.at}
+          ariaLabel="Tab actions"
+          onClose={() => setTabMenu(null)}
+          onSelect={(action) => closeLogTabs(closeTargets(tabs, tabMenu.id, action as CloseAction))}
+        />
+      ) : null}
+      <TabPanel id="worktrees" active={strip} className="gt-log-tabpanel">
         <WorktreesPane rpc={rpc} />
       </TabPanel>
-      <TabPanel id="console" active={tab} className="gt-log-tabpanel">
+      <TabPanel id="console" active={strip} className="gt-log-tabpanel">
         <ConsolePane
           rpc={rpc}
           onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
         />
       </TabPanel>
-      <TabPanel id="log" active={tab} className="gt-log-tabpanel">
-        <FilterBar
-          filter={filter}
-          onChange={applyFilter}
-          branches={branchesData}
-          fetchAuthors={async () => {
-            const res = await rpc.request<{ authors: string[] }>(LOG_METHODS.authors);
-            return res?.authors ?? [];
-          }}
-          presets={init.presets ?? []}
-          onSavePreset={() => void rpc.request(LOG_METHODS.savePreset, { filter })}
-          onDeletePreset={(name) => void rpc.request(LOG_METHODS.deletePreset, { name })}
-          onRefresh={() => void rpc.request(LOG_METHODS.refresh)}
-          onGoToRef={(ref) => void rpc.request(LOG_METHODS.goToRef, { ref })}
-          onBrowsePaths={() => void rpc.request(LOG_METHODS.pickPaths)}
-          onPickPathsInTree={() => void rpc.request(LOG_METHODS.pickPathsInTree)}
-          roots={init.roots ?? []}
-          currentRoot={init.repoRoot}
-          onSetRoot={(root) => void rpc.request(LOG_METHODS.setRoot, { root })}
-          rootColor={(colorIdx) => laneColor(colorIdx, dark, init.graphPalette ?? 'default')}
-          showDetails={layout.collapsed.files !== true || layout.collapsed.details !== true}
-          onToggleDetails={() =>
-            setLayout((prev) => {
-              const hidden = prev.collapsed.files === true && prev.collapsed.details === true;
-              return {
-                ...prev,
-                collapsed: { ...prev.collapsed, files: !hidden, details: !hidden },
-              };
-            })
-          }
-          highlightMine={highlightMine}
-          onToggleHighlightMine={() => setHighlightMine((v) => !v)}
-          canHighlightMine={branchesData?.myName !== undefined}
-          presentation={presentation}
-          onPresentationChange={changePresentation}
-          searchInputRef={searchInputRef}
-        />
-        {/* P10-T2: async loads announced to screen readers. */}
-        <div className="gt-visually-hidden" aria-live="polite" data-testid="log-status">
-          {loading ? 'Loading commits…' : `${rows.length} commits loaded${eof ? ', end of history' : ''}`}
-        </div>
-        <Shell
-          layout={layout}
-          onLayoutChange={setLayout}
-          branches={
-            <BranchesPane
-              rpc={rpc}
-              data={branchesData}
-              repoRoot={init.repoRoot.length > 0 ? init.repoRoot : undefined}
-              filter={filter}
-              onFilterChange={applyFilter}
-              onCollapsePane={() =>
-                setLayout((prev) => ({
-                  ...prev,
-                  collapsed: { ...prev.collapsed, branches: true },
-                }))
-              }
-              showTags={presentation.showTags}
-              onShowTagsChange={(showTags) => changePresentation({ showTags })}
-            />
-          }
-          commits={commitsPane}
-          files={
-            <ChangedFilesPane
-              data={changed}
-              loading={changedLoading}
-              repoLabel={init.repoLabel}
-              repoRoot={init.repoRoot}
-              grouped={filesRollup}
-              colors={init.colors}
-              previewOnClick={previewOnClick}
-              onOpenFile={(file: CommitFileDto) => {
-                if (changed?.newest === undefined) return;
-                void rpc.request(LOG_METHODS.openFileDiff, {
-                  sha: changed.newest,
-                  file,
-                  ...(changed.base !== undefined ? { base: changed.base } : {}),
-                });
-              }}
-              onSelectedFileChange={setSelectedFile}
-            />
-          }
-          details={
-            <DetailsPanel
-              details={details}
-              loading={detailsLoading}
-              issue={init.issue}
-              onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
-              onGoTo={(sha: string) => void rpc.request(LOG_METHODS.goTo, { sha })}
-              fetchContained={async (sha: string) => {
-                const res = await rpc.request<{ branches: string[] }>(
-                  LOG_METHODS.containedBranches,
-                  { sha },
-                );
-                return res?.branches ?? [];
-              }}
-            />
-          }
-          toolbars={{
-            files: (
-              <>
-                <span className="gt-pane-count gt-muted">{changedFilesLabel(changed)}</span>
-                <ToolbarButton
-                  icon="diff-multiple"
-                  label="Show all files in multi-diff"
-                  disabled={changed?.newest === undefined || changed.base !== undefined}
-                  onClick={() => {
-                    if (changed?.newest !== undefined) {
-                      void rpc.request(LOG_METHODS.openAllDiffs, { sha: changed.newest });
-                    }
-                  }}
-                />
-                <ToolbarButton
-                  icon={filesRollup ? 'list-tree' : 'list-flat'}
-                  label={filesRollup ? 'Flat file list' : 'Group by folder'}
-                  onClick={() => setFilesRollup((v) => !v)}
-                />
-                <ToolbarButton
-                  icon="open-preview"
-                  label="Preview diff on click"
-                  toggled={previewOnClick}
-                  onClick={() => setPreviewOnClick((v) => !v)}
-                />
-                <ToolbarButton
-                  icon="history"
-                  label="Show History for Revision"
-                  disabled={selectedFile === undefined}
-                  onClick={() => {
-                    if (selectedFile !== undefined) {
-                      void rpc.request(LOG_METHODS.showFileHistory, { path: selectedFile.path });
-                    }
-                  }}
-                />
-              </>
-            ),
-          }}
-        />
-      </TabPanel>
-
-      {hover !== undefined ? (
-        <CommitTooltip
-          text={hover.text}
-          anchor={hover.anchor}
-          testId={hover.kind === 'tags' ? 'tags-tooltip' : 'commit-tooltip'}
-        />
-      ) : null}
+      {ready
+        ? logIds.map((id) => (
+            // Hidden, not unmounted, so a tab keeps its place behind another.
+            <div
+              key={id}
+              role="tabpanel"
+              id={`gt-tabpanel-${id}`}
+              aria-labelledby={`gt-tab-${id}`}
+              aria-hidden={id === strip ? undefined : true}
+              className={`gt-tabpanel gt-log-tabpanel${id === strip ? '' : ' gt-tab-behind'}`}
+              data-testid={`log-tab-${id}`}
+            >
+              <LogTab
+                rpc={rpc}
+                tabId={id}
+                visible={id === strip}
+                dark={dark}
+                presentation={presentation}
+                onPresentationChange={changePresentation}
+                onPresentationSeen={setPresentation}
+                filesRollup={filesRollup}
+                onFilesRollupChange={setFilesRollup}
+                previewOnClick={previewOnClick}
+                onPreviewOnClickChange={setPreviewOnClick}
+                highlightMine={highlightMine}
+                onHighlightMineChange={setHighlightMine}
+                saved={uiFor(id)}
+                onSave={(patch) => saveUi(id, patch)}
+              />
+            </div>
+          ))
+        : null}
     </div>
   );
 }

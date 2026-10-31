@@ -1,5 +1,6 @@
 /* Log tool window styles — --vscode-* variables only. */
 .gt-log-root {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -63,6 +64,16 @@
 .gt-log-tabpanel {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* A Log tab behind another: out of the flow and unseen, but still laid out.
+   `display: none` would reset every scroll position in it, and a tab is kept
+   mounted precisely so it is where you left it. */
+.gt-log-tabpanel.gt-tab-behind {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .gt-shell {

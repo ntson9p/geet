@@ -46,31 +46,85 @@ export const mockLogHostScript = `
   // values (window.__mockPresentation); IntelliJ's defaults otherwise.
   const presentation = () =>
     (window.__mockPresentation = window.__mockPresentation || { showTagNames: false, showTags: true });
+  // The Log tabs as logView keeps them: the main tab first, extras appended.
+  // Opt-in starting list (window.__mockTabs) for the restore tests.
+  const tabsState = () =>
+    (window.__mockTabsState = window.__mockTabsState || {
+      tabs: window.__mockTabs || [{ id: 'log', filter: { sort: 'topo', refs: 'HEAD' }, closable: false }],
+      active: window.__mockActiveTab || 'log',
+      next: 1,
+    });
+  const tabOf = (params) => (params && typeof params.logTab === 'string' ? params.logTab : 'log');
+  const tabsDto = (show) => {
+    const s = tabsState();
+    return { tabs: s.tabs, active: s.active, ...(show ? { show } : {}) };
+  };
+  const postTabs = (show) =>
+    post({ v: 1, id: 'evttabs', kind: 'evt', method: 'log/tabsChanged', params: tabsDto(show) });
+  // A command opening a tab of its own (File History and the like), as a test drives it.
+  window.__mockOpenTab = (filter) => {
+    const s = tabsState();
+    const id = 'log-' + s.next++;
+    s.tabs.push({ id, filter, closable: true });
+    s.active = id;
+    postTabs(id);
+    return id;
+  };
   const api = {
     postMessage(msg) {
       (window.__postedMessages = window.__postedMessages || []).push(msg);
       if (!msg || msg.v !== 1 || msg.kind !== 'req') return;
       const res = (result) => post({ v: 1, id: msg.id, kind: 'res', result });
       switch (msg.method) {
-        case 'log/init':
+        case 'log/tabs':
+          // Opt-in (window.__mockInitTab): a tab asked for before the view
+          // could hear the event, as logView.showTab hands it over.
+          res(tabsDto(window.__mockInitTab));
+          break;
+        case 'log/openTab': {
+          const s = tabsState();
+          const from = s.tabs.find((t) => t.id === (msg.params && msg.params.from)) || s.tabs[0];
+          const id = 'log-' + s.next++;
+          s.tabs.push({ id, filter: from.filter, closable: true });
+          s.active = id;
+          res({ logTab: id });
+          postTabs();
+          break;
+        }
+        case 'log/closeTabs': {
+          const s = tabsState();
+          const closing = (msg.params && msg.params.tabs) || [];
+          s.tabs = s.tabs.filter((t) => !t.closable || !closing.includes(t.id));
+          if (!s.tabs.some((t) => t.id === s.active)) s.active = 'log';
+          res({ ok: true });
+          postTabs();
+          break;
+        }
+        case 'log/activateTab': {
+          const s = tabsState();
+          if (s.tabs.some((t) => t.id === tabOf(msg.params))) s.active = tabOf(msg.params);
+          res({ ok: true });
+          break;
+        }
+        case 'log/init': {
+          const tab = tabsState().tabs.find((t) => t.id === tabOf(msg.params));
           res({
             repoRoot: '/repo', repoLabel: 'repo',
             roots: [
               { root: '/repo', label: 'repo', colorIdx: 0 },
               { root: '/other', label: 'other', colorIdx: 1 },
             ],
-            filter: (msg.params && msg.params.filter) || { sort: 'topo', refs: 'HEAD' },
+            filter: (msg.params && msg.params.filter) || (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' },
             laneWidth: 12, graphPalette: window.__mockGraphPalette,
             issue: { pattern: 'GT-\\\\d+', url: 'https://tracker.example/browse/$0' },
             presets: [
               { name: 'mine only', filter: { sort: 'topo', refs: 'HEAD', authors: ['a@x.dev'] } },
             ],
-            // Opt-in (window.__mockInitTab): a tab asked for before the view
-            // could hear the event, as logView.showTab hands it over.
-            tab: window.__mockInitTab,
             presentation: presentation(),
+            logTab: tabOf(msg.params),
           });
           break;
+        }
         case 'log/setPresentation': {
           // As logView answers: what the settings say once written.
           window.__mockPresentation = Object.assign({}, presentation(), msg.params);
@@ -83,7 +137,7 @@ export const mockLogHostScript = `
           const rows = [];
           for (let i = start; i < Math.min(start + PAGE, TOTAL); i++) rows.push(row(i));
           res({ ok: true });
-          post({ v: 1, id: 'evt' + page, kind: 'evt', method: 'log/rows', params: { page, rows, eof: start + PAGE >= TOTAL } });
+          post({ v: 1, id: 'evt' + page, kind: 'evt', method: 'log/rows', params: { page, rows, eof: start + PAGE >= TOTAL, logTab: tabOf(msg.params) } });
           break;
         }
         case 'log/details': {
@@ -206,8 +260,13 @@ export const mockLogHostScript = `
           break;
         }
         case 'log/setFilter': {
+          const logTab = tabOf(msg.params);
+          const tab = tabsState().tabs.find((t) => t.id === logTab);
+          if (tab) tab.filter = msg.params.filter;
           res({ ok: true });
-          post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: '/repo', repoLabel: 'repo', filter: msg.params.filter, laneWidth: 12 } });
+          post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: '/repo', repoLabel: 'repo', filter: msg.params.filter, laneWidth: 12, logTab } });
+          // The strip retitles from the host's echo, as logView sends it.
+          postTabs();
           break;
         }
         default:

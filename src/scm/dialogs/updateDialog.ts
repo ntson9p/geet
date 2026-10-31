@@ -617,7 +617,7 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
       if (options.root !== undefined) {
         await showRangeInLog(outcome, options.root);
       } else {
-        await vscode.commands.executeCommand('gittree.log.setFilter', {
+        await vscode.commands.executeCommand('gittree.log.openTab', {
           sort: 'topo',
           range: { a: outcome.from, b: outcome.to },
         });
@@ -841,10 +841,14 @@ function reportProjectUpdate(
   });
 }
 
-/** The log, filtered to exactly what one update brought in — in *that* repository. */
+/**
+ * The log, filtered to exactly what one update brought in — in *that*
+ * repository, and in a Log tab of its own, so the filters of the tab you were
+ * using survive.
+ */
 export async function showRangeInLog(outcome: UpdateOutcome, root: string): Promise<void> {
   await vscode.commands.executeCommand(
-    'gittree.log.setFilter',
+    'gittree.log.openTab',
     { sort: 'topo', range: { a: outcome.from, b: outcome.to } },
     root,
   );

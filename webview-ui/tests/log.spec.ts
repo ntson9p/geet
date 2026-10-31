@@ -1350,4 +1350,176 @@ test.describe('P4-T3/T4 log webview', () => {
     await page.getByRole('menuitemcheckbox', { name: 'Show Tags' }).click();
     await expect(pane.getByRole('treeitem', { name: /^Tags, 1$/ })).toBeVisible();
   });
+
+  // ---- Log tabs: `+` (Open Another Log Tab), ×, the tab menu ----
+
+  const stripTab = (page: Page, id: string) => page.locator(`[data-tab="${id}"]`);
+  const tabPanel = (page: Page, id: string) => page.getByTestId(`log-tab-${id}`);
+
+  async function requests(page: Page, method: string): Promise<Array<Record<string, unknown>>> {
+    return (await posted(page))
+      .filter((m) => m.kind === 'req' && m.method === method)
+      .map((m) => m.params ?? {});
+  }
+
+  test('Log tabs: + opens another Log tab after the others, shown at once', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Open Another Log Tab' }).click();
+
+    // IntelliJ's order: the main Log tab, Console, Worktrees, then the new one.
+    await expect(page.getByRole('tab')).toHaveText(['Log', 'Console', 'Worktrees', 'Log']);
+    await expect(stripTab(page, 'log-1')).toHaveAttribute('aria-selected', 'true');
+    await expect.poll(() => requests(page, 'log/openTab')).toEqual([{ from: 'log' }]);
+
+    // Its own session: init and pages name the tab, and its rows draw.
+    await expect(tabPanel(page, 'log-1').getByTestId('log-row-0')).toBeVisible();
+    await expect
+      .poll(async () => (await requests(page, 'log/init')).some((p) => p.logTab === 'log-1'))
+      .toBe(true);
+    await expect
+      .poll(async () => (await requests(page, 'log/page')).some((p) => p.logTab === 'log-1'))
+      .toBe(true);
+    // A new tab starts with its Branches pane folded to the strip, as IntelliJ's do.
+    await expect(tabPanel(page, 'log-1').getByTestId('pane-branches-collapsed')).toBeVisible();
+    await expect(tabPanel(page, 'log').getByTestId('pane-branches-collapsed')).toHaveCount(0);
+  });
+
+  test('Log tabs: only the extra tabs have a ×', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Open Another Log Tab' }).click();
+    await expect(page.getByTestId('tab-close-log-1')).toHaveCount(1);
+    for (const fixed of ['log', 'console', 'worktrees']) {
+      await expect(page.getByTestId(`tab-close-${fixed}`)).toHaveCount(0);
+    }
+  });
+
+  test('Log tabs: a title follows its filter, and + copies the filter', async ({ page }) => {
+    await openLog(page);
+    const pane = tabPanel(page, 'log').getByTestId('branches-pane');
+    await pane.getByRole('treeitem', { name: /^feature, 3$/ }).locator('.gt-twistie').click();
+    await pane.getByRole('treeitem', { name: 'f1', exact: true }).click();
+    await expect(stripTab(page, 'log')).toHaveText('Log: feature/f1');
+
+    await page.getByRole('button', { name: 'Open Another Log Tab' }).click();
+    await expect(stripTab(page, 'log-1')).toHaveText('Log: feature/f1');
+    // The full title is the hover; a long one is cut short in the strip.
+    await expect(stripTab(page, 'log-1')).toHaveAttribute('title', 'Log: feature/f1');
+  });
+
+  test('Log tabs: × closes a tab, and the strip moves to its left', async ({ page }) => {
+    await openLog(page);
+    const add = page.getByRole('button', { name: 'Open Another Log Tab' });
+    await add.click();
+    await add.click();
+    await expect(stripTab(page, 'log-2')).toHaveAttribute('aria-selected', 'true');
+
+    // A tab behind: closing it leaves the one in front alone.
+    await page.getByTestId('tab-close-log-1').click();
+    await expect(stripTab(page, 'log-1')).toHaveCount(0);
+    await expect(stripTab(page, 'log-2')).toHaveAttribute('aria-selected', 'true');
+
+    // The tab in front: its left neighbour comes forward.
+    await page.getByTestId('tab-close-log-2').click();
+    await expect(stripTab(page, 'log-2')).toHaveCount(0);
+    await expect(stripTab(page, 'worktrees')).toHaveAttribute('aria-selected', 'true');
+    await expect
+      .poll(() => requests(page, 'log/closeTabs'))
+      .toEqual([{ tabs: ['log-1'] }, { tabs: ['log-2'] }]);
+  });
+
+  test('Log tabs: middle-click closes an extra tab, never the main one', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Open Another Log Tab' }).click();
+    await stripTab(page, 'log-1').click({ button: 'middle' });
+    await expect(stripTab(page, 'log-1')).toHaveCount(0);
+    await stripTab(page, 'log').click({ button: 'middle' });
+    await expect(stripTab(page, 'log')).toHaveCount(1);
+  });
+
+  test('Log tabs: the tab menu offers Close Tab, Close Other Tabs, Close All Tabs', async ({ page }) => {
+    await openLog(page);
+    const add = page.getByRole('button', { name: 'Open Another Log Tab' });
+    await add.click();
+    await add.click();
+    await add.click();
+
+    // On the main tab: it cannot close, but it can close the others.
+    await stripTab(page, 'log').click({ button: 'right' });
+    const menu = page.getByRole('menu', { name: 'Tab actions' });
+    await expect(menu.getByRole('menuitem')).toHaveText(['Close Tab', 'Close Other Tabs', 'Close All Tabs']);
+    await expect(menu.getByRole('menuitem', { name: 'Close Tab' })).toHaveAttribute('aria-disabled', 'true');
+    await page.keyboard.press('Escape');
+
+    // Close Other Tabs on log-2 keeps it and the main tab.
+    await stripTab(page, 'log-2').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Close Other Tabs' }).click();
+    await expect(page.getByRole('tab')).toHaveText(['Log', 'Console', 'Worktrees', 'Log']);
+    await expect(stripTab(page, 'log-2')).toHaveCount(1);
+
+    // Close All Tabs leaves the main tab, Console and Worktrees.
+    await stripTab(page, 'log-2').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Close All Tabs' }).click();
+    await expect(page.getByRole('tab')).toHaveText(['Log', 'Console', 'Worktrees']);
+    await expect
+      .poll(() => requests(page, 'log/closeTabs'))
+      .toEqual([{ tabs: ['log-1', 'log-3'] }, { tabs: ['log-2'] }]);
+  });
+
+  test('Log tabs: a tab behind another keeps its selection, and the host hears which is in front', async ({
+    page,
+  }) => {
+    await openLog(page);
+    const mainRows = tabPanel(page, 'log').getByTestId('log-rows');
+    await mainRows.locator('[data-gt-row="3"]').click();
+    await expect(mainRows.locator('[data-gt-row="3"]')).toHaveAttribute('aria-selected', 'true');
+
+    await page.getByRole('button', { name: 'Open Another Log Tab' }).click();
+    await expect(tabPanel(page, 'log-1').getByTestId('log-row-0')).toBeVisible();
+    // The main tab is behind: unseen, not gone.
+    await expect(tabPanel(page, 'log')).toBeHidden();
+
+    await stripTab(page, 'log').click();
+    await expect(mainRows.locator('[data-gt-row="3"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(tabPanel(page, 'log-1')).toBeHidden();
+    await expect
+      .poll(async () => (await requests(page, 'log/activateTab')).map((p) => p.logTab))
+      .toContain('log');
+  });
+
+  test('Log tabs: a tab a command opens (File History) comes forward with its title', async ({ page }) => {
+    await openLog(page);
+    await page.evaluate(() =>
+      (window as unknown as { __mockOpenTab: (f: unknown) => string }).__mockOpenTab({
+        sort: 'topo',
+        refs: 'ALL',
+        paths: ['src/app.ts'],
+        follow: true,
+      }),
+    );
+    await expect(stripTab(page, 'log-1')).toHaveText('History: app.ts');
+    await expect(stripTab(page, 'log-1')).toHaveAttribute('aria-selected', 'true');
+    await expect(tabPanel(page, 'log-1').getByTestId('log-row-0')).toBeVisible();
+    // The tab it came from keeps its own filter and title.
+    await expect(stripTab(page, 'log')).toHaveText('Log');
+  });
+
+  test('Log tabs: restored tabs cost nothing until they are shown', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockTabs?: unknown }).__mockTabs = [
+        { id: 'log', filter: { sort: 'topo', refs: 'HEAD' }, closable: false },
+        { id: 'log-2', filter: { sort: 'topo', refs: ['main'] }, closable: true },
+      ];
+    });
+    await openLog(page);
+    await expect(stripTab(page, 'log-2')).toHaveText('Log: main');
+    // Only the tab on show has started.
+    expect((await requests(page, 'log/init')).map((p) => p.logTab ?? 'log')).toEqual(['log']);
+    await expect(tabPanel(page, 'log-2')).toHaveCount(0);
+
+    await stripTab(page, 'log-2').click();
+    await expect(tabPanel(page, 'log-2').getByTestId('log-row-0')).toBeVisible();
+    await expect
+      .poll(async () => (await requests(page, 'log/init')).map((p) => p.logTab ?? 'log'))
+      .toEqual(['log', 'log-2']);
+  });
 });

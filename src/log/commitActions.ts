@@ -242,8 +242,17 @@ export function registerCommitActions(
     }
   });
 
+  // Internal: the same arguments, shown in a Log tab of its own (reused when
+  // one already shows exactly that), so the active tab's filters survive.
+  // What an update's Show in Log runs.
+  register('gittree.log.openTab', async (filter, root) => {
+    if (typeof filter === 'object' && filter !== null) {
+      await logView.openTab(filter as never, typeof root === 'string' ? root : undefined);
+    }
+  });
+
   // P2-T5 upgrade: Compare with Current now routes into the filtered log
-  // (range mode with side badges). Command id unchanged.
+  // (range mode with side badges), in a Log tab of its own. Command id unchanged.
   register('gittree.branches.compareInLog', async (repoRoot, branch) => {
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
     if (!repo || typeof branch !== 'string') return;
@@ -251,7 +260,7 @@ export function registerCommitActions(
     // Both sides of the range are `repo`'s branches; without the root the log
     // would run `--left-right a...b` in the focused editor's repository, where
     // neither name resolves and the page read fails outright.
-    await logView.setFilter({ sort: 'topo', range: { a: branch, b: current } }, repo.root);
+    await logView.openTab({ sort: 'topo', range: { a: branch, b: current } }, repo.root);
   });
 
   // ---- P12-T7: the reference menu's missing items --------------------------

@@ -285,9 +285,27 @@ docked bottom, tabs `Log | Console`").
 ### The window itself (shape)
 
 * **One bottom-docked tool window**: webview view `gittree.log` in the `gittree-panel`
-  panel container, holding tabs **`Log | Console`** (active tab persisted), simultaneously
-  visible with the left-docked Commit window and the editor. `gittree.log.focus` (`alt+9`)
-  focuses it on the last active tab.
+  panel container, holding tabs **`Log | Console | Worktrees`** (active tab persisted),
+  simultaneously visible with the left-docked Commit window and the editor.
+  `gittree.log.focus` (`alt+9`) focuses it on the last active tab.
+* **More than one Log tab, as IntelliJ's `Open Another Log Tab`.** A **`+`** right after the
+  last tab opens a new Log tab matching the current tab's filters, appended after the others.
+  Each tab has its own filters, repository, selection, scroll and pane layout (a new tab
+  starts with the Branches pane folded to its strip). A tab is **titled by what it shows**:
+  `Log` unfiltered, `Log: 2026.1` with a branch filter, `Log: main, User: Ava` with more,
+  `History: store.ts` for a file's history; the full title is the hover. Extra tabs close
+  with their **`×`**, a middle-click, or the tab menu (right-click): **Close Tab · Close Other
+  Tabs · Close All Tabs**. The first Log tab never closes, and Console and Worktrees stay too
+  (**D33**). Closing the tab in front brings its left neighbour forward.
+* **Commands that used to overwrite your filter open a tab of their own:** File History
+  (`History: <file>`), Compare with Current and an update's `Show in Log`. A tab already
+  showing exactly that (the sort aside) is brought forward instead, so running File History
+  on one file twice lands on one tab. Navigation stays in the tab in front: blame's
+  Show in Log, Go to Hash/Branch/Tag, Go to Parent/Child.
+* **Cheap to keep open.** Only the tab in front re-pages when history moves; the others
+  re-page when brought forward. Tabs are restored after a restart, lazily: a restored tab
+  runs no `git` until it is first shown, and a tab already seen keeps its place when another
+  is in front.
 * **Log tab = filter row + four synchronized panes** in nested splitters:
   `[Branches | Commits] | [Changed Files / Commit Details]` — the right column splits
   vertically. Every splitter ratio persists; double-click resets. Each pane has a header row

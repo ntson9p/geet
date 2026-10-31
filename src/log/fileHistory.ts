@@ -2,7 +2,9 @@
  * File History (P4-T8): `gittree.showFileHistory` opens the log panel in
  * single-path --follow mode; row clicks diff parent↔sha for that path via the
  * details panel (rename chains surface through git's --follow + rename-aware
- * details).
+ * details). It opens in a Log tab of its own (`History: <file>`), as
+ * IntelliJ's History tab does, so the filters of the tab you came from stay
+ * as you left them; asking again for the same file brings that tab back.
  */
 import * as vscode from 'vscode';
 import type { Core } from '../core/core';
@@ -27,10 +29,7 @@ export function registerFileHistory(
       // log re-resolved from the focused editor, so a file picked in the
       // Explorer of one repository was filtered against another one's history
       // and simply came back empty.
-      await logView.setFilter(
-        { sort: 'topo', refs: 'ALL', paths: [rel], follow: true },
-        repo.root,
-      );
+      await logView.openTab({ sort: 'topo', refs: 'ALL', paths: [rel], follow: true }, repo.root);
     }),
   );
 }

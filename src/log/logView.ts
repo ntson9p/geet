@@ -24,6 +24,7 @@ import {
   type LogRootDto,
   type LogRowDto,
   type LogTab,
+  type LogTabsDto,
   type LogWorktreeActionParamsDto,
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
@@ -37,6 +38,18 @@ import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
 import { DEFAULT_FILTER, isUnfiltered, type LogFilter } from './logFilter';
 import { LogService, type LogRow } from './logService';
+import {
+  MAIN_LOG_TAB,
+  activateTab,
+  closeTabs,
+  findTab,
+  isClosable,
+  openTab,
+  restoreTabsState,
+  updateTab,
+  type LogTabRecord,
+  type LogTabsState,
+} from './logTabs';
 import { buildPathTree, mergeTreeSelection } from './pathTree';
 import {
   PRESENTATION_SETTINGS,
@@ -58,8 +71,18 @@ const AUTO_REFRESH_DEBOUNCE_MS = 300;
 
 /** Which repository the log is showing, remembered across restarts. */
 const ROOT_MEMENTO_KEY = 'gittree.log.root';
+/** The Log tabs (`LogTabsState`), so they come back after a restart. */
+const TABS_MEMENTO_KEY = 'gittree.log.tabs';
 
+/** The Log tab a request or event is about: its `logTab`, or the main tab. */
+function tabOf(params: unknown): string {
+  const tab = (params as { logTab?: unknown } | undefined)?.logTab;
+  return typeof tab === 'string' ? tab : MAIN_LOG_TAB;
+}
+
+/** One Log tab's paging state. A tab has none until it is first shown. */
 interface Session {
+  tab: string;
   repo: RepoHandle;
   service: LogService;
   filter: LogFilter;
@@ -68,21 +91,45 @@ interface Session {
   rows: LogRowDto[];
   nextPage: number;
   eof: boolean;
+  /**
+   * P14-T7: the Changed Files pane's current contents, which double as the
+   * diff *sequence* — clicking a file opens it as position i of N so "next
+   * change" can leave it for the next file instead of wrapping to its top.
+   */
+  lastChangedFiles: CommitFileDto[];
+  /**
+   * The HEAD the rows were paged at. `sections.has('head')` is too coarse to
+   * gate on — it also fires for ahead/behind and lastFetchAt, which change
+   * nothing the graph draws — so the sha is compared directly.
+   */
+  lastHeadSha: string | undefined;
+  /**
+   * History moved since the rows were paged. Only the tab on show re-pages;
+   * the others wait until they are brought forward, so ten open tabs cost
+   * one `git log` per commit, not ten.
+   */
+  dirty: boolean;
+  /** The repository watches: refs for the Branches pane, history for the rows. */
+  sub: vscode.Disposable | undefined;
 }
 
 export class LogViewProvider implements vscode.WebviewViewProvider {
   static readonly viewId = 'gittree.log';
   private view: vscode.WebviewView | undefined;
   private rpc: WebviewRpcHost | undefined;
-  private session: Session | undefined;
+  /** One session per Log tab that has been shown, keyed by tab id. */
+  private readonly sessions = new Map<string, Session>();
+  /** The Log tabs: which exist, what each filters, which one is active. */
+  private tabsState: LogTabsState;
+  /** Whether `tabsState` has ever been stored (else the webview's old filter seeds the main tab). */
+  private tabsStored: boolean;
   private readonly services = new Map<string, LogService>();
-  /** P12-T1: the host-side selection model (`log/select`). */
-  private selected: string[] = [];
+  /** P12-T1: the host-side selection model (`log/select`), per tab. */
+  private readonly selections = new Map<string, string[]>();
   /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
   readonly branchesBridge: BranchesPaneBridge;
   /** POST-P14k: the Worktrees tab's list + `gittree.worktree.*` dispatch. */
   readonly worktreesBridge: WorktreesPaneBridge;
-  private refsSub: vscode.Disposable | undefined;
   /** Keeps `Paths ▾ · Roots` current as folders join and leave the workspace. */
   private rootsSub: vscode.Disposable | undefined;
   /** P12-T8: throttled Console change ping. */
@@ -91,29 +138,22 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private worktreesSub: vscode.Disposable | undefined;
   /** Boot breadcrumbs (integration-test observability). */
   readonly debugTrail: string[] = [];
-  /**
-   * P14-T7: the Changed Files pane's current contents, which double as the
-   * diff *sequence* — clicking a file opens it as position i of N so "next
-   * change" can leave it for the next file instead of wrapping to its top.
-   */
-  private lastChangedFiles: CommitFileDto[] = [];
   /** Auto-refresh: coalescing timer, and the deferral for a hidden panel. */
   private autoRefreshTimer: NodeJS.Timeout | undefined;
   private autoRefreshPending = false;
-  /**
-   * The HEAD the current rows were paged at. `sections.has('head')` is too
-   * coarse to gate on — it also fires for ahead/behind and lastFetchAt, which
-   * change nothing the graph draws — so the sha is compared directly.
-   */
-  private lastHeadSha: string | undefined;
   /** Auto-refreshes actually executed (integration-test observability). */
   autoRefreshCount = 0;
   /** POST-P14af: a tab asked for while the view was still starting — see `showTab`. */
   private pendingTab: LogTab | undefined;
 
-  /** Multi-select in webview order — what commit actions operate on. */
+  /** The active Log tab's session: what commands and the public API act on. */
+  private get session(): Session | undefined {
+    return this.sessions.get(this.tabsState.active);
+  }
+
+  /** The active tab's multi-select in webview order — what commit actions operate on. */
   get selectedCommits(): readonly string[] {
-    return this.selected;
+    return this.selections.get(this.tabsState.active) ?? [];
   }
 
   /** Test seam: whether the host answers this webview→host method (P11-T3 pattern). */
@@ -129,6 +169,74 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     this.worktreesBridge = new WorktreesPaneBridge(core, (command, ...args) =>
       vscode.commands.executeCommand(command, ...args),
     );
+    const stored = context.workspaceState.get<unknown>(TABS_MEMENTO_KEY);
+    this.tabsStored = stored !== undefined;
+    this.tabsState = restoreTabsState(stored);
+  }
+
+  // ---- Log tabs --------------------------------------------------------------
+
+  private saveTabs(): void {
+    this.tabsStored = true;
+    const { tabs, active, next } = this.tabsState;
+    void this.context.workspaceState.update(TABS_MEMENTO_KEY, { tabs, active, next });
+  }
+
+  private tabsDto(show?: string): LogTabsDto {
+    return {
+      tabs: this.tabsState.tabs.map((tab) => ({
+        id: tab.id,
+        filter: this.sessions.get(tab.id)?.filter ?? tab.filter,
+        closable: isClosable(tab.id),
+      })),
+      active: this.tabsState.active,
+      ...(show !== undefined ? { show } : {}),
+    };
+  }
+
+  /** @param show a tab to bring forward — one a command opened or picked. */
+  private notifyTabs(show?: string): void {
+    this.rpc?.notify(LOG_METHODS.evtTabs, this.tabsDto(show));
+  }
+
+  private record(tab: string): LogTabRecord | undefined {
+    return this.tabsState.tabs.find((t) => t.id === tab);
+  }
+
+  /** The repository a tab shows: its session's, else what it remembers. */
+  private rootOfTab(tab: LogTabRecord): string | undefined {
+    const live = this.sessions.get(tab.id)?.repo.root;
+    if (live !== undefined) return live;
+    return tab.id === MAIN_LOG_TAB ? this.pinnedRoot()?.root : tab.root;
+  }
+
+  /**
+   * A tab was brought forward: commands act on it from now on, the panel
+   * names its repository, and rows that went stale while it was behind
+   * another tab are re-paged now, not before.
+   */
+  private onActivated(tab: string): void {
+    const session = this.sessions.get(tab);
+    if (session && this.view) this.view.description = path.basename(session.repo.root);
+    if (session?.dirty === true && this.view?.visible === true) {
+      this.autoRefreshCount++;
+      this.debugTrail.push(`auto-refresh on activate ${tab}`);
+      this.refresh({ preserve: true }, tab);
+    }
+  }
+
+  private dropSession(tab: string): void {
+    this.sessions.get(tab)?.sub?.dispose();
+    this.sessions.delete(tab);
+    this.selections.delete(tab);
+  }
+
+  /** Waits for the webview to start `tab`'s session (a tab just opened or shown). */
+  private async waitForSession(tab: string): Promise<Session | undefined> {
+    for (let i = 0; i < 100 && !this.sessions.has(tab); i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return this.sessions.get(tab);
   }
 
   private serviceFor(repo: RepoHandle): LogService {
@@ -224,51 +332,106 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const rpc = new WebviewRpcHost(view.webview, (l) => this.core.output.appendLine(`[webview] ${l}`));
     this.rpc = rpc;
 
+    // ---- Log tabs: the strip's list, `+`, ×, and which tab is in front ----
+    rpc.on(LOG_METHODS.tabs, () => {
+      // A tab asked for before this view could hear `evtShowTab` (see `showTab`).
+      const asked = this.pendingTab;
+      this.pendingTab = undefined;
+      return this.tabsDto(asked === 'log' ? this.tabsState.active : asked);
+    });
+    rpc.on(LOG_METHODS.openTab, (params) => {
+      // IntelliJ's `Open Another Log Tab`: a new tab "matching your filters".
+      const from = (params as { from?: unknown } | undefined)?.from;
+      const source = this.record(typeof from === 'string' ? from : this.tabsState.active);
+      const live = source !== undefined ? this.sessions.get(source.id) : undefined;
+      const filter = live?.filter ?? source?.filter ?? DEFAULT_FILTER;
+      const root = live?.repo.root ?? (source !== undefined ? this.rootOfTab(source) : undefined);
+      const opened = openTab(this.tabsState, filter, root);
+      this.tabsState = opened.state;
+      this.saveTabs();
+      this.debugTrail.push(`tab opened ${opened.id}`);
+      this.notifyTabs();
+      return { logTab: opened.id };
+    });
+    rpc.on(LOG_METHODS.closeTabs, (params) => {
+      const ids = (params as { tabs?: unknown } | undefined)?.tabs;
+      const closing = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+      const next = closeTabs(this.tabsState, closing);
+      if (next === this.tabsState) return { ok: false };
+      for (const id of closing) if (isClosable(id)) this.dropSession(id);
+      this.tabsState = next;
+      this.saveTabs();
+      this.debugTrail.push(`tabs closed ${closing.join(',')}`);
+      // No `onActivated` here: the strip says which tab it brings forward next
+      // (`activateTab`), and re-paging the fallback first would be wasted.
+      this.notifyTabs();
+      return { ok: true };
+    });
+    rpc.on(LOG_METHODS.activateTab, (params) => {
+      const tab = tabOf(params);
+      const next = activateTab(this.tabsState, tab);
+      if (next !== this.tabsState) {
+        this.tabsState = next;
+        this.saveTabs();
+      }
+      this.onActivated(this.tabsState.active);
+      return { ok: true };
+    });
+
     rpc.on(LOG_METHODS.init, (params) => {
       this.debugTrail.push('rpc:init');
+      const tab = tabOf(params);
+      const record = this.record(tab);
+      // A tab closed while its view was starting: nothing to start.
+      if (record === undefined) return undefined;
+      // The single log used to keep its filter in the webview's own state; that
+      // filter seeds the main tab once, until the tabs have been stored here.
       const requested = (params as { filter?: LogFilterDto } | undefined)?.filter;
-      const init = this.startSession(requested ?? this.session?.filter ?? DEFAULT_FILTER);
-      const tab = this.pendingTab;
-      this.pendingTab = undefined;
-      return tab !== undefined ? { ...init, tab } : init;
+      const filter =
+        tab === MAIN_LOG_TAB && !this.tabsStored && requested !== undefined ? requested : record.filter;
+      const init = this.startSession(tab, filter, tab === MAIN_LOG_TAB ? undefined : record.root);
+      // The strip titled the tab from the stored filter; tell it about the seeded one.
+      if (filter !== record.filter) this.notifyTabs();
+      return init;
     });
     rpc.on(LOG_METHODS.page, async (params) => {
       const { page } = params as { page: number };
-      this.debugTrail.push(`rpc:page ${page}`);
-      await this.sendPage(page);
+      const tab = tabOf(params);
+      this.debugTrail.push(`rpc:page ${page}${tab === MAIN_LOG_TAB ? '' : ` ${tab}`}`);
+      await this.sendPage(tab, page);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.details, async (params) => {
       const { sha } = params as { sha: string };
-      return this.getDetails(sha);
+      return this.getDetails(tabOf(params), sha);
     });
     rpc.on(LOG_METHODS.commitMessage, async (params) => {
       const { sha } = params as { sha: string };
-      const session = this.session;
+      const session = this.sessions.get(tabOf(params));
       if (!session || typeof sha !== 'string') return { message: undefined };
       return { message: await session.service.getCommitMessage(sha) };
     });
     rpc.on(LOG_METHODS.setFilter, (params) => {
       const { filter } = params as { filter: LogFilterDto };
-      this.applyFilter(filter);
+      this.applyFilter(tabOf(params), filter);
       return { ok: true };
     });
-    rpc.on(LOG_METHODS.pickAuthors, () => this.pickAuthors());
-    rpc.on(LOG_METHODS.pickDates, () => this.pickDates());
-    rpc.on(LOG_METHODS.pickPaths, () => this.pickPaths());
-    rpc.on(LOG_METHODS.pickPathsInTree, () => this.pickPathsInTree());
+    rpc.on(LOG_METHODS.pickAuthors, (params) => this.pickAuthors(tabOf(params)));
+    rpc.on(LOG_METHODS.pickDates, (params) => this.pickDates(tabOf(params)));
+    rpc.on(LOG_METHODS.pickPaths, (params) => this.pickPaths(tabOf(params)));
+    rpc.on(LOG_METHODS.pickPathsInTree, (params) => this.pickPathsInTree(tabOf(params)));
     rpc.on(LOG_METHODS.setRoot, (params) => {
       const { root } = params as { root: string };
-      return { ok: typeof root === 'string' && this.showRoot(root) };
+      return { ok: typeof root === 'string' && this.showRoot(root, tabOf(params)) };
     });
     rpc.on(LOG_METHODS.openFileDiff, async (params) => {
       const { sha, file, base } = params as { sha: string; file: CommitFileDto; base?: string };
-      await this.openFileDiff(sha, file, base);
+      await this.openFileDiff(tabOf(params), sha, file, base);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.openAllDiffs, async (params) => {
       const { sha } = params as { sha: string };
-      await this.openAllDiffs(sha);
+      await this.openAllDiffs(tabOf(params), sha);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.copy, async (params) => {
@@ -280,14 +443,17 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // up to here" and the panes all read one model instead of racing copies.
     rpc.on(LOG_METHODS.select, (params) => {
       const { shas } = params as { shas: string[] };
-      this.selected = Array.isArray(shas) ? shas.filter((s) => typeof s === 'string') : [];
+      this.selections.set(
+        tabOf(params),
+        Array.isArray(shas) ? shas.filter((s) => typeof s === 'string') : [],
+      );
       return { ok: true };
     });
     // P12-T3: the Changed Files pane — one commit's files, or the aggregate
     // change set of a multi-selection (how "Compare Versions" reads).
     rpc.on(LOG_METHODS.changedFiles, async (params) => {
       const { shas } = params as { shas: string[] };
-      const session = this.session;
+      const session = this.sessions.get(tabOf(params));
       if (!session || !Array.isArray(shas) || shas.length === 0) return { files: [] };
       if (shas.length === 1) {
         const details = await session.service.getCommitDetails(shas[0]!);
@@ -298,7 +464,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
             ...(f.origPath !== undefined ? { origPath: f.origPath } : {}),
           })) ?? [];
         // P14-T7: the pane's contents are the diff sequence.
-        this.lastChangedFiles = files;
+        session.lastChangedFiles = files;
         return { files, newest: shas[0]! };
       }
       // Selection order is click order; the range is graph order.
@@ -307,7 +473,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const newest = sorted[0]!;
       const oldest = sorted[sorted.length - 1]!;
       const aggregate = await session.service.getAggregateFiles(oldest, newest);
-      this.lastChangedFiles = aggregate.files;
+      session.lastChangedFiles = aggregate.files;
       return { files: aggregate.files, newest, base: aggregate.base };
     });
 
@@ -345,32 +511,33 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // cost a traversal per selection; it runs only when the link is clicked.
     rpc.on(LOG_METHODS.containedBranches, async (params) => {
       const { sha } = params as { sha: string };
-      const session = this.session;
+      const session = this.sessions.get(tabOf(params));
       if (!session) return { branches: [] };
       return { branches: await session.service.getContainingBranches(sha) };
     });
 
     rpc.on(LOG_METHODS.goTo, async (params) => {
       const { sha } = params as { sha: string };
-      await this.revealCommit(sha);
+      await this.revealIn(tabOf(params), sha);
       return { ok: true };
     });
 
     // P12-T5: the rewritten filter row's data + toolbar actions.
-    rpc.on(LOG_METHODS.authors, async () => {
-      const session = this.session;
+    rpc.on(LOG_METHODS.authors, async (params) => {
+      const session = this.sessions.get(tabOf(params));
       if (!session) return { authors: [] };
       return { authors: await session.service.getAuthors() };
     });
 
-    rpc.on(LOG_METHODS.refresh, () => {
-      this.refresh();
+    rpc.on(LOG_METHODS.refresh, (params) => {
+      this.refresh(undefined, tabOf(params));
       return { ok: true };
     });
 
     rpc.on(LOG_METHODS.goToRef, async (params) => {
       const { ref } = params as { ref?: string };
-      const session = this.session;
+      const tab = tabOf(params);
+      const session = this.sessions.get(tab);
       if (!session) return { ok: false };
       const target =
         ref !== undefined && ref.trim().length > 0
@@ -400,7 +567,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       // `ok` is whether the commit is now on screen, not merely whether the
       // ref parsed. Reporting the parse as success is what let this box tell
       // the user their ref was real and then show them nothing.
-      return { ok: await this.revealCommit(resolved.stdout.trim()) };
+      return { ok: await this.revealIn(tab, resolved.stdout.trim()) };
     });
 
     rpc.on(LOG_METHODS.savePreset, async (params) => {
@@ -444,7 +611,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
     rpc.on(LOG_METHODS.showFileHistory, async (params) => {
       const { path: relPath } = params as { path: string };
-      const session = this.session;
+      const session = this.sessions.get(tabOf(params));
       if (!session || typeof relPath !== 'string') return { ok: false };
       await vscode.commands.executeCommand(
         'gittree.showFileHistory',
@@ -454,8 +621,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     });
 
     // P12-T2: the Branches pane.
-    rpc.on(LOG_METHODS.branches, async () => {
-      const repo = this.session?.repo ?? this.activeRepo();
+    rpc.on(LOG_METHODS.branches, async (params) => {
+      const repo = this.repoOfTab(tabOf(params));
       if (!repo) return { detached: false, locals: [], remotes: [], tags: [] };
       return this.branchesBridge.buildBranches(repo);
     });
@@ -468,7 +635,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: true };
     });
     rpc.on(LOG_METHODS.branchAction, async (params) => {
-      const repo = this.session?.repo ?? this.activeRepo();
+      const repo = this.repoOfTab(tabOf(params));
       if (!repo) return { ok: false };
       await this.branchesBridge.dispatch(
         repo,
@@ -520,8 +687,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       rpc.dispose();
       this.rpc = undefined;
       this.view = undefined;
-      this.refsSub?.dispose();
-      this.refsSub = undefined;
+      // The tabs themselves are kept (and stored); their sessions restart when
+      // a view next asks for them.
+      for (const tab of [...this.sessions.keys()]) this.dropSession(tab);
       this.rootsSub?.dispose();
       this.rootsSub = undefined;
       this.consoleSub?.dispose();
@@ -593,19 +761,20 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return { pattern, url };
   }
 
-  /** P10-T2: keyboard parity — move focus into the filter search box. */
+  /** P10-T2: keyboard parity — move focus into the filter search box of the tab on show. */
   focusFilter(): void {
-    this.rpc?.notify(LOG_METHODS.evtFocusFilter, {});
+    this.rpc?.notify(LOG_METHODS.evtFocusFilter, { logTab: this.tabsState.active });
   }
 
   /**
    * POST-P14af: opens the Git tool window on one of its tabs — IntelliJ's
-   * "Show details in console" after a failed or rejected push.
+   * "Show details in console" after a failed or rejected push. `log` is the
+   * active Log tab.
    *
    * A view that is already up takes the event. One that the focus below is
    * only now creating may not be listening yet, so the tab also rides on its
-   * `init` — kept for that case alone, or some later, unrelated start would
-   * open on the Console too.
+   * first `log/tabs` — kept for that case alone, or some later, unrelated
+   * start would open on the Console too.
    */
   async showTab(tab: LogTab): Promise<void> {
     if (!this.rpc) this.pendingTab = tab;
@@ -613,18 +782,33 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
-    this.rpc?.notify(LOG_METHODS.evtShowTab, { tab });
+    this.rpc?.notify(LOG_METHODS.evtShowTab, { tab: tab === 'log' ? this.tabsState.active : tab });
+  }
+
+  /** The repository a tab shows, or would show once started. */
+  private repoOfTab(tab: string): RepoHandle | undefined {
+    const live = this.sessions.get(tab)?.repo;
+    if (live) return live;
+    const record = this.record(tab);
+    const root = record !== undefined && tab !== MAIN_LOG_TAB ? record.root : undefined;
+    return (root !== undefined ? this.core.getRepo(root) : undefined) ?? this.activeRepo();
   }
 
   /**
+   * Starts (or restarts) one Log tab's session: a fresh row store and graph
+   * layout over `filterDto`, and the watches that keep it current.
+   *
    * @param repoRoot the repository to show. Naming one is the *explicit act*
-   * that moves the log; omitting it keeps whatever the log is already showing.
+   * that moves the tab; omitting it keeps whatever the tab is already showing.
    */
-  private startSession(filterDto: LogFilterDto, repoRoot?: string): LogInitDto {
+  private startSession(tab: string, filterDto: LogFilterDto, repoRoot?: string): LogInitDto {
     const named = repoRoot !== undefined ? this.core.getRepo(repoRoot) : undefined;
-    const repo = named ?? this.activeRepo();
+    const repo = named ?? this.repoOfTab(tab);
+    const active = tab === this.tabsState.active;
+    this.sessions.get(tab)?.sub?.dispose();
     if (!repo) {
-      if (this.view) this.view.description = undefined;
+      this.sessions.delete(tab);
+      if (this.view && active) this.view.description = undefined;
       return {
         repoRoot: '',
         repoLabel: vscode.l10n.t('No repository'),
@@ -634,13 +818,16 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         graphPalette: this.graphPalette(),
         colors: statusColorOverrides(),
         presentation: this.presentation(),
+        logTab: tab,
       };
     }
-    // Seeded from the focused editor the first time, held from then on.
-    this.pinRoot(repo.root);
-    if (this.view) this.view.description = path.basename(repo.root);
-    this.debugTrail.push(`session repo=${repo.root}`);
-    this.session = {
+    // The main tab's repository is seeded from the focused editor the first
+    // time and held from then on; an extra tab keeps its own in the tab list.
+    if (tab === MAIN_LOG_TAB) this.pinRoot(repo.root);
+    if (this.view && active) this.view.description = path.basename(repo.root);
+    this.debugTrail.push(`session repo=${repo.root}${tab === MAIN_LOG_TAB ? '' : ` tab=${tab}`}`);
+    const session: Session = {
+      tab,
       repo,
       service: this.serviceFor(repo),
       filter: filterDto,
@@ -648,14 +835,19 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       rows: [],
       nextPage: 0,
       eof: false,
+      lastChangedFiles: [],
+      lastHeadSha: repo.model.snapshot.headSha,
+      dirty: false,
+      sub: undefined,
     };
-    void this.session.service.maybeMaintain();
+    this.sessions.set(tab, session);
+    this.tabsState = updateTab(this.tabsState, tab, filterDto, tab === MAIN_LOG_TAB ? undefined : repo.root);
+    this.saveTabs();
+    void session.service.maybeMaintain();
     // P12-T2: refs move (branch created, favorite toggled, checkout…) → the
-    // Branches pane re-requests. The event carries no payload on purpose: the
+    // tab's Branches pane re-requests. The event carries only the tab: the
     // webview's own request dedups bursts naturally.
-    this.refsSub?.dispose();
-    const notifyRefs = (): void => this.rpc?.notify(LOG_METHODS.evtBranches, {});
-    this.lastHeadSha = repo.model.snapshot.headSha;
+    const notifyRefs = (): void => this.rpc?.notify(LOG_METHODS.evtBranches, { logTab: tab });
     const modelSub = repo.model.onDidChange((sections) => {
       notifyRefs();
       // Only history moving re-pages the graph. `status` fires on every save
@@ -663,13 +855,14 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       // in a watched file. `refs` covers heads/remotes/tags, so it catches any
       // commit that moved a branch; the sha comparison catches the rest, which
       // is a commit on a detached HEAD (only HEAD moves, no ref does).
-      const headMoved = repo.model.snapshot.headSha !== this.lastHeadSha;
+      const headMoved = repo.model.snapshot.headSha !== session.lastHeadSha;
       if (!sections.has('refs') && !headMoved) return;
-      this.lastHeadSha = repo.model.snapshot.headSha;
+      session.lastHeadSha = repo.model.snapshot.headSha;
+      session.dirty = true;
       this.scheduleAutoRefresh();
     });
     const favSub = this.branchesBridge.refServiceFor(repo)?.onDidChangeFavorites(notifyRefs);
-    this.refsSub = new vscode.Disposable(() => {
+    session.sub = new vscode.Disposable(() => {
       modelSub.dispose();
       favSub?.dispose();
     });
@@ -684,6 +877,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       ...(this.issueConfig() !== undefined ? { issue: this.issueConfig() } : {}),
       presets: vscode.workspace.getConfiguration('gittree.log').get('filterPresets') ?? [],
       presentation: this.presentation(),
+      logTab: tab,
     };
   }
 
@@ -731,8 +925,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     };
   }
 
-  private async sendPage(page: number): Promise<void> {
-    const session = this.session;
+  private async sendPage(tab: string, page: number): Promise<void> {
+    const session = this.sessions.get(tab);
     if (!session || !this.rpc) return;
     if (page < session.nextPage) {
       // Rehydrate replay: resend everything we already have as page 0-style.
@@ -740,6 +934,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         page: 0,
         rows: session.rows,
         eof: session.eof,
+        logTab: tab,
       } satisfies LogPageDto);
       return;
     }
@@ -758,7 +953,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // these rows would grow a dead row store, advance a dead layout, and (the
     // visible harm) arrive at the webview as another `page: 0`, which it
     // treats as a replacement — overwriting the fresh page with the stale one.
-    if (this.session !== session) {
+    if (this.sessions.get(tab) !== session) {
       this.debugTrail.push(`page ${page} dropped (stale session)`);
       return;
     }
@@ -768,33 +963,44 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     session.rows.push(...dtoRows);
     session.nextPage = page + 1;
     session.eof = result.eof;
-    this.rpc.notify(LOG_METHODS.evtRows, {
+    this.rpc?.notify(LOG_METHODS.evtRows, {
       page,
       rows: dtoRows,
       eof: result.eof,
+      logTab: tab,
     } satisfies LogPageDto);
   }
 
   private applyFilter(
+    tab: string,
     filterDto: LogFilterDto,
     repoRoot?: string,
     opts?: { preserve?: boolean },
   ): void {
-    const init = this.startSession(filterDto, repoRoot);
+    const init = this.startSession(tab, filterDto, repoRoot);
     this.rpc?.notify(LOG_METHODS.evtReset, {
       ...init,
       ...(opts?.preserve === true ? { preserve: true } : {}),
     } satisfies LogInitDto);
+    // The tab's title is made from its filter.
+    this.notifyTabs();
   }
 
-  /** P10-T2: re-init with the current filter (palette/config changes). */
+  /**
+   * P10-T2: re-init with the current filter (palette/config changes). The tab
+   * on show re-pages now; the others when they are next brought forward.
+   */
   refreshInit(): void {
+    for (const session of this.sessions.values()) session.dirty = true;
     const session = this.session;
-    if (session) this.applyFilter(session.filter);
+    if (session) {
+      session.dirty = false;
+      this.applyFilter(session.tab, session.filter);
+    }
   }
 
-  private async getDetails(sha: string): Promise<CommitDetailsDto | undefined> {
-    const session = this.session;
+  private async getDetails(tab: string, sha: string): Promise<CommitDetailsDto | undefined> {
+    const session = this.sessions.get(tab);
     if (!session) return undefined;
     const details = await session.service.getCommitDetails(sha);
     if (!details) return undefined;
@@ -810,14 +1016,24 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   // ---- public API (blame, file history, compare upgrade) --------------------
 
-  /** @returns whether the commit ended up selected in the graph. */
+  /**
+   * Selects `sha` in the active Log tab — a navigation, so it never opens a
+   * tab of its own (blame's Show in Log, Go to Parent/Child, Go to Hash).
+   * @returns whether the commit ended up selected in the graph.
+   */
   async revealCommit(sha: string, repoRoot?: string): Promise<boolean> {
     await vscode.commands.executeCommand('gittree.log.focus');
     // Wait for the view to resolve (first open).
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
-    const session = this.session;
+    const tab = this.tabsState.active;
+    await this.waitForSession(tab);
+    return this.revealIn(tab, sha, repoRoot);
+  }
+
+  private async revealIn(tab: string, sha: string, repoRoot?: string): Promise<boolean> {
+    const session = this.sessions.get(tab);
     if (!session || !this.rpc) return false;
     if (repoRoot !== undefined && canonicalKey(repoRoot) !== canonicalKey(session.repo.root)) {
       // The re-init used to drop `repoRoot` on the floor and re-resolve from the
@@ -829,10 +1045,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       // that repository's filter, but there is no filter for a repository the
       // log has not been showing — and carrying another one's author or text
       // query over would routinely hide the very commit that was asked for.
-      this.applyFilter({ sort: session.filter.sort, refs: 'ALL' }, repoRoot);
+      this.applyFilter(tab, { sort: session.filter.sort, refs: 'ALL' }, repoRoot);
     }
-    if (await this.pageUntilLoaded(sha)) {
-      this.rpc.notify(LOG_METHODS.evtReveal, { sha });
+    if (await this.pageUntilLoaded(tab, sha)) {
+      this.rpc.notify(LOG_METHODS.evtReveal, { sha, logTab: tab });
       return true;
     }
     // The reveal used to fire `evtReveal` here regardless, and the webview
@@ -845,18 +1061,20 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // `refs: 'HEAD'`, so any commit on an unmerged branch qualifies, and under
     // `Show File History` every parent that did not touch the file does too.
     this.debugTrail.push(`reveal ${sha.slice(0, 7)} not in view`);
-    this.reportRevealMiss(sha);
+    this.reportRevealMiss(tab, sha);
     return false;
   }
 
-  /** Pages forward until `sha` is loaded. Bounded; true when it landed. */
-  private async pageUntilLoaded(sha: string): Promise<boolean> {
+  /** Pages `tab` forward until `sha` is loaded. Bounded; true when it landed. */
+  private async pageUntilLoaded(tab: string, sha: string): Promise<boolean> {
     let guard = 0;
-    while (!this.session!.rows.some((r) => r.sha === sha) && !this.session!.eof && guard < 25) {
-      await this.sendPage(this.session!.nextPage);
+    // Read afresh each time: a reset while paging replaces the session.
+    const current = (): Session | undefined => this.sessions.get(tab);
+    while (current() && !current()!.rows.some((r) => r.sha === sha) && !current()!.eof && guard < 25) {
+      await this.sendPage(tab, current()!.nextPage);
       guard++;
     }
-    return this.session!.rows.some((r) => r.sha === sha);
+    return current()?.rows.some((r) => r.sha === sha) === true;
   }
 
   /**
@@ -866,9 +1084,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * command that blocks on a notification the user may never click would hang
    * `Go to Parent` on a keypress. The retry runs on its own.
    */
-  private reportRevealMiss(sha: string): void {
+  private reportRevealMiss(tab: string, sha: string): void {
     const short = sha.slice(0, 7);
-    const session = this.session;
+    const session = this.sessions.get(tab);
     if (session === undefined || isUnfiltered(session.filter)) {
       // Nothing left to widen: the view already shows every ref, so the commit
       // is genuinely unreachable — a dangling sha from before an amend or a
@@ -886,15 +1104,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       )
       .then(async (picked) => {
         if (picked !== widen) return;
-        // The notification outlives the view: a click after the panel closed
-        // would page into a dead rpc and then blame the repository for it.
-        if (!this.rpc) return;
+        // The notification outlives the view, and the tab: a click after either
+        // closed would page into nothing and then blame the repository for it.
+        if (!this.rpc || this.record(tab) === undefined) return;
         // Only the sort survives, on the same rule the cross-repository move
         // above follows: an author or path query written for another view
         // would routinely hide the very commit that was just asked for.
-        this.applyFilter({ sort: session.filter.sort, refs: 'ALL' });
-        if (await this.pageUntilLoaded(sha)) {
-          this.rpc?.notify(LOG_METHODS.evtReveal, { sha });
+        this.applyFilter(tab, { sort: session.filter.sort, refs: 'ALL' });
+        if (await this.pageUntilLoaded(tab, sha)) {
+          this.rpc?.notify(LOG_METHODS.evtReveal, { sha, logTab: tab });
         } else {
           void vscode.window.showWarningMessage(
             vscode.l10n.t('{0} is not reachable from any branch or tag here.', short),
@@ -915,32 +1133,75 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
-    this.applyFilter(filter, repoRoot);
+    this.applyFilter(this.tabsState.active, filter, repoRoot);
   }
 
-  /** `Paths ▾ · Roots` — show a different workspace repository. */
-  showRoot(repoRoot: string): boolean {
+  /**
+   * Shows `filter` in a Log tab of its own, so the filters the user set up in
+   * theirs survive: File History, Compare with Current and an update's Show in
+   * Log. A tab already showing exactly that (the sort aside) is brought
+   * forward instead of opening another, so running File History on one file
+   * twice lands on the same tab.
+   *
+   * @param repoRoot as for `setFilter`: the repository `filter` is written for.
+   */
+  async openTab(filter: LogFilter, repoRoot?: string): Promise<void> {
+    await vscode.commands.executeCommand('gittree.log.focus');
+    for (let i = 0; i < 50 && !this.rpc; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const root =
+      (repoRoot !== undefined ? this.core.getRepo(repoRoot)?.root : undefined) ??
+      this.repoOfTab(this.tabsState.active)?.root;
+    const existing = findTab(
+      this.tabsState,
+      filter,
+      root,
+      (tab) => this.rootOfTab(tab),
+      (a, b) => canonicalKey(a) === canonicalKey(b),
+    );
+    if (existing !== undefined) {
+      this.tabsState = activateTab(this.tabsState, existing);
+      this.saveTabs();
+      this.debugTrail.push(`tab reused ${existing}`);
+      this.notifyTabs(existing);
+      this.onActivated(existing);
+      return;
+    }
+    const opened = openTab(this.tabsState, filter, root);
+    this.tabsState = opened.state;
+    this.saveTabs();
+    this.debugTrail.push(`tab opened ${opened.id}`);
+    // The webview starts the session when it shows the tab.
+    this.notifyTabs(opened.id);
+  }
+
+  /** `Paths ▾ · Roots` — show a different workspace repository in `tab`. */
+  showRoot(repoRoot: string, tab: string = this.tabsState.active): boolean {
     const target = this.core.getRepo(repoRoot);
     if (!target) return false;
-    const current = this.session?.repo.root;
+    const session = this.sessions.get(tab);
+    const current = session?.repo.root;
     if (current !== undefined && canonicalKey(current) === canonicalKey(target.root)) return true;
-    this.applyFilter(rootAgnostic(this.session?.filter ?? DEFAULT_FILTER), target.root);
+    this.applyFilter(tab, rootAgnostic(session?.filter ?? DEFAULT_FILTER), target.root);
     return true;
   }
 
   /**
    * @param opts.preserve the reset was raised by the host because history
    * moved, not asked for by the user — the webview keeps its place across it.
+   * @param tab the Log tab to re-read; the active one by default.
    */
-  refresh(opts?: { preserve?: boolean }): void {
-    const session = this.session;
+  refresh(opts?: { preserve?: boolean }, tab: string = this.tabsState.active): void {
+    const session = this.sessions.get(tab);
     if (!session) return;
+    session.dirty = false;
     // The page cache is keyed on `headSha` alone, so a ref that moved without
     // HEAD moving (a fetch, a branch or tag created elsewhere) would be served
     // from cache with its old decorations. Dropping it is what makes a refresh
     // mean "re-read", and it is why auto-refresh fixes the chips too.
     session.service.invalidate();
-    this.applyFilter(session.filter, undefined, opts);
+    this.applyFilter(tab, session.filter, undefined, opts);
   }
 
   /**
@@ -970,14 +1231,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     this.autoRefreshPending = false;
     // No session yet means the webview has not sent `init`; the session it is
     // about to build reads current history anyway, so there is nothing to do.
-    if (!this.session) return;
+    // Only the tab on show re-pages: the others are `dirty` and re-page when
+    // they are brought forward (`onActivated`).
+    const session = this.session;
+    if (!session?.dirty) return;
     this.autoRefreshCount++;
     this.debugTrail.push('auto-refresh');
-    this.refresh({ preserve: true });
+    this.refresh({ preserve: true }, session.tab);
   }
 
+  /** The active Log tab, as the integration tests and commit actions read it. */
   get currentSession():
-    | { repoRoot: string; filter: LogFilter; rowCount: number; roots: LogRootDto[] }
+    | { repoRoot: string; filter: LogFilter; rowCount: number; roots: LogRootDto[]; logTab: string }
     | undefined {
     return this.session
       ? {
@@ -985,8 +1250,14 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
           filter: this.session.filter,
           rowCount: this.session.rows.length,
           roots: this.roots(),
+          logTab: this.session.tab,
         }
       : undefined;
+  }
+
+  /** The Log tabs, as the integration tests read them. */
+  get logTabs(): { tabs: readonly string[]; active: string } {
+    return { tabs: this.tabsState.tabs.map((tab) => tab.id), active: this.tabsState.active };
   }
 
   // ---- pickers (host-side QuickPicks/InputBoxes) ----------------------------
@@ -994,8 +1265,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   // which owns both presets (`HEAD (Current)`, `All branches`); the QuickPick
   // that used to back it had no callers left and is gone.
 
-  private async pickAuthors(): Promise<{ ok: boolean }> {
-    const session = this.session;
+  private async pickAuthors(tab: string): Promise<{ ok: boolean }> {
+    const session = this.sessions.get(tab);
     if (!session) return { ok: false };
     const authors = await session.service.getAuthors();
     const me = await session.repo.queue.enqueue({
@@ -1036,12 +1307,12 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const next: LogFilter = { ...session.filter };
     if (values.length > 0) next.authors = values;
     else delete next.authors;
-    this.applyFilter(next);
+    this.applyFilter(tab, next);
     return { ok: true };
   }
 
-  private async pickDates(): Promise<{ ok: boolean }> {
-    const session = this.session;
+  private async pickDates(tab: string): Promise<{ ok: boolean }> {
+    const session = this.sessions.get(tab);
     if (!session) return { ok: false };
     const custom = vscode.l10n.t('Custom rangeâ€¦');
     const presets: Array<{ label: string; from?: () => string }> = [
@@ -1081,13 +1352,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const preset = presets.find((p) => p.label === picked);
       if (preset?.from) next.dateRange = { from: preset.from() };
     }
-    this.applyFilter(next);
+    this.applyFilter(tab, next);
     return { ok: true };
   }
 
   /** `Paths ▾ · Select…` — the reference's file chooser. */
-  private async pickPaths(): Promise<{ ok: boolean }> {
-    const session = this.session;
+  private async pickPaths(tab: string): Promise<{ ok: boolean }> {
+    const session = this.sessions.get(tab);
     if (!session) return { ok: false };
     const browse = vscode.l10n.t('$(folder) Browseâ€¦');
     const manual = vscode.l10n.t('$(edit) Enter path or globâ€¦');
@@ -1139,7 +1410,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const next: LogFilter = { ...session.filter };
     next.paths = [...new Set([...(session.filter.paths ?? []), ...chosen])];
     delete next.follow;
-    this.applyFilter(next);
+    this.applyFilter(tab, next);
     return { ok: true };
   }
 
@@ -1150,8 +1421,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * and depth and the label indents by it; typing filters the whole tree,
    * which is what the chooser is for anyway.
    */
-  private async pickPathsInTree(): Promise<{ ok: boolean }> {
-    const session = this.session;
+  private async pickPathsInTree(tab: string): Promise<{ ok: boolean }> {
+    const session = this.sessions.get(tab);
     if (!session) return { ok: false };
     const listed = await session.repo.queue.enqueue({
       label: 'ls-files (path filter)',
@@ -1224,14 +1495,19 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     if (paths.length === 0) delete next.paths;
     else next.paths = paths;
     delete next.follow;
-    this.applyFilter(next);
+    this.applyFilter(tab, next);
     return { ok: true };
   }
 
   // ---- diffs ----------------------------------------------------------------
 
-  private async openFileDiff(sha: string, file: CommitFileDto, baseRev?: string): Promise<void> {
-    const session = this.session;
+  private async openFileDiff(
+    tab: string,
+    sha: string,
+    file: CommitFileDto,
+    baseRev?: string,
+  ): Promise<void> {
+    const session = this.sessions.get(tab);
     if (!session) return;
     const repoRoot = session.repo.root;
     // P12-T3: an aggregate selection diffs the whole range, not one commit.
@@ -1257,7 +1533,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const p14 = this.core.debugRegistry.get('phase14') as
       | { sessions: { open(entries: readonly DiffEntry[], index: number): Promise<void> } }
       | undefined;
-    const diffable = this.lastChangedFiles.filter(
+    const diffable = session.lastChangedFiles.filter(
       (f) => !f.status.startsWith('A') && !f.status.startsWith('D'),
     );
     const entries: DiffEntry[] = (diffable.length > 0 ? diffable : [file]).map((f) => ({
@@ -1281,8 +1557,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
-  private async openAllDiffs(sha: string): Promise<void> {
-    const session = this.session;
+  private async openAllDiffs(tab: string, sha: string): Promise<void> {
+    const session = this.sessions.get(tab);
     if (!session) return;
     const details = await session.service.getCommitDetails(sha);
     if (!details) return;

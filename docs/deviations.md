@@ -47,6 +47,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D30](#d30--update-project-asks-with-a-message-box-not-a-dialog) | Update Project asks Merge or Rebase with a native message box; `Don't show again` moves to the result | No (no modal surface can hold a radio button) |
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
 | [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, *Update all repositories* to a setting | No (API) |
+| [D33](#d33--console-and-worktrees-cannot-be-closed) | In the Git tool window only the extra Log tabs close; Console and Worktrees always stay | Deliberate (owner's decision) |
 
 ---
 
@@ -819,3 +820,19 @@ checkbox, and GitTree's two update questions should behave alike.
 
 **Revisitable:** only with a new API, as D30 — the two checkboxes would move back into the
 question.
+
+## D33 · Console and Worktrees cannot be closed
+
+**IntelliJ:** every tab in the Git tool window but the first Log tab has a `×`, Console and
+Worktrees included, and right-clicking one offers Close Tab, Close Other Tabs and Close All Tabs.
+**GitTree:** the same strip in the same order (Log, Console, Worktrees, then the extra Log tabs
+opened by `+`, File History, Compare with Current and an update's Show in Log), with a `×`,
+middle-click and that menu, but only the extra Log tabs ever close. The menu opens on every tab,
+with Close Tab greyed out on the three that stay.
+
+**Why:** the owner's decision (2026-11-01). A closed Console or Worktrees tab would need a way
+back, which IntelliJ provides through its menus and GitTree has no surface for, and a tab closed
+by accident is lost work for no gain. IntelliJ's `⌄` beside `+` is omitted for the same reason:
+it offers nothing GitTree's strip lacks.
+
+**Revisitable:** yes, if a reopen route is added (the VCS Operations Popup is the natural one).
