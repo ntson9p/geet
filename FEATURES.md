@@ -331,6 +331,13 @@ docked bottom, tabs `Log | Console`").
 * **One selection model, host-side:** the graph's multi-select is mirrored to the host and
   drives Changed Files, Commit Details, and every selection-scoped menu action from a single
   list — no pane keeps its own copy.
+* **Selecting several commits, as IntelliJ's log table does:** **Ctrl+click** (⌘ on macOS)
+  adds or removes a commit; **Shift+click** selects the run from the anchor; **Ctrl+Shift+click**
+  adds a run; **Shift+↑/↓/PageUp/PageDown/Home/End** grow or shrink the run; **Ctrl+A** selects
+  every loaded commit. Every selected row is highlighted; a row Ctrl+click took out keeps only
+  its focus outline. **Right-click** outside the selection selects that commit; inside it, the
+  menu acts on the whole selection. The selection is always kept newest first, whatever order
+  it was clicked in.
 
 ### The Branches pane (shape)
 
@@ -451,13 +458,19 @@ docked bottom, tabs `Log | Console`").
 
 * **Changed Files:** repo row (`repo · N files · path`) → folder rows with counts →
   status-colored files with rename pairs; tree/flat toggle, preview-on-click, multi-diff,
-  Show History for Revision. A **multi-commit selection shows the aggregate diff**
-  (`oldest^..newest`), and file clicks open range-scoped diffs. Population is lazy —
+  Show History for Revision. **Several selected commits show the combined changes of those
+  commits**, as IntelliJ does (`zipChanges`): only the files they touched — a commit between
+  them that was not selected adds nothing — each file once, its diff running from before the
+  earliest selected commit that touched it to after the latest; a file renamed along the way is
+  one row from its first name to its last, and one added and deleted inside the selection drops
+  out. The multi-diff opens the same set. The first 1 000 commits count (IntelliJ's
+  `MAX_SELECTED_COMMITS`); their files are read in one `git log`. Population is lazy —
   selection pushes ids, each pane fetches its own data.
 * **Commit Details:** subject → `<hash> <author>` (+ copy actions) → `<email> on <date> at
   <time>` → typed ref chips → committer-when-different → **GPG signature state** → clickable
   parent links → lazy `Contained in branches: Show all`. Body URLs and issue keys
-  (`gittree.log.issuePattern`/`issueUrl`) are linkified.
+  (`gittree.log.issuePattern`/`issueUrl`) are linkified. **Several selected commits stack**,
+  one block each with a rule between, the first 50, then `(showing 50 of N selected commits)`.
 
 ### The Console tab (shape)
 
@@ -470,7 +483,33 @@ docked bottom, tabs `Log | Console`").
 
 ### Commit context menu (complete)
 
-Right-clicking commits in the graph (native menu, multi-select aware):
+Right-clicking commits in the graph (native menu), **in IntelliJ's order and grouping**:
+Copy Revision Number · Create Patch… · Cherry-Pick | Checkout Revision · Show Repository at
+Revision | Compare Versions · Compare with Local | Reset Current Branch to Here… · Revert Commit
+· Undo Commit | Edit Commit Message… · Fixup… · Squash Into… · Drop Commit · Interactively
+Rebase from Here… · Push All up to Here | Branches… · New Branch… · New Tag… | Go to Child /
+Parent Commit | Open on Remote.
+
+**With several commits selected** the menu follows IntelliJ's rules: what applies to all of
+them runs on all of them — **Copy Revision Number** (the hashes on one line, spaced), **Create
+Patch…**, **Cherry-Pick**, **Revert Commits**, **Drop Commits**, **Squash Commits…**, and
+**Compare Versions** with exactly two; IntelliJ's single-commit actions it hides are hidden
+(Checkout, Compare with Local, Undo, Edit Commit Message, Fixup, Squash Into, Interactively
+Rebase, Branches); and the ones it greys out are greyed (Show Repository at Revision, Reset,
+Push All up to Here, New Branch…, New Tag…, Go to Child/Parent). A selection holding a merge
+greys Revert, Drop and Squash Commits.
+
+* **Drop Commits** removes the selected commits, adjacent or not, and replays the rest; an
+  unbroken run is dropped with one `rebase --onto`. **Squash Commits…** folds the selected
+  commits into the oldest of them, moving the later ones up behind it, with a message edited
+  from all of theirs (IntelliJ's starting text: each message once, three newlines apart, a
+  `fixup!`/`squash!` of a selected commit giving only its body) in the Accept/Cancel commit
+  editor. Both check IntelliJ's conditions — every commit on the current branch, no merge
+  between the oldest and HEAD, not the initial commit — say which one failed, confirm before
+  rewriting commits already on the upstream (GitTree's published guard, where IntelliJ refuses
+  a protected branch), and offer **Undo** afterwards.
+* **Compare Versions** (two commits) opens every file that differs between them, lower to
+  upper, kept to the log's path filter, in one multi-diff.
 
 * **Interactive Rebase** (P5's bespoke editor: drag-and-drop reorder, Pick/Squash/Reword/
   Fixup/Drop per row, force-push acknowledgement on published ranges, pause/continue monitor).

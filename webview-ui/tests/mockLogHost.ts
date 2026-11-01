@@ -203,14 +203,16 @@ export const mockLogHostScript = `
               newest: shas[0],
             });
           } else {
+            // As the host merges several commits: each file carries its ends.
+            const oldest = shas[shas.length - 1];
             res({
               files: [
-                { status: 'M', path: 'src/app.ts' },
-                { status: 'A', path: 'src/agg-added.ts' },
-                { status: 'D', path: 'docs/agg-gone.md' },
+                { status: 'M', path: 'src/app.ts', before: oldest + '^', after: shas[0] },
+                { status: 'A', path: 'src/agg-added.ts', after: shas[0] },
+                { status: 'D', path: 'docs/agg-gone.md', before: oldest + '^' },
               ],
               newest: shas[0],
-              base: 'basebasebase',
+              shas,
             });
           }
           break;

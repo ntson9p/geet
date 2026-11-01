@@ -578,3 +578,71 @@ Testing (written, **not run**, by the owner's standing instruction):
   - the default menu kept shut on plain rows and kept in the search field.
 
 Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14an ✅ 2026-11-01: **Selecting several commits in the log, as IntelliJ does.** The owner asked for IntelliJ's Ctrl/Shift multi-selection, its combined changes and its context menu for a selection, with screenshots of all three. GitTree already kept a list of selected commits, but:
+- only the focused row was ever highlighted, so it looked as if nothing was selected;
+- Shift ranged from the first-clicked commit, and Ctrl+click left the focus behind;
+- Changed Files showed `git diff <oldest>^..<newest>`, which pulled in commits nobody selected;
+- Commit Details showed only one commit;
+- the native menu treated every selection as one commit.
+
+IntelliJ's behaviour was read from its source:
+- the menu from `Vcs.Log.ContextMenu` + `Git.Log.ContextMenu` + `Dvcs.Log.ContextMenu`;
+- per-action visibility and enablement from `VcsLogSingleCommitAction`, `VcsLogOneCommitPerRepoAction`, `GitSingleCommitEditingAction`, `GitCommitEditingActionBase`, `GitRevertAction`, `CompareRevisionsFromLogAction`, `GoToParentOrChildAction` and `GitCreateNewBranchFromCommitAction`;
+- the copy format from `CopyRevisionNumberAction`;
+- the changes from `VcsLogUtil.collectChanges` / `CommittedChangesTreeBrowser.zipChanges`;
+- the details from `CommitDetailsListPanel` / `MAX_COMMITS_TO_LOAD = 50`;
+- squash and drop from `GitSquashLogAction`, `GitRebaseTodoModel.unite`, `GitSquashedCommitsMessage.prettySquash` and `GitDropOperation`.
+
+**Selection** (`webview-ui/src/log/logSelection.ts`, pure): JTable multiple-interval rules, with an anchor, kept in graph order.
+- Click selects one; Ctrl/⌘ toggles one and moves the anchor; Shift selects anchor..row; Ctrl+Shift adds that run.
+- Shift with an arrow, PageUp/Down or Home/End extends from the anchor; Ctrl+A selects every loaded row.
+- Right-click outside the selection selects that row; inside, it keeps the selection.
+- `VirtualList` gains `isRowSelected`, which sets `aria-selected` and `gt-selected`, plus `multiselectable` and `focusIndex(i, {silent})`, so Ctrl and Shift gestures move the lead without collapsing the selection.
+- The CSS highlights every selected row. A focused row that is not selected keeps only its focus outline. Rows are `user-select: none`, because Shift+click would otherwise select text.
+
+**Changed Files** (`src/log/zipChanges.ts`, pure, IntelliJ's algorithm): the files the selected commits changed, keyed by where each file ends.
+- A change continues an earlier one, keeping its start; deletions are placed last; add-then-delete drops out; a copy counts as an add.
+- Each row carries `before` (`<sha>^` of the earliest selected commit that touched it) and `after`. `openFileDiff` and the diff sequence use them, and the multi-diff button now works for several commits.
+- The files come from one `git log --no-walk=unsorted --stdin -m --first-parent --name-status -z -M` call, which avoids the command-line limit. The cap is 1000 commits (`MAX_SELECTED_COMMITS`).
+- `getAggregateFiles` and the DTO's `base` are gone. `LogChangedFilesDto` now carries `shas`.
+
+**Commit Details** stacks up to 50 blocks with rules between them and IntelliJ's `(showing 50 of N selected commits)`. Each commit's details are fetched once and cached per tab, and the cache clears on reset.
+
+**Menu.** `data-vscode-context` gains `gittree.commitCount`, `gittree.multiCommit` and `gittree.mergeSelected` (`commitMenuContext.ts`, pure), and `package.json`'s commit menu is rewritten in IntelliJ's order and groups:
+- **Hidden** for several commits (`when`): Checkout Revision, Compare with Local, Revert/Drop Commit (the singular forms), Undo, Edit Message, Fixup, Squash Into, Interactively Rebase, Branches…, Open on Remote.
+- **Greyed** (`enablement: !gittree.multiCommit`, which VS Code evaluates against the menu's context keys): Show Repository at Revision, Reset, Push All up to Here, New Branch…, New Tag…, Go to Child/Parent.
+- **New commands:** `gittree.commit.revertCommits` and `gittree.commit.dropCommits` (the plural titles), `gittree.log.squashCommits` (all three greyed when a merge is selected) and `gittree.log.compareVersions` (`commitCount == 2`).
+- **Renamed** to IntelliJ's titles: Cherry-Pick, New Branch…, New Tag…. The log-only New Branch, New Tag and Reset are hidden from the palette; they did nothing there without a commit, and "New Branch…" would have shown twice.
+- Copy Revision Number joins with spaces.
+
+**Drop and squash** (`src/rewrite/multiCommitEdit.ts`, with pure plans in `multiCommitPlans.ts`):
+- IntelliJ's checks, each named when it fails: every commit is in the current branch (`merge-base --octopus` gives the oldest, and the range must contain them all), there is no merge in `base..HEAD`, and none is the initial commit.
+- The published guard asks for confirmation; this is GitTree's rule, where IntelliJ refuses commits on a protected branch.
+- Drop of an unbroken run uses the new `RebaseEngine.dropRange` (`rebase --onto oldest^ newest`), because a todo of nothing but drops is invalid. Any other selection uses a drop plan.
+- Squash builds a root `reword` with the other selected commits moved behind it as `fixup`s. Its message is IntelliJ's `prettySquash`, edited in `RewordService.promptMessage`, which is now public and has a per-use Accept title.
+- Both offer Undo, which resets to the pre-edit HEAD.
+
+Checked by hand in screenshots of the mock page with VS Code's dark list colours injected:
+- Click, Shift+click and Ctrl+click select rows 2–4 and 7, with four stacked detail blocks and the merged files.
+- Shift+↓ extends from the anchor, and Ctrl+click removes a row, leaving it outlined.
+- Right-click outside the selection selects that row.
+
+Docs: FEATURES §4 (selection bullet, Changed Files and Details, the commit menu rewritten in IntelliJ's order and rules), CHANGELOG (Added + Changed), gap analysis §3.4 (Squash Commits ✅, new multi-select row ✅), keyboard.md.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **+6 unit files:**
+  - `log/zipChanges.test.ts`: union, ends, add/delete, rename chains, copies, deletion order, the parser.
+  - `rewrite/multiCommitPlans.test.ts`: contiguity, drop plan, squash plan and its serialized todo, `prettySquash`.
+  - `webview/logSelection.test.ts`.
+  - `webview/commitMenuContext.test.ts`.
+  - `log/commitMenu.test.ts`: evaluates the manifest's `when` and `enablement` and reads the menu for one, two, four and merge selections against IntelliJ's screenshot.
+- **Integration:** `phase12.test.ts`'s aggregate test is rewritten to check that the selected commits' files exclude an unselected commit's.
+- **Playwright:** the multi-commit Changed Files test is rewritten (graph order, multi-diff with `shas`, per-file `before`/`after`), the context test is extended with the new keys, and five tests are new:
+  - Ctrl+click toggling and highlighting;
+  - Shift and Ctrl+Shift ranges;
+  - Shift+arrows and Ctrl+A;
+  - right-click selection;
+  - stacked details with the 50 cap.
+
+Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; webviews and the extension bundle built. No suite run.

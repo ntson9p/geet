@@ -24,7 +24,12 @@ export interface VirtualListHandle {
    * reset list (scrollTop 0) would leave the row at the BOTTOM of the window.
    */
   scrollToIndex(index: number, align?: 'auto' | 'center' | 'top'): void;
-  focusIndex(index: number): void;
+  /**
+   * Moves keyboard focus to a row. `silent` leaves `onFocusIndex` unfired: a
+   * list with a selection of its own moves its lead on Ctrl+ and Shift+ clicks
+   * and keys without that becoming a plain one-row selection.
+   */
+  focusIndex(index: number, opts?: { silent?: boolean }): void;
 }
 
 export interface VirtualListProps {
@@ -81,6 +86,14 @@ export interface VirtualListProps {
    * otherwise fire `onActivate`.
    */
   onRowKeyDown?: (index: number, e: KeyboardEvent<HTMLDivElement>) => boolean;
+  /**
+   * A selection that is not just the focused row (the log's Ctrl/Shift
+   * selection). When given, it decides `aria-selected` and the `gt-selected`
+   * class; without it the focused row is the selected one, as before.
+   */
+  isRowSelected?: (index: number) => boolean;
+  /** `aria-multiselectable` on the list, for one whose rows select together. */
+  multiselectable?: boolean;
 }
 
 export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(function VirtualList(
@@ -104,6 +117,8 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     rowRole = 'option',
     rowAria,
     onRowKeyDown,
+    isRowSelected,
+    multiselectable,
   }: VirtualListProps,
   ref,
 ) {
@@ -137,10 +152,10 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   );
 
   const focusIndex = useCallback(
-    (index: number) => {
+    (index: number, opts?: { silent?: boolean }) => {
       const i = clamp(index);
       setFocusedIndex(i);
-      onFocusIndex?.(i);
+      if (opts?.silent !== true) onFocusIndex?.(i);
       scrollToIndex(i);
       pendingFocus.current = i;
       // A jump outside the rendered window unmounts the row that currently
@@ -236,13 +251,15 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
         role={rowRole}
         aria-posinset={i + 1}
         aria-setsize={rowCount}
-        aria-selected={i === focusedIndex}
+        aria-selected={isRowSelected !== undefined ? isRowSelected(i) : i === focusedIndex}
         aria-label={rowAriaLabel?.(i)}
         {...rowAria?.(i)}
         data-gt-row={i}
         data-vscode-context={ctx ? JSON.stringify(ctx) : undefined}
         tabIndex={i === focusedIndex ? 0 : -1}
-        className={`gt-virtual-row${i === focusedIndex ? ' gt-focused' : ''}`}
+        className={`gt-virtual-row${i === focusedIndex ? ' gt-focused' : ''}${
+          isRowSelected?.(i) === true ? ' gt-selected' : ''
+        }`}
         style={style}
         onClick={(e) => {
           // Modifier clicks are selection gestures owned by the consumer —
@@ -264,6 +281,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
       ref={containerRef}
       role={role}
       aria-label={ariaLabel}
+      aria-multiselectable={multiselectable === true ? true : undefined}
       tabIndex={-1}
       className={`gt-virtual-list${className ? ` ${className}` : ''}`}
       style={{ height, overflowY: 'auto', position: 'relative', outline: 'none' }}

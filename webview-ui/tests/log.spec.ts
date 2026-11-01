@@ -76,8 +76,12 @@ test.describe('P4-T3/T4 log webview', () => {
 
     await commitRow(page).locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
     const ctxMulti = await commitRow(page).locator('[data-gt-row="4"]').getAttribute('data-vscode-context');
-    const parsedMulti = JSON.parse(ctxMulti ?? '{}') as { shas: string[] };
+    const parsedMulti = JSON.parse(ctxMulti ?? '{}') as Record<string, unknown> & { shas: string[] };
     expect(parsedMulti.shas.length).toBe(2);
+    // What the menu's `when` and `enablement` clauses read.
+    expect(parsedMulti['gittree.commitCount']).toBe(2);
+    expect(parsedMulti['gittree.multiCommit']).toBe(true);
+    expect(parsedSingle).not.toHaveProperty('gittree.multiCommit');
   });
 
   test('POST-P14x: hovering a commit shows its whole message, fetched once', async ({ page }) => {
@@ -149,30 +153,45 @@ test.describe('P4-T3/T4 log webview', () => {
     await page.getByRole('button', { name: 'Group by folder' }).click();
   });
 
-  test('P12-T3: a multi-selection shows the aggregate and range-scoped diffs', async ({ page }) => {
+  test('P12-T3: several commits show the merge of their own changes, each file with its ends', async ({ page }) => {
     await openLog(page);
-    await commitRow(page).locator('[data-gt-row="2"]').click();
-    await commitRow(page).locator('[data-gt-row="4"]').click({ modifiers: ['Control'] });
+    // Clicked out of order: the request still lists them newest first.
+    await commitRow(page).locator('[data-gt-row="4"]').click();
+    await commitRow(page).locator('[data-gt-row="2"]').click({ modifiers: ['Control'] });
+    await expect
+      .poll(async () => {
+        const asked = (await posted(page)).filter((m) => m.method === 'log/changedFiles');
+        return (asked.at(-1)?.params as { shas?: string[] } | undefined)?.shas?.map((s) => s.slice(0, 8));
+      })
+      .toEqual(['00000002', '00000004']);
+    const files = page.getByTestId('changed-files');
+    await expect(files).toContainText('agg-added.ts');
+
+    // The multi-diff opens the same merged changes, for these commits.
+    const all = page.getByRole('button', { name: 'Show all files in multi-diff' });
+    await expect(all).toBeEnabled();
+    await all.click();
     await expect
       .poll(async () =>
         (await posted(page)).some((m) => {
           const p = m.params as { shas?: string[] } | undefined;
-          return m.method === 'log/changedFiles' && p?.shas?.length === 2;
+          return m.method === 'log/openAllDiffs' && p?.shas?.length === 2;
         }),
       )
       .toBe(true);
-    const files = page.getByTestId('changed-files');
-    await expect(files).toContainText('agg-added.ts');
 
-    // The multi-diff button has one-commit semantics and disables on a range.
-    await expect(page.getByRole('button', { name: 'Show all files in multi-diff' })).toBeDisabled();
-
-    await files.getByRole('treeitem', { name: /agg-added\.ts/ }).dblclick();
+    // A file opens between its own two revisions, which it carries.
+    await files.getByRole('treeitem', { name: /app\.ts/ }).dblclick();
     await expect
       .poll(async () =>
         (await posted(page)).some((m) => {
-          const p = m.params as { base?: string } | undefined;
-          return m.method === 'log/openFileDiff' && p?.base === 'basebasebase';
+          const f = (m.params as { file?: { path: string; before?: string; after?: string } } | undefined)?.file;
+          return (
+            m.method === 'log/openFileDiff' &&
+            f?.path === 'src/app.ts' &&
+            f.before?.endsWith('^') === true &&
+            f.after?.startsWith('00000002') === true
+          );
         }),
       )
       .toBe(true);
@@ -1477,6 +1496,114 @@ test.describe('P4-T3/T4 log webview', () => {
     await handle.dblclick();
     await expect.poll(async () => Math.round((await author.boundingBox())!.width)).toBe(Math.round(start));
     await expect(commitRow(page).locator('[data-gt-row="2"]')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  // ---- Selecting several commits, as IntelliJ's log table does ----
+
+  const selectedRows = (page: Page): Promise<string[]> =>
+    commitRow(page)
+      .locator('.gt-virtual-row[aria-selected="true"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('data-gt-row') ?? ''));
+
+  test('Ctrl+click adds and removes commits, and every selected row is highlighted', async ({ page }) => {
+    await openLog(page);
+    await expect(page.getByRole('listbox', { name: 'Commits' })).toHaveAttribute('aria-multiselectable', 'true');
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await commitRow(page).locator('[data-gt-row="3"]').click({ modifiers: ['Control'] });
+    await commitRow(page).locator('[data-gt-row="5"]').click({ modifiers: ['Control'] });
+    expect(await selectedRows(page)).toEqual(['1', '3', '5']);
+    await expect(commitRow(page).locator('[data-gt-row="3"]')).toHaveClass(/gt-selected/);
+
+    // Again on a selected one: out it goes; the focus moved to it all the same.
+    await commitRow(page).locator('[data-gt-row="3"]').click({ modifiers: ['Control'] });
+    expect(await selectedRows(page)).toEqual(['1', '5']);
+    await expect(commitRow(page).locator('[data-gt-row="3"]')).toBeFocused();
+    await expect(commitRow(page).locator('[data-gt-row="3"]')).not.toHaveClass(/gt-selected/);
+
+    // A plain click starts over.
+    await commitRow(page).locator('[data-gt-row="6"]').click();
+    expect(await selectedRows(page)).toEqual(['6']);
+  });
+
+  test('Shift+click selects the run from the anchor; Ctrl+Shift+click adds one', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="2"]').click();
+    await commitRow(page).locator('[data-gt-row="5"]').click({ modifiers: ['Shift'] });
+    expect(await selectedRows(page)).toEqual(['2', '3', '4', '5']);
+    // The anchor stays at 2: a second Shift+click re-runs from it.
+    await commitRow(page).locator('[data-gt-row="0"]').click({ modifiers: ['Shift'] });
+    expect(await selectedRows(page)).toEqual(['0', '1', '2']);
+
+    await commitRow(page).locator('[data-gt-row="8"]').click({ modifiers: ['Control'] });
+    await commitRow(page).locator('[data-gt-row="10"]').click({ modifiers: ['Control', 'Shift'] });
+    expect(await selectedRows(page)).toEqual(['0', '1', '2', '8', '9', '10']);
+  });
+
+  test('Shift+arrows grow the run from the anchor; Ctrl+A selects every loaded commit', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="3"]').click();
+    await page.keyboard.press('Shift+ArrowDown');
+    await page.keyboard.press('Shift+ArrowDown');
+    expect(await selectedRows(page)).toEqual(['3', '4', '5']);
+    await expect(commitRow(page).locator('[data-gt-row="5"]')).toBeFocused();
+    await page.keyboard.press('Shift+ArrowUp');
+    expect(await selectedRows(page)).toEqual(['3', '4']);
+    // A plain arrow goes back to one commit.
+    await page.keyboard.press('ArrowDown');
+    expect(await selectedRows(page)).toEqual(['5']);
+
+    await page.keyboard.press('Control+a');
+    await expect
+      .poll(async () => {
+        const last = (await posted(page)).filter((m) => m.method === 'log/select').at(-1);
+        return (last?.params as { shas?: string[] } | undefined)?.shas?.length;
+      })
+      .toBe(2000);
+  });
+
+  test('right-click outside the selection selects that commit; inside, the selection stays', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await commitRow(page).locator('[data-gt-row="2"]').click({ modifiers: ['Shift'] });
+    // The menu acts on what was selected before the click...
+    const inside = JSON.parse(
+      (await commitRow(page).locator('[data-gt-row="2"]').getAttribute('data-vscode-context')) ?? '{}',
+    ) as { shas: string[] };
+    expect(inside.shas).toHaveLength(2);
+    await commitRow(page).locator('[data-gt-row="2"]').dispatchEvent('contextmenu');
+    expect(await selectedRows(page)).toEqual(['1', '2']);
+
+    // ...and outside it, on that commit alone.
+    const outside = JSON.parse(
+      (await commitRow(page).locator('[data-gt-row="6"]').getAttribute('data-vscode-context')) ?? '{}',
+    ) as { shas: string[] };
+    expect(outside.shas).toHaveLength(1);
+    await commitRow(page).locator('[data-gt-row="6"]').dispatchEvent('contextmenu');
+    expect(await selectedRows(page)).toEqual(['6']);
+  });
+
+  test('Commit Details stacks the selected commits, and says how many it left out past 50', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="0"]').click();
+    await commitRow(page).locator('[data-gt-row="2"]').click({ modifiers: ['Shift'] });
+    const blocks = page.getByTestId('details-list').locator('.gt-log-details');
+    await expect(blocks).toHaveCount(3);
+    await expect(blocks.locator('.gt-details-sha')).toHaveText(['000000000000', '000000010000', '000000020000']);
+    await expect(page.getByTestId('details-overflow')).toHaveCount(0);
+
+    // Row 60 is drawn once the list has scrolled to it.
+    await page.getByRole('listbox', { name: 'Commits' }).evaluate((el) => {
+      el.scrollTop = 50 * 24;
+    });
+    await commitRow(page).locator('[data-gt-row="60"]').click({ modifiers: ['Shift'] });
+    await expect(blocks).toHaveCount(50);
+    await expect(page.getByTestId('details-overflow')).toHaveText('(showing 50 of 61 selected commits)');
+    // Never more than 50 asked for, and none twice.
+    const asked = (await posted(page))
+      .filter((m) => m.method === 'log/details')
+      .map((m) => (m.params as { sha: string }).sha);
+    expect(new Set(asked).size).toBe(asked.length);
+    expect(asked.length).toBeLessThanOrEqual(50);
   });
 
   // ---- Log tabs: `+` (Open Another Log Tab), ×, the tab menu ----

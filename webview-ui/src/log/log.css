@@ -515,6 +515,33 @@
  * its left part, the ref labels at its right end) takes what Author, Date and
  * Hash leave. No header row, as in IntelliJ.
  */
+/* IntelliJ's selection: every selected commit is highlighted, not only the one
+   with the keyboard focus. A focused row that is not selected (Ctrl+click took
+   it out) keeps only its focus outline. Text selection would fight Shift+click. */
+.gt-log-rows .gt-virtual-row {
+  user-select: none;
+}
+
+.gt-log-rows .gt-virtual-row.gt-selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.gt-log-rows .gt-virtual-row.gt-focused:not(.gt-selected) {
+  background: transparent;
+  color: inherit;
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+  outline-offset: -1px;
+}
+
+.gt-log-rows .gt-virtual-row.gt-focused:not(.gt-selected):hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.gt-log-rows .gt-virtual-row.gt-selected .gt-ref-label {
+  color: inherit;
+}
+
 .gt-log-row {
   display: flex;
   align-items: center;
@@ -701,6 +728,35 @@ body.gt-col-resizing * {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Several selected commits: the stack scrolls as one, IntelliJ's
+   `CommitDetailsListPanel`; each commit's block is laid out in full inside it. */
+.gt-log-details-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+  overflow: auto;
+}
+
+.gt-log-details-list .gt-log-details,
+.gt-log-details-list .gt-details-body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+  border-left: none;
+}
+
+.gt-details-rule {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.gt-details-overflow {
+  padding: 6px 8px;
+  font-size: 0.9em;
 }
 
 /*

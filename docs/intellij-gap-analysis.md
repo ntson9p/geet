@@ -499,7 +499,8 @@ row in the branches tree.
 | **Create Patch** (from commit) | P12-T6 `log.createPatch` | ✅ |
 | **Show Repository at Revision** | P12-T7 read-only `gittree-tree:` FS + view | ✅ |
 | **Fixup** / **Squash Into** (direct from the log) | P12-T7 `log.fixup` / `log.squashInto` + autosquash | ✅ |
-| **Squash Commits** (multi-select) | — | ❌ |
+| **Squash Commits** (multi-select) | `log.squashCommits`: the selected commits, adjacent or not, folded into the oldest with a message edited from theirs (IntelliJ's `prettySquash`), Undo after. *Added 2026-11-01* | ✅ |
+| Multi-select in the log: Ctrl/Shift+click, Shift+arrows, Ctrl+A; Changed Files = the merged changes of exactly the selected commits; Commit Details stacked (50 max); the context menu's multi-commit rules (Revert/Drop Commits, Compare Versions for two, single-commit actions hidden or greyed) | `logSelection.ts`, `zipChanges.ts`, the stacked details pane and the `gittree.multiCommit` / `gittree.commitCount` / `gittree.mergeSelected` menu keys. *Added 2026-11-01*; the menu cannot say why an item is greyed (VS Code menus carry no description), and commits on the upstream are confirmed rather than refused | ✅ |
 | **Push All up to Here…** | P12-T7 `log.pushAllUpToHere` | ✅ |
 | **Add Commits to Remote Branch** | — | ❌ |
 | **Rebase \<branch\> onto Selected Commit** | — | ❌ |

@@ -7,6 +7,7 @@ import type { Core, RepoHandle } from '../core/core';
 import { resolveShimDir } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { PushSafetyService } from './pushSafety';
+import { MultiCommitEditService } from './multiCommitEdit';
 import { RebaseEngine } from './rebase/rebaseEngine';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
@@ -261,6 +262,13 @@ export function registerPhase05HistoryRewriting(
     const shas = shasOf(arg);
     if (repo && shas.length > 0) await revertPick.cherryPick(repo, shas);
   });
+  // The log's menu for several selected commits names it in the plural, as
+  // IntelliJ's `Revert Commits` does; it is the same revert.
+  register('gittree.commit.revertCommits', async (arg) => {
+    const repo = repoForArg(arg);
+    const shas = shasOf(arg);
+    if (repo && shas.length > 0) await revertPick.revert(repo, shas);
+  });
 
   // ---- T5: Reword from log --------------------------------------------------
   const reword = new RewordService((repo) => engines.get(canonicalKey(repo.root)));
@@ -274,6 +282,24 @@ export function registerPhase05HistoryRewriting(
       // the offered-set dedupes the double call.
       if (result === 'done') void pushSafety.maybeOffer(repo);
     }
+  });
+
+  // IntelliJ's Drop Commits and Squash Commits… for a selection of commits.
+  const multiEdit = new MultiCommitEditService(
+    (repo) => engines.get(canonicalKey(repo.root)),
+    (original, acceptTitle) => reword.promptMessage(original, acceptTitle),
+  );
+  register('gittree.commit.dropCommits', async (arg) => {
+    const repo = logRepo();
+    const shas = shasOf(arg);
+    if (!repo || shas.length === 0) return;
+    if (shas.length === 1) await undoDrop.dropCommit(repo, shas[0]!);
+    else await multiEdit.dropCommits(repo, shas);
+  });
+  register('gittree.log.squashCommits', async (arg) => {
+    const repo = logRepo();
+    const shas = shasOf(arg);
+    if (repo && shas.length > 1) await multiEdit.squashCommits(repo, shas);
   });
 
   // P12-T6: Apply Patch — mailbox patches replay as commits (`git am -3`),
@@ -326,6 +352,7 @@ export function registerPhase05HistoryRewriting(
     undoDrop,
     revertPick,
     reword,
+    multiEdit,
     pushSafety,
   });
 }

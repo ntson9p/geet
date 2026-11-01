@@ -63,7 +63,8 @@ button {
     color: SelectedItemText;
     border-color: SelectedItem;
   }
-  .gt-virtual-row.gt-focused {
+  .gt-virtual-row.gt-focused,
+  .gt-virtual-row.gt-selected {
     forced-color-adjust: none;
     background: SelectedItem;
     color: SelectedItemText;

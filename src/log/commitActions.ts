@@ -49,9 +49,11 @@ export function registerCommitActions(
     }
   });
 
+  // IntelliJ's Copy Revision Number: several hashes go on one line, spaced,
+  // in the order the log lists them.
   register('gittree.log.copySha', async (arg) => {
     const ctx = arg as CommitContext | undefined;
-    const text = (ctx?.shas && ctx.shas.length > 1 ? ctx.shas : [shaOf(arg) ?? '']).join('\n');
+    const text = (ctx?.shas && ctx.shas.length > 1 ? ctx.shas : [shaOf(arg) ?? '']).join(' ');
     if (text.length > 0) await vscode.env.clipboard.writeText(text);
   });
 
@@ -200,6 +202,47 @@ export function registerCommitActions(
     await vscode.commands.executeCommand(
       'vscode.changes',
       vscode.l10n.t('{0} ⟷ Working Tree', sha.slice(0, 7)),
+      changes,
+    );
+  });
+
+  /**
+   * IntelliJ's Compare Versions, offered when exactly two commits are
+   * selected: every file that differs between them, from the lower one in
+   * the log to the upper one, kept to the log's path filter as IntelliJ keeps
+   * it to the affected paths.
+   */
+  register('gittree.log.compareVersions', async (arg) => {
+    const shas = (arg as CommitContext | undefined)?.shas;
+    const repo = repoOf();
+    if (!repo || !Array.isArray(shas) || shas.length !== 2) return;
+    const [upper, lower] = shas as [string, string];
+    const paths = logView.currentSession?.filter.paths ?? [];
+    const result = await repo.queue.enqueue({
+      label: vscode.l10n.t('Compare {0} with {1}', lower.slice(0, 7), upper.slice(0, 7)),
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(
+          repo.root,
+          ['diff', '--name-status', '-z', '-M', lower, upper, ...(paths.length > 0 ? ['--', ...paths] : [])],
+          { structured: true, noOptionalLocks: true, token },
+        ),
+    });
+    const entries = parseNameStatusZ(result.stdout);
+    if (entries.length === 0) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('{0} and {1} have the same content.', lower.slice(0, 7), upper.slice(0, 7)),
+      );
+      return;
+    }
+    const changes: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = entries.map((e) => [
+      vscode.Uri.file(path.join(repo.root, e.path)),
+      e.status.startsWith('A') ? undefined : makeRevUri(repo.root, e.origPath ?? e.path, lower),
+      e.status.startsWith('D') ? undefined : makeRevUri(repo.root, e.path, upper),
+    ]);
+    await vscode.commands.executeCommand(
+      'vscode.changes',
+      vscode.l10n.t('Changes between {0} and {1}', lower.slice(0, 7), upper.slice(0, 7)),
       changes,
     );
   });

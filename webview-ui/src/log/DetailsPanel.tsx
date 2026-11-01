@@ -6,6 +6,10 @@
  * `Contained in branches … Show all` that never runs `--contains` on
  * selection. The body linkifies URLs and configured issue keys, and stays
  * selectable text.
+ *
+ * Several selected commits stack, as IntelliJ's `CommitDetailsListPanel` does:
+ * one block per commit in graph order, a rule between them, at most the first
+ * 50, and `(showing 50 of N selected commits)` below when there were more.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { CommitDetailsDto } from '../../../src/shared/protocol';
@@ -13,7 +17,10 @@ import { ToolbarButton } from '../lib/Toolbar';
 import { linkifyBody, signatureLabel } from './linkify';
 
 export interface DetailsPanelProps {
-  details: CommitDetailsDto | undefined;
+  /** The selected commits' details, in graph order (the first 50 at most). */
+  details: readonly CommitDetailsDto[];
+  /** How many commits are selected, which may be more than `details` holds. */
+  selectedCount: number;
   loading: boolean;
   issue?: { pattern: string; url: string };
   onCopy: (text: string) => void;
@@ -27,7 +34,68 @@ function chipType(ref: string): 'tag' | 'head' | 'branch' {
   return 'branch';
 }
 
-export function DetailsPanel({ details, loading, issue, onCopy, onGoTo, fetchContained }: DetailsPanelProps) {
+export function DetailsPanel({
+  details,
+  selectedCount,
+  loading,
+  issue,
+  onCopy,
+  onGoTo,
+  fetchContained,
+}: DetailsPanelProps) {
+  if (loading && details.length === 0) {
+    return <div className="gt-pane-empty gt-muted">Loading…</div>;
+  }
+  if (details.length === 0) {
+    return <div className="gt-pane-empty gt-muted">Select a commit to see details.</div>;
+  }
+  if (details.length === 1) {
+    return (
+      <CommitDetailsBlock
+        details={details[0]!}
+        issue={issue}
+        onCopy={onCopy}
+        onGoTo={onGoTo}
+        fetchContained={fetchContained}
+      />
+    );
+  }
+  return (
+    <div className="gt-log-details-list" data-testid="details-list">
+      {details.map((d, i) => (
+        <div key={d.sha}>
+          {i > 0 ? <hr className="gt-details-rule" /> : null}
+          <CommitDetailsBlock
+            details={d}
+            issue={issue}
+            onCopy={onCopy}
+            onGoTo={onGoTo}
+            fetchContained={fetchContained}
+          />
+        </div>
+      ))}
+      {selectedCount > details.length ? (
+        <>
+          <hr className="gt-details-rule" />
+          <div className="gt-details-overflow gt-muted" data-testid="details-overflow">
+            (showing {details.length} of {selectedCount} selected commits)
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+interface CommitDetailsBlockProps {
+  details: CommitDetailsDto;
+  issue?: { pattern: string; url: string };
+  onCopy: (text: string) => void;
+  onGoTo: (sha: string) => void;
+  fetchContained: (sha: string) => Promise<string[]>;
+}
+
+/** One commit's details. */
+function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: CommitDetailsBlockProps) {
   const [contained, setContained] = useState<string[] | undefined>(undefined);
   const [containedLoading, setContainedLoading] = useState(false);
 
@@ -35,19 +103,9 @@ export function DetailsPanel({ details, loading, issue, onCopy, onGoTo, fetchCon
   useEffect(() => {
     setContained(undefined);
     setContainedLoading(false);
-  }, [details?.sha]);
+  }, [details.sha]);
 
-  const segments = useMemo(
-    () => (details ? linkifyBody(details.body, issue) : []),
-    [details, issue],
-  );
-
-  if (loading) {
-    return <div className="gt-pane-empty gt-muted">Loading…</div>;
-  }
-  if (!details) {
-    return <div className="gt-pane-empty gt-muted">Select a commit to see details.</div>;
-  }
+  const segments = useMemo(() => linkifyBody(details.body, issue), [details, issue]);
 
   const subject = details.body.split('\n', 1)[0] ?? '';
   const date = new Date(details.authorTime * 1000);

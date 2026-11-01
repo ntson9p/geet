@@ -1018,11 +1018,13 @@
       },
       {
         "command": "gittree.log.createBranchHere",
-        "title": "%gittree.command.log.createBranchHere.title%"
+        "title": "%gittree.command.log.createBranchHere.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.log.createTagHere",
-        "title": "%gittree.command.log.createTagHere.title%"
+        "title": "%gittree.command.log.createTagHere.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.log.checkoutRevision",
@@ -1030,11 +1032,16 @@
       },
       {
         "command": "gittree.log.resetHere",
-        "title": "%gittree.command.log.resetHere.title%"
+        "title": "%gittree.command.log.resetHere.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.log.compareWithLocal",
         "title": "%gittree.command.log.compareWithLocal.title%"
+      },
+      {
+        "command": "gittree.log.compareVersions",
+        "title": "%gittree.command.log.compareVersions.title%"
       },
       {
         "command": "gittree.log.openOnRemote",
@@ -1172,8 +1179,23 @@
         "title": "%gittree.command.commit.drop.title%"
       },
       {
+        "command": "gittree.log.squashCommits",
+        "title": "%gittree.command.log.squashCommits.title%",
+        "enablement": "!gittree.mergeSelected"
+      },
+      {
+        "command": "gittree.commit.dropCommits",
+        "title": "%gittree.command.commit.dropCommits.title%",
+        "enablement": "!gittree.mergeSelected"
+      },
+      {
         "command": "gittree.commit.revert",
         "title": "%gittree.command.commit.revert.title%"
+      },
+      {
+        "command": "gittree.commit.revertCommits",
+        "title": "%gittree.command.commit.revertCommits.title%",
+        "enablement": "!gittree.mergeSelected"
       },
       {
         "command": "gittree.commit.cherryPick",
@@ -1434,7 +1456,8 @@
       },
       {
         "command": "gittree.log.pushAllUpToHere",
-        "title": "%gittree.command.log.pushAllUpToHere.title%"
+        "title": "%gittree.command.log.pushAllUpToHere.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.log.commitBranches",
@@ -1442,15 +1465,18 @@
       },
       {
         "command": "gittree.log.goToParent",
-        "title": "%gittree.command.log.goToParent.title%"
+        "title": "%gittree.command.log.goToParent.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.log.goToChild",
-        "title": "%gittree.command.log.goToChild.title%"
+        "title": "%gittree.command.log.goToChild.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.log.showRepoAtRevision",
-        "title": "%gittree.command.log.showRepoAtRevision.title%"
+        "title": "%gittree.command.log.showRepoAtRevision.title%",
+        "enablement": "!gittree.multiCommit"
       },
       {
         "command": "gittree.revTree.close",
@@ -2137,6 +2163,34 @@
         {
           "command": "gittree.repositories.select",
           "when": "false"
+        },
+        {
+          "command": "gittree.commit.revertCommits",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.dropCommits",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.squashCommits",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.compareVersions",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.createBranchHere",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.createTagHere",
+          "when": "false"
+        },
+        {
+          "command": "gittree.log.resetHere",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -2789,107 +2843,127 @@
         {
           "command": "gittree.log.copySha",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "1_nav@1"
-        },
-        {
-          "command": "gittree.log.goToParent",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "1_nav@2"
-        },
-        {
-          "command": "gittree.log.goToChild",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "1_nav@3"
+          "group": "1_copy@1"
         },
         {
           "command": "gittree.log.createPatch",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "5_patch@1"
-        },
-        {
-          "command": "gittree.log.fixup",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@1"
-        },
-        {
-          "command": "gittree.log.squashInto",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@2"
-        },
-        {
-          "command": "gittree.log.pushAllUpToHere",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "7_push@1"
-        },
-        {
-          "command": "gittree.log.commitBranches",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "8_refs@1"
-        },
-        {
-          "command": "gittree.log.showRepoAtRevision",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "8_refs@2"
-        },
-        {
-          "command": "gittree.log.createBranchHere",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "2_refs@1"
-        },
-        {
-          "command": "gittree.log.createTagHere",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "2_refs@2"
-        },
-        {
-          "command": "gittree.log.checkoutRevision",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "3_move@1"
-        },
-        {
-          "command": "gittree.log.resetHere",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "3_move@2"
-        },
-        {
-          "command": "gittree.log.compareWithLocal",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "4_diff@1"
-        },
-        {
-          "command": "gittree.log.openOnRemote",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "5_remote@1"
-        },
-        {
-          "command": "gittree.rebase.interactive",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@1"
-        },
-        {
-          "command": "gittree.commit.undo",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@2"
-        },
-        {
-          "command": "gittree.commit.drop",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@3"
-        },
-        {
-          "command": "gittree.commit.revert",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@4"
+          "group": "1_copy@2"
         },
         {
           "command": "gittree.commit.cherryPick",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@5"
+          "group": "1_copy@3"
+        },
+        {
+          "command": "gittree.log.checkoutRevision",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "2_checkout@1"
+        },
+        {
+          "command": "gittree.log.showRepoAtRevision",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "2_checkout@2"
+        },
+        {
+          "command": "gittree.log.compareVersions",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && gittree.commitCount == 2",
+          "group": "3_compare@1"
+        },
+        {
+          "command": "gittree.log.compareWithLocal",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "3_compare@2"
+        },
+        {
+          "command": "gittree.log.resetHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "4_reset@1"
+        },
+        {
+          "command": "gittree.commit.revert",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "4_reset@2"
+        },
+        {
+          "command": "gittree.commit.revertCommits",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && gittree.multiCommit",
+          "group": "4_reset@3"
+        },
+        {
+          "command": "gittree.commit.undo",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "4_reset@4"
         },
         {
           "command": "gittree.commit.reword",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "5_edit@1"
+        },
+        {
+          "command": "gittree.log.fixup",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "5_edit@2"
+        },
+        {
+          "command": "gittree.log.squashInto",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "5_edit@3"
+        },
+        {
+          "command": "gittree.commit.drop",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "5_edit@4"
+        },
+        {
+          "command": "gittree.commit.dropCommits",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && gittree.multiCommit",
+          "group": "5_edit@5"
+        },
+        {
+          "command": "gittree.log.squashCommits",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && gittree.multiCommit",
+          "group": "5_edit@6"
+        },
+        {
+          "command": "gittree.rebase.interactive",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "5_edit@7"
+        },
+        {
+          "command": "gittree.log.pushAllUpToHere",
           "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
-          "group": "6_rewrite@6"
+          "group": "5_edit@8"
+        },
+        {
+          "command": "gittree.log.commitBranches",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "6_branch@1"
+        },
+        {
+          "command": "gittree.log.createBranchHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_branch@2"
+        },
+        {
+          "command": "gittree.log.createTagHere",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "6_branch@3"
+        },
+        {
+          "command": "gittree.log.goToChild",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "7_goto@1"
+        },
+        {
+          "command": "gittree.log.goToParent",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit'",
+          "group": "7_goto@2"
+        },
+        {
+          "command": "gittree.log.openOnRemote",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'commit' && !gittree.multiCommit",
+          "group": "8_remote@1"
         },
         {
           "command": "gittree.rebase.row.resetAction",

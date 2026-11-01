@@ -16,6 +16,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import {
@@ -51,10 +52,21 @@ import {
 import { SAMPLE_COMMIT_TIME, commitDate } from './dateFormat';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
+import { commitMenuContext } from './commitMenuContext';
 import { CommitTooltip } from './CommitTooltip';
 import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
 import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
+import {
+  EMPTY_SELECTION,
+  clickSelection,
+  contextSelection,
+  extendSelection,
+  rowOrder,
+  selectAll,
+  shiftTarget,
+  type LogSelection,
+} from './logSelection';
 import { MAIN_LOG_TAB } from './logTabsModel';
 import {
   groupRefs,
@@ -73,6 +85,11 @@ const ROW_HEIGHT = 24;
 const ROW_PADDING = 16;
 /** How much message the columns always leave beside the graph. */
 const MIN_MESSAGE_WIDTH = 80;
+/**
+ * IntelliJ's Commit Details pane shows at most this many of the selected
+ * commits (`MAX_COMMITS_TO_LOAD`), then says how many it left out.
+ */
+const MAX_DETAILS = 50;
 
 /** A new Log tab opens with the Branches pane folded to its strip, as IntelliJ's do. */
 export const NEW_TAB_LAYOUT: ShellLayout = { ...DEFAULT_LAYOUT, collapsed: { branches: true } };
@@ -150,9 +167,16 @@ export function LogTab({
   const [eof, setEof] = useState(false);
   const [loading, setLoading] = useState(false);
   const [viewport, setViewport] = useState<GraphViewport>({ scrollTop: 0, first: 0, last: 0 });
-  const [selected, setSelected] = useState<string[]>([]);
-  const [details, setDetails] = useState<CommitDetailsDto | undefined>();
+  // The selection, IntelliJ's way: any set of commits, in graph order, with
+  // the anchor a Shift range starts from. See `logSelection.ts`.
+  const [selection, setSelection] = useState<LogSelection>(EMPTY_SELECTION);
+  const selected = selection.shas;
+  const selectOnly = useCallback((sha: string) => setSelection({ shas: [sha], anchor: sha }), []);
+  // Commit Details for up to MAX_DETAILS selected commits, stacked.
+  const [detailsList, setDetailsList] = useState<CommitDetailsDto[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  /** sha → details, so re-selecting a commit does not re-run git. Cleared on reset. */
+  const detailsCache = useRef(new Map<string, CommitDetailsDto>());
   // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   // P12-T1: this tab's layout, persisted with its focus. A tab opened by `+` or
@@ -206,6 +230,16 @@ export function LogTab({
   const filter = init?.filter ?? { sort: 'date' as const, refs: 'HEAD' as const };
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  // The loaded commits as shas and their rows, for the selection rules.
+  const rowShas = useMemo(() => rows.map((r) => r.sha), [rows]);
+  const order = useMemo(() => rowOrder(rowShas), [rowShas]);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const rowShasRef = useRef(rowShas);
+  rowShasRef.current = rowShas;
+  const orderRef = useRef(order);
+  orderRef.current = order;
   // The boot effect runs once per rpc, so what it reads at event time has to
   // come through refs — a closure would hold the first render's empty values.
   const selectedRef = useRef(selected);
@@ -256,6 +290,43 @@ export function LogTab({
   // command reads the same list, pushed here on each change.
   useEffect(() => {
     void send(LOG_METHODS.select, { shas: selected }).catch(() => undefined);
+  }, [send, selected]);
+
+  // Commit Details follows the selection: each selected commit's details, in
+  // graph order, the first MAX_DETAILS of them — IntelliJ's stacked pane.
+  useEffect(() => {
+    const wanted = selected.slice(0, MAX_DETAILS);
+    const cache = detailsCache.current;
+    const known = (): CommitDetailsDto[] =>
+      wanted.flatMap((sha) => {
+        const d = cache.get(sha);
+        return d !== undefined ? [d] : [];
+      });
+    const missing = wanted.filter((sha) => !cache.has(sha));
+    if (missing.length === 0) {
+      setDetailsList(known());
+      setDetailsLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setDetailsLoading(true);
+    void Promise.all(
+      missing.map((sha) =>
+        send<CommitDetailsDto | undefined>(LOG_METHODS.details, { sha }).then(
+          (d) => {
+            if (d) cache.set(sha, d);
+          },
+          () => undefined,
+        ),
+      ),
+    ).then(() => {
+      if (cancelled) return;
+      setDetailsList(known());
+      setDetailsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [send, selected]);
 
   /** IntelliJ's own dwell before a commit tooltip appears. */
@@ -340,6 +411,9 @@ export function LogTab({
   // the detached node (the P11-T4 lesson).
   const [containerRef, measured] = useElementSize<HTMLDivElement>();
   const size = { width: measured.width || 800, height: measured.height || 400 };
+  /** For Shift+PageUp/PageDown, which run from a callback. */
+  const listHeightRef = useRef(400);
+  listHeightRef.current = Math.max(size.height, 100);
   const rowsHostRef = useRef<HTMLDivElement | null>(null);
   const rowsRefCallback = useCallback(
     (el: HTMLDivElement | null) => {
@@ -429,8 +503,9 @@ export function LogTab({
       setInit(dto);
       if (dto.presentation) presentationSeenRef.current(dto.presentation);
       setRows([]);
-      setSelected([]);
-      setDetails(undefined);
+      setSelection(EMPTY_SELECTION);
+      // History moved or the view changed: a commit's refs may have too.
+      detailsCache.current.clear();
       setEof(false);
       pageRef.current = { next: 0, loading: false, eof: false };
       requestPage(0);
@@ -441,8 +516,7 @@ export function LogTab({
       const idx = rowsRef.current.findIndex((r) => r.sha === sha);
       if (idx !== -1) {
         listRef.current?.focusIndex(idx);
-        setSelected([sha]);
-        void loadDetails(sha);
+        selectOnly(sha);
       }
     });
     const offFocusFilter = rpc.onEvent(LOG_METHODS.evtFocusFilter, (params) => {
@@ -481,7 +555,7 @@ export function LogTab({
       offRoots();
     };
     // Boot effect: intentionally runs once per tab.
-  }, [rpc, tabId]); // requestPage/loadDetails are stable enough for the boot path
+  }, [rpc, tabId]); // requestPage/selectOnly are stable enough for the boot path
 
   const requestPage = useCallback(
     (page: number) => {
@@ -492,19 +566,6 @@ export function LogTab({
         pageRef.current.loading = false;
         setLoading(false);
       });
-    },
-    [send],
-  );
-
-  const loadDetails = useCallback(
-    async (sha: string) => {
-      setDetailsLoading(true);
-      try {
-        const d = await send<CommitDetailsDto | undefined>(LOG_METHODS.details, { sha });
-        setDetails(d ?? undefined);
-      } finally {
-        setDetailsLoading(false);
-      }
     },
     [send],
   );
@@ -523,17 +584,14 @@ export function LogTab({
     const idx = rows.findIndex((r) => r.sha === restore.sha);
     if (idx === -1) return;
     restoreRef.current = undefined;
-    if (restore.select) {
-      setSelected([restore.sha]);
-      void loadDetails(restore.sha);
-    }
+    if (restore.select) selectOnly(restore.sha);
     // One frame so the taller spacer is laid out before the offset is applied.
     requestAnimationFrame(() =>
       // A restored selection is being read, so centre it; a scroll-only anchor
       // was the top row and belongs back at the top.
       listRef.current?.scrollToIndex(idx, restore.select ? 'center' : 'top'),
     );
-  }, [rows, loadDetails]);
+  }, [rows, selectOnly]);
 
   // ---- infinite scroll ----
   const onViewport = useCallback(
@@ -548,36 +606,74 @@ export function LogTab({
   );
 
   // ---- selection ----
+  /** A plain click or a plain arrow key: that commit alone. */
   const onFocusIndex = useCallback(
     (index: number) => {
       const row = rowsRef.current[index];
       if (!row) return;
-      setSelected([row.sha]);
+      selectOnly(row.sha);
       onSaveRef.current({ focusSha: row.sha });
-      void loadDetails(row.sha);
     },
-    [loadDetails],
+    [selectOnly],
   );
 
+  /**
+   * Ctrl/⌘+click adds or removes a commit, Shift+click selects the run from
+   * the anchor, both together add the run. The focus moves to the clicked row
+   * without collapsing the selection to it.
+   */
   const onRowClick = useCallback(
     (index: number, mods: { ctrlKey: boolean; shiftKey: boolean; metaKey: boolean }) => {
-      const row = rowsRef.current[index];
-      if (!row) return;
-      if (mods.ctrlKey || mods.metaKey) {
-        setSelected((prev) =>
-          prev.includes(row.sha) ? prev.filter((s) => s !== row.sha) : [...prev, row.sha],
-        );
-      } else if (mods.shiftKey && selected.length > 0) {
-        const anchor = rowsRef.current.findIndex((r) => r.sha === selected[0]);
-        if (anchor !== -1) {
-          const [a, b] = anchor < index ? [anchor, index] : [index, anchor];
-          setSelected(rowsRef.current.slice(a, b + 1).map((r) => r.sha));
-        }
-      }
-      // plain click handled by onFocusIndex
+      const toggle = mods.ctrlKey || mods.metaKey;
+      if (!toggle && !mods.shiftKey) return; // a plain click went through onFocusIndex
+      setSelection((prev) =>
+        clickSelection(rowShasRef.current, orderRef.current, prev, index, { toggle, range: mods.shiftKey }),
+      );
+      listRef.current?.focusIndex(index, { silent: true });
     },
-    [selected],
+    [],
   );
+
+  /**
+   * Shift with ↑ ↓ PageUp PageDown Home End grows or shrinks the run from the
+   * anchor; Ctrl/⌘+A selects every loaded commit. The plain keys stay with the
+   * list, which selects the row it lands on.
+   */
+  const onRowKeyDown = useCallback(
+    (index: number, e: ReactKeyboardEvent<HTMLDivElement>): boolean => {
+      const count = rowShasRef.current.length;
+      if (count === 0) return false;
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelection((prev) => selectAll(rowShasRef.current, prev));
+        return true;
+      }
+      if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false;
+      const page = Math.max(1, Math.floor(listHeightRef.current / ROW_HEIGHT) - 1);
+      const target = shiftTarget(e.key, Math.min(index, count - 1), page, count);
+      if (target === undefined) return false;
+      e.preventDefault();
+      setSelection((prev) =>
+        extendSelection(rowShasRef.current, orderRef.current, prev, target, Math.min(index, count - 1)),
+      );
+      listRef.current?.focusIndex(target, { silent: true });
+      return true;
+    },
+    [],
+  );
+
+  /**
+   * Right-click outside the selection selects that commit, as IntelliJ does;
+   * inside it the selection stays, and the menu acts on all of it. (The menu
+   * itself reads `data-vscode-context`, built from the selection as it stood.)
+   */
+  const onRowContextMenu = useCallback((index: number) => {
+    const prev = selectionRef.current;
+    const next = contextSelection(rowShasRef.current, prev, index);
+    if (next === prev) return;
+    setSelection(next);
+    listRef.current?.focusIndex(index, { silent: true });
+  }, []);
 
   // ---- keyboard: ctrl+c copies selected shas (of the tab on show only) ----
   useEffect(() => {
@@ -717,6 +813,13 @@ export function LogTab({
             ariaLabel="Commits"
             onFocusIndex={onFocusIndex}
             onRowClick={onRowClick}
+            onRowKeyDown={onRowKeyDown}
+            onRowContextMenu={onRowContextMenu}
+            multiselectable
+            isRowSelected={(i) => {
+              const row = rows[i];
+              return row !== undefined && selectedSet.has(row.sha);
+            }}
             onRowMouseEnter={(i, el) => {
               const row = rows[i];
               if (row) beginHover(row.sha, el);
@@ -732,13 +835,10 @@ export function LogTab({
             rowContext={(i) => {
               const row = rows[i];
               if (!row) return undefined;
-              const shas = selected.includes(row.sha) && selected.length > 1 ? selected : [row.sha];
-              return {
-                webviewSection: 'commit',
-                sha: row.sha,
-                shas,
-                preventDefaultContextMenuItems: true,
-              };
+              return commitMenuContext(row, selected, (sha) => {
+                const at = order.get(sha);
+                return at !== undefined ? rows[at] : undefined;
+              });
             }}
             renderRow={(i) => {
               const row = rows[i];
@@ -754,7 +854,7 @@ export function LogTab({
                   </span>
                 );
               }
-              const isSelected = selected.includes(row.sha);
+              const isSelected = selectedSet.has(row.sha);
               const isMine =
                 highlightMine && branchesData?.myName !== undefined && row.authorName === branchesData.myName;
               const labels = labelsFor(row);
@@ -886,18 +986,16 @@ export function LogTab({
             previewOnClick={previewOnClick}
             onOpenFile={(file: CommitFileDto) => {
               if (changed?.newest === undefined) return;
-              void send(LOG_METHODS.openFileDiff, {
-                sha: changed.newest,
-                file,
-                ...(changed.base !== undefined ? { base: changed.base } : {}),
-              });
+              // Several commits: the file carries its own two revisions.
+              void send(LOG_METHODS.openFileDiff, { sha: changed.newest, file });
             }}
             onSelectedFileChange={setSelectedFile}
           />
         }
         details={
           <DetailsPanel
-            details={details}
+            details={detailsList}
+            selectedCount={selected.length}
             loading={detailsLoading}
             issue={init.issue}
             onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
@@ -915,10 +1013,13 @@ export function LogTab({
               <ToolbarButton
                 icon="diff-multiple"
                 label="Show all files in multi-diff"
-                disabled={changed?.newest === undefined || changed.base !== undefined}
+                disabled={changed?.newest === undefined || changed.files.length === 0}
                 onClick={() => {
                   if (changed?.newest !== undefined) {
-                    void send(LOG_METHODS.openAllDiffs, { sha: changed.newest });
+                    void send(LOG_METHODS.openAllDiffs, {
+                      sha: changed.newest,
+                      ...(changed.shas !== undefined ? { shas: changed.shas } : {}),
+                    });
                   }
                 }}
               />

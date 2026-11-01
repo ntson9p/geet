@@ -45,6 +45,7 @@ import {
   type LogFilter,
 } from './logFilter';
 import { LogService, type LogRow } from './logService';
+import { zipChanges } from './zipChanges';
 import { committedByOther, userName } from './vcsUser';
 import {
   MAIN_LOG_TAB,
@@ -67,6 +68,8 @@ import {
 } from './presentation';
 
 const LANE_WIDTH = 12;
+/** IntelliJ's cap on the commits a selection acts on (`VcsLogUtil.MAX_SELECTED_COMMITS`). */
+const MAX_SELECTED_COMMITS = 1000;
 
 /**
  * Auto-refresh coalescing window. A rebase, a pull or a multi-repo commit
@@ -433,13 +436,14 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: typeof root === 'string' && this.showRoot(root, tabOf(params)) };
     });
     rpc.on(LOG_METHODS.openFileDiff, async (params) => {
-      const { sha, file, base } = params as { sha: string; file: CommitFileDto; base?: string };
-      await this.openFileDiff(tabOf(params), sha, file, base);
+      const { sha, file } = params as { sha: string; file: CommitFileDto };
+      await this.openFileDiff(tabOf(params), sha, file);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.openAllDiffs, async (params) => {
-      const { sha } = params as { sha: string };
-      await this.openAllDiffs(tabOf(params), sha);
+      const { sha, shas } = params as { sha: string; shas?: unknown };
+      const many = Array.isArray(shas) ? shas.filter((s): s is string => typeof s === 'string') : [];
+      await this.openAllDiffs(tabOf(params), sha, many);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.copy, async (params) => {
@@ -457,8 +461,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       );
       return { ok: true };
     });
-    // P12-T3: the Changed Files pane — one commit's files, or the aggregate
-    // change set of a multi-selection (how "Compare Versions" reads).
+    // P12-T3: the Changed Files pane — one commit's files, or for several the
+    // merge of exactly their changes, as IntelliJ shows it.
     rpc.on(LOG_METHODS.changedFiles, async (params) => {
       const { shas } = params as { shas: string[] };
       const session = this.sessions.get(tabOf(params));
@@ -475,14 +479,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         session.lastChangedFiles = files;
         return { files, newest: shas[0]! };
       }
-      // Selection order is click order; the range is graph order.
-      const order = new Map(session.rows.map((r, i) => [r.sha, i] as const));
-      const sorted = [...shas].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
-      const newest = sorted[0]!;
-      const oldest = sorted[sorted.length - 1]!;
-      const aggregate = await session.service.getAggregateFiles(oldest, newest);
-      session.lastChangedFiles = aggregate.files;
-      return { files: aggregate.files, newest, base: aggregate.base };
+      const sorted = this.newestFirst(session, shas);
+      const files = await this.zippedFiles(session, sorted);
+      session.lastChangedFiles = files;
+      return { files, newest: sorted[0]!, shas: sorted };
     });
 
     // P12-T8: the Console tab — a delta read over the redacted command ring,
@@ -1530,27 +1530,58 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   // ---- diffs ----------------------------------------------------------------
 
-  private async openFileDiff(
-    tab: string,
-    sha: string,
-    file: CommitFileDto,
-    baseRev?: string,
-  ): Promise<void> {
+  /**
+   * `shas` newest first, as the graph shows them. Commits no longer loaded
+   * keep their relative order behind the loaded ones.
+   */
+  private newestFirst(session: Session, shas: readonly string[]): string[] {
+    const order = new Map(session.rows.map((r, i) => [r.sha, i] as const));
+    return [...new Set(shas)].sort(
+      (a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }
+
+  /**
+   * The Changed Files of several commits: IntelliJ's merge of their own
+   * changes (`zipChanges`), oldest commit first. The first thousand commits
+   * count, IntelliJ's `MAX_SELECTED_COMMITS`.
+   */
+  private async zippedFiles(session: Session, newestFirst: readonly string[]): Promise<CommitFileDto[]> {
+    const shas = newestFirst.slice(0, MAX_SELECTED_COMMITS);
+    const perCommit = await session.service.getCommitsFiles([...shas].reverse());
+    return zipChanges(perCommit).map((f) => ({
+      status: f.status,
+      path: f.path,
+      ...(f.origPath !== undefined ? { origPath: f.origPath } : {}),
+      ...(f.before !== undefined ? { before: f.before } : {}),
+      ...(f.after !== undefined ? { after: f.after } : {}),
+    }));
+  }
+
+  private async openFileDiff(tab: string, sha: string, file: CommitFileDto): Promise<void> {
     const session = this.sessions.get(tab);
     if (!session) return;
     const repoRoot = session.repo.root;
-    // P12-T3: an aggregate selection diffs the whole range, not one commit.
-    const base = baseRev ?? `${sha}^`;
+    // One commit diffs against its parent. A file from several selected
+    // commits carries its own two ends: before the earliest of them that
+    // touched it, after the latest.
+    const beforeOf = (f: CommitFileDto): string => f.before ?? `${sha}^`;
+    const afterOf = (f: CommitFileDto): string => f.after ?? sha;
+    const short = (rev: string): string => (rev.endsWith('^') ? `${rev.slice(0, 7)}^` : rev.slice(0, 7));
     const titleOf = (f: CommitFileDto): string =>
       `${path.posix.basename(f.path)} (${
-        baseRev !== undefined ? `${baseRev.slice(0, 7)}..` : ''
-      }${sha.slice(0, 7)})`;
+        f.before !== undefined || f.after !== undefined
+          ? `${short(beforeOf(f))}..${short(afterOf(f))}`
+          : sha.slice(0, 7)
+      })`;
     if (file.status.startsWith('A')) {
-      await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, sha), { preview: true });
+      await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, afterOf(file)), { preview: true });
       return;
     }
     if (file.status.startsWith('D')) {
-      await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, base), { preview: true });
+      await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, beforeOf(file)), {
+        preview: true,
+      });
       return;
     }
 
@@ -1566,13 +1597,14 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       (f) => !f.status.startsWith('A') && !f.status.startsWith('D'),
     );
     const entries: DiffEntry[] = (diffable.length > 0 ? diffable : [file]).map((f) => ({
-      original: makeRevUri(repoRoot, f.origPath ?? f.path, base),
-      modified: makeRevUri(repoRoot, f.path, sha),
+      original: makeRevUri(repoRoot, f.origPath ?? f.path, beforeOf(f)),
+      modified: makeRevUri(repoRoot, f.path, afterOf(f)),
       title: titleOf(f),
     }));
+    const target = makeRevUri(repoRoot, file.path, afterOf(file)).toString();
     const index = Math.max(
       0,
-      entries.findIndex((e) => e.modified.toString() === makeRevUri(repoRoot, file.path, sha).toString()),
+      entries.findIndex((e) => e.modified.toString() === target),
     );
     if (p14) {
       await p14.sessions.open(entries, index);
@@ -1586,9 +1618,26 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
-  private async openAllDiffs(tab: string, sha: string): Promise<void> {
+  private async openAllDiffs(tab: string, sha: string, shas: readonly string[] = []): Promise<void> {
     const session = this.sessions.get(tab);
     if (!session) return;
+    if (shas.length > 1) {
+      // Several commits: the same merged changes the pane lists, in one editor.
+      const sorted = this.newestFirst(session, shas);
+      const files = await this.zippedFiles(session, sorted);
+      const root = session.repo.root;
+      const changes: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = files.map((f) => [
+        vscode.Uri.file(path.join(root, f.path)),
+        f.before !== undefined ? makeRevUri(root, f.origPath ?? f.path, f.before) : undefined,
+        f.after !== undefined ? makeRevUri(root, f.path, f.after) : undefined,
+      ]);
+      await vscode.commands.executeCommand(
+        'vscode.changes',
+        vscode.l10n.t('{0} Commits', sorted.length),
+        changes,
+      );
+      return;
+    }
     const details = await session.service.getCommitDetails(sha);
     if (!details) return;
     const repoRoot = session.repo.root;

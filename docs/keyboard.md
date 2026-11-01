@@ -94,7 +94,10 @@ arrows move within):
 | `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through commits (virtualized, 100k-safe) |
 | `Enter` / `Space` | open commit details |
 | `Ctrl+C` (`Cmd+C`) | copy selected revision number(s) |
-| `Ctrl+Click` / `Shift+Click` | multi-select (keyboard: arrows + details panel actions) |
+| `Ctrl+Click` (`Cmd+Click`) | add or remove one commit from the selection |
+| `Shift+Click` / `Ctrl+Shift+Click` | select the run from the anchor / add it to the selection |
+| `Shift+↑` / `Shift+↓` / `Shift+PageUp` / `Shift+PageDown` / `Shift+Home` / `Shift+End` | grow or shrink the selected run from the anchor |
+| `Ctrl+A` (`Cmd+A`) | select every loaded commit |
 | `Tab` | filter chips → search box → regex/case toggles → Graph Options → list |
 | `Enter` / `Space` (Graph Options) | open its menu; `↑`/`↓` move over the rows (the Sort and Options captions are skipped), `Enter` ticks one |
 | `←` / `→` / `Home` / `End` (tab strip) | move between Log, Console, Worktrees and the extra Log tabs |

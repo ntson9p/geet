@@ -6,6 +6,7 @@ import type { RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { Phase02Registry } from '../../../src/branches/register';
 import type { Phase04Registry } from '../../../src/log/register';
+import { zipChanges } from '../../../src/log/zipChanges';
 import { applyPatchFile } from '../../../src/rewrite/patch/applyPatch';
 import { createPatchText, createPatchToFile } from '../../../src/rewrite/patch/createPatch';
 import { LOG_METHODS } from '../../../src/shared/protocol';
@@ -206,7 +207,7 @@ suite('P12 git tool window', () => {
     assert.ok(details.files.every((f) => f.status === 'A'));
   });
 
-  test('T3: the 3-commit aggregate matches git diff, and a root commit falls back to the empty tree', async function () {
+  test('T3: several selected commits list exactly their own files, as IntelliJ merges them', async function () {
     this.timeout(90_000);
     const mk = (n: number): string => {
       write(`p12/agg-${n}.txt`, `${n}\n`);
@@ -217,26 +218,35 @@ suite('P12 git tool window', () => {
     const c1 = mk(1);
     mk(2);
     const c3 = mk(3);
+    // c1 touches agg-1 again, out of the selection, so the merged row must
+    // still start before c1 and end after c3.
+    write('p12/agg-1.txt', '1 again\n');
+    git('add', 'p12/agg-1.txt');
+    git('commit', '-m', 'p12 agg 1 again');
+    const c4 = git('rev-parse', 'HEAD').trim();
 
     const service = reg.logView.logServiceFor(repo);
-    const aggregate = await service.getAggregateFiles(c1, c3);
-    const expected = git('diff', '--name-status', `${c1}^..${c3}`)
-      .trim()
-      .split('\n')
-      .filter((l) => l.length > 0)
-      .map((l) => l.split('\t')[1]!)
-      .sort();
+    // Selected: c4, c3, c1 — newest first, as the graph lists them; c2 is not.
+    const perCommit = await service.getCommitsFiles([c1, c3, c4]);
     assert.deepStrictEqual(
-      aggregate.files.map((f) => f.path).sort(),
-      expected,
-      'the aggregate must be exactly `git diff <oldest>^..<newest>`',
+      perCommit.map((c) => c.sha),
+      [c1, c3, c4],
+      'one entry per commit, in the order asked',
     );
+    const zipped = zipChanges(perCommit);
+    assert.deepStrictEqual(
+      zipped.map((f) => f.path).sort(),
+      ['p12/agg-1.txt', 'p12/agg-3.txt'],
+      'agg-2 belongs to a commit nobody selected',
+    );
+    const agg1 = zipped.find((f) => f.path === 'p12/agg-1.txt')!;
+    assert.strictEqual(agg1.status, 'A', 'added inside the selection, so added overall');
+    assert.strictEqual(agg1.after, c4, 'ends at the latest selected commit that touched it');
 
-    // Root commit: no parent — the empty tree stands in.
+    // A root commit has no parent; its files still read.
     const root = git('rev-list', '--max-parents=0', 'HEAD').trim().split('\n')[0]!;
-    const rootAgg = await service.getAggregateFiles(root, root);
-    assert.strictEqual(rootAgg.base, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
-    assert.ok(rootAgg.files.length > 0, 'the root commit introduces its own files');
+    const [rootFiles] = await service.getCommitsFiles([root]);
+    assert.ok(rootFiles !== undefined && rootFiles.files.length > 0, 'the root commit introduces its own files');
   });
 
   test('T5: a saved filter preset persists and restores across a re-init', async function () {

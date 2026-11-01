@@ -17,6 +17,8 @@ export type RewordResult = 'done' | 'cancelled' | 'refused' | 'failed';
 
 interface PendingEditor {
   resolve(message: string | undefined): void;
+  /** What the Accept lens says it does. */
+  acceptTitle: string;
 }
 
 export class RewordService implements vscode.CodeLensProvider, vscode.Disposable {
@@ -59,12 +61,13 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
   }
 
   provideCodeLenses(doc: vscode.TextDocument): vscode.CodeLens[] {
-    if (!this.pending.has(doc.uri.toString())) return [];
+    const entry = this.pending.get(doc.uri.toString());
+    if (entry === undefined) return [];
     const top = new vscode.Range(0, 0, 0, 0);
     return [
       new vscode.CodeLens(top, {
         command: 'gittree.reword.accept',
-        title: vscode.l10n.t('$(check) Accept: Rewrite Commit Message'),
+        title: vscode.l10n.t('$(check) Accept: {0}', entry.acceptTitle),
         arguments: [doc.uri.toString()],
       }),
       new vscode.CodeLens(top, {
@@ -146,6 +149,19 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
 
   /** Untitled git-commit editor; resolves on Accept/Cancel/close. */
   private async editMessage(original: string, shortSha: string): Promise<string | undefined> {
+    return this.promptMessage(
+      original,
+      vscode.l10n.t('Rewrite Commit Message'),
+      vscode.l10n.t('Editing message of {0} — use the Accept code lens to apply', shortSha),
+    );
+  }
+
+  /**
+   * The same editor for any message to be written before a rewrite — Squash
+   * Commits… uses it for the squashed commit's message, as IntelliJ's
+   * `Squashed Commit Message` dialog does.
+   */
+  async promptMessage(original: string, acceptTitle: string, status?: string): Promise<string | undefined> {
     const seeded = process.env['GITTREE_TEST_REWORD_MESSAGE'];
     if (seeded !== undefined) return seeded.length > 0 ? seeded : undefined;
 
@@ -155,11 +171,11 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
     });
     await vscode.window.showTextDocument(doc, { preview: false });
     void vscode.window.setStatusBarMessage(
-      vscode.l10n.t('Editing message of {0} — use the Accept code lens to apply', shortSha),
+      status ?? vscode.l10n.t('Use the Accept code lens to apply: {0}', acceptTitle),
       8000,
     );
     return new Promise<string | undefined>((resolve) => {
-      this.pending.set(doc.uri.toString(), { resolve });
+      this.pending.set(doc.uri.toString(), { resolve, acceptTitle });
       this._onDidChangeCodeLenses.fire();
     });
   }

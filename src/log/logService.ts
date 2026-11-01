@@ -14,6 +14,7 @@ import {
   type Commit,
 } from '../core/git/parsers/logFormat';
 import { buildLogArgs, filterKey, type LogFilter } from './logFilter';
+import { parseCommitsNameStatus, type CommitFiles } from './zipChanges';
 
 export const PAGE_SIZE = 2000;
 const CHUNK_ROWS = 500;
@@ -168,43 +169,42 @@ export class LogService {
    * A root commit has no parent; the empty tree stands in so the aggregate
    * still means "everything these commits introduced".
    */
-  async getAggregateFiles(
-    oldest: string,
-    newest: string,
-  ): Promise<{ base: string; files: Array<{ status: string; path: string; origPath?: string }> }> {
-    const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
-    const base = await this.repo.queue.enqueue({
-      label: 'aggregate base',
-      kind: 'read',
-      run: (git, token) =>
-        git.exec(this.repo.root, ['rev-parse', '--verify', `${oldest}^`], {
-          structured: true,
-          noOptionalLocks: true,
-          allowNonZeroExit: true,
-          token,
-        }),
-    });
-    const from = base.exitCode === 0 ? base.stdout.trim() : EMPTY_TREE;
+  /**
+   * The files each of `shas` changed, in the order given — one `git log` for
+   * any number of commits, the shas passed on stdin so a long selection never
+   * meets the Windows command-line limit. A merge lists its changes against
+   * its first parent, which is what a merge's own row shows.
+   */
+  async getCommitsFiles(shas: readonly string[]): Promise<CommitFiles[]> {
+    if (shas.length === 0) return [];
     const result = await this.repo.queue.enqueue({
-      label: `aggregate diff ${oldest.slice(0, 7)}..${newest.slice(0, 7)}`,
+      label: `files of ${shas.length} commits`,
       kind: 'read',
       run: (git, token) =>
-        git.exec(this.repo.root, ['diff', '--name-status', '-z', '-M', from, newest], {
-          structured: true,
-          noOptionalLocks: true,
-          allowNonZeroExit: true,
-          token,
-        }),
+        git.exec(
+          this.repo.root,
+          [
+            'log',
+            '--no-walk=unsorted',
+            '--stdin',
+            '-m',
+            '--first-parent',
+            '--format=%x1e%H',
+            '--name-status',
+            '-z',
+            '-M',
+          ],
+          {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            stdin: `${shas.join('\n')}\n`,
+            token,
+          },
+        ),
     });
-    if (result.exitCode !== 0) return { base: from, files: [] };
-    return {
-      base: from,
-      files: parseNameStatusZ(result.stdout).map((e) => ({
-        status: e.status,
-        path: e.path,
-        ...(e.origPath !== undefined ? { origPath: e.origPath } : {}),
-      })),
-    };
+    if (result.exitCode !== 0) return [];
+    return parseCommitsNameStatus(result.stdout, parseNameStatusZ);
   }
 
   /**

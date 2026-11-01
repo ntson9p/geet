@@ -1058,18 +1058,29 @@ export interface CommitFileDto {
   status: string;
   path: string;
   origPath?: string;
+  /**
+   * Set when the file comes from several selected commits: the revision its
+   * diff starts from (`<sha>^` of the earliest selected commit that touched
+   * it; absent for a file those commits added) and the one it ends at (the
+   * latest such commit; absent for a file they deleted).
+   */
+  before?: string;
+  after?: string;
 }
 
 /**
- * P12-T3 — the Changed Files pane's data. One commit ships its own files;
- * a multi-select ships the aggregate (`git diff <oldest>^..<newest>`), with
- * `base`/`newest` so a file click can open the range-scoped diff.
+ * P12-T3 — the Changed Files pane's data. One commit ships its own files.
+ * Several selected commits ship IntelliJ's merge of **their** changes: the
+ * files they touched, each with its own `before`/`after` revisions — not the
+ * whole `<oldest>^..<newest>` range, which would pull in commits nobody
+ * selected.
  */
 export interface LogChangedFilesDto {
   files: CommitFileDto[];
+  /** The newest commit shown. */
   newest?: string;
-  /** Present only for aggregates: the diff base (oldest^ or the empty tree). */
-  base?: string;
+  /** Present for several commits: the ones the files come from, newest first. */
+  shas?: string[];
 }
 
 /** P12-T8 — one Console row: a redacted, structured git run. */

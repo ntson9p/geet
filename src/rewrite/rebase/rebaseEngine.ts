@@ -109,6 +109,19 @@ export class RebaseEngine {
     );
   }
 
+  /**
+   * Drop Commits over one unbroken run, `oldest` to `newest`: everything
+   * above `newest` replayed onto the run's parent, as Drop Commit does for one.
+   */
+  async dropRange(oldest: string, newest: string, count: number): Promise<RebaseOutcome> {
+    return this.runStep(
+      vscode.l10n.t('Drop {0} commits', count),
+      SNAPSHOT_LABELS.rebaseStart,
+      ['rebase', '--autostash', '--onto', `${oldest}^`, newest],
+      { GIT_EDITOR: 'true' },
+    );
+  }
+
   /** `git rebase --continue`; refuses while conflicted paths remain. */
   async continueRebase(): Promise<RebaseOutcome> {
     // Authoritative unmerged check straight from git — the model may lag a

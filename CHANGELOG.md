@@ -6,6 +6,38 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — select several commits in the log, as in IntelliJ
+
+The log now selects several commits the way IntelliJ's does:
+
+- **Ctrl+click** (⌘+click on macOS) adds or removes a commit.
+- **Shift+click** selects every commit between the last one you clicked and this one.
+- **Shift+↑/↓** grows or shrinks that run, and **Ctrl+A** selects every loaded commit.
+
+Every selected commit is highlighted, not just the one you clicked last.
+
+With several commits selected:
+
+- **Changed Files** shows the combined changes of those commits only, each file once,
+  from before the first change to after the last. Commits in between that you did not
+  select are left out. The multi-diff button opens the same set.
+- **Commit Details** shows each commit's details, one under the other, up to 50.
+- **The right-click menu** offers what IntelliJ offers: Copy Revision Number, Create
+  Patch, Cherry-Pick, **Revert Commits**, **Drop Commits**, **Squash Commits…**, and
+  **Compare Versions** when exactly two are selected. Actions that need a single commit
+  are greyed out or hidden, as in IntelliJ.
+
+**Squash Commits…** combines the selected commits into one, even when they are not next
+to each other, and lets you edit the combined message first. **Drop Commits** removes
+the selected commits. Both offer **Undo** afterwards.
+
+### Changed — the commit right-click menu uses IntelliJ's order and names
+
+The menu is now in IntelliJ's order, starting with Copy Revision Number, Create Patch
+and Cherry-Pick. Some items were renamed to match: **New Branch…** (was New Branch from
+Here…), **New Tag…** (was New Tag Here…) and **Cherry-Pick** (was Cherry-Pick Commit).
+Copy Revision Number now puts several hashes on one line, separated by spaces.
+
 ### Added — fetch one repository from the Branches section
 
 With more than one repository open, right-click a repository in the sidebar's
