@@ -550,3 +550,31 @@ Testing (written, **not run**, by the owner's standing instruction):
   - drag, persist and double-click.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14am ✅ 2026-11-01: **Fetch one repository, from its row in the Branches section.** The owner asked whether GitTree could fetch only the current repository. Since POST-P14o every Fetch is project-wide, as IntelliJ's is, and the only per-repository Fetch was the Repositories section's right-click menu, collapsed and easy to miss. The owner checked IntelliJ and found no per-repository fetch there either, so this is GitTree's own. They asked for it on a repository row's right-click in the sidebar's Branches section.
+
+That section had no right-click menu at all, only the `›` button on branch rows. Now:
+- **A repository row's right-click (and `Shift+F10` / the context-menu key) opens the repository's menu.** It is the Repositories section's menu for the same repository, less `Checkout Branch…`, which is what the Branches section already is. The list lives in `src/branches/repositoryMenu.ts` (pure), and a unit test holds it to that section's `view/item/context` entries in `package.json`, entry for entry: same commands, same order, same rules, same titles. Every entry runs its command with the root, which each command reads as "this repository only".
+- **Fetch from that menu** marks the row `busy`, a new optional `TreeRow` field that no builder sets. The row's icon becomes a spinning `sync`, its aria label adds ", fetching", and it clears when the fetch settles. The fetch is not awaited inside the RPC handler, because a fetch can outlast the request's timeout. A second request for a repository already fetching is dropped.
+- **A branch row's right-click** opens its `›` menu, and a common branch's opens the host's all-roots menu, so right-click means the same on every row that has a menu. Over action, section and folder rows VS Code's useless Cut/Copy/Paste menu is kept shut. The repository search field keeps it.
+- **Keyboard placement:** Chromium marks a keyboard-opened menu with `button: -1`, so that opens under the row.
+- `VirtualList.onRowContextMenu` now receives the event.
+- `gittree.fetch <root>` on a repository with no remote shows `<name> has no remote to fetch from.` instead of git's error dialog, which waits on a button. `hasRemote` is factored out of the fetch-all target filter.
+
+Checked by hand in screenshots of the new Branches mock page: the menu items, the spin while fetching, the branch menu on right-click, and Shift+F10 placing the menu right under the row.
+
+Docs: FEATURES §2 (the sidebar's Branches section), CHANGELOG, keyboard.md (new Branches section table).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **+1 unit file:** `test/unit/branches/repositoryMenu.test.ts`, checking the menu against `package.json` and the NLS titles, the rules and the entry lookup.
+- **+1 integration test** in `syncFetchAll.test.ts`: an explicit root with no remote returns without fetching.
+- **New Branches webview harness:** `webview-ui/tests/mockBranchesHost.ts` with `branches.spec.ts`, 7 Playwright tests covering:
+  - the repository menu;
+  - Fetch's request and the row spinning and settling;
+  - Shift+F10 placement;
+  - click still toggling, with no `›`;
+  - a branch's right-click matching its `›`;
+  - a common branch's right-click asking the host;
+  - the default menu kept shut on plain rows and kept in the search field.
+
+Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; webviews and the extension bundle built. No suite run.

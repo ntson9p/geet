@@ -102,6 +102,15 @@ arrows move within):
 | Middle-click (tab strip) | close an extra Log tab |
 | Drag / double-click (a column's left border) | resize a column / fit it to its content again. Pointer-only: a width is cosmetic, and the columns themselves are switched from Presentation Settings ▸ Columns (keyboard-reachable) or the `gittree.log.columns.*` settings |
 
+**Branches section (`gittree.branches` view)**
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓` | move through the rows, stepping over the rules |
+| `→` / `←` | open / close a repository, section or folder |
+| `Enter` | open / close a repository or folder; on a branch, its `›` menu; on an action row, run it |
+| `Shift+F10` / context-menu key | the focused row's menu: a repository's own (Fetch, Update Project…, Push…, …, each for that repository alone), a branch's `›` menu, a common branch's all-repositories menu |
+
 **Interactive rebase editor**
 
 | Key | Action |

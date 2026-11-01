@@ -12,6 +12,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 
@@ -47,9 +48,11 @@ export interface VirtualListProps {
    * Right-click on a row, before the native menu opens. Consumers use it to
    * move the selection onto the row under the cursor — never to *build* the
    * menu payload, which VS Code reads straight off `data-vscode-context` and
-   * so has to be right for the selection as it stood before the click.
+   * so has to be right for the selection as it stood before the click. A list
+   * that draws its own menu instead (the Branches section) takes the event to
+   * place it and to keep VS Code's out of the way.
    */
-  onRowContextMenu?: (index: number) => void;
+  onRowContextMenu?: (index: number, e: ReactMouseEvent<HTMLDivElement>) => void;
   /**
    * Pointer entered a row. On the row element, not on whatever `renderRow`
    * draws inside it: a row's content is usually narrower than the row, and a
@@ -247,7 +250,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
           if (!e.ctrlKey && !e.metaKey && !e.shiftKey) focusIndex(i);
           onRowClick?.(i, { ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, metaKey: e.metaKey });
         }}
-        onContextMenu={() => onRowContextMenu?.(i)}
+        onContextMenu={(e) => onRowContextMenu?.(i, e)}
         onMouseEnter={(e) => onRowMouseEnter?.(i, e.currentTarget)}
         onDoubleClick={() => onActivate?.(i)}
       >

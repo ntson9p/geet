@@ -177,6 +177,26 @@ suite('POST-P14o fetch across roots', () => {
     });
   });
 
+  test('an explicit root with no remote says so instead of failing, and fetches nothing', async function () {
+    this.timeout(60_000);
+    // The Branches section offers every repository its own Fetch, remote or not.
+    // git's "No remote repository specified" would arrive as an error dialog
+    // that waits on a button; this has to return, untouched and unblocked.
+    const remoteless = core.repos.find((r) => {
+      try {
+        return cli(r.root, 'remote').trim().length === 0;
+      } catch {
+        return false;
+      }
+    });
+    assert.ok(remoteless, 'expected a remote-less root in the workspace');
+    const before = remoteless.model.snapshot.lastFetchAt;
+
+    await vscode.commands.executeCommand('gittree.fetch', remoteless.root);
+
+    assert.strictEqual(remoteless.model.snapshot.lastFetchAt, before, 'a root with no remote was fetched');
+  });
+
   test('the fan-out records a fetch time on every root it touched', async function () {
     this.timeout(120_000);
     advance(d, 'incoming d five');

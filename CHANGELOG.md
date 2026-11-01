@@ -6,6 +6,22 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — fetch one repository from the Branches section
+
+With more than one repository open, right-click a repository in the sidebar's
+**Branches** section and choose **Fetch** to fetch that repository alone. The
+header's Fetch button still fetches every repository, as IntelliJ's does. While
+the fetch runs, the repository's icon spins.
+
+The same right-click menu has the repository's other actions, the same ones
+the Repositories section offers: Update Project, Push, Commit, New Branch,
+Checkout Tag or Revision, Stash, Unstash and Manage Remotes. Each one acts on
+that repository only. Right-clicking a branch now opens the same menu as its
+**›** button, and **Shift+F10** opens the menu from the keyboard.
+
+Fetching a single repository that has no remote now says so, instead of
+showing git's "No remote repository specified" error.
+
 ### Changed — the commit list has IntelliJ's columns
 
 Each commit row is laid out the way IntelliJ's log is:

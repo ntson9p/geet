@@ -124,19 +124,24 @@ export function registerSyncOps(
    */
   async function fetchTargets(): Promise<Array<FetchTarget & { repo: RepoHandle }>> {
     const checked = await Promise.all(
-      core.repos.map(async (repo) => {
-        try {
-          const res = await core.git.exec(repo.root, ['remote']);
-          const hasRemote = res.stdout.split('\n').some((l) => l.trim().length > 0);
-          return hasRemote ? { repo, root: repo.root, name: path.basename(repo.root) } : undefined;
-        } catch {
-          // Unreadable config is the repository's problem, not the fan-out's;
-          // include it and let the fetch report the real error.
-          return { repo, root: repo.root, name: path.basename(repo.root) };
-        }
-      }),
+      core.repos.map(async (repo) =>
+        (await hasRemote(repo)) ? { repo, root: repo.root, name: path.basename(repo.root) } : undefined,
+      ),
     );
     return checked.filter((t): t is FetchTarget & { repo: RepoHandle } => t !== undefined);
+  }
+
+  /**
+   * Whether `repo` has a remote to fetch from. Unreadable config counts as yes:
+   * that is the repository's problem, and the fetch reports the real error.
+   */
+  async function hasRemote(repo: RepoHandle): Promise<boolean> {
+    try {
+      const res = await core.git.exec(repo.root, ['remote']);
+      return res.stdout.split('\n').some((l) => l.trim().length > 0);
+    } catch {
+      return true;
+    }
   }
 
   /** The summary line the fan-out is allowed to raise — one, never one per repo. */
@@ -268,7 +273,16 @@ export function registerSyncOps(
   register('gittree.fetch', async (repoRoot) => {
     if (typeof repoRoot === 'string') {
       const repo = core.getRepo(repoRoot);
-      if (repo) await fetchOne(repo);
+      if (!repo) return;
+      // Said plainly, rather than as git's "No remote repository specified":
+      // a repository's own Fetch is offered whether or not it has a remote.
+      if (!(await hasRemote(repo))) {
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t('{0} has no remote to fetch from.', path.basename(repo.root)),
+        );
+        return;
+      }
+      await fetchOne(repo);
       return;
     }
     await fetchAll();

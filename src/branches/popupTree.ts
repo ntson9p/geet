@@ -170,6 +170,11 @@ export interface TreeRow {
   readonly section?: SectionKey;
   readonly prefix?: string;
   readonly commonKind?: CommonRef['kind'];
+  /**
+   * A repository row whose Fetch, started from the Branches section's menu, is
+   * still running: the view spins its icon. Never set by the builders here.
+   */
+  readonly busy?: boolean;
 }
 
 // ---------------------------------------------------------------------------

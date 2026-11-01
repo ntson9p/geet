@@ -16,7 +16,15 @@
  * fits. That component owns focus and keyboard, which takes care around the
  * inline `<input>` — see `SearchRow` and `onRowKeyDown`.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import {
   BRANCHES_METHODS,
   type BranchesActionDto,
@@ -54,8 +62,13 @@ function toDisplayRows(rows: readonly BranchesRowDto[]): DisplayRow[] {
   return out;
 }
 
-function Codicon({ name }: { name: string }) {
-  return <span className={`codicon codicon-${name}`} aria-hidden="true" />;
+function Codicon({ name, spin }: { name: string; spin?: boolean }) {
+  return (
+    <span
+      className={`codicon codicon-${name}${spin === true ? ' codicon-modifier-spin' : ''}`}
+      aria-hidden="true"
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +250,8 @@ function RowBody({ row, open, onActions, onFavorite }: RowBodyProps) {
         {row.expandable ? <Codicon name={open ? 'chevron-down' : 'chevron-right'} /> : null}
       </span>
       <span className={`gtb-icon${current ? ' gtb-current' : ''}`}>
-        <Codicon name={row.icon} />
+        {/* A repository fetching from its menu: the sync icon, turning. */}
+        {row.busy === true ? <Codicon name="sync" spin /> : <Codicon name={row.icon} />}
       </span>
       <span className={`gtb-label${current ? ' gtb-current' : ''}`}>{row.label}</span>
       {row.description !== undefined && row.description.length > 0 ? (
@@ -411,6 +425,9 @@ export function App() {
    *
    * Verb rows — `New Branch…`, `Checkout Tag or Revision…` — run on a click as
    * before. They are actions that say what they do; a branch is a noun.
+   *
+   * A repository row opens and closes on a click and on Enter; its menu is on
+   * right-click and the context-menu key — see `contextMenu`.
    */
   const activate = useCallback(
     (index: number, source: 'click' | 'key') => {
@@ -431,6 +448,36 @@ export function App() {
       // once per repository and are chosen from a list this view does not hold.
       if (row.common !== undefined && source === 'click') return;
       send(BRANCHES_METHODS.activate, { id: row.id });
+    },
+    [anchorFor, display, openActions, send],
+  );
+
+  /**
+   * Right-click, or the context-menu key (Shift+F10): the row's menu, at the
+   * pointer or under the row. A repository row's is the repository's own —
+   * Fetch, Update, Push and the rest, each for that repository alone — which no
+   * other gesture here reaches; a branch row's is its `›` menu, and a common
+   * ref's the host's all-roots list, so right-click means the same thing on
+   * every row that has a menu. Over the repository search field VS Code's own
+   * Cut/Copy/Paste is left alone; over any other row it is kept shut, since it
+   * has nothing to offer there.
+   */
+  const contextMenu = useCallback(
+    (index: number, e: ReactMouseEvent<HTMLDivElement>) => {
+      const entry = display[index];
+      if (entry?.kind === 'row' && entry.row.kind === 'search') return;
+      e.preventDefault();
+      if (entry?.kind !== 'row') return;
+      const row = entry.row;
+      // The context-menu key and Shift+F10 report no pointer (Chromium says
+      // `button: -1`, or puts the event at 0,0); open under the row instead.
+      const keyboard = e.button === -1 || (e.clientX === 0 && e.clientY === 0);
+      const at = keyboard ? anchorFor(index) : { x: e.clientX, y: e.clientY };
+      if (row.kind === 'repo' || row.ref !== undefined) {
+        openActions(row, at);
+        return;
+      }
+      if (row.common !== undefined) send(BRANCHES_METHODS.activate, { id: row.id });
     },
     [anchorFor, display, openActions, send],
   );
@@ -516,10 +563,12 @@ export function App() {
             }}
             rowAriaLabel={(i) => {
               const entry = display[i];
-              return entry?.kind === 'row' ? entry.row.label : entry?.label;
+              if (entry?.kind !== 'row') return entry?.label;
+              return entry.row.busy === true ? `${entry.row.label}, fetching` : entry.row.label;
             }}
             onRowKeyDown={onRowKeyDown}
             onRowClick={(i) => activate(i, 'click')}
+            onRowContextMenu={contextMenu}
             renderRow={(i) => {
               const entry = display[i];
               if (entry === undefined) return null;

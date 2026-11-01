@@ -112,6 +112,20 @@ ships. Accepted divergences are named here and registered once in
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5); and the all-roots set is the operations needing no per-root input,
   since GitTree's take their input inside the per-repository call (D27).
+* **The sidebar's Branches section** is this popup standing open, as a tree (D29). Its rows
+  have menus on **right-click** and on the context-menu key / `Shift+F10`, as well as on the
+  `›` button:
+  - **A repository row** opens **that repository's menu**: `Update Project…` · `Push…` ·
+    **`Fetch`** · —— `Commit` · —— `New Branch…` · `Checkout Tag or Revision…` · ——
+    `Stash Changes…` · `Unstash Changes…` · —— `Manage Remotes…`. This is the Repositories
+    section's menu for the same repository, less `Checkout Branch…` (this list is that), and
+    every entry acts on that repository alone. **Fetch is the one place to fetch a single
+    repository:** the header's Fetch, like IntelliJ's, fetches every root. While it runs, the
+    repository's icon turns into a spinning sync icon. A repository with no remote says so
+    (`<name> has no remote to fetch from.`) rather than failing with git's error. IntelliJ
+    has no per-repository Fetch, so this one is GitTree's own.
+  - **A branch row** opens its `›` menu; **a common branch** its all-repositories menu.
+  - A click and Enter still open and close a repository; it has no `›` of its own.
 
 ### The `›` row submenu (shape + behaviour)
 

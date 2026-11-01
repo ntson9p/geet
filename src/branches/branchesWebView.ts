@@ -47,6 +47,7 @@ import {
 } from './popupTree';
 import type { RefService } from './refService';
 import type { RepoScope } from './repoScope';
+import { repositoryMenuDto, repositoryMenuEntry } from './repositoryMenu';
 import { showTagsSetting } from './showTags';
 
 export interface BranchesWebViewDeps {
@@ -72,6 +73,8 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
   /** Rows of the last push, so a gesture can be resolved back to its row. */
   private rows: readonly TreeRow[] = [];
   private seeded = false;
+  /** Repositories whose Fetch from a row's menu is still running (canonical keys). */
+  private readonly fetching = new Set<string>();
 
   constructor(private readonly deps: BranchesWebViewDeps) {
     this.rewatch();
@@ -209,9 +212,14 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
       repoQueries: this.repoQueries,
       searchCollapsed: this.searchCollapsed,
     });
-    this.rows = built.rows;
+    const rows = built.rows.map((row) =>
+      row.kind === 'repo' && row.repoRoot !== undefined && this.fetching.has(canonicalKey(row.repoRoot))
+        ? { ...row, busy: true }
+        : row,
+    );
+    this.rows = rows;
     return {
-      rows: built.rows,
+      rows,
       open: [...built.open],
       topQuery: this.topQuery,
       repoQueries: [...this.repoQueries].filter(([, q]) => q.length > 0),
@@ -303,6 +311,8 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
     rpc.on(BRANCHES_METHODS.actions, (params) => {
       const row = this.rowById((params as { id?: unknown } | undefined)?.id);
       if (!row) return [];
+      // A repository's right-click menu: the Repositories section's, scoped to it.
+      if (row.kind === 'repo') return row.repoRoot !== undefined ? repositoryMenuDto() : [];
       const ctx = this.contextFor(row);
       if (!ctx) return [];
       const head = ctx.repo.model.snapshot.headRef;
@@ -324,6 +334,18 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
     rpc.on(BRANCHES_METHODS.runAction, async (params) => {
       const p = params as { id?: unknown; action?: unknown } | undefined;
       const row = this.rowById(p?.id);
+      if (row?.kind === 'repo') {
+        const entry = repositoryMenuEntry(p?.action);
+        if (entry === undefined || row.repoRoot === undefined) return null;
+        if (entry.command === 'gittree.fetch') {
+          // Not awaited: a fetch can outlast the request's timeout, and the row
+          // reports its own progress.
+          void this.fetchRepository(row.repoRoot);
+          return null;
+        }
+        await vscode.commands.executeCommand(entry.command, row.repoRoot);
+        return null;
+      }
       const ctx = row ? this.contextFor(row) : undefined;
       if (!ctx || typeof p?.action !== 'string') return null;
       const action = this.deps.actions.find((a) => a.id === p.action);
@@ -384,6 +406,26 @@ export class BranchesWebViewProvider implements vscode.WebviewViewProvider {
       }
       return (await this.tree()) ?? null;
     });
+  }
+
+  /**
+   * Fetches one repository, and only that one: `gittree.fetch` given a root.
+   * Its row spins while it runs. A second request for a repository already
+   * fetching is dropped rather than queued behind the first.
+   */
+  private async fetchRepository(root: string): Promise<void> {
+    const key = canonicalKey(root);
+    if (this.fetching.has(key)) return;
+    this.fetching.add(key);
+    void this.push();
+    try {
+      await vscode.commands.executeCommand('gittree.fetch', root);
+    } catch (err) {
+      this.deps.core.output.appendLine(`[branches] fetch ${root} failed: ${String(err)}`);
+    } finally {
+      this.fetching.delete(key);
+      void this.push();
+    }
   }
 
   /** The repository the Repositories section points at, for the title strip. */
