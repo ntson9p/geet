@@ -10,6 +10,9 @@
  * Several selected commits stack, as IntelliJ's `CommitDetailsListPanel` does:
  * one block per commit in graph order, a rule between them, at most the first
  * 50, and `(showing 50 of N selected commits)` below when there were more.
+ *
+ * The Push dialog shows the same block for its selected commit, without what
+ * only the log can act on: copying, parents to go to, the branches holding it.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { CommitDetailsDto } from '../../../src/shared/protocol';
@@ -23,9 +26,12 @@ export interface DetailsPanelProps {
   selectedCount: number;
   loading: boolean;
   issue?: { pattern: string; url: string };
-  onCopy: (text: string) => void;
-  onGoTo: (sha: string) => void;
-  fetchContained: (sha: string) => Promise<string[]>;
+  /** Omitted: no copy buttons. */
+  onCopy?: (text: string) => void;
+  /** Omitted: no parent links. */
+  onGoTo?: (sha: string) => void;
+  /** Omitted: no `Contained in branches`. */
+  fetchContained?: (sha: string) => Promise<string[]>;
 }
 
 function chipType(ref: string): 'tag' | 'head' | 'branch' {
@@ -88,10 +94,10 @@ export function DetailsPanel({
 
 interface CommitDetailsBlockProps {
   details: CommitDetailsDto;
-  issue?: { pattern: string; url: string };
-  onCopy: (text: string) => void;
-  onGoTo: (sha: string) => void;
-  fetchContained: (sha: string) => Promise<string[]>;
+  issue?: { pattern: string; url: string } | undefined;
+  onCopy?: ((text: string) => void) | undefined;
+  onGoTo?: ((sha: string) => void) | undefined;
+  fetchContained?: ((sha: string) => Promise<string[]>) | undefined;
 }
 
 /** One commit's details. */
@@ -121,8 +127,12 @@ function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: 
           {details.sha.slice(0, 12)}
         </span>
         <span className="gt-details-author">{details.authorName}</span>
-        <ToolbarButton icon="copy" label="Copy Revision Number" onClick={() => onCopy(details.sha)} />
-        <ToolbarButton icon="note" label="Copy Subject" onClick={() => onCopy(subject)} />
+        {onCopy !== undefined ? (
+          <>
+            <ToolbarButton icon="copy" label="Copy Revision Number" onClick={() => onCopy(details.sha)} />
+            <ToolbarButton icon="note" label="Copy Subject" onClick={() => onCopy(subject)} />
+          </>
+        ) : null}
       </div>
       <div className="gt-details-meta">
         <div className="gt-muted">
@@ -156,7 +166,7 @@ function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: 
             ))}
           </div>
         ) : null}
-        {details.parents.length > 0 ? (
+        {onGoTo !== undefined && details.parents.length > 0 ? (
           <div className="gt-details-parents">
             {details.parents.map((p) => (
               <button
@@ -172,6 +182,7 @@ function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: 
             ))}
           </div>
         ) : null}
+        {fetchContained === undefined ? null : (
         <div className="gt-details-contained">
           {contained === undefined ? (
             <button
@@ -207,6 +218,7 @@ function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: 
             </div>
           )}
         </div>
+        )}
       </div>
       <pre className="gt-details-body" data-testid="details-body">
         {segments.map((s, i) =>

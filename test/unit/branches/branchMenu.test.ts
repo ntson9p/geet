@@ -68,7 +68,7 @@ describe('the Branches tree context menu', () => {
       'Show Diff with Working Tree',
       'New Worktree from Branch…',
       'Update',
-      'Push',
+      'Push…',
       'Tracked Branch ▸',
       'Rename…',
       'Toggle Favorite',
@@ -85,7 +85,7 @@ describe('the Branches tree context menu', () => {
       'New Branch from Selected…',
       'Show Diff with Working Tree',
       'New Worktree from Branch…',
-      'Push',
+      'Push…',
       'Rename…',
       'Toggle Favorite',
     ]);
@@ -118,7 +118,7 @@ describe('the Branches tree context menu', () => {
       'Merge Branch into Current',
       'New Worktree from Branch…',
       'Update',
-      'Push',
+      'Push…',
       'Tracked Branch ▸',
       'Rename…',
       'Delete…',
@@ -131,7 +131,7 @@ describe('the Branches tree context menu', () => {
     expect(remote).toContain('Pull into Current Using Merge');
     expect(remote).toContain('Pull into Current Using Rebase');
     expect(remote).toContain('Delete Branch on Remote…');
-    for (const absent of ['Rename…', 'Delete…', 'Push', 'Update', 'Tracked Branch ▸']) {
+    for (const absent of ['Rename…', 'Delete…', 'Push…', 'Update', 'Tracked Branch ▸']) {
       expect(remote).not.toContain(absent);
     }
   });

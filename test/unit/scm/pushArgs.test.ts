@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { formatGitCommand } from '../../../src/scm/dialogs/commandLine';
 import {
   buildPushArgs,
-  shouldSetUpstream,
   splitUpstream,
   type PushArgsOptions,
 } from '../../../src/scm/dialogs/pushArgs';
@@ -16,8 +15,7 @@ import {
 
 const BASE: PushArgsOptions = {
   remote: 'origin',
-  localBranch: 'feature/x',
-  remoteBranch: 'feature/x',
+  refspec: 'refs/heads/feature/x:refs/heads/feature/x',
   setUpstream: false,
   tags: 'none',
   runHooks: true,
@@ -30,14 +28,14 @@ const args = (over: Partial<PushArgsOptions> = {}): string[] =>
 
 describe('buildPushArgs', () => {
   it('always ends with an explicit remote + refspec', () => {
-    expect(args()).toEqual(['push', 'origin', 'feature/x:refs/heads/feature/x']);
+    expect(args()).toEqual(['push', 'origin', 'refs/heads/feature/x:refs/heads/feature/x']);
   });
 
   it('retargets through the refspec, not through the remote name', () => {
-    expect(args({ remoteBranch: 'release/1.2' })).toEqual([
+    expect(args({ refspec: 'refs/heads/feature/x:refs/heads/release/1.2' })).toEqual([
       'push',
       'origin',
-      'feature/x:refs/heads/release/1.2',
+      'refs/heads/feature/x:refs/heads/release/1.2',
     ]);
   });
 
@@ -77,7 +75,7 @@ describe('buildPushArgs', () => {
       '--force-with-lease',
       '--force-if-includes',
       'origin',
-      'feature/x:refs/heads/feature/x',
+      'refs/heads/feature/x:refs/heads/feature/x',
     ]);
   });
 
@@ -86,7 +84,7 @@ describe('buildPushArgs', () => {
       'push',
       '--set-upstream',
       'origin',
-      'feature/x:refs/heads/feature/x',
+      'refs/heads/feature/x:refs/heads/feature/x',
     ]);
   });
 
@@ -99,8 +97,7 @@ describe('buildPushArgs', () => {
         forceIfIncludes: true,
         setUpstream: true,
         remote: 'upstream',
-        remoteBranch: 'main',
-        localBranch: 'main',
+        refspec: 'refs/heads/main:refs/heads/main',
       }),
     ).toEqual([
       'push',
@@ -110,22 +107,8 @@ describe('buildPushArgs', () => {
       '--force-if-includes',
       '--set-upstream',
       'upstream',
-      'main:refs/heads/main',
+      'refs/heads/main:refs/heads/main',
     ]);
-  });
-});
-
-describe('shouldSetUpstream', () => {
-  it('publishes an untracked branch under its own name', () => {
-    expect(shouldSetUpstream(false, 'feature/x', 'feature/x')).toBe(true);
-  });
-
-  it('never repoints tracking for a retargeted push', () => {
-    expect(shouldSetUpstream(false, 'feature/x', 'release/1.2')).toBe(false);
-  });
-
-  it('leaves an existing upstream alone', () => {
-    expect(shouldSetUpstream(true, 'feature/x', 'feature/x')).toBe(false);
   });
 });
 

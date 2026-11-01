@@ -499,90 +499,164 @@ export const DIALOG_METHODS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Push dialog (P13-T1) — host ⇄ webview DTOs
+// Push dialog (P13-T1; IntelliJ's layout since POST-P14ao) — host ⇄ webview DTOs
 // ---------------------------------------------------------------------------
 
+/** What a row pushes: a branch, or the commit of Push All up to Here. */
+export interface PushSourceDto {
+  kind: 'branch' | 'revision' | 'detached';
+  /** Left of the arrow: the branch, or the commit's short hash. */
+  presentation: string;
+  /** What `git push` sends: `refs/heads/<branch>` or a commit hash. */
+  revision: string;
+  /** The local branch behind it, when there is one. */
+  branch?: string;
+}
+
+/** Where it goes: `remote : branch`, `New` when the remote has no such branch. */
+export interface PushTargetDto {
+  remote: string;
+  /** As `git push` names it: `main` — or a whole ref, Gerrit's `refs/for/master`. */
+  branch: string;
+  isNew: boolean;
+  /** A push-spec ref outside `refs/heads/`. */
+  special?: boolean;
+  type: 'tracking' | 'pushSpec' | 'custom';
+}
+
+/** One outgoing commit — a row of the left tree, and its tooltip. */
 export interface PushCommitDto {
   sha: string;
   subject: string;
+  /** The whole message, for the tooltip. */
+  body: string;
   authorName: string;
+  authorEmail: string;
   /** Unix seconds. */
   authorTime: number;
 }
 
-export interface PushFileDto {
-  /** Single-letter status (`A`/`M`/`D`/`R`…), the `--name-status` letter. */
-  status: string;
-  path: string;
-  /** Rename/copy source. */
-  origPath?: string;
-}
-
-/** One repository section — multi-root workspaces get one each. */
-export interface PushRepoSectionDto {
+/** One repository of the dialog — a node of the left tree. */
+export interface PushRepoDto {
   root: string;
   label: string;
-  /** Current local branch. Detached/unborn repos are filtered out host-side. */
-  branch: string;
-  /** Remote names (`git remote`); empty means the repo cannot push. */
+  source: PushSourceDto;
+  /** `git remote`; empty means the row offers `Define remote`. */
   remotes: string[];
-  /** Chosen target — initially the upstream, else the first remote + branch. */
-  remote: string;
-  remoteBranch: string;
-  /** The branch has a configured upstream. */
-  hasUpstream: boolean;
-  /** The tracking ref for the chosen target exists locally (diff is exact). */
-  targetExists: boolean;
-  /** Branch names under `refs/remotes/<remote>` — the retarget field's completions. */
-  remoteBranchOptions: string[];
-  /** Left side of the file tree's diffs: the tracking ref, span parent or empty tree. */
-  base: string;
-  /** Outgoing commits, newest first, capped — `totalCommits` is the true count. */
+  /** Absent with no remote, or for an empty repository. */
+  target?: PushTargetDto;
+  /** The target the dialog opened with: `Set upstream` compares with it. */
+  defaultTarget?: PushTargetDto;
+  /** The source branch tracks something already, so a new target does not become its upstream on its own. */
+  sourceTracks: boolean;
+  /** `Empty repository`: shown in red; the repository cannot be pushed. */
+  error?: string;
+  /** Listing the outgoing commits failed: git's reason, as the row's child. */
+  loadError?: string;
+  /** Outgoing commits, newest first, at most 1000. */
   commits: PushCommitDto[];
-  totalCommits: number;
-  /** The changed-file set of the push (target..HEAD, or the whole span). */
-  files: PushFileDto[];
+  /** Every remote branch — the target field's suggestions. */
+  remoteBranches: Array<{ remote: string; branch: string }>;
+  /** Where this source branch was pushed lately, most recent first. */
+  recentTargets: Array<{ sourceBranch: string; remote: string; branch: string }>;
   checked: boolean;
 }
 
+/** What the dialog keeps between openings, as IntelliJ's push settings do. */
+export interface PushDialogUiDto {
+  showDetails: boolean;
+  groupByDirectory: boolean;
+  /** Left tree : right side. */
+  treeRatio: number;
+  /** Changes : details. */
+  detailsRatio: number;
+}
+
 export interface PushDialogParamsDto {
-  repos: PushRepoSectionDto[];
+  title: string;
+  repos: PushRepoDto[];
+  /** One repository: no checkboxes, no `Edit all targets`. */
+  single: boolean;
+  /** The repository row selected first, when nothing was asked for. */
+  highlight?: string;
   tags: 'none' | 'all' | 'follow';
-  runHooks: boolean;
+  /** `Run Git hooks` is shown only when some repository has a pre-push hook. */
+  showRunHooks: boolean;
   /** Render the dim "will run: git push …" line. */
   showCommandLine: boolean;
   /** `git push --force-if-includes` supported — the preview line must be exact. */
   forceIfIncludes: boolean;
+  /** Branch patterns Force Push refuses (`gittree.protectedBranches`). */
+  protectedBranches: string[];
+  /** Targets force-pushed to with `Don't warn about this target`. */
+  silentForceTargets: Array<{ remote: string; branch: string }>;
+  ui: PushDialogUiDto;
   /** P11-T8 status color overrides for the file tree. */
   colors?: Record<string, string>;
+  /** Issue links in the commit details. */
+  issue?: { pattern: string; url: string };
+}
+
+/** The outgoing commits for an edited target. */
+export interface PushRetargetDto {
+  target: PushTargetDto;
+  commits: PushCommitDto[];
+  loadError?: string;
 }
 
 export interface PushDialogResultDto {
-  /** Checked repos only, each with its (possibly retargeted) destination. */
-  repos: Array<{ root: string; remote: string; remoteBranch: string }>;
+  /** The checked repositories that can be pushed, each with its target. */
+  repos: Array<{
+    root: string;
+    source: PushSourceDto;
+    target: { remote: string; branch: string };
+    /** `Set upstream` ticked for this target. */
+    setUpstream: boolean;
+  }>;
   tags: 'none' | 'all' | 'follow';
   runHooks: boolean;
-  /** Force-with-lease path (the split button's `Force Push…`). */
+  /** Force Push — confirmed in the dialog already. */
   force: boolean;
+  /** `Don't warn about this target`, ticked when confirming. */
+  dontWarnForce?: { remote: string; branch: string };
 }
+
+export type PushDefineRemoteResultDto =
+  | { ok: true; repo: PushRepoDto }
+  | { ok: false; field: 'name' | 'url'; message: string };
 
 export const PUSH_DIALOG_METHODS = {
   /**
-   * webview → host request: recompute one repo's commits/files for an edited
-   * target. Params `{root, remote, remoteBranch}`; returns the updated
-   * `PushRepoSectionDto`.
+   * webview → host request: the commits for an edited target. Params
+   * `{root, remote, branch}`; returns `PushRetargetDto`.
    */
   retarget: 'pushDialog/retarget',
   /**
-   * webview → host request: open the pane toolbar's diff for one file.
-   * Params `{root, base, status, path, origPath?}`; returns `{ok: boolean}`.
+   * webview → host request: the merged changes of some commits of one
+   * repository (IntelliJ's `zipChanges`). Params `{root, shas}`, oldest first;
+   * returns `{files: CommitFileDto[]}`, each file with its two revisions.
+   */
+  changes: 'pushDialog/changes',
+  /** webview → host request: one commit's details. Params `{root, sha}`; returns `CommitDetailsDto`. */
+  details: 'pushDialog/details',
+  /**
+   * webview → host request: `Show Diff` for some files of one repository.
+   * Params `{root, files: CommitFileDto[], index}`; returns `{ok: boolean}`.
    */
   openDiff: 'pushDialog/openDiff',
   /**
-   * webview → host request: the toolbar's `Edit source` — open the worktree
+   * webview → host request: the toolbar's `Edit Source` — open the worktree
    * file. Params `{root, path}`; returns `{ok: boolean}`.
    */
   openFile: 'pushDialog/openFile',
+  /**
+   * webview → host request: IntelliJ's Define Remote — check the URL with
+   * `git ls-remote`, add the remote, fetch it when asked. Params
+   * `{root, name, url, fetch}`; returns `PushDefineRemoteResultDto`.
+   */
+  defineRemote: 'pushDialog/defineRemote',
+  /** webview → host event: remember `Show Details`, grouping and splitter positions. */
+  saveUi: 'pushDialog/saveUi',
 } as const;
 
 // ---------------------------------------------------------------------------

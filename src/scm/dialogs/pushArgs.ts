@@ -4,27 +4,24 @@
  * the dialog's "will run" line and the actual execution both read it, so what
  * the user is shown is what runs.
  *
- * Flag mapping per the phase plan:
+ * Flag mapping, IntelliJ's `GitPushParamsImpl`:
  *   Run Git hooks OFF        → --no-verify
  *   Push tags: All           → --tags
- *   Push tags: Current Branch→ --follow-tags   (tags reachable from the pushed
- *                              commits — the git flag closest to IntelliJ's
- *                              per-branch tag push)
+ *   Push tags: Current Branch→ --follow-tags   (IntelliJ's `GitPushTagMode.FOLLOW`)
  *   Force                    → --force-with-lease (+ --force-if-includes when
  *                              the git build supports it; P5 push-safety rule)
- *   No upstream              → --set-upstream (only when pushing the branch to
- *                              its own name — retargeting must not hijack
- *                              tracking)
- * The target is always an explicit `<remote> <local>:refs/heads/<remoteBranch>`
- * refspec, which is what makes retargeting in the dialog honest.
+ *   Set upstream             → --set-upstream (`pushModel.setsUpstream` decides)
+ * The target is always an explicit `<remote> <source>:<target ref>` refspec
+ * (`pushModel.pushRefspec`), which is what makes retargeting in the dialog
+ * honest.
  */
 
 export type PushTagsMode = 'none' | 'all' | 'follow';
 
 export interface PushArgsOptions {
   readonly remote: string;
-  readonly localBranch: string;
-  readonly remoteBranch: string;
+  /** `<source>:<target ref>`, from `pushRefspec`. */
+  readonly refspec: string;
   readonly setUpstream: boolean;
   readonly tags: PushTagsMode;
   readonly runHooks: boolean;
@@ -43,20 +40,8 @@ export function buildPushArgs(o: PushArgsOptions): string[] {
     if (o.forceIfIncludes) args.push('--force-if-includes');
   }
   if (o.setUpstream) args.push('--set-upstream');
-  args.push(o.remote, `${o.localBranch}:refs/heads/${o.remoteBranch}`);
+  args.push(o.remote, o.refspec);
   return args;
-}
-
-/**
- * Upstream is set only when publishing the branch under its own name — a push
- * retargeted to some other remote branch must not silently repoint tracking.
- */
-export function shouldSetUpstream(
-  hasUpstream: boolean,
-  localBranch: string,
-  remoteBranch: string,
-): boolean {
-  return !hasUpstream && localBranch === remoteBranch;
 }
 
 /**

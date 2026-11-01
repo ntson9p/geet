@@ -279,7 +279,7 @@ suite('P14 branch menu parity', () => {
     assert.strictEqual(git('rev-parse', `${REMOTE}/${TARGET}`).trim(), theirs);
   });
 
-  test("POST-P14af: Push… goes to the upstream's own remote, and says when it did not go through", async function () {
+  test("POST-P14ao: a branch's Push… opens the Push dialog for it, aimed at the upstream's own remote", async function () {
     this.timeout(120_000);
     const reg13 = core.debugRegistry.get('phase13') as Phase13Registry;
     const onRemote = (): string =>
@@ -290,32 +290,69 @@ suite('P14 branch menu parity', () => {
     assert.ok(push && reg13, 'push action or phase13 registry missing');
     const ctx: BranchActionContext = { repo, name: TARGET, type: 'local', isCurrent: false };
 
-    // Tracking a remote that is not `origin` — the row pushed to `origin`
-    // whatever the upstream said.
+    // Tracking a remote that is not `origin` — the row used to push to
+    // `origin` whatever the upstream said.
     const base = git('rev-parse', 'HEAD').trim();
     git('branch', '-f', TARGET, base);
     git('push', '--force', REMOTE, `${base}:refs/heads/${TARGET}`);
     git('fetch', REMOTE);
     git('branch', `--set-upstream-to=${REMOTE}/${TARGET}`, TARGET);
     await refreshUntil(() => targetUpstream() === `${REMOTE}/${TARGET}`);
+    const mine = commitOnto(base, 'p14bm: a commit to push');
+    git('branch', '-f', TARGET, mine);
+
+    // IntelliJ's GitPushBranchAction: the dialog, for this branch in this
+    // repository — and nothing pushed until it says so.
+    const savedDialog = process.env['GITTREE_TEST_PUSH_DIALOG'];
+    process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+    reg13.clearLastPushDialogRequest();
+    try {
+      await push.run(ctx);
+    } finally {
+      if (savedDialog === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
+      else process.env['GITTREE_TEST_PUSH_DIALOG'] = savedDialog;
+    }
+    const opened = reg13.lastPushDialogOpened();
+    assert.deepStrictEqual(opened?.source, { kind: 'branch', branch: TARGET });
+    assert.deepStrictEqual(opened?.repos, [repo.root]);
+    assert.strictEqual(onRemote(), base, 'nothing is pushed before the dialog says so');
+
+    // Its row: `TARGET → REMOTE : TARGET`, the new commit under it.
+    const params = await reg13.buildPushParams({
+      repos: [repo],
+      preselected: [repo],
+      source: { kind: 'branch', branch: TARGET },
+    });
+    const row = params.repos[0]!;
+    assert.strictEqual(params.title, `Push Commits to ${row.label}`);
+    assert.deepStrictEqual(row.target, { remote: REMOTE, branch: TARGET, isNew: false, type: 'tracking' });
+    assert.deepStrictEqual(
+      row.commits.map((c) => c.sha),
+      [mine],
+    );
+    const fromDialog = {
+      repos: [{ root: repo.root, source: row.source, target: { remote: REMOTE, branch: TARGET }, setUpstream: false }],
+      tags: 'none' as const,
+      runHooks: true,
+      force: false,
+    };
 
     const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
     // The hang guard: this branch is not checked out, so nothing may ask.
     process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = 'cancel';
     reg13.clearLastPushRejectedPrompt();
     try {
-      const mine = commitOnto(base, 'p14bm: a commit to push');
-      git('branch', '-f', TARGET, mine);
-      assert.strictEqual(await push.run(ctx), undefined, 'a push that went through carries on');
+      const pushed = await reg13.applyPushResult(fromDialog);
+      assert.match(pushed[0]!, /pushed$/, pushed.join(' · '));
       assert.strictEqual(onRemote(), mine);
 
       // The remote moves on. Rejected, and never updated — the branch is not
-      // checked out — so the row reports it and returns `false`: what stops
-      // `Push` across all repositories now that the failure is not thrown.
+      // checked out — so the result says so and nothing asks.
       const theirs = commitOnto(base, 'p14bm: the remote moves on');
       git('push', '--force', REMOTE, `${theirs}:refs/heads/${TARGET}`);
       git('branch', '-f', TARGET, commitOnto(mine, 'p14bm: another commit to push'));
-      assert.strictEqual(await push.run(ctx), false);
+      const refused = await reg13.applyPushResult(fromDialog);
+      assert.match(refused[0]!, /rejected/, refused.join(' · '));
       assert.strictEqual(reg13.lastPushRejectedPrompt(), undefined);
       assert.strictEqual(onRemote(), theirs);
     } finally {

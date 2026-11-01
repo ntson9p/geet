@@ -947,6 +947,10 @@ export async function runCommonAction(
     );
     return;
   }
+  if (action.runAll) {
+    await action.runAll(targets);
+    return;
+  }
   const done: string[] = [];
   for (const ctx of targets) {
     const name = path.basename(ctx.repo.root);

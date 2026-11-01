@@ -6,6 +6,37 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — Push works the way IntelliJ's does
+
+Every Push now opens the Push dialog first, as IntelliJ's does:
+
+- `Push…` (Ctrl+Shift+K)
+- a branch's `Push…`, which used to push at once
+- the log's `Push All up to Here…`, which used to push at once
+- `Commit and Push…`
+
+The dialog is rebuilt on IntelliJ's layout.
+
+- **The left side** lists each repository as `feature → origin : feature`, with a green
+  **New** when the remote does not have that branch yet. The commits to push sit under it.
+- **The right side** shows the changes of the commits you select, with the details of one
+  selected commit below.
+- **To push somewhere else**, click the target branch and type another name. The field
+  suggests branches you pushed to before and the remote's branches. **Set upstream** makes
+  the new target the branch's upstream.
+- **To pick another remote**, click the remote name. A repository without a remote offers
+  **Define remote**.
+- **With several repositories**, each has a checkbox, and **Edit all targets** changes every
+  target at once.
+- **Force Push** asks first, with **Don't warn about this target**. It is not offered for
+  protected branches: `master` and `main` by default, set with the new
+  `gittree.protectedBranches` setting.
+- **Run Git hooks** appears only when a repository has a pre-push hook, and starts ticked
+  every time. The `gittree.push.runHooks` setting is gone.
+
+The direct **Push** and **Push (Force With Lease)…** commands no longer appear in the
+Command Palette; **Push…** is the one Push there, as in IntelliJ.
+
 ### Added — select several commits in the log, as in IntelliJ
 
 The log now selects several commits the way IntelliJ's does:

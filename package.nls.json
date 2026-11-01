@@ -55,7 +55,7 @@
   "gittree.command.branches.checkout.title": "Checkout",
   "gittree.command.branches.rename.title": "Rename…",
   "gittree.command.branches.delete.title": "Delete…",
-  "gittree.command.branches.push.title": "Push",
+  "gittree.command.branches.push.title": "Push…",
   "gittree.command.branches.rebaseOntoCurrent.title": "Checkout and Rebase onto Current",
   "gittree.command.branches.newFrom.title": "New Branch from Selected…",
   "gittree.command.branches.toggleFavorite.title": "Toggle Favorite",
@@ -144,7 +144,7 @@
   "gittree.command.log.createPatch.title": "Create Patch…",
   "gittree.command.log.fixup.title": "Fixup…",
   "gittree.command.log.squashInto.title": "Squash Into…",
-  "gittree.command.log.pushAllUpToHere.title": "Push All up to Here",
+  "gittree.command.log.pushAllUpToHere.title": "Push All up to Here…",
   "gittree.command.log.commitBranches.title": "Branches…",
   "gittree.command.log.goToParent.title": "Go to Parent Commit",
   "gittree.command.log.goToChild.title": "Go to Child Commit",
@@ -317,10 +317,9 @@
   "gittree.config.update.strategy.ask": "Ask Merge or Rebase on every update.",
   "gittree.config.update.strategy.merge": "Merge incoming changes into the current branch.",
   "gittree.config.update.strategy.rebase": "Rebase the current branch on top of incoming changes.",
-  "gittree.config.push.runHooks.description": "Run Git hooks (pre-push) when pushing from the Push dialog. Off adds --no-verify.",
   "gittree.config.push.showDialogForCommitAndPush.description": "Show Push dialog for Commit and Push: once Commit and Push has committed, open the Push dialog for the repositories it committed, so you can review the commits and their target before anything leaves your machine — as IntelliJ does by default. Off pushes them straight away.",
-  "gittree.config.push.updateAllRepositoriesIfRejected.description":"Update all repositories: when a push is rejected and you choose Merge or Rebase, also update every other repository of the workspace that tracks a remote branch, as the Update all repositories checkbox of IntelliJ's Push Rejected dialog does. Every update runs before anything is pushed again, and nothing is pushed again unless all of them went through. Off updates only the repositories whose push was rejected.",
-  "gittree.config.push.autoUpdateIfRejected.description":"Auto-update if push of the current branch was rejected: when the remote has commits the branch does not, update it with your last Merge/Rebase answer and push again, without asking. Off asks Merge or Rebase first, as IntelliJ's Push Rejected dialog does; choosing \"Don't Ask Again\" on the result turns this on. It still asks when rebasing would flatten merge commits you have not pushed.",
+  "gittree.config.push.updateAllRepositoriesIfRejected.description": "Update all repositories: when a push is rejected and you choose Merge or Rebase, also update every other repository of the workspace that tracks a remote branch, as the Update all repositories checkbox of IntelliJ's Push Rejected dialog does. Every update runs before anything is pushed again, and nothing is pushed again unless all of them went through. Off updates only the repositories whose push was rejected.",
+  "gittree.config.push.autoUpdateIfRejected.description": "Auto-update if push of the current branch was rejected: when the remote has commits the branch does not, update it with your last Merge/Rebase answer and push again, without asking. Off asks Merge or Rebase first, as IntelliJ's Push Rejected dialog does; choosing \"Don't Ask Again\" on the result turns this on. It still asks when rebasing would flatten merge commits you have not pushed.",
   "gittree.config.push.tags.description": "Which tags the Push dialog pushes alongside the branch.",
   "gittree.config.push.tags.none": "No tags.",
   "gittree.config.push.tags.all": "All tags (--tags).",
@@ -361,5 +360,6 @@
   "gittree.view.repositories.name": "Repositories",
   "gittree.view.branchesLegacy.name": "Branches (All Repositories)",
   "gittree.command.repositories.select.title": "Show This Repository in Branches",
-  "gittree.view.branchesTree.name": "Branches (Tree)"
+  "gittree.view.branchesTree.name": "Branches (Tree)",
+  "gittree.config.protectedBranches.description": "Protected branches, as in IntelliJ's Settings | Version Control | Git: the Push dialog does not offer Force Push to a branch whose name matches one of these. Each entry is a regular expression matched against the whole branch name, so main protects main and not main-copy."
 }

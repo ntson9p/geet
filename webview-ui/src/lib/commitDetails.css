@@ -1,0 +1,205 @@
+/*
+ * Commit details and changed files, shared by the log and the Push dialog
+ * (POST-P14ao): the Push dialog shows the selected commit's details and the
+ * selection's files exactly as the log's panes do, so it wears the same rules.
+ * Moved here from log.css unchanged.
+ */
+
+.gt-pane-empty {
+  padding: 10px;
+}
+
+/* ---- P12-T4: Commit Details pane ---- */
+.gt-details-subject {
+  font-weight: 600;
+  font-size: 1.05em;
+  white-space: pre-wrap;
+}
+
+.gt-details-author {
+  font-weight: 600;
+}
+
+.gt-details-signature {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.gt-details-signature.gt-signature-bad {
+  color: var(--vscode-errorForeground);
+}
+
+.gt-details-parents {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.gt-details-parent,
+.gt-details-contained-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.gt-details-parent:hover,
+.gt-details-contained-link:hover {
+  text-decoration: underline;
+}
+
+.gt-details-contained {
+  margin-top: 4px;
+}
+
+.gt-details-body a {
+  color: var(--vscode-textLink-foreground);
+}
+
+/* ---- P12-T3: Changed Files pane ---- */
+.gt-changed-files {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.gt-ref-chip {
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.gt-ref-branch {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+
+.gt-ref-remote-branch {
+  color: var(--vscode-charts-purple, #b180d7);
+}
+
+.gt-ref-tag {
+  color: var(--vscode-charts-yellow, #cca700);
+}
+
+/* A codicon inside a Commit Details chip. */
+.gt-ref-chip .codicon {
+  font-size: 11px;
+  vertical-align: -1px;
+}
+
+.gt-ref-head,
+.gt-ref-headTarget {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+/*
+ * Commit Details fills its pane, like the other three pane roots
+ * (`.gt-changed-files`, `.gt-branches-pane`, `.gt-console`).
+ *
+ * It carried `flex: 1 1 40%; min-width: 220px; max-width: 45%` from P4, when the
+ * panel sat *beside* the commit list in a row: there all three sized the main
+ * axis and were the whole contract. P12 made it a pane in a column, so they
+ * landed on the cross axis and started fighting the splitter for the width —
+ * capped under half the pane when wide, overflowing it when narrow. The splitter
+ * owns pane size; the readability floor belongs on its `minSecond` (Shell.tsx),
+ * where the drag clamp honours it, not on a `min-width` that overflows instead.
+ *
+ * `overflow: auto` is a fallback, not the normal path: the message below scrolls
+ * itself, and the panel only scrolls when the metadata alone outgrows a short
+ * pane — which is the one case that would otherwise clip refs out of reach.
+ */
+.gt-log-details {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Several selected commits: the stack scrolls as one, IntelliJ's
+   `CommitDetailsListPanel`; each commit's block is laid out in full inside it. */
+.gt-log-details-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+  overflow: auto;
+}
+
+.gt-log-details-list .gt-log-details,
+.gt-log-details-list .gt-details-body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+  border-left: none;
+}
+
+.gt-details-rule {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.gt-details-overflow {
+  padding: 6px 8px;
+  font-size: 0.9em;
+}
+
+/*
+ * Everything above the message keeps its own height; only the message flexes.
+ * Written as `:not(the message)` rather than naming today's three blocks so a
+ * field added to DetailsPanel later gets the safe behaviour by default, and so
+ * neither rule depends on which one comes first in this file.
+ */
+.gt-log-details > :not(.gt-details-body) {
+  flex: 0 0 auto;
+}
+
+.gt-details-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* The sha, author and both buttons are unshrinkable and cannot ellipsis —
+     without wrapping they overflow a narrow pane instead of reflowing. */
+  flex-wrap: wrap;
+}
+
+.gt-details-sha {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-weight: 600;
+}
+
+.gt-details-refs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/*
+ * The message takes the height left over and scrolls inside it, so the subject,
+ * hash and author stay on screen while you read a long one. `max-height: 30%`
+ * here was P4's ceiling from when the changed-file list sat below the message in
+ * this same panel; P12 gave the files their own pane and the ceiling stayed,
+ * clipping messages that had empty pane sitting right below them.
+ */
+.gt-details-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.95em;
+  margin: 4px 0;
+}

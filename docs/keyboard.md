@@ -78,7 +78,8 @@ in the diff toolbar — an extension cannot remove a built-in one — and GitTre
 sort first (deviation D20).
 
 Both open the P13 dialogs rather than acting silently, matching IntelliJ. The
-no-questions commands are still there — `gittree.push` and `gittree.pull` — and
+no-questions `gittree.pull` is still in the palette; the no-questions push is not
+since POST-P14ao — IntelliJ has no Push without its dialog — and
 `Ctrl+T` becomes a direct action once you choose *Don't Ask Again* on an update's
 result (restore the question with **GitTree: Update Project Strategy…**).
 
@@ -113,6 +114,22 @@ arrows move within):
 | `→` / `←` | open / close a repository, section or folder |
 | `Enter` | open / close a repository or folder; on a branch, its `›` menu; on an action row, run it |
 | `Shift+F10` / context-menu key | the focused row's menu: a repository's own (Fetch, Update Project…, Push…, …, each for that repository alone), a branch's `›` menu, a common branch's all-repositories menu |
+
+**Push dialog**
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through the repositories and commits; with `Shift`, select the run |
+| `Ctrl+Click` / `Shift+Click`, `Ctrl+A` | select several commits — the changes show all of theirs |
+| `→` / `←` | open / close a repository (several repositories); on a commit, back to its repository |
+| `Space` | tick or untick the selected rows' repositories |
+| `F2` | edit the selected repository's target branch |
+| `Alt+F2` | `Edit all targets` (several repositories) |
+| `Enter` / `Escape` (editing) | apply / cancel the target; with the suggestions open, pick one / close them |
+| `↓` / `↑`, `Ctrl+Space` (editing) | open and move through the suggestions |
+| `Enter` | Push |
+| `Ctrl+D` / `F4` (changes) | Show Diff / Edit Source |
+| `Escape` | close the dialog |
 
 **Interactive rebase editor**
 

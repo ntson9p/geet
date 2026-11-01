@@ -24,12 +24,14 @@ import {
   applyPushResult,
   buildPushParams,
   clearLastPushDialogRequest,
+  lastPushDialogOpened,
   lastPushDialogRequest,
   pushDialogHandlers,
   setShowPushDialogForCommitAndPush,
   showPushDialog,
   showPushDialogForCommitAndPush,
   type PushDialogDeps,
+  type PushDialogRequest,
 } from './pushDialog';
 import {
   clearLastPushRejectedPrompt,
@@ -114,7 +116,7 @@ import type {
 
 export interface Phase13Registry {
   /** Test seam: the params the dialog would open with. */
-  buildPushParams: typeof buildPushParams;
+  buildPushParams: (request: PushDialogRequest) => ReturnType<typeof buildPushParams>;
   /** Test seam: the accept half, driven with the payload the webview posts. */
   applyPushResult: (result: Parameters<typeof applyPushResult>[1]) => Promise<string[]>;
   /** Test seam: the request handlers the dialog registers, verbatim. */
@@ -137,6 +139,8 @@ export interface Phase13Registry {
   ) => Promise<PushResult[] | undefined>;
   /** POST-P14ah: the repositories the Push dialog was last opened for, and its reset. */
   lastPushDialogRequest: typeof lastPushDialogRequest;
+  /** POST-P14ao: all of it — every listed repository, and what each row pushes. */
+  lastPushDialogOpened: typeof lastPushDialogOpened;
   clearLastPushDialogRequest: typeof clearLastPushDialogRequest;
   /** IntelliJ's *Show Push dialog for Commit and Push*. */
   setShowPushDialogForCommitAndPush: typeof setShowPushDialogForCommitAndPush;
@@ -253,15 +257,84 @@ export function registerPhase13Dialogs(
     });
   };
 
-  // P13-T1: Push. `gittree.sync.push` (P1) stays as the no-questions path; this
-  // is the dialog that exposes the flags behind it.
+  // P13-T1: Push — IntelliJ's `VcsPushDialog`, which every Push of GitTree
+  // opens (POST-P14ao). `gittree.push` (P1) stays as the internal
+  // no-questions path that Sync and Commit and Push (dialog off) use.
+  /** The commit's branch, as `GitPushUpToCommitAction` picks it. */
+  const branchHolding = async (repo: RepoHandle, sha: string): Promise<string | undefined> => {
+    const snap = repo.model.snapshot;
+    // The current branch when the commit is on it, else the first local
+    // branch that contains it; none, and the commit is pushed detached.
+    if (snap.headRef !== undefined && !snap.detached) {
+      const onHead = await core.git.exec(repo.root, ['merge-base', '--is-ancestor', sha, 'HEAD'], {
+        structured: true,
+        allowNonZeroExit: true,
+      });
+      if (onHead.exitCode === 0) return snap.headRef;
+    }
+    const res = await core.git.exec(
+      repo.root,
+      ['for-each-ref', '--contains', sha, '--format=%(refname:short)', 'refs/heads'],
+      { structured: true, allowNonZeroExit: true },
+    );
+    return res.stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.length > 0);
+  };
+  const openPush = (request: PushDialogRequest): Promise<boolean> =>
+    showPushDialog(pushDeps, request).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      trace(`push dialog failed: ${message}`);
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t('The Push dialog could not open: {0}', message),
+      );
+      return false;
+    });
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.push.dialog', async (arg?: unknown) => {
-      const one = resolveRepo(core, arg);
-      // No unambiguous repo: offer every pushable repo at once, which is also
-      // the multi-repo shape the dialog is built for.
-      await showPushDialog(pushDeps, one ? [one] : core.repos);
+      // IntelliJ's `Push…`: every repository listed; the one named — a
+      // Repositories row — checked, else the one the user is in.
+      const named = namedRepo(core, arg);
+      const current = resolveRepo(core, arg);
+      await openPush({
+        repos: core.repos,
+        preselected: named !== undefined ? [named] : [],
+        ...(current !== undefined ? { current } : {}),
+      });
     }),
+    // A branch's `Push…` (IntelliJ's `GitPushBranchAction`): that branch, in
+    // the repositories named — one, or every one a common branch is in.
+    // Internal, called by the branch rows. Resolves once the dialog closes.
+    vscode.commands.registerCommand(
+      'gittree.push.branch',
+      async (arg?: unknown, branchArg?: unknown): Promise<boolean> => {
+        const roots: unknown[] = Array.isArray(arg) ? arg : [arg];
+        const repos = roots
+          .map((root) => namedRepo(core, root))
+          .filter((r): r is RepoHandle => r !== undefined);
+        if (repos.length === 0 || typeof branchArg !== 'string' || branchArg.length === 0) {
+          return false;
+        }
+        return openPush({ repos, preselected: repos, source: { kind: 'branch', branch: branchArg } });
+      },
+    ),
+    // `Push All up to Here…` (IntelliJ's `GitPushUpToCommitAction`): the commit
+    // and everything before it, from the branch it is on. Internal.
+    vscode.commands.registerCommand(
+      'gittree.push.upTo',
+      async (arg?: unknown, shaArg?: unknown): Promise<boolean> => {
+        const repo = namedRepo(core, arg);
+        if (!repo || typeof shaArg !== 'string' || shaArg.length === 0) return false;
+        const branch = await branchHolding(repo, shaArg);
+        return openPush({
+          repos: [repo],
+          preselected: [repo],
+          current: repo,
+          source: { kind: 'revision', sha: shaArg, ...(branch !== undefined ? { branch } : {}) },
+        });
+      },
+    ),
     // POST-P14af: a tracked branch pushed to its upstream, the IntelliJ way —
     // `gittree.push` (so Commit and Push, and Sync) and a branch row's `Push…`
     // come through here. Internal, as `gittree.update.run` is. Resolves to
@@ -292,13 +365,9 @@ export function registerPhase13Dialogs(
         // Not awaited. The dialog is a tab the user may leave open while they
         // read it, and the commit window stays busy — refusing the next
         // commit — for as long as the commit call that got here is running.
-        showPushDialog(pushDeps, repos).catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          trace(`push dialog after commit failed: ${message}`);
-          void vscode.window.showErrorMessage(
-            vscode.l10n.t('The Push dialog could not open: {0}', message),
-          );
-        });
+        // Every repository is listed, as IntelliJ lists them; the ones just
+        // committed are the ones checked.
+        void openPush({ repos: core.repos, preselected: repos, current: repos[0]! });
         return;
       }
       // One repository at a time, as the push always ran here: a branch that
@@ -466,15 +535,16 @@ export function registerPhase13Dialogs(
   });
 
   const registry: Phase13Registry = {
-    buildPushParams,
+    buildPushParams: (request) => buildPushParams(pushDeps, request),
     applyPushResult: (result) => applyPushResult(pushDeps, result),
-    pushHandlers: () => pushDialogHandlers(deps),
+    pushHandlers: () => pushDialogHandlers(pushDeps),
     lastPushRejectedPrompt,
     clearLastPushRejectedPrompt,
     setAutoUpdateIfRejected,
     setUpdateAllRepositoriesIfRejected,
     pushTracked: (repo, project) => pushTracked(repo, undefined, project),
     lastPushDialogRequest,
+    lastPushDialogOpened,
     clearLastPushDialogRequest,
     setShowPushDialogForCommitAndPush,
     buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, { targets: [repo], skipped: [] }),

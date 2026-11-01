@@ -646,3 +646,76 @@ Testing (written, **not run**, by the owner's standing instruction):
   - stacked details with the 50 cap.
 
 Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14ao ✅ 2026-11-01: **Push, as IntelliJ's.** The owner asked whether Push showed no dialog, and for IntelliJ's: the commits about to go, and the target branch, `New` when the remote does not have it. GitTree had a Push dialog (P13-T1), but:
+- only `Push…`, the popup's verb and a Repositories row opened it;
+- a branch's `Push…`, `Push All up to Here` and the palette's `Push` pushed at once;
+- its layout was GitTree's own: a commit list with hashes and dates, the whole push's diff, and `Run Git hooks` always shown.
+
+IntelliJ's behaviour was read from its source:
+- the dialog from `VcsPushDialog`, `PushLog`, `PushLogChangesBrowser`, `PushController`, `RepositoryNode`/`SingleRepositoryNode`/`CommitNode` and `RepositoryWithBranchPanel`;
+- targets from `GitPushSupport`, `GitPushTarget`, `GitPushSpecParser`, `GitPushTargetPanel` and `GitPushTargetCompletionProvider`, with recent targets as `GitVcsSettings` keeps them;
+- the commits from `GitOutgoingCommitsProvider` and the refspec from `GitPushOperation.createPushSpec`;
+- the footer from `GitPushOptionsPanel`;
+- Force Push from `ForcePushAction` and `GitSharedSettings`, and the remote form from `GitDefineRemoteDialog`;
+- the entry points from `VcsPushAction`, `GitPushBranchAction` and `GitPushUpToCommitAction`;
+- strings from `DvcsBundle` and `GitBundle`.
+
+The owner checked one thing the source could not settle: right-clicking a commit in IntelliJ's Push dialog shows no menu, so GitTree's shows none either.
+
+**Rules** (vscode-free, shared by host and webview):
+- `src/scm/dialogs/pushModel.ts`: sources (branch, a commit on a branch, detached), the default target, typed targets, the outgoing range, the refspec, when the upstream is set, the `Set upstream` checkbox and the `New`/`Upstream` labels, protected branches, the Force Push warning, recent targets and their suggestion order, the title, and which repositories start checked.
+- `pushSpecParser.ts`: `remote.<name>.push`.
+- `src/core/git/refName.ts`: IntelliJ's `GitRefNameValidator`.
+
+**Host** (`pushDialog.ts`, rewritten):
+- `PushDialogRequest {repos, preselected, current?, source?}`.
+- Rows built in parallel, with `git log --max-count=1000` over the outgoing range.
+- Handlers: `retarget`, `changes` (`getCommitsFiles` + `zipChanges`), `details`, `openDiff` (a diff sequence opened at the file), `openFile`, `defineRemote` (name checks, `ls-remote`, `remote add`, optional fetch) and `saveUi`.
+- `applyPushResult` takes each row's source and builds `pushRefspec` + `setsUpstream`. It remembers recent targets for pushes that went through, and the targets marked *don't warn*.
+- `buildPushArgs` now takes a refspec. `pushRun`'s `PushTarget` gained `source`, so a commit pushed on its own is counted correctly and is never updated and pushed again.
+
+**Entry points:**
+- `gittree.push.dialog` lists every repository and checks the one named, or else the current one.
+- New internal `gittree.push.branch` (a branch's `Push…`; a common branch's runs once via the new `BranchAction.runAll`) and `gittree.push.upTo` (`Push All up to Here…`, on the branch holding the commit).
+- Commit and Push lists every repository, checking the committed ones.
+- `gittree.push` and `gittree.pushForceWithLease` are hidden from the palette.
+- New setting `gittree.protectedBranches`; `gittree.push.runHooks` removed.
+
+**Webview** (`Push.tsx` rewritten, plus `pushTree.ts`, `PushTargetEditor.tsx`, `PushChanges.tsx` and `PushOverlays.tsx`):
+- The tree reuses the log's selection rules.
+- The changes pane is grouped by repository.
+- The details are the log's `DetailsPanel`, whose copy, parent and contained-branch extras are now optional. Its CSS and the Changed Files CSS moved to `lib/commitDetails.css`, which both apps import.
+- Force Push and Define Remote are drawn inside the dialog, so IntelliJ's checkboxes stay.
+- `Menu` items gained a `title` tooltip.
+
+Checked by hand in screenshots of the mock page with dark theme colours injected:
+- one repository, a selected commit with details, the target editor with suggestions and `Set upstream`, a retarget to a `New` branch;
+- the Force Push warning;
+- two repositories (checkbox, faded unchecked row, `Edit all targets` mirroring the typed text);
+- Define Remote with a refused URL;
+- a protected `main` greying Force Push with its tooltip.
+
+That pass found and fixed two problems: a click inside the target editor applied the edit under it, and the Define Remote fields overflowed.
+
+Docs: FEATURES §9 (the Push dialog, the P12 list), CHANGELOG (Changed), gap analysis (Push dialog, Push All up to Here, the protected-branch note), keyboard.md (a Push dialog table; the palette note).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** new `core/git/refName.test.ts`, `scm/pushSpecParser.test.ts` (IntelliJ's own cases), `scm/pushModel.test.ts` and `webview/pushTree.test.ts`. `scm/pushArgs.test.ts` is updated for refspecs; `branches/branchMenu.test.ts` and `log/commitMenu.test.ts` for the `…` labels.
+- **Integration:** `phase13.test.ts` T1 is rewritten:
+  - every repository listed and the named one checked;
+  - the default row;
+  - publish and upstream;
+  - commits, changes and details of a new commit;
+  - retarget;
+  - `Set upstream`;
+  - `Run Git hooks` shown only with a hook, and `--no-verify`;
+  - force with lease;
+  - tags;
+  - Define Remote's checks;
+  - an unknown root.
+
+  `phase12.test.ts` T7 now opens the dialog with the commit and then pushes through it, with a refused non-fast-forward. `phase14branchmenu.test.ts` covers a branch's `Push…` opening the dialog, aimed at the upstream's own remote.
+- **Playwright:** `push.spec.ts` is rewritten as 20 tests over a scenario-driven mock: layout, tooltip, commit changes and details, merged selection, `...`, the will-run line, the accept payload, Force Push (cancel, don't-warn, protected), Escape, the editor (suggestions, clean-up, apply, cancel, invalid name, `Set upstream`), the remote list, Define Remote, several repositories, `Edit all targets` and the changes toolbar.
+
+Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; webviews and the extension bundle built. No suite run.

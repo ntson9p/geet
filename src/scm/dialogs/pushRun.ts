@@ -47,8 +47,17 @@ import {
 /** One push to run: a local branch to a branch on a remote, and the argv that does it. */
 export interface PushTarget {
   readonly repo: RepoHandle;
-  /** The local branch pushed. */
+  /**
+   * The local branch pushed — or, for a commit pushed on its own (Push All up
+   * to Here from a detached HEAD), its short hash, which is what the report names.
+   */
   readonly branch: string;
+  /**
+   * What is pushed, when it is not the whole branch: the commit of Push All up
+   * to Here. Such a push is never updated and pushed again — the same commit
+   * would only be turned away again.
+   */
+  readonly source?: string;
   readonly remote: string;
   readonly remoteBranch: string;
   /** The whole command, `push` first. Run again as-is after an update. */
@@ -175,7 +184,7 @@ async function countOutgoing(
   target: PushTarget,
 ): Promise<{ commits: number; newBranch: boolean }> {
   const tracking = `refs/remotes/${target.remote}/${target.remoteBranch}`;
-  const local = `refs/heads/${target.branch}`;
+  const local = target.source ?? `refs/heads/${target.branch}`;
   const known = await core.git.exec(
     target.repo.root,
     ['rev-parse', '--verify', '--quiet', tracking],
@@ -212,7 +221,8 @@ async function pushOnce(core: Core, target: PushTarget): Promise<PushResult> {
         updatable: canUpdateAndRetry({
           rejection: ref.rejection,
           force: isForcePush(target.args),
-          current: !snap.detached && snap.headRef === target.branch,
+          current:
+            target.source === undefined && !snap.detached && snap.headRef === target.branch,
           toUpstream: snap.upstream === `${target.remote}/${target.remoteBranch}`,
           busy: snap.inProgressOp !== undefined,
         }),

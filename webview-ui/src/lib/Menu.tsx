@@ -29,6 +29,8 @@ export type MenuItem =
       readonly accelerator?: string;
       readonly disabled?: boolean;
       readonly checked?: boolean;
+      /** Hover text — what IntelliJ's action description says, e.g. why it is disabled. */
+      readonly title?: string;
     }
   | {
       readonly kind: 'submenu';
@@ -224,6 +226,7 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuPr
               aria-haspopup={item.kind === 'submenu' ? 'menu' : undefined}
               aria-expanded={item.kind === 'submenu' ? openSub?.index === index : undefined}
               data-menu-index={index}
+              title={item.kind === 'item' ? item.title : undefined}
               className={`gt-menu-item${isActive ? ' gt-active' : ''}${item.disabled === true ? ' gt-disabled' : ''}`}
               onMouseEnter={() => {
                 if (!isEnabled(item)) return;

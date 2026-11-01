@@ -6,6 +6,7 @@ import type { RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { Phase02Registry } from '../../../src/branches/register';
 import type { Phase04Registry } from '../../../src/log/register';
+import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { zipChanges } from '../../../src/log/zipChanges';
 import { applyPatchFile } from '../../../src/rewrite/patch/applyPatch';
 import { createPatchText, createPatchToFile } from '../../../src/rewrite/patch/createPatch';
@@ -470,11 +471,13 @@ suite('P12 git tool window', () => {
     git('branch', '-D', 'p12/not-ancestor');
   });
 
-  test('T7: Push All up to Here pushes exactly through the selected commit', async function () {
+  test('T7: Push All up to Here opens the Push dialog for the commit, which pushes exactly through it', async function () {
     this.timeout(150_000);
+    const p13 = coreRef.debugRegistry.get('phase13') as Phase13Registry;
     const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
     const bare = path.join(path.dirname(repoRoot), `p12-bare-${Date.now()}.git`);
     gitWithRetry(path.dirname(repoRoot), ['init', '--bare', bare]);
+    const onRemote = (): string => gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim();
     try {
       git('remote', 'add', 'origin', bare);
       // Seed the remote two commits behind and set the upstream.
@@ -485,27 +488,70 @@ suite('P12 git tool window', () => {
       await repo.refresher.refreshNow();
       await waitFor(() => repo.model.snapshot.upstream !== undefined, 20_000);
 
+      // IntelliJ's GitPushUpToCommitAction: the dialog, with the commit as the
+      // source and the branch it is on — nothing is pushed until it says so.
       const mid = git('rev-parse', 'HEAD~1').trim();
-      await vscode.commands.executeCommand('gittree.log.pushAllUpToHere', { sha: mid });
-      await waitFor(
-        () => gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim() === mid,
-        30_000,
-      );
-      assert.notStrictEqual(
-        gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim(),
-        git('rev-parse', 'HEAD').trim(),
-        'HEAD itself must NOT have been pushed',
+      const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
+      process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+      p13.clearLastPushDialogRequest();
+      try {
+        await vscode.commands.executeCommand('gittree.log.pushAllUpToHere', { sha: mid });
+      } finally {
+        if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
+        else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+      }
+      const opened = p13.lastPushDialogOpened();
+      assert.deepStrictEqual(opened?.source, { kind: 'revision', sha: mid, branch });
+      assert.deepStrictEqual(opened?.repos, [repo.root]);
+      assert.strictEqual(onRemote(), base, 'nothing is pushed before the dialog says so');
+
+      // The row reads `<short hash> → origin : <branch>`, with the one commit
+      // between the remote and the selected commit under it.
+      const params = await p13.buildPushParams({
+        repos: [repo],
+        preselected: [repo],
+        current: repo,
+        source: { kind: 'revision', sha: mid, branch },
+      });
+      const row = params.repos[0]!;
+      assert.strictEqual(row.source.presentation, mid.slice(0, 8));
+      assert.deepStrictEqual(row.target, { remote: 'origin', branch, isNew: false, type: 'tracking' });
+      assert.deepStrictEqual(
+        row.commits.map((c) => c.sha),
+        [mid],
       );
 
-      // Non-fast-forward: pushing an older commit is refused before invoking.
+      const outcomes = await p13.applyPushResult({
+        repos: [{ root: repo.root, source: row.source, target: { remote: 'origin', branch }, setUpstream: false }],
+        tags: 'none',
+        runHooks: true,
+        force: false,
+      });
+      assert.match(outcomes[0]!, /pushed/, outcomes.join(' · '));
+      assert.strictEqual(onRemote(), mid);
+      assert.notStrictEqual(onRemote(), git('rev-parse', 'HEAD').trim(), 'HEAD itself must NOT have been pushed');
+
+      // An older commit is a non-fast-forward: the remote turns it away, and
+      // being a commit rather than the branch, it is not updated and pushed again.
       git('fetch', 'origin');
       const older = git('rev-parse', 'HEAD~2').trim();
-      await vscode.commands.executeCommand('gittree.log.pushAllUpToHere', { sha: older });
-      assert.strictEqual(
-        gitWithRetry(bare, ['rev-parse', `refs/heads/${branch}`]).trim(),
-        mid,
-        'a non-fast-forward push must be refused, leaving the remote untouched',
-      );
+      p13.clearLastPushRejectedPrompt();
+      const refused = await p13.applyPushResult({
+        repos: [
+          {
+            root: repo.root,
+            source: { kind: 'revision', presentation: older.slice(0, 8), revision: older, branch },
+            target: { remote: 'origin', branch },
+            setUpstream: false,
+          },
+        ],
+        tags: 'none',
+        runHooks: true,
+        force: false,
+      });
+      assert.doesNotMatch(refused[0]!, /pushed$/, refused.join(' · '));
+      assert.strictEqual(onRemote(), mid, 'a non-fast-forward push must leave the remote untouched');
+      assert.strictEqual(p13.lastPushRejectedPrompt(), undefined, 'a commit pushed on its own is never updated');
     } finally {
       git('remote', 'remove', 'origin');
       try {

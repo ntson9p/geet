@@ -491,12 +491,6 @@ Show the dim "will run: git …" line in GitTree's dialogs, so the flags behind 
 
 - Type: `boolean` · Default: `true`
 
-### `gittree.push.runHooks`
-
-Run Git hooks (pre-push) when pushing from the Push dialog. Off adds --no-verify.
-
-- Type: `boolean` · Default: `true`
-
 ### `gittree.push.autoUpdateIfRejected`
 
 Auto-update if push of the current branch was rejected: when the remote has commits the branch does not, update it with your last Merge/Rebase answer and push again, without asking. Off asks Merge or Rebase first, as IntelliJ's Push Rejected dialog does; choosing "Don't Ask Again" on the result turns this on. It still asks when rebasing would flatten merge commits you have not pushed.
@@ -524,3 +518,9 @@ Which tags the Push dialog pushes alongside the branch.
   - `none` — No tags.
   - `all` — All tags (--tags).
   - `follow` — Tags reachable from the pushed commits (--follow-tags).
+
+### `gittree.protectedBranches`
+
+Protected branches, as in IntelliJ's Settings | Version Control | Git: the Push dialog does not offer Force Push to a branch whose name matches one of these. Each entry is a regular expression matched against the whole branch name, so main protects main and not main-copy.
+
+- Type: `array` · Default: `["master","main"]`

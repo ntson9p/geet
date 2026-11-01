@@ -518,7 +518,7 @@ greys Revert, Drop and Squash Commits.
   (`git am -3` for mailboxes with degrade-to-`apply --3way`; conflicts land in the §5 flow).
 * **Fixup… / Squash Into…** — commits the ticked changes as `fixup!`/`squash!`, then offers
   a non-interactive `--autosquash` fold.
-* **Push All up to Here** (exact-sha push, non-fast-forward refused) · **Reset Here**
+* **Push All up to Here…** (the Push dialog with that commit as the source) · **Reset Here**
   (Soft/Mixed/Hard/**Keep**, destructive modes snapshot first) · **Checkout Revision** ·
   **New Branch/Tag here** · **Compare with Local** · **Branches ›** (lazy `--contains`) ·
   **Go to Parent / Child** · **Show Repository at Revision** (read-only `gittree-tree:`
@@ -679,8 +679,50 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   remote branch**, as IntelliJ's *Update all repositories* does (`gittree.push.updateAllRepositoriesIfRejected`,
   on by default); the question names them, and nothing is pushed again unless every update went
   through.
-* **The set:** `Push` (per-repo sections, editable target row, the push's changed-file tree,
-  tags/hooks footer, `[Push ▾]` with Force Push) · `Merge` ·
+* **Push, as IntelliJ's dialog** (`VcsPushDialog`), and **every Push opens it**: `Push…`
+  (`Ctrl+Shift+K`, the popup's verb, a Repositories row), a branch's `Push…` (that branch;
+  a branch common to several repositories opens one dialog for all of them), the log's
+  `Push All up to Here…` (that commit and everything before it, from the branch it is on) and
+  `Commit and Push…`. Nothing is pushed until you press Push.
+  - **Left, the push log:** a row per repository, `feature → origin : feature`, the source
+    plain and the remote and branch as links, a green **`New`** when the remote has no such
+    branch yet. Under it the outgoing commits, subject only, twenty at first and a `...` that
+    doubles them; the tooltip is IntelliJ's `hash  date  by author`, the message, and
+    *Select to show commit details*. The default target is IntelliJ's: the remote's push spec
+    (Gerrit's `HEAD:refs/for/master` included), else the branch's upstream, else a branch of
+    its own name on `origin` (or the first remote). The commits are `<remote>/<branch>..<source>`,
+    or for a new branch whatever that remote has nowhere.
+  - **Several repositories:** every repository is listed, each with a checkbox. The one asked
+    for is checked (a Repositories row, the repositories Commit and Push committed), or else
+    the one you are in. Checked rows are open and the others closed and faded. `Space`
+    toggles the selected rows; the title is *Push Commits* rather than *Push Commits to X*.
+  - **Changing the target:** click the branch (or `F2`) to type another. The field suggests
+    the branches you recently pushed this one to (`recently pushed`), then every remote
+    branch, `origin`'s first. Spaces become `_` and characters git refuses vanish as you
+    type; `Enter` applies, `Escape` cancels, and Push waits while you edit. Click the remote
+    for the list of remotes and `Define remote`. `Set upstream`, beside the field when the
+    target is not the upstream already, makes it the branch's upstream (`Upstream`,
+    `New & Upstream` labels). `Edit all targets` (`Alt+F2`) types one target for every
+    repository at once.
+  - **No remote:** the row reads `main → Define remote`; IntelliJ's Define Remote (Name
+    `origin`, URL, `Fetch remote`) checks the URL with `git ls-remote` before adding it, and
+    says why it refused. An empty repository reads `Empty repository` in red.
+  - **Right, the changes of what is selected:** the repository row means all its commits;
+    one or several commits (Ctrl/Shift+click) mean exactly theirs, merged as the log merges
+    a selection, each file from before its first change to after its last. IntelliJ's
+    toolbar: Show Diff (`Ctrl+D`) · View Options › Group By Directory · Edit Source (`F4`) ·
+    Show Details … Expand All · Collapse All. With one commit selected its details sit below.
+    The details toggle, grouping and splitters are remembered, as IntelliJ's are.
+  - **Footer:** `? · [ ] Push tags: [All | Current Branch]` (remembered) ·
+    `[x] Run Git hooks`, shown only when a repository has a pre-push hook and ticked every
+    time. Then `[Push ▾] [Cancel]`, with **Force Push** in the split.
+  - **Force Push** (`--force-with-lease`, P5) asks first, in IntelliJ's words: *You're going to
+    force push to 'feature'. It may overwrite commits at the remote. Are you sure you want to
+    proceed?*, with `Don't warn about this target`. It is not offered for a protected branch.
+    The list is `gittree.protectedBranches`, `master` and `main` by default, each a regular
+    expression matched against the whole name, and the item's tooltip says which branch
+    blocked it.
+* **The other dialogs:** `Merge` ·
   `Rebase` · `Reset` (four modes including **Keep**, with a live impact line) · `Rollback`
   (checkbox tree + inline diff + `Delete local copies of added files`) · `Cherry-Pick` ·
   `Stash` · `Unstash` · `Apply Patch` (pre-apply summary with missing-file warnings) ·

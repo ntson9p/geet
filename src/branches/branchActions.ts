@@ -36,6 +36,12 @@ export interface BranchAction {
    */
   run(ctx: BranchActionContext): Promise<void | false>;
   /**
+   * The all-repositories form, when it is one operation rather than one per
+   * repository: a common branch's `Push…` opens one Push dialog listing every
+   * repository, as IntelliJ's does, not a dialog each.
+   */
+  runAll?(ctxs: readonly BranchActionContext[]): Promise<void>;
+  /**
    * Separator group, in the order the reference submenu shows them
    * (`docs/intellij-gap-analysis.md` §2A "Branch row submenu expanded"). The
    * popup inserts a divider whenever the group changes.
@@ -254,9 +260,14 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       group: 'push',
       label: () => vscode.l10n.t('Push…'),
       applies: (ctx) => isLocalBranch(ctx),
-      // A rejected or failed push is reported, not thrown (POST-P14af), so it
-      // says so here — or the all-repositories fan-out would push on past it.
-      run: async (ctx) => ((await deps.ops.pushBranch(ctx.repo, ctx.name)) ? undefined : false),
+      // The Push dialog for this branch (POST-P14ao), which reports for itself.
+      run: async (ctx) => {
+        await deps.ops.pushBranch(ctx.repo, ctx.name);
+      },
+      runAll: async (ctxs) => {
+        const first = ctxs[0];
+        if (first) await deps.ops.pushBranch(ctxs.map((c) => c.repo), first.name);
+      },
     },
     {
       /**

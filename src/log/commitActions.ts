@@ -407,64 +407,15 @@ export function registerCommitActions(
   register('gittree.log.squashInto', (arg) => fixupLike(arg, 'squash'));
 
   /**
-   * Push All up to Here (step 3): `git push <remote> <sha>:refs/heads/<branch>`
-   * with the not-on-current-branch and non-fast-forward cases refused BEFORE
-   * anything is invoked.
+   * Push All up to Here… — IntelliJ's `GitPushUpToCommitAction`: the Push
+   * dialog with the commit as its source, so the commits that would go are
+   * listed, and the target can still be changed, before anything is pushed.
    */
   register('gittree.log.pushAllUpToHere', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
-    const snapshot = repo.model.snapshot;
-    const branch = snapshot.headRef;
-    const upstream = snapshot.upstream; // `origin/main` form
-    if (branch === undefined || upstream === undefined || !upstream.includes('/')) {
-      void vscode.window.showWarningMessage(
-        vscode.l10n.t('Push up to here needs a current branch with an upstream.'),
-      );
-      return;
-    }
-    if (!(await isAncestorOfHead(repo, sha))) {
-      void vscode.window.showWarningMessage(
-        vscode.l10n.t('{0} is not on the current branch.', sha.slice(0, 7)),
-      );
-      return;
-    }
-    const remote = upstream.slice(0, upstream.indexOf('/'));
-    const remoteBranch = upstream.slice(upstream.indexOf('/') + 1);
-    // Fast-forward check: the remote tip must already be contained in <sha>.
-    const ff = await repo.queue.enqueue({
-      label: 'push ff check',
-      kind: 'read',
-      run: (git, token) =>
-        git.exec(repo.root, ['merge-base', '--is-ancestor', upstream, sha], {
-          structured: true,
-          noOptionalLocks: true,
-          allowNonZeroExit: true,
-          token,
-        }),
-    });
-    if (ff.exitCode !== 0) {
-      void vscode.window.showWarningMessage(
-        vscode.l10n.t(
-          'Pushing {0} would not fast-forward {1} — pull or choose a newer commit.',
-          sha.slice(0, 7),
-          upstream,
-        ),
-      );
-      return;
-    }
-    await repo.queue.enqueue({
-      label: vscode.l10n.t('Push {0} → {1}', sha.slice(0, 7), upstream),
-      kind: 'mutate',
-      run: async (git, token) => {
-        await git.exec(repo.root, ['push', remote, `${sha}:refs/heads/${remoteBranch}`], { token });
-      },
-    });
-    void vscode.window.showInformationMessage(
-      vscode.l10n.t('Pushed history up to {0} to {1}.', sha.slice(0, 7), upstream),
-    );
-    await repo.refresher.refreshNow();
+    await vscode.commands.executeCommand('gittree.push.upTo', repo.root, sha);
   });
 
   /**

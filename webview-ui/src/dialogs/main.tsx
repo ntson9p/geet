@@ -5,6 +5,7 @@
  */
 import { createRoot } from 'react-dom/client';
 import '../lib/base.css';
+import '../lib/commitDetails.css';
 import './dialogs.css';
 import { getInitialState } from '../lib/vscodeApi';
 import { ApplyPatch } from './ApplyPatch';

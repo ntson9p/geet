@@ -10,7 +10,11 @@ import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import {
   PUSH_DIALOG_METHODS,
   REMOTES_DIALOG_METHODS as REMOTES_METHODS,
-  type PushRepoSectionDto,
+  type CommitFileDto,
+  type PushDefineRemoteResultDto,
+  type PushDialogResultDto,
+  type PushRepoDto,
+  type PushRetargetDto,
 } from '../../../src/shared/protocol';
 import * as vscode from 'vscode';
 import { repoLabels } from '../../../src/core/util/repoLabels';
@@ -33,9 +37,10 @@ interface WorktreesBridgeShape {
 
 /**
  * P13 dialogs — host half. The dialog UI is Playwright-covered (push.spec.ts);
- * these tests pin what only a real repository can answer: that the section the
- * dialog opens with is the true outgoing set, that retargeting pushes where it
- * says, and that the footer options reach argv.
+ * these tests pin what only a real repository can answer: that the row the
+ * dialog opens with is IntelliJ's default target with the true outgoing
+ * commits, that retargeting pushes where it says, and that the footer options
+ * reach argv.
  *
  * The remote is a **local bare repository** in a temp directory — file:// only,
  * never a network host (the project's standing constraint). It is added to the
@@ -113,19 +118,32 @@ suite('P13 dialogs', () => {
     await waitFor(() => pred(repo.model.snapshot.statusEntries), timeoutMs);
   };
 
-  const sectionNow = async (): Promise<PushRepoSectionDto> => {
-    const params = await reg.buildPushParams(core, [repo]);
-    assert.strictEqual(params.repos.length, 1, 'expected exactly one pushable section');
+  /** The row the Push dialog opens with for repoC on its own. */
+  const rowNow = async (): Promise<PushRepoDto> => {
+    const params = await reg.buildPushParams({ repos: [repo], preselected: [repo] });
+    assert.strictEqual(params.repos.length, 1, 'expected exactly one row');
     return params.repos[0]!;
   };
 
-  /** `git diff --name-status -z` reference, read straight from the CLI. */
-  const diffPaths = (from: string, to: string): string[] =>
-    git('diff', '--name-status', '-M', from, to)
-      .split('\n')
-      .filter((l) => l.length > 0)
-      .map((l) => l.split('\t').pop()!)
-      .sort();
+  /** Exactly what the dialog posts for repoC's branch pushed to `target` on the suite's remote. */
+  const fromDialog = (
+    target: string,
+    over: Partial<PushDialogResultDto> = {},
+    setUpstream = false,
+  ): PushDialogResultDto => ({
+    repos: [
+      {
+        root: repo.root,
+        source: { kind: 'branch', presentation: branch, revision: `refs/heads/${branch}`, branch },
+        target: { remote: REMOTE, branch: target },
+        setUpstream,
+      },
+    ],
+    tags: 'none',
+    runHooks: true,
+    force: false,
+    ...over,
+  });
 
   test('T1: every webview→host push method has a handler', () => {
     const handlers = reg.pushHandlers();
@@ -138,56 +156,75 @@ suite('P13 dialogs', () => {
     }
   });
 
-  test('T1: the section defaults to the only remote and lists the whole branch', async function () {
+  test('T1: Push… lists every repository and checks the one asked for', async function () {
     this.timeout(60_000);
-    const s = await sectionNow();
-    assert.strictEqual(s.branch, branch);
-    assert.strictEqual(s.remote, REMOTE, 'the sole remote is the default target');
-    assert.strictEqual(s.remoteBranch, branch, 'a fresh branch publishes under its own name');
-    assert.strictEqual(s.hasUpstream, false);
-    assert.strictEqual(s.targetExists, false, 'no tracking ref for an unpublished branch');
-    assert.ok(s.totalCommits > 0, 'the whole branch is outgoing');
-    assert.ok(s.remotes.includes(REMOTE));
+    const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
+    process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+    reg.clearLastPushDialogRequest();
+    try {
+      await vscode.commands.executeCommand('gittree.push.dialog', repo.root);
+    } finally {
+      if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
+      else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+    }
+    const opened = reg.lastPushDialogOpened();
+    assert.deepStrictEqual([...(opened?.repos ?? [])].sort(), core.repos.map((r) => r.root).sort());
+    assert.deepStrictEqual(opened?.preselected, [repo.root]);
+    assert.strictEqual(opened?.source, undefined, 'each row pushes its own checked-out branch');
 
-    // Nothing is on the remote yet, so the push's file set is the whole tree.
-    const tracked = git('ls-tree', '-r', '--name-only', 'HEAD')
-      .split('\n')
-      .filter((l) => l.length > 0)
-      .sort();
-    assert.deepStrictEqual(s.files.map((f) => f.path).sort(), tracked);
+    const params = await reg.buildPushParams({ repos: core.repos, preselected: [repo] });
+    const checked = params.repos.filter((r) => r.checked).map((r) => r.root);
+    assert.deepStrictEqual(checked, [repo.root]);
+    if (params.repos.length > 1) {
+      assert.strictEqual(params.title, 'Push Commits');
+      assert.strictEqual(params.single, false);
+    }
+  });
+
+  test('T1: the row defaults to the only remote, a New branch of its own name', async function () {
+    this.timeout(60_000);
+    const r = await rowNow();
+    assert.deepStrictEqual(r.source, {
+      kind: 'branch',
+      presentation: branch,
+      revision: `refs/heads/${branch}`,
+      branch,
+    });
+    assert.deepStrictEqual(r.target, { remote: REMOTE, branch, isNew: true, type: 'tracking' });
+    assert.strictEqual(r.sourceTracks, false);
+    assert.ok(r.remotes.includes(REMOTE));
+    // Nothing is on the remote yet: every commit of the branch is outgoing.
+    const all = git('rev-list', '--count', `--max-count=1000`, 'HEAD').trim();
+    assert.strictEqual(String(r.commits.length), all);
+    assert.strictEqual(r.commits[0]?.sha, git('rev-parse', 'HEAD').trim(), 'newest first');
+    assert.strictEqual(r.checked, true);
   });
 
   test('T1: pushing publishes the branch and sets upstream', async function () {
     this.timeout(60_000);
     const head = git('rev-parse', 'HEAD').trim();
-    const outcomes = await reg.applyPushResult({
-      repos: [{ root: repo.root, remote: REMOTE, remoteBranch: branch }],
-      tags: 'none',
-      runHooks: true,
-      force: false,
-    });
+    const outcomes = await reg.applyPushResult(fromDialog(branch));
     assert.strictEqual(outcomes.length, 1, outcomes.join(' · '));
     assert.match(outcomes[0]!, /pushed/, outcomes[0]);
     assert.strictEqual(bare('rev-parse', `refs/heads/${branch}`).trim(), head);
 
-    // `shouldSetUpstream` fired because local and remote names match.
+    // IntelliJ's rule: a branch pushed to a new branch, tracking nothing, tracks it now.
     assert.strictEqual(
       git('rev-parse', '--abbrev-ref', `${branch}@{upstream}`).trim(),
       `${REMOTE}/${branch}`,
     );
   });
 
-  test('T1: the file tree matches git diff <remote>/<branch>..HEAD', async function () {
+  test('T1: the commits are <remote>/<branch>..HEAD, and their changes are theirs', async function () {
     this.timeout(60_000);
-    // Freshly published: nothing outgoing at all.
+    // Freshly published: the upstream, and nothing outgoing at all.
     await repo.refresher.refreshNow();
-    const settled = await sectionNow();
-    assert.strictEqual(settled.targetExists, true);
-    assert.strictEqual(settled.hasUpstream, true);
-    assert.strictEqual(settled.totalCommits, 0);
-    assert.deepStrictEqual(settled.files, []);
+    const settled = await rowNow();
+    assert.deepStrictEqual(settled.target, { remote: REMOTE, branch, isNew: false, type: 'tracking' });
+    assert.strictEqual(settled.sourceTracks, true);
+    assert.deepStrictEqual(settled.commits, []);
 
-    // One new commit: the section must report exactly its diff.
+    // One new commit: the row lists exactly it, and its changes are its file.
     const rel = 'p13/t1-outgoing.txt';
     const abs = path.join(repoRoot, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -196,67 +233,81 @@ suite('P13 dialogs', () => {
     git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', 'P13-T1 outgoing');
     await repo.refresher.refreshNow();
 
-    const s = await sectionNow();
-    assert.strictEqual(s.totalCommits, 1);
-    assert.strictEqual(s.commits[0]?.subject, 'P13-T1 outgoing');
+    const r = await rowNow();
     assert.deepStrictEqual(
-      s.files.map((f) => f.path).sort(),
-      diffPaths(`refs/remotes/${REMOTE}/${branch}`, 'HEAD'),
+      r.commits.map((c) => c.subject),
+      ['P13-T1 outgoing'],
     );
-    assert.deepStrictEqual(s.files.map((f) => f.path), [rel]);
+    const sha = r.commits[0]!.sha;
+    const changes = (await reg.pushHandlers()[PUSH_DIALOG_METHODS.changes]!({
+      root: repo.root,
+      shas: [sha],
+    })) as { files: CommitFileDto[] };
+    assert.deepStrictEqual(changes.files, [{ status: 'A', path: rel, after: sha }]);
+    const details = (await reg.pushHandlers()[PUSH_DIALOG_METHODS.details]!({
+      root: repo.root,
+      sha,
+    })) as { sha: string; body: string } | undefined;
+    assert.strictEqual(details?.sha, sha);
+    assert.strictEqual(details?.body, 'P13-T1 outgoing');
   });
 
-  test('T1: retargeting recomputes the section and pushes to the chosen ref', async function () {
+  test('T1: retargeting lists what that remote has nowhere, and pushes to the chosen ref', async function () {
     this.timeout(60_000);
     const handlers = reg.pushHandlers();
     const retarget = handlers[PUSH_DIALOG_METHODS.retarget]!;
-    const s = (await retarget({
+    const t = (await retarget({
       root: repo.root,
       remote: REMOTE,
-      remoteBranch: 'p13-retargeted',
-    })) as PushRepoSectionDto;
-    assert.strictEqual(s.remoteBranch, 'p13-retargeted');
-    assert.strictEqual(s.targetExists, false, 'the retargeted branch does not exist yet');
-    // With no tracking ref to diff against, "outgoing" is what this remote does
-    // not have *anywhere* (`HEAD --not --remotes=<remote>`) — which is what git
-    // would actually transfer. The remote already holds everything up to the
-    // previous test's publish, so only the commit made since it is outgoing.
-    assert.strictEqual(s.totalCommits, 1);
-    assert.strictEqual(s.commits[0]?.subject, 'P13-T1 outgoing');
-    assert.deepStrictEqual(s.files.map((f) => f.path), ['p13/t1-outgoing.txt']);
+      branch: 'p13-retargeted',
+    })) as PushRetargetDto;
+    assert.deepStrictEqual(t.target, { remote: REMOTE, branch: 'p13-retargeted', isNew: true, type: 'custom' });
+    // A new branch: what this remote does not have *anywhere*
+    // (`HEAD --not --remotes=<remote>`) — what git will actually transfer. The
+    // remote holds everything up to the publish, so only the commit since is.
+    assert.deepStrictEqual(
+      t.commits.map((c) => c.subject),
+      ['P13-T1 outgoing'],
+    );
 
     const head = git('rev-parse', 'HEAD').trim();
-    const outcomes = await reg.applyPushResult({
-      repos: [{ root: repo.root, remote: REMOTE, remoteBranch: 'p13-retargeted' }],
-      tags: 'none',
-      runHooks: true,
-      force: false,
-    });
+    const outcomes = await reg.applyPushResult(fromDialog('p13-retargeted'));
     assert.match(outcomes[0]!, /pushed/, outcomes.join(' · '));
     assert.strictEqual(bare('rev-parse', 'refs/heads/p13-retargeted').trim(), head);
 
-    // Retargeting must not hijack tracking — the upstream still points at the
-    // branch's own name (the `shouldSetUpstream` rule).
+    // A branch that tracks something keeps tracking it.
     assert.strictEqual(
       git('rev-parse', '--abbrev-ref', `${branch}@{upstream}`).trim(),
       `${REMOTE}/${branch}`,
     );
   });
 
-  test('T1: Run Git hooks off adds --no-verify and skips a failing pre-push', async function () {
+  test('T1: Set upstream makes the target the upstream', async function () {
+    this.timeout(60_000);
+    try {
+      const outcomes = await reg.applyPushResult(fromDialog('p13-upstream', {}, true));
+      assert.match(outcomes[0]!, /pushed/, outcomes.join(' · '));
+      assert.strictEqual(
+        git('rev-parse', '--abbrev-ref', `${branch}@{upstream}`).trim(),
+        `${REMOTE}/p13-upstream`,
+      );
+    } finally {
+      git('branch', `--set-upstream-to=${REMOTE}/${branch}`);
+      await repo.refresher.refreshNow();
+    }
+  });
+
+  test('T1: Run Git hooks is offered with a pre-push hook, and off adds --no-verify', async function () {
     this.timeout(60_000);
     const hookPath = path.join(repo.dirs.gitDir, 'hooks', 'pre-push');
     fs.mkdirSync(path.dirname(hookPath), { recursive: true });
     fs.writeFileSync(hookPath, '#!/bin/sh\nexit 1\n');
     fs.chmodSync(hookPath, 0o755);
     try {
+      const shown = await reg.buildPushParams({ repos: [repo], preselected: [repo] });
+      assert.strictEqual(shown.showRunHooks, true, 'IntelliJ shows Run Git hooks only for a pre-push hook');
       const push = async (runHooks: boolean): Promise<string[]> =>
-        reg.applyPushResult({
-          repos: [{ root: repo.root, remote: REMOTE, remoteBranch: 'p13-hooks' }],
-          tags: 'none',
-          runHooks,
-          force: false,
-        });
+        reg.applyPushResult(fromDialog('p13-hooks', { runHooks }));
 
       // Hooks on: the rejecting pre-push blocks the push.
       const blocked = await push(true);
@@ -282,36 +333,20 @@ suite('P13 dialogs', () => {
     } finally {
       fs.rmSync(hookPath, { force: true });
     }
+    const hidden = await reg.buildPushParams({ repos: [repo], preselected: [repo] });
+    assert.strictEqual(hidden.showRunHooks, false);
   });
 
-  test('T1: force uses --force-with-lease behind the P5 confirmation', async function () {
+  test('T1: force uses --force-with-lease, never --force', async function () {
     this.timeout(60_000);
-    const force = async (): Promise<string[]> =>
-      reg.applyPushResult({
-        repos: [{ root: repo.root, remote: REMOTE, remoteBranch: branch }],
-        tags: 'none',
-        runHooks: true,
-        force: true,
-      });
-
-    // Declined: nothing runs at all. `withAutoConfirm` restores the harness's
-    // own value — deleting it would disarm auto-confirm for every later suite.
-    const beforeDecline = core.commandLog.entries().at(-1)?.seq ?? 0;
-    assert.deepStrictEqual(await withAutoConfirm('0', force), []);
-    assert.strictEqual(
-      core.commandLog.entriesAfter(beforeDecline).filter((e) => e.argv[0] === 'push').length,
-      0,
-      'a declined force push must not reach git',
-    );
-
-    // Accepted: the lease flag is there, and never a bare --force.
-    const beforeAccept = core.commandLog.entries().at(-1)?.seq ?? 0;
-    const outcomes = await withAutoConfirm('1', force);
+    // Confirmed in the dialog already: the host pushes.
+    const before = core.commandLog.entries().at(-1)?.seq ?? 0;
+    const outcomes = await reg.applyPushResult(fromDialog(branch, { force: true }));
     assert.match(outcomes[0]!, /pushed/, outcomes.join(' · '));
     const forced = core.commandLog
-      .entriesAfter(beforeAccept)
+      .entriesAfter(before)
       .filter((e) => e.argv[0] === 'push');
-    assert.ok(forced.length > 0, 'the accepted force push should have run');
+    assert.ok(forced.length > 0, 'the force push should have run');
     assert.ok(
       forced.every((e) => e.argv.includes('--force-with-lease') && !e.argv.includes('--force')),
       `expected --force-with-lease only: ${JSON.stringify(forced.map((e) => e.argv))}`,
@@ -321,12 +356,7 @@ suite('P13 dialogs', () => {
   test('T1: tag modes reach argv', async function () {
     this.timeout(60_000);
     const before = core.commandLog.entries().at(-1)?.seq ?? 0;
-    await reg.applyPushResult({
-      repos: [{ root: repo.root, remote: REMOTE, remoteBranch: branch }],
-      tags: 'follow',
-      runHooks: true,
-      force: false,
-    });
+    await reg.applyPushResult(fromDialog(branch, { tags: 'follow' }));
     const pushes = core.commandLog.entriesAfter(before).filter((e) => e.argv[0] === 'push');
     assert.ok(
       pushes.some((e) => e.argv.includes('--follow-tags')),
@@ -334,12 +364,51 @@ suite('P13 dialogs', () => {
     );
   });
 
+  test('T1: Define Remote checks the name and the URL, then adds the remote', async function () {
+    this.timeout(60_000);
+    const define = reg.pushHandlers()[PUSH_DIALOG_METHODS.defineRemote]!;
+    const ask = async (name: string, url: string): Promise<PushDefineRemoteResultDto> =>
+      (await define({ root: repo.root, name, url, fetch: true })) as PushDefineRemoteResultDto;
+
+    assert.deepStrictEqual(await ask('', bareUrl), {
+      ok: false,
+      field: 'name',
+      message: 'Remote name cannot be empty',
+    });
+    assert.deepStrictEqual(await ask(REMOTE, bareUrl), {
+      ok: false,
+      field: 'name',
+      message: `Remote name '${REMOTE}' is already used`,
+    });
+    assert.deepStrictEqual(await ask('p13second', ''), {
+      ok: false,
+      field: 'url',
+      message: 'Remote URL cannot be empty',
+    });
+    const unreachable = await ask('p13second', path.join(tmpDir, 'no-such.git').replace(/\\/g, '/'));
+    assert.strictEqual(unreachable.ok, false);
+    assert.ok(!git('remote').split('\n').includes('p13second'), 'nothing added for a URL that does not answer');
+
+    try {
+      const added = await ask('p13second', bareUrl);
+      assert.ok(added.ok, JSON.stringify(added));
+      if (added.ok) assert.ok(added.repo.remotes.includes('p13second'));
+      assert.ok(git('remote').split('\n').includes('p13second'));
+    } finally {
+      try {
+        git('remote', 'remove', 'p13second');
+      } catch {
+        /* never added */
+      }
+      await repo.refresher.refreshNow();
+    }
+  });
+
   test('T1: an unknown repository root is reported, never silently pushed elsewhere', async () => {
+    const result = fromDialog(branch);
     const outcomes = await reg.applyPushResult({
-      repos: [{ root: path.join(os.tmpdir(), 'gittree-not-a-repo'), remote: REMOTE, remoteBranch: branch }],
-      tags: 'none',
-      runHooks: true,
-      force: false,
+      ...result,
+      repos: [{ ...result.repos[0]!, root: path.join(os.tmpdir(), 'gittree-not-a-repo') }],
     });
     assert.strictEqual(outcomes.length, 1);
     assert.match(outcomes[0]!, /repository not found/);
@@ -1060,12 +1129,7 @@ suite('P13 dialogs', () => {
     suite('POST-P14af push rejected', () => {
       /** Exactly what the Push dialog posts for repoC's branch to its upstream. */
       const pushFromDialog = (remoteBranch = branch): Promise<string[]> =>
-        reg.applyPushResult({
-          repos: [{ root: repo.root, remote: REMOTE, remoteBranch }],
-          tags: 'none',
-          runHooks: true,
-          force: false,
-        });
+        reg.applyPushResult(fromDialog(remoteBranch));
 
       setup(async function () {
         this.timeout(60_000);

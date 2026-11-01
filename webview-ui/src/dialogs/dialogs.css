@@ -81,172 +81,258 @@
   color: var(--vscode-descriptionForeground);
 }
 
-/* ---- Push dialog (P13-T1) ------------------------------------------------ */
+/* ---- Push dialog (P13-T1; IntelliJ's layout since POST-P14ao) ------------ */
 
-/* §2A: commit list on the left, the push's changed-file tree on the right. */
-.gt-push-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: 8px;
-  height: 340px;
-  min-height: 200px;
+/* The panes fill the dialog edge to edge, as IntelliJ's push log does. */
+.gt-push-dialog .gt-dialog-body {
+  padding: 0;
+  gap: 0;
+  position: relative;
 }
 
-.gt-push-left {
-  overflow: auto;
-  border: 1px solid var(--vscode-panel-border, transparent);
-  border-radius: 3px;
+.gt-push-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
 }
 
+.gt-push-left,
 .gt-push-right {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: 1px solid var(--vscode-panel-border, transparent);
-  border-radius: 3px;
-}
-
-.gt-push-files-header {
-  flex: 0 0 auto;
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--vscode-panel-border, transparent);
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.9em;
-}
-
-.gt-push-files-body {
-  flex: 1 1 auto;
-  display: flex;
   min-height: 0;
+  height: 100%;
 }
 
-.gt-push-files {
+.gt-push-tree {
   flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 10px;
+  outline: none;
 }
 
-.gt-push-empty {
-  padding: 10px;
-}
-
-/* The pane's own strip runs down the right edge, as in the reference. */
-.gt-toolbar-vertical {
-  flex: 0 0 auto;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-left: 1px solid var(--vscode-panel-border, transparent);
-}
-
-.gt-toolbar-vertical .gt-toolbar-sep {
-  width: 80%;
-  height: 1px;
-  margin: 3px 0;
-  border-top: 1px solid var(--vscode-panel-border, transparent);
-}
-
-.gt-push-section + .gt-push-section {
-  border-top: 1px solid var(--vscode-panel-border, transparent);
-}
-
-.gt-push-section.gt-active .gt-push-target-row {
-  background: var(--vscode-list-inactiveSelectionBackground);
-}
-
-.gt-push-target-row {
+.gt-push-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  flex-wrap: wrap;
+  gap: 0;
+  min-height: 22px;
+  padding: 0 8px;
+  white-space: nowrap;
+  cursor: default;
 }
 
-/* The arrow row is a button: clicking the target opens the retarget editor. */
-.gt-push-target {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--vscode-foreground);
-  font: inherit;
+.gt-push-commit-row,
+.gt-push-more-row,
+.gt-push-error-row {
+  padding-left: 30px;
+}
+
+.gt-push-row.gt-selected {
+  background: var(--vscode-list-inactiveSelectionBackground);
+  color: var(--vscode-list-inactiveSelectionForeground, inherit);
+}
+
+.gt-push-tree:focus .gt-push-row.gt-selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.gt-push-tree:focus .gt-push-row.gt-lead {
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+  outline-offset: -1px;
+}
+
+/* An unchecked repository and its commits read faded, as IntelliJ draws them. */
+.gt-push-dim {
+  opacity: 0.55;
+}
+
+.gt-push-chevron {
+  flex: 0 0 16px;
+  width: 16px;
   cursor: pointer;
 }
 
-.gt-push-target:hover {
-  border-color: var(--vscode-panel-border, transparent);
-  background: var(--vscode-list-hoverBackground);
+.gt-push-check {
+  margin: 0 6px 0 0;
 }
 
-.gt-push-target:focus-visible {
-  outline: 1px solid var(--vscode-focusBorder);
+/* IntelliJ pads the repository name to 120px so the targets line up. */
+.gt-push-repo-name {
+  min-width: 120px;
+  padding-right: 8px;
 }
 
-.gt-push-local,
-.gt-push-remote {
-  font-weight: 600;
-}
-
-.gt-push-arrow {
-  color: var(--vscode-descriptionForeground);
-}
-
-.gt-push-new {
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
-  font-size: 0.85em;
-}
-
-.gt-push-target-edit {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.gt-push-count {
-  margin-left: auto;
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.9em;
-}
-
-.gt-push-commit-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gt-push-commit {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 1px 6px 1px 18px;
-  white-space: nowrap;
-}
-
-.gt-push-sha {
-  flex: 0 0 auto;
-  color: var(--vscode-descriptionForeground);
-  font-family: var(--vscode-editor-font-family, monospace);
+.gt-push-source {
+  padding-left: 2px;
 }
 
 .gt-push-subject {
-  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.gt-push-author,
-.gt-push-date {
+/* The remote and the target branch are links: one lists remotes, the other edits. */
+.gt-push-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-push-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.gt-push-link:disabled {
+  color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+  cursor: default;
+}
+
+.gt-push-row.gt-selected .gt-push-link {
+  color: inherit;
+}
+
+.gt-push-sep {
+  white-space: pre;
+}
+
+.gt-push-arrow {
+  white-space: pre;
+}
+
+/* IntelliJ's `New` / `Upstream` label: green on a pale green round box. */
+.gt-push-badge {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(0, 181, 61, 0.14);
+  color: var(--vscode-gitDecoration-addedResourceForeground, #00b53d);
+  font-size: 0.82em;
+}
+
+.gt-push-error {
+  color: var(--vscode-errorForeground);
+}
+
+.gt-push-loading {
+  margin-left: 8px;
+}
+
+.gt-push-edit-all {
   flex: 0 0 auto;
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.9em;
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 6px;
+}
+
+/* ---- the target editor ---- */
+.gt-push-editor {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gt-push-editor-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 80px;
+}
+
+.gt-push-editor-field .gt-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1px 4px;
+}
+
+.gt-push-editor-problem {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 3;
+  padding: 2px 6px;
+  border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder));
+  background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background));
+  white-space: nowrap;
+}
+
+.gt-push-completion {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 4;
+  min-width: 100%;
+  max-height: 220px;
+  margin: 1px 0 0;
+  padding: 2px 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-panel-border));
+  background: var(--vscode-editorSuggestWidget-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-editorSuggestWidget-foreground, inherit);
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+}
+
+.gt-push-completion-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.gt-push-completion-item.gt-active {
+  background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--vscode-editorSuggestWidget-selectedForeground, inherit);
+}
+
+.gt-push-completion-icon {
+  display: inline-block;
+  width: 16px;
+}
+
+.gt-push-completion-name {
+  flex: 1 1 auto;
+}
+
+.gt-push-completion-type {
+  padding-left: 16px;
+}
+
+.gt-push-upstream {
+  flex: 0 0 auto;
+  margin: 0 10px 0 5px;
+}
+
+/* ---- the right side ---- */
+.gt-push-right {
+  border-left: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-right > .gt-toolbar-strip {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-details-split {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gt-push-details {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-details .gt-log-details {
+  border-left: none;
 }
 
 .gt-push-tags-mode {
@@ -255,7 +341,7 @@
 
 /* The dim "will run" line — the same argv the host executes. */
 .gt-push-cmd {
-  padding: 6px 2px 0;
+  padding: 6px 12px;
   font-size: 0.9em;
   overflow-x: auto;
 }
@@ -263,6 +349,80 @@
 .gt-push-cmd code {
   font-family: var(--vscode-editor-font-family, monospace);
   white-space: pre;
+}
+
+/* ---- Force Push and Define Remote, drawn over the dialog ---- */
+.gt-push-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.gt-push-overlay-box {
+  min-width: 360px;
+  max-width: 560px;
+  border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+}
+
+.gt-push-overlay-title {
+  padding: 8px 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-overlay-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.gt-push-overlay-message {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.gt-push-overlay-icon {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  font-size: 20px;
+}
+
+.gt-push-overlay-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-define-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 10px;
+  align-items: baseline;
+}
+
+.gt-push-define-grid > div {
+  min-width: 0;
+}
+
+.gt-push-define-grid .gt-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gt-push-field-problem {
+  margin-top: 2px;
+  color: var(--vscode-errorForeground);
+  font-size: 0.9em;
+  white-space: pre-wrap;
 }
 
 /* ---- Radio options (Reset modes, New Worktree) ---------------------------- */

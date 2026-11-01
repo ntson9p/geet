@@ -534,11 +534,6 @@
             "default": true,
             "description": "%gittree.config.dialogs.showCommandLine.description%"
           },
-          "gittree.push.runHooks": {
-            "type": "boolean",
-            "default": true,
-            "description": "%gittree.config.push.runHooks.description%"
-          },
           "gittree.push.autoUpdateIfRejected": {
             "type": "boolean",
             "default": false,
@@ -568,6 +563,17 @@
             ],
             "default": "none",
             "description": "%gittree.config.push.tags.description%"
+          },
+          "gittree.protectedBranches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "master",
+              "main"
+            ],
+            "description": "%gittree.config.protectedBranches.description%"
           }
         }
       }
@@ -2190,6 +2196,14 @@
         },
         {
           "command": "gittree.log.resetHere",
+          "when": "false"
+        },
+        {
+          "command": "gittree.push",
+          "when": "false"
+        },
+        {
+          "command": "gittree.pushForceWithLease",
           "when": "false"
         }
       ],

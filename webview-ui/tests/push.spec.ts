@@ -2,10 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { mockPushDialogHostScript } from './mockPushDialogHost';
 
 /**
- * P13-T1 Push dialog. The §2A shape (editable target row, commit list, the
- * push's changed-file tree with its own right-side toolbar, the tags/hooks
- * footer and the `[Push ▾]` split button) plus the two behaviours the host
- * cannot see: what the "will run" line says, and what `dialog/accept` carries.
+ * The Push dialog, as IntelliJ's `VcsPushDialog` (P13-T1; rebuilt in
+ * POST-P14ao): the `source → remote : branch` tree with the outgoing commits,
+ * the merged changes of what is selected, the selected commit's details, the
+ * target editor, Force Push's own warning, Define Remote — and the two things
+ * the host cannot see: what the "will run" line says, and what
+ * `dialog/accept` carries.
  */
 
 interface PostedMsg {
@@ -14,10 +16,15 @@ interface PostedMsg {
   params?: Record<string, unknown>;
 }
 
-async function openPush(page: Page): Promise<void> {
+type Scenario = 'single' | 'multi' | 'noRemote' | 'protected' | 'hooks' | 'many';
+
+async function openPush(page: Page, scenario: Scenario = 'single'): Promise<void> {
+  await page.addInitScript((s) => {
+    (window as unknown as { __gtPushScenario: string }).__gtPushScenario = s;
+  }, scenario);
   await page.addInitScript(mockPushDialogHostScript);
   await page.goto('/dialogs.html');
-  await expect(page.getByRole('dialog', { name: /Push Commits to demo-git/ })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /Push Commits/ })).toBeVisible();
 }
 
 async function posted(page: Page): Promise<PostedMsg[]> {
@@ -30,163 +37,341 @@ function acceptOf(msgs: PostedMsg[]): Record<string, unknown> | undefined {
   return msgs.find((m) => m.method === 'dialog/accept')?.params;
 }
 
-test.describe('P13-T1 push dialog layout', () => {
-  test('renders the §2A shape: target row, commits, file tree, footer', async ({ page }) => {
+const pushButton = (page: Page) => page.getByRole('button', { name: 'Push', exact: true });
+const commitRows = (page: Page) => page.getByTestId('push-commit-row');
+const repoRow = (page: Page, label = 'demo-git') => page.getByTestId(`push-repo-row-${label}`);
+
+test.describe('push dialog — IntelliJ layout', () => {
+  test('one repository: `source → remote : branch` with its commits, their changes, the footer', async ({ page }) => {
     await openPush(page);
+    await expect(page.getByRole('dialog', { name: 'Push Commits to demo-git' })).toBeVisible();
 
-    // Left pane: `<local> → <remote> : <remote-branch>` and the outgoing commits.
-    const target = page.getByTestId('push-target-demo-git');
-    await expect(target).toContainText('feature/x');
-    await expect(target).toContainText('origin : feature/x');
-    await expect(page.getByTestId('push-count-demo-git')).toHaveText('2 commits');
-    await expect(page.getByText('add the parser')).toBeVisible();
-    await expect(page.getByText('fix the lexer')).toBeVisible();
+    // The tree: the row, then only each commit's subject.
+    await expect(repoRow(page)).toContainText('feature/x → origin : feature/x');
+    await expect(commitRows(page)).toHaveText(['fix the lexer', 'add the parser']);
+    // A single repository has no checkbox, and no Edit all targets.
+    await expect(page.getByTestId('push-repo-demo-git')).toHaveCount(0);
+    await expect(page.getByTestId('push-edit-all')).toHaveCount(0);
 
-    // Right pane: the push's changed files, counted and grouped.
-    await expect(page.getByTestId('push-files-count')).toHaveText('3 files');
-    await expect(page.getByRole('treeitem', { name: /Strings\.java/ })).toBeVisible();
-    await expect(page.getByRole('treeitem', { name: /Controller\.java/ })).toBeVisible();
+    // The repository row is selected first: the changes of all its commits.
+    await expect(repoRow(page)).toHaveAttribute('aria-selected', 'true');
+    const files = page.getByTestId('push-files');
+    await expect(files.getByRole('treeitem', { name: /Strings\.java/ })).toBeVisible();
+    await expect(files.getByRole('treeitem', { name: /Controller\.java/ })).toBeVisible();
+    await expect(files.getByRole('treeitem', { name: /demo-git/ })).toContainText('3 files');
+    // Details belong to one selected commit, not to a repository row.
+    await expect(page.getByRole('button', { name: 'Show Details' })).toBeDisabled();
+    await expect(page.getByTestId('push-details')).toHaveCount(0);
 
-    // Footer per §2A.
+    // Footer: Push tags off, its mode greyed; no Run Git hooks without a pre-push hook.
     await expect(page.getByTestId('push-tags-on')).not.toBeChecked();
     await expect(page.getByTestId('push-tags-mode')).toBeDisabled();
-    await expect(page.getByTestId('push-run-hooks')).toBeChecked();
-    await expect(page.getByRole('button', { name: 'Push', exact: true })).toBeEnabled();
+    await expect(page.getByTestId('push-run-hooks')).toHaveCount(0);
+    await expect(pushButton(page)).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
-    // A single repo needs no per-repo checkbox — the section is the dialog.
-    await expect(page.getByTestId('push-repo-demo-git')).toHaveCount(0);
   });
 
+  test('a commit row carries IntelliJ’s tooltip: hash, date, author, message', async ({ page }) => {
+    await openPush(page);
+    const title = await commitRows(page).first().getAttribute('title');
+    expect(title).toMatch(/^bbbbbbbb {2}.+ {2}by Ada\n\nfix the lexer\n\nWhy it was done\.\n\nSelect to show commit details$/);
+  });
+
+  test('one selected commit shows its own changes and its details', async ({ page }) => {
+    await openPush(page);
+    await commitRows(page).nth(1).click();
+    await expect
+      .poll(async () => {
+        const asked = (await posted(page)).filter((m) => m.method === 'pushDialog/changes');
+        return asked.at(-1)?.params?.['shas'];
+      })
+      .toEqual(['a'.repeat(40)]);
+    const files = page.getByTestId('push-files');
+    await expect(files.getByRole('treeitem', { name: /Strings\.java/ })).toBeVisible();
+    await expect(files.getByRole('treeitem', { name: /Controller\.java/ })).toHaveCount(0);
+    await expect(page.getByTestId('push-details')).toContainText('add the parser');
+    await expect(page.getByTestId('push-details')).toContainText('ada@example.com');
+
+    // Show Details off hides the panel, and is remembered by the host.
+    await page.getByRole('button', { name: 'Show Details' }).click();
+    await expect(page.getByTestId('push-details')).toHaveCount(0);
+    await expect
+      .poll(async () => (await posted(page)).some((m) => m.method === 'pushDialog/saveUi' && m.params?.['showDetails'] === false))
+      .toBe(true);
+  });
+
+  test('several selected commits merge their changes, oldest first, without details', async ({ page }) => {
+    await openPush(page);
+    await commitRows(page).first().click();
+    await commitRows(page).nth(1).click({ modifiers: ['Control'] });
+    await expect
+      .poll(async () => (await posted(page)).filter((m) => m.method === 'pushDialog/changes').at(-1)?.params?.['shas'])
+      .toEqual(['a'.repeat(40), 'b'.repeat(40)]);
+    await expect(page.getByTestId('push-details')).toHaveCount(0);
+
+    // Nothing selected: IntelliJ's empty text.
+    await commitRows(page).first().click({ modifiers: ['Control'] });
+    await commitRows(page).nth(1).click({ modifiers: ['Control'] });
+    await expect(page.getByTestId('push-changes-empty')).toHaveText('No commits selected');
+  });
+
+  test('`...` doubles the twenty commits a row shows', async ({ page }) => {
+    await openPush(page, 'many');
+    await expect(commitRows(page)).toHaveCount(20);
+    await page.getByTestId('push-more-commits').click();
+    await expect(commitRows(page)).toHaveCount(40);
+    await page.getByTestId('push-more-commits').click();
+    await expect(commitRows(page)).toHaveCount(45);
+    await expect(page.getByTestId('push-more-commits')).toHaveCount(0);
+  });
+});
+
+test.describe('push dialog — what runs', () => {
   test('the will-run line is the real argv and tracks every option', async ({ page }) => {
-    await openPush(page);
+    await openPush(page, 'hooks');
     const cmd = page.getByTestId('push-command');
-    await expect(cmd).toContainText('git push origin feature/x:refs/heads/feature/x');
-
-    await page.getByTestId('push-run-hooks').uncheck();
-    await expect(cmd).toContainText('git push --no-verify origin');
-
+    await expect(cmd).toContainText('git push origin refs/heads/feature/x:refs/heads/feature/x');
     await page.getByTestId('push-tags-on').check();
-    await expect(cmd).toContainText('--tags');
+    await expect(cmd).toContainText('git push --tags origin');
     await page.getByTestId('push-tags-mode').selectOption('follow');
-    await expect(cmd).toContainText('--follow-tags');
-    await expect(cmd).not.toContainText('--tags ');
+    await expect(cmd).toContainText('git push --follow-tags origin');
+    // Run Git hooks is there with a pre-push hook, ticked to start with.
+    await expect(page.getByTestId('push-run-hooks')).toBeChecked();
+    await page.getByTestId('push-run-hooks').uncheck();
+    await expect(cmd).toContainText('git push --no-verify --follow-tags origin');
   });
 
-  test('Push posts the destination and the footer options', async ({ page }) => {
+  test('Push posts each repository’s source, target and the footer options', async ({ page }) => {
     await openPush(page);
     await page.getByTestId('push-tags-on').check();
-    await page.getByTestId('push-run-hooks').uncheck();
-    await page.getByRole('button', { name: 'Push', exact: true }).click();
-
-    await expect.poll(async () => acceptOf(await posted(page))).toMatchObject({
-      repos: [{ root: 'D:/repos/demo-git', remote: 'origin', remoteBranch: 'feature/x' }],
+    await pushButton(page).click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    expect(acceptOf(await posted(page))).toEqual({
+      repos: [
+        {
+          root: 'D:/repos/demo-git',
+          source: { kind: 'branch', presentation: 'feature/x', revision: 'refs/heads/feature/x', branch: 'feature/x' },
+          target: { remote: 'origin', branch: 'feature/x' },
+          setUpstream: false,
+        },
+      ],
       tags: 'all',
-      runHooks: false,
+      runHooks: true,
       force: false,
     });
   });
 
-  test('the split button offers Force Push and accepts with force', async ({ page }) => {
+  test('Force Push warns, naming the target; Cancel keeps the dialog', async ({ page }) => {
     await openPush(page);
     await page.getByRole('button', { name: 'Push options' }).click();
-    await page.getByRole('menuitem', { name: 'Force Push…' }).click();
+    await page.getByRole('menuitem', { name: 'Force Push' }).click();
+    const confirm = page.getByTestId('push-force-confirm');
+    await expect(confirm).toContainText(
+      "You're going to force push to 'feature/x'. It may overwrite commits at the remote. Are you sure you want to proceed?",
+    );
+    await page.getByTestId('push-force-confirm-cancel').click();
+    await expect(confirm).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Push Commits to demo-git' })).toBeVisible();
+    expect(acceptOf(await posted(page))).toBeUndefined();
+    expect((await posted(page)).some((m) => m.method === 'dialog/cancel')).toBe(false);
+  });
 
-    await expect.poll(async () => acceptOf(await posted(page))).toMatchObject({ force: true });
+  test('Force Push with Don’t warn about this target posts both', async ({ page }) => {
+    await openPush(page);
+    await page.getByRole('button', { name: 'Push options' }).click();
+    await page.getByRole('menuitem', { name: 'Force Push' }).click();
+    await page.getByTestId('push-force-dont-warn').check();
+    await page.getByTestId('push-force-confirm-accept').click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    const accepted = acceptOf(await posted(page))!;
+    expect(accepted['force']).toBe(true);
+    expect(accepted['dontWarnForce']).toEqual({ remote: 'origin', branch: 'feature/x' });
+  });
+
+  test('Force Push is not offered for a protected branch, and says why', async ({ page }) => {
+    await openPush(page, 'protected');
+    await page.getByRole('button', { name: 'Push options' }).click();
+    const force = page.getByRole('menuitem', { name: 'Force Push' });
+    await expect(force).toHaveAttribute('aria-disabled', 'true');
+    await expect(force).toHaveAttribute('title', /Force push to main is prohibited/);
   });
 
   test('Escape and Cancel both post dialog/cancel', async ({ page }) => {
     await openPush(page);
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.keyboard.press('Escape');
+    await expect.poll(async () => (await posted(page)).some((m) => m.method === 'dialog/cancel')).toBe(true);
+  });
+});
+
+test.describe('push dialog — the target', () => {
+  test('clicking the branch edits it: suggestions, recent first; Enter retargets to a New branch', async ({ page }) => {
+    await openPush(page);
+    await page.getByTestId('push-target-demo-git').click();
+    const field = page.getByTestId('push-edit-branch');
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue('feature/x');
+    // Push waits while a target is being edited, as IntelliJ's does.
+    await expect(pushButton(page)).toBeDisabled();
+
+    await field.fill('');
+    await field.pressSequentially('re');
+    const list = page.getByTestId('push-completion');
+    await expect(list.getByRole('option')).toHaveText([/review\/x.*recently pushed/, /release\/1\.2/]);
+
+    // Spaces become `_` as they are typed.
+    await field.fill('');
+    await field.pressSequentially('my topic');
+    await expect(field).toHaveValue('my_topic');
+    await page.keyboard.press('Escape'); // closes the suggestions only
+    await expect(field).toBeVisible();
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByTestId('push-target-editor')).toHaveCount(0);
     await expect
-      .poll(async () => (await posted(page)).filter((m) => m.method === 'dialog/cancel').length)
-      .toBe(1);
+      .poll(async () => (await posted(page)).find((m) => m.method === 'pushDialog/retarget')?.params)
+      .toEqual({ root: 'D:/repos/demo-git', remote: 'origin', branch: 'my_topic' });
+    await expect(page.getByTestId('push-badge-demo-git')).toHaveText('New');
+    await expect(commitRows(page)).toHaveCount(3);
+    await expect(page.getByTestId('push-command')).toContainText('refs/heads/feature/x:refs/heads/my_topic');
+
+    await pushButton(page).click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    const repos = acceptOf(await posted(page))!['repos'] as Array<{ target: unknown }>;
+    expect(repos[0]?.target).toEqual({ remote: 'origin', branch: 'my_topic' });
+  });
+
+  test('Escape cancels the edit, not the dialog', async ({ page }) => {
+    await openPush(page);
+    await page.getByTestId('push-target-demo-git').click();
+    await page.getByTestId('push-edit-branch').fill('other');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('push-target-editor')).toHaveCount(0);
+    await expect(page.getByTestId('push-target-demo-git')).toHaveText('feature/x');
+    expect((await posted(page)).some((m) => m.method === 'dialog/cancel')).toBe(false);
+    expect((await posted(page)).some((m) => m.method === 'pushDialog/retarget')).toBe(false);
+  });
+
+  test('a name git would refuse is not applied', async ({ page }) => {
+    await openPush(page);
+    await page.getByTestId('push-target-demo-git').click();
+    await page.getByTestId('push-edit-branch').fill('topic.lock');
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('push-edit-problem')).toHaveText('Invalid destination branch name: topic.lock');
+    await expect(page.getByTestId('push-target-editor')).toBeVisible();
+  });
+
+  test('Set upstream appears for another target, labels it, and reaches argv', async ({ page }) => {
+    await openPush(page);
+    await page.keyboard.press('F2');
+    const field = page.getByTestId('push-edit-branch');
+    await expect(field).toBeFocused();
+    await expect(page.getByTestId('push-set-upstream')).toHaveCount(0);
+    await field.fill('release/1.2');
+    await page.getByTestId('push-set-upstream').check();
+    await field.press('Enter');
+    await expect(page.getByTestId('push-badge-demo-git')).toHaveText('Upstream');
+    await expect(page.getByTestId('push-command')).toContainText('git push --set-upstream origin');
+    await pushButton(page).click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    const repos = acceptOf(await posted(page))!['repos'] as Array<{ setUpstream: boolean }>;
+    expect(repos[0]?.setUpstream).toBe(true);
+  });
+
+  test('clicking the remote lists the remotes and Define remote; picking one retargets', async ({ page }) => {
+    await openPush(page);
+    await page.getByTestId('push-remote-demo-git').click();
+    const menu = page.getByRole('menu', { name: 'Remotes' });
+    await expect(menu.getByRole('menuitemcheckbox')).toHaveText(['origin', 'upstream']);
+    await expect(menu.getByRole('menuitem', { name: 'Define remote' })).toBeVisible();
+    await menu.getByRole('menuitemcheckbox', { name: 'upstream' }).click();
+    await expect
+      .poll(async () => (await posted(page)).find((m) => m.method === 'pushDialog/retarget')?.params)
+      .toEqual({ root: 'D:/repos/demo-git', remote: 'upstream', branch: 'feature/x' });
+    await expect(repoRow(page)).toContainText('upstream : feature/x');
+  });
+
+  test('without a remote: Define remote, a URL that fails, then one that works', async ({ page }) => {
+    await openPush(page, 'noRemote');
+    await expect(pushButton(page)).toBeDisabled();
+    await page.getByTestId('push-define-remote-link').click();
+    const form = page.getByTestId('push-define-remote');
+    await expect(form).toContainText('Define Remote');
+    await expect(page.getByTestId('push-remote-name')).toHaveValue('origin');
+    await expect(page.getByTestId('push-remote-fetch')).toBeChecked();
+
+    await page.getByTestId('push-remote-url').fill('bad');
+    await page.getByTestId('push-define-remote-accept').click();
+    await expect(page.getByTestId('push-remote-url-problem')).toHaveText('repository not found');
+
+    await page.getByTestId('push-remote-url').fill('https://example.invalid/demo.git');
+    await page.getByTestId('push-define-remote-accept').click();
+    await expect(form).toHaveCount(0);
+    await expect(repoRow(page)).toContainText('feature/x → origin : feature/x');
+    await expect(page.getByTestId('push-badge-demo-git')).toHaveText('New');
+    await expect(pushButton(page)).toBeEnabled();
   });
 });
 
-test.describe('P13-T1 retargeting', () => {
-  test('clicking the target opens the editor and adopts the recomputed section', async ({
-    page,
-  }) => {
-    await openPush(page);
-    await page.getByTestId('push-target-demo-git').click();
+test.describe('push dialog — several repositories', () => {
+  test('checkboxes, the checked one open, the other faded and closed; Space toggles', async ({ page }) => {
+    await openPush(page, 'multi');
+    await expect(page.getByRole('dialog', { name: 'Push Commits' })).toBeVisible();
+    await expect(page.getByTestId('push-repo-demo-git')).toBeChecked();
+    await expect(page.getByTestId('push-repo-lib-utils')).not.toBeChecked();
+    await expect(repoRow(page, 'lib-utils')).toHaveClass(/gt-push-dim/);
+    await expect(repoRow(page, 'lib-utils')).toHaveAttribute('aria-expanded', 'false');
+    await expect(commitRows(page)).toHaveCount(2);
 
-    const remote = page.getByTestId('push-edit-remote');
-    await expect(remote).toHaveValue('origin');
-    await remote.selectOption('upstream');
-    await page.getByTestId('push-edit-branch').fill('release/1.2');
-    await page.getByTestId('push-edit-apply').click();
+    // Only the checked repository is pushed.
+    await expect(page.getByTestId('push-command')).toContainText('refs/heads/feature/x');
+    await expect(page.getByTestId('push-command')).not.toContainText('refs/heads/main');
 
-    // The host's answer replaces the section wholesale — commits, files and all.
-    const target = page.getByTestId('push-target-demo-git');
-    await expect(target).toContainText('upstream : release/1.2');
-    await expect(target).toContainText('new');
-    await expect(page.getByTestId('push-count-demo-git')).toHaveText('3 commits');
-    await expect(page.getByTestId('push-files-count')).toHaveText('4 files');
-
-    // Retargeting to a different name must not repoint tracking, but publishing
-    // an untracked branch under its own name must — the mock returns
-    // hasUpstream:false, so the refspec changes and --set-upstream stays off.
-    const cmd = page.getByTestId('push-command');
-    await expect(cmd).toContainText('git push upstream feature/x:refs/heads/release/1.2');
-    await expect(cmd).not.toContainText('--set-upstream');
+    await repoRow(page, 'lib-utils').click();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('push-repo-lib-utils')).toBeChecked();
+    await expect(page.getByTestId('push-command')).toContainText('refs/heads/main:refs/heads/main');
+    await page.keyboard.press('ArrowRight');
+    await expect(commitRows(page)).toHaveCount(3);
   });
 
-  test('accepting after a retarget pushes to the chosen ref', async ({ page }) => {
-    await openPush(page);
-    await page.getByTestId('push-target-demo-git').click();
-    await page.getByTestId('push-edit-branch').fill('release/1.2');
-    await page.getByTestId('push-edit-apply').click();
-    await expect(page.getByTestId('push-target-demo-git')).toContainText('origin : release/1.2');
-
-    await page.getByRole('button', { name: 'Push', exact: true }).click();
-    await expect.poll(async () => acceptOf(await posted(page))).toMatchObject({
-      repos: [{ root: 'D:/repos/demo-git', remote: 'origin', remoteBranch: 'release/1.2' }],
-    });
+  test('Edit all targets sends what is typed to every repository', async ({ page }) => {
+    await openPush(page, 'multi');
+    await page.getByTestId('push-repo-lib-utils').check();
+    await page.getByTestId('push-edit-all').click();
+    const field = page.getByTestId('push-edit-branch');
+    await field.fill('release/2.0');
+    // The other row follows as you type.
+    await expect(repoRow(page, 'lib-utils')).toContainText('origin : release/2.0');
+    await field.press('Enter');
+    await expect
+      .poll(async () =>
+        (await posted(page))
+          .filter((m) => m.method === 'pushDialog/retarget')
+          .map((m) => m.params?.['root'])
+          .sort(),
+      )
+      .toEqual(['D:/repos/demo-git', 'D:/repos/lib-utils']);
   });
 });
 
-test.describe('P13-T1 file pane toolbar', () => {
-  test('group-by flattens the tree and back', async ({ page }) => {
+test.describe('push dialog — the changes toolbar', () => {
+  test('Show Diff and Edit Source need a selected file; View Options flattens the tree', async ({ page }) => {
     await openPush(page);
-    // Grouped: the single-child chain collapses into one folder row with a count.
-    const folderRow = page.getByRole('treeitem', { name: 'src/main/java, 2 files' });
-    await expect(folderRow).toBeVisible();
-
-    await page.getByRole('button', { name: 'Group by Directory' }).click();
-    await expect(folderRow).toHaveCount(0);
-    await expect(
-      page.getByRole('treeitem', { name: 'src/main/java/util/Strings.java' }),
-    ).toBeVisible();
-
-    await page.getByRole('button', { name: 'Group by Directory' }).click();
-    await expect(folderRow).toBeVisible();
-  });
-
-  test('Show Diff and Edit Source need a selected file, then reach the host', async ({ page }) => {
-    await openPush(page);
-    const showDiff = page.getByRole('button', { name: 'Show Diff' });
-    await expect(showDiff).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Show Diff' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Edit Source' })).toBeDisabled();
-
-    await page.getByRole('treeitem', { name: /Strings\.java/ }).click();
-    await expect(showDiff).toBeEnabled();
-    await showDiff.click();
+    const files = page.getByTestId('push-files');
+    await files.getByRole('treeitem', { name: /Strings\.java/ }).click();
+    await page.getByRole('button', { name: 'Show Diff' }).click();
     await expect
-      .poll(async () => (await posted(page)).filter((m) => m.method === 'pushDialog/openDiff').length)
-      .toBe(1);
-
+      .poll(async () => (await posted(page)).find((m) => m.method === 'pushDialog/openDiff')?.params?.['index'])
+      .toBe(0);
     await page.getByRole('button', { name: 'Edit Source' }).click();
     await expect
-      .poll(async () => (await posted(page)).filter((m) => m.method === 'pushDialog/openFile').length)
-      .toBe(1);
-  });
+      .poll(async () => (await posted(page)).find((m) => m.method === 'pushDialog/openFile')?.params?.['path'])
+      .toBe('src/main/java/util/Strings.java');
 
-  test('Preview on Click opens the diff from a single selection', async ({ page }) => {
-    await openPush(page);
-    await page.getByRole('button', { name: 'Preview on Click' }).click();
-    await page.getByRole('treeitem', { name: /Controller\.java/ }).click();
-    await expect
-      .poll(async () => (await posted(page)).filter((m) => m.method === 'pushDialog/openDiff').length)
-      .toBe(1);
+    await page.getByRole('button', { name: 'View Options' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Directory' }).click();
+    await expect(files.getByRole('treeitem', { name: /src\/main\/java\/util\/Strings\.java/ })).toBeVisible();
   });
 });
