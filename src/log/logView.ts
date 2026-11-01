@@ -266,7 +266,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     if (!s) {
       s = new LogService(repo, this.context.workspaceState, (l) => this.core.output.appendLine(`[log] ${l}`));
       this.services.set(key, s);
-      repo.disposables.add({ dispose: () => this.services.delete(key) });
+      const service = s;
+      repo.disposables.add({
+        dispose: () => {
+          this.services.delete(key);
+          service.dispose();
+        },
+      });
     }
     return s;
   }
@@ -861,7 +867,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     this.sessions.set(tab, session);
     this.tabsState = updateTab(this.tabsState, tab, filterDto, tab === MAIN_LOG_TAB ? undefined : repo.root);
     this.saveTabs();
-    void session.service.maybeMaintain();
+    void session.service.maybeMaintain(this.core.git);
     // P12-T2: refs move (branch created, favorite toggled, checkout…) → the
     // tab's Branches pane re-requests. The event carries only the tab: the
     // webview's own request dedups bursts naturally.

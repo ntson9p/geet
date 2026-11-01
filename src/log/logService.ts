@@ -5,6 +5,7 @@
  * from Uri-free DTOs so vitest can drive it.
  */
 import type { RepoHandle } from '../core/core';
+import type { GitExecutor } from '../core/git/executor';
 import { parseNameStatusZ, type NameStatusEntry } from '../branches/parsing';
 import {
   LOG_FORMAT,
@@ -20,6 +21,10 @@ export const PAGE_SIZE = 2000;
 const CHUNK_ROWS = 500;
 const CACHE_CAPACITY = 20;
 const MAINTENANCE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/** Opening a repository is its busiest minute; the maintenance waits it out. */
+export const MAINTENANCE_DELAY_MS = 60_000;
+/** A git operation is running: the maintenance looks again this much later. */
+export const MAINTENANCE_RETRY_MS = 15_000;
 
 export interface LogRow extends Commit {
   /** '<' | '>' side marker in range mode. */
@@ -56,6 +61,11 @@ interface MaintenanceStorage {
 
 export class LogService {
   private readonly pageCache = new Map<string, LogPageResult>(); // insertion-ordered LRU
+  /** The maintenance waiting for its moment, or running. */
+  private maintenance: Promise<void> | undefined;
+  /** Ends the maintenance's current wait early (dispose). */
+  private wakeMaintenance: (() => void) | undefined;
+  private disposed = false;
   private authorsCache: { headSha: string | undefined; authors: string[] } | undefined;
 
   constructor(
@@ -342,29 +352,76 @@ export class LogService {
     return authors;
   }
 
-  /** Throttled `commit-graph write` maintenance (capability-gated, daily). */
-  async maybeMaintain(): Promise<void> {
-    if (!this.repo.queue || this.storage === undefined) return;
-    const capsOk = this.repo.model.snapshot.capabilities?.commitGraph === true;
-    if (!capsOk) return;
+  /**
+   * The daily `commit-graph write` (capability-gated), in the background.
+   *
+   * It used to go on the queue's mutation lane the moment a Log session
+   * started. A mutation stops every read and cancels the ones in flight, so
+   * the first Log of the day — its first page, and the status, the branches,
+   * the details with it — waited for a write that takes seconds on a large
+   * history and a minute on a very large one, under a progress notification.
+   * The write changes nothing anyone sees: refs, index and worktree are not
+   * touched, and git swaps the file in whole. So it needs no lane. It waits
+   * out the opening minute, steps aside while a git operation runs, and then
+   * runs on its own. Resolves when it is done or has nothing to do.
+   */
+  maybeMaintain(
+    git: GitExecutor,
+    timing: { delayMs?: number; retryMs?: number } = {},
+  ): Promise<void> {
+    if (this.maintenance !== undefined) return this.maintenance;
+    const storage = this.storage;
+    if (storage === undefined || this.disposed) return Promise.resolve();
+    if (this.repo.model.snapshot.capabilities?.commitGraph !== true) return Promise.resolve();
     const key = `gittree.commitGraph.${this.repo.root}`;
-    const last = this.storage.get<number>(key) ?? 0;
-    if (Date.now() - last < MAINTENANCE_INTERVAL_MS) return;
-    await this.storage.update(key, Date.now());
-    try {
-      await this.repo.queue.enqueue({
-        label: 'commit-graph maintenance',
-        kind: 'mutate',
-        run: async (git, token) => {
-          await git.exec(
-            this.repo.root,
-            ['commit-graph', 'write', '--reachable', '--changed-paths'],
-            { token, allowNonZeroExit: true },
-          );
-        },
+    const due = (): boolean =>
+      Date.now() - (storage.get<number>(key) ?? 0) >= MAINTENANCE_INTERVAL_MS;
+    if (!due()) return Promise.resolve();
+    const run = async (): Promise<void> => {
+      await this.waitFor(timing.delayMs ?? MAINTENANCE_DELAY_MS);
+      while (!this.disposed && this.repo.queue.isMutationActive) {
+        await this.waitFor(timing.retryMs ?? MAINTENANCE_RETRY_MS);
+      }
+      // Gone, or another window of this workspace did it meanwhile.
+      if (this.disposed || !due()) return;
+      // Stamped when it starts, not when asked: a window closed during the
+      // wait leaves the day's write to the next one.
+      await storage.update(key, Date.now());
+      const res = await git.exec(
+        this.repo.root,
+        ['commit-graph', 'write', '--reachable', '--changed-paths'],
+        { allowNonZeroExit: true },
+      );
+      if (res.exitCode !== 0) {
+        this.trace(`commit-graph maintenance exited ${res.exitCode}: ${res.stderr.trim()}`);
+      }
+    };
+    this.maintenance = run()
+      .catch((err: unknown) => {
+        this.trace(`commit-graph maintenance failed: ${String(err)}`);
+      })
+      .finally(() => {
+        this.maintenance = undefined;
       });
-    } catch (err) {
-      this.trace(`commit-graph maintenance failed: ${String(err)}`);
-    }
+    return this.maintenance;
+  }
+
+  private waitFor(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const done = (): void => {
+        clearTimeout(timer);
+        if (this.wakeMaintenance === done) this.wakeMaintenance = undefined;
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      timer.unref?.();
+      this.wakeMaintenance = done;
+    });
+  }
+
+  /** The repository has gone: a maintenance still waiting does not run. */
+  dispose(): void {
+    this.disposed = true;
+    this.wakeMaintenance?.();
   }
 }

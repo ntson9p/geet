@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { createGitExecutor } from '../../../src/core/git/executor';
+import { createGitExecutor, type GitExecutorImpl } from '../../../src/core/git/executor';
 import { RepositoryModel } from '../../../src/core/model/repositoryModel';
 import { OperationQueue } from '../../../src/core/ops/operationQueue';
 import type { RepoHandle } from '../../../src/core/core';
@@ -127,4 +127,111 @@ describe('LogService fixture sanity', () => {
     expect(Number.parseInt(merges, 10)).toBeGreaterThan(10);
     expect(fs.existsSync(path.join(fixture.root, 'main.txt'))).toBe(true);
   });
+});
+
+describe('LogService commit-graph maintenance', () => {
+  const isGraphWrite = (args: readonly string[]): boolean => args[0] === 'commit-graph';
+
+  async function setup(commitGraph = true) {
+    const fixture = FixtureRepo.create();
+    fixture.commit('one', { 'a.txt': '1\n' });
+    fixture.commit('two', { 'a.txt': '2\n' });
+    const inner = await createGitExecutor({});
+    if (!inner) throw new Error('git missing');
+    // What the maintenance itself runs, kept apart from the queue's reads.
+    const calls: string[][] = [];
+    const git: GitExecutorImpl = Object.create(inner) as GitExecutorImpl;
+    git.exec = (r, args, o) => {
+      calls.push(args);
+      return inner.exec(r, args, o);
+    };
+    const model = new RepositoryModel(fixture.root);
+    model.update({ capabilities: { ...inner.caps, commitGraph } });
+    const queue = new OperationQueue(fixture.root, inner);
+    const values = new Map<string, unknown>();
+    const storage = {
+      get: <T,>(key: string): T | undefined => values.get(key) as T | undefined,
+      update: (key: string, value: unknown): void => {
+        values.set(key, value);
+      },
+    };
+    const handle = { id: fixture.root, root: fixture.root, model, queue } as RepoHandle;
+    const service = new LogService(handle, storage);
+    cleanups.push(() => {
+      service.dispose();
+      queue.dispose();
+      model.dispose();
+      fixture.dispose();
+    });
+    const writes = (): number => calls.filter(isGraphWrite).length;
+    return { fixture, git, queue, service, values, writes, key: `gittree.commitGraph.${fixture.root}` };
+  }
+
+  it('waits out the opening, holds up no read, then writes the commit-graph', async () => {
+    const { fixture, git, queue, service, values, writes, key } = await setup();
+    let finished = false;
+    const done = service.maybeMaintain(git, { delayMs: 2000, retryMs: 20 }).then(() => {
+      finished = true;
+    });
+
+    // The first page is read at once: nothing on the mutation lane, nothing
+    // cancelled, nothing written yet.
+    const page = await service.getPage({ sort: 'topo', refs: 'HEAD' }, 0);
+    expect(page.rows).toHaveLength(2);
+    expect(queue.isMutationActive).toBe(false);
+    expect(finished).toBe(false);
+    expect(writes()).toBe(0);
+    expect(values.has(key)).toBe(false);
+
+    await done;
+    expect(writes()).toBe(1);
+    const info = path.join(fixture.gitDir, 'objects', 'info');
+    expect(
+      fs.existsSync(path.join(info, 'commit-graph')) || fs.existsSync(path.join(info, 'commit-graphs')),
+    ).toBe(true);
+    expect(values.get(key)).toEqual(expect.any(Number));
+  }, 60_000);
+
+  it('steps aside while a git operation runs', async () => {
+    const { git, queue, service, writes } = await setup();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const mutation = queue.enqueue({ label: 'held', kind: 'mutate', run: () => held });
+    const done = service.maybeMaintain(git, { delayMs: 10, retryMs: 20 });
+
+    await new Promise((r) => setTimeout(r, 250));
+    expect(writes()).toBe(0);
+
+    release();
+    await mutation;
+    await done;
+    expect(writes()).toBe(1);
+  }, 60_000);
+
+  it('runs once at a time, and once a day', async () => {
+    const { git, service, writes } = await setup();
+    const first = service.maybeMaintain(git, { delayMs: 10 });
+    expect(service.maybeMaintain(git, { delayMs: 10 })).toBe(first);
+    await first;
+    await service.maybeMaintain(git, { delayMs: 10 });
+    expect(writes()).toBe(1);
+  }, 60_000);
+
+  it('a repository that goes away during the wait is not written to', async () => {
+    const { git, service, values, writes, key } = await setup();
+    const done = service.maybeMaintain(git, { delayMs: 60_000 });
+    service.dispose();
+    await done;
+    expect(writes()).toBe(0);
+    // The day's write is still owed: the next window does it.
+    expect(values.has(key)).toBe(false);
+  }, 60_000);
+
+  it('does nothing where git cannot write a commit-graph', async () => {
+    const { git, service, writes } = await setup(false);
+    await service.maybeMaintain(git, { delayMs: 10 });
+    expect(writes()).toBe(0);
+  }, 60_000);
 });

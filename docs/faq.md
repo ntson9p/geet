@@ -161,7 +161,9 @@ re-initializing the repository leaves shelved patches intact.
 
 On repos above ~50k tracked files GitTree offers (once) to enable git's
 built-in FSMonitor and untracked cache — the two biggest `git status`
-accelerators (needs git ≥ 2.37). Commit-graph maintenance runs automatically.
+accelerators (needs git ≥ 2.37). Commit-graph maintenance runs automatically,
+once a day per repository, in the background: it starts a minute after the
+log opens, waits while a git operation runs, and never holds up a read.
 Benchmarks and the tuning playbook are in [perf.md](perf.md).
 
 ### Why does the extension ask for nothing at install time?
