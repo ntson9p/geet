@@ -33,6 +33,11 @@ export class StatusRefresher implements Disposable {
   private timer: NodeJS.Timeout | undefined;
   private refreshRunning = false;
   private refreshQueuedAgain = false;
+  /**
+   * `refreshNow` callers waiting for a pass that started after they asked.
+   * Taken by the next pass to start, resolved when it ends.
+   */
+  private nextPassWaiters: Array<() => void> = [];
   private disposed = false;
   private readonly mutationSub: Disposable;
   /** Total refreshes executed (observability + tests). */
@@ -60,13 +65,22 @@ export class StatusRefresher implements Disposable {
     this.timer.unref?.();
   }
 
-  /** Immediate refresh (activation, manual refresh command). */
+  /**
+   * Immediate refresh (activation, manual refresh command). Resolves once a
+   * read that **started after this call** has updated the model. With a pass
+   * already running it used to resolve at once — the caller then read the
+   * snapshot that pass was taking from before its own change: a Refresh that
+   * left a stale count, an operation reporting from the old state.
+   */
   refreshNow(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
-    return this.runRefresh();
+    if (this.disposed) return Promise.resolve();
+    const done = new Promise<void>((resolve) => this.nextPassWaiters.push(resolve));
+    void this.runRefresh();
+    return done;
   }
 
   private async runRefresh(): Promise<void> {
@@ -77,6 +91,9 @@ export class StatusRefresher implements Disposable {
       return;
     }
     this.refreshRunning = true;
+    // Everyone who asked before this pass began is answered by it.
+    const waiters = this.nextPassWaiters;
+    this.nextPassWaiters = [];
     try {
       const partial = await this.deps.queue.enqueue({
         label: 'status refresh',
@@ -91,7 +108,8 @@ export class StatusRefresher implements Disposable {
       this.trace(`status refresh failed: ${String(err)}`);
     } finally {
       this.refreshRunning = false;
-      if (this.refreshQueuedAgain && !this.disposed) {
+      for (const resolve of waiters) resolve();
+      if ((this.refreshQueuedAgain || this.nextPassWaiters.length > 0) && !this.disposed) {
         this.refreshQueuedAgain = false;
         void this.runRefresh();
       }
@@ -149,5 +167,8 @@ export class StatusRefresher implements Disposable {
     this.disposed = true;
     if (this.timer) clearTimeout(this.timer);
     this.mutationSub.dispose();
+    // Nobody waits forever on a repository that has gone.
+    for (const resolve of this.nextPassWaiters) resolve();
+    this.nextPassWaiters = [];
   }
 }

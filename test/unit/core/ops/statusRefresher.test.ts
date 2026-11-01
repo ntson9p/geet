@@ -108,6 +108,26 @@ describe('StatusRefresher (real git)', () => {
     expect(statusRuns()).toBeGreaterThanOrEqual(1);
   });
 
+  it('refreshNow during a running refresh waits for a pass that sees the change', async () => {
+    const { repo, model, refresher, statusRuns } = await makeStack(10);
+    // A refresh is already under way when the file appears…
+    const first = refresher.refreshNow();
+    fs.writeFileSync(path.join(repo, 'late.txt'), 'late\n');
+    // …so the second caller must not be answered by it.
+    await refresher.refreshNow();
+    expect(model.snapshot.statusEntries.map((e) => e.path)).toContain('late.txt');
+    expect(statusRuns()).toBeGreaterThanOrEqual(2);
+    await first;
+  });
+
+  it('refreshNow resolves when the refresher is disposed', async () => {
+    const { refresher } = await makeStack(10);
+    void refresher.refreshNow();
+    const waiting = refresher.refreshNow();
+    refresher.dispose();
+    await expect(waiting).resolves.toBeUndefined();
+  });
+
   it('suppresses self-inflicted events and folds them into one post-op refresh', async () => {
     const { repo, queue, refresher, statusRuns, model } = await makeStack(20);
     const mutation = queue.enqueue({
