@@ -6,6 +6,65 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Branches panel, redesigned
+
+The sidebar's Branches panel was IntelliJ's branches popup left standing open:
+* action rows above the list;
+* a branch row that did nothing when clicked;
+* a flat menu as the only way to act;
+* with several repositories, a tree that listed every shared branch once per repository.
+
+It has been rebuilt around three questions.
+
+**Where am I?** With several repositories, the panel starts with one row for each. Each row
+shows:
+* what the repository has checked out;
+* how many commits there are to pull (↓) and to push (↑);
+* how many files have changed.
+
+Hovering a repository row shows Update, Push, Fetch and its menu. With a single repository, the
+first row is the current branch. A repository in the middle of a merge, rebase, cherry-pick or
+revert shows a banner with **Resolve…**, **Continue** and **Abort**.
+
+**Where can I go?** The branches come next, in this order:
+* the starred branches and the ones used lately;
+* every local branch, in folders;
+* the remote branches and the tags, which start closed.
+
+Each row shows its ↓ ↑ counts and how long ago its last commit was. A chip marks a branch that
+is already **merged** into the main branch, or whose remote branch is **gone**.
+
+With several repositories, each branch name is one row however many of them have it. Coloured
+dots on the row show which repositories have the branch: filled where it is checked out. Its
+actions say how many repositories they will touch, for example *Checkout in 2 repositories*.
+Clicking a repository shows only its branches; Ctrl+click adds another.
+
+**What can I do with it?** Clicking a branch never changes anything. It opens the branch's card,
+which shows:
+* its last commit and author;
+* where it stands against the remote branch it tracks;
+* how far it is ahead of, or behind, what is checked out;
+* the two or three actions that fit. Usually that is **Checkout** and **Merge into main**,
+  **Delete** once it is merged, or **Update** and **Push…** for the current branch.
+
+Hovering a row shows Checkout, a star and `⋯`. Right-click shows every action, with real
+submenus: one for the tracked branch and, with several repositories, one per repository. You can
+also drag a branch onto another to merge or rebase it.
+
+Also new:
+* **One filter for everything.** Typing anywhere in the panel starts it, matching letters are
+  highlighted, and when nothing matches it offers to create the branch.
+* **New Branch is a form in the panel.** It has a name field, a Check it out box and, with
+  several repositories, a choice of which ones. It says what would make Create fail before you
+  press it.
+* **Clean Up Branches…** lists the branches that look finished — merged, or their remote branch
+  deleted — and deletes the ones you tick. The notification afterwards offers **Restore**.
+* **Show in Git Log** opens a branch's history in a Log tab of its own.
+* A repository has the same colour here as in the log's *Roots*.
+
+The separate Repositories section is now hidden by default, since the panel lists the
+repositories itself. Turn on `gittree.sidebar.extraViews` to bring it back.
+
 ### Fixed — the first load of the day no longer waits on maintenance
 
 Once a day per repository, opening the Log started a `commit-graph` write, the

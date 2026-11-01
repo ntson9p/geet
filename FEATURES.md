@@ -121,7 +121,7 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
 
 ---
 
-## 2. Branch Management (the Branches popup as an action hub)
+## 2. Branch Management (the Branches popup, and the sidebar's Branches panel)
 
 ### The popup itself (shape)
 
@@ -155,20 +155,92 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5); and the all-roots set is the operations needing no per-root input,
   since GitTree's take their input inside the per-repository call (D27).
-* **The sidebar's Branches section** is this popup standing open, as a tree (D29). Its rows
-  have menus on **right-click** and on the context-menu key / `Shift+F10`, as well as on the
-  `›` button:
-  - **A repository row** opens **that repository's menu**: `Update Project…` · `Push…` ·
-    **`Fetch`** · —— `Commit` · —— `New Branch…` · `Checkout Tag or Revision…` · ——
-    `Stash Changes…` · `Unstash Changes…` · —— `Manage Remotes…`. This is the Repositories
-    section's menu for the same repository, less `Checkout Branch…` (this list is that), and
-    every entry acts on that repository alone. **Fetch is the one place to fetch a single
-    repository:** the header's Fetch, like IntelliJ's, fetches every root. While it runs, the
-    repository's icon turns into a spinning sync icon. A repository with no remote says so
-    (`<name> has no remote to fetch from.`) rather than failing with git's error. IntelliJ
-    has no per-repository Fetch, so this one is GitTree's own.
-  - **A branch row** opens its `›` menu; **a common branch** its all-repositories menu.
-  - A click and Enter still open and close a repository; it has no `›` of its own.
+### The sidebar's Branches panel (shape + behaviour)
+
+The sidebar's **Branches** section (`gittree.branches`) is GitTree's own design, not the popup
+standing open (D34). It answers three questions, top to bottom.
+
+**Where am I?**
+
+* **One repository:** the first row is the current branch — name, what it tracks, `↓ ↑`
+  counts, changed files — and a click opens its card.
+* **Several repositories:** a **Repositories** section, one row per repository in the order
+  the user reads them, each with a coloured dot (its colour in the log's `Roots`), what it has
+  checked out, `↓ ↑` and changed files.
+* Every repository row (and the current-branch row) has **Update Project…**, **Push…**,
+  **Fetch** (that repository alone; it spins while it runs) and **`⋯`** on hover. Right-click
+  or `⋯` gives the repository's menu.
+* **An operation in progress** gets a banner under its repository: *Rebasing 2/5 · 2
+  conflicts* with **Resolve…**, **Continue** and **Abort**.
+
+**Where can I go?**
+
+* **Recent** — the starred branches, then the ones checked out lately (from the reflog), at
+  most eight.
+* **Local** — folded into folders on `/` (*Group by Folder*), starred first, then by name; the
+  folder holding the current branch starts open.
+* **Remote** — one group per remote, folded the same way. Starts shut.
+* **Tags** — newest first. Starts shut; hidden by *Show Tags*.
+* Every branch row shows its `↓ ↑` against its upstream, its last commit's age (`3h`, `2d`,
+  `5mo`) and two chips:
+  - **merged**: all its commits are on the main branch (`origin/HEAD`'s target, else
+    `origin/main`, `origin/master`, `main`, `master`);
+  - **gone**: the remote branch it tracked was deleted.
+* **Several repositories are one list.** A branch name is one row however many repositories
+  have it. A row carries a marker per repository in view: filled where it is checked out,
+  ringed where it exists, a dot where it does not. Its actions run in every repository it
+  stands for and say so: *Checkout in 2 repositories*.
+* **Scope.** Clicking a repository shows only its branches; Ctrl+click adds or removes one. A
+  pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
+  in the section header. The scope narrows what is shown *and* what the rows act on.
+
+**What can I do with it?**
+
+* **A click never changes anything.** It opens the branch's **card** under its row:
+  - the last commit, its author and age;
+  - where the branch stands against what it tracks (*2 to push, 1 to pull · origin/x*,
+    *Not published*, *origin/x was deleted on the remote*);
+  - where it stands against what is checked out (*3 commits ahead of main, 1 behind*,
+    *Already in main*);
+  - the actions its state makes likely:
+    - **Checkout** and **Merge into `<current>`** for a branch with work of its own;
+    - **Checkout** and **Delete** for one that is merged or whose remote branch is gone;
+    - **Update** and **Push…** (and **New Branch…**) for the checked-out one;
+    - **Checkout** and **New Branch…** for a tag.
+  - With several repositories the card has a line per repository, and its buttons are the
+    all-repositories operations (*Checkout in 2*).
+* **Hovering a row** shows **Checkout** (or **Update** and **Push…** on the checked-out
+  branch), the **star** and **`⋯`**. The age column makes way for them.
+* **Right-click or `⋯`** shows every action, from the same registry as the popup and the log's
+  Branches pane (below), with real submenus:
+  - **Tracked Branch `'origin/x'`** holds the upstream's own actions;
+  - with several repositories, the all-repositories operations come first (*Checkout in all 3
+    repositories*), then one submenu per repository with its own full menu.
+  - **Show in Git Log** opens the branch's history in a Log tab of its own.
+* **Drag** a local branch onto another to merge or rebase (the branch trees' own prompt).
+* **The toolbar:** the filter, **Fetch** (every repository; spins until done), **New Branch**,
+  and **`⋯`**:
+  - Update Project…, Commit…, Push…;
+  - New Branch…, Checkout Tag or Revision…, **Clean Up Branches…**;
+  - *Show*: Tags, Incoming / Outgoing Counts, Group by Folder;
+  - Collapse All.
+* **The filter** searches every section at once. Every word must match; matched letters are
+  marked. Sections flatten to whole names, Recent steps aside, `Enter` opens the first match.
+  When nothing matches it offers **Create branch "…"**. Typing anywhere in the list starts a
+  search.
+* **New Branch** is a form in the panel, not a chain of input boxes:
+  - a name, cleaned as you type as IntelliJ's field does (a space becomes `_`);
+  - **Check it out** (ticked);
+  - with several repositories, a chip per repository to choose where.
+  - It says what would make Create fail before Create is pressed: an invalid name, a name a
+    chosen repository already has, a start point a repository lacks. *New Branch from 'x'…*
+    on any branch opens the same form starting at `x`.
+* **Clean Up Branches…** lists the local branches that look finished, grouped by repository:
+  - merged into the main branch — ticked;
+  - their remote branch deleted but not merged (a squash merge leaves exactly that) — unticked,
+    and asked about once more before deleting;
+  - sitting on the main branch's very tip — unticked: just created, or merged by fast-forward.
+  - The checked-out branch is never offered. The notification after deleting has **Restore**.
 
 ### The `›` row submenu (shape + behaviour)
 

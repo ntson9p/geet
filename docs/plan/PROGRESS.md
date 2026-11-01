@@ -807,3 +807,50 @@ Testing (written, **not run**, by the owner's standing instruction):
   - `kit.spec.ts`: press feedback.
 
 Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; extension and webview bundles built. No suite run.
+
+POST-P14ar ✅ 2026-11-02 (branch `new-way-4`): **The Branches panel, redesigned.** The owner found the sidebar panel hard to use, "worse than VS Code's Source Control panel". A native-tree demo of the same content (kept on `new-way-3-native-tree-demo`, commit 1551424) was judged no better, so the panel was redesigned as a webview of GitTree's own (D34).
+
+**Design:**
+- **Status first:**
+  - several repositories: a Repositories section, one row each — colour dot, what is checked out, `↓ ↑`, changes, hover Update / Push / Fetch / `⋯`;
+  - one repository: a current-branch row with the same buttons and a card;
+  - an operation-in-progress banner (Resolve… / Continue / Abort).
+- **Relevance:** Recent (starred, then reflog-recent, merged across repositories a rank at a time, at most 8), Local (folders, starred first), Remote (per remote, shut), Tags (newest first, shut).
+- **One list for many repositories:** a branch name is one row, with a marker per repository in view (filled = checked out, ringed = has it, dot = absent). A scope (click a repository; Ctrl+click adds one; the filter's pill or *Show all* widens it) narrows both what is shown and what is acted on.
+- **Cards:**
+  - a click opens the branch's card: last commit, author, age; where it stands against its upstream and against HEAD (`rev-list --left-right --count HEAD...<sha>`, read when the card opens and cached by sha and HEAD);
+  - two or three buttons chosen by state: Checkout and Merge; Checkout and Delete when merged or gone; Update, Push and New Branch on HEAD; Checkout and New Branch on a tag. Across repositories they are the `COMMON_ACTIONS`.
+- **Menus:** the shared `branchActions` registry with real submenus: Tracked Branch, one submenu per repository, and the all-repositories operations first. Show in Git Log (new `gittree.branches.showInLog`).
+- **Filter:** every word must match, matches are marked, sections flatten, Recent steps aside. The no-match hint offers Create branch.
+- **New Branch form** (inline): `cleanUpBranchNameOnTyping`, a Check it out box, repository chips. It is validated before Create (`newBranch.ts`), then by the host (`createBranches.ts`): everything is checked first, then repositories are done in turn, stopping at the first failure.
+- **Clean Up Branches…** (`gittree.branches.cleanup`):
+  - offers branches merged into the main branch (ticked) and branches whose upstream is gone (unticked);
+  - leaves branches sitting on main's tip unticked (`atMain`);
+  - deletes with `-D` per repository and offers Restore.
+  - The main branch is `mainBranchOf`: `origin/HEAD`'s target, `origin/main` or `origin/master`, then `main` or `master`.
+- **Drag a branch onto another:** the branch trees' `showDropActions`.
+
+**Code:**
+- **Host:**
+  - `branchPanel.ts`: provider, state with recent and merged caches, card facts, run dispatch, `fetchAll`, drop, a pending-event queue for a webview not yet listening;
+  - `panelActions.ts`: menus, card buttons, the `PANEL_COMMANDS` allowlist;
+  - `panelState.ts`: pure — `toRefDto`, `mainBranchOf`, `mergedBranches`, `shownMerged`, `operationOf`, `buildRepoDto`, `cleanupCandidates`, `preTicked`;
+  - `createBranches.ts`, `branchCleanup.ts`.
+- **Shared:** `rootColorIndices` (log and panel share repository colours). New protocol: `BranchPanel*Dto`, `BRANCHES_METHODS`.
+- **Webview:**
+  - `model.ts`: pure — entries, sections, search, folders, heights, card sizes, wording;
+  - `PanelList.tsx`: a variable-height windowed list, focus kept by row id;
+  - `Rows.tsx`, `NewBranchForm.tsx` with `newBranch.ts`, `App.tsx`.
+- **Removed:** `branchesWebView.ts`, `buildSidebarRows`.
+- **Gated:** the Repositories section moved behind `gittree.sidebar.extraViews`.
+- **New setting:** `gittree.branches.groupByFolder`.
+
+Docs: FEATURES §2 (the sidebar's Branches panel), D34 (+ a note on D29), keyboard.md, CHANGELOG, settings.md.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `test/unit/branches/panelState.test.ts`, `test/unit/webview/branchPanelModel.test.ts` (model and New Branch rules).
+- **Integration:** `branchPanel.test.ts` — state, create (and its refusals), multi-repository menu and card, Checkout across both repositories and back, card facts, merged and Clean Up by name. It restores repoD's `main` and deletes its branches.
+- **Playwright:** `branches.spec.ts`, rewritten against a three-repository mock host (`mockBranchesHost.ts`; `__mockSingleRepo`, `__mockHoldFetch`).
+
+Gates: typecheck (both tsconfigs, plus the integration tsconfig), lint, extension bundle and webview build clean. Screenshots of the mock in dark theme checked by eye at 380px and 280px wide.
+
