@@ -199,6 +199,9 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
+/** How long typing has to pause before the search text is applied. */
+const TEXT_FILTER_DELAY_MS = 300;
+
 export function FilterBar({
   filter,
   onChange,
@@ -225,6 +228,36 @@ export function FilterBar({
   searchInputRef,
 }: FilterBarProps) {
   const text = filter.text ?? { q: '', regex: false, matchCase: false };
+  /**
+   * What is typed in the search box, ahead of the filter it becomes. Every
+   * applied filter re-reads the log (`git log --grep`), so applying one per
+   * keystroke made typing lag behind the keyboard; the text is applied once
+   * typing pauses — or at once on Enter.
+   */
+  const [textDraft, setTextDraft] = useState(text.q);
+  const textTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+  // A filter changed from elsewhere (a saved filter, a reset) shows in the
+  // box — unless the user is mid-typing, whose text wins.
+  useEffect(() => {
+    if (textTimer.current === undefined) setTextDraft(text.q);
+  }, [text.q]);
+  useEffect(() => () => clearTimeout(textTimer.current), []);
+  const applyText = useCallback(
+    (q: string) => {
+      clearTimeout(textTimer.current);
+      textTimer.current = undefined;
+      const current = filterRef.current;
+      const was = current.text ?? { q: '', regex: false, matchCase: false };
+      if (q === was.q) return;
+      const next = { ...current };
+      if (q.length === 0) delete next.text;
+      else next.text = { ...was, q };
+      onChange(next);
+    },
+    [onChange],
+  );
   const [refSearch, setRefSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [authors, setAuthors] = useState<string[] | undefined>(undefined);
@@ -333,19 +366,20 @@ export function FilterBar({
         className="gt-input gt-log-search"
         placeholder="Text or hash"
         aria-label="Search commit messages"
-        value={text.q}
+        value={textDraft}
         onChange={(e) => {
           const q = e.currentTarget.value;
-          const next = { ...filter };
-          if (q.length === 0) delete next.text;
-          else next.text = { ...text, q };
-          onChange(next);
+          setTextDraft(q);
+          clearTimeout(textTimer.current);
+          textTimer.current = setTimeout(() => applyText(q), TEXT_FILTER_DELAY_MS);
         }}
         onKeyDown={(e) => {
+          if (e.key !== 'Enter') return;
+          const q = e.currentTarget.value;
           // A hash-shaped entry navigates instead of grepping (IntelliJ).
-          if (e.key === 'Enter' && HASH_RE.test(e.currentTarget.value.trim())) {
-            onGoToRef(e.currentTarget.value.trim());
-          }
+          if (HASH_RE.test(q.trim())) onGoToRef(q.trim());
+          // Enter does not wait for the pause.
+          applyText(q);
         }}
       />
       <ToolbarButton

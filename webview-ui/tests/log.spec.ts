@@ -298,6 +298,24 @@ test.describe('P4-T3/T4 log webview', () => {
     );
   });
 
+  test('search text is applied once typing pauses, not on every keystroke', async ({ page }) => {
+    await openLog(page);
+    const search = page.getByLabel('Search commit messages');
+    const textFilters = async (): Promise<string[]> =>
+      (await posted(page))
+        .filter((m) => m.method === 'log/setFilter')
+        .map((m) => (m.params as { filter?: { text?: { q: string } } }).filter?.text?.q ?? '');
+    await search.pressSequentially('parser', { delay: 30 });
+    // What is typed shows at once, ahead of the filter.
+    await expect(search).toHaveValue('parser');
+    await expect.poll(textFilters).toEqual(['parser']);
+
+    // Enter does not wait for the pause.
+    await search.pressSequentially(' fix', { delay: 10 });
+    await search.press('Enter');
+    expect(await textFilters()).toEqual(['parser', 'parser fix']);
+  });
+
   test('filter bar round-trips: search text and sort produce setFilter', async ({ page }) => {
     await openLog(page);
     await page.getByLabel('Search commit messages').fill('bugfix');
