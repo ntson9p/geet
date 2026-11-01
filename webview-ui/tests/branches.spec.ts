@@ -12,11 +12,15 @@ interface PostedMsg {
   params?: Record<string, unknown>;
 }
 
-async function openPanel(page: Page, opts: { single?: boolean; holdFetch?: boolean } = {}): Promise<void> {
+async function openPanel(
+  page: Page,
+  opts: { single?: boolean; holdFetch?: boolean; holdRun?: boolean } = {},
+): Promise<void> {
   await page.addInitScript((o) => {
     const w = window as unknown as Record<string, unknown>;
     if (o.single === true) w['__mockSingleRepo'] = true;
     if (o.holdFetch === true) w['__mockHoldFetch'] = true;
+    if (o.holdRun === true) w['__mockHoldRun'] = true;
   }, opts);
   await page.addInitScript(mockBranchesHostScript);
   await page.goto('/branches.html');
@@ -124,6 +128,20 @@ test.describe('several repositories', () => {
     // A second click on the row shuts the card.
     await develop.locator('.gtp-branch').click();
     await expect(card).toHaveCount(0);
+  });
+
+  test("a card's button turns until the host has done its action", async ({ page }) => {
+    await openPanel(page, { holdRun: true });
+    const develop = row(page, 'br:local:local:develop');
+    await develop.click();
+    const button = develop.locator('.gtp-card').getByRole('button', { name: 'Checkout in 2' });
+    await button.click();
+    await expect(button).toHaveAttribute('aria-busy', 'true');
+    await expect(button).toBeDisabled();
+    await expect(button.locator('.gt-spin')).toHaveCount(1);
+    await page.evaluate(() => (window as unknown as { __releaseRun: () => void }).__releaseRun());
+    await expect(button).not.toHaveAttribute('aria-busy', 'true');
+    await expect(button).toBeEnabled();
   });
 
   test("a row's own buttons: Checkout in every repository that has it, and the star", async ({ page }) => {

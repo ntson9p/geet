@@ -7,7 +7,8 @@
  * Opt-ins, set before the page loads:
  * - `window.__mockSingleRepo` — just `web`;
  * - `window.__mockHoldFetch` — Fetch All answers only on `window.__releaseFetch()`;
- * - `window.__mockNoOperation` — no rebase in progress.
+ * - `window.__mockNoOperation` — no rebase in progress;
+ * - `window.__mockHoldRun` — `branches/run` answers only on `window.__releaseRun()`.
  * Every message the page posts is in `window.__postedMessages`.
  */
 export const mockBranchesHostScript = `
@@ -129,7 +130,8 @@ export const mockBranchesHostScript = `
           res(p.target ? branchMenu(p.target) : repoMenu(p.root));
           break;
         case 'branches/run': {
-          res(null);
+          if (window.__mockHoldRun === true) window.__releaseRun = () => res(null);
+          else res(null);
           const run = p.run || {};
           if (run.type === 'command' && run.command === 'gittree.fetch' && run.root) {
             const r = repoOf(run.root);

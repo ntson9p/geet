@@ -551,6 +551,8 @@ export interface CardProps {
   readonly onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   /** Detached HEAD: there is no branch to describe. */
   readonly detachedAt?: string;
+  /** The button whose action is running: it spins until the host is done. */
+  readonly running?: string;
 }
 
 /**
@@ -568,6 +570,7 @@ export function BranchCard({
   onButton,
   onMenu,
   detachedAt,
+  running,
 }: CardProps) {
   const lines: ReactNode[] = [];
   if (entry === undefined) {
@@ -642,18 +645,23 @@ export function BranchCard({
     <div className="gtp-card" style={{ marginLeft: indent }} onClick={(e) => e.stopPropagation()}>
       {lines}
       <div className="gtp-card-buttons">
-        {(details?.buttons ?? []).map((button, i) => (
-          <button
-            key={`${button.label}-${i}`}
-            type="button"
-            className={`gt-button gtp-card-button${i === 0 ? ' gt-primary' : ''}`}
-            title={button.title}
-            onClick={() => onButton(button)}
-          >
-            <Codicon name={button.icon} />
-            <span className="gtp-button-label">{button.label}</span>
-          </button>
-        ))}
+        {(details?.buttons ?? []).map((button, i) => {
+          const busy = running === button.label;
+          return (
+            <button
+              key={`${button.label}-${i}`}
+              type="button"
+              className={`gt-button gtp-card-button${i === 0 ? ' gt-primary' : ''}`}
+              title={button.title}
+              aria-busy={busy ? true : undefined}
+              disabled={running !== undefined}
+              onClick={() => onButton(button)}
+            >
+              <Codicon name={busy ? 'loading' : button.icon} spin={busy} />
+              <span className="gtp-button-label">{button.label}</span>
+            </button>
+          );
+        })}
         {details === undefined ? <span className="gtp-dim gtp-loading">Loading…</span> : null}
         <span className="gtp-spacer" />
         <button

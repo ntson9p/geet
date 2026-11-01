@@ -121,6 +121,8 @@ export function App() {
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [form, setForm] = useState<NewBranchRequest | null>(null);
   const [dropOver, setDropOver] = useState<string | undefined>(undefined);
+  /** `<card row id>|<button label>` of a card button whose action is running. */
+  const [runningButton, setRunningButton] = useState<string | undefined>(undefined);
   const [fetching, trackFetch] = useBusy();
 
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -608,6 +610,7 @@ export function App() {
   });
 
   const card = (
+    rowId: string,
     entry: BranchEntry | undefined,
     indent: number,
     menuFor: (at: { x: number; y: number }) => void,
@@ -620,7 +623,22 @@ export function App() {
       now={state.now}
       indent={indent}
       colorOf={colorOf}
-      onButton={(b: BranchPanelButtonDto) => run(b.run)}
+      {...(runningButton?.startsWith(`${rowId}|`) === true
+        ? { running: runningButton.slice(rowId.length + 1) }
+        : {})}
+      onButton={(b: BranchPanelButtonDto) => {
+        if (b.run.type === 'newBranch') {
+          run(b.run);
+          return;
+        }
+        // The host answers when the action is done: the button turns until then.
+        const key = `${rowId}|${b.label}`;
+        setRunningButton(key);
+        void rpc
+          .request(BRANCHES_METHODS.run, { run: b.run }, LONG_MS)
+          .catch(() => undefined)
+          .finally(() => setRunningButton((cur) => (cur === key ? undefined : cur)));
+      }}
       onMenu={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         menuFor({ x: r.right, y: r.bottom });
@@ -704,7 +722,7 @@ export function App() {
                 headMenu({ x: r.right, y: r.bottom });
               },
             }}
-            card={row.card ? card(row.entry, 8, headMenu, row.repo.headSha?.slice(0, 8)) : null}
+            card={row.card ? card(row.id, row.entry, 8, headMenu, row.repo.headSha?.slice(0, 8)) : null}
           />
         );
       }
@@ -734,7 +752,7 @@ export function App() {
               onQuick={(action, e) => onQuick(row.entry, action, e)}
               card={
                 row.card
-                  ? card(row.entry, 8 + row.depth * INDENT + 20, (at) => openBranchMenu(row.entry, at))
+                  ? card(row.id, row.entry, 8 + row.depth * INDENT + 20, (at) => openBranchMenu(row.entry, at))
                   : null
               }
               draggable={row.entry.kind === 'local'}
