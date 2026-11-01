@@ -46,7 +46,8 @@ export function isClosable(id: string): boolean {
 /**
  * Whether two filters show the same commits. The sort is left out: it orders
  * the list, it does not change what is in it, so a history tab re-sorted by
- * hand is still the tab to go back to.
+ * hand is still the tab to go back to. First Parent and No Merges do change
+ * what is in it, so they count.
  */
 export function sameView(a: LogFilter, b: LogFilter): boolean {
   return filterKey(normalized(a)) === filterKey(normalized(b));
@@ -59,6 +60,8 @@ function normalized(f: LogFilter): LogFilter {
   if (out.paths?.length === 0) delete out.paths;
   if (out.text !== undefined && out.text.q.length === 0) delete out.text;
   if (out.follow !== true) delete out.follow;
+  if (out.firstParent !== true) delete out.firstParent;
+  if (out.noMerges !== true) delete out.noMerges;
   return out;
 }
 
@@ -180,6 +183,8 @@ function isFilter(value: unknown): value is LogFilter {
   if (f.authors !== undefined && !isStringArray(f.authors)) return false;
   if (f.paths !== undefined && !isStringArray(f.paths)) return false;
   if (f.follow !== undefined && typeof f.follow !== 'boolean') return false;
+  if (f.firstParent !== undefined && typeof f.firstParent !== 'boolean') return false;
+  if (f.noMerges !== undefined && typeof f.noMerges !== 'boolean') return false;
   if (f.range !== undefined) {
     const range = fieldsOf(f.range);
     if (typeof range?.a !== 'string' || typeof range.b !== 'string') return false;

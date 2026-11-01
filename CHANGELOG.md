@@ -6,6 +6,25 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — Graph Options in the log, as IntelliJ's
+
+The log's sort dropdown is now IntelliJ's **Graph Options** button. Its menu has
+two groups:
+
+- **Sort:** **By Commit Date** or **Topologically** (IntelliSort).
+- **Options:** **First Parent** follows only each merge's first parent, in place
+  of the sort. **No Merges** hides merge commits.
+
+A dot on the button shows when anything differs from By Commit Date with no
+option ticked. Each Log tab keeps its own Graph Options. With No Merges on, the
+graph still connects each merge's child to the commit before the merge.
+
+### Changed — Log tab titles use IntelliJ's wording
+
+A tab with one filter is still titled by its value (**Log: main**). With several
+filters, each now gets IntelliJ's prefix, joined by spaces:
+**Log: on main by Ava --no-merges**.
+
 ### Added — more than one Log tab, as IntelliJ's Open Another Log Tab
 
 The Git tool window's strip has IntelliJ's **+** after its last tab. It

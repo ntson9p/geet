@@ -142,6 +142,24 @@ export class GraphLayout {
     return { sha: commit.sha, nodeLane, colorIdx, lanesBefore, joins, forks, continues };
   }
 
+  /**
+   * Passes over a commit the view leaves out (a merge, under No Merges)
+   * without drawing a row for it. Whatever was waiting for it waits for its
+   * first parent instead, so the line runs on to the next commit shown rather
+   * than down to the bottom of the log looking for one that never comes. Its
+   * other parents are not drawn into: they arrive as tips, which is what a
+   * merged branch looks like once its merge is out of the picture.
+   */
+  hide(commit: GraphInputCommit): void {
+    const [firstParent] = commit.parents;
+    for (let i = 0; i < this.lanes.length; i++) {
+      const lane = this.lanes[i];
+      if (lane?.expects !== commit.sha) continue;
+      this.lanes[i] = firstParent === undefined ? undefined : { expects: firstParent, colorIdx: lane.colorIdx };
+    }
+    this.trimTrailing();
+  }
+
   private firstFreeLane(): number {
     for (let i = 0; i < this.lanes.length; i++) {
       if (this.lanes[i] === undefined) return i;

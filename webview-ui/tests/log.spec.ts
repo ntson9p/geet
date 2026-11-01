@@ -292,13 +292,15 @@ test.describe('P4-T3/T4 log webview', () => {
       )
       .toBe(true);
 
-    await page.getByLabel('Sort').selectOption('intelli');
+    // The mock's log is topologically sorted; Graph Options ▾ moves it to date order.
+    await page.getByRole('button', { name: 'Graph Options' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'By Commit Date' }).click();
     await expect
       .poll(async () =>
         (await posted(page)).some(
           (m) =>
             m.method === 'log/setFilter' &&
-            (m.params as { filter?: { sort?: string } }).filter?.sort === 'intelli',
+            (m.params as { filter?: { sort?: string } }).filter?.sort === 'date',
         ),
       )
       .toBe(true);
@@ -1521,5 +1523,125 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect
       .poll(async () => (await requests(page, 'log/init')).map((p) => p.logTab ?? 'log'))
       .toEqual(['log', 'log-2']);
+  });
+
+  // ---- Graph Options ▾: Sort · By Commit Date · Topologically, Options · First Parent · No Merges ----
+
+  /** Starts the mock's main tab on `filter` instead of its topological default. */
+  async function openLogWith(page: Page, filter: Record<string, unknown>): Promise<void> {
+    await page.addInitScript((f) => {
+      (window as unknown as { __mockTabs?: unknown }).__mockTabs = [{ id: 'log', filter: f, closable: false }];
+    }, filter);
+    await openLog(page);
+  }
+
+  const graphOptions = (page: Page) => page.getByRole('button', { name: 'Graph Options' });
+  const graphRow = (page: Page, name: string) => page.getByRole('menuitemcheckbox', { name, exact: true });
+
+  async function setFilterCalls(page: Page): Promise<Array<Record<string, unknown>>> {
+    return (await posted(page))
+      .filter((m) => m.method === 'log/setFilter')
+      .map((m) => (m.params as { filter: Record<string, unknown> }).filter);
+  }
+
+  test("Graph Options ▾ replaces the sort dropdown with IntelliJ's two groups", async ({ page }) => {
+    await openLogWith(page, { sort: 'date', refs: 'HEAD' });
+    await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveCount(0);
+    // The default graph: no dot on the button.
+    await expect(graphOptions(page).locator('.gt-toolbar-badge')).toHaveCount(0);
+
+    await graphOptions(page).click();
+    const menu = page.getByRole('menu', { name: 'Graph Options' });
+    await expect(menu.locator('.gt-menu-header')).toHaveText(['Sort', 'Options']);
+    await expect(menu.getByRole('menuitemcheckbox')).toHaveText([
+      'By Commit Date',
+      'Topologically',
+      'First Parent',
+      'No Merges',
+    ]);
+    await expect(graphRow(page, 'By Commit Date')).toHaveAttribute('aria-checked', 'true');
+    for (const name of ['Topologically', 'First Parent', 'No Merges']) {
+      await expect(graphRow(page, name)).toHaveAttribute('aria-checked', 'false');
+    }
+  });
+
+  test('Graph Options ▾: Topologically asks for IntelliSort and puts the dot on the button', async ({ page }) => {
+    await openLogWith(page, { sort: 'date', refs: 'HEAD' });
+    await graphOptions(page).click();
+    await graphRow(page, 'Topologically').click();
+    await expect(page.getByRole('menu', { name: 'Graph Options' })).toHaveCount(0);
+    await expect.poll(() => setFilterCalls(page)).toEqual([{ sort: 'intelli', refs: 'HEAD' }]);
+    await expect(graphOptions(page).locator('.gt-toolbar-badge')).toHaveCount(1);
+
+    // The row already ticked re-runs nothing.
+    await graphOptions(page).click();
+    await expect(graphRow(page, 'Topologically')).toHaveAttribute('aria-checked', 'true');
+    await graphRow(page, 'Topologically').click();
+    // The menu closing proves the click was handled; a request would have gone with it.
+    await expect(page.getByRole('menu', { name: 'Graph Options' })).toHaveCount(0);
+    expect(await setFilterCalls(page)).toHaveLength(1);
+  });
+
+  test('Graph Options ▾: No Merges ticks beside the sort and titles the tab as IntelliJ does', async ({ page }) => {
+    await openLogWith(page, { sort: 'date', refs: ['main'] });
+    await expect(stripTab(page, 'log')).toHaveText('Log: main');
+    await graphOptions(page).click();
+    await graphRow(page, 'No Merges').click();
+    await expect
+      .poll(() => setFilterCalls(page))
+      .toEqual([{ sort: 'date', refs: ['main'], noMerges: true }]);
+
+    await expect(stripTab(page, 'log')).toHaveText('Log: on main --no-merges');
+    await expect(graphOptions(page).locator('.gt-toolbar-badge')).toHaveCount(1);
+    await graphOptions(page).click();
+    await expect(graphRow(page, 'By Commit Date')).toHaveAttribute('aria-checked', 'true');
+    await expect(graphRow(page, 'No Merges')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('Graph Options ▾: First Parent takes the sort\'s place, and a sort ends it', async ({ page }) => {
+    await openLogWith(page, { sort: 'intelli', refs: 'HEAD' });
+    await graphOptions(page).click();
+    await graphRow(page, 'First Parent').click();
+    await expect
+      .poll(() => setFilterCalls(page))
+      .toEqual([{ sort: 'intelli', refs: 'HEAD', firstParent: true }]);
+
+    await graphOptions(page).click();
+    await expect(graphRow(page, 'First Parent')).toHaveAttribute('aria-checked', 'true');
+    await expect(graphRow(page, 'By Commit Date')).toHaveAttribute('aria-checked', 'false');
+    await expect(graphRow(page, 'Topologically')).toHaveAttribute('aria-checked', 'false');
+    // Not a filter: the title does not change.
+    await expect(stripTab(page, 'log')).toHaveText('Log');
+
+    await graphRow(page, 'By Commit Date').click();
+    await expect
+      .poll(async () => (await setFilterCalls(page))[1])
+      .toEqual({ sort: 'date', refs: 'HEAD' });
+    await graphOptions(page).click();
+    await expect(graphRow(page, 'By Commit Date')).toHaveAttribute('aria-checked', 'true');
+    await expect(graphRow(page, 'First Parent')).toHaveAttribute('aria-checked', 'false');
+    await page.keyboard.press('Escape');
+    await expect(graphOptions(page).locator('.gt-toolbar-badge')).toHaveCount(0);
+  });
+
+  test('Graph Options ▾ works from the keyboard, past both captions', async ({ page }) => {
+    await openLogWith(page, { sort: 'date', refs: 'HEAD' });
+    await graphOptions(page).click();
+    await expect(graphRow(page, 'By Commit Date')).toHaveClass(/gt-active/);
+    // Topologically, then over the Options caption to First Parent, then No Merges.
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await expect(graphRow(page, 'First Parent')).toHaveClass(/gt-active/);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => setFilterCalls(page)).toEqual([{ sort: 'date', refs: 'HEAD', noMerges: true }]);
+  });
+
+  test('Reset all filters keeps the sort and First Parent, and drops No Merges', async ({ page }) => {
+    await openLogWith(page, { sort: 'intelli', refs: ['main'], firstParent: true, noMerges: true });
+    await page.getByRole('button', { name: 'Reset all filters' }).click();
+    await expect
+      .poll(() => setFilterCalls(page))
+      .toEqual([{ sort: 'intelli', refs: 'HEAD', firstParent: true }]);
   });
 });

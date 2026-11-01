@@ -17,6 +17,19 @@ export interface LogFilter {
   sort: 'topo' | 'date' | 'intelli';
   /** Single-path file-history mode: adds --follow. */
   follow?: boolean;
+  /**
+   * Graph Options ▸ First Parent: follow only the first parent of a merge
+   * (`--first-parent`). IntelliJ makes this a graph mode that stands in for the
+   * sort (`PermanentGraph.Options.FirstParent`), so while it is on `sort` is
+   * kept but not applied — see `graphSort` — and comes back when it is off.
+   */
+  firstParent?: boolean;
+  /**
+   * Graph Options ▸ No Merges: hide merge commits. Not handed to git as
+   * `--no-merges`: the host drops them itself, so it still sees where each
+   * one led and the graph's lines run through it — see `hidesCommit`.
+   */
+  noMerges?: boolean;
 }
 
 /**
@@ -44,7 +57,9 @@ export function isUnfiltered(f: LogFilter): boolean {
     f.dateRange === undefined &&
     (f.paths === undefined || f.paths.length === 0) &&
     (f.text === undefined || f.text.q.length === 0) &&
-    f.follow !== true
+    f.follow !== true &&
+    f.firstParent !== true &&
+    f.noMerges !== true
   );
 }
 
@@ -63,7 +78,37 @@ export function filterKey(f: LogFilter): string {
     mc: f.text?.matchCase === true,
     sort: f.sort,
     follow: f.follow === true,
+    fp: f.firstParent === true,
+    nm: f.noMerges === true,
   });
+}
+
+/**
+ * The order the view is drawn in. First Parent replaces the sort while it is
+ * on, as it does in IntelliJ, and draws in commit-date order: a first-parent
+ * history has no merged-in commits for the topological orders to place.
+ */
+export function graphSort(f: LogFilter): LogFilter['sort'] {
+  return f.firstParent === true ? 'date' : f.sort;
+}
+
+/**
+ * The parents the graph draws a commit with. Under First Parent only the
+ * first: `--first-parent` stops git *walking* the others, but `--parents`
+ * still lists them, and a lane opened for a parent that never arrives would
+ * run to the bottom of the log.
+ */
+export function graphParents(f: LogFilter, parents: readonly string[]): readonly string[] {
+  return f.firstParent === true ? parents.slice(0, 1) : parents;
+}
+
+/**
+ * Whether the host leaves this commit out of the view: a merge, under No
+ * Merges. git's own `--no-merges` would hide it before the host ever saw its
+ * parents, and every line waiting for it would then dangle.
+ */
+export function hidesCommit(f: LogFilter, parents: readonly string[]): boolean {
+  return f.noMerges === true && parents.length > 1;
 }
 
 export interface LogPage {
@@ -78,7 +123,9 @@ export interface LogPage {
 export function buildLogArgs(f: LogFilter, format: string, page: LogPage): string[] {
   const args = ['log', `--format=${format}`, '--parents'];
 
-  args.push(f.sort === 'date' ? '--date-order' : '--topo-order');
+  args.push(graphSort(f) === 'date' ? '--date-order' : '--topo-order');
+  if (f.firstParent === true) args.push('--first-parent');
+  // `noMerges` has no argv on purpose — see `hidesCommit`.
 
   if (f.range) {
     args.push('--left-right', `${f.range.a}...${f.range.b}`);

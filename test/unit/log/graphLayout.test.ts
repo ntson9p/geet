@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GraphLayout, type GraphInputCommit } from '../../../src/log/graphLayout/layout';
+import { GraphLayout, type GraphInputCommit, type GraphRow } from '../../../src/log/graphLayout/layout';
 import { intelliSort } from '../../../src/log/graphLayout/intelliSort';
 import { renderAscii } from './asciiRender';
 
@@ -201,5 +201,84 @@ describe('GraphLayout performance', () => {
     const elapsed = Date.now() - t0;
     expect(rows).toHaveLength(commits.length);
     expect(elapsed).toBeLessThan(400);
+  });
+});
+
+describe('GraphLayout.hide (No Merges)', () => {
+  // e's parent m merges c (first parent) and s2; s2 → s1 → b, c → b → a.
+  const history = [
+    c('e', 'm'),
+    c('m', 'c', 's2'),
+    c('c', 'b'),
+    c('s2', 's1'),
+    c('s1', 'b'),
+    c('b', 'a'),
+    c('a'),
+  ];
+
+  /** What the host does under No Merges: merges pass through, unseen. */
+  function drawHidingMerges(commits: GraphInputCommit[], layout = new GraphLayout()): GraphRow[] {
+    const rows: GraphRow[] = [];
+    for (const commit of commits) {
+      if (commit.parents.length > 1) layout.hide(commit);
+      else rows.push(...layout.appendPage([commit]));
+    }
+    return rows;
+  }
+
+  it('draws no row for the hidden merge', () => {
+    expect(drawHidingMerges(history).map((r) => r.sha)).toEqual(['e', 'c', 's2', 's1', 'b', 'a']);
+  });
+
+  it("the merge's child runs on into its first parent, in one lane and one colour", () => {
+    const rows = new Map(drawHidingMerges(history).map((r) => [r.sha, r]));
+    const e = rows.get('e')!;
+    const cRow = rows.get('c')!;
+    expect(cRow.nodeLane).toBe(e.nodeLane);
+    expect(cRow.colorIdx).toBe(e.colorIdx);
+    expect(cRow.lanesBefore.some((l) => l.lane === e.nodeLane)).toBe(true);
+  });
+
+  it('the merged branch arrives as a tip and meets the line at its base', () => {
+    const rows = new Map(drawHidingMerges(history).map((r) => [r.sha, r]));
+    const s2 = rows.get('s2')!;
+    expect(s2.lanesBefore.some((l) => l.lane === s2.nodeLane)).toBe(false);
+    expect(rows.get('b')!.joins).toHaveLength(1);
+  });
+
+  it('leaves no lane dangling, where leaving the merge out of the layout would', () => {
+    const layout = new GraphLayout();
+    drawHidingMerges(history, layout);
+    expect(layout.laneCount).toBe(2);
+    // Every lane closed at the root, so the next history starts in lane 0.
+    expect(layout.appendPage([c('z')])[0]!.nodeLane).toBe(0);
+
+    // git's own --no-merges: e's lane waits for m for ever.
+    const naive = new GraphLayout();
+    naive.appendPage(history.filter((x) => x.parents.length <= 1));
+    expect(naive.appendPage([c('z')])[0]!.nodeLane).toBeGreaterThan(0);
+  });
+
+  it('several children waiting for the merge all meet at its first parent', () => {
+    const rows = drawHidingMerges([c('x', 'm'), c('y', 'm'), c('m', 'p', 'q'), c('p'), c('q')]);
+    expect(rows.find((r) => r.sha === 'p')!.joins).toHaveLength(1);
+  });
+
+  it('a hidden merge nothing waited for changes nothing: its parents are tips', () => {
+    const layout = new GraphLayout();
+    layout.hide(c('m', 'a', 'b'));
+    const [a] = layout.appendPage([c('a')]);
+    expect(a!.nodeLane).toBe(0);
+    expect(a!.lanesBefore).toEqual([]);
+  });
+
+  it('carries across a page boundary', () => {
+    const whole = drawHidingMerges(history);
+    const layout = new GraphLayout();
+    const paged = [
+      ...drawHidingMerges(history.slice(0, 2), layout),
+      ...drawHidingMerges(history.slice(2), layout),
+    ];
+    expect(JSON.stringify(paged)).toBe(JSON.stringify(whole));
   });
 });

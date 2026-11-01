@@ -73,6 +73,11 @@ button {
     background: SelectedItem;
     color: SelectedItemText;
   }
+  .gt-toolbar-badge {
+    forced-color-adjust: none;
+    background: Highlight;
+    box-shadow: none;
+  }
 }
 
 /* ---- Toolbar ---- */
@@ -84,6 +89,7 @@ button {
 }
 
 .gt-toolbar-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -97,6 +103,30 @@ button {
 
 .gt-toolbar-button:hover:not(:disabled) {
   background: var(--vscode-toolbar-hoverBackground);
+}
+
+.gt-toolbar-glyph {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.gt-toolbar-glyph svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* IntelliJ's "not the defaults" dot, on the icon's lower right corner. The
+   ring in the panel's colour keeps it apart from the strokes it overlaps. */
+.gt-toolbar-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vscode-charts-green, #89d185);
+  box-shadow: 0 0 0 1px var(--vscode-panel-background, var(--vscode-editor-background));
 }
 
 .gt-toolbar-button:disabled {

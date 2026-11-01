@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildLogArgs,
   filterKey,
+  graphParents,
+  graphSort,
+  hidesCommit,
   isUnfiltered,
   DEFAULT_FILTER,
   type LogFilter,
@@ -116,6 +119,23 @@ describe('buildLogArgs', () => {
     expect(a.indexOf('--skip=0')).toBeLessThan(a.indexOf('--'));
   });
 
+  it('First Parent adds --first-parent and draws in date order whatever the sort', () => {
+    expect(args({ firstParent: true })).toContain('--first-parent');
+    for (const sort of ['date', 'topo', 'intelli'] as const) {
+      const a = args({ sort, firstParent: true });
+      expect(a).toContain('--date-order');
+      expect(a).not.toContain('--topo-order');
+    }
+    expect(args({})).not.toContain('--first-parent');
+    expect(args({ firstParent: false })).not.toContain('--first-parent');
+  });
+
+  it('No Merges is not handed to git — the host hides merges itself', () => {
+    const a = args({ noMerges: true });
+    expect(a).not.toContain('--no-merges');
+    expect(a).toEqual(args({}));
+  });
+
   it('paging arguments reflect the page', () => {
     const a = buildLogArgs(DEFAULT_FILTER, FMT, { skip: 4000, maxCount: 2000 });
     expect(a).toContain('--skip=4000');
@@ -135,6 +155,17 @@ describe('filterKey', () => {
     expect(filterKey({ sort: 'topo', refs: 'ALL' })).not.toBe(filterKey({ sort: 'topo', refs: 'HEAD' }));
     expect(filterKey({ sort: 'topo', text: { q: 'a', regex: false, matchCase: false } })).not.toBe(
       filterKey({ sort: 'topo', text: { q: 'a', regex: true, matchCase: false } }),
+    );
+  });
+
+  it('tells the Graph Options apart, and reads false as off', () => {
+    expect(filterKey({ sort: 'date', firstParent: true })).not.toBe(filterKey({ sort: 'date' }));
+    expect(filterKey({ sort: 'date', noMerges: true })).not.toBe(filterKey({ sort: 'date' }));
+    expect(filterKey({ sort: 'date', firstParent: true })).not.toBe(
+      filterKey({ sort: 'date', noMerges: true }),
+    );
+    expect(filterKey({ sort: 'date', firstParent: false, noMerges: false })).toBe(
+      filterKey({ sort: 'date' }),
     );
   });
 
@@ -170,6 +201,12 @@ describe('isUnfiltered', () => {
     expect(isUnfiltered({ ...all, follow: true })).toBe(false);
   });
 
+  it('First Parent and No Merges hide commits, so they count', () => {
+    expect(isUnfiltered({ ...all, firstParent: true })).toBe(false);
+    expect(isUnfiltered({ ...all, noMerges: true })).toBe(false);
+    expect(isUnfiltered({ ...all, firstParent: false, noMerges: false })).toBe(true);
+  });
+
   it('an empty narrowing field is not a filter — buildLogArgs ignores it too', () => {
     // `paths: []` pushes no pathspec, so treating it as narrowing would report
     // a filter that git was never given.
@@ -177,5 +214,30 @@ describe('isUnfiltered', () => {
     expect(isUnfiltered({ ...all, authors: [] })).toBe(true);
     expect(isUnfiltered({ ...all, text: { q: '', regex: false, matchCase: false } })).toBe(true);
     expect(args({ refs: 'ALL', paths: [] })).not.toContain('--');
+  });
+});
+
+describe('Graph Options on the host', () => {
+  it('graphSort: First Parent stands in for the sort, which waits underneath', () => {
+    expect(graphSort({ sort: 'intelli' })).toBe('intelli');
+    expect(graphSort({ sort: 'topo' })).toBe('topo');
+    expect(graphSort({ sort: 'intelli', firstParent: true })).toBe('date');
+    expect(graphSort({ sort: 'intelli', firstParent: false })).toBe('intelli');
+  });
+
+  it('graphParents: under First Parent a merge is drawn with its first parent only', () => {
+    // git's --parents still lists every parent under --first-parent; a lane for
+    // the second would wait for a commit the walk never reaches.
+    expect(graphParents({ sort: 'date', firstParent: true }, ['p1', 'p2', 'p3'])).toEqual(['p1']);
+    expect(graphParents({ sort: 'date' }, ['p1', 'p2'])).toEqual(['p1', 'p2']);
+    expect(graphParents({ sort: 'date', firstParent: true }, [])).toEqual([]);
+  });
+
+  it('hidesCommit: only merges, and only under No Merges', () => {
+    expect(hidesCommit({ sort: 'date', noMerges: true }, ['p1', 'p2'])).toBe(true);
+    expect(hidesCommit({ sort: 'date', noMerges: true }, ['p1', 'p2', 'p3'])).toBe(true);
+    expect(hidesCommit({ sort: 'date', noMerges: true }, ['p1'])).toBe(false);
+    expect(hidesCommit({ sort: 'date', noMerges: true }, [])).toBe(false);
+    expect(hidesCommit({ sort: 'date' }, ['p1', 'p2'])).toBe(false);
   });
 });

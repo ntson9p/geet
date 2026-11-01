@@ -471,7 +471,9 @@ row in the branches tree.
 | --- | --- | --- |
 | Four panes (Branches / Commits / Changed Files / Commit Details) | P12-T1 four panes in nested persisted splitters | ✅ |
 | Color-coded topological graph | `GraphCanvas`, 100k commits at 60fps | ✅ |
-| Sort: Date / Topo / **IntelliSort** | `sort: 'topo' \| 'date' \| 'intelli'` | ✅ |
+| **Graph Options** ▾ · Sort: **By Commit Date** / **Topologically** (IntelliSort) | The button after `Paths ▾`, IntelliJ's icon and dot; `sort: 'date' \| 'intelli'` (git's plain `'topo'`, which File History and Compare open in, ticks Topologically). *Was a Date / Topo / IntelliSort dropdown until 2026-11-01* | ✅ |
+| Graph Options ▾ · Options: **First Parent** / **No Merges** | `firstParent` (`--first-parent`, in the sort's place as in IntelliJ) and `noMerges` (merges hidden by the host so the graph's lines run through them; `--no-merges` in the tab title). *Added 2026-11-01* | ✅ |
+| Graph Options ▾ · Collapse / Expand Linear Branches (in the JetBrains help, not in the owner's IntelliJ 2026 menu) | — | ❌ |
 | Branch / User / Date / Path filters | filter chips | ✅ |
 | `Paths ▾` **Select…** / **Select in Tree…** | host file chooser + a tree-ordered pick over `git ls-files` | ✅ |
 | `Paths ▾` **Roots** section (per-root checkbox, colour swatch) | every workspace repository, swatched — but the log renders one at a time, so the rows are radios (**D24**) | 🟡 single-select |

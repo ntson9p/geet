@@ -50,10 +50,6 @@
   min-width: 120px;
 }
 
-.gt-log-sort {
-  min-width: 90px;
-}
-
 .gt-log-main {
   display: flex;
   flex: 1;

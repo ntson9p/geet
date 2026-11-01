@@ -20,35 +20,63 @@ function basename(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+/** One filter's part of a title: alone it reads bare, among others prefixed. */
+interface TitlePart {
+  readonly value: string;
+  readonly prefixed: string;
+}
+
+const part = (value: string, prefix = ''): TitlePart => ({ value, prefixed: `${prefix}${value}` });
+
 /**
- * A Log tab's title, made from what it shows, as IntelliJ titles its tabs
- * (`Log: 2026.1`). Unfiltered it is plain `Log`; a file's history reads
- * `History: <file>`, IntelliJ's name for that tab. The branch part comes
- * unlabelled and first, the others name their filter.
+ * What each filter contributes, in IntelliJ's words (`VcsLogBundle`'s
+ * `*.presentation.with.prefix` strings, and each filter's `displayText`).
+ * A range and No Merges take no prefix there either.
+ */
+function titleParts(filter: LogFilterDto): TitlePart[] {
+  const parts: TitlePart[] = [];
+  if (filter.range !== undefined) {
+    parts.push(part(`${short(filter.range.a)}...${short(filter.range.b)}`));
+  } else if (filter.refs === 'ALL') {
+    parts.push(part('All', 'on '));
+  } else if (Array.isArray(filter.refs) && filter.refs.length > 0) {
+    parts.push(part(filter.refs.map(short).join(', '), 'on '));
+  }
+  if (filter.authors !== undefined && filter.authors.length > 0) {
+    parts.push(part(filter.authors.join(', '), 'by '));
+  }
+  const from = filter.dateRange?.from;
+  const to = filter.dateRange?.to;
+  if (from !== undefined && to !== undefined) parts.push(part(`between ${from} and ${to}`, 'made '));
+  else if (from !== undefined) parts.push(part(`since ${from}`, 'made '));
+  else if (to !== undefined) parts.push(part(`until ${to}`, 'made '));
+  // IntelliJ names a path filter by its files' and folders' own names.
+  if (filter.paths !== undefined && filter.paths.length > 0) {
+    parts.push(part(filter.paths.map(basename).join(', '), 'for '));
+  }
+  if (filter.text !== undefined && filter.text.q.length > 0) {
+    parts.push(part(`'${filter.text.q}'`, 'containing '));
+  }
+  if (filter.noMerges === true) parts.push(part('--no-merges'));
+  return parts;
+}
+
+/**
+ * A Log tab's title, made from what it shows by IntelliJ's own rule
+ * (`VcsLogFilterCollection.getPresentation`): one filter reads as its bare
+ * value — `Log: 2026.1`, `Log: --no-merges` — and several each take their
+ * prefix, joined by spaces — `Log: on HEAD --no-merges`. Unfiltered it is
+ * plain `Log`; a file's history reads `History: <file>`, IntelliJ's name for
+ * that tab. The sort and First Parent are how the graph is drawn, not filters,
+ * so they never show.
  */
 export function tabTitle(filter: LogFilterDto): string {
   if (filter.follow === true && filter.paths?.length === 1) {
     return `History: ${basename(filter.paths[0]!)}`;
   }
-  const parts: string[] = [];
-  if (filter.range !== undefined) {
-    parts.push(`${short(filter.range.a)}...${short(filter.range.b)}`);
-  } else if (filter.refs === 'ALL') {
-    parts.push('All');
-  } else if (Array.isArray(filter.refs) && filter.refs.length > 0) {
-    parts.push(filter.refs.map(short).join(', '));
-  }
-  if (filter.authors !== undefined && filter.authors.length > 0) {
-    parts.push(`User: ${filter.authors.join(', ')}`);
-  }
-  const from = filter.dateRange?.from;
-  const to = filter.dateRange?.to;
-  if (from !== undefined || to !== undefined) parts.push(`Date: ${from ?? '…'} → ${to ?? '…'}`);
-  if (filter.paths !== undefined && filter.paths.length > 0) {
-    parts.push(`Paths: ${filter.paths.join(', ')}`);
-  }
-  if (filter.text !== undefined && filter.text.q.length > 0) parts.push(`Text: ${filter.text.q}`);
-  return parts.length === 0 ? 'Log' : `Log: ${parts.join(', ')}`;
+  const parts = titleParts(filter);
+  if (parts.length === 0) return 'Log';
+  return `Log: ${parts.length === 1 ? parts[0]!.value : parts.map((p) => p.prefixed).join(' ')}`;
 }
 
 /** Every strip item in order: the main Log tab, Console, Worktrees, then the extra Log tabs. */

@@ -291,9 +291,11 @@ docked bottom, tabs `Log | Console`").
 * **More than one Log tab, as IntelliJ's `Open Another Log Tab`.** A **`+`** right after the
   last tab opens a new Log tab matching the current tab's filters, appended after the others.
   Each tab has its own filters, repository, selection, scroll and pane layout (a new tab
-  starts with the Branches pane folded to its strip). A tab is **titled by what it shows**:
-  `Log` unfiltered, `Log: 2026.1` with a branch filter, `Log: main, User: Ava` with more,
-  `History: store.ts` for a file's history; the full title is the hover. Extra tabs close
+  starts with the Branches pane folded to its strip). A tab is **titled by what it shows**,
+  by IntelliJ's own rule: `Log` unfiltered; one filter reads as its value (`Log: 2026.1`,
+  `Log: --no-merges`); several each take IntelliJ's prefix, joined by spaces
+  (`Log: on main by Ava made since 2026-10-01 --no-merges`); `History: store.ts` for a
+  file's history. The sort and First Parent never show. The full title is the hover. Extra tabs close
   with their **`×`**, a middle-click, or the tab menu (right-click): **Close Tab · Close Other
   Tabs · Close All Tabs**. The first Log tab never closes, and Console and Worktrees stay too
   (**D33**). Closing the tab in front brings its left neighbour forward.
@@ -338,7 +340,7 @@ docked bottom, tabs `Log | Console`").
 
 * Color-coded topological graph, canvas-drawn, **virtualized to 60 fps at 100k commits**
   (§13 budgets re-validated with all four panes mounted — see `docs/perf.md`); refs render
-  as typed chips; `Date`/`Topo` sort (IntelliSort is a recorded deviation).
+  as typed chips.
 * **Filter row, §2A order:** `Branch or tag` combo (datalist over every ref) · `Text or hash`
   with `.*` regex and `Cc` match-case toggles (a hash navigates instead of grepping) · four
   **multi-select dropdowns with search**: `Branch ▾` (both presets named —
@@ -346,6 +348,17 @@ docked bottom, tabs `Log | Console`").
   (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (see below).
   Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
   (`gittree.log.filterPresets`).
+* **Graph Options ▾**, IntelliJ's button after `Paths ▾` (an arrow beside three rows), in
+  place of the old sort dropdown. **Sort:** **By Commit Date** (the default, git's date
+  order) or **Topologically** (IntelliSort: a merge's incoming commits directly below it;
+  a tab already in git's plain topological order, as File History opens, ticks it too).
+  **Options:** **First Parent** follows only each merge's first parent and, as in IntelliJ,
+  takes the sort's place (no sort is ticked; picking one ends it, unticking it brings the
+  sort back); **No Merges** hides merge commits and adds `--no-merges` to the tab's title.
+  GitTree hides those merges itself rather than through git, so the line from a merge's
+  child runs on into its first parent instead of dangling, and the merged branch shows as a
+  tip. A dot on the button marks anything but By Commit Date with no option ticked. Each tab
+  keeps its own; Reset all filters keeps the sort and First Parent and drops No Merges.
 * Right toolbar: refresh · **Presentation Settings** (eye) · **Go to Hash/Branch/Tag** ·
   Show Details (folds the right column) · Highlight my commits.
 * **Presentation Settings ▾ · Show · Tag Names** (`gittree.log.showTagNames`, off as in

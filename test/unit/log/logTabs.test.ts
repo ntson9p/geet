@@ -102,6 +102,12 @@ describe('sameView', () => {
     expect(sameView(HISTORY, { ...HISTORY, follow: false })).toBe(false);
     expect(sameView(COMPARE, { ...COMPARE, range: { a: 'main', b: 'feature/tags' } })).toBe(false);
   });
+
+  it('counts First Parent and No Merges, which choose commits, and reads false as off', () => {
+    expect(sameView(HEAD, { ...HEAD, firstParent: true })).toBe(false);
+    expect(sameView(HEAD, { ...HEAD, noMerges: true })).toBe(false);
+    expect(sameView(HEAD, { ...HEAD, firstParent: false, noMerges: false })).toBe(true);
+  });
 });
 
 describe('findTab (running File History twice lands on one tab)', () => {
@@ -173,6 +179,21 @@ describe('restoreTabsState (lazy restore after a restart)', () => {
     // The stored active tab did not survive, so the main tab is active.
     expect(restored.active).toBe(MAIN_LOG_TAB);
     expect(restored.next).toBe(3);
+  });
+
+  it('brings back the Graph Options a tab had, and drops a tab whose are malformed', () => {
+    const withOptions: LogFilter = { ...HEAD, sort: 'intelli', firstParent: true, noMerges: true };
+    const restored = restoreTabsState({
+      tabs: [
+        { id: MAIN_LOG_TAB, filter: withOptions },
+        { id: 'log-1', filter: { ...HEAD, firstParent: 'yes' }, root: '/r' },
+        { id: 'log-2', filter: { ...HEAD, noMerges: 1 }, root: '/r' },
+      ],
+      active: MAIN_LOG_TAB,
+      next: 3,
+    });
+    expect(restored.tabs.map((t) => t.id)).toEqual([MAIN_LOG_TAB]);
+    expect(restored.tabs[0]?.filter).toEqual(withOptions);
   });
 
   it('moves the main tab to the front and drops a root it should not have', () => {

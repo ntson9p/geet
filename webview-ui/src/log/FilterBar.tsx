@@ -1,10 +1,10 @@
 /**
  * Filter row (P12-T5) — the §2A shape: `Branch or tag` combo · `Text or hash`
  * with `.*`/`Cc` toggles · real multi-select `Branch ▾ User ▾ Date ▾ Paths ▾`
- * dropdowns with search · right-side toolbar (refresh · Presentation Settings ▾
- * · Go to Hash/Branch/Tag · Show Details · Highlight my commits · Saved
- * filters ▾). Every filter composes into the one LogFilter; the host argv
- * build is unchanged.
+ * dropdowns with search · Graph Options ▾ · right-side toolbar (refresh ·
+ * Presentation Settings ▾ · Go to Hash/Branch/Tag · Show Details · Highlight
+ * my commits · Saved filters ▾). Every filter composes into the one LogFilter;
+ * the host argv build is unchanged.
  */
 import {
   useCallback,
@@ -22,6 +22,7 @@ import type {
 } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { ToolbarButton } from '../lib/Toolbar';
+import { applyGraphOption, graphOptionsChanged, graphOptionsItems } from './graphOptions';
 
 // ---------------------------------------------------------------------------
 // A chip that opens an in-webview panel (multi-select with search).
@@ -112,6 +113,19 @@ function CheckRow({
       {star === true ? <span className="codicon codicon-star-full gt-filter-star" aria-hidden="true" /> : null}
       <span className="gt-filter-checkrow-label">{label}</span>
     </label>
+  );
+}
+
+/**
+ * IntelliJ's Graph Options icon — an arrow down beside three rows — which no
+ * codicon resembles closely enough to stand in for it.
+ */
+function GraphOptionsGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round">
+      <path d="M4 2.5v10.5M1.75 10.75 4 13l2.25-2.25" strokeLinejoin="round" />
+      <path d="M8.5 4h6M8.5 8h6M8.5 12h6" />
+    </svg>
   );
 }
 
@@ -217,6 +231,7 @@ export function FilterBar({
   const [comboDraft, setComboDraft] = useState('');
   const [presetsAt, setPresetsAt] = useState<{ x: number; y: number } | null>(null);
   const [presentationAt, setPresentationAt] = useState<{ x: number; y: number } | null>(null);
+  const [graphOptionsAt, setGraphOptionsAt] = useState<{ x: number; y: number } | null>(null);
 
   // IntelliJ's `Show` group holds more toggles (Compact References View, Long
   // Edges, Commit Timestamp, References on the Left, Show Root Names, Columns)
@@ -680,16 +695,27 @@ export function FilterBar({
         )}
       </Dropdown>
 
-      <select
-        className="gt-input gt-log-sort"
-        aria-label="Sort"
-        value={filter.sort}
-        onChange={(e) => onChange({ ...filter, sort: e.currentTarget.value as LogFilterDto['sort'] })}
-      >
-        <option value="date">Date</option>
-        <option value="topo">Topo</option>
-        <option value="intelli">IntelliSort</option>
-      </select>
+      <ToolbarButton
+        label="Graph Options"
+        glyph={<GraphOptionsGlyph />}
+        badge={graphOptionsChanged(filter)}
+        onClick={(e) => {
+          const box = e.currentTarget.getBoundingClientRect();
+          setGraphOptionsAt({ x: box.left, y: box.bottom + 2 });
+        }}
+      />
+      {graphOptionsAt !== null ? (
+        <Menu
+          items={graphOptionsItems(filter)}
+          at={graphOptionsAt}
+          ariaLabel="Graph Options"
+          onClose={() => setGraphOptionsAt(null)}
+          onSelect={(id) => {
+            const next = applyGraphOption(filter, id);
+            if (next !== undefined) onChange(next);
+          }}
+        />
+      ) : null}
 
       <span className="gt-filter-spacer" />
 
@@ -756,7 +782,15 @@ export function FilterBar({
       <ToolbarButton
         label="Reset all filters"
         icon="clear-all"
-        onClick={() => onChange({ sort: filter.sort, refs: 'HEAD' })}
+        // The sort and First Parent are how the graph is drawn, not filters,
+        // so they stay; No Merges is a filter in IntelliJ and goes.
+        onClick={() =>
+          onChange({
+            sort: filter.sort,
+            refs: 'HEAD',
+            ...(filter.firstParent === true ? { firstParent: true } : {}),
+          })
+        }
       />
     </div>
   );

@@ -35,7 +35,23 @@ describe('tabTitle (IntelliJ titles a Log tab by what it shows)', () => {
     ).toBe('History: strings.ts');
   });
 
-  it('labels the other filters, after the branch', () => {
+  it("reads one filter bare, in IntelliJ's words for its value", () => {
+    expect(tabTitle({ sort: 'date', authors: ['Ava Tran', 'Ben Okafor'] })).toBe('Log: Ava Tran, Ben Okafor');
+    expect(tabTitle({ sort: 'date', dateRange: { from: '2026-10-01' } })).toBe('Log: since 2026-10-01');
+    expect(tabTitle({ sort: 'date', dateRange: { to: '2026-10-31' } })).toBe('Log: until 2026-10-31');
+    expect(tabTitle({ sort: 'date', dateRange: { from: '2026-10-01', to: '2026-10-31' } })).toBe(
+      'Log: between 2026-10-01 and 2026-10-31',
+    );
+    // A path filter is named by the files' and folders' own names.
+    expect(tabTitle({ sort: 'date', paths: ['src/store.ts', 'docs'] })).toBe('Log: store.ts, docs');
+    expect(tabTitle({ sort: 'date', text: { q: 'fix', regex: false, matchCase: false } })).toBe(
+      "Log: 'fix'",
+    );
+    expect(tabTitle({ sort: 'date', noMerges: true })).toBe('Log: --no-merges');
+  });
+
+  it('prefixes every filter once there are several, joined by spaces — "Log: on HEAD --no-merges"', () => {
+    expect(tabTitle({ sort: 'date', refs: ['HEAD'], noMerges: true })).toBe('Log: on HEAD --no-merges');
     expect(
       tabTitle({
         sort: 'date',
@@ -44,8 +60,27 @@ describe('tabTitle (IntelliJ titles a Log tab by what it shows)', () => {
         dateRange: { from: '2026-10-01' },
         paths: ['src', 'docs'],
         text: { q: 'fix', regex: false, matchCase: false },
+        noMerges: true,
       }),
-    ).toBe('Log: main, User: Ava Tran, Date: 2026-10-01 → …, Paths: src, docs, Text: fix');
+    ).toBe("Log: on main by Ava Tran made since 2026-10-01 for src, docs containing 'fix' --no-merges");
+    expect(tabTitle({ sort: 'date', refs: 'ALL', authors: ['Ava Tran'] })).toBe('Log: on All by Ava Tran');
+  });
+
+  it('gives a range no prefix among others, as IntelliJ does', () => {
+    expect(tabTitle({ sort: 'topo', range: { a: 'feature/tags', b: 'main' }, authors: ['Ava Tran'] })).toBe(
+      'Log: feature/tags...main by Ava Tran',
+    );
+  });
+
+  it('leaves the sort and First Parent out: they draw the graph, they are not filters', () => {
+    expect(tabTitle({ sort: 'intelli', firstParent: true })).toBe('Log');
+    expect(tabTitle({ sort: 'intelli', firstParent: true, refs: ['main'] })).toBe('Log: main');
+  });
+
+  it("names a file's history History even under No Merges", () => {
+    expect(
+      tabTitle({ sort: 'topo', refs: 'ALL', paths: ['src/utils/strings.ts'], follow: true, noMerges: true }),
+    ).toBe('History: strings.ts');
   });
 
   it('leaves out an empty search and empty lists', () => {

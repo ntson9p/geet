@@ -36,7 +36,14 @@ import { WorktreesPaneBridge } from './worktreesPaneBridge';
 import { PALETTE_SIZE } from './graphLayout/colors';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
-import { DEFAULT_FILTER, isUnfiltered, type LogFilter } from './logFilter';
+import {
+  DEFAULT_FILTER,
+  graphParents,
+  graphSort,
+  hidesCommit,
+  isUnfiltered,
+  type LogFilter,
+} from './logFilter';
 import { LogService, type LogRow } from './logService';
 import {
   MAIN_LOG_TAB,
@@ -899,7 +906,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   }
 
   private toDto(row: LogRow, session: Session): LogRowDto {
-    const graphRows = session.layout.appendPage([{ sha: row.sha, parents: row.parents }]);
+    const graphRows = session.layout.appendPage([
+      { sha: row.sha, parents: [...graphParents(session.filter, row.parents)] },
+    ]);
     const graph = graphRows[0]!;
     const { headTarget, decorations } = parseDecorations(row.refs);
     return {
@@ -957,12 +966,26 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.debugTrail.push(`page ${page} dropped (stale session)`);
       return;
     }
-    const ordered = session.filter.sort === 'intelli' ? intelliSort(result.rows) : result.rows;
-    const dtoRows = ordered.map((r) => this.toDto(r, session));
-    this.debugTrail.push(`page ${page} sent ${dtoRows.length}`);
-    session.rows.push(...dtoRows);
+    const ordered = graphSort(session.filter) === 'intelli' ? intelliSort(result.rows) : result.rows;
+    const dtoRows: LogRowDto[] = [];
+    for (const r of ordered) {
+      // No Merges: the merge still passes through the layout, so the lines
+      // that were waiting for it carry on to its first parent.
+      if (hidesCommit(session.filter, r.parents)) session.layout.hide(r);
+      else dtoRows.push(this.toDto(r, session));
+    }
     session.nextPage = page + 1;
     session.eof = result.eof;
+    if (dtoRows.length === 0 && !result.eof) {
+      // A page that was all hidden merges. The webview pages on scrolling, and
+      // an empty list has nothing to scroll, so read on rather than strand it
+      // on a blank log. Its answer names the last page read, which is where
+      // its next request must start.
+      this.debugTrail.push(`page ${page} hid every row`);
+      return this.sendPage(tab, page + 1);
+    }
+    this.debugTrail.push(`page ${page} sent ${dtoRows.length}`);
+    session.rows.push(...dtoRows);
     this.rpc?.notify(LOG_METHODS.evtRows, {
       page,
       rows: dtoRows,
@@ -1585,7 +1608,8 @@ function isoDaysAgo(days: number): string {
  * repository's branches. Carried across a root switch the first empties the
  * log and the second fails the page read on `unknown revision`, both of which
  * read to the user as "this repository has no history". Authors, dates, the
- * text query and the sort order are portable, so they survive.
+ * text query, the sort order and the Graph Options are portable, so they
+ * survive.
  */
 function rootAgnostic(filter: LogFilter): LogFilter {
   const next: LogFilter = { ...filter };

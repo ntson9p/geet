@@ -109,7 +109,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | More than one Log tab: `+`, filter-made titles, `×` and the tab menu; File History / Compare / Show in Log in tabs of their own | ✅ | POST-P14aj; Console and Worktrees cannot close (**D33**) |
 | Four panes in persisted splitters, each with a toolbar | ✅ | P12-T1/T2/T3 |
 | Branches pane + vertical icon rail | ✅ | P12-T2 |
-| Graph, 100k commits, filters, search, sorts (incl. IntelliSort) | ✅ | P4 + P12-T5; perf-gated |
+| Graph, 100k commits, filters, search, Graph Options (By Commit Date / Topologically = IntelliSort, First Parent, No Merges) | ✅ | P4 + P12-T5 + POST-P14ak; perf-gated |
 | Presentation & highlight menus | 🟡 | *Presentation Settings* (eye) holds **Tag Names** only; *Highlight my commits* is a toolbar toggle and the other highlight modes are absent. *Collapse linear branches* / *Show long edges* need whole-graph edge spans the row-local model cannot give (recorded in PHASE-12). Corrected 2026-10-31: this row used to credit P12-T5 with both menus, which it never shipped |
 | Branches Pane Settings · Show Tags | ✅ | The rail's gear; `gittree.branches.showTags`, shared with the Branches popup and the sidebar's Branches views, as IntelliJ's Show Tags is |
 | Go to Hash / Branch / Tag | ✅ | P12-T4 |

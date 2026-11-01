@@ -21,6 +21,13 @@ export interface ToolbarButtonProps {
   label: string;
   /** Codicon name without the `codicon-` prefix, e.g. "refresh". */
   icon?: string;
+  /** A drawing of its own, for the few IntelliJ icons no codicon resembles. */
+  glyph?: ReactNode;
+  /**
+   * IntelliJ's dot in the icon's corner: the settings behind this button are
+   * not their defaults.
+   */
+  badge?: boolean;
   /** Show the text label next to the icon. */
   showLabel?: boolean;
   disabled?: boolean;
@@ -29,7 +36,17 @@ export interface ToolbarButtonProps {
   onClick?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
-export function ToolbarButton({ label, icon, showLabel, disabled, toggled, onClick }: ToolbarButtonProps) {
+export function ToolbarButton({
+  label,
+  icon,
+  glyph,
+  badge,
+  showLabel,
+  disabled,
+  toggled,
+  onClick,
+}: ToolbarButtonProps) {
+  const drawn = icon !== undefined || glyph !== undefined;
   return (
     <button
       type="button"
@@ -41,7 +58,13 @@ export function ToolbarButton({ label, icon, showLabel, disabled, toggled, onCli
       onClick={onClick}
     >
       {icon ? <span className={`codicon codicon-${icon}`} aria-hidden="true" /> : null}
-      {showLabel || !icon ? <span className="gt-toolbar-button-label">{label}</span> : null}
+      {glyph !== undefined ? (
+        <span className="gt-toolbar-glyph" aria-hidden="true">
+          {glyph}
+        </span>
+      ) : null}
+      {badge === true ? <span className="gt-toolbar-badge" aria-hidden="true" /> : null}
+      {showLabel || !drawn ? <span className="gt-toolbar-button-label">{label}</span> : null}
     </button>
   );
 }

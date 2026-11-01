@@ -95,7 +95,8 @@ arrows move within):
 | `Enter` / `Space` | open commit details |
 | `Ctrl+C` (`Cmd+C`) | copy selected revision number(s) |
 | `Ctrl+Click` / `Shift+Click` | multi-select (keyboard: arrows + details panel actions) |
-| `Tab` | filter chips → search box → regex/case toggles → sort → list |
+| `Tab` | filter chips → search box → regex/case toggles → Graph Options → list |
+| `Enter` / `Space` (Graph Options) | open its menu; `↑`/`↓` move over the rows (the Sort and Options captions are skipped), `Enter` ticks one |
 | `←` / `→` / `Home` / `End` (tab strip) | move between Log, Console, Worktrees and the extra Log tabs |
 | `Shift+F10` / context-menu key (tab strip) | the tab menu: Close Tab · Close Other Tabs · Close All Tabs — the keyboard's way to close a tab |
 | Middle-click (tab strip) | close an extra Log tab |

@@ -890,6 +890,10 @@ export interface LogFilterDto {
   text?: { q: string; regex: boolean; matchCase: boolean };
   sort: 'topo' | 'date' | 'intelli';
   follow?: boolean;
+  /** Graph Options ▸ First Parent; replaces the sort while on (see `LogFilter`). */
+  firstParent?: boolean;
+  /** Graph Options ▸ No Merges. */
+  noMerges?: boolean;
 }
 
 export interface GraphLaneDto {
