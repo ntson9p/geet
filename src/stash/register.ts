@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { splitPatchFiles } from '../core/patch/patchParser';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -179,6 +180,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const seeded = process.env['GITTREE_TEST_STASH_PUSH'];
     if (seeded !== undefined) {
       await service.push(JSON.parse(seeded) as StashPushOptions);
+      notifySuccess(vscode.l10n.t('Files stashed successfully'));
       return;
     }
 
@@ -222,15 +224,23 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     if (message.length > 0) push.message = message;
     if (paths) push.paths = paths;
     await service.push(push);
+    // IntelliJ's `stash.files.success`.
+    notifySuccess(vscode.l10n.t('Files stashed successfully'));
   });
 
+  // IntelliJ's `unstash.stash.applied` once it went in cleanly; a conflicted
+  // one has the conflicts session to say so instead.
   register('gittree.stash.apply', async (arg) => {
     const t = await pickStash(arg);
-    if (t) await t.service.apply(t.index, { restoreIndex: true });
+    if (!t) return;
+    const outcome = await t.service.apply(t.index, { restoreIndex: true });
+    if (outcome.status === 'clean') notifySuccess(vscode.l10n.t('Stash successfully applied'));
   });
   register('gittree.stash.pop', async (arg) => {
     const t = await pickStash(arg);
-    if (t) await t.service.pop(t.index, { restoreIndex: true });
+    if (!t) return;
+    const outcome = await t.service.pop(t.index, { restoreIndex: true });
+    if (outcome.status === 'clean') notifySuccess(vscode.l10n.t('Stash successfully applied'));
   });
   register('gittree.stash.drop', async (arg) => {
     const t = await pickStash(arg);
@@ -253,7 +263,9 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
         prompt: vscode.l10n.t('New branch from stash'),
         validateInput: (v) => (v.trim().length === 0 ? vscode.l10n.t('Branch name required') : undefined),
       }));
-    if (name !== undefined && name.trim().length > 0) await t.service.branch(name.trim(), t.index);
+    if (name === undefined || name.trim().length === 0) return;
+    await t.service.branch(name.trim(), t.index);
+    notifySuccess(vscode.l10n.t('Stash successfully applied on new branch {0}', name.trim()));
   });
   register('gittree.stash.clear', async () => {
     const repo = repoForNew();
@@ -387,7 +399,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const seeded = process.env['GITTREE_TEST_SHELVE'];
     if (seeded !== undefined) {
       const opts = JSON.parse(seeded) as ShelveOptions;
-      await store.shelve(list ? { paths: listPaths, ...opts } : opts);
+      const res = await store.shelve(list ? { paths: listPaths, ...opts } : opts);
+      if (res.removalSkippedReason === undefined) {
+        notifySuccess(vscode.l10n.t('Changes shelved successfully'));
+      }
       return;
     }
     // IntelliJ default name: the changelist name, else the commit-window draft.
@@ -416,6 +431,9 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
           res.removalSkippedReason,
         ),
       );
+    } else {
+      // IntelliJ's `shelve.successful.message`.
+      notifySuccess(vscode.l10n.t('Changes shelved successfully'));
     }
   });
 
@@ -458,6 +476,8 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
           });
     if (!target) return;
     await vscode.workspace.fs.writeFile(target, t.store.readPatch(t.meta.id));
+    // IntelliJ's `create.patch.success.confirmation`.
+    notifySuccess(vscode.l10n.t('Successfully created patch {0}', target.fsPath));
   });
 
   register('gittree.shelf.import', async () => {
@@ -491,6 +511,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const branch = (await read(['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim();
     const name = picked[0]!.path.split('/').pop()?.replace(/\.(patch|diff)$/u, '') ?? 'imported';
     store.importPatch(name, bytes, { baseSha, branch, comment: vscode.l10n.t('Imported patch') }, sections.map((s) => ({ relPath: s.relPath, status: s.status === 'modified' ? 'modified' as const : s.status, isBinary: s.isBinary })));
+    notifySuccess(vscode.l10n.t('Imported "{0}" to the shelf ({1} file(s))', name, sections.length));
   });
 
   // Pristine bytes cached at open time so a broken edit can be reverted.

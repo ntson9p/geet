@@ -20,8 +20,19 @@ import { anyToken } from '../core/util/cancellation';
 import { presentGitError } from '../hardening/errorUx';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
+import { notifySuccess } from '../ui/notify';
 import type { StatusBarController } from '../ui/statusBar';
-import { runFetchAll, summarizeFetch, type FetchOutcome, type FetchTarget } from './fetchAll';
+import { countPulled } from './dialogs/updateDialog';
+import {
+  fetchSuccessMessage,
+  parsePrunedRefs,
+  runFetchAll,
+  summarizeFetch,
+  type FetchOutcome,
+  type FetchTarget,
+  type PrunedRefs,
+} from './fetchAll';
+import { pullResultMessage } from './resultMessages';
 
 type BranchesOpenHandler = (repoRoot?: string) => Promise<void>;
 let branchesOpenHandler: BranchesOpenHandler | undefined;
@@ -81,10 +92,10 @@ export function registerSyncOps(
   async function fetchOne(
     repo: RepoHandle,
     options: { quietProgress?: boolean; token?: CancelToken } = {},
-  ): Promise<void> {
+  ): Promise<string[]> {
     bar(repo)?.setFetching(true);
     try {
-      await repo.queue.enqueue({
+      const output = await repo.queue.enqueue({
         label: vscode.l10n.t('Fetch'),
         kind: 'mutate',
         ...(options.quietProgress === true ? { quietProgress: true } : {}),
@@ -92,18 +103,27 @@ export function registerSyncOps(
           const outer = options.token;
           const linked = outer ? anyToken(queueToken, outer) : undefined;
           try {
-            await git.exec(repo.root, ['fetch', '--prune'], {
+            const res = await git.exec(repo.root, ['fetch', '--prune'], {
               token: linked?.token ?? queueToken,
             });
+            return `${res.stderr}\n${res.stdout}`;
           } finally {
             linked?.dispose();
           }
         },
       });
       repo.model.update({ lastFetchAt: Date.now() });
+      // The references the prune removed — IntelliJ names them in its result.
+      return parsePrunedRefs(output);
     } finally {
       bar(repo)?.setFetching(false);
     }
+  }
+
+  /** One repository fetched on request: IntelliJ's *Fetch successful*. */
+  async function fetchAndReport(repo: RepoHandle): Promise<void> {
+    const pruned = await fetchOne(repo);
+    notifySuccess(fetchSuccessMessage([{ name: path.basename(repo.root), refs: pruned }], false));
   }
 
   /** The auto-fetch wrapper: silent, and a failure is a log line, not a dialog. */
@@ -145,15 +165,19 @@ export function registerSyncOps(
   }
 
   /** The summary line the fan-out is allowed to raise — one, never one per repo. */
-  function reportFetchAll(outcomes: readonly FetchOutcome[]): void {
+  function reportFetchAll(outcomes: readonly FetchOutcome[], pruned: readonly PrunedRefs[]): void {
     const { ok, cancelled, failures, total } = summarizeFetch(outcomes);
     if (failures.length === 0) {
       if (cancelled > 0) {
         void vscode.window.showInformationMessage(
           vscode.l10n.t('Fetched {0} of {1} repositories — cancelled.', ok, total),
         );
+        return;
       }
-      return; // A clean fetch of everything speaks through the refreshed counts.
+      // IntelliJ says so once every repository is fetched: the refreshed
+      // counts alone do not tell anyone that the fetch has finished.
+      notifySuccess(fetchSuccessMessage(pruned, true));
+      return;
     }
     const named = failures
       .slice(0, 3)
@@ -181,9 +205,10 @@ export function registerSyncOps(
       return;
     }
     if (targets.length === 1) {
-      await fetchOne(targets[0]!.repo);
+      await fetchAndReport(targets[0]!.repo);
       return;
     }
+    const pruned: PrunedRefs[] = [];
     const outcomes = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -194,7 +219,10 @@ export function registerSyncOps(
         runFetchAll(
           targets,
           // vscode's CancellationToken is structurally a CancelToken already.
-          (target) => fetchOne(target.repo, { quietProgress: true, token }),
+          async (target) => {
+            const refs = await fetchOne(target.repo, { quietProgress: true, token });
+            if (refs.length > 0) pruned.push({ name: target.name, refs });
+          },
           {
             isCancelled: () => token.isCancellationRequested,
             onSettled: (outcome, done, total) => {
@@ -206,7 +234,7 @@ export function registerSyncOps(
           },
         ),
     );
-    reportFetchAll(outcomes);
+    reportFetchAll(outcomes, pruned);
   }
 
   async function push(repo: RepoHandle, extraArgs: string[] = []): Promise<void> {
@@ -228,6 +256,13 @@ export function registerSyncOps(
     }
     try {
       await mutate(repo, vscode.l10n.t('Push'), ['push', ...extraArgs]);
+      const branch = repo.model.snapshot.headRef ?? 'HEAD';
+      const upstream = repo.model.snapshot.upstream;
+      notifySuccess(
+        extraArgs.some((a) => a.startsWith('--force'))
+          ? vscode.l10n.t('Force pushed {0} to {1}', branch, upstream ?? vscode.l10n.t('its upstream'))
+          : vscode.l10n.t('Push successful'),
+      );
     } catch (err) {
       // P5-T6: a stale lease means the remote moved since our last fetch —
       // never force through it; suggest fetching and re-inspecting instead.
@@ -261,6 +296,7 @@ export function registerSyncOps(
         );
         if (choice === publish && branch) {
           await mutate(repo, vscode.l10n.t('Publish {0}', branch), ['push', '-u', 'origin', branch]);
+          notifySuccess(vscode.l10n.t('Pushed {0} to new branch {1}', branch, `origin/${branch}`));
         }
         return;
       }
@@ -282,7 +318,7 @@ export function registerSyncOps(
         );
         return;
       }
-      await fetchOne(repo);
+      await fetchAndReport(repo);
       return;
     }
     await fetchAll();
@@ -292,9 +328,25 @@ export function registerSyncOps(
     await fetchAll();
   });
 
+  /** `git pull`, then what it brought in — or that there was nothing to bring. */
+  async function pullAndReport(repo: RepoHandle): Promise<void> {
+    const before = await headOf(repo);
+    await mutate(repo, vscode.l10n.t('Pull'), ['pull']);
+    const counted = await countPulled(core, repo, before, '@{upstream}');
+    notifySuccess(pullResultMessage(counted.commits, counted.files, repo.model.snapshot.upstream));
+  }
+
+  async function headOf(repo: RepoHandle): Promise<string> {
+    const res = await core.git.exec(repo.root, ['rev-parse', '--verify', '--quiet', 'HEAD'], {
+      structured: true,
+      allowNonZeroExit: true,
+    });
+    return res.exitCode === 0 ? res.stdout.trim() : '';
+  }
+
   register('gittree.pull', async (repoRoot) => {
     const repo = pickRepo(core, repoRoot);
-    if (repo) await mutate(repo, vscode.l10n.t('Pull'), ['pull']);
+    if (repo) await pullAndReport(repo);
   });
 
   register('gittree.push', async (repoRoot) => {
@@ -319,7 +371,7 @@ export function registerSyncOps(
   register('gittree.sync', async (repoRoot) => {
     const repo = pickRepo(core, repoRoot);
     if (!repo) return;
-    await mutate(repo, vscode.l10n.t('Pull'), ['pull']);
+    await pullAndReport(repo);
     if ((repo.model.snapshot.ahead ?? 0) > 0 || repo.model.snapshot.upstream === undefined) {
       await push(repo);
     }

@@ -24,6 +24,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { collectNotifications, showCollected } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -951,6 +952,21 @@ export async function runCommonAction(
     await action.runAll(targets);
     return;
   }
+  // One notification for all of them, as IntelliJ's multi-root operations
+  // say it — not `Checked out develop` once per repository.
+  const { result: finished, collected } = await collectNotifications(() => runEach(targets, action));
+  if (finished) showCollected(collected);
+}
+
+/**
+ * The fan-out itself: each repository in turn, stopping at the first that
+ * fails and saying which ones were already done. Resolves `true` when every
+ * one went through.
+ */
+async function runEach(
+  targets: readonly BranchActionContext[],
+  action: BranchAction,
+): Promise<boolean> {
   const done: string[] = [];
   for (const ctx of targets) {
     const name = path.basename(ctx.repo.root);
@@ -963,7 +979,7 @@ export async function runCommonAction(
             ? vscode.l10n.t('Stopped at {0}. Already done in: {1}.', name, done.join(', '))
             : vscode.l10n.t('Stopped at {0}. Nothing was changed.', name),
         );
-        return;
+        return false;
       }
       done.push(name);
     } catch (err) {
@@ -978,9 +994,10 @@ export async function runCommonAction(
             )
           : vscode.l10n.t('Stopped at {0}: {1}. Nothing was changed.', name, reason),
       );
-      return;
+      return false;
     }
   }
+  return true;
 }
 
 interface CommonActionItem extends vscode.QuickPickItem {

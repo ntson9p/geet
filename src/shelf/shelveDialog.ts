@@ -10,6 +10,7 @@
  * file (with a warning) rather than applying renumbered hunks.
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { applyLineChanges, complementChanges } from '../core/patch/patchBuilder';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -228,6 +229,10 @@ export async function applyShelveResult(
     const repoKey = canonicalKey(repo.root);
     deps.trace?.(`shelve dialog: stored "${res.meta.id}" for ${repoKey}`);
     await repo.refresher.refreshNow();
+    // IntelliJ's `shelve.successful.message` — the warning above said it otherwise.
+    if (res.removalSkippedReason === undefined) {
+      notifySuccess(vscode.l10n.t('Changes shelved successfully'));
+    }
     return true;
   } catch (err) {
     void vscode.window.showErrorMessage(

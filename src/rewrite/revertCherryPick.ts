@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -117,6 +118,12 @@ export class RevertCherryPickService {
     });
     this.sessions.delete(canonicalKey(repo.root));
     await repo.refresher.refreshNow();
+    // IntelliJ's `abort.operation.succeeded`.
+    notifySuccess(
+      kind === 'revert'
+        ? vscode.l10n.t('Revert abort succeeded')
+        : vscode.l10n.t('Cherry-pick abort succeeded'),
+    );
   }
 
   // ---- internals -----------------------------------------------------------

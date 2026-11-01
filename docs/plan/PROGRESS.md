@@ -719,3 +719,58 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Playwright:** `push.spec.ts` is rewritten as 20 tests over a scenario-driven mock: layout, tooltip, commit changes and details, merged selection, `...`, the will-run line, the accept payload, Force Push (cancel, don't-warn, protected), Escape, the editor (suggestions, clean-up, apply, cancel, invalid name, `Set upstream`), the remote list, Define Remote, several repositories, `Edit all targets` and the changes toolbar.
 
 Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14ap ✅ 2026-11-01: **Completion notifications.** The owner reported that many operations finish with no word that they did. Their example was the Branches view's Fetch button, which fetches every repository and then said nothing. They asked for every such case to be found and given the correct notification.
+
+**IntelliJ's behaviour, read from its source:** the 36 `notifySuccess` call sites in git4idea, plus `GitFetchSupportImpl`, `ShowNotificationCommitResultHandler` and `GitStashUtils`. The strings came from `GitBundle`, `DvcsBundle` and `VcsBundle`.
+
+**The audit** went through every repository-changing operation (`kind: 'mutate'`) and every palette and webview action.
+
+Silent on success:
+- **Fetch:** a deliberate "the counts speak" rule.
+- **Pull and Sync.**
+- **Commit.**
+- **Branches:** checkout (plain, forced and smart), checkout of a remote branch, new branch, rename, delete and remote delete, merge, both rebases, Pull into Current, and the Branches tree's drag-to-rebase.
+- **Log:** New Branch, New Tag, Checkout Revision, Reset Here, and the fixup/squash autosquash.
+- **Rewrites:** Undo Commit and Edit Commit Message.
+- **Rebase and conflicts:** rebase continue, skip and abort (a five-second status-bar line only), the interactive rebase editor (its panel log only), conflict Continue and Abort, and cherry-pick/revert sequence abort.
+- **Stash and shelf:** stash, apply, pop and branch from stash; shelve (quick and dialog), shelf export and import.
+- **Files:** Roll Back… and Delete Untracked Files.
+
+Already reporting: push, Update Project, branch Update, revert, cherry-pick, drop, squash, the option dialogs and worktrees.
+
+Left quiet, as in IntelliJ: staging, gutter rollback, `.gitignore`, changelists, stash drop and clear, shelf rename and delete, and background fetch.
+
+**Helper:**
+- `src/ui/notify.ts` has `notifySuccess`/`notifyWarning` with action buttons, recorded for tests (`notifications` debug registry, `GITTREE_TEST_NOTIFICATION_ACTION` to click an action).
+- `collectNotifications`/`showCollected` (`AsyncLocalStorage`, so a concurrent operation is not swept in) let `runCommonAction` say an all-repositories action once.
+- Pure wording lives in `src/scm/resultMessages.ts` (`plural`, `pullResultMessage`, `committedMessage`, `joinMessages`) and `fetchAll.ts` (`parsePrunedRefs`, `fetchSuccessMessage`).
+
+**Messages** are IntelliJ's:
+- **Fetch:** *Fetch successful* plus the pruned references.
+- **Commit:** *N files committed: subject*, one for a multi-root commit. `runCommitFlow` gained `notify`/`onCommitted`.
+- **Branches:** *Checked out X*, *Checked out new branch X from Y*, *Branch X was created*, *Branch X was renamed to Y*, *Merged X to Y* or *Already up to date*, *Rebased X on Y*, *Checked out X and rebased it on Y*, *Deleted remote branch X*.
+- **Branch delete:** *Deleted branch X* (+ *Unmerged commits were discarded*) with **Restore** (the branch at its old tip, its upstream reset) and **Delete Tracked Branch**. These two buttons replace the old "Also delete the remote branch?" question.
+- **Reset and undo:** *Reset successful*, *Undo commit successful*.
+- **Edit Commit Message:** *Commit message changed* with **Undo** (`reset --keep` to the pre-reword head, refused when HEAD has moved on).
+- **Rebase, merge, cherry-pick, revert:** *Rebase successful*, *Abort rebase succeeded*, *{Merge|Cherry-pick|Revert} abort succeeded*, *Cherry-pick continue successful*.
+- **Stash and shelf:** *Files stashed successfully*, *Stash successfully applied*, *Changes shelved successfully*, *Successfully created patch …*.
+
+**Pull** counts against the pulled branch (`countPulled`: `before..@{upstream}`), so a rebasing pull does not count the user's own rewritten commits.
+
+The Merge, Rebase and Reset dialogs took the same wording; the Stash dialog took *Files stashed successfully*. The branches registry exposes `runCommonAction`, so a test sees the extension's own notifications.
+
+Docs: FEATURES §1 (Completion notifications), CHANGELOG (Added).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `scm/fetchAll.test.ts` (+ prune parsing, the fetch message) and the new `scm/resultMessages.test.ts`.
+- **Integration:**
+  - `phase02` T3: create, rename, delete, **Restore** through the seam, and force delete.
+  - `phase02` T4: smart checkout.
+  - `phase13`: Fetch with a pruned branch, and without.
+  - `phase03` T5: changelist commit count.
+  - `phase05`: Undo commit; reword's notification and a new test clicking **Undo**.
+  - `multiRoot`: one notification for a spanning commit.
+  - `projectPopup`: an all-repositories checkout says it once.
+
+Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; extension bundle built. No suite run.

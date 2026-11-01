@@ -6,6 +6,33 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — a notification when an operation finishes
+
+Many operations used to finish in silence: the status bar spinner stopped, and nothing said
+whether anything had happened. Clicking **Fetch** in the Branches view was the clearest case.
+
+Now an operation you start ends with a notification in IntelliJ's words. For example:
+
+- *Fetch successful*, naming the remote branches it pruned;
+- *Pulled 3 commits from origin/main: 7 files changed*, or *Already up to date*;
+- *2 files committed: Fix the parser*;
+- *Checked out main*, *Merged feature to main*, *Rebased main on develop*;
+- *Branch x was created*, *Branch x was renamed to y*;
+- *Created tag v1*, *Reset successful*;
+- *Files stashed successfully*, *Stash successfully applied*, *Changes shelved successfully*;
+- *Rebase successful*, and *Abort rebase succeeded*.
+
+Some notifications carry IntelliJ's follow-up buttons:
+
+- **Deleted branch x** has **Restore**, which brings the branch back where it was, and
+  **Delete Tracked Branch** while it tracked one. These replace the question GitTree used
+  to ask after a delete.
+- **Commit message changed** has **Undo**.
+
+A branch action run in all repositories at once says so once, not once per repository.
+
+Background work, such as automatic fetch, stays silent, as it does in IntelliJ.
+
 ### Changed — Push works the way IntelliJ's does
 
 Every Push now opens the Push dialog first, as IntelliJ's does:

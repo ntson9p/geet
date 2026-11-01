@@ -7,6 +7,7 @@
  * The published guard applies to both paths.
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { RepoHandle } from '../core/core';
 import { confirmModal } from '../ui/confirm';
 import { isPublished } from './publishedGuard';
@@ -101,8 +102,43 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
     if (message.replace(/\n+$/, '') === original) return 'cancelled';
 
     const head = await this.revParse(repo, 'HEAD');
-    if (head === full) return this.rewordHead(repo, message);
-    return this.rewordMidHistory(repo, full, message);
+    const result =
+      head === full ? await this.rewordHead(repo, message) : await this.rewordMidHistory(repo, full, message);
+    if (result === 'done' && head !== undefined) this.notifyChanged(repo, head);
+    return result;
+  }
+
+  /**
+   * IntelliJ's `Commit message changed`, with its `Undo`: back to the commit
+   * as it was, while nothing else has happened to the branch since.
+   */
+  private notifyChanged(repo: RepoHandle, preHead: string): void {
+    void this.revParse(repo, 'HEAD').then((postHead) => {
+      notifySuccess(vscode.l10n.t('Commit message changed'), {
+        title: vscode.l10n.t('Undo'),
+        run: () => this.undo(repo, preHead, postHead),
+      });
+    });
+  }
+
+  private async undo(repo: RepoHandle, preHead: string, postHead: string | undefined): Promise<void> {
+    const now = await this.revParse(repo, 'HEAD');
+    if (postHead === undefined || now !== postHead) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('Cannot undo commit message edit: the repository has already been changed.'),
+      );
+      return;
+    }
+    // Only the message changed, so the trees match and `--keep` moves HEAD
+    // without touching a single file, local changes included.
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Undo commit message edit'),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['reset', '--keep', preHead], { token });
+      },
+    });
+    await repo.refresher.refreshNow();
   }
 
   /**

@@ -76,6 +76,49 @@ ships. Accepted divergences are named here and registered once in
 * **Deviation:** IntelliJ's New UI puts this in a top toolbar; VS Code has no such surface
   (D4).
 
+### Completion notifications (behaviour)
+
+When an operation you started finishes, a notification says what it did, in IntelliJ's words
+(`src/ui/notify.ts`):
+
+* **Fetch** (every repository, or one) says *Fetch successful*, and names the remote branches
+  it pruned. Automatic background fetch stays silent, as IntelliJ's does.
+* **Pull** says *Already up to date*, or *Pulled 3 commits from origin/main: 7 files changed*.
+  The same goes for a remote branch's *Pull into Current*.
+* **Commit** says *2 files committed: Fix the parser*. A commit spanning several repositories
+  says it once, counting all their files.
+* **Branches:**
+  - *Checked out main*, and *Checked out new branch x from origin/x*;
+  - *Branch x was created*, and *Branch x was renamed to y*;
+  - *Merged x to main* or *Already up to date*;
+  - *Rebased main on x*, and *Checked out x and rebased it on main*;
+  - *Deleted remote branch origin/x*;
+  - **Delete** says *Deleted branch x* (adding *Unmerged commits were discarded* when it had to
+    force), with **Restore**, which puts the branch back at its old tip, tracking what it
+    tracked, and **Delete Tracked Branch** while it tracked one. These two buttons replace
+    the question GitTree used to ask after a delete.
+* **Log:** *Created tag v1*, *Checked out 1393301c* and *Reset successful*. **Edit Commit
+  Message** says *Commit message changed*, with **Undo**, which works while nothing has
+  happened to the branch since. **Undo Commit** says *Undo commit successful*.
+* **Rebase, merge, cherry-pick and revert:** *Rebase successful* when a rebase finishes
+  (continued, skipped past a conflict, or from the interactive editor); *Abort rebase
+  succeeded*, *Merge abort succeeded*, *Cherry-pick abort succeeded*; *Cherry-pick continue
+  successful*.
+* **Stash and shelf:** *Files stashed successfully*, *Stash successfully applied*, *Changes
+  shelved successfully*, *Successfully created patch …*.
+* **Several repositories at once:** a branch action run "in all N repositories" says it once
+  (*Checked out develop*) rather than once per repository.
+* **Files:** `Roll Back…` says *Rolled back 2 file(s).*, as the Rollback dialog does, and
+  `Delete Untracked Files…` says how many it deleted.
+* **Already reporting before:** push, Update Project, revert, drop, squash, the option dialogs
+  and worktrees. They keep their own reports. The Merge, Rebase and Reset dialogs now use the
+  same wording as above.
+
+Staging, unstaging, rolling back one change from the gutter, `Add to .gitignore` and
+changelist edits stay quiet,
+as they do in IntelliJ: their effect is in front of you the moment they finish. Dropping or
+clearing stashes, and renaming or deleting shelved changes, stay quiet for the same reason.
+
 ---
 
 ## 2. Branch Management (the Branches popup as an action hub)

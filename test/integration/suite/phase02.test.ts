@@ -10,6 +10,7 @@ import type { RefService } from '../../../src/branches/refService';
 import { buildPopupItems } from '../../../src/branches/branchesPopup';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { RepoHandle } from '../../../src/core/core';
+import type { NotificationsRegistry } from '../../../src/ui/notify';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 interface Phase02RegistryShape {
@@ -116,6 +117,10 @@ suite('P2 branches', () => {
 
   test('T3: new branch / rename / delete / force-delete flows', async function () {
     this.timeout(60_000);
+    // POST-P14ap: each one ends with IntelliJ's notification.
+    const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
+    const said = (): string[] => notes.recent().map((n) => n.message);
+    notes.clear();
     // New branch (input via test seam), created without checkout.
     process.env['GITTREE_TEST_BRANCH_NAME'] = 'ops/created';
     process.env['GITTREE_TEST_BRANCH_MODE'] = 'create';
@@ -126,6 +131,7 @@ suite('P2 branches', () => {
       delete process.env['GITTREE_TEST_BRANCH_MODE'];
     }
     assert.ok(git('branch', '--list', 'ops/created').includes('ops/created'));
+    assert.deepStrictEqual(said(), ['Branch ops/created was created']);
 
     // Rename.
     process.env['GITTREE_TEST_BRANCH_NAME'] = 'ops/renamed';
@@ -136,8 +142,28 @@ suite('P2 branches', () => {
     }
     assert.ok(git('branch', '--list', 'ops/renamed').includes('ops/renamed'));
     assert.strictEqual(git('branch', '--list', 'ops/created').trim(), '');
+    assert.strictEqual(said().at(-1), 'Branch ops/created was renamed to ops/renamed');
 
-    // Plain delete (merged → -d succeeds).
+    // Plain delete (merged → -d succeeds), with IntelliJ's `Restore` — which
+    // puts the branch back where it was.
+    await refresh();
+    const tip = git('rev-parse', 'ops/renamed').trim();
+    notes.clear();
+    await reg.ops.deleteBranch(repo, 'ops/renamed');
+    assert.strictEqual(git('branch', '--list', 'ops/renamed').trim(), '');
+    assert.deepStrictEqual(notes.recent(), [
+      { kind: 'info', message: 'Deleted branch ops/renamed', actions: ['Restore'] },
+    ]);
+    await refresh();
+    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Restore';
+    try {
+      await reg.ops.deleteBranch(repo, 'ops/renamed');
+      await waitFor(() => git('branch', '--list', 'ops/renamed').trim().length > 0, 15_000);
+    } finally {
+      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+    }
+    assert.strictEqual(git('rev-parse', 'ops/renamed').trim(), tip, 'restored at its old tip');
+    await waitFor(() => said().includes('Restored branch ops/renamed'), 15_000);
     await refresh();
     await reg.ops.deleteBranch(repo, 'ops/renamed');
     assert.strictEqual(git('branch', '--list', 'ops/renamed').trim(), '');
@@ -149,8 +175,10 @@ suite('P2 branches', () => {
     git('commit', '-m', 'unmerged work');
     git('checkout', 'main');
     await refresh();
+    notes.clear();
     await reg.ops.deleteBranch(repo, 'ops/unmerged');
     assert.strictEqual(git('branch', '--list', 'ops/unmerged').trim(), '');
+    assert.strictEqual(said().at(-1), 'Deleted branch ops/unmerged. Unmerged commits were discarded.');
   });
 
   test('T4: smart checkout stashes, switches and restores', async function () {
@@ -166,12 +194,19 @@ suite('P2 branches', () => {
     write('tracked.txt', 'dirty local edit\n'); // blocks checkout
     await refresh();
 
+    const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
+    notes.clear();
     process.env['GITTREE_TEST_SMART_CHOICE'] = 'smart';
     try {
       await reg.ops.checkout(repo, 'smart/target');
     } finally {
       delete process.env['GITTREE_TEST_SMART_CHOICE'];
     }
+    // POST-P14ap: `Checked out` — unless restoring the changes conflicted,
+    // which warns instead (handled below).
+    const checkedOut = notes.recent().some((n) => n.message === 'Checked out smart/target');
+    const conflictedPop = git('status', '--porcelain').includes('UU tracked.txt');
+    assert.ok(checkedOut || conflictedPop, JSON.stringify(notes.recent()));
     await refresh();
     await waitFor(() => repo.model.snapshot.headRef === 'smart/target', 15_000);
     // Pop conflicts (dirty edit vs target version) keep the stash + unmerged file.

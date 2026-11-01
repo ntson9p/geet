@@ -5,6 +5,7 @@
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import type { StatusEntry } from '../core/model/statusEntry';
 import { repoRelative } from '../core/util/paths';
@@ -313,6 +314,8 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
         }
       },
     });
+    // What the Rollback dialog says for the same operation.
+    notifySuccess(vscode.l10n.t('Rolled back {0} file(s).', sel.entries.length));
   });
 
   register('gittree.cleanUntracked', async (...args) => {
@@ -339,6 +342,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
         snapshotPaths: absPaths(repo, untracked),
       },
     );
+    notifySuccess(vscode.l10n.t('Deleted {0} untracked file(s).', untracked.length));
   });
 
   register('gittree.refresh', async () => {

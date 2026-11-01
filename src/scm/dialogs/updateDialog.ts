@@ -547,7 +547,35 @@ export async function applyUpdateResult(
   };
 }
 
-async function countIncoming(
+/**
+ * What a pull brought in: the commits `source` (the branch pulled, as it is
+ * now) has that HEAD did not have `before` — so a rebase's rewritten local
+ * commits are not counted — and the files HEAD changed since.
+ */
+export async function countPulled(
+  core: Core,
+  repo: RepoHandle,
+  before: string,
+  source: string,
+): Promise<{ commits: number; files: number }> {
+  if (before.length === 0) return { commits: 0, files: 0 };
+  const countRes = await core.git.exec(repo.root, ['rev-list', '--count', `${before}..${source}`], {
+    allowNonZeroExit: true,
+  });
+  const commits = countRes.exitCode === 0 ? Number(countRes.stdout.trim()) || 0 : 0;
+  if (commits === 0) return { commits: 0, files: 0 };
+  const filesRes = await core.git.exec(repo.root, ['diff', '--name-only', '-z', before, 'HEAD'], {
+    allowNonZeroExit: true,
+  });
+  const files =
+    filesRes.exitCode === 0
+      ? filesRes.stdout.split('\0').filter((p) => p.length > 0).length
+      : 0;
+  return { commits, files };
+}
+
+/** What `before..after` brought in: commits, and the files they changed. */
+export async function countIncoming(
   core: Core,
   repo: RepoHandle,
   before: string,

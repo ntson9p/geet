@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { RepoHandle } from '../../../src/core/core';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
@@ -88,6 +89,8 @@ suite('P3 commit lifecycle', () => {
     service.moveFiles(['brand-new.txt'], feature.id);
 
     messageBox.value = 'feature x commit';
+    const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
+    notes.clear();
     process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
       // P14-T2: the commit window's context shape replaces the tree node.
@@ -103,6 +106,8 @@ suite('P3 commit lifecycle', () => {
 
     const committed = git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort();
     assert.deepStrictEqual(committed, ['brand-new.txt', 'src/code.ts']);
+    // POST-P14ap: IntelliJ's commit result — the files counted, the subject quoted.
+    await waitFor(() => notes.recent().some((n) => n.message === '2 files committed: feature x commit'), 15_000);
     // Decoy is still staged, other.txt still dirty — untouched.
     const status = git('status', '--porcelain');
     assert.ok(status.includes('A  staged-decoy.txt'), `status:\n${status}`);

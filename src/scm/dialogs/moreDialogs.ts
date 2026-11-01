@@ -232,7 +232,8 @@ export async function applyStashResult(
       },
     });
     await repo.refresher.refreshNow();
-    return { ok: true, message: vscode.l10n.t('Changes stashed.'), commands: [args] };
+    // IntelliJ's `stash.files.success`, as the quick Stash says it.
+    return { ok: true, message: vscode.l10n.t('Files stashed successfully'), commands: [args] };
   } catch (err) {
     await repo.refresher.refreshNow();
     return failed(err, [args]);

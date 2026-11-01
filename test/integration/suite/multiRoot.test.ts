@@ -2,6 +2,7 @@ import * as assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
@@ -169,6 +170,8 @@ suite('Multi-root commit', () => {
 
     const message = 'multi-root: one message, two repositories';
     reg.commitWindow.messageBoxFor(repoD).value = message;
+    const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+    notes.clear();
 
     // No repo argument: the palette / Ctrl+K / commit-button path.
     await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
@@ -176,6 +179,12 @@ suite('Multi-root commit', () => {
     await waitFor(() => headOf(repoD) !== beforeD && headOf(repoE) !== beforeE, 60_000);
     assert.strictEqual(subjectOf(repoD), message, 'repoD committed with the typed message');
     assert.strictEqual(subjectOf(repoE), message, 'repoE committed with the same message');
+    // POST-P14ap: one commit, one notification — the files of both
+    // repositories counted together, as IntelliJ counts them.
+    await waitFor(() => notes.recent().some((n) => n.message.endsWith(`committed: ${message}`)), 30_000);
+    const said = notes.recent().filter((n) => n.message.endsWith(`committed: ${message}`));
+    assert.strictEqual(said.length, 1, JSON.stringify(said));
+    assert.match(said[0]!.message, /^\d+ files committed: /);
 
     // The message was typed into repoD's box; repoE has its own, and reading it
     // instead of the one handed down would have rejected repoE as empty.

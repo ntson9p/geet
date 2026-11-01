@@ -6,6 +6,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -75,6 +76,7 @@ export function registerCommitActions(
         await git.exec(repo.root, ['branch', '--', name.trim(), sha], { token });
       },
     });
+    notifySuccess(vscode.l10n.t('Branch {0} was created', name.trim()));
   });
 
   register('gittree.log.createTagHere', async (arg) => {
@@ -95,6 +97,7 @@ export function registerCommitActions(
         await git.exec(repo.root, ['tag', '--', name.trim(), sha], { token });
       },
     });
+    notifySuccess(vscode.l10n.t('Created tag {0}', name.trim()));
   });
 
   register('gittree.log.checkoutRevision', async (arg) => {
@@ -117,6 +120,7 @@ export function registerCommitActions(
         await git.exec(repo.root, ['checkout', '--detach', sha], { token });
       },
     });
+    notifySuccess(vscode.l10n.t('Checked out {0}', sha.slice(0, 8)));
   });
 
   register('gittree.log.resetHere', async (arg) => {
@@ -162,6 +166,8 @@ export function registerCommitActions(
           await git.exec(repo.root, ['reset', `--${picked.mode}`, sha], { token });
         },
       });
+      // IntelliJ's `GitResetOperation`.
+      notifySuccess(vscode.l10n.t('Reset successful'));
     } catch (err) {
       // `--keep` refusing to discard local changes is the point of the mode;
       // surface git's own reason instead of a stack trace.
@@ -394,6 +400,9 @@ export function registerCommitActions(
           });
         },
       });
+      notifySuccess(
+        vscode.l10n.t('Rebase successful: the {0} commit was folded into {1}', mode, sha.slice(0, 8)),
+      );
     } catch (err) {
       // A conflicted autosquash pauses the rebase — the P5 monitor and P6
       // conflict flow own it from here; say so instead of failing silently.

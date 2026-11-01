@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { RepoHandle } from '../../../src/core/core';
 import type { SnapshotManifest } from '../../../src/localHistory/snapshotStore';
 import type { RebaseEngine } from '../../../src/rewrite/rebase/rebaseEngine';
@@ -414,10 +415,17 @@ suite('P5 history rewriting — rebase engine', () => {
     const parent = git('rev-parse', 'HEAD^').trim();
     await repo.refresher.refreshNow();
 
+    const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+    notes.clear();
     try {
       const result = await reg.undoDrop.undoCommit(repo);
       assert.strictEqual(result.status, 'done');
       assert.strictEqual(git('rev-parse', 'HEAD').trim(), parent, 'HEAD must move to the parent');
+      // POST-P14ap: IntelliJ's `Undo commit successful`.
+      assert.ok(
+        notes.recent().some((n) => n.message === 'Undo commit successful'),
+        JSON.stringify(notes.recent()),
+      );
 
       // Files are back as unstaged worktree changes (changelists paradigm).
       const status = git('status', '--porcelain');
@@ -647,11 +655,21 @@ suite('P5 history rewriting — rebase engine', () => {
     write('p5staged.txt', 'staged only\n');
     git('add', '--', 'p5staged.txt');
 
+    const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+    notes.clear();
     process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'A head reworded';
     try {
       const result = await reg.reword.reword(repo, head);
       assert.strictEqual(result, 'done');
       assert.strictEqual(git('log', '--format=%s', '-1').trim(), 'A head reworded');
+      // POST-P14ap: IntelliJ's `Commit message changed`, with its `Undo`.
+      await waitFor(
+        () =>
+          notes
+            .recent()
+            .some((n) => n.message === 'Commit message changed' && n.actions.includes('Undo')),
+        15_000,
+      );
       assert.strictEqual(git('rev-parse', 'HEAD^{tree}').trim(), preTree, 'tree must be untouched');
       const status = git('status', '--porcelain');
       assert.ok(/^A\s+p5staged\.txt/m.test(status), `staged file must remain staged: ${status}`);
@@ -663,6 +681,27 @@ suite('P5 history rewriting — rebase engine', () => {
         // nothing staged
       }
       fs.rmSync(abs('p5staged.txt'), { force: true });
+    }
+  });
+
+  test('POST-P14ap: Undo on Commit message changed puts the commit back as it was', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
+    onBranch('rewordundo');
+    const head = commit('p5u.txt', 'u\n', 'U original message');
+    process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'U reworded';
+    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Undo';
+    try {
+      const result = await reg.reword.reword(repo, head);
+      assert.strictEqual(result, 'done');
+      // The notification's Undo ran as if clicked: back to the very same commit.
+      await waitFor(() => git('rev-parse', 'HEAD').trim() === head, 15_000);
+      assert.strictEqual(git('log', '--format=%s', '-1').trim(), 'U original message');
+    } finally {
+      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+      await repo.refresher.refreshNow();
     }
   });
 

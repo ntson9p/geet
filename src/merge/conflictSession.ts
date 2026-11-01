@@ -5,6 +5,7 @@
  * and the tri-editor (T3) render it; T7 routes producer operations into it.
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { RepoHandle } from '../core/core';
 import type { StatusEntry } from '../core/git/parsers/statusV2';
 import { Emitter, type Event } from '../core/util/events';
@@ -217,6 +218,14 @@ export class ConflictSession {
           },
         });
         await this.repo.refresher.refreshNow();
+        // IntelliJ's `cherry.pick.continue.successful`, said for each of the three.
+        notifySuccess(
+          op === 'merge'
+            ? vscode.l10n.t('Merge completed')
+            : op === 'cherry-pick'
+              ? vscode.l10n.t('Cherry-pick continue successful')
+              : vscode.l10n.t('Revert continue successful'),
+        );
         return true;
       }
     }
@@ -258,6 +267,14 @@ export class ConflictSession {
           },
         });
         await this.repo.refresher.refreshNow();
+        // IntelliJ's `abort.operation.succeeded`.
+        notifySuccess(
+          op === 'merge'
+            ? vscode.l10n.t('Merge abort succeeded')
+            : op === 'cherry-pick'
+              ? vscode.l10n.t('Cherry-pick abort succeeded')
+              : vscode.l10n.t('Revert abort succeeded'),
+        );
       }
     }
   }

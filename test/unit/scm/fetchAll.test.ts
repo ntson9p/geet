@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fetchSuccessMessage,
   firstLine,
+  parsePrunedRefs,
   runFetchAll,
   summarizeFetch,
   type FetchTarget,
@@ -135,5 +137,60 @@ describe('firstLine', () => {
 
   it('survives a non-Error rejection', () => {
     expect(firstLine('plain string')).toBe('plain string');
+  });
+});
+
+/**
+ * POST-P14ap — a fetch the user asked for ends with IntelliJ's *Fetch
+ * successful*, naming the remote branches the prune removed.
+ */
+describe('parsePrunedRefs', () => {
+  it('reads the pruned references from git fetch --prune output', () => {
+    const output = [
+      'From D:/remotes/demo',
+      ' - [deleted]         (none)     -> origin/feature/old',
+      '   1a2b3c4..5d6e7f8  main       -> origin/main',
+      ' - [deleted]         (none)     -> origin/topic',
+    ].join('\n');
+    expect(parsePrunedRefs(output)).toEqual(['origin/feature/old', 'origin/topic']);
+  });
+
+  it('reads the older `x [deleted]` form IntelliJ matches, and CRLF output', () => {
+    expect(parsePrunedRefs(' x [deleted]         (none)     -> upstream/gone\r\n')).toEqual([
+      'upstream/gone',
+    ]);
+  });
+
+  it('finds nothing in a fetch that pruned nothing', () => {
+    expect(parsePrunedRefs('From x\n   1a2b3c4..5d6e7f8  main -> origin/main\n')).toEqual([]);
+    expect(parsePrunedRefs('')).toEqual([]);
+  });
+});
+
+describe('fetchSuccessMessage', () => {
+  it('says Fetch successful when nothing was pruned', () => {
+    expect(fetchSuccessMessage([], false)).toBe('Fetch successful');
+    expect(fetchSuccessMessage([{ name: 'web', refs: [] }], true)).toBe('Fetch successful');
+  });
+
+  it('names the pruned references, singular or plural', () => {
+    expect(fetchSuccessMessage([{ name: 'web', refs: ['origin/old'] }], false)).toBe(
+      'Fetch successful. Pruned obsolete remote reference: origin/old',
+    );
+    expect(fetchSuccessMessage([{ name: 'web', refs: ['origin/a', 'origin/b'] }], false)).toBe(
+      'Fetch successful. Pruned obsolete remote references: origin/a, origin/b',
+    );
+  });
+
+  it('with several repositories, says which repository each one was in', () => {
+    expect(
+      fetchSuccessMessage(
+        [
+          { name: 'web', refs: ['origin/a'] },
+          { name: 'api', refs: ['origin/b'] },
+        ],
+        true,
+      ),
+    ).toBe('Fetch successful. Pruned obsolete remote references: origin/a (web), origin/b (api)');
   });
 });

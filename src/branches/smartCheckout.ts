@@ -5,6 +5,7 @@
  * the stash entry and points at the conflicts.
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -35,9 +36,15 @@ async function plainCheckout(repo: RepoHandle, target: string): Promise<void> {
   });
 }
 
+/** IntelliJ's `checkout.operation.checked.out`, whichever way the checkout went. */
+function checkedOut(target: string): void {
+  notifySuccess(vscode.l10n.t('Checked out {0}', target));
+}
+
 export async function checkoutWithSmart(core: Core, repo: RepoHandle, target: string): Promise<void> {
   try {
     await plainCheckout(repo, target);
+    checkedOut(target);
     return;
   } catch (err) {
     if (!(err instanceof GitError) || err.kind !== 'would-overwrite-checkout') throw err;
@@ -93,6 +100,7 @@ export async function checkoutWithSmart(core: Core, repo: RepoHandle, target: st
           await git.exec(repo.root, ['checkout', '-f', target], { token });
         },
       });
+      checkedOut(target);
       return;
     }
 
@@ -148,6 +156,7 @@ async function smartCheckout(core: Core, repo: RepoHandle, target: string): Prom
       },
     });
     core.output.appendLine(`[branches] smart checkout to ${target} completed with changes restored`);
+    checkedOut(target);
   } catch (err) {
     if (err instanceof GitError && err.kind === 'merge-conflict') {
       void vscode.window.showWarningMessage(

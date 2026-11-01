@@ -11,10 +11,12 @@ import { createBranchActions, findBranchAction, type BranchAction } from './bran
 import { BranchOps } from './branchOps';
 import {
   refTypeOf,
+  runCommonAction,
   showBranchActions,
   showBranchesPopup,
   showCommonBranchActions,
 } from './branchesPopup';
+import type { CommonRef } from './popupTree';
 import { BranchesWebViewProvider } from './branchesWebView';
 import { BranchHubViewProvider } from './branchHubView';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
@@ -43,6 +45,12 @@ export interface Phase02Registry {
    * the log's Branches pane all consume, so the three cannot drift.
    */
   actions: BranchAction[];
+  /**
+   * POST-P14ap: an all-repositories branch action, run by the extension's own
+   * module — a test importing `runCommonAction` gets a second copy of the
+   * notification module, so it could not see what the run said.
+   */
+  runCommonAction: (repos: readonly RepoHandle[], common: CommonRef, actionId: string) => Promise<void>;
 }
 
 export function registerPhase02(context: vscode.ExtensionContext, core: Core): Phase02Registry {
@@ -495,6 +503,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     hub,
     branchesWeb,
     actions,
+    runCommonAction: (repos, common, actionId) => runCommonAction(repos, common, actions, actionId),
   };
   core.debugRegistry.set('phase02', registry);
   return registry;

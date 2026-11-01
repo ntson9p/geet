@@ -18,6 +18,7 @@ import {
   type CommonRef,
   type RepoRow,
 } from '../../../src/branches/branchesPopup';
+import type { NotificationsRegistry } from '../../../src/ui/notify';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
 
 /**
@@ -289,11 +290,19 @@ suite('POST-P14p project-level branches popup', () => {
 
     try {
       const common: CommonRef = { name: COMMON_BRANCH, kind: 'local' };
-      await runCommonAction([repoD, repoE], common, p2.actions, 'checkout');
+      const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+      notes.clear();
+      // The extension's own fan-out, so its notifications are the ones recorded.
+      await p2.runCommonAction([repoD, repoE], common, 'checkout');
 
       await waitFor(() => headOf(repoD) === COMMON_BRANCH && headOf(repoE) === COMMON_BRANCH, 60_000);
       assert.strictEqual(headOf(repoD), COMMON_BRANCH);
       assert.strictEqual(headOf(repoE), COMMON_BRANCH);
+      // POST-P14ap: said once for both repositories, as IntelliJ says it.
+      assert.deepStrictEqual(
+        notes.recent().map((n) => n.message),
+        [`Checked out ${COMMON_BRANCH}`],
+      );
 
       // Running it again is a no-op, not a failure: both roots are already
       // there, so `checkout` applies in neither.

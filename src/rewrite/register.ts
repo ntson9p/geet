@@ -3,6 +3,7 @@
  * with undo/drop, revert/cherry-pick, reword and push safety).
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { resolveShimDir } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -102,7 +103,9 @@ export function registerPhase05HistoryRewriting(
   ): Promise<void> => {
     const outcome = await action();
     if (outcome?.status === 'completed') {
-      void vscode.window.setStatusBarMessage(vscode.l10n.t('$(check) Rebase completed'), 5000);
+      // IntelliJ's `rebase.notification.successful.title`, a notification
+      // rather than five seconds of status bar that is easy to miss.
+      notifySuccess(vscode.l10n.t('Rebase successful'));
     } else if (outcome?.status === 'failed') {
       void vscode.window.showErrorMessage(
         vscode.l10n.t('Rebase failed: {0}', outcome.stderr?.split('\n')[0] ?? ''),
@@ -122,7 +125,7 @@ export function registerPhase05HistoryRewriting(
     const engine = engineFor(pickRepo(repoRoot));
     if (engine) {
       await engine.abort();
-      void vscode.window.setStatusBarMessage(vscode.l10n.t('$(discard) Rebase aborted'), 5000);
+      notifySuccess(vscode.l10n.t('Abort rebase succeeded'));
     }
   });
   register('gittree.rebase.actions', async (repoRoot) => {

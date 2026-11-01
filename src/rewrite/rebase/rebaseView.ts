@@ -6,6 +6,7 @@
  * The host owns all state; the webview survives disposal by re-requesting it.
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../../ui/notify';
 import type { Core, RepoHandle } from '../../core/core';
 import {
   REBASE_METHODS,
@@ -154,6 +155,7 @@ export class RebaseViewController implements vscode.Disposable {
     this.session.state.outcome = 'aborted';
     this.session.state.log.push(vscode.l10n.t('Rebase aborted — pre-rebase state restored.'));
     this.pushState();
+    notifySuccess(vscode.l10n.t('Abort rebase succeeded'));
   }
 
   private applyOutcome(
@@ -167,6 +169,7 @@ export class RebaseViewController implements vscode.Disposable {
       session.state.outcome = 'completed';
       session.state.conflicts = [];
       session.state.log.push(vscode.l10n.t('Rebase completed.'));
+      notifySuccess(vscode.l10n.t('Rebase successful'));
     } else if (status === 'paused') {
       session.state.phase = 'paused';
       const first = stderr?.split('\n').find((l) => l.trim().length > 0);

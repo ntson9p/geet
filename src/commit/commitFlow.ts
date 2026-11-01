@@ -9,7 +9,9 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { isStaged } from '../core/model/statusEntry';
 import { CancellationSource } from '../core/util/cancellation';
+import { committedMessage } from '../scm/resultMessages';
 import { confirmModal } from '../ui/confirm';
+import { notifySuccess } from '../ui/notify';
 import { UNVERSIONED_ID, type ChangelistService } from './changelists/changelistService';
 import type { CheckPipeline } from './checks/pipeline';
 import { CommitService, describeGpgFailure } from './commitService';
@@ -121,10 +123,42 @@ async function planCommit(
   });
 }
 
+/**
+ * What the commit just made holds: its files and its subject — IntelliJ's
+ * commit notification counts the one and quotes the other.
+ */
+async function headCommitSummary(core: Core, repo: RepoHandle): Promise<{ files: number; subject: string }> {
+  const opts = { structured: true, allowNonZeroExit: true } as const;
+  const subject = await core.git.exec(repo.root, ['log', '-1', '--format=%s', 'HEAD'], opts);
+  const parent = await core.git.exec(repo.root, ['rev-parse', '--verify', '--quiet', 'HEAD^1'], opts);
+  const files = await core.git.exec(
+    repo.root,
+    parent.exitCode === 0
+      ? ['diff', '--name-only', '-z', 'HEAD^1', 'HEAD']
+      : ['diff-tree', '--root', '-r', '--no-commit-id', '--name-only', '-z', 'HEAD'],
+    opts,
+  );
+  return {
+    files: files.exitCode === 0 ? files.stdout.split('\0').filter((p) => p.length > 0).length : 0,
+    subject: subject.exitCode === 0 ? subject.stdout.trim() : '',
+  };
+}
+
 export async function runCommitFlow(
   deps: CommitFlowDeps,
   repo: RepoHandle,
-  options: { listId?: string; andPush?: boolean; message?: string } = {},
+  options: {
+    listId?: string;
+    andPush?: boolean;
+    message?: string;
+    /**
+     * `false` leaves the *N files committed* notification to the caller — the
+     * multi-root commit, which says it once for every repository together.
+     */
+    notify?: boolean;
+    /** The commit landed: the files it holds and its subject. */
+    onCommitted?: (files: number, subject: string) => void;
+  } = {},
 ): Promise<boolean> {
   const inputBox = deps.inputBoxFor(repo);
   // `options.message` is the multi-root path handing down the one message the
@@ -261,6 +295,10 @@ export async function runCommitFlow(
 
   if (committed) {
     await postCommit(deps, repo, message);
+    // IntelliJ's commit result (`vcs.commit.files.committed`): what went in.
+    const summary = await headCommitSummary(deps.core, repo);
+    options.onCommitted?.(summary.files, summary.subject);
+    if (options.notify !== false) notifySuccess(committedMessage(summary.files, summary.subject));
     if (options.andPush === true) await pushAfterCommit([repo]);
     if (deferAdvanced) {
       // Fire-and-forget by design: the commit is done and the flow must not
@@ -377,11 +415,18 @@ export async function runCommitAcross(
   // committed, not a dialog (or a push) per repository as each one lands.
   const andPush = options.andPush === true;
   const landed: RepoHandle[] = [];
+  // One notification for the whole commit, as IntelliJ counts every
+  // repository's files in one — not one per repository as each lands.
+  let filesCommitted = 0;
   for (const repo of ordered) {
     const listId = listOf(repo);
     const ok = await runCommitFlow(deps, repo, {
       ...(listId !== undefined ? { listId } : {}),
       message,
+      notify: false,
+      onCommitted: (files) => {
+        filesCommitted += files;
+      },
     });
     if (!ok) {
       // Stop rather than carry on: a refused check or a cancelled dialog is a
@@ -408,6 +453,7 @@ export async function runCommitAcross(
   // user typed into belongs to a repo that committed nothing, it still holds
   // the text of a commit that has already happened.
   clearTypedMessage(deps, messageRepo);
+  notifySuccess(committedMessage(filesCommitted, message));
   if (andPush) await pushAfterCommit(landed);
   return true;
 }

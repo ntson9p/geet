@@ -93,22 +93,24 @@ export async function applyMergeResult(
   const errors = validateMergeOptions(result.options);
   if (errors.length > 0) return { ok: false, message: errors.join(' '), commands: [] };
   const args = buildMergeArgs(result.options);
+  const current = repo.model.snapshot.headRef ?? 'HEAD';
   try {
-    await repo.queue.enqueue({
+    const output = await repo.queue.enqueue({
       label: vscode.l10n.t('Merge {0}', result.options.ref),
       kind: 'mutate',
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.merge,
-      run: async (git, token) => {
-        await git.exec(repo.root, args, { token });
-      },
+      run: async (git, token) => (await git.exec(repo.root, args, { token })).stdout,
     });
     await repo.refresher.refreshNow();
+    // IntelliJ's `GitMergeOperation` words: *Merged X to Y*, *Already up to date*.
     return {
       ok: true,
-      message: result.options.squash
-        ? vscode.l10n.t('Squash-merged {0} — staged, not committed.', result.options.ref)
-        : vscode.l10n.t('Merged {0}.', result.options.ref),
+      message: /Already up[ -]to[ -]date/i.test(output)
+        ? vscode.l10n.t('Already up to date')
+        : result.options.squash
+          ? vscode.l10n.t('Squash-merged {0} — staged, not committed.', result.options.ref)
+          : vscode.l10n.t('Merged {0} to {1}', result.options.ref, current),
       commands: [args],
     };
   } catch (err) {
@@ -174,6 +176,7 @@ export async function applyRebaseResult(
     };
   }
   const args = buildRebaseArgs(result.options);
+  const current = repo.model.snapshot.headRef ?? 'HEAD';
   try {
     await repo.queue.enqueue({
       label: vscode.l10n.t('Rebase onto {0}', result.options.onto),
@@ -185,7 +188,12 @@ export async function applyRebaseResult(
       },
     });
     await repo.refresher.refreshNow();
-    return { ok: true, message: vscode.l10n.t('Rebased onto {0}.', result.options.onto), commands: [args] };
+    // IntelliJ's `rebase.notification.successful.rebased.message`.
+    return {
+      ok: true,
+      message: vscode.l10n.t('Rebased {0} on {1}', current, result.options.onto),
+      commands: [args],
+    };
   } catch (err) {
     await repo.refresher.refreshNow();
     return failed(err, [args]);
@@ -261,11 +269,8 @@ export async function applyResetResult(
       },
     });
     await repo.refresher.refreshNow();
-    return {
-      ok: true,
-      message: vscode.l10n.t('Reset ({0}) to {1}.', result.mode, result.ref),
-      commands: [args],
-    };
+    // IntelliJ's `git.reset.successful.notification.message`, as Reset Here says it.
+    return { ok: true, message: vscode.l10n.t('Reset successful'), commands: [args] };
   } catch (err) {
     await repo.refresher.refreshNow();
     // `--keep` refusing is the mode working as designed — surface git's reason.

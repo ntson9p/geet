@@ -7,6 +7,7 @@ import type { Phase03Registry } from '../../../src/commit/register';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import { isStaged } from '../../../src/core/model/statusEntry';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
+import type { NotificationsRegistry } from '../../../src/ui/notify';
 import {
   PUSH_DIALOG_METHODS,
   REMOTES_DIALOG_METHODS as REMOTES_METHODS,
@@ -402,6 +403,32 @@ suite('P13 dialogs', () => {
       }
       await repo.refresher.refreshNow();
     }
+  });
+
+  test('POST-P14ap: Fetch says Fetch successful, naming what the prune removed', async function () {
+    this.timeout(60_000);
+    const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+    // A branch on the remote, known locally, then deleted on the remote.
+    bare('branch', '-f', 'p13-prune', `refs/heads/${branch}`);
+    git('fetch', REMOTE);
+    assert.ok(git('branch', '-r').includes(`${REMOTE}/p13-prune`));
+    bare('branch', '-D', 'p13-prune');
+
+    notes.clear();
+    await vscode.commands.executeCommand('gittree.fetch', repo.root);
+    assert.ok(!git('branch', '-r').includes(`${REMOTE}/p13-prune`), 'the fetch prunes');
+    assert.deepStrictEqual(
+      notes.recent().map((n) => n.message),
+      [`Fetch successful. Pruned obsolete remote reference: ${REMOTE}/p13-prune`],
+    );
+
+    // Nothing to prune: just Fetch successful.
+    notes.clear();
+    await vscode.commands.executeCommand('gittree.fetch', repo.root);
+    assert.deepStrictEqual(
+      notes.recent().map((n) => n.message),
+      ['Fetch successful'],
+    );
   });
 
   test('T1: an unknown repository root is reported, never silently pushed elsewhere', async () => {

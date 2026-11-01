@@ -5,6 +5,7 @@
  * compare — IntelliJ drag affordance).
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -236,6 +237,7 @@ export class BranchesViewProvider
           await git.exec(repo.root, ['rebase', source, target], { token });
         },
       });
+      notifySuccess(vscode.l10n.t('Checked out {0} and rebased it on {1}', target, source));
     } else {
       await vscode.commands.executeCommand('gittree.branches.compareWithCurrent', repo.root, source);
     }

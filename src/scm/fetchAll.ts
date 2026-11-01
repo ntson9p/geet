@@ -114,3 +114,37 @@ export function summarizeFetch(outcomes: readonly FetchOutcome[]): FetchSummary 
     total: outcomes.length,
   };
 }
+
+/**
+ * The remote-tracking branches `git fetch --prune` removed, read from its
+ * output: ` - [deleted]  (none) -> origin/feature`. Older gits mark the line
+ * with `x` rather than `-` — IntelliJ's `PRUNE_PATTERN` reads that form.
+ */
+export function parsePrunedRefs(output: string): string[] {
+  const out: string[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const m = /^\s*[-x]\s*\[deleted\].*->\s*(\S+)\s*$/.exec(line);
+    if (m?.[1] !== undefined) out.push(m[1]);
+  }
+  return out;
+}
+
+/** One repository's pruned references, named for a several-repository report. */
+export interface PrunedRefs {
+  readonly name: string;
+  readonly refs: readonly string[];
+}
+
+/**
+ * IntelliJ's Fetch result: *Fetch successful*, and the references the fetch
+ * pruned (`Pruned obsolete remote references: …`). With several repositories
+ * each reference names its repository.
+ */
+export function fetchSuccessMessage(pruned: readonly PrunedRefs[], severalRepositories: boolean): string {
+  const refs = pruned.flatMap((p) =>
+    p.refs.map((ref) => (severalRepositories ? `${ref} (${p.name})` : ref)),
+  );
+  if (refs.length === 0) return 'Fetch successful';
+  const noun = refs.length === 1 ? 'reference' : 'references';
+  return `Fetch successful. Pruned obsolete remote ${noun}: ${refs.join(', ')}`;
+}

@@ -8,6 +8,7 @@
  * Both refuse published commits unless the warn modal is accepted.
  */
 import * as vscode from 'vscode';
+import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -132,6 +133,8 @@ export class UndoDropService {
     const input = this.inputBoxFor(repo);
     if (input) input.value = message;
     await repo.refresher.refreshNow();
+    // IntelliJ's `git.undo.action.successful.notification.message`.
+    notifySuccess(vscode.l10n.t('Undo commit successful'));
     return { status: 'done', subject };
   }
 

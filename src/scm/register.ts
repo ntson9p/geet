@@ -26,6 +26,7 @@ import { ChangeBarsController } from './gutter/changeBars';
 import { registerChangePopup } from './gutter/changePopup';
 import { registerHunkActions } from './hunkActions';
 import { registerSyncOps } from './syncOps';
+import { notificationsRegistry } from '../ui/notify';
 
 export interface Phase01Registry {
   statusBars: Map<string, StatusBarController>;
@@ -240,5 +241,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     statusBarDiagnostics,
   };
   core.debugRegistry.set('phase01', registry);
+  // POST-P14ap: what the completion notifications said, for the integration tests.
+  core.debugRegistry.set('notifications', notificationsRegistry);
   return registry;
 }

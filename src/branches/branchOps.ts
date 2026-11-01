@@ -9,7 +9,10 @@ import { GitError } from '../core/git/errors';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { splitUpstream } from '../scm/dialogs/pushArgs';
 import { buildUpdateFetchArgs } from '../scm/dialogs/updateArgs';
+import { countPulled } from '../scm/dialogs/updateDialog';
+import { pullResultMessage } from '../scm/resultMessages';
 import { confirmModal } from '../ui/confirm';
+import { notifySuccess, type NotificationAction } from '../ui/notify';
 import { checkoutWithSmart } from './smartCheckout';
 import {
   buildAheadBehindArgs,
@@ -75,6 +78,7 @@ export class BranchOps {
         await git.exec(repo.root, ['checkout', '-b', name, '--track', remoteBranch], { token });
       },
     });
+    notifySuccess(vscode.l10n.t('Checked out new branch {0} from {1}', name, remoteBranch));
   }
 
   /** New branch from a start point; optionally checked out. */
@@ -104,6 +108,14 @@ export class BranchOps {
           await git.exec(repo.root, ['checkout', '-b', name, startPoint], { token });
         },
       });
+      // IntelliJ's words: a new branch off where you are "was created"
+      // (`GitCheckoutNewBranchOperation`); one off another ref was checked out
+      // from it (`GitCheckoutOperation`).
+      notifySuccess(
+        startPoint === 'HEAD'
+          ? vscode.l10n.t('Branch {0} was created', name)
+          : vscode.l10n.t('Checked out new branch {0} from {1}', name, startPoint),
+      );
     } else {
       await repo.queue.enqueue({
         label: vscode.l10n.t('Create branch {0}', name),
@@ -112,6 +124,7 @@ export class BranchOps {
           await git.exec(repo.root, ['branch', '--', name, startPoint], { token });
         },
       });
+      notifySuccess(vscode.l10n.t('Branch {0} was created', name));
     }
   }
 
@@ -126,6 +139,7 @@ export class BranchOps {
         await git.exec(repo.root, ['branch', '-m', '--', branch, newName], { token });
       },
     });
+    notifySuccess(vscode.l10n.t('Branch {0} was renamed to {1}', branch, newName));
     if (ref?.upstream !== undefined && !ref.upstreamGone) {
       const pushNew = vscode.l10n.t('Push "{0}" and delete "{1}" on the remote', newName, branch);
       const choice = await vscode.window.showInformationMessage(
@@ -146,10 +160,19 @@ export class BranchOps {
             });
           },
         });
+        notifySuccess(
+          vscode.l10n.t('Pushed {0} to {1} and deleted {2} on the remote', newName, remote, oldRemoteName),
+        );
       }
     }
   }
 
+  /**
+   * Delete, then IntelliJ's notification (`GitDeleteBranchOperation`):
+   * *Deleted branch X* — *Unmerged commits were discarded* when it had to be
+   * forced — with `Restore`, which puts the branch back where it was (its
+   * upstream too), and `Delete Tracked Branch` while it tracked one.
+   */
   async deleteBranch(repo: RepoHandle, branch: string): Promise<void> {
     const ref = repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === branch);
     if (ref?.isHead) {
@@ -158,6 +181,7 @@ export class BranchOps {
       );
       return;
     }
+    let forced = false;
     try {
       await repo.queue.enqueue({
         label: vscode.l10n.t('Delete branch {0}', branch),
@@ -186,25 +210,69 @@ export class BranchOps {
           await git.exec(repo.root, ['branch', '-D', '--', branch], { token });
         },
       });
+      forced = true;
     }
-    if (ref?.upstream !== undefined && !ref.upstreamGone) {
-      const delRemote = vscode.l10n.t('Delete {0} too', ref.upstream);
-      const choice = await vscode.window.showInformationMessage(
-        vscode.l10n.t('Also delete the remote branch {0}?', ref.upstream),
-        delRemote,
-      );
-      if (choice === delRemote) {
-        const remote = ref.upstream.split('/')[0] ?? 'origin';
-        const remoteName = ref.upstream.slice(remote.length + 1);
-        await repo.queue.enqueue({
-          label: vscode.l10n.t('Delete remote branch {0}', ref.upstream),
-          kind: 'mutate',
-          run: async (git, token) => {
-            await git.exec(repo.root, ['push', remote, '--delete', remoteName], { token });
-          },
-        });
-      }
+    const actions: NotificationAction[] = [];
+    const sha = ref?.sha;
+    const upstream = ref?.upstream !== undefined && !ref.upstreamGone ? ref.upstream : undefined;
+    if (sha !== undefined && sha.length > 0) {
+      actions.push({
+        title: vscode.l10n.t('Restore'),
+        run: () => this.restoreBranch(repo, branch, sha, ref?.upstream),
+      });
     }
+    if (upstream !== undefined) {
+      actions.push({
+        title: vscode.l10n.t('Delete Tracked Branch'),
+        run: () => this.deleteTrackedBranch(repo, upstream),
+      });
+    }
+    notifySuccess(
+      forced
+        ? vscode.l10n.t('Deleted branch {0}. Unmerged commits were discarded.', branch)
+        : vscode.l10n.t('Deleted branch {0}', branch),
+      ...actions,
+    );
+  }
+
+  /** `Restore` on a deleted branch: the branch at its old tip, tracking what it tracked. */
+  private async restoreBranch(
+    repo: RepoHandle,
+    branch: string,
+    sha: string,
+    upstream: string | undefined,
+  ): Promise<void> {
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Restore branch {0}', branch),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['branch', '--', branch, sha], { token });
+        if (upstream !== undefined) {
+          // The remote branch may be gone by now; the branch itself is back either way.
+          await git.exec(repo.root, ['branch', `--set-upstream-to=${upstream}`, branch], {
+            token,
+            allowNonZeroExit: true,
+          });
+        }
+      },
+    });
+    await repo.refresher.refreshNow();
+    notifySuccess(vscode.l10n.t('Restored branch {0}', branch));
+  }
+
+  /** `Delete Tracked Branch` on a deleted branch's notification. */
+  private async deleteTrackedBranch(repo: RepoHandle, upstream: string): Promise<void> {
+    const remote = upstream.split('/')[0] ?? 'origin';
+    const remoteName = upstream.slice(remote.length + 1);
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Delete remote branch {0}', upstream),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['push', remote, '--delete', remoteName], { token });
+      },
+    });
+    await repo.refresher.refreshNow();
+    notifySuccess(vscode.l10n.t('Deleted remote branch {0}', upstream));
   }
 
   /**
@@ -235,6 +303,7 @@ export class BranchOps {
           await git.exec(repo.root, ['rebase', current, branch], { token });
         },
       });
+      notifySuccess(vscode.l10n.t('Checked out {0} and rebased it on {1}', branch, current));
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
         // P6 conflicts session takes over once shipped; guide until then.
@@ -252,17 +321,25 @@ export class BranchOps {
 
   /** Merge another branch into the current one (Branches view drag flow). */
   async mergeIntoCurrent(repo: RepoHandle, branch: string): Promise<void> {
+    const current = repo.model.snapshot.headRef ?? 'HEAD';
     try {
-      await repo.queue.enqueue({
+      const output = await repo.queue.enqueue({
         label: vscode.l10n.t('Merge {0}', branch),
         kind: 'mutate',
         isDestructive: true,
         snapshotLabel: SNAPSHOT_LABELS.merge,
         snapshotAfter: true,
         run: async (git, token) => {
-          await git.exec(repo.root, ['merge', '--', branch], { token });
+          const res = await git.exec(repo.root, ['merge', '--', branch], { token });
+          return res.stdout;
         },
       });
+      // IntelliJ's `GitMergeOperation`: *Merged X to Y*, or *Already up to date*.
+      notifySuccess(
+        /Already up[ -]to[ -]date/i.test(output)
+          ? vscode.l10n.t('Already up to date')
+          : vscode.l10n.t('Merged {0} to {1}', branch, current),
+      );
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
         void vscode.window.showWarningMessage(
@@ -296,6 +373,7 @@ export class BranchOps {
           await git.exec(repo.root, ['rebase', branch], { token });
         },
       });
+      notifySuccess(vscode.l10n.t('Rebased {0} on {1}', current, branch));
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
         void vscode.window.showWarningMessage(
@@ -330,6 +408,14 @@ export class BranchOps {
     }
     const remote = remoteBranch.slice(0, slash);
     const branch = remoteBranch.slice(slash + 1);
+    const headOf = async (): Promise<string> => {
+      const res = await this.core.git.exec(repo.root, ['rev-parse', '--verify', '--quiet', 'HEAD'], {
+        structured: true,
+        allowNonZeroExit: true,
+      });
+      return res.exitCode === 0 ? res.stdout.trim() : '';
+    };
+    const before = await headOf();
     try {
       await repo.queue.enqueue({
         label: vscode.l10n.t('Pull {0}', remoteBranch),
@@ -341,6 +427,9 @@ export class BranchOps {
           await git.exec(repo.root, ['pull', flag, remote, branch], { token });
         },
       });
+      // Pull fetched the branch into its remote-tracking ref first.
+      const counted = await countPulled(this.core, repo, before, `refs/remotes/${remoteBranch}`);
+      notifySuccess(pullResultMessage(counted.commits, counted.files, remoteBranch));
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
         void vscode.window.showWarningMessage(
@@ -449,9 +538,7 @@ export class BranchOps {
 
     switch (outcome.kind) {
       case 'upToDate':
-        void vscode.window.showInformationMessage(
-          vscode.l10n.t('{0} is already up to date with {1}.', branch, upstream),
-        );
+        notifySuccess(vscode.l10n.t('{0} is already up to date with {1}.', branch, upstream));
         return true;
       case 'diverged':
         void vscode.window.showWarningMessage(
@@ -465,7 +552,7 @@ export class BranchOps {
         );
         return false;
       case 'updated':
-        void vscode.window.showInformationMessage(
+        notifySuccess(
           vscode.l10n.t('Updated {0} to {1}: {2} commit(s).', branch, upstream, outcome.commits),
         );
         return true;
@@ -506,6 +593,7 @@ export class BranchOps {
       },
     });
     await repo.refresher.refreshNow();
+    notifySuccess(vscode.l10n.t('Deleted remote branch {0}', remoteBranch));
   }
 
   private async promptBranchName(
