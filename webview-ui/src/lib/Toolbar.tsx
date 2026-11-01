@@ -32,6 +32,12 @@ export interface ToolbarButtonProps {
   showLabel?: boolean;
   disabled?: boolean;
   toggled?: boolean;
+  /**
+   * The work this button started is running: its icon turns (a Refresh, a
+   * Fetch) and clicks are ignored until it ends. Not `disabled` — a dimmed
+   * icon would hide the very motion that says it is working.
+   */
+  busy?: boolean;
   /** The event is passed through so dropdowns can anchor to the button. */
   onClick?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
 }
@@ -44,20 +50,27 @@ export function ToolbarButton({
   showLabel,
   disabled,
   toggled,
+  busy,
   onClick,
 }: ToolbarButtonProps) {
   const drawn = icon !== undefined || glyph !== undefined;
   return (
     <button
       type="button"
-      className={`gt-toolbar-button${toggled ? ' gt-toggled' : ''}`}
+      className={`gt-toolbar-button${toggled ? ' gt-toggled' : ''}${busy === true ? ' gt-busy' : ''}`}
       aria-label={label}
       aria-pressed={toggled}
+      aria-busy={busy === true ? true : undefined}
       title={label}
       disabled={disabled}
-      onClick={onClick}
+      onClick={busy === true ? undefined : onClick}
     >
-      {icon ? <span className={`codicon codicon-${icon}`} aria-hidden="true" /> : null}
+      {icon ? (
+        <span
+          className={`codicon codicon-${icon}${busy === true ? ' gt-spin' : ''}`}
+          aria-hidden="true"
+        />
+      ) : null}
       {glyph !== undefined ? (
         <span className="gt-toolbar-glyph" aria-hidden="true">
           {glyph}

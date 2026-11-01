@@ -33,6 +33,7 @@ import { TabPanel, Tabs } from '../lib/Tabs';
 import { ToolbarButton } from '../lib/Toolbar';
 import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStrip';
 import { allDirPaths, countFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
+import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
 import { getVsCodeApi } from '../lib/vscodeApi';
 import {
@@ -200,8 +201,8 @@ export function App() {
    * fails in total silence. Reporting the rejection is the point: an intent
    * that never lands must be visible, not invisible.
    */
-  const send = useCallback(
-    (method: string, params: unknown = {}) => {
+  const request = useCallback(
+    (method: string, params: unknown = {}): Promise<void> =>
       rpc.request(method, params, INTENT_TIMEOUT_MS).then(
         () => setRpcError(undefined),
         (err: unknown) => {
@@ -211,10 +212,18 @@ export function App() {
           if (err instanceof RpcRequestError && err.code === 'timeout') return;
           setRpcError(err instanceof Error ? err.message : String(err));
         },
-      );
-    },
+      ),
     [rpc],
   );
+  const send = useCallback(
+    (method: string, params: unknown = {}) => {
+      void request(method, params);
+    },
+    [request],
+  );
+  // Refresh turns until the host has re-read every repository and pushed the
+  // state it found — the moment the badge and the tree are current.
+  const [refreshing, trackRefresh] = useBusy();
 
   const onToggleCheck = useCallback(
     (delta: ToggleDelta) => {
@@ -583,7 +592,8 @@ export function App() {
             icon="refresh"
             label="Refresh"
             disabled={state.busy}
-            onClick={() => send(COMMIT_METHODS.refresh)}
+            busy={refreshing}
+            onClick={() => trackRefresh(() => request(COMMIT_METHODS.refresh))}
           />
           <ToolbarButton
             icon="discard"

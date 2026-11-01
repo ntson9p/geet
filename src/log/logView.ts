@@ -242,7 +242,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     if (session?.dirty === true && this.view?.visible === true) {
       this.autoRefreshCount++;
       this.debugTrail.push(`auto-refresh on activate ${tab}`);
-      this.refresh({ preserve: true }, tab);
+      this.refresh(tab);
     }
   }
 
@@ -547,10 +547,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { authors: await session.service.getAuthors() };
     });
 
-    rpc.on(LOG_METHODS.refresh, (params) => {
-      this.refresh(undefined, tabOf(params));
-      return { ok: true };
-    });
+    // `ok: false` — nothing to re-read (no session yet): the button stops
+    // turning on the answer instead of waiting for rows that are not coming.
+    rpc.on(LOG_METHODS.refresh, (params) => ({ ok: this.refresh(tabOf(params)) }));
 
     rpc.on(LOG_METHODS.goToRef, async (params) => {
       const { ref } = params as { ref?: string };
@@ -1227,20 +1226,24 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * @param opts.preserve the reset was raised by the host because history
-   * moved, not asked for by the user — the webview keeps its place across it.
+   * Re-reads a tab's history in place: the webview keeps the graph, its
+   * scroll position and the selection on screen until the new rows replace
+   * them, as IntelliJ's Refresh does — whether history moved under it (an
+   * auto-refresh) or the user asked. Only a change of view (a filter, a root)
+   * starts the list over.
    * @param tab the Log tab to re-read; the active one by default.
+   * @returns false when the tab has nothing to re-read yet.
    */
-  refresh(opts?: { preserve?: boolean }, tab: string = this.tabsState.active): void {
+  refresh(tab: string = this.tabsState.active): boolean {
     const session = this.sessions.get(tab);
-    if (!session) return;
+    if (!session) return false;
     session.dirty = false;
-    // The page cache is keyed on `headSha` alone, so a ref that moved without
-    // HEAD moving (a fetch, a branch or tag created elsewhere) would be served
-    // from cache with its old decorations. Dropping it is what makes a refresh
-    // mean "re-read", and it is why auto-refresh fixes the chips too.
+    // Dropping the page cache is what makes a refresh mean "re-read": the key
+    // follows HEAD and the refs the model has seen, not what changed on disk
+    // behind the watcher's back.
     session.service.invalidate();
-    this.applyFilter(tab, session.filter, undefined, opts);
+    this.applyFilter(tab, session.filter, undefined, { preserve: true });
+    return true;
   }
 
   /**
@@ -1286,7 +1289,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     this.autoRefreshWaitStart = undefined;
     this.autoRefreshCount++;
     this.debugTrail.push('auto-refresh');
-    this.refresh({ preserve: true }, session.tab);
+    this.refresh(session.tab);
   }
 
   /** The active Log tab, as the integration tests and commit actions read it. */

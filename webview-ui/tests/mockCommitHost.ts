@@ -368,7 +368,14 @@ export const mockCommitHostScript = `
           };
         }
       }
-      setTimeout(() => window.postMessage(response, '*'), 5);
+      const deliver = () => window.postMessage(response, '*');
+      // Opt-in (window.__mockHoldRefresh): Refresh is answered only when the
+      // test calls window.__releaseRefresh(), as a slow re-read would be.
+      if (msg.method === 'commit/refresh' && window.__mockHoldRefresh === true) {
+        window.__releaseRefresh = () => setTimeout(deliver, 5);
+        return;
+      }
+      setTimeout(deliver, 5);
     },
     // VS Code's webview state survives a reload, so the mock stores it where a
     // reload can find it — otherwise a persistence test would only ever prove

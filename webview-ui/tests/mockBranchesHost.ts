@@ -80,11 +80,19 @@ export const mockBranchesHostScript = `
       const res = (result) => post({ v: 1, id: msg.id, kind: 'res', result });
       const id = msg.params && msg.params.id;
       switch (msg.method) {
+        case 'branches/header':
+          // Opt-in (window.__mockHoldFetch): the header's Fetch is answered
+          // only when the test calls window.__releaseFetch(), as a slow fetch is.
+          if (id === 'fetch' && window.__mockHoldFetch === true) {
+            window.__releaseFetch = () => res(tree());
+            break;
+          }
+          res(tree());
+          break;
         case 'branches/init':
         case 'branches/toggle':
         case 'branches/setTopQuery':
         case 'branches/setRepoQuery':
-        case 'branches/header':
           res(tree());
           break;
         case 'branches/actions':

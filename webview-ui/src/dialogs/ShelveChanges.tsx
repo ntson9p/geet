@@ -24,6 +24,7 @@ import { dirStatusColor, statusColor, statusIcon, type StatusKind } from '../lib
 import { ToolbarButton } from '../lib/Toolbar';
 import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStrip';
 import { buildTree, allDirPaths, countFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
+import { useBusy } from '../lib/useBusy';
 import { useDialog } from '../lib/useDialog';
 import { useElementSize } from '../lib/useElementSize';
 import { getVsCodeApi } from '../lib/vscodeApi';
@@ -55,6 +56,7 @@ export function ShelveChanges() {
   const [removeFromWorktree, setRemoveFromWorktree] = useState(true);
   const [treeRef, treeSize] = useElementSize<HTMLDivElement>();
   const [diffRef, diffSize] = useElementSize<HTMLDivElement>();
+  const [refreshing, trackRefresh] = useBusy();
 
   /** Adopt fresh params: reset everything to all-ticked, keep the message. */
   const adopt = useCallback((next: ShelveDialogParamsDto, keepMessage?: string) => {
@@ -293,11 +295,14 @@ export function ShelveChanges() {
         <ToolbarButton
           icon="refresh"
           label="Refresh"
-          onClick={() => {
-            void rpc
-              .request<ShelveDialogParamsDto>(SHELVE_DIALOG_METHODS.refresh)
-              .then((next) => adopt(next, message));
-          }}
+          busy={refreshing}
+          onClick={() =>
+            trackRefresh(() =>
+              rpc
+                .request<ShelveDialogParamsDto>(SHELVE_DIALOG_METHODS.refresh)
+                .then((next) => adopt(next, message)),
+            )
+          }
         />
         <ToolbarButton
           icon="split-horizontal"

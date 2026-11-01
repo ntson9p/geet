@@ -42,7 +42,9 @@ export function registerCommitActions(
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
 
-  register('gittree.log.refresh', () => logView.refresh());
+  register('gittree.log.refresh', () => {
+    logView.refresh();
+  });
   register('gittree.log.revealCommit', async (sha, repoRoot) => {
     const s = shaOf(sha);
     if (s !== undefined) {

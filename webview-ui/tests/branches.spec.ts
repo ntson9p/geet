@@ -146,3 +146,25 @@ test.describe('Branches section: right-click on the other rows', () => {
     expect(await contextMenuDefaultKept(page.getByLabel('Search branches in this repository'))).toBe(true);
   });
 });
+
+test.describe('the header Fetch shows it is working', () => {
+  test("Fetch turns until every repository is fetched, as IntelliJ's does", async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockHoldFetch: boolean }).__mockHoldFetch = true;
+    });
+    await openBranches(page);
+    const fetch = page.getByRole('button', { name: 'Fetch', exact: true });
+    await fetch.click();
+    await expect(fetch).toHaveAttribute('aria-busy', 'true');
+    await expect(fetch.locator('.codicon-sync')).toHaveClass(/codicon-modifier-spin/);
+
+    // Still fetching: a second click asks for nothing more.
+    await page.waitForTimeout(800);
+    await fetch.click();
+    expect((await requests(page, 'branches/header')).filter((p) => p.id === 'fetch')).toHaveLength(1);
+
+    await page.evaluate(() => (window as unknown as { __releaseFetch: () => void }).__releaseFetch());
+    await expect(fetch).not.toHaveAttribute('aria-busy', 'true');
+    await expect(fetch.locator('.codicon-sync')).not.toHaveClass(/codicon-modifier-spin/);
+  });
+});

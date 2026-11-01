@@ -812,3 +812,53 @@ test.describe('POST-P14l stash tab', () => {
     await expect(page.getByTestId('stash-tab')).toBeVisible();
   });
 });
+
+test.describe('Refresh shows it is working', () => {
+  const refreshButton = (page: Page) => page.getByRole('button', { name: 'Refresh', exact: true });
+  const refreshRequests = async (page: Page) =>
+    (await posted(page)).filter((m) => m.kind === 'req' && m.method === 'commit/refresh').length;
+
+  test('Refresh turns until the host has re-read, and a second click asks for nothing', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockHoldRefresh: boolean }).__mockHoldRefresh = true;
+    });
+    await openCommit(page);
+    const refresh = refreshButton(page);
+    await refresh.click();
+    await expect(refresh).toHaveAttribute('aria-busy', 'true');
+    await expect(refresh.locator('.codicon-refresh')).toHaveClass(/gt-spin/);
+
+    // Well past the minimum, the host still has not answered: still turning.
+    await page.waitForTimeout(800);
+    await expect(refresh).toHaveAttribute('aria-busy', 'true');
+    await refresh.click();
+    expect(await refreshRequests(page)).toBe(1);
+
+    await page.evaluate(() => (window as unknown as { __releaseRefresh: () => void }).__releaseRefresh());
+    await expect(refresh).not.toHaveAttribute('aria-busy', 'true');
+    await expect(refresh.locator('.codicon-refresh')).not.toHaveClass(/gt-spin/);
+    await refresh.click();
+    await expect.poll(() => refreshRequests(page)).toBe(2);
+  });
+
+  test('a Refresh the host answers at once still visibly turns', async ({ page }) => {
+    await openCommit(page);
+    const refresh = refreshButton(page);
+    // Watched every frame from the click: the mock answers in a few
+    // milliseconds, yet the turning stays on screen for a while — not the one
+    // frame (or none) that made the click look as if it did nothing.
+    const busyForMs = await refresh.evaluate(async (el) => {
+      const start = performance.now();
+      (el as HTMLButtonElement).click();
+      let lastBusy = start;
+      while (performance.now() - start < 3000) {
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+        if (el.getAttribute('aria-busy') === 'true') lastBusy = performance.now();
+        else if (lastBusy > start) break;
+      }
+      return lastBusy - start;
+    });
+    expect(busyForMs).toBeGreaterThanOrEqual(350);
+    await expect(refresh).not.toHaveAttribute('aria-busy', 'true');
+  });
+});

@@ -497,6 +497,38 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).toHaveClass(/gt-selected/);
   });
 
+  test('Refresh log turns until the rows are re-read, and keeps the graph and the selection', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockHoldRefresh: boolean }).__mockHoldRefresh = true;
+    });
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="4"]').click();
+    const refresh = page.getByRole('button', { name: 'Refresh log' });
+    const refreshes = async () =>
+      (await posted(page)).filter((m) => m.kind === 'req' && m.method === 'log/refresh').length;
+
+    await refresh.click();
+    await expect(refresh).toHaveAttribute('aria-busy', 'true');
+    await expect(refresh.locator('.codicon-refresh')).toHaveClass(/gt-spin/);
+    // The host has not re-read yet: still turning past the minimum, and a
+    // second click asks for nothing more.
+    await page.waitForTimeout(800);
+    await expect(refresh).toHaveAttribute('aria-busy', 'true');
+    await refresh.click();
+    expect(await refreshes()).toBe(1);
+
+    const pages = async () => (await posted(page)).filter((m) => m.method === 'log/page').length;
+    const before = await pages();
+    await page.evaluate(() => (window as unknown as { __releaseRefresh: () => void }).__releaseRefresh());
+    await expect.poll(pages).toBeGreaterThan(before);
+    await expect(refresh).not.toHaveAttribute('aria-busy', 'true');
+    // Re-read in place, as IntelliJ's Refresh does: the commit stays selected.
+    await expect(page.getByTestId('log-row-0')).toBeVisible();
+    await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).toHaveClass(/gt-selected/);
+  });
+
   test('P4 auto-refresh: a user-asked reset still clears the selection', async ({ page }) => {
     await openLog(page);
     await commitRow(page).locator('[data-gt-row="4"]').click();
@@ -504,7 +536,7 @@ test.describe('P4-T3/T4 log webview', () => {
       /gt-selected/,
     );
 
-    // No `preserve`: a filter change, a root switch or the Refresh button.
+    // No `preserve`: a filter change or a root switch.
     await postReset(page, {});
 
     await expect(page.getByTestId('log-row-0')).toBeVisible();

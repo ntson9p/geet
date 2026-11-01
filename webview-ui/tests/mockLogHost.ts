@@ -244,6 +244,19 @@ export const mockLogHostScript = `
           res({ entries: window.__consoleCleared ? [] : all.filter((e) => e.seq > after) });
           break;
         }
+        case 'log/refresh': {
+          // As logView does: re-read in place — a preserving reset, after
+          // which the webview pages again. Opt-in (window.__mockHoldRefresh):
+          // the reset waits for window.__releaseRefresh(), as a slow re-read.
+          const logTab = tabOf(msg.params);
+          const tab = tabsState().tabs.find((t) => t.id === logTab);
+          const reset = () =>
+            post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: '/repo', repoLabel: 'repo', filter: (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, logTab, preserve: true } });
+          if (window.__mockHoldRefresh === true) window.__releaseRefresh = reset;
+          else reset();
+          res({ ok: true });
+          break;
+        }
         case 'log/consoleClear': {
           window.__consoleCleared = true;
           res({ ok: true });

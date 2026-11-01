@@ -141,6 +141,8 @@ export interface FilterBarProps {
   onSavePreset: () => void;
   onDeletePreset: (name: string) => void;
   onRefresh: () => void;
+  /** A Refresh is re-reading: its icon turns until the new rows are on screen. */
+  refreshing?: boolean;
   onGoToRef: (ref?: string) => void;
   /** `Paths ▾ · Select…` — the host's file chooser. */
   onBrowsePaths: () => void;
@@ -211,6 +213,7 @@ export function FilterBar({
   onSavePreset,
   onDeletePreset,
   onRefresh,
+  refreshing,
   onGoToRef,
   onBrowsePaths,
   onPickPathsInTree,
@@ -745,7 +748,7 @@ export function FilterBar({
 
       <span className="gt-filter-spacer" />
 
-      <ToolbarButton label="Refresh log" icon="refresh" onClick={onRefresh} />
+      <ToolbarButton label="Refresh log" icon="refresh" busy={refreshing} onClick={onRefresh} />
       <ToolbarButton
         label="Presentation Settings"
         icon="eye"

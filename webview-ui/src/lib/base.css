@@ -141,6 +141,48 @@ button {
   border-color: var(--vscode-inputOption-activeBorder, transparent);
 }
 
+/* Pressed: the press itself shows — VS Code's own toolbars darken under the
+   mouse button, and the icon gives a little, so a click that changes nothing
+   on screen (a Refresh with nothing new) still visibly landed. */
+.gt-toolbar-button > .codicon,
+.gt-toolbar-button > .gt-toolbar-glyph {
+  transition: transform 80ms ease-out;
+}
+
+.gt-toolbar-button:active:not(:disabled):not(.gt-busy) {
+  background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.gt-toolbar-button:active:not(:disabled):not(.gt-busy) > .codicon,
+.gt-toolbar-button:active:not(:disabled):not(.gt-busy) > .gt-toolbar-glyph {
+  transform: scale(0.85);
+}
+
+/* Busy: the work the button started is running (a Refresh, a Fetch), and
+   its icon turns until it ends. */
+.gt-toolbar-button.gt-busy {
+  cursor: progress;
+}
+
+@keyframes gt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.codicon.gt-spin {
+  animation: gt-spin 1s linear infinite;
+}
+
+/* No motion wanted: the turning is switched off with every other animation
+   (the reduced-motion block above), so a busy button holds its pressed
+   colour instead — still visibly at work. */
+@media (prefers-reduced-motion: reduce) {
+  .gt-toolbar-button.gt-busy {
+    background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+  }
+}
+
 /* ---- Filter chip ---- */
 .gt-filter-chip {
   padding: 2px 10px;
@@ -219,6 +261,10 @@ button {
 
 .gt-button.gt-primary:hover:not(:disabled) {
   background: var(--vscode-button-hoverBackground);
+}
+
+.gt-button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .gt-button:disabled {

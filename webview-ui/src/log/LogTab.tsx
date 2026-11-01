@@ -34,6 +34,7 @@ import {
 } from '../../../src/shared/protocol';
 import type { RpcClient } from '../lib/rpc';
 import { ToolbarButton } from '../lib/Toolbar';
+import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import {
@@ -90,6 +91,8 @@ const MIN_MESSAGE_WIDTH = 80;
  * commits (`MAX_COMMITS_TO_LOAD`), then says how many it left out.
  */
 const MAX_DETAILS = 50;
+/** A Refresh whose rows never come (a host gone quiet) stops turning after this. */
+const REFRESH_SPIN_MAX_MS = 30_000;
 
 /** A new Log tab opens with the Branches pane folded to its strip, as IntelliJ's do. */
 export const NEW_TAB_LAYOUT: ShellLayout = { ...DEFAULT_LAYOUT, collapsed: { branches: true } };
@@ -184,6 +187,10 @@ export function LogTab({
   const [detailsEpoch, setDetailsEpoch] = useState(0);
   /** A preserving reset is waiting for page 0 to prune the selection against. */
   const pruneOnPageZeroRef = useRef(false);
+  // Refresh turns from the click until the re-read page 0 is on screen.
+  const [refreshing, trackRefresh] = useBusy();
+  /** Ends the Refresh in flight; called when page 0 arrives. */
+  const refreshDoneRef = useRef<(() => void) | undefined>(undefined);
   // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   // P12-T1: this tab's layout, persisted with its focus. A tab opened by `+` or
@@ -498,6 +505,10 @@ export function LogTab({
             ...(prev.anchor !== undefined && present.has(prev.anchor) ? { anchor: prev.anchor } : {}),
           };
         });
+      }
+      if (page.page === 0) {
+        refreshDoneRef.current?.();
+        refreshDoneRef.current = undefined;
       }
       setEof(page.eof);
       pageRef.current = { next: page.page + 1, loading: false, eof: page.eof };
@@ -948,7 +959,23 @@ export function LogTab({
         presets={init.presets ?? []}
         onSavePreset={() => void rpc.request(LOG_METHODS.savePreset, { filter })}
         onDeletePreset={(name) => void rpc.request(LOG_METHODS.deletePreset, { name })}
-        onRefresh={() => void send(LOG_METHODS.refresh)}
+        refreshing={refreshing}
+        onRefresh={() =>
+          trackRefresh(
+            () =>
+              new Promise<void>((resolve) => {
+                refreshDoneRef.current = resolve;
+                // Nothing to re-read, or no answer: no rows are coming.
+                send<{ ok?: boolean } | undefined>(LOG_METHODS.refresh).then(
+                  (res) => {
+                    if (res?.ok === false) resolve();
+                  },
+                  () => resolve(),
+                );
+                setTimeout(resolve, REFRESH_SPIN_MAX_MS);
+              }),
+          )
+        }
         onGoToRef={(ref) => void send(LOG_METHODS.goToRef, { ref })}
         onBrowsePaths={() => void send(LOG_METHODS.pickPaths)}
         onPickPathsInTree={() => void send(LOG_METHODS.pickPathsInTree)}

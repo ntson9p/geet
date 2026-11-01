@@ -261,3 +261,21 @@ test.describe('P11-T1 accessibility', () => {
     await expect(page.getByRole('button', { name: 'Expand all' })).toBeFocused();
   });
 });
+
+test.describe('Toolbar buttons answer the click', () => {
+  test('a pressed toolbar button gives under the mouse and comes back on release', async ({ page }) => {
+    await openKit(page);
+    const button = page.getByRole('button', { name: 'Refresh', exact: true });
+    const icon = button.locator('.codicon');
+    const box = await button.boundingBox();
+    if (!box) throw new Error('the Refresh button has no box');
+    const transform = () => icon.evaluate((el) => getComputedStyle(el).transform);
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    // Scaled down while held: matrix(0.85, 0, 0, 0.85, 0, 0) once settled.
+    await expect.poll(transform).toMatch(/^matrix\(0\.85,/);
+    await page.mouse.up();
+    await expect.poll(transform).toBe('none');
+  });
+});

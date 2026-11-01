@@ -33,10 +33,14 @@ import {
 } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient } from '../lib/rpc';
+import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 
 const rpc = new RpcClient();
+
+/** A fetch of every repository can take minutes; its icon turns until it is done. */
+const FETCH_TIMEOUT_MS = 10 * 60_000;
 
 /** One indent step, and the row height VS Code's own trees use. */
 const INDENT = 12;
@@ -79,11 +83,13 @@ interface HeaderProps {
   query: string;
   repoCount: number;
   showInOut: boolean;
+  /** The header's Fetch is running: its icon turns, as IntelliJ's does. */
+  fetching: boolean;
   onQuery: (value: string) => void;
   onHeader: (id: string) => void;
 }
 
-function Header({ query, repoCount, showInOut, onQuery, onHeader }: HeaderProps) {
+function Header({ query, repoCount, showInOut, fetching, onQuery, onHeader }: HeaderProps) {
   return (
     <div className="gtb-header">
       <div className="gtb-search">
@@ -113,12 +119,13 @@ function Header({ query, repoCount, showInOut, onQuery, onHeader }: HeaderProps)
       </div>
       <div className="gt-toolbar gtb-actions">
         <button
-          className="gt-toolbar-button"
+          className={`gt-toolbar-button${fetching ? ' gt-busy' : ''}`}
           title={repoCount > 1 ? 'Fetch all repositories' : 'Fetch'}
           aria-label="Fetch"
-          onClick={() => onHeader('fetch')}
+          aria-busy={fetching ? true : undefined}
+          onClick={fetching ? undefined : () => onHeader('fetch')}
         >
-          <Codicon name="sync" />
+          <Codicon name="sync" spin={fetching} />
         </button>
         <button
           className={`gt-toolbar-button${showInOut ? ' gt-toggled' : ''}`}
@@ -340,6 +347,22 @@ export function App() {
     [apply],
   );
 
+  const [fetching, trackFetch] = useBusy();
+  const onHeader = useCallback(
+    (id: string) => {
+      if (id !== 'fetch') {
+        send(BRANCHES_METHODS.header, { id });
+        return;
+      }
+      trackFetch(() =>
+        rpc
+          .request<BranchesTreeDto | null>(BRANCHES_METHODS.header, { id }, FETCH_TIMEOUT_MS)
+          .then(apply, () => undefined),
+      );
+    },
+    [apply, send, trackFetch],
+  );
+
   const open = useMemo(() => new Set(tree?.open ?? []), [tree]);
   const display = useMemo(() => toDisplayRows(tree?.rows ?? []), [tree]);
 
@@ -538,8 +561,9 @@ export function App() {
         query={topQuery}
         repoCount={tree.repoCount}
         showInOut={tree.showInOut}
+        fetching={fetching}
         onQuery={setTop}
-        onHeader={(id) => send(BRANCHES_METHODS.header, { id })}
+        onHeader={onHeader}
       />
       <div className="gtb-list-host" ref={listRef}>
         {listSize.height > 0 ? (
