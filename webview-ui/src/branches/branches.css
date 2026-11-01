@@ -5,7 +5,8 @@
  * search field is drawn inline under the repository it belongs to instead.
  *
  * Every row is exactly `ROW_HEIGHT`, because the list is fixed-height windowed.
- * Separators are rows of their own for the same reason.
+ * Labelled separators are rows of their own for the same reason; a plain rule
+ * is drawn on the top edge of the row below it.
  */
 
 .gtb-root {
@@ -79,7 +80,12 @@
 
 /* ---- row bodies --------------------------------------------------------- */
 
+/* The body fills its row. Sized to its content it left `.gtb-description`'s
+   `margin-left: auto` no room to push into: the description and the `›` sat
+   right after each name, at a different place on every row. */
 .gtb-body {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -149,8 +155,14 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  margin-left: 4px;
+  /* At the right edge, so the `›` of every row is in one column. */
+  margin-left: auto;
   visibility: hidden;
+}
+
+/* The description took the free space already; the buttons follow it. */
+.gtb-description + .gtb-row-buttons {
+  margin-left: 4px;
 }
 
 .gt-virtual-row:hover .gtb-row-buttons,
@@ -180,6 +192,31 @@
 
 /* ---- separators --------------------------------------------------------- */
 
+/* An unlabelled separator: a hairline on the top edge of the row below it,
+   not a row of its own. It is a real 1px box rather than a gradient, which
+   rendered as nothing at some display scales and as a grey band at others. */
+.gtb-rule-above {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  height: 100%;
+}
+
+.gtb-rule-above::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 1px;
+  background: var(
+    --vscode-menu-separatorBackground,
+    var(--vscode-widget-border, rgba(128, 128, 128, 0.35))
+  );
+  pointer-events: none;
+}
+
 .gtb-separator-label {
   display: flex;
   align-items: flex-end;
@@ -189,18 +226,6 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.7;
-}
-
-.gtb-separator-rule {
-  height: 100%;
-  margin: 0 8px;
-  background: linear-gradient(
-    to bottom,
-    transparent calc(50% - 1px),
-    var(--vscode-menu-separatorBackground, var(--vscode-widget-border, #454545)) calc(50% - 1px),
-    var(--vscode-menu-separatorBackground, var(--vscode-widget-border, #454545)) 50%,
-    transparent 50%
-  );
 }
 
 .gtb-empty {

@@ -47,21 +47,31 @@ const INDENT = 12;
 const ROW_HEIGHT = 22;
 
 /**
- * Separators become rows of their own. `VirtualList` is fixed-height, and a
- * rule folded into the row beneath it would make that one row taller than
- * every other — which is exactly what fixed-height windowing cannot express.
+ * A labelled separator (`Repositories`) is a heading, and a row of its own. An
+ * unlabelled one is a rule, and IntelliJ draws it as a hairline between two
+ * rows, not as a row: given a whole fixed-height row it read as an empty line
+ * in the list. So it rides on the row below as `ruleAbove`, drawn on that
+ * row's top edge, and every row keeps the one height windowing needs.
  */
 type DisplayRow =
   | { readonly kind: 'separator'; readonly id: string; readonly label: string }
-  | { readonly kind: 'row'; readonly id: string; readonly row: BranchesRowDto };
+  | {
+      readonly kind: 'row';
+      readonly id: string;
+      readonly row: BranchesRowDto;
+      readonly ruleAbove: boolean;
+    };
 
 function toDisplayRows(rows: readonly BranchesRowDto[]): DisplayRow[] {
   const out: DisplayRow[] = [];
   for (const row of rows) {
-    if (row.separator !== undefined) {
-      out.push({ kind: 'separator', id: `sep:${row.id}`, label: row.separator });
+    const label = row.separator;
+    if (label !== undefined && label.length > 0) {
+      out.push({ kind: 'separator', id: `sep:${row.id}`, label });
     }
-    out.push({ kind: 'row', id: row.id, row });
+    // A rule at the very top of the list would separate nothing from nothing.
+    const ruleAbove = label !== undefined && label.length === 0 && out.length > 0;
+    out.push({ kind: 'row', id: row.id, row, ruleAbove });
   }
   return out;
 }
@@ -597,29 +607,30 @@ export function App() {
               const entry = display[i];
               if (entry === undefined) return null;
               if (entry.kind === 'separator') {
-                return entry.label.length > 0 ? (
-                  <div className="gtb-separator-label">{entry.label}</div>
-                ) : (
-                  <div className="gtb-separator-rule" />
-                );
+                return <div className="gtb-separator-label">{entry.label}</div>;
               }
               const row = entry.row;
-              if (row.kind === 'search') {
-                return (
+              const body =
+                row.kind === 'search' ? (
                   <SearchRow
                     value={repoQueries[row.repoRoot ?? ''] ?? ''}
                     padding={row.depth * INDENT}
                     onChange={(value) => setRepo(row.repoRoot ?? '', value)}
                   />
+                ) : (
+                  <RowBody
+                    row={row}
+                    open={open.has(row.id)}
+                    onActions={rowMenu}
+                    onFavorite={(r) => send(BRANCHES_METHODS.toggleFavorite, { id: r.id })}
+                  />
                 );
-              }
-              return (
-                <RowBody
-                  row={row}
-                  open={open.has(row.id)}
-                  onActions={rowMenu}
-                  onFavorite={(r) => send(BRANCHES_METHODS.toggleFavorite, { id: r.id })}
-                />
+              return entry.ruleAbove ? (
+                <div className="gtb-rule-above" data-testid="rule-above">
+                  {body}
+                </div>
+              ) : (
+                body
               );
             }}
           />

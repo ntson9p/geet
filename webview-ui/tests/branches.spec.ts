@@ -168,3 +168,54 @@ test.describe('the header Fetch shows it is working', () => {
     await expect(fetch.locator('.codicon-sync')).not.toHaveClass(/codicon-modifier-spin/);
   });
 });
+
+test.describe('separators', () => {
+  test('a plain separator is a hairline on the row below, not an empty row', async ({ page }) => {
+    await openBranches(page);
+    const push = page.getByRole('treeitem', { name: 'Push…', exact: true });
+    const newBranch = page.getByRole('treeitem', { name: 'New Branch…', exact: true }).first();
+
+    // No row of its own between them: the two rows touch.
+    const above = await push.boundingBox();
+    const below = await newBranch.boundingBox();
+    if (!above || !below) throw new Error('rows not laid out');
+    expect(below.y - above.y).toBe(above.height);
+
+    // The rule is drawn, as a 1px line on the top edge of the row below.
+    const rule = newBranch.getByTestId('rule-above');
+    await expect(rule).toHaveCount(1);
+    expect(
+      await rule.evaluate((el) => {
+        const cs = getComputedStyle(el, '::before');
+        return { height: cs.height, top: cs.top };
+      }),
+    ).toEqual({ height: '1px', top: '0px' });
+    await expect(push.getByTestId('rule-above')).toHaveCount(0);
+
+    // A labelled separator is a heading, and stays a row.
+    await expect(page.getByRole('treeitem', { name: 'Repositories', exact: true })).toBeVisible();
+
+    // The arrow keys go straight from one to the other.
+    await push.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(newBranch).toBeFocused();
+  });
+});
+
+test.describe('row layout', () => {
+  test("every row's › sits in one column at the right edge", async ({ page }) => {
+    await openBranches(page);
+    const chevron = (name: string) =>
+      page
+        .getByRole('treeitem', { name, exact: true })
+        .first()
+        .getByRole('button', { name: 'Branch actions' });
+    // A short name and a longer one, with nothing between name and button.
+    const a = await chevron('main').boundingBox();
+    const b = await chevron('feature/x').boundingBox();
+    const list = await page.getByRole('tree', { name: 'Branches' }).boundingBox();
+    if (!a || !b || !list) throw new Error('rows not laid out');
+    expect(Math.round(a.x)).toBe(Math.round(b.x));
+    expect(list.x + list.width - (a.x + a.width)).toBeLessThan(16);
+  });
+});
