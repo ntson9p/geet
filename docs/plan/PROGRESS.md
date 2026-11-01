@@ -774,3 +774,36 @@ Testing (written, **not run**, by the owner's standing instruction):
   - `projectPopup`: an all-repositories checkout says it once.
 
 Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; extension bundle built. No suite run.
+
+POST-P14aq ✅ 2026-11-01: **Reported-bug sweep.** The owner listed bugs they had hit and asked which were still present, and for those to be fixed with commits.
+
+**Already fixed** before this sweep:
+- **Commit graph not updating after a commit:** fixed in 452618b (auto-refresh on model refs/head change, covered by a `phase04` test).
+
+**Fixed now:**
+- **Graph flashes after cherry-pick and push** (ad47123): a `preserve` reset no longer empties the rows or the selection. The webview keeps both, restores the top row, prunes the selection against page 0, and re-reads the details in place (`detailsEpoch`). `runAutoRefresh` reschedules while the repository's queue runs a mutation (up to `AUTO_REFRESH_MAX_WAIT_MS` = 5 s), so a multi-step operation costs one re-read.
+- **Laggy text filter** (cdc15d5): `FilterBar` applies the text 300 ms after typing pauses (`TEXT_FILTER_DELAY_MS`), and at once on Enter.
+- **"master" shown for a repo on "abc"** (777d698): `RepositoryModel.refsGeneration` is bumped on every `refs`/`head` change, and `LogService.cacheKey` includes it. This is the most likely cause found; the report did not include steps to reproduce it.
+- **Stale pending-changes badge after Refresh** (1d27e96): `StatusRefresher.refreshNow` resolves only after a pass that started after the call (`nextPassWaiters`).
+- **Update progress closes and reopens; false "Already up to date"** (9352154):
+  - `beginOperationProgress` (`src/ui/progress.ts`) is one progress for a multi-step operation. Its steps run `quietProgress` with linked tokens (`stepUnder`).
+  - The incoming count is `HEAD..upstream`, measured before integrating (`incomingFromUpstream`).
+- **No click feedback** (1ff4f6a):
+  - `:active` styling on `.gt-toolbar-button` (`toolbar.activeBackground`, icon scaled to 0.85) and `.gt-button`.
+  - `ToolbarButton.busy` (`gt-spin`, `aria-busy`, clicks ignored), driven by the new `useBusy` hook (min 450 ms). It is wired to commit Refresh (awaits the host), Branches header Fetch (10-min timeout), log Refresh (until page 0 arrives; the host now answers `{ ok }`), the Worktrees refresh and the Shelve dialog's refresh.
+  - `LogViewProvider.refresh()` always preserves.
+- **Slow first load** (f514b3e): `LogService.maybeMaintain` queued `commit-graph write --reachable --changed-paths` as a *mutation* at every Log session start, once a day per repository. A mutation cancels in-flight reads and blocks new ones, so the first page, status, branches and details waited for it, under a progress notification. It now runs outside the queue:
+  - It waits `MAINTENANCE_DELAY_MS` (60 s), then retries every 15 s while a mutation is active.
+  - It is stamped when it starts and skipped once the repository is disposed (`LogService.dispose`).
+  - Other startup costs checked: per-repo first reads take about 80 ms on this machine, and nothing else takes the mutation lane unprompted. The UI still registers only after every repository's first read. That was left as is, because early registration would let the Log pin whichever repository finished first.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `repositoryModel.test.ts` (refsGeneration), `statusRefresher.test.ts` (refreshNow during a pass, dispose), `logService.test.ts` (five maintenance cases).
+- **Integration:** `phase13` (Update counts commits an earlier fetch brought down).
+- **Playwright:**
+  - `log.spec.ts`: auto-refresh never blanks, search debounce, Refresh log spins and keeps the selection.
+  - `commit.spec.ts`: Refresh spins until answered, and for at least a moment.
+  - `branches.spec.ts`: the header Fetch spins.
+  - `kit.spec.ts`: press feedback.
+
+Gates: typecheck (both tsconfigs, plus the integration tsconfig) + lint clean; extension and webview bundles built. No suite run.

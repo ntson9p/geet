@@ -6,6 +6,70 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the first load of the day no longer waits on maintenance
+
+Once a day per repository, opening the Log started a `commit-graph` write, the
+file that speeds up history walks. GitTree treated that write like a commit or a
+checkout, and nothing else in that repository could read until it finished: not
+the log's first page, the changed files, the branches or the commit details. A
+large history took seconds, a very large one about a minute, and a
+*commit-graph maintenance* notification appeared on top.
+
+The write changes nothing you can see, so it now runs in the background. It
+starts a minute after the log opens, waits while any git operation runs, and
+never holds up a read.
+
+### Fixed — the graph no longer flashes when history moves
+
+After a cherry-pick, a push, a commit or a fetch, the log emptied itself and
+then painted the graph again, and the selected commit's details went with it.
+Now the graph, its scroll position and the selection stay on screen until the
+new rows replace them. An operation that moves history several times, such as a
+cherry-pick of several commits, causes one re-read when it is done instead of
+one flash per step. The **Refresh** button re-reads in place the same way, as
+IntelliJ's does.
+
+### Fixed — typing in the log's search box no longer lags
+
+Every keystroke started a new history search, so typing a word ran one search
+per letter, each slower than the last. The search now runs once typing pauses,
+or at once when you press Enter.
+
+### Fixed — the log shows the branch the repository is on
+
+The log could show *HEAD → master* on a repository that was on another branch,
+typically one added to the workspace while the log showed a different one. Its
+page cache only noticed when HEAD moved to a different commit. A new or renamed
+branch at the same commit went unnoticed. The cache now notices any change of
+branch or ref.
+
+### Fixed — Refresh updates the pending-changes count
+
+Pressing **Refresh** in the commit window while a refresh was already under way
+was answered by that refresh, which had started before your change and so could
+not see it. The badge kept its old number. Refresh now waits for a read that
+starts after you press it.
+
+### Fixed — Update shows one progress, and counts what it brings in
+
+- **One progress.** The progress notification for **Update** closed after the
+  fetch and opened again for the merge. It now stays up for the whole update
+  and says which step it is on.
+- **The right count.** **Update** could say *Already up to date* and then merge
+  new commits. It counted only what its own fetch downloaded, so commits that
+  an earlier fetch had brought down were not counted. It now counts everything
+  the upstream has that your branch does not.
+
+### Fixed — buttons show that they were clicked
+
+- **Toolbar buttons** now darken and their icon shrinks slightly while you hold
+  the mouse button, as VS Code's own toolbars do.
+- **Refresh and Fetch buttons** spin until their work is done. This covers
+  Refresh in the commit window, the log, the Worktrees pane and the Shelve
+  dialog, and Fetch in the Branches view's header. They spin for at least a
+  moment even when the work is instant, and a second click while they spin is
+  ignored.
+
 ### Added — a notification when an operation finishes
 
 Many operations used to finish in silence: the status bar spinner stopped, and nothing said
