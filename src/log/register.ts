@@ -10,6 +10,7 @@ import { registerCommitActions } from './commitActions';
 import { BlameUi } from './blame/blameUi';
 import { registerFileHistory } from './fileHistory';
 import { LogViewProvider } from './logView';
+import { PRESENTATION_SETTINGS, settingId, type PresentationKey } from './presentation';
 
 export interface Phase04Registry {
   logView: LogViewProvider;
@@ -63,12 +64,10 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
       ) {
         logView.refreshInit();
       }
-      // Its own event, not a re-init: re-paging the log over how a ref is drawn
+      // Its own event, not a re-init: re-paging the log over how a row is drawn
       // would cost a `git log` and the selection.
-      if (
-        e.affectsConfiguration('gittree.log.showTagNames') ||
-        e.affectsConfiguration('gittree.branches.showTags')
-      ) {
+      const keys = Object.keys(PRESENTATION_SETTINGS) as PresentationKey[];
+      if (keys.some((name) => e.affectsConfiguration(settingId(name)))) {
         logView.pushPresentation();
       }
     }),

@@ -24,6 +24,7 @@ describe('buildLogArgs', () => {
       'log',
       `--format=${FMT}`,
       '--parents',
+      '--decorate=full',
       '--date-order',
       '--skip=0',
       '--max-count=2000',
@@ -40,6 +41,10 @@ describe('buildLogArgs', () => {
     expect(args({ sort: 'date' })).toContain('--date-order');
     expect(args({ sort: 'topo' })).toContain('--topo-order');
     expect(args({ sort: 'intelli' })).toContain('--topo-order');
+  });
+
+  it('asks for full ref names, so a local feature/x is not taken for a remote branch', () => {
+    expect(args({})).toContain('--decorate=full');
   });
 
   it('refs: ALL → --all; list → refs; HEAD → nothing', () => {

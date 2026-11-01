@@ -9,7 +9,15 @@
  * another stays mounted, keeping its rows, selection and scroll for when it
  * is shown again; `App` owns the strip around it.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import {
   LOG_METHODS,
   type CommitDetailsDto,
@@ -27,7 +35,20 @@ import type { RpcClient } from '../lib/rpc';
 import { ToolbarButton } from '../lib/Toolbar';
 import { useElementSize } from '../lib/useElementSize';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
-import { commitDate } from './dateFormat';
+import {
+  HASH_SAMPLES,
+  SHORT_HASH_LENGTH,
+  authorText,
+  autoAuthorWidth,
+  draggedWidth,
+  fitColumns,
+  readColumnWidths,
+  sampleWidth,
+  visibleColumns,
+  type ColumnId,
+  type ColumnWidths,
+} from './columns';
+import { SAMPLE_COMMIT_TIME, commitDate } from './dateFormat';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
 import { CommitTooltip } from './CommitTooltip';
@@ -35,10 +56,23 @@ import { DetailsPanel } from './DetailsPanel';
 import { FilterBar } from './FilterBar';
 import { GraphCanvas, laneColor, type GraphViewport } from './GraphCanvas';
 import { MAIN_LOG_TAB } from './logTabsModel';
-import { refLabels, tagsTooltip } from './refLabels';
+import {
+  groupRefs,
+  labelTooltip,
+  labelsBudget,
+  layoutLabels,
+  repoRefs,
+  type RefLabel,
+} from './refLabels';
+import { RefLabels } from './RefLabelsView';
 import { DEFAULT_LAYOUT, Shell, type ShellLayout } from './Shell';
+import { useTextMeasure } from './useTextMeasure';
 
 const ROW_HEIGHT = 24;
+/** `.gt-virtual-row`'s padding, both sides: the columns are laid out inside it. */
+const ROW_PADDING = 16;
+/** How much message the columns always leave beside the graph. */
+const MIN_MESSAGE_WIDTH = 80;
 
 /** A new Log tab opens with the Branches pane folded to its strip, as IntelliJ's do. */
 export const NEW_TAB_LAYOUT: ShellLayout = { ...DEFAULT_LAYOUT, collapsed: { branches: true } };
@@ -49,6 +83,8 @@ export interface LogTabUiState {
   focusSha?: string;
   /** P12-T1: pane ratios + collapse flags, restored exactly. */
   layout?: ShellLayout;
+  /** Columns whose border was dragged, and to what width; the rest fit their content. */
+  columnWidths?: ColumnWidths;
   /**
    * The main tab's filter from before tabs, when the webview kept it. Sent once
    * with `init`; the host stores every tab's filter itself from then on.
@@ -132,13 +168,13 @@ export function LogTab({
   const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
   // POST-P14x: the row hover card. `text` is the full commit message, fetched
   // lazily — see LOG_METHODS.commitMessage for why it is not on the row DTO.
-  // `kind: 'tags'` is the same card over an icon-only tag chip, naming the tags.
+  // `kind: 'refs'` is the same card over a ref label, naming its refs.
   const [hover, setHover] = useState<
     | {
         sha: string;
         text: string;
         anchor: { left: number; top: number; bottom: number };
-        kind?: 'tags';
+        kind?: 'refs';
       }
     | undefined
   >(undefined);
@@ -264,34 +300,35 @@ export function LogTab({
   );
 
   /**
-   * Over an icon-only tag chip the card names the tags instead of showing the
-   * message, as IntelliJ's tooltip does over a commit's labels: with Tag Names
-   * off, hovering is the way to read them. The key is not the bare sha, so a
-   * message fetch still in flight for this row cannot land over the names.
+   * Over a ref label the card names its refs instead of showing the message,
+   * as IntelliJ's tooltip does over a commit's labels: a label folds several
+   * refs into one icon, and hovering is the way to read them. The key is not
+   * the bare sha, so a message fetch still in flight for this row cannot land
+   * over the names.
    */
-  const beginTagHover = useCallback((sha: string, names: readonly string[], chip: HTMLElement) => {
+  const beginRefsHover = useCallback((sha: string, text: string, label: HTMLElement) => {
     if (hoverTimer.current !== undefined) window.clearTimeout(hoverTimer.current);
-    const key = `tags:${sha}`;
+    const key = `refs:${sha}`;
     hoverSha.current = key;
     setHover(undefined);
-    const rect = chip.getBoundingClientRect();
+    if (text.length === 0) return;
+    const rect = label.getBoundingClientRect();
     const anchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
-    const text = tagsTooltip(names);
     hoverTimer.current = window.setTimeout(() => {
-      if (hoverSha.current === key) setHover({ sha, text, anchor, kind: 'tags' });
+      if (hoverSha.current === key) setHover({ sha, text, anchor, kind: 'refs' });
     }, HOVER_DELAY_MS);
   }, []);
 
   /**
-   * Off the chip but still on its row: back to the row's own card. The row's
+   * Off the label but still on its row: back to the row's own card. The row's
    * `mouseenter` does not fire again for a move inside it, so it is restarted
    * here; leaving the row or the pane at the same time overrides this, because
    * those handlers run after this one.
    */
-  const endTagHover = useCallback(
-    (sha: string, chip: HTMLElement) => {
+  const endRefsHover = useCallback(
+    (sha: string, label: HTMLElement) => {
       cancelHover();
-      const row = chip.closest<HTMLElement>('.gt-virtual-row');
+      const row = label.closest<HTMLElement>('.gt-virtual-row');
       if (row) beginHover(sha, row);
     },
     [beginHover, cancelHover],
@@ -303,6 +340,51 @@ export function LogTab({
   // the detached node (the P11-T4 lesson).
   const [containerRef, measured] = useElementSize<HTMLDivElement>();
   const size = { width: measured.width || 800, height: measured.height || 400 };
+  const rowsHostRef = useRef<HTMLDivElement | null>(null);
+  const rowsRefCallback = useCallback(
+    (el: HTMLDivElement | null) => {
+      rowsHostRef.current = el;
+      containerRef(el);
+    },
+    [containerRef],
+  );
+  // The rows are as wide as the list's client area: the pane less its
+  // scrollbar. The columns are laid out in that width.
+  const [listWidth, setListWidth] = useState(0);
+  const noRows = rows.length === 0;
+  useLayoutEffect(() => {
+    const list = rowsHostRef.current?.querySelector<HTMLElement>('.gt-virtual-list');
+    if (list) setListWidth(list.clientWidth);
+  }, [size.width, size.height, noRows]);
+
+  // ---- columns: IntelliJ's Subject, then Author, Date and Hash ----
+  const measure = useTextMeasure(dark);
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() =>
+    readColumnWidths(saved.columnWidths),
+  );
+  const columnWidthsRef = useRef(columnWidths);
+  columnWidthsRef.current = columnWidths;
+  // Sized by the first thousand rows, as IntelliJ sizes it, and only again
+  // when those change: a page further down does not move the column.
+  const sizedBy = rows.length > 1000 ? 1000 : rows.length;
+  const firstSha = rows[0]?.sha;
+  const authorAuto = useMemo(
+    () =>
+      autoAuthorWidth(
+        rowsRef.current.slice(0, sizedBy).map((r) => authorText(r.authorName, r.committedByOther)),
+        measure.text,
+      ),
+    [measure, sizedBy, firstSha],
+  );
+  const autoWidths = useMemo(
+    () => ({
+      author: authorAuto,
+      date: sampleWidth(commitDate(SAMPLE_COMMIT_TIME), measure.bold),
+      hash: sampleWidth(HASH_SAMPLES, measure.bold),
+    }),
+    [authorAuto, measure],
+  );
+  const repo = useMemo(() => repoRefs(branchesData), [branchesData]);
 
   // ---- boot + host events ----
   /**
@@ -531,10 +613,83 @@ export function LogTab({
   const graphWidth = Math.min((maxLane + 1) * laneWidth + 8, 220);
   const listHeight = Math.max(size.height, 100);
 
+  // The message column takes what Author, Date and Hash leave, and never less
+  // than the graph and a readable stretch of message.
+  const rowWidth = Math.max(0, (listWidth > 0 ? listWidth : size.width) - ROW_PADDING);
+  const minSubject = graphWidth + MIN_MESSAGE_WIDTH;
+  const columns = visibleColumns(presentation);
+  const widths = fitColumns(columns, autoWidths, columnWidths, rowWidth, minSubject);
+  const subjectWidth = rowWidth - columns.reduce((sum, id) => sum + widths[id], 0);
+  const compact = presentation.compactReferences;
+  const leftAligned = presentation.referencesOnLeft;
+
+  /** The row's ref labels, grouped and fitted as IntelliJ's are. */
+  const labelsFor = (row: LogRowDto): RefLabel[] => {
+    const groups = groupRefs(row.refs, repo, { compact, showTagNames: presentation.showTagNames });
+    if (groups.length === 0) return [];
+    const column = Math.max(0, subjectWidth - graphWidth);
+    const budget = labelsBudget(column, measure.text(row.subject), compact, leftAligned);
+    return layoutLabels(groups, budget, compact, measure.label).labels;
+  };
+
+  /**
+   * Dragging a column's left border: leftwards widens it. The width is kept
+   * for this tab once the button is released.
+   */
+  const beginResize = (id: ColumnId, e: ReactMouseEvent<HTMLElement>): void => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cancelHover();
+    const startX = e.clientX;
+    const start = widths[id];
+    const others = columns.reduce((sum, c) => (c === id ? sum : sum + widths[c]), 0);
+    // The last width is kept here as well as in state: the button can come up
+    // before React has drawn the last move, and that move is the one to keep.
+    let last: number | undefined;
+    const onMove = (ev: MouseEvent): void => {
+      const width = draggedWidth(start, ev.clientX - startX, others, rowWidth, minSubject);
+      last = width;
+      setColumnWidths((prev) => (prev[id] === width ? prev : { ...prev, [id]: width }));
+    };
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.classList.remove('gt-col-resizing');
+      // A press that never moved (half of a double-click) leaves the width alone.
+      if (last === undefined) return;
+      const next = { ...columnWidthsRef.current, [id]: last };
+      setColumnWidths(next);
+      onSaveRef.current({ columnWidths: next });
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    document.body.classList.add('gt-col-resizing');
+  };
+
+  /** A double-click on the border: the column fits its content again, as in IntelliJ. */
+  const resetColumn = (id: ColumnId): void => {
+    const next = { ...columnWidthsRef.current };
+    delete next[id];
+    setColumnWidths(next);
+    onSaveRef.current({ columnWidths: next });
+  };
+
+  const cellText = (id: ColumnId, row: LogRowDto): string => {
+    switch (id) {
+      case 'author':
+        return authorText(row.authorName, row.committedByOther);
+      case 'date':
+        return commitDate(row.authorTime);
+      case 'hash':
+        return row.sha.slice(0, SHORT_HASH_LENGTH);
+    }
+  };
+
   const commitsPane = (
     <div
       className="gt-log-rows"
-      ref={containerRef}
+      ref={rowsRefCallback}
       data-testid="log-rows"
       // One listener for the whole pane rather than one per row: rows are
       // recycled by the windowing, so a scroll that swaps the row under a
@@ -602,52 +757,53 @@ export function LogTab({
               const isSelected = selected.includes(row.sha);
               const isMine =
                 highlightMine && branchesData?.myName !== undefined && row.authorName === branchesData.myName;
+              const labels = labelsFor(row);
+              const labelsEl =
+                labels.length > 0 ? (
+                  <RefLabels
+                    labels={labels}
+                    compact={compact}
+                    onHover={(label, el) => beginRefsHover(row.sha, labelTooltip(label), el)}
+                    onLeave={(el) => endRefsHover(row.sha, el)}
+                  />
+                ) : null;
               return (
                 <span
                   className={`gt-log-row${isSelected ? ' gt-selected' : ''}${isMine ? ' gt-mine' : ''}`}
-                  style={{ paddingLeft: graphWidth }}
                   data-testid={`log-row-${i}`}
                 >
-                  {row.side !== undefined ? (
-                    <span className={`gt-side-badge gt-side-${row.side}`}>
-                      {row.side === 'left' ? '◀' : '▶'}
-                    </span>
-                  ) : null}
-                  {refLabels(row.refs, presentation.showTagNames).map((label) => {
-                    const borderColor = laneColor(row.graph.colorIdx, dark, init.graphPalette ?? 'default');
-                    if (label.kind === 'tags') {
-                      return (
-                        <span
-                          key="tags"
-                          className="gt-ref-chip gt-ref-tag gt-ref-icon-only"
-                          style={{ borderColor }}
-                          data-testid="tag-chip"
-                          aria-label={`Tags: ${label.names.join(', ')}`}
-                          onMouseEnter={(e) => beginTagHover(row.sha, label.names, e.currentTarget)}
-                          onMouseLeave={(e) => endTagHover(row.sha, e.currentTarget)}
-                        >
-                          <span className="codicon codicon-tag" aria-hidden="true" />
-                        </span>
-                      );
-                    }
-                    const r = label.ref;
-                    return (
-                      <span
-                        key={`${r.type}:${r.name}`}
-                        className={`gt-ref-chip gt-ref-${r.type}${r.isHeadTarget === true ? ' gt-ref-headTarget' : ''}`}
-                        style={{ borderColor }}
-                      >
-                        {r.type === 'tag' ? (
-                          <span className="codicon codicon-tag gt-ref-icon" aria-hidden="true" />
-                        ) : null}
-                        {r.name}
+                  <span className="gt-log-cell gt-log-subject-cell" style={{ paddingLeft: graphWidth }}>
+                    {row.side !== undefined ? (
+                      <span className={`gt-side-badge gt-side-${row.side}`}>
+                        {row.side === 'left' ? '◀' : '▶'}
                       </span>
-                    );
-                  })}
-                  <span className="gt-log-subject">{row.subject}</span>
-                  <span className="gt-log-meta gt-muted">
-                    {row.authorName} · {commitDate(row.authorTime)} · {row.sha.slice(0, 7)}
+                    ) : null}
+                    {leftAligned ? labelsEl : null}
+                    <span className="gt-log-subject">{row.subject}</span>
+                    {leftAligned ? null : labelsEl}
                   </span>
+                  {columns.map((id) => (
+                    <span
+                      key={id}
+                      className={`gt-log-cell gt-log-col gt-log-${id}`}
+                      style={{ width: widths[id] }}
+                      data-testid={`log-${id}`}
+                    >
+                      {/* The column's left border: drag to resize, double-click to fit. */}
+                      <span
+                        className="gt-col-resize"
+                        aria-hidden="true"
+                        data-testid={`col-resize-${id}`}
+                        onMouseDown={(e) => beginResize(id, e)}
+                        onClick={(e) => e.stopPropagation()}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          resetColumn(id);
+                        }}
+                      />
+                      {cellText(id, row)}
+                    </span>
+                  ))}
                 </span>
               );
             }}
@@ -796,7 +952,7 @@ export function LogTab({
         <CommitTooltip
           text={hover.text}
           anchor={hover.anchor}
-          testId={hover.kind === 'tags' ? 'tags-tooltip' : 'commit-tooltip'}
+          testId={hover.kind === 'refs' ? 'refs-tooltip' : 'commit-tooltip'}
         />
       ) : null}
     </>

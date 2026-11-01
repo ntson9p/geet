@@ -121,7 +121,8 @@ export interface LogPage {
  * under pathspec filtering (parent rewriting).
  */
 export function buildLogArgs(f: LogFilter, format: string, page: LogPage): string[] {
-  const args = ['log', `--format=${format}`, '--parents'];
+  // Full ref names: only they tell a local `feature/x` from a remote branch.
+  const args = ['log', `--format=${format}`, '--parents', '--decorate=full'];
 
   args.push(graphSort(f) === 'date' ? '--date-order' : '--topo-order');
   if (f.firstParent === true) args.push('--first-parent');

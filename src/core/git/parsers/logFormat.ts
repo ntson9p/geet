@@ -77,7 +77,34 @@ export interface Decoration {
   type: 'branch' | 'remote-branch' | 'tag' | 'head';
 }
 
-/** Splits a raw %D decoration entry list into typed badges. */
+const HEADS = 'refs/heads/';
+const REMOTES = 'refs/remotes/';
+const TAGS = 'refs/tags/';
+
+/**
+ * One full ref name (`--decorate=full`) as a badge, or `undefined` for a ref
+ * the log does not label: a remote's `HEAD` pointer, and anything outside
+ * heads, remotes and tags (`refs/stash`, notes) — the refs IntelliJ's log
+ * reads are exactly those three and HEAD.
+ */
+function fullDecoration(raw: string): Decoration | undefined {
+  if (raw.startsWith(HEADS)) return { name: raw.slice(HEADS.length), type: 'branch' };
+  if (raw.startsWith(TAGS)) return { name: raw.slice(TAGS.length), type: 'tag' };
+  if (raw.startsWith(REMOTES)) {
+    const name = raw.slice(REMOTES.length);
+    return name.endsWith('/HEAD') ? undefined : { name, type: 'remote-branch' };
+  }
+  return undefined;
+}
+
+/**
+ * Splits a raw %D decoration entry list into typed badges.
+ *
+ * The log reads decorations with `--decorate=full`, because the short form
+ * cannot tell a local `feature/x` from a remote's branch — both are a name with
+ * a slash in it. Short names are still read, by the old guess, for output that
+ * was not asked for in full.
+ */
 export function parseDecorations(refs: readonly string[]): { headTarget?: string; decorations: Decoration[] } {
   let headTarget: string | undefined;
   const decorations: Decoration[] = [];
@@ -85,10 +112,15 @@ export function parseDecorations(refs: readonly string[]): { headTarget?: string
     if (raw === 'HEAD') {
       decorations.push({ name: 'HEAD', type: 'head' });
     } else if (raw.startsWith('HEAD -> ')) {
-      headTarget = raw.slice('HEAD -> '.length);
+      const target = raw.slice('HEAD -> '.length);
+      headTarget = target.startsWith(HEADS) ? target.slice(HEADS.length) : target;
       decorations.push({ name: headTarget, type: 'branch' });
     } else if (raw.startsWith('tag: ')) {
-      decorations.push({ name: raw.slice('tag: '.length), type: 'tag' });
+      const tag = raw.slice('tag: '.length);
+      decorations.push({ name: tag.startsWith(TAGS) ? tag.slice(TAGS.length) : tag, type: 'tag' });
+    } else if (raw.startsWith('refs/')) {
+      const decoration = fullDecoration(raw);
+      if (decoration !== undefined) decorations.push(decoration);
     } else if (raw.includes('/')) {
       decorations.push({ name: raw, type: 'remote-branch' });
     } else {

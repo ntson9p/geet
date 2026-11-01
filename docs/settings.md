@@ -361,7 +361,37 @@ Color palette for the commit graph lanes.
 
 ### `gittree.log.showTagNames`
 
-Show tag names in the commit list. When off, a commit's tags are one tag icon, and hovering over it shows their names. Toggled from the log's Presentation Settings menu (the eye button).
+Show tag names in the commit list. When off, a commit's tags are drawn as a tag icon without a name, and hovering over it shows their names. Toggled from the log's Presentation Settings menu (the eye button).
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.log.compactReferences`
+
+Compact References View: draw a commit's branches and tags as one label, named after the first, with one colour per kind in its icon. When off, each branch gets its own label. Toggled from the log's Presentation Settings menu (the eye button).
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.log.referencesOnLeft`
+
+References on the Left: draw a commit's branch and tag labels before its message instead of at the end of the message column. Toggled from the log's Presentation Settings menu (the eye button).
+
+- Type: `boolean` · Default: `false`
+
+### `gittree.log.columns.author`
+
+Show the Author column in the commit list. Toggled from the log's Presentation Settings menu, under Columns.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.log.columns.date`
+
+Show the Date column in the commit list. Toggled from the log's Presentation Settings menu, under Columns.
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.log.columns.hash`
+
+Show the Hash column (the first eight characters of each commit's hash) in the commit list. Toggled from the log's Presentation Settings menu, under Columns.
 
 - Type: `boolean` · Default: `false`
 

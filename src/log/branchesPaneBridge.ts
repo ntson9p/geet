@@ -105,6 +105,7 @@ export class BranchesPaneBridge {
       locals: service.localBranches.map((b) => ({
         name: b.name,
         favorite: favorites.has(b.name),
+        ...(b.upstream !== undefined ? { upstream: b.upstream } : {}),
       })),
       remotes: [...remoteGroups.entries()]
         .sort(([a], [b]) => a.localeCompare(b))

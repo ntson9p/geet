@@ -9,11 +9,19 @@ describe('createCommitDateFormat (POST-P14z)', () => {
     expect(createCommitDateFormat('en-GB', 'UTC')(T)).toBe('21/09/2026 13:45');
   });
 
+  it("reads as IntelliJ's Date column does in en-US: no padded month, day or hour", () => {
+    // IntelliJ: `9/5/2026 3:07 PM`, `10/29/2026 2:19 AM`.
+    const early = Math.floor(Date.parse('2026-09-05T15:07:00Z') / 1000);
+    expect(createCommitDateFormat('en-US', 'UTC')(early)).toMatch(/^9\/5\/2026 3:07\sPM$/u);
+    const late = Math.floor(Date.parse('2026-10-29T02:19:00Z') / 1000);
+    expect(createCommitDateFormat('en-US', 'UTC')(late)).toMatch(/^10\/29\/2026 2:19\sAM$/u);
+  });
+
   it('follows the locale it is given', () => {
     // The point of leaving `locale` undefined in production: a date order is
-    // a regional convention, and 09/21 vs 21/09 is not a detail.
-    expect(createCommitDateFormat('en-US', 'UTC')(T)).toMatch(/^09\/21\/2026 /u);
-    expect(createCommitDateFormat('de-DE', 'UTC')(T)).toBe('21.09.2026 13:45');
+    // a regional convention, and 9/21 vs 21/9 is not a detail.
+    expect(createCommitDateFormat('en-US', 'UTC')(T)).toMatch(/^9\/21\/2026 /u);
+    expect(createCommitDateFormat('de-DE', 'UTC')(T)).toBe('21.9.2026 13:45');
   });
 
   it('renders in the time zone it is given, including across the date line', () => {

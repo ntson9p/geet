@@ -43,7 +43,7 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(list).toBeVisible();
     const rendered = await list.locator('[data-gt-row]').count();
     expect(rendered).toBeLessThan(80); // 2000 rows loaded, ~viewport rendered
-    await expect(page.locator('.gt-ref-chip').first()).toHaveText('main');
+    await expect(commitRow(page).getByTestId('ref-label').first()).toHaveText('main');
     // Graph canvas painted.
     await expect(page.locator('.gt-log-graph-canvas')).toBeVisible();
   });
@@ -1240,20 +1240,20 @@ test.describe('P4-T3/T4 log webview', () => {
       .map((m) => m.params ?? {});
   }
 
-  test('Tag Names off (the default): a commit\'s tags are one icon, named on hover', async ({ page }) => {
+  test('Tag Names off (the default): a commit\'s tags are a tag icon alone, named on hover', async ({ page }) => {
     await openLog(page);
-    const chip = taggedRow(page).getByTestId('tag-chip');
-    await expect(chip).toHaveCount(1);
-    await expect(chip.locator('.codicon-tag')).toHaveCount(1);
-    await expect(chip).toHaveText('');
-    await expect(taggedRow(page).locator('.gt-ref-chip')).toHaveCount(1);
+    const label = taggedRow(page).getByTestId('ref-label');
+    await expect(label).toHaveCount(1);
+    await expect(label).toHaveText('');
+    // Two tags: IntelliJ's icon doubles the tag colour to say there are several.
+    await expect(label.locator('svg')).toHaveAttribute('data-colors', 'tag tag');
 
-    await chip.hover();
-    const tooltip = page.getByTestId('tags-tooltip');
+    await label.hover();
+    const tooltip = page.getByTestId('refs-tooltip');
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toContainText('v1.0');
     await expect(tooltip).toContainText('v1.0.1');
-    // Over the icon, the card is about the tags, not the commit message.
+    // Over the label, the card is about the refs, not the commit message.
     await expect(page.getByTestId('commit-tooltip')).toHaveCount(0);
 
     await page.mouse.move(0, 0);
@@ -1274,11 +1274,10 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(menu).toHaveCount(0);
     await expect.poll(() => setPresentationCalls(page)).toEqual([{ showTagNames: true }]);
 
-    // Each tag is now a named chip with the tag icon beside its name.
-    const chips = taggedRow(page).locator('.gt-ref-tag');
-    await expect(chips).toHaveText(['v1.0', 'v1.0.1']);
-    await expect(chips.locator('.codicon-tag')).toHaveCount(2);
-    await expect(taggedRow(page).getByTestId('tag-chip')).toHaveCount(0);
+    // One label for the commit's tags, named after the first, as IntelliJ draws it.
+    const label = taggedRow(page).getByTestId('ref-label');
+    await expect(label).toHaveText('v1.0');
+    await expect(label.locator('svg')).toHaveAttribute('data-colors', 'tag tag');
 
     await page.getByRole('button', { name: 'Presentation Settings' }).click();
     await expect(
@@ -1286,18 +1285,26 @@ test.describe('P4-T3/T4 log webview', () => {
     ).toHaveAttribute('aria-checked', 'true');
   });
 
-  test('Presentation Settings ▾ opens at the keyboard on Tag Names, past the caption', async ({ page }) => {
+  test("Presentation Settings ▾ lists IntelliJ's rows and opens at the keyboard past the caption", async ({ page }) => {
     await openLog(page);
     await page.getByRole('button', { name: 'Presentation Settings' }).click();
-    const tagNames = page.getByRole('menuitemcheckbox', { name: 'Tag Names' });
-    await expect(tagNames).toHaveClass(/gt-active/);
+    const menu = page.getByRole('menu', { name: 'Presentation Settings' });
+    await expect(menu.getByRole('menuitemcheckbox')).toHaveText([
+      'Compact References View',
+      'Tag Names',
+      'References on the Left',
+    ]);
+    await expect(menu.getByRole('menuitem', { name: 'Columns' })).toBeVisible();
+    const compact = page.getByRole('menuitemcheckbox', { name: 'Compact References View' });
+    await expect(compact).toHaveAttribute('aria-checked', 'true');
+    await expect(compact).toHaveClass(/gt-active/);
     await page.keyboard.press('Enter');
-    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showTagNames: true }]);
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ compactReferences: false }]);
   });
 
   test('a host presentation event redraws the rows without re-paging', async ({ page }) => {
     await openLog(page);
-    await expect(taggedRow(page).getByTestId('tag-chip')).toHaveCount(1);
+    await expect(taggedRow(page).getByTestId('ref-label')).toHaveText('');
     const pages = async (): Promise<number> =>
       (await posted(page)).filter((m) => m.method === 'log/page').length;
     const before = await pages();
@@ -1316,10 +1323,12 @@ test.describe('P4-T3/T4 log webview', () => {
         '*',
       ),
     );
-    await expect(taggedRow(page).locator('.gt-ref-tag')).toHaveText(['v1.0', 'v1.0.1']);
+    await expect(taggedRow(page).getByTestId('ref-label')).toHaveText('v1.0');
     await expect(
       page.getByTestId('branches-pane').getByRole('treeitem', { name: /^Tags, 1$/ }),
     ).toHaveCount(0);
+    // A setting the event did not carry keeps its default: the columns stay.
+    await expect(commitRow(page).locator('[data-gt-row="2"]').getByTestId('log-author')).toBeVisible();
     // No `git log` for a drawing change, and the selection survives it.
     expect(await pages()).toBe(before);
     await expect(page.getByTestId('log-rows').locator('[data-gt-row="2"]')).toHaveAttribute(
@@ -1351,6 +1360,123 @@ test.describe('P4-T3/T4 log webview', () => {
     await pane.getByRole('button', { name: 'Branches Pane Settings' }).click();
     await page.getByRole('menuitemcheckbox', { name: 'Show Tags' }).click();
     await expect(pane.getByRole('treeitem', { name: /^Tags, 1$/ })).toBeVisible();
+  });
+
+  // ---- IntelliJ's columns: message (refs at its end) · Author · Date · Hash ----
+
+  /** Sends a host presentation event, as a settings change would. */
+  async function postPresentation(page: Page, patch: Record<string, unknown>): Promise<void> {
+    await page.evaluate(
+      (params) =>
+        window.postMessage({ v: 1, id: 'evtpres', kind: 'evt', method: 'log/presentationChanged', params }, '*'),
+      { showTagNames: false, showTags: true, ...patch },
+    );
+  }
+
+  const cell = (page: Page, row: number, column: string) =>
+    commitRow(page).locator(`[data-gt-row="${row}"]`).getByTestId(`log-${column}`);
+
+  test('Columns: the message, then Author and Date; Hash is hidden until switched on', async ({ page }) => {
+    await openLog(page);
+    await expect(cell(page, 0, 'author')).toHaveText('Alice');
+    // IntelliJ's date: no padded month, day or hour.
+    await expect(cell(page, 0, 'date')).toHaveText(/^\d{1,2}\/\d{1,2}\/\d{4} \d{1,2}:\d{2}\s[AP]M$/u);
+    await expect(cell(page, 0, 'hash')).toHaveCount(0);
+    // The row no longer runs the author, date and hash into the message.
+    await expect(commitRow(page).locator('[data-gt-row="0"] .gt-log-subject')).toHaveText('commit 0');
+
+    // Author and Date line up down the list: same left edge on every row.
+    const left = async (row: number): Promise<number> =>
+      (await cell(page, row, 'date').boundingBox())!.x;
+    expect(await left(1)).toBe(await left(0));
+    expect(await left(5)).toBe(await left(0));
+  });
+
+  test("Author marks a commit someone else committed with IntelliJ's *", async ({ page }) => {
+    await openLog(page);
+    // The mock's every fifth commit was committed by another person.
+    await expect(cell(page, 4, 'author')).toHaveText('Bob*');
+    await expect(cell(page, 3, 'author')).toHaveText('Alice');
+  });
+
+  test('Presentation Settings ▸ Columns ▸ Hash adds the Hash column, eight characters', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    await page.getByRole('menuitem', { name: 'Columns' }).click();
+    const hash = page.getByRole('menuitemcheckbox', { name: 'Hash' });
+    await expect(hash).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Author' })).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Date' })).toHaveAttribute('aria-checked', 'true');
+    await hash.click();
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showHashColumn: true }]);
+    await expect(cell(page, 0, 'hash')).toHaveText('00000000');
+    // The last column: after Date, as in IntelliJ.
+    const dateBox = (await cell(page, 0, 'date').boundingBox())!;
+    expect((await cell(page, 0, 'hash').boundingBox())!.x).toBeGreaterThanOrEqual(dateBox.x + dateBox.width - 1);
+  });
+
+  test('a column switched off leaves its room to the message', async ({ page }) => {
+    await openLog(page);
+    const subject = commitRow(page).locator('[data-gt-row="0"] .gt-log-subject-cell');
+    const before = (await subject.boundingBox())!.width;
+    await postPresentation(page, { showAuthorColumn: false });
+    await expect(cell(page, 0, 'author')).toHaveCount(0);
+    await expect.poll(async () => (await subject.boundingBox())!.width).toBeGreaterThan(before);
+  });
+
+  test('ref labels sit at the end of the message, or before it with References on the Left', async ({ page }) => {
+    await openLog(page);
+    const row = commitRow(page).locator('[data-gt-row="0"]');
+    const labelsFirst = (): Promise<boolean> =>
+      row.evaluate((el) => {
+        const labels = el.querySelector('[data-testid="ref-labels"]');
+        const subject = el.querySelector('.gt-log-subject');
+        return labels !== null && subject !== null && (labels.compareDocumentPosition(subject) & 4) !== 0;
+      });
+    expect(await labelsFirst()).toBe(false);
+    // Right-aligned: the label ends where the Author column begins.
+    const labelBox = (await row.getByTestId('ref-labels').boundingBox())!;
+    const authorBox = (await cell(page, 0, 'author').boundingBox())!;
+    expect(Math.abs(labelBox.x + labelBox.width - authorBox.x)).toBeLessThanOrEqual(1);
+
+    await postPresentation(page, { referencesOnLeft: true });
+    await expect.poll(labelsFirst).toBe(true);
+  });
+
+  test("the current branch's label carries HEAD and the branch in its icon", async ({ page }) => {
+    await openLog(page);
+    const label = commitRow(page).locator('[data-gt-row="0"]').getByTestId('ref-label');
+    await expect(label).toHaveText('main');
+    await expect(label.locator('svg')).toHaveAttribute('data-colors', 'head local');
+  });
+
+  test('dragging a column border resizes it, for this tab; a double-click fits it again', async ({ page }) => {
+    await openLog(page);
+    const author = cell(page, 2, 'author');
+    const start = (await author.boundingBox())!.width;
+    const handle = commitRow(page).locator('[data-gt-row="2"]').getByTestId('col-resize-author');
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 78, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.up();
+
+    await expect.poll(async () => Math.round((await author.boundingBox())!.width)).toBe(Math.round(start + 80));
+    // Every row follows, and the drag selected nothing.
+    expect(Math.round((await cell(page, 0, 'author').boundingBox())!.width)).toBe(Math.round(start + 80));
+    await expect(commitRow(page).locator('[data-gt-row="2"]')).toHaveAttribute('aria-selected', 'false');
+    // Kept with the tab, across a reload.
+    const stored = await page.evaluate(() => {
+      const state = JSON.parse(sessionStorage.getItem('gt-mock-log-state') ?? '{}') as {
+        tabsUi?: Record<string, { columnWidths?: Record<string, number> }>;
+      };
+      return state.tabsUi?.log?.columnWidths?.author;
+    });
+    expect(Math.round(stored ?? 0)).toBe(Math.round(start + 80));
+
+    await handle.dblclick();
+    await expect.poll(async () => Math.round((await author.boundingBox())!.width)).toBe(Math.round(start));
+    await expect(commitRow(page).locator('[data-gt-row="2"]')).toHaveAttribute('aria-selected', 'false');
   });
 
   // ---- Log tabs: `+` (Open Another Log Tab), ×, the tab menu ----

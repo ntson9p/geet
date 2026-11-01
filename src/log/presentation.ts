@@ -1,7 +1,8 @@
 /**
- * The settings behind the Git tool window's two ref-presentation menus: the
- * Commits pane's `Presentation Settings ▾ · Tag Names` and the Branches pane's
- * `Branches Pane Settings · Show Tags`. Nothing here imports `vscode`, so the
+ * The settings behind the Git tool window's presentation menus: the Commits
+ * pane's `Presentation Settings ▾` (Compact References View, Tag Names,
+ * References on the Left, Columns ▸ Author · Hash · Date) and the Branches
+ * pane's `Branches Pane Settings · Show Tags`. Nothing here imports `vscode`, so the
  * rules are unit-testable; `LogViewProvider` does the reading and writing.
  */
 import type { LogPresentationDto } from '../shared/protocol';
@@ -22,7 +23,20 @@ export interface PresentationSetting {
 export const PRESENTATION_SETTINGS: Readonly<Record<PresentationKey, PresentationSetting>> = {
   showTagNames: { section: 'gittree.log', key: 'showTagNames', scope: 'global' },
   showTags: { section: 'gittree.branches', key: 'showTags', scope: 'workspace' },
+  // IntelliJ keeps these with Tag Names, IDE-wide (`VcsLogApplicationSettings`),
+  // the visible columns included.
+  compactReferences: { section: 'gittree.log', key: 'compactReferences', scope: 'global' },
+  referencesOnLeft: { section: 'gittree.log', key: 'referencesOnLeft', scope: 'global' },
+  showAuthorColumn: { section: 'gittree.log', key: 'columns.author', scope: 'global' },
+  showDateColumn: { section: 'gittree.log', key: 'columns.date', scope: 'global' },
+  showHashColumn: { section: 'gittree.log', key: 'columns.hash', scope: 'global' },
 };
+
+/** The full setting id behind a presentation key, e.g. `gittree.log.columns.hash`. */
+export function settingId(name: PresentationKey): string {
+  const { section, key } = PRESENTATION_SETTINGS[name];
+  return `${section}.${key}`;
+}
 
 /** The parts of `WorkspaceConfiguration.inspect()` the choice depends on. */
 export interface InspectedSetting {

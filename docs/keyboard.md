@@ -100,6 +100,7 @@ arrows move within):
 | `←` / `→` / `Home` / `End` (tab strip) | move between Log, Console, Worktrees and the extra Log tabs |
 | `Shift+F10` / context-menu key (tab strip) | the tab menu: Close Tab · Close Other Tabs · Close All Tabs — the keyboard's way to close a tab |
 | Middle-click (tab strip) | close an extra Log tab |
+| Drag / double-click (a column's left border) | resize a column / fit it to its content again. Pointer-only: a width is cosmetic, and the columns themselves are switched from Presentation Settings ▸ Columns (keyboard-reachable) or the `gittree.log.columns.*` settings |
 
 **Interactive rebase editor**
 

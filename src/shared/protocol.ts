@@ -929,6 +929,11 @@ export interface LogRowDto {
   authorTime: number;
   parents: string[];
   refs: RefChipDto[];
+  /**
+   * Someone other than the author committed it (a rebase, a cherry-pick):
+   * the Author column adds IntelliJ's `*`.
+   */
+  committedByOther?: boolean;
   side?: 'left' | 'right';
   graph: GraphRowDto;
 }
@@ -967,10 +972,32 @@ export interface LogPresentationDto {
   showTagNames: boolean;
   /** `gittree.branches.showTags`: the Branches pane lists a `Tags` node. */
   showTags: boolean;
+  /**
+   * `gittree.log.compactReferences`, IntelliJ's Compact References View: a
+   * commit's refs are one label, named after the first, with every ref's
+   * colour stacked in its icon.
+   */
+  compactReferences: boolean;
+  /** `gittree.log.referencesOnLeft`: the labels go before the message, not at its end. */
+  referencesOnLeft: boolean;
+  /** `gittree.log.columns.author`: Presentation Settings ▸ Columns ▸ Author. */
+  showAuthorColumn: boolean;
+  /** `gittree.log.columns.date`: Presentation Settings ▸ Columns ▸ Date. */
+  showDateColumn: boolean;
+  /** `gittree.log.columns.hash`: Presentation Settings ▸ Columns ▸ Hash. */
+  showHashColumn: boolean;
 }
 
 /** What a view draws before the host has said otherwise: IntelliJ's own defaults. */
-export const DEFAULT_LOG_PRESENTATION: LogPresentationDto = { showTagNames: false, showTags: true };
+export const DEFAULT_LOG_PRESENTATION: LogPresentationDto = {
+  showTagNames: false,
+  showTags: true,
+  compactReferences: true,
+  referencesOnLeft: false,
+  showAuthorColumn: true,
+  showDateColumn: true,
+  showHashColumn: false,
+};
 
 export interface LogInitDto {
   repoRoot: string;
@@ -1064,7 +1091,11 @@ export interface LogBranchesDto {
   /** Current branch name; undefined when detached. */
   current?: string;
   detached: boolean;
-  locals: Array<{ name: string; favorite: boolean }>;
+  /**
+   * `upstream` is the branch's tracked remote branch (`origin/main`): a row
+   * that carries both draws them as one label, as IntelliJ does.
+   */
+  locals: Array<{ name: string; favorite: boolean; upstream?: string }>;
   remotes: Array<{ remote: string; branches: string[] }>;
   tags: string[];
   /** user.email — what "Show my commits" filters the log by. */

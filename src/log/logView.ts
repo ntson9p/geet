@@ -45,6 +45,7 @@ import {
   type LogFilter,
 } from './logFilter';
 import { LogService, type LogRow } from './logService';
+import { committedByOther, userName } from './vcsUser';
 import {
   MAIN_LOG_TAB,
   activateTab,
@@ -717,14 +718,15 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return v === 'colorBlind' ? 'colorBlind' : 'default';
   }
 
-  /** How refs are drawn: `gittree.log.showTagNames` and `gittree.branches.showTags`. */
+  /** How rows and refs are drawn: every setting in `PRESENTATION_SETTINGS`. */
   private presentation(): LogPresentationDto {
-    const read = (name: PresentationKey): boolean => {
+    const out: LogPresentationDto = { ...DEFAULT_LOG_PRESENTATION };
+    for (const name of Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]) {
       const { section, key } = PRESENTATION_SETTINGS[name];
       const value = vscode.workspace.getConfiguration(section).get<unknown>(key);
-      return typeof value === 'boolean' ? value : DEFAULT_LOG_PRESENTATION[name];
-    };
-    return { showTagNames: read('showTagNames'), showTags: read('showTags') };
+      if (typeof value === 'boolean') out[name] = value;
+    }
+    return out;
   }
 
   private async writePresentation(patch: Partial<LogPresentationDto>): Promise<void> {
@@ -914,14 +916,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return {
       sha: row.sha,
       subject: row.subject,
-      authorName: row.authorName,
+      // IntelliJ's Author column: the name, else the email's local part.
+      authorName: userName(row.authorName, row.authorEmail),
       authorTime: row.authorTime,
       parents: row.parents,
       refs: decorations.map((d) => ({
         name: d.name,
         type: d.type,
-        ...(d.name === headTarget ? { isHeadTarget: true } : {}),
+        ...(d.type === 'branch' && d.name === headTarget ? { isHeadTarget: true } : {}),
       })),
+      ...(committedByOther(row.authorName, row.authorEmail, row.committerName)
+        ? { committedByOther: true }
+        : {}),
       ...(row.side !== undefined ? { side: row.side } : {}),
       graph: {
         nodeLane: graph.nodeLane,

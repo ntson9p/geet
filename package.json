@@ -400,6 +400,31 @@
             "default": false,
             "description": "%gittree.config.log.showTagNames.description%"
           },
+          "gittree.log.compactReferences": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.log.compactReferences.description%"
+          },
+          "gittree.log.referencesOnLeft": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.log.referencesOnLeft.description%"
+          },
+          "gittree.log.columns.author": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.log.columns.author.description%"
+          },
+          "gittree.log.columns.date": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.log.columns.date.description%"
+          },
+          "gittree.log.columns.hash": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.log.columns.hash.description%"
+          },
           "gittree.log.issuePattern": {
             "type": "string",
             "default": "",

@@ -510,25 +510,122 @@
   z-index: 1;
 }
 
+/*
+ * A commit row, in IntelliJ's columns: the message column (the graph drawn in
+ * its left part, the ref labels at its right end) takes what Author, Date and
+ * Hash leave. No header row, as in IntelliJ.
+ */
 .gt-log-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
   overflow: hidden;
 }
 
+.gt-log-cell {
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.gt-log-subject-cell {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+}
+
 .gt-log-subject {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gt-log-meta {
-  margin-left: auto;
-  padding-left: 12px;
-  flex-shrink: 0;
-  font-size: 0.9em;
+/* Author, Date, Hash: sized by `columns.ts`, text in the row's own colour. */
+.gt-log-col {
+  position: relative;
+  flex: none;
+  display: block;
+  padding: 0 8px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+}
+
+/* A column's left border, IntelliJ's invisible resize zone. */
+.gt-col-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  cursor: col-resize;
+}
+
+body.gt-col-resizing,
+body.gt-col-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+/* ---- Ref labels: IntelliJ's tag icon and a grey name (`LabelPainter`) ---- */
+.gt-ref-labels {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0 4px;
+}
+
+.gt-ref-label {
+  display: inline-flex;
+  align-items: center;
+  /* One pixel under the row's font, as `LabelPainter.getReferenceFont`. */
+  font-size: calc(1em - 1px);
+  color: var(--vscode-descriptionForeground);
+}
+
+.gt-virtual-row.gt-focused .gt-ref-label {
+  color: inherit;
+}
+
+.gt-ref-label-text {
+  margin-left: 1px;
+}
+
+.gt-ref-icon {
+  flex: none;
+  overflow: visible;
+}
+
+/* IntelliJ's ref colours: HEAD yellow, local branches green, remote branches
+   purple, tags grey (`VcsLogStandardColors.Refs`). */
+.gt-ref-kind-head {
+  color: var(--vscode-charts-yellow, #e1c731);
+}
+
+.gt-ref-kind-local {
+  color: var(--vscode-charts-green, #3cb45c);
+}
+
+.gt-ref-kind-remote {
+  color: var(--vscode-charts-purple, #9f79b5);
+}
+
+.gt-ref-kind-tag {
+  color: var(--vscode-descriptionForeground, #999999);
+}
+
+.gt-ref-label.gt-ref-detached {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.gt-ref-warning {
+  font-size: 14px;
+  margin-right: 3px;
 }
 
 .gt-muted {
@@ -555,18 +652,10 @@
   color: var(--vscode-charts-yellow, #cca700);
 }
 
-/* The tag icon: beside the name with Tag Names on, on its own with it off. */
+/* A codicon inside a Commit Details chip. */
 .gt-ref-chip .codicon {
   font-size: 11px;
   vertical-align: -1px;
-}
-
-.gt-ref-chip .gt-ref-icon {
-  margin-right: 3px;
-}
-
-.gt-ref-icon-only {
-  padding: 0 4px;
 }
 
 .gt-ref-head,

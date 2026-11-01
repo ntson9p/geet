@@ -339,8 +339,32 @@ docked bottom, tabs `Log | Console`").
 ### The graph and its filters
 
 * Color-coded topological graph, canvas-drawn, **virtualized to 60 fps at 100k commits**
-  (§13 budgets re-validated with all four panes mounted — see `docs/perf.md`); refs render
-  as typed chips.
+  (§13 budgets re-validated with all four panes mounted — see `docs/perf.md`).
+* **IntelliJ's columns, no header row:** the message column (the graph drawn at its left,
+  the ref labels at its right end) takes what **Author** and **Date** leave; **Hash** (eight
+  characters) joins them from `Presentation Settings ▸ Columns`. Author fits its widest name
+  over the first thousand rows (at most 300 px), Date and Hash are sized by a sample, so
+  every row lines up. **Author** shows IntelliJ's **`*`** when someone other than the
+  author committed the change (a rebase, a cherry-pick), comparing names as IntelliJ does
+  (`Ben Okafor` = `ben.okafor`); a commit with no author name shows its email's local part.
+  **Date** is IntelliJ's format, `9/5/2026 3:07 PM` in en-US (the locale's short date with a
+  four-digit year), always the full date — no "Today"/"Yesterday" (owner's choice).
+  **Drag a column's left border** to resize it (the width is kept per tab, across reloads);
+  **double-click** the border to fit the column to its content again. Columns give way
+  together rather than squeeze the message under the graph plus 80 px.
+* **Ref labels as IntelliJ draws them:** a tag icon holding one colour per kind of ref —
+  HEAD yellow, local branches green, remote branches purple, tags grey; a kind held more
+  than once shows twice; the top one dotted — then the name in grey, one pixel smaller than
+  the row. Grouped by IntelliJ's own rules (`GitRefManager.groupForTable`): HEAD joins the
+  first label's icon; a branch and the remote branch it tracks are one label
+  (`origin & main`); order is current branch, `main`/`master`, `origin/main`, other
+  locals, other remotes, tags. A detached HEAD is a **Detached HEAD** label with a warning
+  icon. Labels get IntelliJ's width budget and, when they do not fit, fold into one last
+  icon; names past 22 characters are shortened (`../feature/…`). Hovering a label opens a
+  card naming its refs (for Detached HEAD, IntelliJ's warning) in place of the
+  commit-message card. Ref types come from `git log --decorate=full`, so a local
+  `feature/x` is no longer taken for a remote branch, and `refs/stash` and a remote's `HEAD`
+  pointer get no label.
 * **Filter row, §2A order:** `Branch or tag` combo (datalist over every ref) · `Text or hash`
   with `.*` regex and `Cc` match-case toggles (a hash navigates instead of grepping) · four
   **multi-select dropdowns with search**: `Branch ▾` (both presets named —
@@ -361,14 +385,22 @@ docked bottom, tabs `Log | Console`").
   keeps its own; Reset all filters keeps the sort and First Parent and drops No Merges.
 * Right toolbar: refresh · **Presentation Settings** (eye) · **Go to Hash/Branch/Tag** ·
   Show Details (folds the right column) · Highlight my commits.
-* **Presentation Settings ▾ · Show · Tag Names** (`gittree.log.showTagNames`, off as in
-  IntelliJ): off, a commit's tags are **one icon-only tag chip**, and hovering over it opens
-  a card naming them (in place of the commit-message card); on, each tag is a chip with the
-  tag icon and its name. Branches are always named. A change, from the menu or the Settings
-  editor, redraws the rows in place: no re-page, the selection and scroll kept. The rest of
-  IntelliJ's `Show` group (Compact References View, Long Edges, Commit Timestamp,
-  References on the Left, Show Root Names, Columns) and its `Highlight` group are not in
-  the menu; *Highlight my commits* is the toolbar toggle above.
+* **Presentation Settings ▾ · Show**, IntelliJ's rows in IntelliJ's order and defaults, all
+  IDE-wide settings:
+  - **Compact References View** (`gittree.log.compactReferences`, on): all of a commit's
+    refs in one label, named after the first; off, each branch is its own label and the tags
+    share one.
+  - **Tag Names** (`gittree.log.showTagNames`, off): a label of tags alone carries the first
+    tag's name; off, it is the tag icon without a name.
+  - **References on the Left** (`gittree.log.referencesOnLeft`, off): labels before the
+    message instead of at its end.
+  - **Columns ▸ Author · Hash · Date** (`gittree.log.columns.author` / `.hash` / `.date`;
+    Hash off).
+
+  A change, from the menu or the Settings editor, redraws the rows in place: no re-page, the
+  selection and scroll kept. IntelliJ's Root Names, Long Edges and Commit Timestamp rows and
+  its `Highlight` group are not in the menu; *Highlight my commits* is the toolbar toggle
+  above.
 * **The graph also refreshes itself.** Any history change — a commit, amend, checkout,
   merge, rebase, reset or pull, from GitTree, the built-in Git extension or a terminal —
   re-pages the graph without the button. *Shape:* the rows rebuild but the user's place

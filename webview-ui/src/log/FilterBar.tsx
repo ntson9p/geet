@@ -23,6 +23,7 @@ import type {
 import { Menu, type MenuItem } from '../lib/Menu';
 import { ToolbarButton } from '../lib/Toolbar';
 import { applyGraphOption, graphOptionsChanged, graphOptionsItems } from './graphOptions';
+import { presentationItems, presentationToggle } from './presentationMenu';
 
 // ---------------------------------------------------------------------------
 // A chip that opens an in-webview panel (multi-select with search).
@@ -157,7 +158,7 @@ export interface FilterBarProps {
   highlightMine: boolean;
   onToggleHighlightMine: () => void;
   canHighlightMine: boolean;
-  /** `Presentation Settings ▾`, the eye button: how the rows draw their refs. */
+  /** `Presentation Settings ▾`, the eye button: how the rows draw their refs and columns. */
   presentation: LogPresentationDto;
   onPresentationChange: (patch: Partial<LogPresentationDto>) => void;
   /** P10-T2: lets the host's focus-filter command reach the search box. */
@@ -232,15 +233,6 @@ export function FilterBar({
   const [presetsAt, setPresetsAt] = useState<{ x: number; y: number } | null>(null);
   const [presentationAt, setPresentationAt] = useState<{ x: number; y: number } | null>(null);
   const [graphOptionsAt, setGraphOptionsAt] = useState<{ x: number; y: number } | null>(null);
-
-  // IntelliJ's `Show` group holds more toggles (Compact References View, Long
-  // Edges, Commit Timestamp, References on the Left, Show Root Names, Columns)
-  // and a `Highlight` group follows it. Only what GitTree does is listed; a
-  // checkbox that changes nothing would be worse than its absence.
-  const presentationItems: MenuItem[] = [
-    { kind: 'header', id: 'show', label: 'Show' },
-    { kind: 'item', id: 'tagNames', label: 'Tag Names', checked: presentation.showTagNames },
-  ];
 
   const selectedRefs = Array.isArray(filter.refs) ? filter.refs : [];
 
@@ -730,12 +722,13 @@ export function FilterBar({
       />
       {presentationAt !== null ? (
         <Menu
-          items={presentationItems}
+          items={presentationItems(presentation)}
           at={presentationAt}
           ariaLabel="Presentation Settings"
           onClose={() => setPresentationAt(null)}
           onSelect={(id) => {
-            if (id === 'tagNames') onPresentationChange({ showTagNames: !presentation.showTagNames });
+            const patch = presentationToggle(presentation, id);
+            if (patch !== undefined) onPresentationChange(patch);
           }}
         />
       ) : null}

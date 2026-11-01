@@ -6,6 +6,32 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the commit list has IntelliJ's columns
+
+Each commit row is laid out the way IntelliJ's log is:
+
+- The message, with the graph on its left and the branch and tag labels at its
+  right end.
+- **Author** and **Date**, each in its own column that lines up down the list.
+- **Hash**, if you switch it on from **Presentation Settings › Columns**.
+  It is off by default, as in IntelliJ.
+
+Drag a column's left border to resize it, and double-click the border to fit
+it again. Each Log tab keeps its own widths.
+
+The Author column adds IntelliJ's **\*** when someone else committed the change,
+for example after a rebase or a cherry-pick. Dates use IntelliJ's format:
+**9/5/2026 3:07 PM** in US English.
+
+Branch and tag labels look like IntelliJ's: a coloured tag icon and a grey name,
+instead of bordered chips. By default a commit's labels are combined into one,
+as with IntelliJ's **Compact References View**. **Presentation Settings** now
+has **Compact References View**, **Tag Names**, **References on the Left** and
+**Columns** (Author, Hash, Date).
+
+Fixed: a local branch with a slash in its name, such as `feature/x`, was
+labelled as a remote branch, and `refs/stash` showed as a branch label.
+
 ### Added — Graph Options in the log, as IntelliJ's
 
 The log's sort dropdown is now IntelliJ's **Graph Options** button. Its menu has
@@ -52,8 +78,8 @@ changes. The others catch up when you bring them forward.
 The log's toolbar has IntelliJ's **Presentation Settings** button (the eye,
 between Refresh and Go to Hash/Branch/Tag). Under **Show**, **Tag Names**
 decides how a commit's tags are drawn. Off, which is IntelliJ's default and
-now GitTree's, they are one tag icon, and hovering over it shows their names.
-On, each tag is a chip with the tag icon and its name. The setting is
+now GitTree's, they are a tag icon without a name, and hovering over it shows
+their names. On, the label carries the first tag's name. The setting is
 `gittree.log.showTagNames`. Branches are always named either way.
 
 The Branches pane's rail has IntelliJ's **Branches Pane Settings** gear, with

@@ -56,6 +56,40 @@ describe('parseLogOutput (captured fixture: merge history)', () => {
   });
 });
 
+describe('parseDecorations with full ref names (--decorate=full)', () => {
+  it('tells a local branch with a slash from a remote branch', () => {
+    const { headTarget, decorations } = parseDecorations([
+      'HEAD -> refs/heads/main',
+      'tag: refs/tags/v1',
+      'refs/remotes/origin/main',
+      'refs/remotes/origin/feature/x',
+      'refs/heads/feature/x',
+    ]);
+    expect(headTarget).toBe('main');
+    expect(decorations).toEqual([
+      { name: 'main', type: 'branch' },
+      { name: 'v1', type: 'tag' },
+      { name: 'origin/main', type: 'remote-branch' },
+      { name: 'origin/feature/x', type: 'remote-branch' },
+      { name: 'feature/x', type: 'branch' },
+    ]);
+  });
+
+  it('labels only branches, tags and HEAD: no stash, notes or remote HEAD pointer', () => {
+    expect(
+      parseDecorations(['refs/stash', 'refs/notes/commits', 'refs/remotes/origin/HEAD', 'refs/heads/main'])
+        .decorations,
+    ).toEqual([{ name: 'main', type: 'branch' }]);
+  });
+
+  it('keeps a detached HEAD as HEAD', () => {
+    expect(parseDecorations(['HEAD', 'refs/heads/main']).decorations).toEqual([
+      { name: 'HEAD', type: 'head' },
+      { name: 'main', type: 'branch' },
+    ]);
+  });
+});
+
 describe('parseLogRecord (streaming frames)', () => {
   it('parses a single \\x1e-framed record with leading newline', () => {
     const frames = fixture('log.bin').split(LOG_RECORD_SEPARATOR);

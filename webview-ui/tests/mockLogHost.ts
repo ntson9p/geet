@@ -12,6 +12,8 @@ export const mockLogHostScript = `
     sha: sha(i),
     subject: 'commit ' + i,
     authorName: i % 3 === 0 ? 'Alice' : 'Bob',
+    // Every fifth commit was committed by someone else: the Author column's *.
+    committedByOther: i % 5 === 4 ? true : undefined,
     authorTime: Math.floor(Date.now() / 1000) - i * 3600,
     parents: i + 1 < TOTAL ? [sha(i + 1)] : [],
     refs:
@@ -42,10 +44,21 @@ export const mockLogHostScript = `
   const WIDE_PATH =
     'service-group/src/main/java/jp/example/backend/group/firebase/component/UserLogicComponentFactory.java';
   const post = (msg) => setTimeout(() => window.postMessage(msg, '*'), 3);
-  // Tag Names / Show Tags as the host's settings hold them. Opt-in starting
-  // values (window.__mockPresentation); IntelliJ's defaults otherwise.
+  // The presentation settings as the host holds them. Opt-in starting values
+  // (window.__mockPresentation, merged over these); IntelliJ's defaults otherwise.
   const presentation = () =>
-    (window.__mockPresentation = window.__mockPresentation || { showTagNames: false, showTags: true });
+    (window.__mockPresentation = Object.assign(
+      {
+        showTagNames: false,
+        showTags: true,
+        compactReferences: true,
+        referencesOnLeft: false,
+        showAuthorColumn: true,
+        showDateColumn: true,
+        showHashColumn: false,
+      },
+      window.__mockPresentation || {},
+    ));
   // The Log tabs as logView keeps them: the main tab first, extras appended.
   // Opt-in starting list (window.__mockTabs) for the restore tests.
   const tabsState = () =>
@@ -206,7 +219,7 @@ export const mockLogHostScript = `
           res({
             current: 'main', detached: false,
             locals: [
-              { name: 'main', favorite: false },
+              { name: 'main', favorite: false, upstream: 'origin/main' },
               { name: 'release', favorite: true },
               { name: 'feature/f1', favorite: false },
               { name: 'feature/f1-1', favorite: false },

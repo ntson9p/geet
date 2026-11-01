@@ -512,3 +512,41 @@ Testing (written, **not run**, by the owner's standing instruction): **+1 unit f
 - Reset keeping the sort and First Parent.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14al ✅ 2026-11-01: **The commit list in IntelliJ's columns.** The owner asked for the rows to match IntelliJ's log: graph · message · refs · Author · Date. GitTree drew one line per commit, `[chips] subject  author · date · sha`. Everything below was read from IntelliJ's source rather than guessed: `VcsLogDefaultColumn`, `VcsLogColumnManager`, `GraphCommitCellRenderer`, `LabelPainter`, `TagPainter`, `SimpleRefGroup`, `GitRefManager`, `VcsUserUtil`, `VcsLogApplicationSettings` and `VcsLogBundle`, fetched with `gh api` search and raw files. The owner chose four extras: IntelliJ-style labels, Compact References View, References on the Left and the Author `*`. They also chose Hash hidden by default and always-full dates, with no "Today"/"Yesterday". The "You" in the owner's screenshot is the sandbox user's real name; IntelliJ has no such substitution.
+
+**Columns** (`webview-ui/src/log/columns.ts`, pure). Subject takes the remainder, then Author, Date and Hash in IntelliJ's order, with no header row. Author fits `name*` over the first 1000 rows, capped at 300 px. Date is sized by a sample date-time in bold. Hash is eight characters, sized by `e`, `0`, `8` and `d` in bold, because IntelliJ's `e` sample under-measures digits in a proportional font (seen in a screenshot). Dragged widths are kept while they fit the row. Columns give way together before the message drops under graph + 80 px. Each column's left border is a 5 px drag zone and double-click resets it. Widths persist per tab in `LogTabUiState.columnWidths`, saved on mouse-up from the last computed width, since React may not have drawn the final move yet.
+
+**Labels** (`refLabels.ts`, pure; `RefLabelsView.tsx`). Grouping ports `groupForTable`:
+- labels sort HEAD, current branch, main/master, origin/main, other locals, other remotes, tags;
+- a branch pairs with its upstream (now on `LogBranchesDto.locals[].upstream`), else with `<remote>/<name>`, as `origin & main`;
+- the current branch is its own group;
+- in compact mode everything is one group;
+- HEAD joins the first group, or forms a `Detached HEAD` group.
+
+Fitting ports `calculatePresentation`, `getAvailableWidth` and `shortenRefName`: padding 4/4, gaps 12/6, icon width `(6.25 + 2(n−1))·h/6.25`, groups that do not fit fold into one last icon, and names over 22 characters become `..` plus the end. The icon is IntelliJ's `currentBranch.svg` tag outline, one per colour, each masked under the next, with the top one dotted. Colours are HEAD `--vscode-charts-yellow`, local green, remote purple, tags grey. Hover cards list a label's refs, or show IntelliJ's detached-HEAD warning.
+
+**Host.**
+- `buildLogArgs` adds `--decorate=full`, and `parseDecorations` reads full names. This fixes two existing bugs: a local `feature/x` was typed remote, and `refs/stash` became a "remote" chip. Stash, notes and remote `HEAD` now get no label.
+- `vcsUser.ts` ports `getUserName`, `getNameInStandardForm` and `isSamePerson`, so the DTO carries `committedByOther` and the email fallback for an empty name. IntelliJ's robot-committer list is empty by default, so no committer is exempt.
+- Five settings join `PRESENTATION_SETTINGS`, all global as in IntelliJ: `compactReferences` (true), `referencesOnLeft`, and `columns.author` / `.date` / `.hash`. `presentation()` and the config listener iterate the table.
+- The webview merges a partial presentation over the defaults, so a column never disappears for want of a key.
+- Dates follow IntelliJ's `formatDateTime`: numeric month and day, four-digit year, unpadded hour.
+
+Checked by hand in screenshots of the mock page, at 1x and 4x zoom: the columns line up, the stacked icons draw, Hash fits, and dragging the Author border went 59 → 181 px without selecting the row.
+
+Docs: FEATURES §4, CHANGELOG (Changed, and the Tag Names entry corrected), gap analysis §3.4 (Presentation row updated, new commit-table row ✅), parity audit, keyboard.md, settings.md regenerated.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **+4 unit files:** `columns.test.ts`, `presentationMenu.test.ts`, `log/vcsUser.test.ts`, and `refLabels.test.ts` (rewritten: grouping, colours, icon width, shortening, budget, folding, Detached HEAD, tooltips, repoRefs).
+- **Additions** to `dateFormat.test.ts`, `presentation.test.ts`, `logFormat.test.ts` (full names) and `logFilter.test.ts` (`--decorate=full`).
+- **Playwright:** the four ref/tag tests reworked for labels, plus seven new tests covering:
+  - the columns lining up, with Hash hidden;
+  - the Author `*`;
+  - Columns ▸ Hash;
+  - a hidden column's room going to the message;
+  - labels at the end of the message, or on the left;
+  - the HEAD + branch icon;
+  - drag, persist and double-click.
+
+Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.

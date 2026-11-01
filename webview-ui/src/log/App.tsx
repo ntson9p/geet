@@ -64,13 +64,21 @@ function readState(): PersistedState {
   return (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
 }
 
-/** A whole `LogPresentationDto`, or nothing: a stray `{ ok: true }` must not blank both toggles. */
+/**
+ * A whole `LogPresentationDto`, or nothing: a stray `{ ok: true }` must not
+ * blank every toggle. A setting the answer does not carry keeps IntelliJ's
+ * default rather than turning off — a column must not vanish for want of it.
+ */
 function asPresentation(value: unknown): LogPresentationDto | undefined {
   if (value === null || typeof value !== 'object') return undefined;
-  const { showTagNames, showTags } = value as Partial<LogPresentationDto>;
-  return typeof showTagNames === 'boolean' && typeof showTags === 'boolean'
-    ? { showTagNames, showTags }
-    : undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.showTagNames !== 'boolean' || typeof raw.showTags !== 'boolean') return undefined;
+  const out: LogPresentationDto = { ...DEFAULT_LOG_PRESENTATION };
+  for (const key of Object.keys(DEFAULT_LOG_PRESENTATION) as Array<keyof LogPresentationDto>) {
+    const v = raw[key];
+    if (typeof v === 'boolean') out[key] = v;
+  }
+  return out;
 }
 
 /** A usable tab list, or nothing (a host from before tabs answers `{ ok: true }`). */
@@ -348,7 +356,10 @@ export function App() {
                 dark={dark}
                 presentation={presentation}
                 onPresentationChange={changePresentation}
-                onPresentationSeen={setPresentation}
+                onPresentationSeen={(seen) => {
+                  const next = asPresentation(seen);
+                  if (next) setPresentation(next);
+                }}
                 filesRollup={filesRollup}
                 onFilesRollupChange={setFilesRollup}
                 previewOnClick={previewOnClick}

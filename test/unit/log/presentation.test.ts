@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PRESENTATION_SETTINGS,
   presentationPatch,
+  settingId,
   writeScope,
 } from '../../../src/log/presentation';
 import { DEFAULT_LOG_PRESENTATION } from '../../../src/shared/protocol';
@@ -30,6 +31,24 @@ describe('writeScope (Presentation Settings / Branches Pane Settings toggles)', 
     expect(PRESENTATION_SETTINGS.showTagNames.scope).toBe('global');
     expect(PRESENTATION_SETTINGS.showTags.scope).toBe('workspace');
   });
+
+  it("keeps the label options and the visible columns IDE-wide, as IntelliJ's app settings do", () => {
+    for (const name of [
+      'compactReferences',
+      'referencesOnLeft',
+      'showAuthorColumn',
+      'showDateColumn',
+      'showHashColumn',
+    ] as const) {
+      expect(PRESENTATION_SETTINGS[name].scope).toBe('global');
+    }
+  });
+
+  it('names each setting by its full id', () => {
+    expect(settingId('showTagNames')).toBe('gittree.log.showTagNames');
+    expect(settingId('showHashColumn')).toBe('gittree.log.columns.hash');
+    expect(settingId('showTags')).toBe('gittree.branches.showTags');
+  });
 });
 
 describe('presentationPatch', () => {
@@ -38,6 +57,13 @@ describe('presentationPatch', () => {
     expect(presentationPatch({ showTags: false, showTagNames: false })).toEqual({
       showTags: false,
       showTagNames: false,
+    });
+  });
+
+  it('passes the column and label toggles too', () => {
+    expect(presentationPatch({ showHashColumn: true, compactReferences: false })).toEqual({
+      showHashColumn: true,
+      compactReferences: false,
     });
   });
 
@@ -72,7 +98,15 @@ describe('the settings behind them', () => {
     });
   }
 
-  it('defaults to IntelliJ\'s own: tag names off, the Tags node shown', () => {
-    expect(DEFAULT_LOG_PRESENTATION).toEqual({ showTagNames: false, showTags: true });
+  it("defaults to IntelliJ's own (`VcsLogApplicationSettings`, the default columns)", () => {
+    expect(DEFAULT_LOG_PRESENTATION).toEqual({
+      showTagNames: false,
+      showTags: true,
+      compactReferences: true,
+      referencesOnLeft: false,
+      showAuthorColumn: true,
+      showDateColumn: true,
+      showHashColumn: false,
+    });
   });
 });
