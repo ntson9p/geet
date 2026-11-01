@@ -607,7 +607,12 @@ export function App() {
     },
   });
 
-  const card = (entry: BranchEntry | undefined, indent: number, detachedAt?: string) => (
+  const card = (
+    entry: BranchEntry | undefined,
+    indent: number,
+    menuFor: (at: { x: number; y: number }) => void,
+    detachedAt?: string,
+  ) => (
     <BranchCard
       entry={entry}
       details={entry !== undefined ? details.get(detailsKey(entry)) : { repos: [], buttons: [] }}
@@ -618,7 +623,7 @@ export function App() {
       onButton={(b: BranchPanelButtonDto) => run(b.run)}
       onMenu={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
-        if (entry !== undefined) openBranchMenu(entry, { x: r.right, y: r.bottom });
+        menuFor({ x: r.right, y: r.bottom });
       }}
       {...(detachedAt !== undefined ? { detachedAt } : {})}
     />
@@ -685,15 +690,24 @@ export function App() {
             buttons={repoButtons(row.repo)}
           />
         );
-      case 'head':
+      case 'head': {
+        // The current branch's menu, then the repository's: from `⋯` as from right-click.
+        const headMenu = (at: { x: number; y: number }) => openHeadMenu(row, at);
         return (
           <HeadRow
             row={row}
             showInOut={state.showInOut}
-            buttons={repoButtons(row.repo)}
-            card={row.card ? card(row.entry, 8, row.repo.headSha?.slice(0, 8)) : null}
+            buttons={{
+              ...repoButtons(row.repo),
+              onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                headMenu({ x: r.right, y: r.bottom });
+              },
+            }}
+            card={row.card ? card(row.entry, 8, headMenu, row.repo.headSha?.slice(0, 8)) : null}
           />
         );
+      }
       case 'operation':
         return (
           <OperationRow
@@ -718,7 +732,11 @@ export function App() {
               scopeRepos={model.scopeRepos}
               colorOf={colorOf}
               onQuick={(action, e) => onQuick(row.entry, action, e)}
-              card={row.card ? card(row.entry, 8 + row.depth * INDENT + 20) : null}
+              card={
+                row.card
+                  ? card(row.entry, 8 + row.depth * INDENT + 20, (at) => openBranchMenu(row.entry, at))
+                  : null
+              }
               draggable={row.entry.kind === 'local'}
               onDragStart={(e) => {
                 e.dataTransfer.setData(DRAG_MIME, JSON.stringify(targetOf(row.entry)));
