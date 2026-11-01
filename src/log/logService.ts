@@ -64,8 +64,16 @@ export class LogService {
     private readonly trace: (line: string) => void = () => undefined,
   ) {}
 
+  /**
+   * Keyed on the refs as well as HEAD: the rows carry their branch labels, and
+   * a branch made, renamed or switched to at the same commit leaves `headSha`
+   * where it was. With HEAD alone a repository the log was not showing at the
+   * time came back with its old labels — `HEAD → master` on a repository now
+   * on `abc`.
+   */
   private cacheKey(filter: LogFilter, page: number): string {
-    return `${filterKey(filter)}|${page}|${this.repo.model.snapshot.headSha ?? 'unborn'}`;
+    const model = this.repo.model;
+    return `${filterKey(filter)}|${page}|${model.snapshot.headSha ?? 'unborn'}|${model.refsGeneration}`;
   }
 
   /**

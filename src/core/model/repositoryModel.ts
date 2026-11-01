@@ -47,6 +47,7 @@ export const EMPTY_SNAPSHOT: RepoSnapshot = Object.freeze({
 export class RepositoryModel {
   private _snapshot: RepoSnapshot = EMPTY_SNAPSHOT;
   private _workdirGeneration = 0;
+  private _refsGeneration = 0;
   private readonly _onDidChange = new Emitter<ReadonlySet<ModelSection>>();
   readonly onDidChange: Event<ReadonlySet<ModelSection>> = this._onDidChange.event;
 
@@ -65,6 +66,16 @@ export class RepositoryModel {
     this._workdirGeneration++;
   }
 
+  /**
+   * Monotonic counter bumped whenever a ref or HEAD changes — a branch made,
+   * renamed or switched to at the same commit, a fetch moving `origin/*`.
+   * Caches whose content shows refs key on it: `headSha` alone does not move
+   * for any of those.
+   */
+  get refsGeneration(): number {
+    return this._refsGeneration;
+  }
+
   /** `(HEAD sha, workdir generation)` invalidation key (master §4 caches). */
   get invalidationKey(): string {
     return `${this._snapshot.headSha ?? 'unborn'}:${this._workdirGeneration}`;
@@ -80,6 +91,7 @@ export class RepositoryModel {
     const changed = diffSections(prev, next);
     if (changed.size > 0) {
       this._snapshot = next;
+      if (changed.has('refs') || changed.has('head')) this._refsGeneration++;
       this._onDidChange.fire(changed);
     }
     return changed;

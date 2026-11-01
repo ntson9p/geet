@@ -96,3 +96,25 @@ describe('RepositoryModel section diffing', () => {
     expect(m.invalidationKey).not.toBe(k1);
   });
 });
+
+describe('RepositoryModel.refsGeneration', () => {
+  const sha = 'a'.repeat(40);
+
+  it('moves when a ref or HEAD changes, though HEAD stays on the same commit', () => {
+    const m = new RepositoryModel('X:/repo');
+    m.update({ headRef: 'master', headSha: sha, refs: [ref('master', sha, true)] });
+    const before = m.refsGeneration;
+    // `git switch -c abc`: a new branch at the very same commit.
+    m.update({ headRef: 'abc', refs: [ref('abc', sha, true), ref('master', sha)] });
+    expect(m.refsGeneration).toBeGreaterThan(before);
+    expect(m.snapshot.headSha).toBe(sha);
+  });
+
+  it('stays put for a change to the working tree alone', () => {
+    const m = new RepositoryModel('X:/repo');
+    m.update({ headRef: 'main', headSha: sha, refs: [ref('main', sha, true)] });
+    const before = m.refsGeneration;
+    m.update({ statusEntries: [entry('a.ts')] });
+    expect(m.refsGeneration).toBe(before);
+  });
+});
