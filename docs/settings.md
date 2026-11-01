@@ -139,13 +139,19 @@ How many recent branches (by checkout frequency and recency) the Branches popup 
 
 ### `gittree.branches.showIncomingOutgoing`
 
-Show incoming (↓) before outgoing (↑) counts in the branches popup. Toggled from the popup's header.
+Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Branches panel. Toggled from the popup's header and the panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.branches.showTags`
 
 List tags as a separate Tags node in the branches popup, the Branches views and the log's Branches pane. Toggled from the log's Branches Pane Settings menu (the gear button).
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.branches.groupByFolder`
+
+Group branches into folders on `/` in the Branches panel (`feature/login` under `feature`). Toggled from the panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 

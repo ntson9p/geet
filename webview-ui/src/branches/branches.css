@@ -1,120 +1,183 @@
 /**
- * Branches sidebar. One narrow column, so the layout is a single windowed list
- * with an indent per level — the shape IntelliJ shows inside each of its
- * panels. What the panels give it side by side, a sidebar cannot: the second
- * search field is drawn inline under the repository it belongs to instead.
+ * The Branches panel (new-way-4). Every row's height is fixed by `model.ts`
+ * (the list windows by those numbers), so every line below that sets a height
+ * is a promise to it: change one, change the other.
  *
- * Every row is exactly `ROW_HEIGHT`, because the list is fixed-height windowed.
- * Labelled separators are rows of their own for the same reason; a plain rule
- * is drawn on the top edge of the row below it.
+ *   ROW 22 · SECTION 26 · REPO 24 · OPERATION 26 · HINT 44
+ *   card: 12 of frame + 20 per line + 30 of buttons
  */
 
-.gtb-root {
+.gtp-root {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
   font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
 }
 
-/* ---- header ------------------------------------------------------------- */
-
-.gtb-header {
-  flex: 0 0 auto;
-  padding: 4px 4px 2px;
-  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
-}
-
-.gtb-search {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.gtb-search > .codicon {
-  flex: 0 0 auto;
-  opacity: 0.7;
-}
-
-.gtb-search-input {
+.gtp-spacer {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.gtb-clear {
+.gtp-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gtp-dim {
+  color: var(--vscode-descriptionForeground);
+}
+
+.gtp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 12px;
+  color: var(--vscode-descriptionForeground);
+  text-align: center;
+}
+
+/* ---- toolbar ------------------------------------------------------------- */
+
+.gtp-toolbar {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 6px 8px;
 }
 
-.gtb-actions {
-  justify-content: flex-end;
-  padding-top: 2px;
+.gtp-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 2px 0 6px;
+  box-sizing: border-box;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
 }
 
-/* ---- the windowed list -------------------------------------------------- */
+.gtp-search:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
 
-.gtb-list-host {
+.gtp-search > .codicon {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.gtp-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.gtp-search-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+/* The scope, inside the field it narrows: `web ×`. */
+.gtp-scope-pill {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+  padding: 0 2px 0 7px;
+  border: none;
+  border-radius: 9px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.gtp-scope-pill .codicon {
+  font-size: 12px;
+}
+
+/* ---- the list -------------------------------------------------------------- */
+
+.gtp-list-host {
   flex: 1 1 auto;
   min-height: 0;
 }
 
-/* The shared list draws a panel border and pads every row; neither belongs in
-   a sidebar section, and the padding would fight the per-level indent. */
-.gtb-list.gt-virtual-list {
-  border: none;
+.gtp-list {
+  position: relative;
+  overflow-y: auto;
+  outline: none;
 }
 
-.gtb-list .gt-virtual-row {
-  padding: 0;
-  overflow: visible;
+.gtp-list-content {
+  position: relative;
 }
 
-.gtb-list .gt-virtual-row.gt-focused {
-  background: var(--vscode-list-inactiveSelectionBackground);
-  color: inherit;
+.gtp-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  outline: none;
+  cursor: default;
+  user-select: none;
 }
 
-.gtb-list:focus-within .gt-virtual-row.gt-focused {
-  background: var(--vscode-list-activeSelectionBackground);
-  color: var(--vscode-list-activeSelectionForeground);
-}
-
-/* ---- row bodies --------------------------------------------------------- */
-
-/* The body fills its row. Sized to its content it left `.gtb-description`'s
-   `margin-left: auto` no room to push into: the description and the `›` sat
-   right after each name, at a different place on every row. */
-.gtb-body {
-  flex: 1 1 auto;
-  min-width: 0;
+/* The line of a row (a card under it is not part of the line). */
+.gtp-section,
+.gtp-repo,
+.gtp-head,
+.gtp-node,
+.gtp-branch {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 100%;
+  box-sizing: border-box;
   padding-right: 4px;
   white-space: nowrap;
-  overflow: hidden;
-  cursor: pointer;
 }
 
-.gtb-body-search {
-  cursor: default;
+.gtp-row:hover :is(.gtp-repo, .gtp-head, .gtp-node, .gtp-branch, .gtp-section) {
+  background: var(--vscode-list-hoverBackground);
 }
 
-.gtb-body-info {
-  cursor: default;
-  opacity: 0.7;
+.gtp-row.gtp-focused :is(.gtp-repo, .gtp-head, .gtp-node, .gtp-branch, .gtp-section, .gtp-hint) {
+  background: var(--vscode-list-inactiveSelectionBackground);
 }
 
-.gtb-repo-search {
-  flex: 1 1 auto;
-  min-width: 0;
-  /* Fits the fixed row height; VS Code's own in-tree rename input is this size. */
-  height: 18px;
-  padding: 0 4px;
+.gtp-list:focus-within
+  .gtp-row.gtp-focused
+  :is(.gtp-repo, .gtp-head, .gtp-node, .gtp-branch, .gtp-section, .gtp-hint) {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  outline: 1px solid var(--vscode-list-focusOutline, transparent);
+  outline-offset: -1px;
 }
 
-/* A fixed slot, so rows with and without children still line up. */
-.gtb-twisty {
+.gtp-twisty {
   flex: 0 0 16px;
   display: inline-flex;
   align-items: center;
@@ -122,113 +185,547 @@
   opacity: 0.8;
 }
 
-.gtb-icon {
+.gtp-icon {
+  flex: 0 0 auto;
+}
+
+.gtp-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gtp-count {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 0;
+}
+
+/* ---- sections -------------------------------------------------------------- */
+
+.gtp-section {
+  height: 26px;
+  padding: 4px 4px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+}
+
+.gtp-section-actions {
+  display: inline-flex;
+  align-items: center;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.gtp-link {
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  font-size: 11px;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.gtp-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- row buttons: on hover or focus; a few stay because they are state ----- */
+
+.gtp-icon-button {
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+}
+
+.gtp-row-buttons {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  margin-left: 2px;
 }
 
-.gtb-label {
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.gtp-row-buttons > .gtp-icon-button {
+  display: none;
 }
 
-.gtb-label.gtb-current,
-.gtb-icon.gtb-current {
-  font-weight: 600;
+.gtp-row:hover .gtp-row-buttons > .gtp-icon-button,
+.gtp-row.gtp-focused .gtp-row-buttons > .gtp-icon-button,
+.gtp-row-buttons > .gtp-icon-button.gtp-keep {
+  display: inline-flex;
 }
 
-.gtb-description {
-  flex: 0 1 auto;
-  margin-left: auto;
-  padding-left: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.7;
-  font-size: 0.9em;
-}
-
-/* Row buttons appear on hover or focus, as a VS Code tree row's inline actions
-   do — they would otherwise be noise on every one of several hundred rows. */
-.gtb-row-buttons {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  /* At the right edge, so the `›` of every row is in one column. */
-  margin-left: auto;
+.gtp-section-actions .gtp-icon-button {
   visibility: hidden;
 }
 
-/* The description took the free space already; the buttons follow it. */
-.gtb-description + .gtb-row-buttons {
+.gtp-row:hover .gtp-section-actions .gtp-icon-button,
+.gtp-row.gtp-focused .gtp-section-actions .gtp-icon-button,
+.gtp-section-actions .gtp-icon-button.gt-busy {
+  visibility: visible;
+}
+
+/* The buttons take the age column's place while they show. */
+.gtp-row:hover .gtp-age,
+.gtp-row.gtp-focused .gtp-age {
+  display: none;
+}
+
+.gtp-star-on .codicon,
+.gtp-star-icon {
+  color: var(--vscode-charts-yellow, #d7ba7d);
+}
+
+/* ---- sync counts, changes, chips ---------------------------------------------- */
+
+.gtp-sync {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gtp-behind {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+
+.gtp-ahead {
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.gtp-changes {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-descriptionForeground));
+}
+
+.gtp-changes .codicon {
+  font-size: 13px;
+}
+
+.gtp-chip {
+  flex: 0 0 auto;
   margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  font-size: 10px;
+  line-height: 13px;
+  opacity: 0.9;
 }
 
-.gt-virtual-row:hover .gtb-row-buttons,
-.gt-virtual-row.gt-focused .gtb-row-buttons {
-  visibility: visible;
+.gtp-gone,
+.gtp-gone-text {
+  color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, #cca700));
 }
 
-/* A favourite stays visible unhovered: it is state, not an action. */
-.gtb-row-buttons .gtb-star.gtb-on {
-  visibility: visible;
+.gtp-merged {
+  color: var(--vscode-descriptionForeground);
 }
 
-/* So does the `›`, because it is now the only way into a branch's menu — a
-   click on the row does nothing. An affordance that has to be hovered before it
-   admits it exists is fine while the row itself is clickable and wrong once it
-   is not. It is also what the popup shows, where a QuickPick's item buttons are
-   always drawn, and what IntelliJ puts on a row that opens a submenu. */
-.gtb-row-buttons .gtb-chevron {
-  visibility: visible;
+/* ---- repositories ------------------------------------------------------------------ */
+
+.gtp-repo,
+.gtp-head {
+  height: 24px;
+  padding-left: 8px;
+  gap: 6px;
+}
+
+.gtp-head {
+  padding-left: 4px;
+}
+
+.gtp-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--gtp-repo);
+}
+
+.gtp-dot-on {
+  background: var(--gtp-repo);
+}
+
+.gtp-repo-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.gtp-repo-head {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.gtp-repo-head-name,
+.gtp-head-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gtp-head-name {
+  font-weight: 600;
+}
+
+.gtp-out-of-scope {
   opacity: 0.55;
 }
 
-.gt-virtual-row:hover .gtb-row-buttons .gtb-chevron,
-.gt-virtual-row.gt-focused .gtb-row-buttons .gtb-chevron {
-  opacity: 1;
+.gtp-current-icon {
+  color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, #89d185));
 }
 
-/* ---- separators --------------------------------------------------------- */
+.gtp-partial .gtp-current-icon {
+  opacity: 0.6;
+}
 
-/* An unlabelled separator: a hairline on the top edge of the row below it,
-   not a row of its own. It is a real 1px box rather than a gradient, which
-   rendered as nothing at some display scales and as a grey band at others. */
-.gtb-rule-above {
-  position: relative;
+/* ---- an operation in progress -------------------------------------------------------- */
+
+.gtp-operation {
+  container-type: inline-size;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0 6px 0 8px;
+  padding: 0 6px;
+  border-left: 2px solid var(--vscode-editorWarning-foreground, #cca700);
+  background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.12));
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gtp-operation-icon {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.gtp-operation-text {
   flex: 1 1 auto;
+  min-width: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrow: the banner keeps its words and its buttons keep their icons. */
+@container (max-width: 300px) {
+  .gtp-operation .gtp-button-label {
+    display: none;
+  }
+}
+
+.gt-button.gtp-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ---- remote and folder rows ------------------------------------------------------------ */
+
+.gtp-node {
+  height: 22px;
+}
+
+/* ---- branches -------------------------------------------------------------------------- */
+
+.gtp-branch {
+  height: 22px;
+}
+
+.gtp-name {
+  flex: 0 1 auto;
   min-width: 0;
-  display: flex;
-  height: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.gtb-rule-above::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 8px;
-  right: 8px;
-  height: 1px;
-  background: var(
-    --vscode-menu-separatorBackground,
-    var(--vscode-widget-border, rgba(128, 128, 128, 0.35))
-  );
-  pointer-events: none;
+.gtp-prefix {
+  color: var(--vscode-descriptionForeground);
 }
 
-.gtb-separator-label {
-  display: flex;
-  align-items: flex-end;
-  height: 100%;
-  padding: 0 8px 2px;
-  font-size: 0.9em;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.gtp-match {
+  color: var(--vscode-list-highlightForeground);
+  font-weight: 600;
+}
+
+.gtp-is-current .gtp-name {
+  font-weight: 600;
+}
+
+/* The disclosure is a hint, not a control: it shows where it can do something. */
+.gtp-branch .gtp-disclosure {
+  visibility: hidden;
   opacity: 0.7;
 }
 
-.gtb-empty {
+.gtp-row:hover .gtp-branch .gtp-disclosure,
+.gtp-row.gtp-focused .gtp-branch .gtp-disclosure,
+.gtp-branch-wrap:has(.gtp-card) .gtp-disclosure {
+  visibility: visible;
+}
+
+.gtp-markers {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 2px 0 6px;
+}
+
+.gtp-marker {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+.gtp-marker[data-state='current'] {
+  background: var(--gtp-repo);
+}
+
+.gtp-marker[data-state='has'] {
+  border: 1.5px solid var(--gtp-repo);
+}
+
+.gtp-marker[data-state='none'] {
+  background: var(--vscode-disabledForeground, rgba(127, 127, 127, 0.5));
+  transform: scale(0.35);
+}
+
+.gtp-age {
+  flex: 0 0 auto;
+  min-width: 26px;
+  margin-left: 4px;
+  text-align: right;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gtp-drop-over .gtp-branch {
+  background: var(--vscode-list-dropBackground);
+  outline: 1px dashed var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/* ---- a branch's card --------------------------------------------------------------------- */
+/* 12px of frame: 4 below, 2 of border, 3 + 3 of padding. */
+
+.gtp-card {
+  container-type: inline-size;
+  box-sizing: border-box;
+  margin: 0 8px 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.3));
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background, transparent);
+  cursor: default;
+  user-select: text;
+}
+
+.gtp-card-line {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gtp-card-line > .codicon {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.gtp-card-meta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+
+.gtp-card-repo {
+  flex: 0 0 auto;
+  max-width: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.gtp-card-buttons {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.gtp-card-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gtp-card-button .codicon {
+  flex: 0 0 auto;
+}
+
+.gtp-card-button .gtp-button-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gtp-loading {
+  font-size: 11px;
+}
+
+/* A very narrow sidebar keeps the buttons and drops their words; the tooltips keep them. */
+@container (max-width: 170px) {
+  .gtp-card .gtp-button-label {
+    display: none;
+  }
+}
+
+/* ---- hints ---------------------------------------------------------------------------------- */
+
+.gtp-hint {
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---- the New Branch form ---------------------------------------------------------------------- */
+
+.gtp-form {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 8px 6px;
   padding: 8px;
-  opacity: 0.7;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background, transparent);
+  font-size: 12px;
+}
+
+.gtp-form-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gtp-form-name {
+  width: 100%;
+  box-sizing: border-box;
+  height: 24px;
+}
+
+.gtp-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.gtp-form-repos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gtp-repo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+  border-radius: 10px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.gtp-repo-chip .gtp-marker {
+  --gtp-repo: inherit;
+}
+
+.gtp-repo-chip.gtp-chip-on {
+  border-color: var(--gtp-repo);
+}
+
+.gtp-repo-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.gtp-form-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.gtp-form-message {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
+}
+
+.gtp-form-message.gtp-error {
+  color: var(--vscode-errorForeground);
+}
+
+.gtp-form-message.gtp-info {
+  color: var(--vscode-descriptionForeground);
 }

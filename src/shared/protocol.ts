@@ -16,7 +16,6 @@ import type { ResetMode } from '../scm/dialogs/resetArgs';
 import type { RollbackKind } from '../scm/dialogs/rollbackPlan';
 import type { StashPushArgsOptions } from '../scm/dialogs/stashArgs';
 import type { NewWorktreeOptions } from '../branches/worktreeArgs';
-import type { TreeRow } from '../branches/popupTree';
 
 export type {
   CherryPickOptions,
@@ -1425,52 +1424,224 @@ export const REBASE_METHODS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Branches sidebar (new-way-2)
+// Branches panel (new-way-4)
 // ---------------------------------------------------------------------------
 
-/**
- * The rows the sidebar draws are the rows `popupTree` builds, imported rather
- * than mirrored — the same reason the dialog option shapes above are imported.
- * A hand-copied row type is a row type that drifts from the one that runs.
- */
-export type BranchesRowDto = TreeRow;
-
-export interface BranchesTreeDto {
-  readonly rows: readonly BranchesRowDto[];
-  /** Ids of the expandable rows currently showing their children. */
-  readonly open: readonly string[];
-  /** The top field's text, echoed so a rehydrated view restores it. */
-  readonly topQuery: string;
-  /** `[root, query]` for every repository whose inline field has text. */
-  readonly repoQueries: ReadonlyArray<readonly [string, string]>;
-  readonly repoCount: number;
-  readonly showInOut: boolean;
+/** A ref as the Branches panel draws it: the fields its rows and cards read. */
+export interface BranchPanelRefDto {
+  /** Short name: `main`, `origin/main`, `v1.0`. */
+  readonly name: string;
+  readonly sha: string;
+  /** Unix seconds: the tip commit's date (an annotated tag's own). */
+  readonly date?: number;
+  readonly subject?: string;
+  /** Local branches: the remote branch it tracks, `origin/main`. */
+  readonly upstream?: string;
+  /** Commits the branch has and its upstream lacks: what a push sends. */
+  readonly ahead?: number;
+  /** Commits the upstream has and the branch lacks: what an update brings. */
+  readonly behind?: number;
+  /** The tracked remote branch has been deleted. */
+  readonly gone?: boolean;
+  /** The checked-out branch (local branches only). */
+  readonly current?: boolean;
+  /** Remote branches: the remote's name, `origin`. */
+  readonly remote?: string;
 }
 
+/** Git is in the middle of something in a repository. */
+export interface BranchPanelOperationDto {
+  readonly kind: 'merge' | 'rebase' | 'cherry-pick' | 'revert';
+  /** Conflicted paths still to resolve. */
+  readonly conflicts: number;
+  /** Rebase progress, when git reports it. */
+  readonly step?: number;
+  readonly total?: number;
+}
+
+export interface BranchPanelRepoDto {
+  readonly root: string;
+  /** The name every GitTree surface uses for this root. */
+  readonly label: string;
+  /** Palette slot: the colour the log's `Roots` gives the same repository. */
+  readonly colorIdx: number;
+  /** The checked-out branch; absent when HEAD is detached. */
+  readonly head?: string;
+  readonly detached: boolean;
+  readonly headSha?: string;
+  /** No commit yet. */
+  readonly unborn: boolean;
+  readonly upstream?: string;
+  readonly ahead?: number;
+  readonly behind?: number;
+  readonly upstreamGone?: boolean;
+  /** Changed files, staged or not, untracked included. */
+  readonly changes: number;
+  readonly operation?: BranchPanelOperationDto;
+  /** A fetch GitTree started is running here. */
+  readonly fetching: boolean;
+  readonly locals: readonly BranchPanelRefDto[];
+  readonly remotes: readonly BranchPanelRefDto[];
+  readonly tags: readonly BranchPanelRefDto[];
+  /** Local branches checked out lately, most relevant first; the current one excluded. */
+  readonly recent: readonly string[];
+  /** Starred branches. */
+  readonly favorites: readonly string[];
+  /** What "merged" is measured against: the remote's default branch, `origin/main`. */
+  readonly mainBranch?: string;
+  /** Local branches with commits of their own, all of which have reached `mainBranch`. */
+  readonly merged: readonly string[];
+}
+
+export interface BranchPanelStateDto {
+  readonly repos: readonly BranchPanelRepoDto[];
+  readonly showTags: boolean;
+  readonly showInOut: boolean;
+  readonly groupByFolder: boolean;
+  /** A fetch of every repository is running. */
+  readonly fetchingAll: boolean;
+  /** The host's clock when this was built, unix seconds: ages are measured from it. */
+  readonly now: number;
+  /** The log's lane palette, so a repository's colour here is its colour there. */
+  readonly palette: 'default' | 'colorBlind';
+}
+
+export type BranchPanelRefKind = 'local' | 'remote' | 'tag';
+
+/**
+ * What a gesture on a branch row is about: one ref name, in the repositories
+ * the row stands for — the one repository of a single-root workspace, or in a
+ * multi-root one every repository in view that has the ref.
+ */
+export interface BranchPanelTargetDto {
+  readonly kind: BranchPanelRefKind;
+  readonly name: string;
+  readonly roots: readonly string[];
+}
+
+/** One repository's half of a branch card. Read when the card opens: it costs git calls. */
+export interface BranchPanelRepoDetailsDto {
+  readonly root: string;
+  readonly author?: string;
+  /** Unix seconds of the tip commit. */
+  readonly date?: number;
+  /** Against the repository's checked-out branch; absent for that branch itself. */
+  readonly vsHead?: {
+    /** What HEAD is: the branch name, or a short sha when detached. */
+    readonly head: string;
+    /** Commits on the ref that HEAD lacks. */
+    readonly ahead: number;
+    /** Commits on HEAD that the ref lacks. */
+    readonly behind: number;
+  };
+  /** A remote branch: the local branch tracking it. */
+  readonly trackedBy?: string;
+}
+
+export interface BranchPanelButtonDto {
+  readonly run: BranchPanelRunDto;
+  /** Short, for the button: `Merge into main`. */
+  readonly label: string;
+  /** Whole, for the tooltip: `Merge 'feature/x' into 'main'`. */
+  readonly title: string;
+  readonly icon: string;
+}
+
+export interface BranchPanelDetailsDto {
+  readonly repos: readonly BranchPanelRepoDetailsDto[];
+  /** The card's buttons: the two or three actions that matter most for this ref now. */
+  readonly buttons: readonly BranchPanelButtonDto[];
+}
+
+/** Something to do, sent back to `branches/run`. */
+export type BranchPanelRunDto =
+  | {
+      /** A `branchActions` action on a target. */
+      readonly type: 'action';
+      readonly target: BranchPanelTargetDto;
+      readonly action: string;
+      /** Only in this one of the target's repositories. */
+      readonly root?: string;
+    }
+  | {
+      /** A GitTree command, given the repository's root (or nothing: every root). */
+      readonly type: 'command';
+      readonly command: string;
+      readonly root?: string;
+      /** A second argument, after the root: a branch name. */
+      readonly arg?: string;
+    }
+  | {
+      /** Opens the panel's own New Branch form, starting at `from`. */
+      readonly type: 'newBranch';
+      readonly from: string;
+      readonly roots: readonly string[];
+    };
+
+/** A menu entry the host built; the webview draws it and sends `run` back. */
+export type BranchPanelMenuItemDto =
+  | {
+      readonly kind: 'item';
+      readonly label: string;
+      readonly run: BranchPanelRunDto;
+      readonly accelerator?: string;
+      readonly icon?: string;
+    }
+  | {
+      readonly kind: 'submenu';
+      readonly label: string;
+      readonly items: readonly BranchPanelMenuItemDto[];
+      readonly icon?: string;
+    }
+  | { readonly kind: 'separator' }
+  | { readonly kind: 'header'; readonly label: string };
+
+/** The New Branch form, submitted. */
+export interface BranchPanelCreateDto {
+  readonly name: string;
+  /** Where it starts: a ref every chosen repository has, or `HEAD` for each one's own. */
+  readonly from: string;
+  readonly roots: readonly string[];
+  readonly checkout: boolean;
+}
+
+export interface BranchPanelCreateResultDto {
+  readonly ok: boolean;
+  /** Why not, for the form to show. */
+  readonly error?: string;
+}
+
+/** Panel settings the webview can change; each is a `gittree.branches.*` setting. */
+export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder';
+
 export const BRANCHES_METHODS = {
-  /** webview → host: the first paint. */
+  /** webview → host: the first paint; answers a `BranchPanelStateDto`. */
   init: 'branches/init',
-  /** webview → host: open or close one node. */
-  toggle: 'branches/toggle',
-  /** webview → host: the top field changed. */
-  setTopQuery: 'branches/setTopQuery',
-  /** webview → host: one repository's inline field changed. */
-  setRepoQuery: 'branches/setRepoQuery',
-  /** webview → host: run a row's default gesture (a verb, or a ref's menu). */
-  activate: 'branches/activate',
-  /** webview → host: the action list for a row, for the `›` menu. */
-  actions: 'branches/actions',
-  /** webview → host: run one action from that list. */
-  runAction: 'branches/runAction',
-  /** webview → host: toggle a ref's favourite star. */
-  toggleFavorite: 'branches/toggleFavorite',
-  /** webview → host: a header button. */
-  header: 'branches/header',
-  /** host → webview: a new set of rows. */
-  evtTree: 'branches/tree',
+  /** host → webview: the state changed. */
+  evtState: 'branches/state',
+  /** webview → host: a branch card's details (`{ target }` → `BranchPanelDetailsDto`). */
+  details: 'branches/details',
+  /** webview → host: a branch row's menu (`{ target }`) or a repository's (`{ root }`). */
+  menu: 'branches/menu',
+  /** webview → host: run a `BranchPanelRunDto` (`{ run }`). */
+  run: 'branches/run',
+  /** webview → host: star or unstar a branch (`{ target, on }`). */
+  favorite: 'branches/favorite',
+  /** webview → host: the New Branch form (`BranchPanelCreateDto` → `BranchPanelCreateResultDto`). */
+  create: 'branches/create',
+  /** webview → host: change a panel setting (`{ key, value }`). */
+  setting: 'branches/setting',
+  /** webview → host: Fetch every repository; resolves when it is done. */
+  fetchAll: 'branches/fetchAll',
+  /** webview → host: one branch dropped onto another (`{ source, target }`). */
+  drop: 'branches/drop',
+  /** host → webview: open the New Branch form (`{ from?, roots? }`). */
+  evtNewBranch: 'branches/newBranch',
+  /** host → webview: put the cursor in the filter field. */
+  evtFocusFilter: 'branches/focusFilter',
 } as const;
 
-/** One entry of the `›` menu, flattened from the shared branch-action registry. */
+/** One entry of a repository's menu (`repositoryMenu.ts`). */
 export interface BranchesActionDto {
   readonly id: string;
   readonly label: string;

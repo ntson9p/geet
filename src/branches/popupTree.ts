@@ -6,9 +6,10 @@
  * deeper threw away what you were looking at. IntelliJ never does that — its
  * levels are a tree you open in place, with `˅`/`›` on the rows that have
  * children. This module is that tree, and **both** surfaces render it: the
- * popup flattens it against its own expansion set, the sidebar view hands the
- * same rows to VS Code and lets the tree widget expand them. Neither surface
- * decides anything about content, so they cannot come to disagree.
+ * popup flattens it against its own expansion set, the opt-in `Branches (Tree)`
+ * view hands the same rows to VS Code and lets the tree widget expand them.
+ * Neither surface decides anything about content, so they cannot come to
+ * disagree. (The sidebar's Branches panel is its own design: `branchPanel.ts`.)
  *
  * VS Code gives no way to float a cascading submenu beside a `QuickPick`, which
  * is what deviation D5 records. What it does allow is indentation and
@@ -135,14 +136,8 @@ export function applyShowTags(ctx: TreeContext, showTags: boolean): TreeContext 
 // Output
 // ---------------------------------------------------------------------------
 
-/**
- * `info` is a line of text — the "no matches" row — and does nothing when
- * picked. `search` is the sidebar's per-repository search box: IntelliJ gives
- * an opened repository its own panel with its own field, and the sidebar draws
- * that field inline under the repository row, because a webview can hold an
- * `<input>` where a `QuickPick` and a `TreeView` cannot.
- */
-export type RowKind = 'verb' | 'group' | 'repo' | 'ref' | 'common' | 'info' | 'search';
+/** `info` is a line of text — the "no matches" row — and does nothing when picked. */
+export type RowKind = 'verb' | 'group' | 'repo' | 'ref' | 'common' | 'info';
 export type SectionKey = 'local' | 'remote' | 'tag';
 
 export interface TreeRow {
@@ -744,147 +739,4 @@ function flatSearch(ctx: TreeContext, query: string): TreeRow[] {
     }
   }
   return rows;
-}
-
-// ---------------------------------------------------------------------------
-// The sidebar's webview tree
-// ---------------------------------------------------------------------------
-
-/**
- * What the sidebar view is showing. It lives on the host, not in the webview:
- * one owner of the shape means the rows can never disagree with the tree the
- * popup builds from the same functions.
- */
-export interface SidebarState {
-  readonly expanded: ReadonlySet<string>;
-  /** The field at the top. IntelliJ's first panel searches what is *in* it. */
-  readonly topQuery: string;
-  /** One field per opened repository, keyed by root — IntelliJ's second panel. */
-  readonly repoQueries: ReadonlyMap<string, string>;
-  /** Nodes shut inside search results; thrown away when a query changes. */
-  readonly searchCollapsed: ReadonlySet<string>;
-}
-
-/** The inline `<input>` an opened repository carries. */
-function searchRow(repo: RepoRefs, depth: number): TreeRow {
-  return {
-    id: `search:${repo.root}`,
-    kind: 'search',
-    depth,
-    icon: 'search',
-    label: '',
-    expandable: false,
-    actions: false,
-    searchText: '',
-    repoRoot: repo.root,
-  };
-}
-
-/**
- * The sidebar's rows. Two searches are live at once, which is the whole reason
- * this surface is a webview:
- *
- *   - the **top field** filters what the top level holds, which is what
- *     IntelliJ's first panel does: the verbs, the repository rows and the
- *     common refs. It does not reach inside a repository — that is the other
- *     field's job — so a repository's 400 branches never flood a search for a
- *     repository's *name*.
- *   - an **opened repository's own field** filters that repository, keeping the
- *     tree: sections and folders with no match vanish, every path to a match
- *     opens itself, and each leaf shows its own segment.
- *
- * With a single root there is no first panel in IntelliJ either — the popup
- * *is* the repository — so the top field searches that repository directly.
- */
-export function buildSidebarRows(ctx: TreeContext, state: SidebarState): FlatTree {
-  const rows: TreeRow[] = [];
-  const open = new Set<string>();
-  const top = state.topQuery.trim();
-  const solo = ctx.repos.length === 1 ? ctx.repos[0] : undefined;
-
-  if (solo) {
-    if (top.length > 0) return scopedSearch(ctx, solo, top, state.searchCollapsed, true);
-    const walkSolo = (list: readonly TreeRow[]): void => {
-      for (const row of list) {
-        rows.push(row);
-        if (row.expandable && state.expanded.has(row.id)) {
-          open.add(row.id);
-          walkSolo(childRows(ctx, row));
-        }
-      }
-    };
-    walkSolo(rootRows(ctx));
-    return { rows, open };
-  }
-
-  const filtering = top.length > 0;
-  for (const row of rootRows(ctx)) {
-    if (row.kind === 'verb') {
-      if (!filtering || matchesQuery(row.searchText, top)) rows.push(row);
-      continue;
-    }
-
-    if (row.kind === 'repo') {
-      if (filtering) {
-        // Filtering the first panel lists the repositories it matches, closed:
-        // what is inside one of them is the other field's question.
-        if (matchesQuery(row.searchText, top)) rows.push(row);
-        continue;
-      }
-      rows.push(row);
-      if (!state.expanded.has(row.id)) continue;
-      open.add(row.id);
-      const repo = repoOf(ctx, row.repoRoot);
-      if (!repo) continue;
-      rows.push(searchRow(repo, row.depth + 1));
-      const query = (state.repoQueries.get(repo.root) ?? '').trim();
-      if (query.length > 0) {
-        const found = scopedSearch(ctx, repo, query, state.searchCollapsed, false, row.depth + 1);
-        rows.push(...found.rows);
-        for (const id of found.open) open.add(id);
-        continue;
-      }
-      const walk = (list: readonly TreeRow[]): void => {
-        for (const child of list) {
-          rows.push(child);
-          if (child.expandable && state.expanded.has(child.id)) {
-            open.add(child.id);
-            walk(childRows(ctx, child));
-          }
-        }
-      };
-      walk(childRows(ctx, row));
-      continue;
-    }
-
-    // A common section: keep it when something under it matches, and open it,
-    // because a closed group tells a search nothing.
-    if (row.commonKind !== undefined) {
-      const names = childRows(ctx, row).filter(
-        (child) => !filtering || matchesQuery(child.searchText, top),
-      );
-      if (filtering && names.length === 0) continue;
-      rows.push(row);
-      if (!filtering && !state.expanded.has(row.id)) continue;
-      open.add(row.id);
-      rows.push(...names);
-      continue;
-    }
-
-    rows.push(row);
-  }
-
-  if (rows.every((row) => row.kind === 'verb') && filtering) {
-    rows.push({
-      id: 'info:no-match:top',
-      kind: 'info',
-      depth: 0,
-      icon: 'info',
-      label: `Nothing matches "${top}"`,
-      expandable: false,
-      actions: false,
-      searchText: '',
-    });
-  }
-  return { rows, open };
 }

@@ -1,20 +1,22 @@
 /**
- * Branches sidebar (new-way-2).
+ * The Branches panel (new-way-4).
  *
- * The reason this is a webview and not a tree: **two search fields are live at
- * once** — one for the project, one inside the repository you opened — which is
- * what IntelliJ shows in its two panels, and which neither a `QuickPick` nor a
- * `TreeView` can hold. The other thing only a webview can do is draw a real
- * cascading `›` menu over its own rows.
+ * Top to bottom: a toolbar (the filter, Fetch, New Branch, more); the New
+ * Branch form while it is open; then one list — every repository with what it
+ * has checked out (or, with one repository, its current branch), then the
+ * recent and starred branches, every local branch, the remote ones and the
+ * tags.
  *
- * It renders and reports gestures; it decides nothing. Every row, and which
- * rows are open, comes from the host's `popupTree` — the same functions the
- * popup flattens — so the two surfaces cannot come to disagree.
+ * **A click never changes anything.** Clicking a branch opens its card — the
+ * last commit, where it stands against what it tracks and against what is
+ * checked out, and the two or three actions its state calls for — and the
+ * row's own buttons (on hover) and its menu (right-click, `⋯`) do the rest.
+ * Clicking a repository narrows the list to it; Ctrl+click adds or removes
+ * one; the scope's `×` widens it again.
  *
- * **Windowed.** A repository with every section open is several hundred rows,
- * and seven of them is thousands; the shared `VirtualList` renders only what
- * fits. That component owns focus and keyboard, which takes care around the
- * inline `<input>` — see `SearchRow` and `onRowKeyDown`.
+ * The host sends facts (`branches/state`); everything this file decides —
+ * the scope, what is open, the filter — lives here, so none of it waits on a
+ * round trip.
  */
 import {
   useCallback,
@@ -22,615 +24,877 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import {
   BRANCHES_METHODS,
-  type BranchesActionDto,
-  type BranchesRowDto,
-  type BranchesTreeDto,
+  type BranchPanelButtonDto,
+  type BranchPanelCreateDto,
+  type BranchPanelCreateResultDto,
+  type BranchPanelDetailsDto,
+  type BranchPanelMenuItemDto,
+  type BranchPanelRepoDto,
+  type BranchPanelRunDto,
+  type BranchPanelSettingKey,
+  type BranchPanelStateDto,
+  type BranchPanelTargetDto,
 } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient } from '../lib/rpc';
 import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
-import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
+import { useVsCodeTheme } from '../lib/useVsCodeTheme';
+import { getVsCodeApi } from '../lib/vscodeApi';
+import { laneColor } from '../log/GraphCanvas';
+import {
+  buildPanel,
+  targetOf,
+  type BranchEntry,
+  type PanelRow,
+  type PanelUiState,
+  type QuickAction,
+} from './model';
+import { NewBranchForm, type NewBranchRequest } from './NewBranchForm';
+import { PanelList, type PanelListHandle } from './PanelList';
+import {
+  BranchCard,
+  BranchRow,
+  Codicon,
+  GroupRow,
+  HeadRow,
+  INDENT,
+  OperationRow,
+  RepoRow,
+  RowButton,
+  SectionRow,
+} from './Rows';
 
 const rpc = new RpcClient();
 
-/** A fetch of every repository can take minutes; its icon turns until it is done. */
-const FETCH_TIMEOUT_MS = 10 * 60_000;
+/** A fetch of every repository, or a checkout behind a dialog, can take minutes. */
+const LONG_MS = 10 * 60_000;
+/** Cards remembered; their facts cost git, and the panel re-asks when the refs move. */
+const DETAILS_KEPT = 40;
+const DRAG_MIME = 'application/x-gittree-branch';
 
-/** One indent step, and the row height VS Code's own trees use. */
-const INDENT = 12;
-const ROW_HEIGHT = 22;
+interface Persisted {
+  readonly scope?: readonly string[];
+  readonly toggled?: readonly string[];
+}
 
-/**
- * A labelled separator (`Repositories`) is a heading, and a row of its own. An
- * unlabelled one is a rule, and IntelliJ draws it as a hairline between two
- * rows, not as a row: given a whole fixed-height row it read as an empty line
- * in the list. So it rides on the row below as `ruleAbove`, drawn on that
- * row's top edge, and every row keeps the one height windowing needs.
- */
-type DisplayRow =
-  | { readonly kind: 'separator'; readonly id: string; readonly label: string }
-  | {
-      readonly kind: 'row';
-      readonly id: string;
-      readonly row: BranchesRowDto;
-      readonly ruleAbove: boolean;
+interface OpenMenu {
+  readonly items: MenuItem[];
+  readonly at: { readonly x: number; readonly y: number };
+  readonly label: string;
+  readonly runs: ReadonlyMap<string, () => void>;
+}
+
+/** What a card's facts depend on: when any of it moves, the card asks again. */
+function detailsKey(entry: BranchEntry): string {
+  return `${entry.key}|${entry.presence
+    .map(
+      (p) =>
+        `${p.repo.root}@${p.ref.sha}:${p.repo.headSha ?? ''}:${p.repo.head ?? ''}:${p.ref.current === true ? 1 : 0}:${
+          p.repo.merged.includes(entry.name) ? 1 : 0
+        }:${p.ref.gone === true ? 1 : 0}`,
+    )
+    .join(',')}`;
+}
+
+function rowRect(id: string): DOMRect | undefined {
+  return document.querySelector(`[data-row-id="${CSS.escape(id)}"]`)?.getBoundingClientRect();
+}
+
+export function App() {
+  const api = useMemo(() => getVsCodeApi(), []);
+  const saved = useMemo(() => (api.getState() as Persisted | undefined) ?? {}, [api]);
+
+  const [state, setState] = useState<BranchPanelStateDto | null>(null);
+  const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<readonly string[]>(() => saved.scope ?? []);
+  const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set(saved.toggled ?? []));
+  const [openCard, setOpenCard] = useState<string | undefined>(undefined);
+  const [focusedId, setFocusedId] = useState<string | undefined>(undefined);
+  const [details, setDetails] = useState<ReadonlyMap<string, BranchPanelDetailsDto>>(new Map());
+  const [menu, setMenu] = useState<OpenMenu | null>(null);
+  const [form, setForm] = useState<NewBranchRequest | null>(null);
+  const [dropOver, setDropOver] = useState<string | undefined>(undefined);
+  const [fetching, trackFetch] = useBusy();
+
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<PanelListHandle | null>(null);
+  const [listHost, listSize] = useElementSize<HTMLDivElement>();
+  const theme = useVsCodeTheme();
+  const dark = theme === 'dark' || theme === 'high-contrast';
+
+  useEffect(() => {
+    api.setState({ scope: [...scope], toggled: [...toggled] } satisfies Persisted);
+  }, [api, scope, toggled]);
+
+  const ui: PanelUiState = useMemo(
+    () => ({ query, scope, toggled, ...(openCard !== undefined ? { openCard } : {}) }),
+    [openCard, query, scope, toggled],
+  );
+  const model = useMemo(() => (state ? buildPanel(state, ui) : undefined), [state, ui]);
+  const searching = query.trim().length > 0;
+
+  // The latest model, for handlers registered once.
+  const modelRef = useRef(model);
+  modelRef.current = model;
+  const repoCount = state?.repos.length ?? 0;
+
+  const colorOf = useCallback(
+    (repo: BranchPanelRepoDto) => laneColor(repo.colorIdx, dark, state?.palette ?? 'default'),
+    [dark, state?.palette],
+  );
+
+  const openForm = useCallback((request: Partial<NewBranchRequest>) => {
+    setMenu(null);
+    setForm({
+      from: request.from ?? 'HEAD',
+      roots: request.roots ?? (modelRef.current?.scopeRepos ?? []).map((r) => r.root),
+      ...(request.name !== undefined ? { name: request.name } : {}),
+    });
+  }, []);
+
+  const focusSearch = useCallback((text?: string) => {
+    const el = searchRef.current;
+    if (!el) return;
+    if (text !== undefined) setQuery((q) => q + text);
+    requestAnimationFrame(() => {
+      el.focus();
+      if (text === undefined) el.select();
+    });
+  }, []);
+
+  // ---- the host ---------------------------------------------------------------
+  useEffect(() => {
+    const offState = rpc.onEvent(BRANCHES_METHODS.evtState, (p) => setState(p as BranchPanelStateDto));
+    const offNew = rpc.onEvent(BRANCHES_METHODS.evtNewBranch, (p) => {
+      const params = (p ?? {}) as { from?: string; roots?: string[] };
+      openForm({
+        ...(params.from !== undefined ? { from: params.from } : {}),
+        ...(params.roots !== undefined ? { roots: params.roots } : {}),
+      });
+    });
+    const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, () => focusSearch());
+    void rpc.request<BranchPanelStateDto>(BRANCHES_METHODS.init).then(
+      (s) => setState(s),
+      () => undefined,
+    );
+    return () => {
+      offState();
+      offNew();
+      offFocus();
     };
+  }, [focusSearch, openForm]);
 
-function toDisplayRows(rows: readonly BranchesRowDto[]): DisplayRow[] {
-  const out: DisplayRow[] = [];
-  for (const row of rows) {
-    const label = row.separator;
-    if (label !== undefined && label.length > 0) {
-      out.push({ kind: 'separator', id: `sep:${row.id}`, label });
-    }
-    // A rule at the very top of the list would separate nothing from nothing.
-    const ruleAbove = label !== undefined && label.length === 0 && out.length > 0;
-    out.push({ kind: 'row', id: row.id, row, ruleAbove });
-  }
-  return out;
-}
-
-function Codicon({ name, spin }: { name: string; spin?: boolean }) {
-  return (
-    <span
-      className={`codicon codicon-${name}${spin === true ? ' codicon-modifier-spin' : ''}`}
-      aria-hidden="true"
-    />
+  const run = useCallback(
+    (what: BranchPanelRunDto) => {
+      if (what.type === 'newBranch') {
+        openForm({ from: what.from, roots: what.roots });
+        return;
+      }
+      void rpc.request(BRANCHES_METHODS.run, { run: what }, LONG_MS).catch(() => undefined);
+    },
+    [openForm],
   );
-}
 
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
+  const runCommand = useCallback(
+    (command: string, root?: string) =>
+      run({ type: 'command', command, ...(root !== undefined ? { root } : {}) }),
+    [run],
+  );
 
-interface HeaderProps {
-  query: string;
-  repoCount: number;
-  showInOut: boolean;
-  /** The header's Fetch is running: its icon turns, as IntelliJ's does. */
-  fetching: boolean;
-  onQuery: (value: string) => void;
-  onHeader: (id: string) => void;
-}
+  const fetchAll = useCallback(() => {
+    trackFetch(() => rpc.request(BRANCHES_METHODS.fetchAll, {}, LONG_MS).catch(() => undefined));
+  }, [trackFetch]);
 
-function Header({ query, repoCount, showInOut, fetching, onQuery, onHeader }: HeaderProps) {
-  return (
-    <div className="gtb-header">
-      <div className="gtb-search">
-        <Codicon name="search" />
-        <input
-          className="gt-input gtb-search-input"
-          type="text"
-          value={query}
-          placeholder={
-            repoCount > 1
-              ? 'Search for branches, actions, repositories'
-              : 'Search for branches and actions'
+  const setSetting = useCallback((key: BranchPanelSettingKey, value: boolean) => {
+    void rpc.request(BRANCHES_METHODS.setting, { key, value }).catch(() => undefined);
+  }, []);
+
+  const create = useCallback(
+    (dto: BranchPanelCreateDto) =>
+      rpc.request<BranchPanelCreateResultDto>(BRANCHES_METHODS.create, dto, LONG_MS),
+    [],
+  );
+
+  // ---- a card's facts ---------------------------------------------------------
+  const openRow = model?.rows.find((r) => r.id === openCard);
+  const openEntry =
+    openRow?.kind === 'branch' ? openRow.entry : openRow?.kind === 'head' ? openRow.entry : undefined;
+  const openKey = openEntry !== undefined ? detailsKey(openEntry) : undefined;
+  const openEntryRef = useRef(openEntry);
+  openEntryRef.current = openEntry;
+  useEffect(() => {
+    const entry = openEntryRef.current;
+    if (entry === undefined || openKey === undefined || details.has(openKey)) return undefined;
+    let live = true;
+    void rpc.request<BranchPanelDetailsDto>(BRANCHES_METHODS.details, { target: targetOf(entry) }).then(
+      (d) => {
+        if (!live) return;
+        setDetails((prev) => {
+          const next = new Map(prev);
+          next.set(openKey, d);
+          while (next.size > DETAILS_KEPT) {
+            const oldest = next.keys().next().value;
+            if (oldest === undefined) break;
+            next.delete(oldest);
           }
-          aria-label="Search branches, actions and repositories"
-          onChange={(e) => onQuery(e.currentTarget.value)}
-        />
-        {query.length > 0 ? (
-          <button
-            className="gt-toolbar-button gtb-clear"
-            title="Clear"
-            aria-label="Clear search"
-            onClick={() => onQuery('')}
-          >
-            <Codicon name="close" />
-          </button>
-        ) : null}
-      </div>
-      <div className="gt-toolbar gtb-actions">
-        <button
-          className={`gt-toolbar-button${fetching ? ' gt-busy' : ''}`}
-          title={repoCount > 1 ? 'Fetch all repositories' : 'Fetch'}
-          aria-label="Fetch"
-          aria-busy={fetching ? true : undefined}
-          onClick={fetching ? undefined : () => onHeader('fetch')}
-        >
-          <Codicon name="sync" spin={fetching} />
-        </button>
-        <button
-          className={`gt-toolbar-button${showInOut ? ' gt-toggled' : ''}`}
-          title="Show incoming/outgoing counts"
-          aria-label="Show incoming/outgoing counts"
-          aria-pressed={showInOut}
-          onClick={() => onHeader('inout')}
-        >
-          <Codicon name="arrow-swap" />
-        </button>
-        <button
-          className="gt-toolbar-button"
-          title="Collapse all"
-          aria-label="Collapse all"
-          onClick={() => onHeader('collapse')}
-        >
-          <Codicon name="collapse-all" />
-        </button>
-        <button
-          className="gt-toolbar-button"
-          title="Branch settings"
-          aria-label="Branch settings"
-          onClick={() => onHeader('settings')}
-        >
-          <Codicon name="gear" />
-        </button>
-      </div>
-    </div>
+          return next;
+        });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [details, openKey]);
+
+  // ---- menus ------------------------------------------------------------------
+  const showMenu = useCallback(
+    (
+      dto: readonly BranchPanelMenuItemDto[],
+      at: { x: number; y: number },
+      label: string,
+      lead: ReadonlyArray<{ label: string; icon?: string; run: () => void }> = [],
+    ) => {
+      const runs = new Map<string, () => void>();
+      let n = 0;
+      const convert = (list: readonly BranchPanelMenuItemDto[]): MenuItem[] =>
+        list.map((item): MenuItem => {
+          switch (item.kind) {
+            case 'separator':
+              return { kind: 'separator', id: `s${n++}` };
+            case 'header':
+              return { kind: 'header', id: `h${n++}`, label: item.label };
+            case 'submenu':
+              return {
+                kind: 'submenu',
+                id: `m${n++}`,
+                label: item.label,
+                ...(item.icon !== undefined ? { icon: item.icon } : {}),
+                items: convert(item.items),
+              };
+            case 'item': {
+              const id = `i${n++}`;
+              runs.set(id, () => run(item.run));
+              return {
+                kind: 'item',
+                id,
+                label: item.label,
+                ...(item.icon !== undefined ? { icon: item.icon } : {}),
+                ...(item.accelerator !== undefined ? { accelerator: item.accelerator } : {}),
+              };
+            }
+          }
+        });
+      const items: MenuItem[] = [];
+      for (const extra of lead) {
+        const id = `x${n++}`;
+        runs.set(id, extra.run);
+        items.push({
+          kind: 'item',
+          id,
+          label: extra.label,
+          ...(extra.icon !== undefined ? { icon: extra.icon } : {}),
+        });
+      }
+      const rest = convert(dto);
+      if (items.length > 0 && rest.length > 0) items.push({ kind: 'separator', id: `s${n++}` });
+      items.push(...rest);
+      if (items.length > 0) setMenu({ items, at, label, runs });
+    },
+    [run],
   );
-}
 
-// ---------------------------------------------------------------------------
-// Rows
-// ---------------------------------------------------------------------------
-
-/**
- * A repository's own search field — IntelliJ's second panel, drawn inline.
- *
- * It sits inside a `VirtualList` row, and that list owns focus and keyboard:
- * its row `onClick` calls `focusIndex`, which moves DOM focus to the row and
- * would take it straight back out of this field, and its `onKeyDown` would
- * read the arrow keys someone is using to move the caret. So every pointer and
- * key event that belongs to the field is stopped here, at the field.
- *
- * **Why typing here does not lose the caret**, given the list keys its rows by
- * index and a keystroke brings a whole new row set from the host: nothing above
- * this row can move while you type in it. The verbs, the separators and the
- * repository rows are fixed, and only *this* repository's subtree is being
- * filtered — which is entirely below. The index is therefore invariant, React
- * reconciles the same position, and the `<input>` element survives. The list
- * cannot scroll it out of view either: a shrinking result set clamps `scrollTop`
- * upwards, which moves this row towards the viewport, never away from it.
- */
-function SearchRow({
-  value,
-  padding,
-  onChange,
-}: {
-  value: string;
-  padding: number;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div
-      className="gtb-body gtb-body-search"
-      style={{ paddingLeft: padding }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-    >
-      <Codicon name="search" />
-      <input
-        className="gt-input gtb-repo-search"
-        type="text"
-        value={value}
-        placeholder="Search branches in this repository"
-        aria-label="Search branches in this repository"
-        onChange={(e) => onChange(e.currentTarget.value)}
-      />
-      {value.length > 0 ? (
-        <button
-          className="gt-toolbar-button gtb-clear"
-          title="Clear"
-          aria-label="Clear repository search"
-          onClick={() => onChange('')}
-        >
-          <Codicon name="close" />
-        </button>
-      ) : null}
-    </div>
+  const openBranchMenu = useCallback(
+    (entry: BranchEntry, at: { x: number; y: number }) => {
+      void rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { target: targetOf(entry) }).then(
+        (items) => showMenu(items ?? [], at, `Actions for ${entry.name}`),
+        () => undefined,
+      );
+    },
+    [showMenu],
   );
-}
 
-interface RowBodyProps {
-  row: BranchesRowDto;
-  open: boolean;
-  onActions: (row: BranchesRowDto, at: { x: number; y: number }) => void;
-  onFavorite: (row: BranchesRowDto) => void;
-}
+  const toggleScope = useCallback(
+    (root: string, additive: boolean) => {
+      setScope((prev) => {
+        if (!additive) return prev.length === 1 && prev[0] === root ? [] : [root];
+        const base = prev.length === 0 ? [] : prev;
+        const next = base.includes(root) ? base.filter((r) => r !== root) : [...base, root];
+        return next.length >= repoCount ? [] : next;
+      });
+      // The open card may belong to a branch that is now out of view.
+      setOpenCard(undefined);
+    },
+    [repoCount],
+  );
 
-function RowBody({ row, open, onActions, onFavorite }: RowBodyProps) {
-  const padding = row.depth * INDENT;
-  const current = row.ref?.isHead === true;
-  const favouritable = row.ref !== undefined && row.ref.type !== 'tag';
-  /**
-   * Which rows own a menu *here*. Not `row.actions`, which is the shared
-   * model's flag and is also true of a repository row, because in the popup a
-   * repository's `›` means "go into it" — a thing this view already does by
-   * clicking the row, and a `›` that duplicated the twisty would be a second
-   * button for the same gesture. Drawing one on a repository row was worse than
-   * redundant while the menu was hover-revealed and is now plainly wrong, since
-   * the button is always visible and would never do anything.
-   */
-  const hasMenu = row.ref !== undefined || row.common !== undefined;
+  const openRepoMenu = useCallback(
+    (repo: BranchPanelRepoDto, at: { x: number; y: number }) => {
+      const narrowedToIt = scope.length === 1 && scope[0] === repo.root;
+      const lead =
+        repoCount > 1
+          ? [
+              narrowedToIt
+                ? { label: 'Show All Repositories', icon: 'list-flat', run: () => setScope([]) }
+                : { label: 'Show Only This Repository', icon: 'filter', run: () => setScope([repo.root]) },
+            ]
+          : [];
+      void rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { root: repo.root }).then(
+        (items) => showMenu(items ?? [], at, `Actions for ${repo.label}`, lead),
+        () => undefined,
+      );
+    },
+    [repoCount, scope, showMenu],
+  );
 
-  if (row.kind === 'info') {
+  /** The single repository's first row: its current branch's menu, then the repository's own. */
+  const openHeadMenu = useCallback(
+    (row: Extract<PanelRow, { kind: 'head' }>, at: { x: number; y: number }) => {
+      const branch =
+        row.entry !== undefined
+          ? rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { target: targetOf(row.entry) })
+          : Promise.resolve([] as BranchPanelMenuItemDto[]);
+      const repo = rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { root: row.repo.root });
+      void Promise.all([branch, repo]).then(
+        ([a, b]) => {
+          const items: BranchPanelMenuItemDto[] = [...(a ?? [])];
+          if (items.length > 0 && (b ?? []).length > 0) {
+            items.push({ kind: 'separator' }, { kind: 'header', label: 'Repository' });
+          }
+          items.push(...(b ?? []));
+          showMenu(items, at, `Actions for ${row.repo.label}`);
+        },
+        () => undefined,
+      );
+    },
+    [showMenu],
+  );
+
+  const openMoreMenu = useCallback(
+    (at: { x: number; y: number }) => {
+      if (!state || !model) return;
+      const single = model.scopeRepos.length === 1 ? model.scopeRepos[0]?.root : undefined;
+      const runs = new Map<string, () => void>();
+      const item = (
+        id: string,
+        label: string,
+        act: () => void,
+        extra: { icon?: string; accelerator?: string; checked?: boolean } = {},
+      ): MenuItem => {
+        runs.set(id, act);
+        return { kind: 'item', id, label, ...extra };
+      };
+      const items: MenuItem[] = [
+        item('update', 'Update Project…', () => runCommand('gittree.update.dialog', single), {
+          icon: 'arrow-down',
+          accelerator: 'Ctrl+T',
+        }),
+        item('commit', 'Commit…', () => runCommand('gittree.commit', single), {
+          icon: 'git-commit',
+          accelerator: 'Ctrl+K',
+        }),
+        item('push', 'Push…', () => runCommand('gittree.push.dialog', single), {
+          icon: 'arrow-up',
+          accelerator: 'Ctrl+Shift+K',
+        }),
+        { kind: 'separator', id: 's1' },
+        item('new', 'New Branch…', () => openForm({ from: 'HEAD' }), { icon: 'add' }),
+        item('revision', 'Checkout Tag or Revision…', () =>
+          runCommand('gittree.branches.checkoutRevision', single),
+        ),
+        item('cleanup', 'Clean Up Branches…', () => runCommand('gittree.branches.cleanup', single), {
+          icon: 'trash',
+        }),
+        { kind: 'separator', id: 's2' },
+        { kind: 'header', id: 'h1', label: 'Show' },
+        item('tags', 'Tags', () => setSetting('showTags', !state.showTags), { checked: state.showTags }),
+        item('inout', 'Incoming / Outgoing Counts', () => setSetting('showIncomingOutgoing', !state.showInOut), {
+          checked: state.showInOut,
+        }),
+        item('folders', 'Group by Folder', () => setSetting('groupByFolder', !state.groupByFolder), {
+          checked: state.groupByFolder,
+        }),
+        { kind: 'separator', id: 's3' },
+        item(
+          'collapse',
+          'Collapse All',
+          () => {
+            // Back to how the panel starts: every folder, Remote and Tags shut.
+            setToggled(() => {
+              const next = new Set<string>();
+              for (const r of model.rows) {
+                if ((r.kind === 'folder' || r.kind === 'remote') && r.open) next.add(r.id);
+              }
+              return next;
+            });
+            setOpenCard(undefined);
+          },
+          { icon: 'collapse-all' },
+        ),
+      ];
+      setMenu({ items, at, label: 'More actions', runs });
+    },
+    [model, openForm, runCommand, setSetting, state],
+  );
+
+  // ---- gestures on rows ---------------------------------------------------------
+  const toggle = useCallback((id: string) => {
+    setToggled((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleCard = useCallback((id: string) => {
+    setOpenCard((prev) => (prev === id ? undefined : id));
+  }, []);
+
+  const onQuick = useCallback(
+    (entry: BranchEntry, action: QuickAction, e: ReactMouseEvent<HTMLButtonElement>) => {
+      const target = targetOf(entry);
+      switch (action) {
+        case 'checkout':
+        case 'update':
+        case 'push':
+          run({ type: 'action', target, action });
+          return;
+        case 'star':
+          void rpc.request(BRANCHES_METHODS.favorite, { target, on: !entry.favorite }).catch(() => undefined);
+          return;
+        case 'menu': {
+          const r = e.currentTarget.getBoundingClientRect();
+          openBranchMenu(entry, { x: r.right, y: r.bottom });
+          return;
+        }
+      }
+    },
+    [openBranchMenu, run],
+  );
+
+  const activate = useCallback(
+    (row: PanelRow, e?: { ctrlKey: boolean; metaKey: boolean; detail?: number }) => {
+      switch (row.kind) {
+        case 'section':
+          if (!searching) toggle(row.id);
+          return;
+        case 'remote':
+        case 'folder':
+          toggle(row.id);
+          return;
+        case 'repo':
+          toggleScope(row.repo.root, e?.ctrlKey === true || e?.metaKey === true);
+          return;
+        case 'head':
+        case 'branch':
+          // The second click of a double-click would shut what the first opened.
+          if ((e?.detail ?? 1) > 1) return;
+          toggleCard(row.id);
+          return;
+        case 'hint':
+          if (row.create !== undefined) openForm({ from: 'HEAD', name: row.create });
+          return;
+        case 'operation':
+          return;
+      }
+    },
+    [openForm, searching, toggle, toggleCard, toggleScope],
+  );
+
+  const openRowMenu = useCallback(
+    (row: PanelRow, at: { x: number; y: number }) => {
+      if (row.kind === 'branch') openBranchMenu(row.entry, at);
+      else if (row.kind === 'repo') openRepoMenu(row.repo, at);
+      else if (row.kind === 'head') openHeadMenu(row, at);
+    },
+    [openBranchMenu, openHeadMenu, openRepoMenu],
+  );
+
+  const onRowKeyDown = useCallback(
+    (row: PanelRow, _index: number, e: ReactKeyboardEvent<HTMLDivElement>): boolean => {
+      const open =
+        row.kind === 'section' || row.kind === 'folder' || row.kind === 'remote'
+          ? row.open
+          : row.kind === 'branch' || row.kind === 'head'
+            ? row.card
+            : undefined;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activate(row, { ctrlKey: e.ctrlKey, metaKey: e.metaKey });
+        return true;
+      }
+      if (e.key === 'ArrowRight' && open === false) {
+        e.preventDefault();
+        activate(row);
+        return true;
+      }
+      if (e.key === 'ArrowLeft' && open === true && !(row.kind === 'section' && searching)) {
+        e.preventDefault();
+        activate(row);
+        return true;
+      }
+      if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+        e.preventDefault();
+        const r = rowRect(row.id);
+        openRowMenu(row, { x: (r?.left ?? 0) + 24, y: (r?.top ?? 0) + 22 });
+        return true;
+      }
+      if ((e.key === 'Delete' || e.key === 'F2') && row.kind === 'branch') {
+        const entry = row.entry;
+        if (entry.kind !== 'local' || entry.presence.length !== 1) return false;
+        e.preventDefault();
+        if (e.key === 'F2') run({ type: 'action', target: targetOf(entry), action: 'rename' });
+        else if (entry.currentIn.length === 0) {
+          run({ type: 'action', target: targetOf(entry), action: 'delete' });
+        }
+        return true;
+      }
+      // Ctrl+F, or simply typing: the filter takes it.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        focusSearch();
+        return true;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        focusSearch(e.key);
+        return true;
+      }
+      return false;
+    },
+    [activate, focusSearch, openRowMenu, run, searching],
+  );
+
+  // ---- rendering ----------------------------------------------------------------------
+  if (!state || !model) return <div className="gtp-empty">Loading…</div>;
+  if (state.repos.length === 0) {
     return (
-      <div className="gtb-body gtb-body-info" style={{ paddingLeft: padding }}>
-        <Codicon name={row.icon} />
-        <span className="gtb-label">{row.label}</span>
+      <div className="gtp-empty">
+        <Codicon name="repo" />
+        <p>No Git repository in this workspace.</p>
       </div>
     );
   }
 
+  const narrowed = model.multi && model.scopeRepos.length < state.repos.length;
+  const scopeLabel =
+    model.scopeRepos.length === 1
+      ? (model.scopeRepos[0]?.label ?? '')
+      : `${model.scopeRepos.length} repositories`;
+  const placeholder = !model.multi
+    ? 'Filter branches'
+    : narrowed
+      ? `Filter branches in ${scopeLabel}`
+      : `Filter branches in ${state.repos.length} repositories`;
+  const fetchBusy = fetching || state.fetchingAll;
+  const firstBranchId = model.rows.find((r) => r.kind === 'branch')?.id;
+
+  const repoButtons = (repo: BranchPanelRepoDto) => ({
+    onUpdate: () => runCommand('gittree.update.dialog', repo.root),
+    onPush: () => runCommand('gittree.push.dialog', repo.root),
+    onFetch: () => runCommand('gittree.fetch', repo.root),
+    onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      openRepoMenu(repo, { x: r.right, y: r.bottom });
+    },
+  });
+
+  const card = (entry: BranchEntry | undefined, indent: number, detachedAt?: string) => (
+    <BranchCard
+      entry={entry}
+      details={entry !== undefined ? details.get(detailsKey(entry)) : { repos: [], buttons: [] }}
+      markers={model.markers}
+      now={state.now}
+      indent={indent}
+      colorOf={colorOf}
+      onButton={(b: BranchPanelButtonDto) => run(b.run)}
+      onMenu={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        if (entry !== undefined) openBranchMenu(entry, { x: r.right, y: r.bottom });
+      }}
+      {...(detachedAt !== undefined ? { detachedAt } : {})}
+    />
+  );
+
+  const dragProps = (row: Extract<PanelRow, { kind: 'branch' }>) => {
+    if (row.entry.kind !== 'local') return {};
+    return {
+      onDragOver: (e: ReactDragEvent<HTMLDivElement>) => {
+        if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'link';
+        if (dropOver !== row.id) setDropOver(row.id);
+      },
+      onDragLeave: () => setDropOver((cur) => (cur === row.id ? undefined : cur)),
+      onDrop: (e: ReactDragEvent<HTMLDivElement>) => {
+        setDropOver(undefined);
+        const raw = e.dataTransfer.getData(DRAG_MIME);
+        if (raw.length === 0) return;
+        e.preventDefault();
+        let source: BranchPanelTargetDto;
+        try {
+          source = JSON.parse(raw) as BranchPanelTargetDto;
+        } catch {
+          return;
+        }
+        if (source.kind !== 'local' || source.name === row.entry.name) return;
+        void rpc
+          .request(BRANCHES_METHODS.drop, { source, target: targetOf(row.entry) }, LONG_MS)
+          .catch(() => undefined);
+      },
+    };
+  };
+
+  const renderRow = (row: PanelRow) => {
+    switch (row.kind) {
+      case 'section': {
+        const actions =
+          row.section === 'repos' && narrowed ? (
+            <button
+              type="button"
+              className="gtp-link"
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                setScope([]);
+              }}
+            >
+              Show all
+            </button>
+          ) : row.section === 'local' ? (
+            <RowButton icon="add" title="New Branch…" onClick={() => openForm({ from: 'HEAD' })} />
+          ) : row.section === 'remote' ? (
+            <RowButton icon="sync" title="Fetch" spin={fetchBusy} onClick={fetchAll} />
+          ) : undefined;
+        return <SectionRow row={row} searching={searching} {...(actions !== undefined ? { actions } : {})} />;
+      }
+      case 'repo':
+        return (
+          <RepoRow
+            row={row}
+            color={colorOf(row.repo)}
+            showInOut={state.showInOut}
+            buttons={repoButtons(row.repo)}
+          />
+        );
+      case 'head':
+        return (
+          <HeadRow
+            row={row}
+            showInOut={state.showInOut}
+            buttons={repoButtons(row.repo)}
+            card={row.card ? card(row.entry, 8, row.repo.headSha?.slice(0, 8)) : null}
+          />
+        );
+      case 'operation':
+        return (
+          <OperationRow
+            repo={row.repo}
+            onRun={(command) =>
+              runCommand(command, command === 'gittree.conflicts.focus' ? undefined : row.repo.root)
+            }
+          />
+        );
+      case 'remote':
+        return <GroupRow icon="cloud" label={row.remote} count={row.count} open={row.open} depth={row.depth} />;
+      case 'folder':
+        return <GroupRow icon="folder" label={row.label} count={row.count} open={row.open} depth={row.depth} />;
+      case 'branch':
+        return (
+          <div className={`gtp-drop-zone${dropOver === row.id ? ' gtp-drop-over' : ''}`} {...dragProps(row)}>
+            <BranchRow
+              row={row}
+              now={state.now}
+              showInOut={state.showInOut}
+              markers={model.markers}
+              scopeRepos={model.scopeRepos}
+              colorOf={colorOf}
+              onQuick={(action, e) => onQuick(row.entry, action, e)}
+              card={row.card ? card(row.entry, 8 + row.depth * INDENT + 20) : null}
+              draggable={row.entry.kind === 'local'}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(DRAG_MIME, JSON.stringify(targetOf(row.entry)));
+                e.dataTransfer.effectAllowed = 'link';
+              }}
+            />
+          </div>
+        );
+      case 'hint':
+        return (
+          <div className="gtp-hint">
+            <span>{row.text}</span>
+            {row.create !== undefined ? (
+              <button
+                type="button"
+                className="gt-button gtp-small"
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openForm({ from: 'HEAD', name: row.create });
+                }}
+              >
+                <Codicon name="add" /> Create branch “{row.create}”
+              </button>
+            ) : null}
+          </div>
+        );
+    }
+  };
+
   return (
-    <div className="gtb-body" style={{ paddingLeft: padding }}>
-      <span className="gtb-twisty">
-        {row.expandable ? <Codicon name={open ? 'chevron-down' : 'chevron-right'} /> : null}
-      </span>
-      <span className={`gtb-icon${current ? ' gtb-current' : ''}`}>
-        {/* A repository fetching from its menu: the sync icon, turning. */}
-        {row.busy === true ? <Codicon name="sync" spin /> : <Codicon name={row.icon} />}
-      </span>
-      <span className={`gtb-label${current ? ' gtb-current' : ''}`}>{row.label}</span>
-      {row.description !== undefined && row.description.length > 0 ? (
-        <span className="gtb-description">{row.description}</span>
+    <div className="gtp-root">
+      <div className="gtp-toolbar">
+        <div className="gtp-search">
+          <Codicon name="search" />
+          {narrowed ? (
+            <button
+              type="button"
+              className="gtp-scope-pill"
+              title="Show every repository"
+              aria-label={`Narrowed to ${scopeLabel}; show every repository`}
+              onClick={() => setScope([])}
+            >
+              {scopeLabel}
+              <Codicon name="close" />
+            </button>
+          ) : null}
+          <input
+            ref={searchRef}
+            className="gtp-search-input"
+            type="text"
+            value={query}
+            placeholder={placeholder}
+            aria-label="Filter branches"
+            spellCheck={false}
+            onChange={(e) => setQuery(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                if (query.length > 0) setQuery('');
+                else if (focusedId !== undefined) listRef.current?.focusRow(focusedId);
+              } else if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                const id = searching ? firstBranchId : (focusedId ?? model.rows[0]?.id);
+                if (id === undefined) return;
+                e.preventDefault();
+                listRef.current?.focusRow(id);
+                if (e.key === 'Enter' && searching) setOpenCard(id);
+              }
+            }}
+          />
+          {query.length > 0 ? (
+            <button
+              type="button"
+              className="gt-toolbar-button gtp-icon-button"
+              title="Clear (Escape)"
+              aria-label="Clear filter"
+              onClick={() => {
+                setQuery('');
+                searchRef.current?.focus();
+              }}
+            >
+              <Codicon name="close" />
+            </button>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className={`gt-toolbar-button${fetchBusy ? ' gt-busy' : ''}`}
+          title={state.repos.length > 1 ? 'Fetch all repositories' : 'Fetch'}
+          aria-label="Fetch"
+          aria-busy={fetchBusy ? true : undefined}
+          onClick={fetchBusy ? undefined : fetchAll}
+        >
+          <Codicon name="sync" spin={fetchBusy} />
+        </button>
+        <button
+          type="button"
+          className="gt-toolbar-button"
+          title="New Branch…"
+          aria-label="New Branch"
+          onClick={() => openForm({ from: 'HEAD' })}
+        >
+          <Codicon name="add" />
+        </button>
+        <button
+          type="button"
+          className="gt-toolbar-button"
+          title="More Actions…"
+          aria-label="More Actions"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            openMoreMenu({ x: r.right, y: r.bottom });
+          }}
+        >
+          <Codicon name="ellipsis" />
+        </button>
+      </div>
+      {form !== null ? (
+        <NewBranchForm
+          key={`${form.from}|${form.roots.join(',')}|${form.name ?? ''}`}
+          repos={state.repos}
+          request={form}
+          colorOf={colorOf}
+          onCreate={create}
+          onClose={() => setForm(null)}
+        />
       ) : null}
-      <span className="gtb-row-buttons">
-        {favouritable ? (
-          <button
-            className={`gt-toolbar-button gtb-star${row.favorite === true ? ' gtb-on' : ''}`}
-            title={row.favorite === true ? 'Remove from favorites' : 'Add to favorites'}
-            aria-label={row.favorite === true ? 'Remove from favorites' : 'Add to favorites'}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onFavorite(row);
-            }}
-          >
-            <Codicon name={row.favorite === true ? 'star-full' : 'star-empty'} />
-          </button>
-        ) : null}
-        {hasMenu ? (
-          <button
-            className="gt-toolbar-button gtb-chevron"
-            title="Branch actions"
-            aria-label="Branch actions"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              const r = e.currentTarget.getBoundingClientRect();
-              onActions(row, { x: r.right, y: r.bottom });
-            }}
-          >
-            <Codicon name="chevron-right" />
-          </button>
-        ) : null}
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// App
-// ---------------------------------------------------------------------------
-
-export function App() {
-  const [tree, setTree] = useState<BranchesTreeDto | null>(null);
-  const [menu, setMenu] = useState<{
-    row: BranchesRowDto;
-    items: MenuItem[];
-    at: { x: number; y: number };
-  } | null>(null);
-
-  /**
-   * The fields are driven from here, not from the host's echo. A controlled
-   * input whose value only comes back after a round trip drops characters and
-   * jumps the caret when someone types faster than the trip; the host is told
-   * what was typed, and its echo is read only once, to restore a reloaded view.
-   */
-  const [topQuery, setTopQuery] = useState('');
-  const [repoQueries, setRepoQueries] = useState<Record<string, string>>({});
-  const seeded = useRef(false);
-
-  const [listRef, listSize] = useElementSize<HTMLDivElement>();
-  const virtual = useRef<VirtualListHandle | null>(null);
-
-  const apply = useCallback((next: BranchesTreeDto | null) => {
-    if (next) setTree(next);
-  }, []);
-
-  useEffect(() => {
-    void rpc.request<BranchesTreeDto | null>(BRANCHES_METHODS.init).then(apply);
-    return rpc.onEvent(BRANCHES_METHODS.evtTree, (params) => apply(params as BranchesTreeDto));
-  }, [apply]);
-
-  useEffect(() => {
-    if (!tree || seeded.current) return;
-    seeded.current = true;
-    setTopQuery(tree.topQuery);
-    setRepoQueries(Object.fromEntries(tree.repoQueries));
-  }, [tree]);
-
-  const send = useCallback(
-    (method: string, params: unknown) => {
-      void rpc.request<BranchesTreeDto | null>(method, params).then(apply);
-    },
-    [apply],
-  );
-
-  const [fetching, trackFetch] = useBusy();
-  const onHeader = useCallback(
-    (id: string) => {
-      if (id !== 'fetch') {
-        send(BRANCHES_METHODS.header, { id });
-        return;
-      }
-      trackFetch(() =>
-        rpc
-          .request<BranchesTreeDto | null>(BRANCHES_METHODS.header, { id }, FETCH_TIMEOUT_MS)
-          .then(apply, () => undefined),
-      );
-    },
-    [apply, send, trackFetch],
-  );
-
-  const open = useMemo(() => new Set(tree?.open ?? []), [tree]);
-  const display = useMemo(() => toDisplayRows(tree?.rows ?? []), [tree]);
-
-  const setTop = useCallback(
-    (value: string) => {
-      setTopQuery(value);
-      send(BRANCHES_METHODS.setTopQuery, { query: value });
-    },
-    [send],
-  );
-
-  const setRepo = useCallback(
-    (root: string, value: string) => {
-      setRepoQueries((prev) => ({ ...prev, [root]: value }));
-      send(BRANCHES_METHODS.setRepoQuery, { root, query: value });
-    },
-    [send],
-  );
-
-  const openActions = useCallback((row: BranchesRowDto, at: { x: number; y: number }) => {
-    void rpc.request<BranchesActionDto[]>(BRANCHES_METHODS.actions, { id: row.id }).then((list) => {
-      if (!Array.isArray(list) || list.length === 0) return;
-      const items: MenuItem[] = [];
-      for (const action of list) {
-        if (action.separator === true && items.length > 0) {
-          items.push({ kind: 'separator', id: `sep-${action.id}` });
-        }
-        items.push({
-          kind: 'item',
-          id: action.id,
-          label: action.label,
-          ...(action.accelerator !== undefined ? { accelerator: action.accelerator } : {}),
-        });
-      }
-      setMenu({ row, items, at });
-    });
-  }, []);
-
-  /**
-   * The `›` button, for the two kinds of row that own a menu. A ref's is drawn
-   * here, over the rows; a common ref's is the host's, because its actions run
-   * once per repository and are picked from a list this view does not hold.
-   */
-  const rowMenu = useCallback(
-    (row: BranchesRowDto, at: { x: number; y: number }) => {
-      if (row.ref !== undefined) {
-        openActions(row, at);
-        return;
-      }
-      if (row.common !== undefined) send(BRANCHES_METHODS.activate, { id: row.id });
-    },
-    [openActions, send],
-  );
-
-  /**
-   * Where a row's menu opens: anchored to the row itself, read from the DOM at
-   * the moment it is needed. Not the pointer position — `onRowClick` does not
-   * carry one, and anchoring to the row is what a submenu should do anyway, so
-   * Enter and a click put the menu in the same place.
-   */
-  const anchorFor = useCallback((index: number): { x: number; y: number } => {
-    const el = document.querySelector<HTMLElement>(`[data-gt-row="${index}"]`);
-    if (!el) return { x: 0, y: 0 };
-    const r = el.getBoundingClientRect();
-    return { x: Math.round(r.left + 16), y: Math.round(r.bottom) };
-  }, []);
-
-  /**
-   * What activating a row means, and **where a branch row differs by gesture**.
-   *
-   * A click on a branch does nothing: not a checkout, not a menu. Only the `›`
-   * button opens the menu, because a menu is a surface arriving over the list
-   * and that does not belong on the gesture people use to move around the list.
-   * (IntelliJ can put it there — its submenu opens beside the row and leaves the
-   * list standing. Nothing in VS Code floats a submenu beside a `QuickPick`,
-   * which is D5, so the popup cannot follow IntelliJ here and this view matches
-   * the popup rather than drifting from it.)
-   *
-   * Enter still opens it. A `QuickPick` reports one accept and cannot tell a
-   * click from Enter, but this list can, and Enter is the only key that reaches
-   * a row's menu — the `›` button is not in the tab order, since the list holds
-   * a single roving tabstop across several hundred rows.
-   *
-   * Verb rows — `New Branch…`, `Checkout Tag or Revision…` — run on a click as
-   * before. They are actions that say what they do; a branch is a noun.
-   *
-   * A repository row opens and closes on a click and on Enter; its menu is on
-   * right-click and the context-menu key — see `contextMenu`.
-   */
-  const activate = useCallback(
-    (index: number, source: 'click' | 'key') => {
-      const entry = display[index];
-      if (entry?.kind !== 'row') return;
-      const row = entry.row;
-      if (row.kind === 'search' || row.kind === 'info') return;
-      if (row.expandable) {
-        send(BRANCHES_METHODS.toggle, { id: row.id });
-        return;
-      }
-      if (row.ref !== undefined) {
-        if (source === 'click') return;
-        openActions(row, anchorFor(index));
-        return;
-      }
-      // A ref every root shares: its menu is the host's, since the actions run
-      // once per repository and are chosen from a list this view does not hold.
-      if (row.common !== undefined && source === 'click') return;
-      send(BRANCHES_METHODS.activate, { id: row.id });
-    },
-    [anchorFor, display, openActions, send],
-  );
-
-  /**
-   * Right-click, or the context-menu key (Shift+F10): the row's menu, at the
-   * pointer or under the row. A repository row's is the repository's own —
-   * Fetch, Update, Push and the rest, each for that repository alone — which no
-   * other gesture here reaches; a branch row's is its `›` menu, and a common
-   * ref's the host's all-roots list, so right-click means the same thing on
-   * every row that has a menu. Over the repository search field VS Code's own
-   * Cut/Copy/Paste is left alone; over any other row it is kept shut, since it
-   * has nothing to offer there.
-   */
-  const contextMenu = useCallback(
-    (index: number, e: ReactMouseEvent<HTMLDivElement>) => {
-      const entry = display[index];
-      if (entry?.kind === 'row' && entry.row.kind === 'search') return;
-      e.preventDefault();
-      if (entry?.kind !== 'row') return;
-      const row = entry.row;
-      // The context-menu key and Shift+F10 report no pointer (Chromium says
-      // `button: -1`, or puts the event at 0,0); open under the row instead.
-      const keyboard = e.button === -1 || (e.clientX === 0 && e.clientY === 0);
-      const at = keyboard ? anchorFor(index) : { x: e.clientX, y: e.clientY };
-      if (row.kind === 'repo' || row.ref !== undefined) {
-        openActions(row, at);
-        return;
-      }
-      if (row.common !== undefined) send(BRANCHES_METHODS.activate, { id: row.id });
-    },
-    [anchorFor, display, openActions, send],
-  );
-
-  /**
-   * Runs before `VirtualList`'s own key model. Arrows step over separators,
-   * which are rows here but are not anything a user wants to land on; Right and
-   * Left open and close; Space is swallowed, because activating a row is what
-   * Enter is for and Space in a list should not check out a branch.
-   */
-  const onRowKeyDown = useCallback(
-    (index: number, e: KeyboardEvent<HTMLDivElement>): boolean => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        const step = e.key === 'ArrowDown' ? 1 : -1;
-        let next = index + step;
-        while (display[next]?.kind === 'separator') next += step;
-        if (next < 0 || next >= display.length) {
-          e.preventDefault();
-          return true;
-        }
-        e.preventDefault();
-        virtual.current?.focusIndex(next);
-        return true;
-      }
-      const entry = display[index];
-      const row = entry?.kind === 'row' ? entry.row : undefined;
-      // Enter is handled here rather than through `onActivate`, which the
-      // shared list also fires on double-click: a double-click is two clicks,
-      // each of which has already activated the row, so a third would open a
-      // menu that the second one just opened.
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        activate(index, 'key');
-        return true;
-      }
-      if (e.key === ' ') {
-        e.preventDefault();
-        return true;
-      }
-      if (row?.expandable === true && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
-        const wantOpen = e.key === 'ArrowRight';
-        if (open.has(row.id) !== wantOpen) {
-          e.preventDefault();
-          send(BRANCHES_METHODS.toggle, { id: row.id });
-          return true;
-        }
-      }
-      return false;
-    },
-    [activate, display, open, send],
-  );
-
-  if (!tree) return <div className="gtb-empty">Loading…</div>;
-
-  return (
-    <div className="gtb-root">
-      <Header
-        query={topQuery}
-        repoCount={tree.repoCount}
-        showInOut={tree.showInOut}
-        fetching={fetching}
-        onQuery={setTop}
-        onHeader={onHeader}
-      />
-      <div className="gtb-list-host" ref={listRef}>
+      <div className="gtp-list-host" ref={listHost}>
         {listSize.height > 0 ? (
-          <VirtualList
-            ref={virtual}
-            className="gtb-list"
-            rowCount={display.length}
-            rowHeight={ROW_HEIGHT}
+          <PanelList
+            ref={listRef}
+            rows={model.rows}
             height={listSize.height}
             ariaLabel="Branches"
-            role="tree"
-            rowRole="treeitem"
-            overscan={8}
-            rowAria={(i) => {
-              const entry = display[i];
-              if (entry?.kind !== 'row') return { 'aria-level': 1 };
+            focusedId={focusedId}
+            onFocusId={setFocusedId}
+            renderRow={renderRow}
+            rowClassName={(row) => `gtp-kind-${row.kind}`}
+            rowAttributes={(row) => {
+              const level =
+                row.kind === 'branch' || row.kind === 'folder' || row.kind === 'remote' ? row.depth + 2 : 1;
+              const expanded =
+                row.kind === 'section' || row.kind === 'folder' || row.kind === 'remote'
+                  ? row.open
+                  : row.kind === 'branch' || row.kind === 'head'
+                    ? row.card
+                    : undefined;
+              const label =
+                row.kind === 'branch'
+                  ? `${row.entry.name}${row.entry.currentIn.length > 0 ? ', checked out' : ''}`
+                  : row.kind === 'repo'
+                    ? `${row.repo.label}, on ${row.repo.head ?? 'a detached HEAD'}${row.repo.fetching ? ', fetching' : ''}`
+                    : row.kind === 'head'
+                      ? `Current branch ${row.repo.head ?? 'detached HEAD'}`
+                      : row.kind === 'section'
+                        ? `${row.label}, ${row.count}`
+                        : undefined;
               return {
-                'aria-level': entry.row.depth + 1,
-                ...(entry.row.expandable ? { 'aria-expanded': open.has(entry.row.id) } : {}),
+                'aria-level': level,
+                ...(expanded !== undefined ? { 'aria-expanded': expanded } : {}),
+                ...(row.kind === 'repo' ? { 'aria-selected': row.inScope && narrowed } : {}),
+                ...(label !== undefined ? { 'aria-label': label } : {}),
               };
             }}
-            rowAriaLabel={(i) => {
-              const entry = display[i];
-              if (entry?.kind !== 'row') return entry?.label;
-              return entry.row.busy === true ? `${entry.row.label}, fetching` : entry.row.label;
-            }}
             onRowKeyDown={onRowKeyDown}
-            onRowClick={(i) => activate(i, 'click')}
-            onRowContextMenu={contextMenu}
-            renderRow={(i) => {
-              const entry = display[i];
-              if (entry === undefined) return null;
-              if (entry.kind === 'separator') {
-                return <div className="gtb-separator-label">{entry.label}</div>;
-              }
-              const row = entry.row;
-              const body =
-                row.kind === 'search' ? (
-                  <SearchRow
-                    value={repoQueries[row.repoRoot ?? ''] ?? ''}
-                    padding={row.depth * INDENT}
-                    onChange={(value) => setRepo(row.repoRoot ?? '', value)}
-                  />
-                ) : (
-                  <RowBody
-                    row={row}
-                    open={open.has(row.id)}
-                    onActions={rowMenu}
-                    onFavorite={(r) => send(BRANCHES_METHODS.toggleFavorite, { id: r.id })}
-                  />
-                );
-              return entry.ruleAbove ? (
-                <div className="gtb-rule-above" data-testid="rule-above">
-                  {body}
-                </div>
-              ) : (
-                body
+            onRowClick={(row, e) =>
+              activate(row, { ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail })
+            }
+            onRowContextMenu={(row, e) => {
+              e.preventDefault();
+              setFocusedId(row.id);
+              const keyboard = e.button === -1 || (e.clientX === 0 && e.clientY === 0);
+              const r = rowRect(row.id);
+              openRowMenu(
+                row,
+                keyboard ? { x: (r?.left ?? 0) + 24, y: (r?.top ?? 0) + 22 } : { x: e.clientX, y: e.clientY },
               );
             }}
           />
@@ -640,10 +904,11 @@ export function App() {
         <Menu
           items={menu.items}
           at={menu.at}
-          ariaLabel={`Actions for ${menu.row.label}`}
+          ariaLabel={menu.label}
           onSelect={(id) => {
+            const act = menu.runs.get(id);
             setMenu(null);
-            void rpc.request(BRANCHES_METHODS.runAction, { id: menu.row.id, action: id });
+            act?.();
           }}
           onClose={() => setMenu(null)}
         />

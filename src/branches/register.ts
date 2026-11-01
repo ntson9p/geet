@@ -17,7 +17,8 @@ import {
   showCommonBranchActions,
 } from './branchesPopup';
 import type { CommonRef } from './popupTree';
-import { BranchesWebViewProvider } from './branchesWebView';
+import { cleanUpBranches } from './branchCleanup';
+import { BranchPanelProvider } from './branchPanel';
 import { BranchHubViewProvider } from './branchHubView';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
 import { CompareService } from './compare';
@@ -38,8 +39,8 @@ export interface Phase02Registry {
   /** Exposed so an integration test can drive the real view, not just the provider. */
   reposView: vscode.TreeView<string>;
   hub: BranchHubViewProvider;
-  /** new-way-2: the sidebar Branches view, as a webview. */
-  branchesWeb: BranchesWebViewProvider;
+  /** new-way-4: the sidebar's Branches panel. */
+  panel: BranchPanelProvider;
   /**
    * P13-T5: the single branch-action registry the popup, the branches tree and
    * the log's Branches pane all consume, so the three cannot drift.
@@ -221,27 +222,32 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   context.subscriptions.push(hubView);
 
   /**
-   * The Branches view itself. It is a webview for one reason: IntelliJ keeps
-   * **two search fields live at once** — the project's and the opened
-   * repository's — and neither a `QuickPick` nor a `TreeView` can hold an
-   * `<input>`. The tree above still draws the same rows and is one setting
-   * (`gittree.sidebar.extraViews`) away if this turns out to be the wrong
-   * trade.
+   * The Branches panel (new-way-4): every repository's status and every branch
+   * in one list, a card per branch with the actions its state calls for. A
+   * webview, because what it draws — a branch's card under its row, the
+   * repository markers, the inline New Branch form — is more than a tree row
+   * can hold. The trees above draw the plain tree, one setting away.
    */
-  const branchesWeb = new BranchesWebViewProvider({
+  const panel = new BranchPanelProvider({
     core,
-    scope,
     context,
     refServiceFor: serviceFor,
     actions,
+    // The branch trees' own drop prompt, so the gesture has one implementation.
+    onDrop: (repo, source, target) => viewProvider.showDropActions(repo, source, target),
   });
-  context.subscriptions.push({ dispose: () => branchesWeb.dispose() });
+  context.subscriptions.push({ dispose: () => panel.dispose() });
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      BranchesWebViewProvider.viewType,
-      branchesWeb,
-      { webviewOptions: { retainContextWhenHidden: true } },
+    vscode.window.registerWebviewViewProvider(BranchPanelProvider.viewType, panel, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+    vscode.commands.registerCommand('gittree.branches.newBranchInPanel', (from?: unknown, roots?: unknown) =>
+      panel.openNewBranchForm(
+        typeof from === 'string' ? from : undefined,
+        Array.isArray(roots) ? roots.filter((r): r is string => typeof r === 'string') : undefined,
+      ),
     ),
+    vscode.commands.registerCommand('gittree.branches.filterPanel', () => panel.focusFilter()),
   );
 
   /**
@@ -253,12 +259,6 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   const paintHub = (): void => {
     hubView.description = undefined;
     hub.refresh();
-    // Clicking a row in the Repositories section opens that repository here,
-    // which is the one thing the section still drives now that this view shows
-    // the whole project. It only ever *opens* — it never closes what you left
-    // open, because that would undo a deliberate act with an incidental one.
-    const focused = scope.current;
-    if (focused !== undefined) branchesWeb.revealRepository(focused);
   };
   paintHub();
   const hubScopeSub = scope.onDidChange(paintHub);
@@ -276,7 +276,6 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (!e.affectsConfiguration('gittree.branches.showTags')) return;
       hub.refresh();
-      branchesWeb.refresh();
     }),
   );
 
@@ -492,6 +491,11 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     await ops.checkout(repo, value.trim());
   });
 
+  // new-way-4: the finished branches — merged, or their remote branch gone — in one pick.
+  register('gittree.branches.cleanup', async (root) => {
+    await cleanUpBranches(core, typeof root === 'string' ? [root] : undefined);
+  });
+
   const registry: Phase02Registry = {
     refServices,
     ops,
@@ -501,7 +505,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     repositories,
     reposView,
     hub,
-    branchesWeb,
+    panel,
     actions,
     runCommonAction: (repos, common, actionId) => runCommonAction(repos, common, actions, actionId),
   };

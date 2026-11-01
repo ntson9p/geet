@@ -33,7 +33,7 @@ import type { DiffEntry } from '../diff/diffSession';
 import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
 import { WorktreesPaneBridge } from './worktreesPaneBridge';
-import { PALETTE_SIZE } from './graphLayout/colors';
+import { rootColorIndices } from './graphLayout/colors';
 import { GraphLayout } from './graphLayout/layout';
 import { intelliSort } from './graphLayout/intelliSort';
 import {
@@ -326,10 +326,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private roots(): LogRootDto[] {
     const repos = [...this.core.repos].sort((a, b) => a.root.localeCompare(b.root));
     const labels = repoLabels(repos.map((r) => r.root));
-    return repos.map((repo, idx) => ({
+    const colors = rootColorIndices(repos.map((r) => r.root));
+    return repos.map((repo) => ({
       root: repo.root,
       label: labels.get(repo.root) ?? path.basename(repo.root),
-      colorIdx: idx % PALETTE_SIZE,
+      colorIdx: colors.get(repo.root) ?? 0,
     }));
   }
 

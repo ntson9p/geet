@@ -314,6 +314,15 @@ export function registerCommitActions(
     await logView.openTab({ sort: 'topo', range: { a: branch, b: current } }, repo.root);
   });
 
+  // The Branches panel's `Show in Git Log`: a ref's history, in a Log tab of
+  // its own (reused when one already shows exactly that), so whatever the
+  // active tab was filtered to survives.
+  register('gittree.branches.showInLog', async (repoRoot, ref) => {
+    const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
+    if (!repo || typeof ref !== 'string' || ref.length === 0) return;
+    await logView.openTab({ sort: 'topo', refs: [ref] }, repo.root);
+  });
+
   // ---- P12-T7: the reference menu's missing items --------------------------
 
   const isAncestorOfHead = async (repo: RepoHandle, sha: string): Promise<boolean> => {

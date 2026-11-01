@@ -181,6 +181,11 @@
             "default": true,
             "description": "%gittree.config.branches.showTags.description%"
           },
+          "gittree.branches.groupByFolder": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.branches.groupByFolder.description%"
+          },
           "gittree.smartCheckout.behavior": {
             "type": "string",
             "enum": [
@@ -1089,6 +1094,29 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.branches.cleanup",
+        "title": "%gittree.command.branches.cleanup.title%",
+        "category": "GitTree",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "gittree.branches.showInLog",
+        "title": "%gittree.command.branches.showInLog.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branches.newBranchInPanel",
+        "title": "%gittree.command.branches.newBranchInPanel.title%",
+        "category": "GitTree",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.branches.filterPanel",
+        "title": "%gittree.command.branches.filterPanel.title%",
+        "category": "GitTree",
+        "icon": "$(search)"
+      },
+      {
         "command": "gittree.history.show",
         "title": "%gittree.command.history.show.title%",
         "category": "GitTree",
@@ -1854,6 +1882,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gittree.branches.showInLog",
+          "when": "false"
+        },
         {
           "command": "gittree.log.createPatch",
           "when": "false"
