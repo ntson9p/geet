@@ -79,6 +79,14 @@ const MAX_SELECTED_COMMITS = 1000;
  * in the graph while the user is still looking at it.
  */
 const AUTO_REFRESH_DEBOUNCE_MS = 300;
+/**
+ * The longest an auto-refresh waits for the repository's running git
+ * operation to finish. A cherry-pick of several commits, a push and its
+ * follow-up refresh, a rebase — each moves history several times; re-reading
+ * once at the end is one repaint instead of one per step. A long operation
+ * (a slow fetch) still lets the graph catch up after this long.
+ */
+const AUTO_REFRESH_MAX_WAIT_MS = 5000;
 
 /** Which repository the log is showing, remembered across restarts. */
 const ROOT_MEMENTO_KEY = 'gittree.log.root';
@@ -154,6 +162,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private autoRefreshPending = false;
   /** Auto-refreshes actually executed (integration-test observability). */
   autoRefreshCount = 0;
+  /** When an auto-refresh started waiting for a running git operation. */
+  private autoRefreshWaitStart: number | undefined;
   /** POST-P14af: a tab asked for while the view was still starting — see `showTab`. */
   private pendingTab: LogTab | undefined;
 
@@ -1264,6 +1274,16 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // they are brought forward (`onActivated`).
     const session = this.session;
     if (!session?.dirty) return;
+    // A git operation is still running in this repository: wait for it to
+    // finish, so its several history moves are one re-read, not a flicker each.
+    if (session.repo.queue.isMutationActive) {
+      this.autoRefreshWaitStart ??= Date.now();
+      if (Date.now() - this.autoRefreshWaitStart < AUTO_REFRESH_MAX_WAIT_MS) {
+        this.scheduleAutoRefresh();
+        return;
+      }
+    }
+    this.autoRefreshWaitStart = undefined;
     this.autoRefreshCount++;
     this.debugTrail.push('auto-refresh');
     this.refresh({ preserve: true }, session.tab);

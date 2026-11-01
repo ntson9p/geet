@@ -177,6 +177,13 @@ export function LogTab({
   const [detailsLoading, setDetailsLoading] = useState(false);
   /** sha → details, so re-selecting a commit does not re-run git. Cleared on reset. */
   const detailsCache = useRef(new Map<string, CommitDetailsDto>());
+  /**
+   * Bumped when history moved under a kept selection: its details are read
+   * again (a push puts `origin/main` on them), without blanking the pane.
+   */
+  const [detailsEpoch, setDetailsEpoch] = useState(0);
+  /** A preserving reset is waiting for page 0 to prune the selection against. */
+  const pruneOnPageZeroRef = useRef(false);
   // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   // P12-T1: this tab's layout, persisted with its focus. A tab opened by `+` or
@@ -242,8 +249,6 @@ export function LogTab({
   orderRef.current = order;
   // The boot effect runs once per rpc, so what it reads at event time has to
   // come through refs — a closure would hold the first render's empty values.
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
   const pageRef = useRef({ next: 0, loading: false, eof: false });
@@ -327,7 +332,7 @@ export function LogTab({
     return () => {
       cancelled = true;
     };
-  }, [send, selected]);
+  }, [send, selected, detailsEpoch]);
 
   /** IntelliJ's own dwell before a commit tooltip appears. */
   const HOVER_DELAY_MS = 450;
@@ -479,6 +484,21 @@ export function LogTab({
         const next = page.page === 0 ? [...page.rows] : [...prev, ...page.rows];
         return next;
       });
+      if (page.page === 0 && pruneOnPageZeroRef.current) {
+        // The graph a preserving reset kept on screen has been replaced:
+        // commits that are gone (an amend, a rebase) leave the selection.
+        pruneOnPageZeroRef.current = false;
+        const present = new Set(page.rows.map((r) => r.sha));
+        setSelection((prev) => {
+          if (prev.shas.every((sha) => present.has(sha))) return prev;
+          const shas = prev.shas.filter((sha) => present.has(sha));
+          if (shas.length === 0) return EMPTY_SELECTION;
+          return {
+            shas,
+            ...(prev.anchor !== undefined && present.has(prev.anchor) ? { anchor: prev.anchor } : {}),
+          };
+        });
+      }
       setEof(page.eof);
       pageRef.current = { next: page.page + 1, loading: false, eof: page.eof };
       setLoading(false);
@@ -486,27 +506,31 @@ export function LogTab({
     const offReset = rpc.onEvent(LOG_METHODS.evtReset, (params) => {
       if (!isFor(params, tabId)) return;
       const dto = params as LogInitDto;
-      // `preserve` marks a reset the host raised because history moved. The
-      // rows still have to be rebuilt — a new commit renumbers every page and
-      // relays the graph — but the user did not ask to be sent back to the
-      // top, so anchor on what they were looking at and restore it when page 0
-      // lands. A user act (filter, root, Refresh) resets cleanly, as before.
+      // `preserve` marks a reset the host raised because history moved — after
+      // a commit, a cherry-pick, a push. The rows still have to be rebuilt (a
+      // new commit renumbers every page and relays the graph), but the user
+      // did not ask for any of it: the graph and the selection stay on screen
+      // until page 0 replaces them, rather than blanking and repainting — the
+      // flash this used to be. The row at the top stays at the top. A user act
+      // (filter, root, Refresh) resets cleanly, as before.
       restoreRef.current = undefined;
-      if (dto.preserve === true) {
-        const focused = selectedRef.current[0];
-        // `viewport.first` is overscanned — a few rows above the fold — so the
-        // row actually at the top edge is derived from the offset instead.
-        const topRow = rowsRef.current[Math.round(viewportRef.current.scrollTop / ROW_HEIGHT)];
-        const anchor = focused ?? topRow?.sha;
-        if (anchor !== undefined) restoreRef.current = { sha: anchor, select: focused !== undefined };
-      }
       setInit(dto);
       if (dto.presentation) presentationSeenRef.current(dto.presentation);
-      setRows([]);
-      setSelection(EMPTY_SELECTION);
       // History moved or the view changed: a commit's refs may have too.
       detailsCache.current.clear();
       setEof(false);
+      if (dto.preserve === true) {
+        // `viewport.first` is overscanned — a few rows above the fold — so the
+        // row actually at the top edge is derived from the offset instead.
+        const topRow = rowsRef.current[Math.round(viewportRef.current.scrollTop / ROW_HEIGHT)];
+        if (topRow !== undefined) restoreRef.current = { sha: topRow.sha, select: false };
+        pruneOnPageZeroRef.current = true;
+        // The details on show re-read their refs, in place.
+        setDetailsEpoch((n) => n + 1);
+      } else {
+        setRows([]);
+        setSelection(EMPTY_SELECTION);
+      }
       pageRef.current = { next: 0, loading: false, eof: false };
       requestPage(0);
     });

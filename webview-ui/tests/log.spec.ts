@@ -444,6 +444,41 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(page.getByTestId('details-body')).toBeVisible();
   });
 
+  test('auto-refresh never blanks the graph or the panes while it re-reads', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="4"]').click();
+    await expect(page.getByTestId('details-body')).toBeVisible();
+
+    // Sampled every frame from the reset until page 0 is back: the rows and
+    // the details stay on screen throughout — the flash after a cherry-pick or
+    // a push was them being emptied and repainted.
+    const emptiest = await page.evaluate(async () => {
+      const count = (): number => document.querySelectorAll('[data-testid^="log-row-"]').length;
+      const details = (): number => document.querySelectorAll('[data-testid="details-body"]').length;
+      let rows = count();
+      let panes = details();
+      window.postMessage(
+        {
+          v: 1,
+          id: 'evtreset-flash',
+          kind: 'evt',
+          method: 'log/reset',
+          params: { repoRoot: '/repo', repoLabel: 'repo', filter: { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, preserve: true },
+        },
+        '*',
+      );
+      for (let frame = 0; frame < 30; frame++) {
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+        rows = Math.min(rows, count());
+        panes = Math.min(panes, details());
+      }
+      return { rows, panes };
+    });
+    expect(emptiest.rows).toBeGreaterThan(0);
+    expect(emptiest.panes).toBeGreaterThan(0);
+    await expect(commitRow(page).locator('[data-gt-row="4"] .gt-log-row')).toHaveClass(/gt-selected/);
+  });
+
   test('P4 auto-refresh: a user-asked reset still clears the selection', async ({ page }) => {
     await openLog(page);
     await commitRow(page).locator('[data-gt-row="4"]').click();
