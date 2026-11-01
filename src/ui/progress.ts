@@ -61,3 +61,67 @@ export function vscodeProgressAdapter(): ProgressAdapter {
     }
   };
 }
+
+/** The progress of an operation made of several queued steps. */
+export interface OperationProgress {
+  /** Cancelled from the notification's Cancel; link it into each step. */
+  readonly token: CancelToken;
+  /** What it is doing now — `Fetching…`, `Merging origin/main…`. */
+  report(message: string): void;
+  /** Takes the progress down. */
+  done(): void;
+}
+
+/**
+ * One progress for an operation made of several queued steps — an update's
+ * fetch and then its merge or rebase. Each step, queued on its own, would get
+ * its own spinner and, past two seconds, its own notification: the
+ * notification closed between the steps and opened again. The steps run
+ * `quietProgress` under this one instead, which looks exactly as a single
+ * step does: the status-bar spinner at once, the cancellable notification if
+ * it is still going after two seconds.
+ */
+export function beginOperationProgress(title: string): OperationProgress {
+  const source = new CancellationSource();
+  let message: string | undefined;
+  const reporters: Array<(m: string) => void> = [];
+  let finish: () => void = () => undefined;
+  const finished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+
+  void vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title }, (progress) => {
+    reporters.push((m) => progress.report({ message: m }));
+    if (message !== undefined) progress.report({ message });
+    return finished;
+  });
+  const timer = setTimeout(() => {
+    void vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title, cancellable: true },
+      (progress, token) => {
+        const sub = token.onCancellationRequested(() => source.cancel());
+        reporters.push((m) => progress.report({ message: m }));
+        if (message !== undefined) progress.report({ message });
+        return finished.finally(() => {
+          sub.dispose();
+        });
+      },
+    );
+  }, ESCALATE_AFTER_MS);
+
+  let ended = false;
+  return {
+    token: source.token,
+    report: (m) => {
+      message = m;
+      for (const report of reporters) report(m);
+    },
+    done: () => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      finish();
+      source.dispose();
+    },
+  };
+}

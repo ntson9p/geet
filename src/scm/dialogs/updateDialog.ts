@@ -23,7 +23,10 @@ import { detectInProgressOp } from '../../core/model/inProgressOp';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { repoLabels } from '../../core/util/repoLabels';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
+import type { CancelToken, GitExecutor } from '../../core/git/executor';
+import { anyToken } from '../../core/util/cancellation';
 import { confirmModal } from '../../ui/confirm';
+import { beginOperationProgress, type OperationProgress } from '../../ui/progress';
 import { splitUpstream } from './pushArgs';
 import {
   buildDetachArgs,
@@ -338,6 +341,72 @@ export async function applyUpdateResult(
   repo: RepoHandle,
   result: UpdateRequest,
 ): Promise<UpdateOutcome> {
+  // The fetch and the merge or rebase are one operation to the user: one
+  // progress for both, not a notification that closes after the fetch and
+  // opens again for the merge. Reset asks a question in between, so its two
+  // steps keep their own.
+  if (result.action !== 'update') return applyUpdateSteps(deps, repo, result, undefined);
+  const progress = beginOperationProgress(
+    vscode.l10n.t('Updating {0}', repo.model.snapshot.headRef ?? path.basename(repo.root)),
+  );
+  try {
+    return await applyUpdateSteps(deps, repo, result, progress);
+  } finally {
+    progress.done();
+  }
+}
+
+/** A queued step under `progress`: quiet on its own, cancelled by its Cancel too. */
+function stepUnder<T>(
+  progress: OperationProgress | undefined,
+  run: (git: GitExecutor, token: CancelToken) => Promise<T>,
+): { quietProgress?: true; run: (git: GitExecutor, token: CancelToken) => Promise<T> } {
+  if (progress === undefined) return { run };
+  return {
+    quietProgress: true,
+    run: async (git, token) => {
+      const linked = anyToken(token, progress.token);
+      try {
+        return await run(git, linked.token);
+      } finally {
+        linked.dispose();
+      }
+    },
+  };
+}
+
+/**
+ * What an update brings in, measured before it integrates: the commits the
+ * upstream has that HEAD does not — however they got there. Measuring the
+ * upstream's move during this fetch alone said *Already up to date* whenever
+ * an earlier fetch (automatic, or the Fetch button) had brought the commits
+ * down already, while the merge then took them in. `base` is where HEAD and
+ * the upstream part, the start of the range `Show in Log` filters on.
+ */
+async function incomingFromUpstream(
+  core: Core,
+  repo: RepoHandle,
+  upstream: string,
+  fallbackBase: string,
+): Promise<{ commits: number; files: number; base: string }> {
+  const opts = { allowNonZeroExit: true } as const;
+  const baseRes = await core.git.exec(repo.root, ['merge-base', 'HEAD', upstream], opts);
+  const base = baseRes.exitCode === 0 ? baseRes.stdout.trim() : fallbackBase;
+  const countRes = await core.git.exec(repo.root, ['rev-list', '--count', `HEAD..${upstream}`], opts);
+  const commits = countRes.exitCode === 0 ? Number(countRes.stdout.trim()) || 0 : 0;
+  if (commits === 0 || base.length === 0) return { commits, files: 0, base };
+  const filesRes = await core.git.exec(repo.root, ['diff', '--name-only', '-z', base, upstream], opts);
+  const files =
+    filesRes.exitCode === 0 ? filesRes.stdout.split('\0').filter((p) => p.length > 0).length : 0;
+  return { commits, files, base };
+}
+
+async function applyUpdateSteps(
+  deps: UpdateDialogDeps,
+  repo: RepoHandle,
+  result: UpdateRequest,
+  progress: OperationProgress | undefined,
+): Promise<UpdateOutcome> {
   const { core } = deps;
   const snap = repo.model.snapshot;
   const upstream = snap.upstream;
@@ -354,13 +423,14 @@ export async function applyUpdateResult(
   const remote = splitUpstream(upstream, await remoteNames(core, repo))?.remote;
 
   const before = (await revParse(core, repo, upstream)) ?? '';
+  progress?.report(vscode.l10n.t('Fetching…'));
   try {
     await repo.queue.enqueue({
       label: vscode.l10n.t('Fetch'),
       kind: 'mutate',
-      run: async (git, token) => {
+      ...stepUnder(progress, async (git, token) => {
         await git.exec(repo.root, buildUpdateFetchArgs(remote), { token });
-      },
+      }),
     });
     repo.model.update({ lastFetchAt: Date.now() });
   } catch (err) {
@@ -369,9 +439,11 @@ export async function applyUpdateResult(
   }
   const after = (await revParse(core, repo, upstream)) ?? before;
 
-  // Incoming volume is measured on the *upstream* boundary, not on HEAD: a
-  // rebase rewrites local commits, so HEAD before→after would over-count.
-  const counted = await countIncoming(core, repo, before, after);
+  // Measured against HEAD, before integrating: everything the upstream has
+  // that the branch does not is what comes in — fetched now or earlier. Not
+  // HEAD before→after, which a rebase's rewritten local commits would inflate.
+  const counted = await incomingFromUpstream(core, repo, upstream, before);
+  const from = counted.base;
 
   if (result.action === 'reset') {
     const ok = await confirmModal(
@@ -386,7 +458,7 @@ export async function applyUpdateResult(
         ok: false,
         commitsPulled: counted.commits,
         filesChanged: counted.files,
-        from: before,
+        from,
         to: after,
         message: vscode.l10n.t('Reset cancelled.'),
       };
@@ -406,13 +478,13 @@ export async function applyUpdateResult(
         ok: true,
         commitsPulled: counted.commits,
         filesChanged: counted.files,
-        from: before,
+        from,
         to: after,
         message: vscode.l10n.t('Reset {0} to {1}.', snap.headRef ?? '', upstream),
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, commitsPulled: 0, filesChanged: 0, from: before, to: after, message };
+      return { ok: false, commitsPulled: 0, filesChanged: 0, from, to: after, message };
     }
   }
 
@@ -423,6 +495,11 @@ export async function applyUpdateResult(
   // Files left conflicted by git putting the user's own changes back.
   let restoreConflicts = 0;
   try {
+    progress?.report(
+      strategy === 'rebase'
+        ? vscode.l10n.t('Rebasing onto {0}…', upstream)
+        : vscode.l10n.t('Merging {0}…', upstream),
+    );
     await repo.queue.enqueue({
       label:
         strategy === 'rebase'
@@ -432,7 +509,7 @@ export async function applyUpdateResult(
       isDestructive: true,
       snapshotLabel:
         strategy === 'rebase' ? SNAPSHOT_LABELS.rebaseStart : SNAPSHOT_LABELS.merge,
-      run: async (git, token) => {
+      ...stepUnder(progress, async (git, token) => {
         // POST-P14ac: decided from a status read *now*, inside the queue — the
         // model snapshot can be older than the working tree it describes.
         const status = await git.exec(
@@ -490,7 +567,7 @@ export async function applyUpdateResult(
               ?.lifecycle?.expectConflict(repo.root, 'stash-pop');
           }
         }
-      },
+      }),
     });
   } catch (err) {
     const first = err instanceof Error ? err.message : String(err);
@@ -513,7 +590,7 @@ export async function applyUpdateResult(
       ok: false,
       commitsPulled: counted.commits,
       filesChanged: counted.files,
-      from: before,
+      from,
       to: after,
       message,
       ...(conflicts ? { conflicts: true } : {}),
@@ -534,7 +611,7 @@ export async function applyUpdateResult(
     ok: true,
     commitsPulled: counted.commits,
     filesChanged: counted.files,
-    from: before,
+    from,
     to: after,
     message:
       restoreConflicts === 0
@@ -565,30 +642,6 @@ export async function countPulled(
   const commits = countRes.exitCode === 0 ? Number(countRes.stdout.trim()) || 0 : 0;
   if (commits === 0) return { commits: 0, files: 0 };
   const filesRes = await core.git.exec(repo.root, ['diff', '--name-only', '-z', before, 'HEAD'], {
-    allowNonZeroExit: true,
-  });
-  const files =
-    filesRes.exitCode === 0
-      ? filesRes.stdout.split('\0').filter((p) => p.length > 0).length
-      : 0;
-  return { commits, files };
-}
-
-/** What `before..after` brought in: commits, and the files they changed. */
-export async function countIncoming(
-  core: Core,
-  repo: RepoHandle,
-  before: string,
-  after: string,
-): Promise<{ commits: number; files: number }> {
-  if (before.length === 0 || after.length === 0 || before === after) {
-    return { commits: 0, files: 0 };
-  }
-  const countRes = await core.git.exec(repo.root, ['rev-list', '--count', `${before}..${after}`], {
-    allowNonZeroExit: true,
-  });
-  const commits = countRes.exitCode === 0 ? Number(countRes.stdout.trim()) || 0 : 0;
-  const filesRes = await core.git.exec(repo.root, ['diff', '--name-only', '-z', before, after], {
     allowNonZeroExit: true,
   });
   const files =

@@ -580,6 +580,23 @@ suite('P13 dialogs', () => {
       );
     });
 
+
+    test('Update counts the commits an earlier fetch brought down, not just this one', async function () {
+      this.timeout(90_000);
+      const remoteSha = teammate('p13/t2-prefetched.txt', 'fetched first\n', 'P13-T2 fetched first');
+      // The Fetch button, or auto-fetch, got there first: the update's own
+      // fetch moves nothing, and it used to say "Already up to date" while the
+      // merge took the commit in.
+      git('fetch', REMOTE);
+      const outcome = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'merge' });
+      assert.ok(outcome.ok, outcome.message);
+      assert.strictEqual(outcome.commitsPulled, 1, outcome.message);
+      assert.strictEqual(outcome.filesChanged, 1, outcome.message);
+      assert.doesNotMatch(outcome.message, /Already up to date/);
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), remoteSha);
+      // `Show in Log` covers it: the range starts where the branch was.
+      assert.notStrictEqual(outcome.from, outcome.to);
+    });
     test('T2: the rebase strategy replays local commits on top of the incoming ones', async function () {
       this.timeout(90_000);
       const mine = localCommit('p13/t2-mine.txt', 'mine\n', 'P13-T2 local work');
