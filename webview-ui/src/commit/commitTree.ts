@@ -20,6 +20,7 @@
 import {
   UNVERSIONED_GROUP_ID,
   type CommitChangeDto,
+  type CommitDiffFileDto,
   type CommitGroupDto,
   type CommitRepoDto,
   type CommitStateDto,
@@ -29,6 +30,7 @@ import {
   buildTree,
   collectFiles,
   countFiles,
+  diffWalk,
   type ToggleDelta,
   type TreeNode,
 } from '../lib/treeModel';
@@ -275,6 +277,38 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
 function reDepth(node: TreeNode, depth: number): TreeNode {
   if (node.kind === 'file') return { ...node, depth };
   return { ...node, depth, children: node.children.map((c) => reDepth(c, depth + 1)) };
+}
+
+/**
+ * What a diff opened from the row at `treePath` walks through, and whether that
+ * is the selection rather than the whole list. The list spans every repository
+ * and changelist, with Unversioned Files last: IntelliJ's `iterateAllChanges`.
+ */
+export function commitDiffWalk(
+  model: CommitTreeModel,
+  selection: ReadonlySet<string>,
+  treePath: string,
+): { files: CommitDiffFileDto[]; explicit: boolean } {
+  const walk = diffWalk(model.nodes, selection, treePath);
+  const files: CommitDiffFileDto[] = [];
+  for (const path of walk.files) {
+    const ref = model.files.get(path);
+    if (ref) files.push({ repoRoot: ref.repoRoot, path: ref.relPath });
+  }
+  return { files, explicit: walk.explicit };
+}
+
+/** Every file in the list, in tree order. `model.files` is populated in that order. */
+export function allDiffFiles(model: CommitTreeModel): CommitDiffFileDto[] {
+  return [...model.files.values()].map((f) => ({ repoRoot: f.repoRoot, path: f.relPath }));
+}
+
+/** The row showing a file. A file sits in one changelist, so there is one. */
+export function treePathOf(model: CommitTreeModel, file: CommitDiffFileDto): string | undefined {
+  for (const [treePath, ref] of model.files) {
+    if (ref.repoRoot === file.repoRoot && ref.relPath === file.path) return treePath;
+  }
+  return undefined;
 }
 
 export interface RepoCheckDelta {

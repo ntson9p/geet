@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CommitFileDto } from '../../../src/shared/protocol';
 import { buildTree } from '../../../webview-ui/src/lib/treeModel';
-import { ancestorDirs, diffChain } from '../../../webview-ui/src/log/changedFilesChain';
+import { diffChain } from '../../../webview-ui/src/log/changedFilesChain';
 
 const file = (path: string, status = 'M'): CommitFileDto => ({ status, path });
 // In the order git lists them, which is not the order the tree shows them.
@@ -48,9 +48,13 @@ describe('the files a diff from the Changed Files pane walks through', () => {
     expect(paths(diffChain(nodes, byPath, selection, of('README.md')))).toEqual(TREE_ORDER);
   });
 
-  it('does not count selected folders as files', () => {
-    const selection = new Set(['src', 'src/app.ts']);
-    expect(paths(diffChain(nodes, byPath, selection, of('src/app.ts')))).toEqual(TREE_ORDER);
+  it('takes a selected folder as the files it stands for', () => {
+    const selection = new Set(['src']);
+    expect(paths(diffChain(nodes, byPath, selection, of('src/app.ts')))).toEqual([
+      'src/lib/util.ts',
+      'src/added.ts',
+      'src/app.ts',
+    ]);
   });
 
   it('follows the flat list too', () => {
@@ -65,19 +69,5 @@ describe('the files a diff from the Changed Files pane walks through', () => {
       },
     ];
     expect(paths(diffChain(flat, byPath, new Set(), of('README.md')))).toEqual(FILES.map((f) => f.path));
-  });
-});
-
-describe('the folders to open to show a file', () => {
-  it('are every row above it', () => {
-    expect(ancestorDirs(nodes, 'src/lib/util.ts').sort()).toEqual(['@repo', 'src', 'src/lib'].sort());
-  });
-
-  it('are just the repository row for a file at the top', () => {
-    expect(ancestorDirs(nodes, 'README.md')).toEqual(['@repo']);
-  });
-
-  it('are none for a file that is not there', () => {
-    expect(ancestorDirs(nodes, 'nope.txt')).toEqual([]);
   });
 });

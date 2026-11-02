@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CommitChangeDto, CommitGroupDto, CommitStateDto } from '../../../src/shared/protocol';
 import {
+  allDiffFiles,
   assembleCommitTree,
+  commitDiffWalk,
   fileCountLabel,
   fileRowContext,
   splitDelta,
+  treePathOf,
 } from '../../../webview-ui/src/commit/commitTree';
 import {
   countFiles,
@@ -68,6 +71,75 @@ function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
 function twoRepos(second = defaultList([change('api/a.ts')])): CommitStateDto {
   return state({ repos: [...state().repos, repo('D:/repos/other', 'other', [second])] });
 }
+
+describe('what a diff from the Commit window walks', () => {
+  const DEMO = 'D:/repos/demo';
+  const file = (path: string, repoRoot = DEMO) => ({ repoRoot, path });
+  const rowOf = (model: ReturnType<typeof assembleCommitTree>, path: string, repoRoot = DEMO): string =>
+    treePathOf(model, { repoRoot, path })!;
+
+  it('is the whole list as the tree shows it, Unversioned Files last', () => {
+    const model = assembleCommitTree(state());
+    const walk = commitDiffWalk(model, new Set(), rowOf(model, 'docs/x.md'));
+    expect(walk.explicit).toBe(false);
+    expect(walk.files).toEqual([
+      file('api/a.ts'),
+      file('api/b.ts'),
+      file('docs/x.md'),
+      file('api/new.ts'),
+    ]);
+  });
+
+  it('crosses changelists', () => {
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo(DEMO, 'demo', [
+            defaultList([change('z.ts')]),
+            namedList('l1', 'Feature', [change('a.ts')]),
+          ]),
+        ],
+      }),
+    );
+    expect(commitDiffWalk(model, new Set(), rowOf(model, 'z.ts')).files).toEqual([file('z.ts'), file('a.ts')]);
+  });
+
+  it('crosses repositories, each file knowing its own', () => {
+    const model = assembleCommitTree(twoRepos());
+    const { files } = commitDiffWalk(model, new Set(), rowOf(model, 'api/a.ts', 'D:/repos/other'));
+    expect(files.map((f) => f.repoRoot)).toContain(DEMO);
+    expect(files.map((f) => f.repoRoot)).toContain('D:/repos/other');
+    expect(files.at(-1)).toEqual(file('api/a.ts', 'D:/repos/other'));
+  });
+
+  it('is only the rows selected with several selected, and says so', () => {
+    const model = assembleCommitTree(state());
+    const a = rowOf(model, 'api/a.ts');
+    const x = rowOf(model, 'docs/x.md');
+    expect(commitDiffWalk(model, new Set([x, a]), x)).toEqual({
+      files: [file('api/a.ts'), file('docs/x.md')],
+      explicit: true,
+    });
+  });
+
+  it('agrees with the list the host is told about when it changes', () => {
+    const model = assembleCommitTree(state());
+    expect(allDiffFiles(model)).toEqual(commitDiffWalk(model, new Set(), rowOf(model, 'api/a.ts')).files);
+  });
+
+  it('finds no row for a file that has left the list', () => {
+    expect(treePathOf(assembleCommitTree(state()), file('gone.ts'))).toBeUndefined();
+  });
+
+  it('tells two repositories apart when a path is in both', () => {
+    const model = assembleCommitTree(twoRepos());
+    const here = treePathOf(model, file('api/a.ts'));
+    const there = treePathOf(model, file('api/a.ts', 'D:/repos/other'));
+    expect(here).toBeDefined();
+    expect(there).toBeDefined();
+    expect(here).not.toBe(there);
+  });
+});
 
 describe('assembleCommitTree groups map (P14-T2)', () => {
   it('maps every group row back to its changelist identity', () => {

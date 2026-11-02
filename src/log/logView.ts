@@ -1620,18 +1620,16 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       title: titleOf(f),
       label: f.path,
       identical: hasIdenticalSides(f.status),
+      onShown: () => {
+        this.rpc?.notify(LOG_METHODS.evtDiffFile, { logTab: tab, sha, path: f.path });
+      },
     }));
     const index = Math.max(
       0,
       files.findIndex((f) => f.path === file.path),
     );
     if (p14) {
-      await p14.sessions.open(entries, index, {
-        preserveFocus: browsing,
-        onMove: (at) => {
-          this.rpc?.notify(LOG_METHODS.evtDiffFile, { logTab: tab, sha, path: files[at]?.path });
-        },
-      });
+      await p14.sessions.open(entries, index, { preserveFocus: browsing });
       return;
     }
     await vscode.commands.executeCommand(

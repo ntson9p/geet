@@ -4,9 +4,11 @@
  * differ, so the document says what it is instead. Pure and vscode-free.
  */
 
+export const BINARY_SNIFF_BYTES = 8000;
+
 /** Git's own test for a binary file: a NUL within the first 8000 bytes. */
 export function looksBinary(text: string): boolean {
-  return text.slice(0, 8000).includes('\0');
+  return text.slice(0, BINARY_SNIFF_BYTES).includes('\0');
 }
 
 /** `1,204 bytes`, `1.2 KB`, `3.4 MB`. */
@@ -23,4 +25,14 @@ export function formatSize(bytes: number): string {
 export function binaryPlaceholder(bytes: number | undefined, objectId: string): string {
   const size = bytes !== undefined && Number.isFinite(bytes) ? `, ${formatSize(bytes)}` : '';
   return `Binary file${size} (${objectId})\n`;
+}
+
+/**
+ * A file in the working tree VS Code will not open as text: binary, or past the
+ * size it hands to extensions. It has no object id yet.
+ */
+export function worktreePlaceholder(bytes: number, binary: boolean): string {
+  return binary
+    ? binaryPlaceholder(bytes, 'working tree')
+    : `File too large to compare, ${formatSize(bytes)} (working tree)\n`;
 }

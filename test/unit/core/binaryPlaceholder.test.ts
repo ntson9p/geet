@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { binaryPlaceholder, formatSize, looksBinary } from '../../../src/core/vdocs/binaryPlaceholder';
+import {
+  binaryPlaceholder,
+  formatSize,
+  looksBinary,
+  worktreePlaceholder,
+} from '../../../src/core/vdocs/binaryPlaceholder';
 
 describe('what a binary revision reads as', () => {
   it('goes by the same test git does: a NUL near the start', () => {
@@ -28,6 +33,14 @@ describe('what a binary revision reads as', () => {
   it('reads differently for two versions of the same size', () => {
     // Otherwise a diff of them would say nothing had changed.
     expect(binaryPlaceholder(79, 'aaaaaaa')).not.toBe(binaryPlaceholder(79, 'bbbbbbb'));
+  });
+
+  it('says working tree for a file not in git yet', () => {
+    expect(worktreePlaceholder(96, true)).toBe('Binary file, 96 bytes (working tree)\n');
+  });
+
+  it('does not call a very large text file binary', () => {
+    expect(worktreePlaceholder(60 * 1024 * 1024, false)).toBe('File too large to compare, 60.0 MB (working tree)\n');
   });
 
   it('leaves the size out when git could not give it', () => {

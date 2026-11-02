@@ -127,6 +127,16 @@ export interface CommitRepoDto {
   groups: CommitGroupDto[];
 }
 
+export interface CommitDiffFileDto {
+  repoRoot: string;
+  path: string;
+}
+
+export interface CommitOpenDiffParamsDto extends CommitDiffFileDto {
+  /** The files to walk, as the tree shows them. */
+  files: CommitDiffFileDto[];
+}
+
 export interface CommitStateDto {
   repos: CommitRepoDto[];
   /** Repo the message box and the amend checkbox act on. */
@@ -191,7 +201,14 @@ export const COMMIT_METHODS = {
   commit: 'commit/commit',
   toggleAmend: 'commit/toggleAmend',
   refresh: 'commit/refresh',
+  /** `CommitOpenDiffParamsDto`: a file's diff, and the files to walk from it. */
   openDiff: 'commit/openDiff',
+  /** The list changed under a walk over all of it: `{ files: CommitDiffFileDto[] }`. */
+  diffChain: 'commit/diffChain',
+  /** host → webview: the walk moved to another file (`CommitDiffFileDto`). */
+  evtDiffFile: 'commit/diffFile',
+  /** host → webview: `Open Changes` from a row's menu (`CommitDiffFileDto`). */
+  evtOpenDiff: 'commit/openDiffAt',
   rollback: 'commit/rollback',
   shelve: 'commit/shelve',
   /** P11-T5: the gear popup's snapshot — author, sign-off, checks, defer. */

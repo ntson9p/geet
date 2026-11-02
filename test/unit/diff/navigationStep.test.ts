@@ -4,9 +4,11 @@ import {
   boundaryAction,
   expectedLanding,
   hasIdenticalSides,
+  hoverWouldCoverToolbar,
   movedOn,
   needsAsking,
   nextStop,
+  nothingHiddenAhead,
   positionedTitle,
   predict,
   predictedChanges,
@@ -197,6 +199,46 @@ describe('cross-file change navigation (P14-T7)', () => {
       b[10] = 'first';
       b[2990] = 'last';
       expect(predictedChanges(a.join('\n'), b.join('\n'), true)).toBeUndefined();
+    });
+  });
+
+  describe('whether "nothing ahead" needs VS Code to confirm it', () => {
+    const block = predictedChanges(L(40), L(40).replace('line 20\n', 'X\nY\nZ\n'), true)!;
+
+    it('does not when the rest of the last change is on screen', () => {
+      expect(nothingHiddenAhead(CHANGES, 'next', { first: 0, last: 30 })).toBe(true);
+      expect(nothingHiddenAhead(block, 'next', { first: 10, last: 30 })).toBe(true);
+    });
+
+    it('does when part of it is below the view: that part could be a change of its own', () => {
+      expect(nothingHiddenAhead(block, 'next', { first: 0, last: 19 })).toBe(false);
+    });
+
+    it('going back, does not while the first change starts on screen', () => {
+      expect(nothingHiddenAhead(block, 'prev', { first: 10, last: 30 })).toBe(true);
+      expect(nothingHiddenAhead(block, 'prev', { first: 25, last: 50 })).toBe(false);
+    });
+
+    it('does when GitTree could not tell, or cannot see the view', () => {
+      expect(nothingHiddenAhead(undefined, 'next', { first: 0, last: 30 })).toBe(false);
+      expect(nothingHiddenAhead(CHANGES, 'next', undefined)).toBe(false);
+    });
+
+    it('never does for a file with no change to be wrong about', () => {
+      expect(nothingHiddenAhead([], 'next', { first: 0, last: 30 })).toBe(true);
+    });
+  });
+
+  describe('where the hint can go', () => {
+    it('cannot be a hover on the first lines in view: it would cover the button just clicked', () => {
+      expect(hoverWouldCoverToolbar(0, 0)).toBe(true);
+      expect(hoverWouldCoverToolbar(3, 0)).toBe(true);
+      expect(hoverWouldCoverToolbar(53, 50)).toBe(true);
+    });
+
+    it('can further down', () => {
+      expect(hoverWouldCoverToolbar(4, 0)).toBe(false);
+      expect(hoverWouldCoverToolbar(250, 232)).toBe(false);
     });
   });
 

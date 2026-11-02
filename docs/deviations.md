@@ -34,7 +34,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D17](#d17--apply-non-conflicting-changes-acts-on-conflict-blocks-not-the-whole-diff) | `Apply non-conflicting changes` acts on conflict blocks; git pre-applies the rest | Only by dropping git's own re-merge |
 | [D18](#d18--change-bars-sit-at-the-content-edge) | Change bars sit at the content edge, ~21px right of VS Code's own lane | No (no public API targets that lane) |
 | [D19](#d19--the-change-popup-is-keyboard-invoked-hover-is-opt-in) | The change popup opens from a key (hover is opt-in), not by clicking the bar | No (decorations expose no click handler) |
-| [D20](#d20--walking-a-commit-differs-from-intellij-in-four-small-ways) | Walking a commit's changes differs from IntelliJ in four small ways | Partly (image diffs); the rest are VS Code's limits |
+| [D20](#d20--walking-a-list-of-changes-differs-from-intellij-in-small-ways) | Walking a list of changes differs from IntelliJ in small ways | Partly (image diffs); the rest are VS Code's limits |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
 | [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
@@ -353,7 +353,7 @@ actions — off, they are keyboard-only.
 **Revisitable:** no, absent a new API. A click handler on the bar would make both the hover
 and this entry unnecessary.
 
-## D20 · Walking a commit differs from IntelliJ in four small ways
+## D20 · Walking a list of changes differs from IntelliJ in small ways
 
 VS Code's own ↑ ↓ buttons and `Alt+F5` do the walk on GitTree's diffs. An extension cannot remove a
 core menu item, but the button only runs a command, and VS Code's registry hands a command to
@@ -369,6 +369,8 @@ IntelliJ's *Go to the next file after reaching last change*.
 | The next button is disabled at the end of the list | **It stays enabled and says** *This is the last change* | Whether a core button is enabled is not an extension's to decide |
 | Images diff side by side | **Any binary file reads as** `Binary file, 79 bytes (7d1ad7a)` on each side | VS Code's image viewer cannot read `gittree-rev:`, which is a text content provider. Showing images needs a read-only file system for those revisions |
 | The hint names no file | **It names the next file** and its position | An addition, since VS Code's hover has the room |
+| The hint is a tooltip wherever the change is | **On the first few lines in view it is a label at the end of the line** | A hover there is drawn over the toolbar, and in a window under about 1200px wide over the ↓ just clicked, so the second click would hit the hover |
+| The tooltip says only that | **A language server's own hover can appear under it**, on a line starting with a symbol it knows | The hover cannot be told to leave other providers out, and only a file in the working tree has a language server looking at it |
 
 **Revisitable:** image diffs, at the cost of a `FileSystemProvider`. A viewer of GitTree's own (D1's
 Route B) would allow the other two, which is no reason to take on that trade.

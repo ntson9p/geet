@@ -160,6 +160,24 @@ describe("the diff toolbar's file arrows", () => {
   });
 });
 
+describe("the Commit window row's Open Changes", () => {
+  const menu = manifest.contributes.menus['webview/context'] ?? [];
+  const rowItems = menu.filter((e) => e.when?.includes("webviewSection == 'commitFile'"));
+
+  it('goes through the window, which knows the order and the selection', () => {
+    const open = rowItems.find((e) => e.group === '1_open@1');
+    expect(open?.command).toBe('gittree.commit.openChanges');
+    expect(rowItems.map((e) => e.command)).not.toContain('gittree.openDiff');
+  });
+
+  it('keeps its name, and stays out of the palette: it means nothing without a row', () => {
+    const command = manifest.contributes.commands.find((c) => c.command === 'gittree.commit.openChanges');
+    expect(command?.title).toBe('%gittree.command.openDiff.title%');
+    const palette = manifest.contributes.menus['commandPalette'] ?? [];
+    expect(palette.find((e) => e.command === 'gittree.commit.openChanges')?.when).toBe('false');
+  });
+});
+
 describe("taking over VS Code's own next and previous change", () => {
   it('adds no arrows of its own beside them', () => {
     // The button is theirs, and it now does this; a second pair would only differ

@@ -13,15 +13,25 @@
  * The host owns all state. The webview renders what it is given and posts
  * intents back; every handler is idempotent so a rehydrate can re-send.
  */
+import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { isUntracked, shortCode, type StatusEntry } from '../../core/model/statusEntry';
 import { canonicalKey } from '../../core/repoDiscovery';
 import {
+  diffTitle,
+  EMPTY_SIDE_REF,
+  makeRevUri,
+  WORKTREE_STUB_REF,
+} from '../../core/vdocs/revContentProvider';
+import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
+import {
   COMMIT_METHODS,
   type CommitChangeDto,
+  type CommitDiffFileDto,
   type CommitFileDiffDto,
+  type CommitOpenDiffParamsDto,
   type CommitGroupDto,
   type CommitRepoDto,
   type CommitRunParamsDto,
@@ -40,6 +50,7 @@ import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
 import { computeFileDiff } from './fileDiff';
 import { signChanges, type InclusionModel } from './inclusion';
+import { localDiffSides } from './localDiffSides';
 import { applyOption, readOptions, type CommitOptionsStore } from './options';
 import type { ShelfBridge } from './shelfBridge';
 import type { StashBridge } from './stashBridge';
@@ -64,6 +75,9 @@ export interface CommitWindowDeps {
 }
 
 const MESSAGE_KEY_PREFIX = 'gittree.commit.message.';
+
+/** The one walk over this window's list: opening another replaces it. */
+const DIFF_SEQUENCE_ID = 'commit-window';
 
 function classify(entry: StatusEntry | undefined): CommitChangeDto['kind'] {
   if (!entry) return 'modified';
@@ -295,6 +309,85 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     }
   }
 
+  // ---- diffs (POST-P14au) ----------------------------------------------------
+
+  /** A row's diff, walkable through `files`, the way the tree shows them. */
+  async openDiff(params: CommitOpenDiffParamsDto): Promise<void> {
+    const entries = this.diffEntries(params.files);
+    const wanted = this.diffEntries([params])[0];
+    if (!wanted) return;
+    const index = Math.max(
+      0,
+      entries.findIndex((e) => e.key === wanted.key),
+    );
+    await this.diffSessions()?.open(entries.length > 0 ? entries : [wanted], index, {
+      id: DIFF_SEQUENCE_ID,
+    });
+  }
+
+  /** The list changed under a walk over all of it. */
+  followDiffList(files: readonly CommitDiffFileDto[]): void {
+    this.diffSessions()?.update(DIFF_SEQUENCE_ID, this.diffEntries(files));
+  }
+
+  /** `Open Changes` from a row's menu: only the webview knows the order and the selection. */
+  openDiffAt(file: CommitDiffFileDto): void {
+    this.rpc?.notify(COMMIT_METHODS.evtOpenDiff, file);
+  }
+
+  private diffSessions(): DiffSessionRegistry | undefined {
+    return (this.deps.core.debugRegistry.get('phase14') as { sessions: DiffSessionRegistry } | undefined)?.sessions;
+  }
+
+  private diffEntries(files: readonly CommitDiffFileDto[]): DiffEntry[] {
+    const multiRepo = this.deps.core.repos.length > 1;
+    const out: DiffEntry[] = [];
+    for (const file of files) {
+      const repo = this.repoFor(file.repoRoot);
+      if (repo) out.push(this.diffEntry(repo, file.path, multiRepo));
+    }
+    return out;
+  }
+
+  private diffEntry(repo: RepoHandle, relPath: string, multiRepo: boolean): DiffEntry {
+    const sides = localDiffSides(
+      relPath,
+      this.deps.changelistsFor(repo).statusEntry(relPath),
+      this.deps.paradigm.paradigm,
+    );
+    const worktree = vscode.Uri.file(path.join(repo.root, relPath));
+    const entry: DiffEntry = {
+      key: `${repo.root}\n${relPath}`,
+      original: makeRevUri(repo.root, sides.left.relPath, sides.left.ref),
+      modified: sides.right === 'worktree' ? worktree : makeRevUri(repo.root, relPath, ':0'),
+      title: diffTitle(relPath, sides.titleKind),
+      label: multiRepo ? `${path.basename(repo.root)}/${relPath}` : relPath,
+      onShown: () => {
+        this.rpc?.notify(COMMIT_METHODS.evtDiffFile, { repoRoot: repo.root, path: relPath });
+      },
+      // Whether VS Code will show the file is VS Code's to say, and asking it
+      // again each time is what notices a file deleted since the list was read.
+      ...(sides.right === 'worktree'
+        ? {
+            settle: async (): Promise<DiffEntry> => {
+              try {
+                await vscode.workspace.openTextDocument(worktree);
+                return entry;
+              } catch {
+                const present = await fsp.stat(worktree.fsPath).then(
+                  () => true,
+                  () => false,
+                );
+                const ref = present ? WORKTREE_STUB_REF : EMPTY_SIDE_REF;
+                return { ...entry, modified: makeRevUri(repo.root, relPath, ref) };
+              }
+            },
+          }
+        : {}),
+    };
+    return entry;
+  }
+
   /** True once the view has been made visible and the webview exists. */
   get isResolved(): boolean {
     return this.view !== undefined;
@@ -511,14 +604,9 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       this.push();
     });
 
-    rpc.on(COMMIT_METHODS.openDiff, async (raw) => {
-      const p = raw as { repoRoot: string; path: string };
-      const repo = this.repoFor(p.repoRoot);
-      if (!repo) return;
-      await vscode.commands.executeCommand(
-        'gittree.openDiff',
-        vscode.Uri.file(path.join(repo.root, p.path)),
-      );
+    rpc.on(COMMIT_METHODS.openDiff, (raw) => this.openDiff(raw as CommitOpenDiffParamsDto));
+    rpc.on(COMMIT_METHODS.diffChain, (raw) => {
+      this.followDiffList((raw as { files: CommitDiffFileDto[] }).files);
     });
 
     rpc.on(COMMIT_METHODS.rollback, async (raw) => {

@@ -22,26 +22,38 @@ export interface DiffEntry {
   readonly label?: string;
   /** Known from the list to have no text change, so nothing has to be read to skip it. */
   readonly identical?: boolean;
+  /** Which file this is, for an entry whose sides can change. Its two URIs, without one. */
+  readonly key?: string;
+  /**
+   * What to show for this file now, for a side that can change under a list read
+   * earlier: a file in the working tree can be gone, or not be text.
+   */
+  readonly settle?: () => Promise<DiffEntry>;
+  /** Navigation brought this file up, so the list it came from can follow. */
+  readonly onShown?: () => void;
 }
 
 export interface OpenDiffOptions {
   /** Leave focus where it is: the list is being browsed, not left. */
   readonly preserveFocus?: boolean;
-  /** Told the position whenever navigation brings another file of this sequence up. */
-  readonly onMove?: (index: number) => void;
+  /**
+   * Names a sequence that stands for a list which goes on changing. Opening under
+   * the same name replaces it, and `update` keeps it current.
+   */
+  readonly id?: string;
 }
 
 interface DiffSequence {
-  readonly entries: readonly DiffEntry[];
+  readonly id?: string;
+  entries: DiffEntry[];
   /** `pairKey` → position; a commit can hold thousands of files, and this runs on every tab change. */
-  readonly positions: ReadonlyMap<string, number>;
-  readonly onMove?: (index: number) => void;
+  positions: Map<string, number>;
 }
 
 export interface ActiveDiff {
+  readonly sequence: DiffSequence;
   readonly entries: readonly DiffEntry[];
   readonly index: number;
-  readonly onMove?: (index: number) => void;
 }
 
 /** Bounded: a session is only interesting while its tabs are reachable. */
@@ -70,9 +82,7 @@ export class DiffSessionRegistry implements vscode.Disposable {
 
   private sync(): void {
     const active = this.active();
-    const key = active
-      ? `${active.index}/${active.entries.length} ${pairKey(active.entries[active.index]!)}`
-      : undefined;
+    const key = active ? `${active.index}/${active.entries.length} ${pairKey(entryAt(active))}` : undefined;
     if (key === this.lastActive) return;
     this.lastActive = key;
     const setContext = (name: string, value: boolean): void => {
@@ -94,21 +104,52 @@ export class DiffSessionRegistry implements vscode.Disposable {
     options: OpenDiffOptions = {},
   ): Promise<void> {
     if (!entries[index]) return;
-    this.remember(entries, options.onMove);
-    await this.show(entries, index, options.preserveFocus === true);
+    const sequence = this.remember(entries, options.id);
+    const entry = await this.settled(sequence, sequence.entries[index]!);
+    await this.show(entry, index, sequence.entries.length, options.preserveFocus === true);
     // Reopening the file already on screen changes no tab, and a list that has
     // since changed may still have moved it.
     this.sync();
   }
 
   /**
-   * Brings up another position of the sequence on screen, in the same preview
-   * tab, with the cursor on `line` whatever the file's view state says.
+   * Another position of the sequence on screen, in the same preview tab, with the
+   * cursor on `line` whatever the file's view state says.
    */
-  async moveTo(active: ActiveDiff, index: number, line = 0): Promise<void> {
-    if (!active.entries[index]) return;
-    await this.show(active.entries, index, false, new vscode.Range(line, 0, line, 0));
-    active.onMove?.(index);
+  async moveTo(active: ActiveDiff, entry: DiffEntry, index: number, line = 0): Promise<void> {
+    await this.show(entry, index, active.entries.length, false, new vscode.Range(line, 0, line, 0));
+    entry.onShown?.();
+  }
+
+  /** What to show for an entry now. A diff of it found on screen stays this sequence's. */
+  async settled(sequence: DiffSequence, entry: DiffEntry): Promise<DiffEntry> {
+    if (entry.settle === undefined) return entry;
+    const now = await entry.settle();
+    const at = sequence.entries.findIndex((e) => entryKey(e) === entryKey(now));
+    if (at >= 0) {
+      sequence.entries[at] = now;
+      sequence.positions.set(pairKey(now), at);
+    }
+    return now;
+  }
+
+  /**
+   * The list behind a named sequence changed. A file on screen that has left the
+   * list stays in it where it was, since a file nobody can walk away from is no
+   * use to anyone reverting its last change: IntelliJ keeps it up too.
+   */
+  update(id: string, entries: readonly DiffEntry[]): void {
+    const sequence = this.sequences.find((s) => s.id === id);
+    if (!sequence) return;
+    const active = this.active();
+    const shown = active?.sequence === sequence ? entryAt(active) : undefined;
+    const next = entries.map((e) => (shown && entryKey(e) === entryKey(shown) ? shown : e));
+    if (active && shown && !next.includes(shown)) {
+      next.splice(Math.min(active.index, next.length), 0, shown);
+    }
+    sequence.entries = next;
+    sequence.positions = positionsOf(next);
+    this.sync();
   }
 
   /** How long ago a diff was brought up. */
@@ -117,18 +158,18 @@ export class DiffSessionRegistry implements vscode.Disposable {
   }
 
   private async show(
-    entries: readonly DiffEntry[],
+    entry: DiffEntry,
     index: number,
+    total: number,
     preserveFocus: boolean,
     selection?: vscode.Range,
   ): Promise<void> {
-    const entry = entries[index]!;
     this.shownAt = Date.now();
     await vscode.commands.executeCommand(
       'vscode.diff',
       entry.original,
       entry.modified,
-      positionedTitle(entry.title, index, entries.length),
+      positionedTitle(entry.title, index, total),
       {
         // Walking a commit replaces the one tab, as IntelliJ's viewer does,
         // rather than leaving one behind per file. Pinning it keeps it.
@@ -144,19 +185,20 @@ export class DiffSessionRegistry implements vscode.Disposable {
     );
   }
 
-  private remember(
-    entries: readonly DiffEntry[],
-    onMove: ((index: number) => void) | undefined,
-  ): void {
+  private remember(entries: readonly DiffEntry[], id: string | undefined): DiffSequence {
     const key = sequenceKey(entries);
-    const existing = this.sequences.findIndex((s) => sequenceKey(s.entries) === key);
+    const existing = this.sequences.findIndex((s) =>
+      id !== undefined ? s.id === id : s.id === undefined && sequenceKey(s.entries) === key,
+    );
     if (existing >= 0) this.sequences.splice(existing, 1);
-    this.sequences.unshift({
+    const sequence: DiffSequence = {
       entries: [...entries],
-      positions: new Map(entries.map((e, i) => [pairKey(e), i])),
-      ...(onMove !== undefined ? { onMove } : {}),
-    });
+      positions: positionsOf(entries),
+      ...(id !== undefined ? { id } : {}),
+    };
+    this.sequences.unshift(sequence);
     while (this.sequences.length > MAX_SEQUENCES) this.sequences.pop();
+    return sequence;
   }
 
   /** The sequence and position of the diff currently on screen, if it is ours. */
@@ -164,15 +206,9 @@ export class DiffSessionRegistry implements vscode.Disposable {
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
     if (!tab || !(tab.input instanceof vscode.TabInputTextDiff)) return undefined;
     const pair = pairKey(tab.input);
-    for (const s of this.sequences) {
-      const index = s.positions.get(pair);
-      if (index !== undefined) {
-        return {
-          entries: s.entries,
-          index,
-          ...(s.onMove !== undefined ? { onMove: s.onMove } : {}),
-        };
-      }
+    for (const sequence of this.sequences) {
+      const index = sequence.positions.get(pair);
+      if (index !== undefined) return { sequence, entries: sequence.entries, index };
     }
     return undefined;
   }
@@ -184,8 +220,30 @@ export class DiffSessionRegistry implements vscode.Disposable {
   }
 }
 
+export function entryAt(active: ActiveDiff): DiffEntry {
+  return active.entries[active.index]!;
+}
+
+/**
+ * A URI as VS Code identifies a file. Paths are case-insensitive on Windows and
+ * macOS, where it keeps the casing it saw first, so a tab can hold a working-tree
+ * file under another casing than the one git reported and the entry was built with.
+ */
+export function uriKey(uri: vscode.Uri): string {
+  const text = uri.toString();
+  return uri.scheme === 'file' && process.platform !== 'linux' ? text.toLowerCase() : text;
+}
+
 function pairKey(pair: { readonly original: vscode.Uri; readonly modified: vscode.Uri }): string {
-  return `${pair.original.toString()}\n${pair.modified.toString()}`;
+  return `${uriKey(pair.original)}\n${uriKey(pair.modified)}`;
+}
+
+function entryKey(entry: DiffEntry): string {
+  return entry.key ?? pairKey(entry);
+}
+
+function positionsOf(entries: readonly DiffEntry[]): Map<string, number> {
+  return new Map(entries.map((e, i) => [pairKey(e), i]));
 }
 
 function sequenceKey(entries: readonly DiffEntry[]): string {

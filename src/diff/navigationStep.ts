@@ -22,7 +22,8 @@
  * the top of the file, which shows. So GitTree's own diff answers first
  * (`predict`): when it says nothing lies ahead, the press announces the boundary
  * without touching the view. Before actually leaving the file VS Code gets the
- * last word, because a wrong prediction must never skip a change.
+ * last word, because a wrong prediction must never skip a change, unless all it
+ * could have got wrong is already on screen (`nothingHiddenAhead`).
  */
 import { computeLineChanges, exceedsLineDiffCap } from '../core/patch/lineDiff';
 import { toChanges, type Change } from '../scm/gutter/changeModel';
@@ -50,6 +51,23 @@ export interface PressInput {
   /** VS Code itself, not just the prediction, has found nothing further from here. */
   readonly confirmed: boolean;
   readonly prediction: Prediction;
+}
+
+/**
+ * Whether "nothing ahead" can stand without VS Code's word. The two diffs agree on
+ * which lines differ, so all it could add is a split of GitTree's last change into
+ * two, and a change on screen cannot be walked past unseen. Asking would wrap the
+ * view to the top of the file on the way out, so it is worth not asking.
+ */
+export function nothingHiddenAhead(
+  changes: readonly Change[] | undefined,
+  direction: Direction,
+  visible: { readonly first: number; readonly last: number } | undefined,
+): boolean {
+  if (changes === undefined || visible === undefined) return false;
+  return direction === 'next'
+    ? changes.every((c) => c.endLine <= visible.last)
+    : changes.every((c) => c.startLine >= visible.first);
 }
 
 /**
@@ -178,6 +196,18 @@ export function alreadyLanded(
   landOn: 'first' | 'last',
 ): boolean {
   return changes !== undefined && expectedLanding(changes, landOn) === 0;
+}
+
+/**
+ * Whether a hover at this line would cover the editor's toolbar. VS Code draws a
+ * hover above its line if the window has the room, counting what is above the
+ * editor, so one near the top goes over the tabs and toolbar. In a window narrower
+ * than about 1200px it lands right on the next-change button the pointer is still
+ * on, and the second click, the one it asks for, hits the hover instead. Four lines
+ * is the height of the hint.
+ */
+export function hoverWouldCoverToolbar(line: number, firstVisibleLine: number): boolean {
+  return line - firstVisibleLine < 4;
 }
 
 /** `foo.ts (62c3e1a)` becomes `foo.ts (62c3e1a) 3/7`: where you are, on the tab. */

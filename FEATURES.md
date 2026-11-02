@@ -40,13 +40,20 @@ ships. Accepted divergences are named here and registered once in
 * **GitTree:** its own controls on its own diffs (`isInDiffEditor && gittree.diff.active`):
   **← → file · side-by-side/inline · ignore whitespace · collapse unchanged**, with
   `Shift+Alt+←`/`→` for the files and `F7`/`Shift+F7` for the changes under the IntelliJ keymap.
-* **Cross-file navigation, on VS Code's own ↑ ↓ and `Alt+F5`:** the changed-files list you clicked
-  from *is* the sequence, in the order the list shows it, or only the rows selected when there are
-  several. At the last change the first press shows a tooltip, **Press again to go to the next
+* **Cross-file navigation, on VS Code's own ↑ ↓ and `Alt+F5`:** the list you clicked from *is* the
+  sequence, a commit's Changed Files or the Commit window's changes, in the order the list shows it,
+  or only the rows selected when there are several. At the last change the first press shows a tooltip, **Press again to go to the next
   file**, with that file's name and position. The second press crosses in the same tab, landing on
   its first change (or its last, going backwards). At the end of the last file it says so and
   **never wraps**. Other diffs keep VS Code's behaviour, and
   `gittree.diff.goToNextFileAfterLastChange` turns this off.
+* **The Commit window's list is live**, and spans every changelist and repository with Unversioned
+  Files last, as IntelliJ's does. A file that starts changing joins the walk, one that is reverted
+  or committed leaves it, and the file on screen stays up either way. The right side is the real
+  file, so you can edit it as you go.
+* **What a row compares:** with changelists, `HEAD` against the working tree, which is what the
+  commit will produce and what the preview pane shows. With staging, what is not staged yet against
+  the index, or else what is staged against `HEAD`.
 * **Along the way:** the tab says where you are (`foo.ts (62c3e1a) 3/7`) and the list's selection
   follows the diff. An added or deleted file is a stop like any other; one with no text change is
   skipped by ↓, though `→` still shows it. A binary file reads as `Binary file, 79 bytes (7d1ad7a)`.

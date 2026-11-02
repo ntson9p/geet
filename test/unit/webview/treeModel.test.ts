@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   allDirPaths,
+  allFiles,
+  ancestorDirs,
   buildTree,
   collectFiles,
   countFiles,
+  diffWalk,
   findNode,
   flatten,
   rollup,
   rowIndexOf,
+  selectedFiles,
+  selectionFollowing,
   toggle,
   type TreeDirNode,
   type TreeNode,
@@ -23,6 +28,104 @@ function render(nodes: readonly TreeNode[], expanded: ReadonlySet<string>): stri
 function dirs(nodes: readonly TreeNode[]): Set<string> {
   return new Set(allDirPaths(nodes));
 }
+
+describe('walking the files of a tree', () => {
+  // Folders before files at every level, whatever order the paths came in.
+  const nodes = buildTree(['README.md', 'logo.png', 'src/added.ts', 'src/app.ts', 'src/lib/util.ts', 'zed.txt'], {
+    root: { path: '@repo', name: 'repo' },
+  });
+  const ALL = ['src/lib/util.ts', 'src/added.ts', 'src/app.ts', 'logo.png', 'README.md', 'zed.txt'];
+  const selecting = (...paths: string[]): Set<string> => new Set(paths);
+
+  it('lists every file in the order the tree shows them', () => {
+    expect(allFiles(nodes)).toEqual(ALL);
+    expect(allFiles([])).toEqual([]);
+  });
+
+  describe('what a selection stands for', () => {
+    it('is its files, in tree order, not the order they were picked', () => {
+      expect(selectedFiles(nodes, selecting('zed.txt', 'src/app.ts'))).toEqual(['src/app.ts', 'zed.txt']);
+    });
+
+    it('is all the files of a selected folder', () => {
+      expect(selectedFiles(nodes, selecting('src'))).toEqual(['src/lib/util.ts', 'src/added.ts', 'src/app.ts']);
+      expect(selectedFiles(nodes, selecting('src/lib'))).toEqual(['src/lib/util.ts']);
+    });
+
+    it('does not count a file twice when its folder is selected too', () => {
+      expect(selectedFiles(nodes, selecting('src/lib', 'src/lib/util.ts'))).toEqual(['src/lib/util.ts']);
+    });
+
+    it('is nothing for nothing, or for a row that is gone', () => {
+      expect(selectedFiles(nodes, selecting())).toEqual([]);
+      expect(selectedFiles(nodes, selecting('gone.txt'))).toEqual([]);
+    });
+  });
+
+  describe('what a diff walks (IntelliJ\'s getListSelectionOrAll)', () => {
+    it('is every file with one file selected or none', () => {
+      expect(diffWalk(nodes, selecting('src/app.ts'), 'src/app.ts')).toEqual({ files: ALL, explicit: false });
+      expect(diffWalk(nodes, selecting(), 'src/app.ts')).toEqual({ files: ALL, explicit: false });
+    });
+
+    it('is only those with several selected', () => {
+      expect(diffWalk(nodes, selecting('zed.txt', 'src/app.ts'), 'zed.txt')).toEqual({
+        files: ['src/app.ts', 'zed.txt'],
+        explicit: true,
+      });
+    });
+
+    it('takes a folder as the several files it stands for', () => {
+      expect(diffWalk(nodes, selecting('src'), 'src/app.ts').files).toEqual([
+        'src/lib/util.ts',
+        'src/added.ts',
+        'src/app.ts',
+      ]);
+    });
+
+    it('takes a folder of one file as one file: every file, as with a file row', () => {
+      expect(diffWalk(nodes, selecting('src/lib'), 'src/lib/util.ts')).toEqual({ files: ALL, explicit: false });
+    });
+
+    it('is every file when the row opened is outside the selection', () => {
+      expect(diffWalk(nodes, selecting('zed.txt', 'src/app.ts'), 'README.md')).toEqual({
+        files: ALL,
+        explicit: false,
+      });
+    });
+  });
+
+  describe('bringing a file into view', () => {
+    it('opens every row above it', () => {
+      expect(new Set(ancestorDirs(nodes, 'src/lib/util.ts'))).toEqual(new Set(['@repo', 'src', 'src/lib']));
+      expect(ancestorDirs(nodes, 'README.md')).toEqual(['@repo']);
+    });
+
+    it('opens nothing for a file that is not there', () => {
+      expect(ancestorDirs(nodes, 'gone.txt')).toEqual([]);
+    });
+  });
+
+  describe('the selection once a walk moves on', () => {
+    it('moves with it', () => {
+      expect(selectionFollowing(nodes, selecting('src/app.ts'), 'logo.png')).toEqual(selecting('logo.png'));
+      expect(selectionFollowing(nodes, selecting(), 'logo.png')).toEqual(selecting('logo.png'));
+    });
+
+    it('stays put when the walk is over several selected rows', () => {
+      // Moving it would leave the next diff opened walking something else.
+      const several = selecting('zed.txt', 'src/app.ts');
+      expect(selectionFollowing(nodes, several, 'zed.txt')).toBe(several);
+      const folder = selecting('src');
+      expect(selectionFollowing(nodes, folder, 'src/app.ts')).toBe(folder);
+    });
+
+    it('moves when the file is not among them', () => {
+      const several = selecting('zed.txt', 'src/app.ts');
+      expect(selectionFollowing(nodes, several, 'logo.png')).toEqual(selecting('logo.png'));
+    });
+  });
+});
 
 describe('buildTree', () => {
   it('returns nothing for an empty or blank input', () => {

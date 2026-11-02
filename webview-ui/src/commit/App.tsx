@@ -14,9 +14,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   COMMIT_METHODS,
+  type CommitDiffFileDto,
   type CommitFileDiffDto,
   type CommitHistoryDto,
   type CommitMessageEvtDto,
+  type CommitOpenDiffParamsDto,
   type CommitRecentCommitsDto,
   type CommitSetIncludedParamsDto,
   type CommitStashStateDto,
@@ -32,17 +34,28 @@ import { SplitPane } from '../lib/SplitPane';
 import { TabPanel, Tabs } from '../lib/Tabs';
 import { ToolbarButton } from '../lib/Toolbar';
 import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStrip';
-import { allDirPaths, countFiles, type ToggleDelta, type TreeNode } from '../lib/treeModel';
+import {
+  allDirPaths,
+  ancestorDirs,
+  countFiles,
+  selectedFiles,
+  selectionFollowing,
+  type ToggleDelta,
+  type TreeNode,
+} from '../lib/treeModel';
 import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
 import { getVsCodeApi } from '../lib/vscodeApi';
 import {
+  allDiffFiles,
   assembleCommitTree,
+  commitDiffWalk,
   fileCountLabel,
   fileRowContext,
   iconFor,
   partialLabel,
   splitDelta,
+  treePathOf,
 } from './commitTree';
 import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
@@ -118,6 +131,7 @@ export function App() {
     () => new Set(saved.expanded ?? []),
   );
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  const [reveal, setReveal] = useState<{ readonly path: string } | undefined>(undefined);
   // Mirror of the uncontrolled editor's value — drives `canCommit`, the
   // webview-state persist, and re-seeds the editor when its TabPanel remounts
   // after a Shelf-tab round trip (P11-T6). The editor owns the DOM value; a
@@ -138,6 +152,10 @@ export function App() {
   stateRef.current = state;
 
   const model = useMemo(() => assembleCommitTree(state), [state]);
+  const modelRef = useRef(model);
+  modelRef.current = model;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
 
   const apply = useCallback((next: CommitStateDto) => {
     setState(next);
@@ -221,6 +239,61 @@ export function App() {
     },
     [request],
   );
+  /**
+   * A walk over the whole list goes on following it, as IntelliJ's does: this list
+   * changes while you read it, unlike a commit's. One over a selection is what was
+   * selected.
+   */
+  const walksWholeList = useRef(false);
+
+  const openDiffAt = useCallback(
+    (treePath: string) => {
+      const ref = modelRef.current.files.get(treePath);
+      if (!ref) return;
+      const walk = commitDiffWalk(modelRef.current, selectionRef.current, treePath);
+      walksWholeList.current = !walk.explicit;
+      send(COMMIT_METHODS.openDiff, {
+        repoRoot: ref.repoRoot,
+        path: ref.relPath,
+        files: walk.files,
+      } satisfies CommitOpenDiffParamsDto);
+    },
+    [send],
+  );
+
+  const listKey = useMemo(
+    () =>
+      allDiffFiles(model)
+        .map((f) => `${f.repoRoot}\n${f.path}`)
+        .join('\n'),
+    [model],
+  );
+  useEffect(() => {
+    if (walksWholeList.current) {
+      send(COMMIT_METHODS.diffChain, { files: allDiffFiles(modelRef.current) });
+    }
+  }, [listKey, send]);
+
+  useEffect(() => {
+    // The walk moved on: the row follows, and nothing opens again.
+    const offMoved = rpc.onEvent(COMMIT_METHODS.evtDiffFile, (p) => {
+      const current = modelRef.current;
+      const treePath = treePathOf(current, p as CommitDiffFileDto);
+      if (treePath === undefined) return;
+      setExpanded((prev) => new Set([...prev, ...ancestorDirs(current.nodes, treePath)]));
+      setSelection((prev) => selectionFollowing(current.nodes, prev, treePath));
+      setReveal({ path: treePath });
+    });
+    const offOpen = rpc.onEvent(COMMIT_METHODS.evtOpenDiff, (p) => {
+      const treePath = treePathOf(modelRef.current, p as CommitDiffFileDto);
+      if (treePath !== undefined) openDiffAt(treePath);
+    });
+    return () => {
+      offMoved();
+      offOpen();
+    };
+  }, [openDiffAt, rpc]);
+
   // Refresh turns until the host has re-read every repository and pushed the
   // state it found — the moment the badge and the tree are current.
   const [refreshing, trackRefresh] = useBusy();
@@ -520,14 +593,12 @@ export function App() {
       onToggleCheck={onToggleCheck}
       selection={selection}
       onSelectionChange={(paths) => setSelection(new Set(paths))}
-      onActivate={(node) => {
-        const ref = model.files.get(node.path);
-        if (ref) send(COMMIT_METHODS.openDiff, { repoRoot: ref.repoRoot, path: ref.relPath });
-      }}
+      onActivate={(node) => openDiffAt(node.path)}
       description={description}
       icon={icon}
       nameColor={nameColor}
       rowContext={rowContext}
+      {...(reveal !== undefined ? { reveal } : {})}
     />
   );
 
@@ -609,11 +680,8 @@ export function App() {
             label="Show Diff"
             disabled={selection.size === 0}
             onClick={() => {
-              const target = selectedRelPaths();
-              const first = target?.paths[0];
-              if (target && first !== undefined) {
-                send(COMMIT_METHODS.openDiff, { repoRoot: target.repoRoot, path: first });
-              }
+              const first = selectedFiles(model.nodes, selection)[0];
+              if (first !== undefined) openDiffAt(first);
             }}
           />
           <ToolbarButton

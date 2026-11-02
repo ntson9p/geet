@@ -17,9 +17,9 @@ import {
   type StatusColorOverrides,
   type StatusKind,
 } from '../lib/status';
-import { buildTree, countFiles, type TreeNode } from '../lib/treeModel';
+import { ancestorDirs, buildTree, countFiles, selectionFollowing, type TreeNode } from '../lib/treeModel';
 import { useElementSize } from '../lib/useElementSize';
-import { ancestorDirs, diffChain } from './changedFilesChain';
+import { diffChain } from './changedFilesChain';
 
 const REPO_ROOT_PATH = '@repo';
 
@@ -108,9 +108,10 @@ export function ChangedFilesPane({
     const file = byPath.get(follow.path);
     if (!file) return;
     setExpanded((prev) => new Set([...prev, ...ancestorDirs(nodes, follow.path)]));
-    setSelection(new Set([follow.path]));
+    const next = selectionFollowing(nodes, selection, follow.path);
+    setSelection(next);
     setReveal({ path: follow.path });
-    onSelectedFileChange(file);
+    if (next.size === 1) onSelectedFileChange(file);
     // Only a move of the diff: `nodes` changing is a new change set, which starts unselected.
   }, [follow]);
 

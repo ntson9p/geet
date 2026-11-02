@@ -748,6 +748,11 @@
         "icon": "$(compare-changes)"
       },
       {
+        "command": "gittree.commit.openChanges",
+        "title": "%gittree.command.openDiff.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.openDiffHead",
         "title": "%gittree.command.openDiffHead.title%",
         "category": "GitTree"
@@ -1911,6 +1916,10 @@
       ],
       "commandPalette": [
         {
+          "command": "gittree.commit.openChanges",
+          "when": "false"
+        },
+        {
           "command": "gittree.branches.showInLog",
           "when": "false"
         },
@@ -2823,7 +2832,7 @@
           "group": "0_add@1"
         },
         {
-          "command": "gittree.openDiff",
+          "command": "gittree.commit.openChanges",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile'",
           "group": "1_open@1"
         },

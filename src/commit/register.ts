@@ -187,6 +187,13 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       3000,
     );
   });
+  // A row's menu: what walking from it means depends on the tree the webview shows.
+  register('gittree.commit.openChanges', (arg) => {
+    const { repoRoot, relPath } = (arg ?? {}) as { repoRoot?: unknown; relPath?: unknown };
+    if (typeof repoRoot === 'string' && typeof relPath === 'string') {
+      commitWindow.openDiffAt({ repoRoot, path: relPath });
+    }
+  });
   register('gittree.commit.switchParadigm', () => paradigm.switch());
   register('gittree.commit.configureChecks', () => configureChecks(pipeline));
   register('gittree.commit.showMessageHistory', async (repoRoot) => {

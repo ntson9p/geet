@@ -29,6 +29,25 @@ Also in those diffs:
 
 The same goes for Show Diff in the Push dialog.
 
+### Added — the Commit window's changes walk the same way
+
+Show Diff, double-clicking a row and Open Changes in its menu now open a diff you can walk with ↑ ↓,
+`Alt+F5` and the `←` `→` buttons, across every changelist and repository, with Unversioned Files
+last. With several rows selected it walks those, and a selected folder stands for its files.
+
+This list changes as you work, so the walk follows it: a file that starts changing joins, and one
+that is reverted or committed leaves. The file on screen stays up either way. The right side is the
+real file, so you can edit as you go, and a tab you have edited stays open when you move on.
+
+An untracked file now opens as a diff too, and so does one deleted from disk, instead of as a plain
+document with no way on.
+
+### Fixed — Show Diff in the Commit window compared against the wrong side
+
+With changelists, Show Diff compared with the index, while the preview pane and the commit itself
+use `HEAD`. A file you had staged by hand showed no changes at all. It now compares with `HEAD`.
+With staging it opens on what is not staged yet, and on what is staged for a file with nothing else.
+
 ### Fixed — GitTree's next and previous change arrows never appeared
 
 They were contributed to a menu VS Code does not have, which it drops without a word, so without
@@ -38,7 +57,8 @@ arrows do it now, so there are no second arrows to find.
 ### Fixed — a binary file from the log opened an error page
 
 An image opened as *The editor could not be opened due to an unexpected error*, and any other
-binary file as unreadable text. They now read as `Binary file, 79 bytes (7d1ad7a)` on each side.
+binary file as unreadable text. They now read as `Binary file, 79 bytes (7d1ad7a)` on each side, or
+`(working tree)` for one not in git yet.
 Seeing images side by side, as IntelliJ does, is not there yet.
 
 ### Fixed — a new branch no longer pushes onto the branch it started from

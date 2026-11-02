@@ -174,6 +174,85 @@ export function collectFiles(node: TreeNode, out: string[] = []): string[] {
   return out;
 }
 
+/** Every file in a forest, in display order. */
+export function allFiles(nodes: readonly TreeNode[]): string[] {
+  const out: string[] = [];
+  for (const node of nodes) collectFiles(node, out);
+  return out;
+}
+
+/** The files a selection stands for, in display order: a selected folder stands for all of its own. */
+export function selectedFiles(nodes: readonly TreeNode[], selection: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  const visit = (list: readonly TreeNode[], under: boolean): void => {
+    for (const node of list) {
+      const selected = under || selection.has(node.path);
+      if (node.kind === 'file') {
+        if (selected) out.push(node.path);
+      } else {
+        visit(node.children, selected);
+      }
+    }
+  };
+  visit(nodes, false);
+  return out;
+}
+
+export interface DiffWalk {
+  readonly files: readonly string[];
+  /** The rows selected, rather than the whole tree. */
+  readonly explicit: boolean;
+}
+
+/**
+ * The files a diff opened from a tree walks through, in the order the tree shows
+ * them. It is IntelliJ's `VcsTreeModelData.getListSelectionOrAll`: with several
+ * files selected, those; otherwise every file. A file opened from outside the
+ * selection is a file on its own.
+ */
+export function diffWalk(
+  nodes: readonly TreeNode[],
+  selection: ReadonlySet<string>,
+  target: string,
+): DiffWalk {
+  const selected = selectedFiles(nodes, selection);
+  return selected.length > 1 && selected.includes(target)
+    ? { files: selected, explicit: true }
+    : { files: allFiles(nodes), explicit: false };
+}
+
+/** The folder rows a file sits under, so that it can be brought into view. */
+export function ancestorDirs(nodes: readonly TreeNode[], path: string): string[] {
+  const out: string[] = [];
+  const visit = (list: readonly TreeNode[]): boolean => {
+    for (const node of list) {
+      if (node.kind === 'file') {
+        if (node.path === path) return true;
+      } else if (visit(node.children)) {
+        out.push(node.path);
+        return true;
+      }
+    }
+    return false;
+  };
+  visit(nodes);
+  return out;
+}
+
+/**
+ * The selection once a walk has moved on to `path`. A walk over several selected
+ * rows leaves them selected, or the next diff opened would walk something else;
+ * IntelliJ's `selectChange` does nothing then, too.
+ */
+export function selectionFollowing(
+  nodes: readonly TreeNode[],
+  selection: ReadonlySet<string>,
+  path: string,
+): ReadonlySet<string> {
+  const held = selectedFiles(nodes, selection);
+  return held.length > 1 && held.includes(path) ? selection : new Set([path]);
+}
+
 /** Depth-first walk over a forest, in display order. */
 export function walk(nodes: readonly TreeNode[], visit: (node: TreeNode) => void): void {
   for (const node of nodes) {

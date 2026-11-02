@@ -6,12 +6,18 @@
  *
  * ref forms: 'HEAD', any ref/sha, or ':0'/':1'/':2'/':3' index stages.
  */
+import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core';
-import { binaryPlaceholder, looksBinary } from './binaryPlaceholder';
+import { BINARY_SNIFF_BYTES, binaryPlaceholder, looksBinary, worktreePlaceholder } from './binaryPlaceholder';
 
 export const REV_SCHEME = 'gittree-rev';
+
+/** The side of a diff with nothing on it: a file gone from the working tree. No ref can begin with `~`. */
+export const EMPTY_SIDE_REF = '~empty';
+/** A file in the working tree that VS Code will not open as text, described rather than shown. */
+export const WORKTREE_STUB_REF = '~worktree';
 
 interface RevQuery {
   repo: string;
@@ -63,6 +69,9 @@ export class RevContentProvider implements vscode.TextDocumentContentProvider {
 
     this.remember(repo.root, uri);
 
+    if (q.ref === EMPTY_SIDE_REF) return '';
+    if (q.ref === WORKTREE_STUB_REF) return this.describeWorktreeFile(path.join(repo.root, q.rel));
+
     const result = await repo.queue.enqueue({
       label: `show ${q.ref}:${q.rel}`,
       kind: 'read',
@@ -80,6 +89,22 @@ export class RevContentProvider implements vscode.TextDocumentContentProvider {
     return looksBinary(result.stdout)
       ? this.describeBinary(repo, revObjectSpec(q.ref, q.rel))
       : result.stdout;
+  }
+
+  private async describeWorktreeFile(absPath: string): Promise<string> {
+    try {
+      const { size } = await fsp.stat(absPath);
+      const head = Buffer.alloc(Math.min(size, BINARY_SNIFF_BYTES));
+      const file = await fsp.open(absPath, 'r');
+      try {
+        await file.read(head, 0, head.length, 0);
+      } finally {
+        await file.close();
+      }
+      return worktreePlaceholder(size, looksBinary(head.toString('latin1')));
+    } catch {
+      return '';
+    }
   }
 
   private async describeBinary(repo: RepoHandle, spec: string): Promise<string> {

@@ -257,7 +257,147 @@ test.describe('P11-T2 commit actions', () => {
     await expect(page.getByRole('button', { name: 'Show Diff' })).toBeEnabled();
     await page.getByRole('button', { name: 'Show Diff' }).click();
     const msg = (await posted(page)).find((m) => m.method === 'commit/openDiff');
-    expect(msg?.params).toEqual({ repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' });
+    const repoRoot = 'D:/repos/demo-git';
+    expect(msg?.params).toEqual({
+      repoRoot,
+      path: 'docs/guide.md',
+      // The whole list as the tree shows it, Unversioned Files last.
+      files: [
+        { repoRoot, path: 'docs/guide.md' },
+        { repoRoot, path: 'src/main/java/api/ArticleDataController.java' },
+        { repoRoot, path: 'src/main/java/api/CommentController.java' },
+        { repoRoot, path: 'src/main/java/util/Strings.java' },
+        { repoRoot, path: '2.txt' },
+      ],
+    });
+  });
+
+  test('with several files selected, Show Diff walks only those', async ({ page }) => {
+    await openCommit(page);
+    await row(page, '2.txt').click();
+    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await page.getByRole('button', { name: 'Show Diff' }).click();
+    await expect
+      .poll(async () => {
+        const msg = (await posted(page)).filter((m) => m.method === 'commit/openDiff').at(-1);
+        return msg?.params;
+      })
+      .toEqual({
+        repoRoot: 'D:/repos/demo-git',
+        // The first of them as the tree shows them, not the one clicked first.
+        path: 'docs/guide.md',
+        files: [
+          { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' },
+          { repoRoot: 'D:/repos/demo-git', path: '2.txt' },
+        ],
+      });
+  });
+
+  test('Show Diff on a folder row starts from its first file', async ({ page }) => {
+    await openCommit(page);
+    await page.getByRole('treeitem', { name: /^docs/ }).click();
+    await page.getByRole('button', { name: 'Show Diff' }).click();
+    await expect
+      .poll(async () => {
+        const msg = (await posted(page)).filter((m) => m.method === 'commit/openDiff').at(-1);
+        return (msg?.params as { path?: string } | undefined)?.path;
+      })
+      .toBe('docs/guide.md');
+  });
+
+  const postEvent = (page: Page, method: string, params: unknown) =>
+    page.evaluate(
+      ({ method, params }) => window.postMessage({ v: 1, id: `evt-${method}`, kind: 'evt', method, params }, '*'),
+      { method, params },
+    );
+
+  test('the row follows a diff that moved on, without opening it again', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md, docs').dblclick();
+    const opens = (await posted(page)).filter((m) => m.method === 'commit/openDiff').length;
+
+    await postEvent(page, 'commit/diffFile', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
+    await expect(row(page, '2.txt')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'false');
+    expect((await posted(page)).filter((m) => m.method === 'commit/openDiff').length).toBe(opens);
+  });
+
+  test('a walk over several selected rows leaves them selected', async ({ page }) => {
+    await openCommit(page);
+    await row(page, '2.txt').click();
+    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await postEvent(page, 'commit/diffFile', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
+    await page.waitForTimeout(100);
+    await expect(row(page, '2.txt')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test("a row's menu opens through the same walk", async ({ page }) => {
+    await openCommit(page);
+    await postEvent(page, 'commit/openDiffAt', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
+    await expect
+      .poll(async () => {
+        const msg = (await posted(page)).filter((m) => m.method === 'commit/openDiff').at(-1);
+        return (msg?.params as { path?: string; files?: unknown[] } | undefined)?.files?.length;
+      })
+      .toBe(5);
+  });
+
+  /** The host's next state: one file left in the list, the way a rollback or a commit leaves it. */
+  const listShrinks = (page: Page) =>
+    postEvent(page, 'commit/state', {
+      repos: [
+        {
+          root: 'D:/repos/demo-git',
+          label: 'demo-git',
+          groups: [
+            {
+              id: 'default',
+              name: 'Changes',
+              isActive: true,
+              isDefault: true,
+              checkable: true,
+              changes: [{ path: 'docs/guide.md', code: '.M', kind: 'modified', checked: true }],
+            },
+          ],
+        },
+      ],
+      targets: [],
+      message: '',
+      amend: false,
+      signing: false,
+      busy: false,
+      modifiedCount: 1,
+      checkedCount: 1,
+      paradigm: 'changelists',
+    });
+  const chains = async (page: Page): Promise<PostedMsg[]> =>
+    (await posted(page)).filter((m) => m.method === 'commit/diffChain');
+
+  test('a walk over the whole list hears when the list changes', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md, docs').dblclick();
+    await listShrinks(page);
+    await expect.poll(async () => (await chains(page)).at(-1)?.params).toEqual({
+      files: [{ repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' }],
+    });
+  });
+
+  test('with no walk open, the host is not told about the list', async ({ page }) => {
+    await openCommit(page);
+    await listShrinks(page);
+    await expect(page.getByRole('treeitem', { name: 'Changes, 1 file' })).toBeVisible();
+    expect(await chains(page)).toEqual([]);
+  });
+
+  test('a walk over a selection stays what was selected', async ({ page }) => {
+    await openCommit(page);
+    await row(page, '2.txt').click();
+    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await page.getByRole('button', { name: 'Show Diff' }).click();
+    await listShrinks(page);
+    await expect(page.getByRole('treeitem', { name: 'Changes, 1 file' })).toBeVisible();
+    expect(await chains(page)).toEqual([]);
   });
 
   test('collapse all and expand all drive the whole tree', async ({ page }) => {

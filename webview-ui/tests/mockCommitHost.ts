@@ -277,6 +277,7 @@ export const mockCommitHostScript = `
     },
     'commit/commit': () => undefined,
     'commit/openDiff': () => undefined,
+    'commit/diffChain': () => undefined,
     'commit/rollback': () => undefined,
     'commit/shelve': () => undefined,
     // P11-T5: gear popup state, routed like the real applyOption — an invalid

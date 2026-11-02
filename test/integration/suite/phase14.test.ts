@@ -6,6 +6,7 @@ import type { Phase03Registry } from '../../../src/commit/register';
 import type { Phase01Registry } from '../../../src/scm/register';
 import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../../../src/diff/diffSession';
+import type { RepoHandle } from '../../../src/core/core';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
@@ -563,6 +564,8 @@ suite('P14 owning the SCM surface', () => {
       };
     };
 
+    const core14 = (): unknown => reg;
+
     const firstHunkOpen = async (): Promise<void> => {
       await waitFor(() => at() !== undefined && at()!.line === 3, 15_000);
     };
@@ -756,6 +759,119 @@ suite('P14 owning the SCM surface', () => {
         await cfg.update('goToNextFileAfterLastChange', undefined, vscode.ConfigurationTarget.Global);
       }
       cleanup();
+    });
+
+    suite('from the Commit window', () => {
+      let commitWindow: Phase03Registry['commitWindow'];
+      let repo: RepoHandle;
+      const refresh = (): Promise<void> => repo.refresher.refreshNow();
+      const leftText = async (): Promise<string> => {
+        const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as vscode.TabInputTextDiff;
+        return (await vscode.workspace.openTextDocument(input.original)).getText();
+      };
+      const walkOf = (names: readonly string[]) => ({
+        repoRoot: fsRoot,
+        path: names[0]!,
+        files: names.map((path) => ({ repoRoot: fsRoot, path })),
+      });
+
+      suiteSetup(async () => {
+        const core = await activateGitTree();
+        repo = core.repoForPath(repoRoot)!;
+        commitWindow = (core.debugRegistry.get('phase03') as Phase03Registry).commitWindow;
+      });
+
+      test('walks every kind of local change, one tab, on real files', async function () {
+        this.timeout(120_000);
+        const body = Array.from({ length: 20 }, (_, i) => `row ${i + 1}`).join('\n') + '\n';
+        fs.writeFileSync(path.join(fsRoot, 'p14l-mod.txt'), body);
+        fs.writeFileSync(path.join(fsRoot, 'p14l-gone.txt'), 'going away\n');
+        fs.writeFileSync(path.join(fsRoot, 'p14l.png'), Buffer.from([0x89, 0x50, 0, 0, 1]));
+        git('add', 'p14l-mod.txt', 'p14l-gone.txt', 'p14l.png');
+        git('commit', '-m', 'p14 local base');
+        fs.writeFileSync(path.join(fsRoot, 'p14l-mod.txt'), body.replace('row 4\n', 'row 4 EDITED\n'));
+        fs.rmSync(path.join(fsRoot, 'p14l-gone.txt'));
+        fs.writeFileSync(path.join(fsRoot, 'p14l.png'), Buffer.from([0x89, 0x50, 0, 0, 2, 3]));
+        fs.writeFileSync(path.join(fsRoot, 'p14l-new.txt'), 'untracked\n');
+        await refresh();
+
+        await commitWindow.openDiff(walkOf(['p14l-mod.txt', 'p14l-gone.txt', 'p14l.png', 'p14l-new.txt']));
+        await waitFor(() => at()?.title.startsWith('p14l-mod.txt') === true, 15_000);
+        const onTab = (): vscode.Tab | undefined => vscode.window.tabGroups.activeTabGroup.activeTab;
+
+        // The real file, editable: not a copy of it.
+        const modified = (onTab()?.input as vscode.TabInputTextDiff).modified;
+        assert.strictEqual(modified.scheme, 'file');
+
+        await pressNative('next');
+        assert.match(String(reg.lastHint), /Press again to go to the next file/u);
+        await pressNative('next');
+        await waitFor(() => at()?.title.startsWith('p14l-gone.txt') === true, 15_000);
+        // Gone from disk, so the right side is nothing, and not an error page.
+        assert.ok(onTab()?.input instanceof vscode.TabInputTextDiff);
+        assert.strictEqual(vscode.window.activeTextEditor!.document.getText(), '');
+        assert.match(await leftText(), /going away/u);
+
+        await pressNative('next');
+        await pressNative('next');
+        await waitFor(() => at()?.title.startsWith('p14l.png') === true, 15_000);
+        assert.ok(onTab()?.input instanceof vscode.TabInputTextDiff);
+        assert.match(vscode.window.activeTextEditor!.document.getText(), /^Binary file, 6 bytes \(working tree\)/u);
+
+        await pressNative('next');
+        await pressNative('next');
+        await waitFor(() => at()?.title.startsWith('p14l-new.txt') === true, 15_000);
+        assert.strictEqual(await leftText(), '', 'an untracked file has nothing on the left');
+        assert.strictEqual(vscode.window.tabGroups.activeTabGroup.tabs.length, 1);
+
+        git('checkout', '--', 'p14l-mod.txt', 'p14l-gone.txt', 'p14l.png');
+        fs.rmSync(path.join(fsRoot, 'p14l-new.txt'));
+        git('rm', '-q', '-f', 'p14l-mod.txt', 'p14l-gone.txt', 'p14l.png');
+        git('commit', '-m', 'p14 local cleanup');
+        await refresh();
+      });
+
+      test('compares a staged file with HEAD: the index would show no changes at all', async function () {
+        this.timeout(60_000);
+        fs.writeFileSync(path.join(fsRoot, 'p14s-staged.txt'), 'before\n');
+        git('add', 'p14s-staged.txt');
+        git('commit', '-m', 'p14 staged base');
+        fs.writeFileSync(path.join(fsRoot, 'p14s-staged.txt'), 'after\n');
+        git('add', 'p14s-staged.txt');
+        await refresh();
+
+        await commitWindow.openDiff(walkOf(['p14s-staged.txt']));
+        await waitFor(() => at()?.title.startsWith('p14s-staged.txt') === true, 15_000);
+        assert.strictEqual(await leftText(), 'before\n');
+
+        git('rm', '-q', '-f', 'p14s-staged.txt');
+        git('commit', '-m', 'p14 staged cleanup');
+        await refresh();
+      });
+
+      test('follows the list as it changes, keeping the file on screen', async function () {
+        this.timeout(60_000);
+        const names = ['p14f1.txt', 'p14f2.txt', 'p14f3.txt'];
+        const sessions = (core14() as { sessions: DiffSessionRegistry }).sessions;
+        for (const n of names) fs.writeFileSync(path.join(fsRoot, n), 'untracked\n');
+        await refresh();
+        await commitWindow.openDiff(walkOf(names));
+        await waitFor(() => sessions.active()?.entries.length === 3, 15_000);
+        assert.strictEqual(sessions.active()?.index, 0);
+
+        // The file on screen leaves the list, and one joins it.
+        fs.writeFileSync(path.join(fsRoot, 'p14f4.txt'), 'untracked\n');
+        commitWindow.followDiffList(['p14f2.txt', 'p14f3.txt', 'p14f4.txt'].map((path) => ({ repoRoot: fsRoot, path })));
+        assert.strictEqual(sessions.active()?.entries.length, 4, 'the file on screen stays in the walk');
+        assert.strictEqual(sessions.active()?.index, 0);
+
+        // It is still in the list next time: nothing moves.
+        commitWindow.followDiffList(['p14f1.txt', 'p14f3.txt'].map((path) => ({ repoRoot: fsRoot, path })));
+        assert.strictEqual(sessions.active()?.entries.length, 2);
+
+        for (const n of [...names, 'p14f4.txt']) fs.rmSync(path.join(fsRoot, n));
+        await refresh();
+      });
     });
 
     test('the diff toolbar controls are scoped to GitTree diffs', () => {
