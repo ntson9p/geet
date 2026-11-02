@@ -20,3 +20,9 @@ IMPLEMENTATION_PLAN.md
 .gitignore
 **/*.vsix
 *.log
+*.7z
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
