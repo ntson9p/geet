@@ -13,6 +13,8 @@ import { countPulled } from '../scm/dialogs/updateDialog';
 import { pullResultMessage } from '../scm/resultMessages';
 import { confirmModal } from '../ui/confirm';
 import { notifySuccess, type NotificationAction } from '../ui/notify';
+import { checkoutAcross, type CheckoutAcrossOutcome } from './checkoutAcross';
+import type { CheckoutTarget } from './checkoutAcrossModel';
 import { buildNewBranchArgs, remoteNamesOf } from './newBranchArgs';
 import { checkoutWithSmart } from './smartCheckout';
 import {
@@ -36,6 +38,16 @@ export class BranchOps {
   /** Checkout with the Smart Checkout interceptor (T4). */
   async checkout(repo: RepoHandle, branch: string): Promise<void> {
     await checkoutWithSmart(this.core, repo, branch);
+  }
+
+  /**
+   * POST-P14ax: one branch, or tag, checked out in every repository of `repos`
+   * that has it — the local branch where there is one, else a new one tracking
+   * the remote branch of that name — with one question for local changes in
+   * the way and one summary.
+   */
+  checkoutAcross(repos: readonly RepoHandle[], target: CheckoutTarget): Promise<CheckoutAcrossOutcome> {
+    return checkoutAcross(this.core, repos, target);
   }
 
   /**

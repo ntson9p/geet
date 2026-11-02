@@ -685,6 +685,20 @@
   height: 24px;
 }
 
+/* POST-P14ax: where the new branch starts — a ref the repositories share. */
+.gtp-form-from {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gtp-form-from > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+}
+
 .gtp-check {
   display: inline-flex;
   align-items: center;

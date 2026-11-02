@@ -419,7 +419,8 @@ export interface CommonActionSpec {
 }
 
 export const COMMON_ACTIONS: readonly CommonActionSpec[] = [
-  { id: 'checkout', verb: 'Checkout', kinds: ['local', 'tag'] },
+  // POST-P14ax: a common remote branch too, as a local branch tracking it in each.
+  { id: 'checkout', verb: 'Checkout', kinds: ['local', 'remote', 'tag'] },
   { id: 'update', verb: 'Update', kinds: ['local'] },
   {
     id: 'mergeIntoCurrent',

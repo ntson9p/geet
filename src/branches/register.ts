@@ -18,6 +18,8 @@ import {
 } from './branchesPopup';
 import type { CommonRef, TreeRow } from './popupTree';
 import { cleanUpBranches } from './branchCleanup';
+import { lastLocalChangesQuestion, pickAndCheckoutAcross } from './checkoutAcross';
+import { reposOf } from './panelActions';
 import { BranchPanelProvider } from './branchPanel';
 import { BranchHubViewProvider } from './branchHubView';
 import { BranchesViewProvider, type BranchNode } from './branchesView';
@@ -52,6 +54,8 @@ export interface Phase02Registry {
    * notification module, so it could not see what the run said.
    */
   runCommonAction: (repos: readonly RepoHandle[], common: CommonRef, actionId: string) => Promise<void>;
+  /** POST-P14ax: what the one local-changes question of a checkout across repositories last said. */
+  lastLocalChangesQuestion: typeof lastLocalChangesQuestion;
 }
 
 export function registerPhase02(context: vscode.ExtensionContext, core: Core): Phase02Registry {
@@ -501,6 +505,19 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     await ops.checkout(repo, value.trim());
   });
 
+  // POST-P14ax: one branch checked out in every repository, from a picker of all of them.
+  // The panel's `⋯` passes the repositories in view; the palette, every repository.
+  register('gittree.branches.checkoutEverywhere', async (roots) => {
+    const named =
+      typeof roots === 'string'
+        ? [roots]
+        : Array.isArray(roots)
+          ? roots.filter((r): r is string => typeof r === 'string')
+          : [];
+    const repos = named.length > 0 ? reposOf(core, named) : core.repos;
+    await pickAndCheckoutAcross(core, repos);
+  });
+
   // new-way-4: the finished branches — merged, or their remote branch gone — in one pick.
   register('gittree.branches.cleanup', async (root) => {
     await cleanUpBranches(core, typeof root === 'string' ? [root] : undefined);
@@ -518,6 +535,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     panel,
     actions,
     runCommonAction: (repos, common, actionId) => runCommonAction(repos, common, actions, actionId),
+    lastLocalChangesQuestion,
   };
   core.debugRegistry.set('phase02', registry);
   return registry;

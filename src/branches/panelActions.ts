@@ -34,6 +34,8 @@ import {
   refTypeOf,
   runCommonAction,
 } from './branchesPopup';
+import { checkoutAcross, pickAndCheckoutAcross, refStateOf } from './checkoutAcross';
+import { acrossOffer, branchOfRemote, type CheckoutTarget } from './checkoutAcrossModel';
 import { REPOSITORY_MENU } from './repositoryMenu';
 
 export interface PanelActionDeps {
@@ -185,17 +187,79 @@ function repoRefMenu(
   return items;
 }
 
+/** The branch a row's Checkout across repositories is about, by its own name. */
+function acrossTarget(core: Core, target: BranchPanelTargetDto): CheckoutTarget | undefined {
+  if (target.kind === 'tag') return undefined;
+  if (target.kind === 'local') return { kind: 'branch', name: target.name };
+  const remote = reposOf(core, target.roots)
+    .map((repo) => refIn(repo, 'remote', target.name)?.remote)
+    .find((r) => r !== undefined);
+  return remote !== undefined
+    ? { kind: 'branch', name: branchOfRemote(target.name, remote), remote }
+    : undefined;
+}
+
+/**
+ * POST-P14ax: Checkout in every repository in view, not only those the row
+ * stands for. `release/2.0` is a local branch in one repository and only on
+ * `origin` in three more; the local row's Checkout there would leave the three
+ * behind. Undefined unless it would change at least two repositories.
+ */
+function acrossRun(
+  deps: PanelActionDeps,
+  target: BranchPanelTargetDto,
+  scope: readonly string[] | undefined,
+): { readonly label: string; readonly changes: number; readonly run: BranchPanelRunDto } | undefined {
+  const wanted = acrossTarget(deps.core, target);
+  if (wanted === undefined) return undefined;
+  const repos = reposOf(deps.core, scope !== undefined && scope.length > 0 ? scope : target.roots);
+  const offer = acrossOffer(
+    repos.map((repo) => refStateOf(repo, deps.labelOf(repo.root))),
+    wanted,
+  );
+  if (offer === undefined) return undefined;
+  return {
+    label: commonActionLabel(vscode.l10n.t('Checkout'), offer.changes, offer.of),
+    changes: offer.changes,
+    run: {
+      type: 'checkoutAcross',
+      roots: repos.map((repo) => repo.root),
+      name: wanted.name,
+      ...(wanted.remote !== undefined ? { remote: wanted.remote } : {}),
+    },
+  };
+}
+
 /**
  * A branch row's menu. In one repository, that repository's menu. Across
  * several, the operations that run in all of them first — labelled with how
  * many they will touch — then one submenu per repository holding its own.
+ *
+ * `scope` is every repository in view: a Checkout across them reaches the ones
+ * where only a remote has the branch (POST-P14ax).
  */
-export function branchMenu(deps: PanelActionDeps, target: BranchPanelTargetDto): BranchPanelMenuItemDto[] {
+export function branchMenu(
+  deps: PanelActionDeps,
+  target: BranchPanelTargetDto,
+  scope?: readonly string[],
+): BranchPanelMenuItemDto[] {
   const pairs = pairsOf(deps.core, target);
   const only = pairs[0];
   if (only === undefined) return [];
-  if (pairs.length === 1) return repoRefMenu(deps, only.repo, only.ctx, target, false);
+  const across = acrossRun(deps, target, scope);
+  if (pairs.length === 1) {
+    const own = repoRefMenu(deps, only.repo, only.ctx, target, false);
+    if (across === undefined) return own;
+    return [
+      { kind: 'item', label: across.label, icon: ACTION_ICON['checkout'] ?? 'arrow-swap', run: across.run },
+      { kind: 'separator' },
+      ...own,
+    ];
+  }
   const items: BranchPanelMenuItemDto[] = [];
+  if (across !== undefined) {
+    items.push({ kind: 'item', label: across.label, icon: ACTION_ICON['checkout'] ?? 'arrow-swap', run: across.run });
+  }
   const offer = applicableCommonActions(
     COMMON_ACTIONS,
     deps.actions,
@@ -203,6 +267,8 @@ export function branchMenu(deps: PanelActionDeps, target: BranchPanelTargetDto):
     pairs.map((p) => p.ctx),
   );
   for (const { spec, appliesIn } of offer) {
+    // A branch's Checkout is the one across every repository in view, above.
+    if (spec.id === 'checkout' && target.kind !== 'tag') continue;
     items.push({
       kind: 'item',
       label: commonActionLabel(spec.verb, appliesIn, pairs.length),
@@ -294,7 +360,11 @@ function shortLabel(id: string, head: string): string {
  * Across several repositories, the same choice from the all-repositories
  * operations, each labelled with how many repositories it will touch.
  */
-export function cardButtons(deps: PanelActionDeps, target: BranchPanelTargetDto): BranchPanelButtonDto[] {
+export function cardButtons(
+  deps: PanelActionDeps,
+  target: BranchPanelTargetDto,
+  scope?: readonly string[],
+): BranchPanelButtonDto[] {
   const pairs = pairsOf(deps.core, target);
   const only = pairs[0];
   if (only === undefined) return [];
@@ -347,8 +417,21 @@ export function cardButtons(deps: PanelActionDeps, target: BranchPanelTargetDto)
     contexts,
   );
   const out: BranchPanelButtonDto[] = [];
+  const across = acrossRun(deps, target, scope);
   for (const id of wanted) {
     if (out.length === 2) break;
+    if (id === 'checkout' && target.kind !== 'tag') {
+      // The menu's Checkout, across every repository in view (POST-P14ax).
+      if (across !== undefined) {
+        out.push({
+          label: vscode.l10n.t('{0} in {1}', commonShort(id), across.changes),
+          title: across.label,
+          icon: ACTION_ICON[id] ?? 'circle-small',
+          run: across.run,
+        });
+      }
+      continue;
+    }
     const found = offer.find((o) => o.spec.id === id);
     if (!found) continue;
     out.push({
@@ -438,5 +521,18 @@ export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): P
     case 'newBranch':
       // The webview's own form; nothing for the host to do.
       return;
+    case 'checkoutAcross': {
+      const repos = reposOf(deps.core, run.roots);
+      if (run.name === undefined) {
+        await pickAndCheckoutAcross(deps.core, repos);
+        return;
+      }
+      await checkoutAcross(deps.core, repos, {
+        kind: 'branch',
+        name: run.name,
+        ...(run.remote !== undefined ? { remote: run.remote } : {}),
+      });
+      return;
+    }
   }
 }

@@ -27,6 +27,7 @@ import type { Core, RepoHandle } from '../../core/core';
 import { describeGitFailure, GitError } from '../../core/git/errors';
 import { parseStatusV2 } from '../../core/git/parsers/statusV2';
 import { detectInProgressOp } from '../../core/model/inProgressOp';
+import { repoBusyReason } from '../../core/model/repoBusy';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { repoLabels } from '../../core/util/repoLabels';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
@@ -218,10 +219,12 @@ export function updateScope(repos: readonly RepoHandle[]): UpdateScope {
   const scope: UpdateScope = { targets: [], skipped: [] };
   for (const repo of repos) {
     const snap = repo.model.snapshot;
-    const op = snap.inProgressOp?.kind;
-    if (op !== undefined) {
-      const name = op.startsWith('rebase') ? 'rebase' : op;
-      scope.skipped.push({ repo, reason: vscode.l10n.t('a {0} is in progress', name) });
+    // POST-P14ax: conflicts with no merge behind them too — a stash whose changes
+    // did not go back cleanly. The conflict lifecycle holds the repository's
+    // mutations until they are resolved, so its fetch would wait, and the run with it.
+    const busy = repoBusyReason(snap);
+    if (busy !== undefined) {
+      scope.skipped.push({ repo, reason: busy });
     } else if (snap.detached) {
       scope.skipped.push({ repo, reason: vscode.l10n.t('detached HEAD') });
     } else if (snap.upstream === undefined) {

@@ -76,6 +76,13 @@ function isTarget(value: unknown): value is BranchPanelTargetDto {
   );
 }
 
+/** The repositories in view, as the webview sends them; anything else is no scope. */
+function scopeOf(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const roots = raw.filter((r): r is string => typeof r === 'string');
+  return roots.length > 0 ? roots : undefined;
+}
+
 export class BranchPanelProvider implements vscode.WebviewViewProvider {
   static readonly viewType = 'gittree.branches';
 
@@ -311,14 +318,14 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
   // ---- a card's facts --------------------------------------------------------
 
   /** The author and HEAD-relation of a ref in each of its repositories, and the card's buttons. */
-  async details(target: BranchPanelTargetDto): Promise<BranchPanelDetailsDto> {
+  async details(target: BranchPanelTargetDto, scope?: readonly string[]): Promise<BranchPanelDetailsDto> {
     if (this.last === undefined) await this.buildState();
     const repos = await Promise.all(
       reposOf(this.deps.core, target.roots).map((repo) => this.repoDetails(repo, target)),
     );
     return {
       repos: repos.filter((r): r is BranchPanelRepoDetailsDto => r !== undefined),
-      buttons: cardButtons(this.actionDeps(), target),
+      buttons: cardButtons(this.actionDeps(), target, scope),
     };
   }
 
@@ -405,13 +412,13 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     });
 
     rpc.on(BRANCHES_METHODS.details, async (params) => {
-      const target = (params as { target?: unknown } | undefined)?.target;
-      return isTarget(target) ? this.details(target) : { repos: [], buttons: [] };
+      const p = params as { target?: unknown; scope?: unknown } | undefined;
+      return isTarget(p?.target) ? this.details(p.target, scopeOf(p.scope)) : { repos: [], buttons: [] };
     });
 
     rpc.on(BRANCHES_METHODS.menu, async (params) => {
-      const p = params as { target?: unknown; root?: unknown } | undefined;
-      if (isTarget(p?.target)) return this.menu({ target: p.target });
+      const p = params as { target?: unknown; root?: unknown; scope?: unknown } | undefined;
+      if (isTarget(p?.target)) return this.menu({ target: p.target, scope: scopeOf(p.scope) });
       if (typeof p?.root === 'string') return this.menu({ root: p.root });
       return [];
     });
@@ -482,9 +489,11 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
   }
 
   /** A branch's menu, or a repository's: what right-click and `⋯` show. Public for the tests. */
-  async menu(of: { target: BranchPanelTargetDto } | { root: string }): Promise<BranchPanelMenuItemDto[]> {
+  async menu(
+    of: { target: BranchPanelTargetDto; scope?: readonly string[] } | { root: string },
+  ): Promise<BranchPanelMenuItemDto[]> {
     if (this.last === undefined) await this.buildState();
-    if ('target' in of) return branchMenu(this.actionDeps(), of.target);
+    if ('target' in of) return branchMenu(this.actionDeps(), of.target, of.scope);
     return this.deps.core.getRepo(of.root) ? repositoryMenu(of.root) : [];
   }
 

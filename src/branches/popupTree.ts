@@ -80,6 +80,19 @@ export const HUB_VERBS: readonly HubVerb[] = [
 ];
 
 /**
+ * POST-P14ax: at the project level, one branch checked out in every repository
+ * that has it, locally or on a remote. Not inside one repository, where it is
+ * that repository's own Checkout.
+ */
+export const PROJECT_CHECKOUT_VERB: HubVerb = {
+  command: 'gittree.branches.checkoutEverywhere',
+  label: 'Checkout Branch in All Repositories…',
+  icon: 'arrow-swap',
+  keywords: 'checkout switch branch all every repositories',
+  group: 'branch',
+};
+
+/**
  * A ref name every root carries, which is what makes it actionable across all
  * of them. IntelliJ calls these `Common Local Branches` / `Common Remote
  * Branches` / `Common Tags`.
@@ -474,7 +487,7 @@ function commonRefRow(
 export function rootRows(ctx: TreeContext): TreeRow[] {
   const rows: TreeRow[] = [];
   let lastGroup: string | undefined;
-  for (const verb of HUB_VERBS) {
+  for (const verb of ctx.repos.length > 1 ? [...HUB_VERBS, PROJECT_CHECKOUT_VERB] : HUB_VERBS) {
     rows.push(verbRow(verb, lastGroup !== undefined && lastGroup !== verb.group));
     lastGroup = verb.group;
   }

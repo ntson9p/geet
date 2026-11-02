@@ -577,7 +577,16 @@ registry interpolates the current branch ("Merge 'x' into 'main'") and at the pr
 the roots need not share one — a label naming the first root's branch would be wrong about
 the others.
 
-**What is not offered on a common row:** `New Branch from…`, `Rename`, `Delete`,
+**Since then:** `New Branch from…` is offered on a common row of the Branches panel, which
+opens the panel's own form (new-way-4): one name, one start point (POST-P14ax: chosen in the
+form), the repositories ticked. And `Checkout` is one run across repositories (POST-P14ax): a
+remote branch is checked out as a new local branch tracking it wherever no local branch has
+the name, and in the panel a branch's row reaches every repository in view that has it, local
+or remote. IntelliJ's common rows list only refs every root carries; GitTree's checkout also
+takes the repositories where only a remote has the branch, since that is the ordinary state of
+a release branch that teammates pushed.
+
+**What is not offered on a common row:** `Rename`, `Delete`,
 `Delete on Remote`, `New Worktree from…` — each takes its input *inside* the per-repository
 call (`BranchOps.newBranchFrom` opens its input box, `deleteBranch` its confirmation), so
 fanning them out would ask seven times for one decision. Also absent are
@@ -604,7 +613,13 @@ silently inside a task about which repository a fetch belongs to.
   nowhere says "nothing to do" rather than appearing to do nothing.
 * **The fan-out stops at the first refusal**, reporting which roots were already done — the
   idiom `runCommitAcross` established. Carrying on would start a merge in roots 3…7 while
-  root 2 sits in conflict.
+  root 2 sits in conflict. **Checkout and New Branch no longer do (POST-P14ax).** They change
+  nothing a conflict could follow: one repository's refusal leaves the next no less able to
+  switch. Local changes in the way are asked about once at the end, for every repository they
+  stopped, and one summary says what happened in each. IntelliJ stops there and offers to
+  check the repositories already switched back out ("Rollback"); GitTree does not, so a
+  project can be left with one repository on the old branch, which the summary names and a
+  second Checkout finishes.
 
 **Also still per repository:** the project level's `Push…` verb opens its existing
 single-repository dialog, which is built per root (`pushDialog`'s `repoLabel`); making it

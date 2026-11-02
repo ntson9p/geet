@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
 import type { BranchOps } from './branchOps';
+import { branchOfRemote } from './checkoutAcrossModel';
 import type { RefService } from './refService';
 
 export type BranchRefType = 'local' | 'remote' | 'tag' | 'head';
@@ -132,6 +133,23 @@ export function branchContextValue(ref: RefInfo): string {
   return ref.upstreamGone === true ? `branch:${kind}:gone` : `branch:${kind}:tracked`;
 }
 
+/** A remote branch's remote, `origin` for `origin/release/2.0`. */
+function remoteOf(ctx: BranchActionContext): string | undefined {
+  return ctx.repo.model.snapshot.refs.find((r) => r.type === 'remote' && r.name === ctx.name)?.remote;
+}
+
+/**
+ * A remote branch whose local branch of the same name is the checked-out one:
+ * `Checkout` on `origin/main` while on `main` would only land where it is.
+ */
+function checkedOutLocally(ctx: BranchActionContext): boolean {
+  if (ctx.type !== 'remote') return false;
+  const remote = remoteOf(ctx);
+  if (remote === undefined) return false;
+  const name = branchOfRemote(ctx.name, remote);
+  return ctx.repo.model.snapshot.refs.some((r) => r.type === 'head' && r.name === name && r.isHead);
+}
+
 export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
   const { ops } = deps;
   return [
@@ -140,10 +158,28 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       group: 'checkout',
       label: (ctx) =>
         ctx.type === 'remote' ? vscode.l10n.t('Checkout') : vscode.l10n.t('Checkout'),
-      applies: (ctx) => !ctx.isCurrent && ctx.type !== 'head',
+      applies: (ctx) => !ctx.isCurrent && ctx.type !== 'head' && !checkedOutLocally(ctx),
       run: async (ctx) => {
         if (ctx.type === 'remote') await ops.checkoutRemote(ctx.repo, ctx.name);
         else await ops.checkout(ctx.repo, ctx.name);
+      },
+      // POST-P14ax: across repositories, one run — each one's local branch, or a
+      // new one tracking the remote branch, one question for local changes in
+      // the way, one summary — rather than a Smart Checkout question each.
+      runAll: async (ctxs) => {
+        const first = ctxs[0];
+        if (first === undefined) return;
+        const repos = ctxs.map((c) => c.repo);
+        if (first.type === 'tag') {
+          await ops.checkoutAcross(repos, { kind: 'tag', name: first.name });
+          return;
+        }
+        const remote = first.type === 'remote' ? remoteOf(first) : undefined;
+        await ops.checkoutAcross(repos, {
+          kind: 'branch',
+          name: remote !== undefined ? branchOfRemote(first.name, remote) : first.name,
+          ...(remote !== undefined ? { remote } : {}),
+        });
       },
     },
     {

@@ -15,7 +15,7 @@ import type {
   BranchPanelCreateResultDto,
   BranchPanelRepoDto,
 } from '../../../src/shared/protocol';
-import { eligibleRepos, formProblem, fromText, trackingNote } from './newBranch';
+import { eligibleRepos, formProblem, fromText, startPointNote, startPoints, trackingNote } from './newBranch';
 import { Codicon } from './Rows';
 
 export interface NewBranchRequest {
@@ -36,14 +36,22 @@ export interface NewBranchFormProps {
 }
 
 export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: NewBranchFormProps) {
-  const eligible = useMemo(() => eligibleRepos(repos, request.from), [repos, request.from]);
+  // POST-P14ax: where it starts is the form's to choose, not only the gesture's
+  // that opened it — `main` in every repository, `origin/main`, a tag.
+  const [from, setFrom] = useState(request.from);
+  const eligible = useMemo(() => eligibleRepos(repos, from), [repos, from]);
+  const points = useMemo(() => startPoints(repos), [repos]);
   const [name, setName] = useState(() => cleanUpBranchNameOnTyping(request.name ?? ''));
   const [checkout, setCheckout] = useState(true);
-  const [chosenRoots, setChosenRoots] = useState<ReadonlySet<string>>(() => {
+  // Until a repository is ticked or unticked by hand, the ones that have the
+  // start point are chosen — those the form was opened for, if any has it.
+  const [picked, setPicked] = useState<ReadonlySet<string> | undefined>(undefined);
+  const chosenRoots = useMemo((): ReadonlySet<string> => {
+    if (picked !== undefined) return picked;
     const asked = new Set(request.roots);
     const start = eligible.filter((r) => asked.has(r.root)).map((r) => r.root);
     return new Set(start.length > 0 ? start : eligible.map((r) => r.root));
-  });
+  }, [eligible, picked, request.roots]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -54,7 +62,7 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
   }, []);
 
   const chosen = eligible.filter((r) => chosenRoots.has(r.root));
-  const problem = formProblem(name, chosen, checkout, request.from);
+  const problem = formProblem(name, chosen, checkout, from);
   const canCreate = !busy && name.trim().length > 0 && problem === undefined;
 
   const submit = async (): Promise<void> => {
@@ -64,7 +72,7 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
     try {
       const result = await onCreate({
         name: name.trim(),
-        from: request.from,
+        from,
         roots: chosen.map((r) => r.root),
         checkout,
       });
@@ -78,7 +86,7 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
   };
 
   const message = error ?? problem;
-  const note = trackingNote(name, request.from, chosen.length > 0 ? chosen : eligible);
+  const note = trackingNote(name, from, chosen.length > 0 ? chosen : eligible);
   return (
     <form
       className="gtp-form"
@@ -98,7 +106,7 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
       <div className="gtp-form-title">
         <Codicon name="git-branch" />
         <span className="gtp-ellipsis">
-          New branch from <strong>{fromText(request.from, chosen.length > 0 ? chosen : eligible)}</strong>
+          New branch from <strong>{fromText(from, chosen.length > 0 ? chosen : eligible)}</strong>
         </span>
         <span className="gtp-spacer" />
         <button
@@ -125,6 +133,30 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
           setError(undefined);
         }}
       />
+      <label className="gtp-form-from">
+        <span>From</span>
+        <input
+          className="gt-input"
+          type="text"
+          list="gtp-from-points"
+          value={from === 'HEAD' ? '' : from}
+          placeholder={
+            repos.length > 1 ? 'each repository’s current branch' : `the current branch, ${fromText('HEAD', repos)}`
+          }
+          aria-label="Start point"
+          spellCheck={false}
+          onChange={(e) => {
+            const value = e.currentTarget.value.trim();
+            setFrom(value.length === 0 ? 'HEAD' : value);
+            setError(undefined);
+          }}
+        />
+      </label>
+      <datalist id="gtp-from-points">
+        {points.map((p) => (
+          <option key={`${p.kind}:${p.name}`} value={p.name} label={startPointNote(p, repos.length)} />
+        ))}
+      </datalist>
       <label className="gtp-check">
         <input type="checkbox" checked={checkout} onChange={(e) => setCheckout(e.currentTarget.checked)} />
         <span>Check it out</span>
@@ -141,16 +173,14 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
                 className={`gtp-repo-chip${on ? ' gtp-chip-on' : ''}`}
                 disabled={!can}
                 aria-pressed={on}
-                title={can ? undefined : `${repo.label} has no “${request.from}”`}
+                title={can ? undefined : `${repo.label} has no “${from}”`}
                 style={{ '--gtp-repo': colorOf(repo) } as CSSProperties}
-                onClick={() =>
-                  setChosenRoots((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(repo.root)) next.delete(repo.root);
-                    else next.add(repo.root);
-                    return next;
-                  })
-                }
+                onClick={() => {
+                  const next = new Set(chosenRoots);
+                  if (next.has(repo.root)) next.delete(repo.root);
+                  else next.add(repo.root);
+                  setPicked(next);
+                }}
               >
                 <span className="gtp-marker" data-state={on ? 'current' : 'has'} />
                 {repo.label}

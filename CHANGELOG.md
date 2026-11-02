@@ -42,6 +42,30 @@ real file, so you can edit as you go, and a tab you have edited stays open when 
 An untracked file now opens as a diff too, and so does one deleted from disk, instead of as a plain
 document with no way on.
 
+### Added — one branch in every repository: Checkout across them, and New Branch from a common one
+
+**Checkout Branch in All Repositories…** in the Branches panel's `⋯` and the Command Palette lists
+every branch any repository has, local or remote, with where it is, and checks the one you pick
+out in every repository that has it. A branch's own menu does the same: `release/2.0`, a local
+branch in one repository and only on `origin` in three more, offers **Checkout in 4 of 5
+repositories**. Where no local branch has the name, a new one is made tracking the remote branch.
+
+The New Branch form has a **From** field: start the branch from `main`, `origin/main`, a tag or
+any revision in every chosen repository, or leave it empty for each one's own current branch.
+Repositories without that start point cannot be ticked.
+
+Both go on past a repository that fails, and ask once about uncommitted changes in the way —
+Smart Checkout, Force Checkout, or leave those repositories where they are — then say in one
+notification what happened in each.
+
+### Fixed — an operation across repositories could wait for good on one with conflicts
+
+A repository with conflicts to resolve and no merge behind them, as a stash or Smart Checkout
+that did not go back cleanly leaves it, holds its git operations until they are resolved. Update
+Project, a checkout across repositories and New Branch queued one there anyway and waited, and
+every repository after it waited too. They now skip it and say why: *it has conflicts to
+resolve*.
+
 ### Changed — Update Project fetches first, and one repository's trouble no longer stops the rest
 
 `Ctrl+T` across several repositories now fetches them all first, then asks Merge or Rebase with

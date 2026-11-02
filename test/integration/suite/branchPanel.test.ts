@@ -18,6 +18,7 @@ import type {
 } from '../../../src/shared/protocol';
 import type { BranchOps } from '../../../src/branches/branchOps';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
+import { repoLabels } from '../../../src/core/util/repoLabels';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
 
 /**
@@ -32,8 +33,10 @@ import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE 
 suite('new-way-4 Branches panel', () => {
   interface PanelShape {
     buildState(): Promise<BranchPanelStateDto>;
-    details(target: BranchPanelTargetDto): Promise<BranchPanelDetailsDto>;
-    menu(of: { target: BranchPanelTargetDto } | { root: string }): Promise<BranchPanelMenuItemDto[]>;
+    details(target: BranchPanelTargetDto, scope?: readonly string[]): Promise<BranchPanelDetailsDto>;
+    menu(
+      of: { target: BranchPanelTargetDto; scope?: readonly string[] } | { root: string },
+    ): Promise<BranchPanelMenuItemDto[]>;
     create(request: BranchPanelCreateDto): Promise<BranchPanelCreateResultDto>;
     run(run: BranchPanelRunDto): Promise<void>;
   }
@@ -480,6 +483,228 @@ suite('new-way-4 Branches panel', () => {
     });
     await refresh();
     assert.strictEqual(trackedBy('gtp/raced'), '');
+  });
+
+  // ---- POST-P14ax · one branch in every repository ---------------------------
+
+  /** repoE gets a remote of its own, beside repoD's: nothing leaves the machine. */
+  const REMOTE_E = 'gtporigin-e';
+  const withRemoteE = async <T>(body: () => Promise<T>): Promise<T> => {
+    assert.ok(remoteDir !== undefined, 'T7 made the remotes directory');
+    const bare = path.join(remoteDir, 'remote-e.git').replace(/\\/g, '/');
+    if (!fs.existsSync(bare)) execFileSync('git', ['init', '--bare', bare], { cwd: remoteDir, encoding: 'utf8' });
+    git(repoE, 'remote', 'add', REMOTE_E, bare);
+    try {
+      return await body();
+    } finally {
+      for (const repo of [repoD, repoE]) {
+        try {
+          git(repo, 'reset', '-q', '--hard');
+          git(repo, 'checkout', '-q', 'main');
+        } catch {
+          /* left as it was */
+        }
+      }
+      git(repoE, 'remote', 'remove', REMOTE_E);
+      await refresh();
+    }
+  };
+  /** `name` on each repository's remote, and in repoD as a local branch too. */
+  const acrossBranch = async (name: string, change?: { file: string; content: string }): Promise<void> => {
+    for (const [repo, remote] of [
+      [repoD, REMOTE],
+      [repoE, REMOTE_E],
+    ] as const) {
+      git(repo, 'checkout', '-q', '-b', name, 'main');
+      if (change !== undefined) {
+        fs.writeFileSync(path.join(repo.root, change.file), change.content);
+        git(repo, 'add', '--', change.file);
+        git(repo, '-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', `${name} change`);
+      }
+      git(repo, 'push', '-q', remote, `${name}:refs/heads/${name}`);
+      git(repo, 'checkout', '-q', 'main');
+      made.push([repo, name]);
+    }
+    // repoE keeps only the remote branch: a Checkout there makes it.
+    git(repoE, 'branch', '-D', name);
+    git(repoE, 'fetch', '-q', REMOTE_E);
+    git(repoD, 'fetch', '-q', REMOTE);
+    await refresh();
+    await waitFor(
+      () => repoE.model.snapshot.refs.some((r) => r.type === 'remote' && r.name === `${REMOTE_E}/${name}`),
+      10_000,
+    );
+  };
+  const label = (repo: RepoHandle): string => repoLabels(core.repos.map((r) => r.root)).get(repo.root) ?? '';
+  const headIs = (repo: RepoHandle): string => git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+  const lastQuestion = () =>
+    (core.debugRegistry.get('phase02') as { lastLocalChangesQuestion: () => { message: string } | undefined })
+      .lastLocalChangesQuestion();
+  const withSmartChoice = async <T>(choice: string, body: () => Promise<T>): Promise<T> => {
+    const saved = process.env['GITTREE_TEST_SMART_CHOICE'];
+    process.env['GITTREE_TEST_SMART_CHOICE'] = choice;
+    try {
+      return await body();
+    } finally {
+      if (saved === undefined) delete process.env['GITTREE_TEST_SMART_CHOICE'];
+      else process.env['GITTREE_TEST_SMART_CHOICE'] = saved;
+    }
+  };
+
+  test('T18 a local branch in one repository offers Checkout in every one that has it, remote or not', async function () {
+    this.timeout(120_000);
+    await withRemoteE(async () => {
+      await acrossBranch('gtp/across');
+      const target: BranchPanelTargetDto = { kind: 'local', name: 'gtp/across', roots: [repoD.root] };
+      const items = await panel.menu({ target, scope: [repoD.root, repoE.root] });
+      const first = items[0];
+      assert.ok(first?.kind === 'item' && first.run.type === 'checkoutAcross', JSON.stringify(first));
+      assert.strictEqual(first.label, 'Checkout in all 2 repositories');
+      // Without the repositories in view, it is the row's own repository's menu.
+      const own = await panel.menu({ target });
+      assert.ok(!labelsIn(own).some((l) => l.startsWith('Checkout in')), labelsIn(own).join(' | '));
+
+      notes().clear();
+      await panel.run(first.run);
+      await refresh();
+      assert.strictEqual(headIs(repoD), 'gtp/across');
+      assert.strictEqual(headIs(repoE), 'gtp/across');
+      assert.strictEqual(
+        git(repoE, 'for-each-ref', '--format=%(upstream:short)', 'refs/heads/gtp/across').trim(),
+        `${REMOTE_E}/gtp/across`,
+        'made in repoE from its remote branch, and tracking it',
+      );
+      assert.deepStrictEqual(notes().recent().map((n) => n.message), [
+        `Checked out gtp/across in ${label(repoD)} and ${label(repoE)}; in ${label(repoE)} as a new branch tracking ${REMOTE_E}/gtp/across.`,
+      ]);
+    });
+  });
+
+  test('T19 local changes in the way are asked about once; Cancel leaves that repository where it is', async function () {
+    this.timeout(120_000);
+    await withRemoteE(async () => {
+      await acrossBranch('gtp/clash', { file: 'gtp-clash.txt', content: 'on the branch\n' });
+      // In repoD a file of that name, not in git: the checkout would overwrite it.
+      fs.writeFileSync(path.join(repoD.root, 'gtp-clash.txt'), 'mine, not committed\n');
+      await refresh();
+      const run: BranchPanelRunDto = {
+        type: 'checkoutAcross',
+        roots: [repoD.root, repoE.root],
+        name: 'gtp/clash',
+      };
+      notes().clear();
+      await withSmartChoice('cancel', () => panel.run(run));
+      await refresh();
+      assert.match(lastQuestion()?.message ?? '', new RegExp(`Your local changes in ${label(repoD)} would be overwritten`, 'u'));
+      assert.strictEqual(headIs(repoD), 'main', 'left where it was');
+      assert.strictEqual(headIs(repoE), 'gtp/clash', 'the other went on');
+      assert.strictEqual(fs.readFileSync(path.join(repoD.root, 'gtp-clash.txt'), 'utf8'), 'mine, not committed\n');
+      const said = notes().recent();
+      assert.strictEqual(said.length, 1);
+      assert.strictEqual(said[0]!.kind, 'warning');
+      assert.ok(said[0]!.message.startsWith(`${label(repoD)} stays on main: your local changes to gtp-clash.txt`), said[0]!.message);
+      fs.rmSync(path.join(repoD.root, 'gtp-clash.txt'));
+    });
+  });
+
+  test('T20 Smart Checkout sets them aside and puts them back, in every repository it stopped', async function () {
+    this.timeout(120_000);
+    await withRemoteE(async () => {
+      await acrossBranch('gtp/smart', { file: 'gtp-smart.txt', content: 'one\nkeep\nthree\n' });
+      git(repoD, 'checkout', '-q', 'gtp/smart');
+      git(repoD, 'checkout', '-q', 'main');
+      // Tracked on main too, with a change of mine away from the branch's lines.
+      fs.writeFileSync(path.join(repoD.root, 'gtp-smart.txt'), 'one\nkeep\nthree\n');
+      git(repoD, 'add', '--', 'gtp-smart.txt');
+      git(repoD, '-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'gtp smart base');
+      const mainWithFile = git(repoD, 'rev-parse', 'HEAD').trim();
+      git(repoD, 'checkout', '-q', 'gtp/smart');
+      fs.writeFileSync(path.join(repoD.root, 'gtp-smart.txt'), 'ONE\nkeep\nthree\n');
+      git(repoD, 'commit', '-q', '-a', '-m', 'gtp smart: the branch changes line one');
+      git(repoD, 'checkout', '-q', 'main');
+      fs.writeFileSync(path.join(repoD.root, 'gtp-smart.txt'), 'one\nkeep\nTHREE, mine\n');
+      await refresh();
+      try {
+        await withSmartChoice('smart', () =>
+          panel.run({ type: 'checkoutAcross', roots: [repoD.root, repoE.root], name: 'gtp/smart' }),
+        );
+        await refresh();
+        assert.strictEqual(headIs(repoD), 'gtp/smart');
+        assert.strictEqual(fs.readFileSync(path.join(repoD.root, 'gtp-smart.txt'), 'utf8'), 'ONE\nkeep\nTHREE, mine\n');
+        assert.strictEqual(git(repoD, 'stash', 'list').trim(), '', 'nothing left behind in the stash');
+      } finally {
+        git(repoD, 'reset', '-q', '--hard');
+        git(repoD, 'checkout', '-q', 'main');
+        git(repoD, 'reset', '-q', '--hard', mainWithFile + '~1');
+      }
+    });
+  });
+
+  test('T21 a repository with conflicts to resolve is skipped, and the run does not wait on it', async function () {
+    this.timeout(120_000);
+    await withRemoteE(async () => {
+      await acrossBranch('gtp/past-conflict');
+      // repoE: conflicted files, and no merge behind them — what a stash that did
+      // not go back cleanly leaves. The conflict lifecycle holds its mutations.
+      git(repoE, 'checkout', '-q', '-b', 'gtp/side', 'main');
+      fs.writeFileSync(path.join(repoE.root, 'gtp-side.txt'), 'side\n');
+      git(repoE, 'add', '--', 'gtp-side.txt');
+      git(repoE, '-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'side');
+      made.push([repoE, 'gtp/side']);
+      git(repoE, 'checkout', '-q', 'main');
+      fs.writeFileSync(path.join(repoE.root, 'gtp-side.txt'), 'main\n');
+      git(repoE, 'add', '--', 'gtp-side.txt');
+      git(repoE, '-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'main side');
+      const mainE = git(repoE, 'rev-parse', 'HEAD~1').trim();
+      try {
+        git(repoE, 'merge', 'gtp/side');
+      } catch {
+        /* the conflict this needs */
+      }
+      for (const f of ['MERGE_HEAD', 'MERGE_MSG', 'MERGE_MODE']) fs.rmSync(path.join(repoE.dirs.gitDir, f), { force: true });
+      await refresh();
+      await waitFor(() => repoE.model.snapshot.statusEntries.some((e) => e.kind === 'unmerged'), 10_000);
+      try {
+        notes().clear();
+        await panel.run({ type: 'checkoutAcross', roots: [repoD.root, repoE.root], name: 'gtp/past-conflict' });
+        await refresh();
+        assert.strictEqual(headIs(repoD), 'gtp/past-conflict');
+        assert.strictEqual(headIs(repoE), 'main');
+        assert.match(
+          notes().recent().at(-1)?.message ?? '',
+          new RegExp(`Skipped ${label(repoE)} \\(it has conflicts to resolve\\)`, 'u'),
+        );
+      } finally {
+        git(repoE, 'reset', '-q', '--hard', mainE);
+      }
+    });
+  });
+
+  test('T22 New Branch goes on past local changes in the way: made there, not checked out', async function () {
+    this.timeout(120_000);
+    await withRemoteE(async () => {
+      await acrossBranch('gtp/base', { file: 'gtp-base.txt', content: 'base\n' });
+      fs.writeFileSync(path.join(repoD.root, 'gtp-base.txt'), 'mine, not committed\n');
+      await refresh();
+      notes().clear();
+      const roots = [repoD.root, repoE.root];
+      // repoE has the branch only as gtporigin-e/gtp/base: the form offers what both have.
+      git(repoE, 'branch', '--no-track', 'gtp/base', `${REMOTE_E}/gtp/base`);
+      await refresh();
+      const result = await withSmartChoice('cancel', () =>
+        panel.create({ name: 'gtp/from-base', from: 'gtp/base', roots, checkout: true }),
+      );
+      made.push([repoD, 'gtp/from-base'], [repoE, 'gtp/from-base']);
+      assert.deepStrictEqual(result, { ok: true }, 'some of it went through: the form closes');
+      await refresh();
+      assert.ok(has(repoD, 'gtp/from-base'), 'made in repoD all the same');
+      assert.strictEqual(headIs(repoD), 'main', 'and not checked out there');
+      assert.strictEqual(headIs(repoE), 'gtp/from-base');
+      const said = notes().recent().at(-1);
+      assert.strictEqual(said?.kind, 'warning');
+      assert.ok(said?.message.includes('gtp/from-base is there, not checked out'), said?.message);
+      fs.rmSync(path.join(repoD.root, 'gtp-base.txt'));
+    });
   });
 
   test('T17 a right-click on the opt-in Branches tree reaches the branch', async function () {

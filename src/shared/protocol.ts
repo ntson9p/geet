@@ -1610,6 +1610,17 @@ export type BranchPanelRunDto =
       readonly type: 'newBranch';
       readonly from: string;
       readonly roots: readonly string[];
+    }
+  | {
+      /**
+       * POST-P14ax: one branch checked out in every one of `roots` that has it,
+       * locally or on a remote; with no `name`, a picker of every branch first.
+       */
+      readonly type: 'checkoutAcross';
+      readonly roots: readonly string[];
+      readonly name?: string;
+      /** Where to take it from where no local branch has the name. */
+      readonly remote?: string;
     };
 
 /** A menu entry the host built; the webview draws it and sends `run` back. */
@@ -1653,9 +1664,13 @@ export const BRANCHES_METHODS = {
   init: 'branches/init',
   /** host → webview: the state changed. */
   evtState: 'branches/state',
-  /** webview → host: a branch card's details (`{ target }` → `BranchPanelDetailsDto`). */
+  /**
+   * webview → host: a branch card's details (`{ target, scope? }` → `BranchPanelDetailsDto`).
+   * `scope` is every repository in view, which a checkout across them reaches beyond
+   * the ones the row stands for: a branch only on their remote (POST-P14ax).
+   */
   details: 'branches/details',
-  /** webview → host: a branch row's menu (`{ target }`) or a repository's (`{ root }`). */
+  /** webview → host: a branch row's menu (`{ target, scope? }`) or a repository's (`{ root }`). */
   menu: 'branches/menu',
   /** webview → host: run a `BranchPanelRunDto` (`{ run }`). */
   run: 'branches/run',

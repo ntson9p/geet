@@ -108,13 +108,48 @@ export async function checkoutWithSmart(core: Core, repo: RepoHandle, target: st
   }
 }
 
-async function smartCheckout(core: Core, repo: RepoHandle, target: string): Promise<void> {
+/**
+ * The checkout went through, but putting the user's changes back did not: git
+ * keeps the stash entry whenever `stash pop` fails, so nothing is lost.
+ */
+export class RestoreFailedError extends Error {
+  override readonly name = 'RestoreFailedError';
+
+  constructor(override readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+  }
+
+  /** Putting them back conflicted with what was checked out, rather than failing outright. */
+  get conflicts(): boolean {
+    return this.cause instanceof GitError && this.cause.kind === 'merge-conflict';
+  }
+}
+
+/**
+ * Smart Checkout's steps, saying nothing (POST-P14ax): stash everything,
+ * untracked files included, run `args`, put it all back. Shared by one
+ * repository's Smart Checkout and a checkout across repositories, which reports
+ * once for all of them.
+ *
+ * Throws what the checkout threw, with the changes put back where they were;
+ * or `RestoreFailedError` when the checkout went through and putting the changes
+ * back did not, the stash entry kept.
+ */
+export async function setAsideAround(
+  repo: RepoHandle,
+  target: string,
+  args: readonly string[],
+  options: { readonly quietProgress?: boolean } = {},
+): Promise<void> {
   const marker = `gittree-smart:${target}:${Date.now()}`;
+  // Quiet when a caller's own progress says what is going on.
+  const quiet = options.quietProgress === true ? { quietProgress: true as const } : {};
 
   // 1. Stash everything (incl. untracked) — destructive-flagged for P9.
   await repo.queue.enqueue({
     label: vscode.l10n.t('Smart checkout: stash changes'),
     kind: 'mutate',
+    ...quiet,
     isDestructive: true,
     snapshotLabel: SNAPSHOT_LABELS.smartCheckoutStash,
     run: async (git, token) => {
@@ -127,8 +162,9 @@ async function smartCheckout(core: Core, repo: RepoHandle, target: string): Prom
     await repo.queue.enqueue({
       label: vscode.l10n.t('Checkout {0}', target),
       kind: 'mutate',
+      ...quiet,
       run: async (git, token) => {
-        await git.exec(repo.root, ['checkout', target], { token });
+        await git.exec(repo.root, [...args], { token });
       },
     });
   } catch (err) {
@@ -137,6 +173,7 @@ async function smartCheckout(core: Core, repo: RepoHandle, target: string): Prom
       .enqueue({
         label: vscode.l10n.t('Smart checkout: restore stash after failure'),
         kind: 'mutate',
+        ...quiet,
         run: async (git, token) => {
           await git.exec(repo.root, ['stash', 'pop'], { token, allowNonZeroExit: true });
         },
@@ -151,14 +188,24 @@ async function smartCheckout(core: Core, repo: RepoHandle, target: string): Prom
     await repo.queue.enqueue({
       label: vscode.l10n.t('Smart checkout: restore changes'),
       kind: 'mutate',
+      ...quiet,
       run: async (git, token) => {
         await git.exec(repo.root, ['stash', 'pop'], { token });
       },
     });
+  } catch (err) {
+    throw new RestoreFailedError(err);
+  }
+}
+
+async function smartCheckout(core: Core, repo: RepoHandle, target: string): Promise<void> {
+  try {
+    await setAsideAround(repo, target, ['checkout', target]);
     core.output.appendLine(`[branches] smart checkout to ${target} completed with changes restored`);
     checkedOut(target);
   } catch (err) {
-    if (err instanceof GitError && err.kind === 'merge-conflict') {
+    if (!(err instanceof RestoreFailedError)) throw err;
+    if (err.conflicts) {
       void vscode.window.showWarningMessage(
         vscode.l10n.t(
           'Conflicts while restoring your changes on "{0}". Resolve them, then drop the kept stash entry.',
@@ -167,6 +214,6 @@ async function smartCheckout(core: Core, repo: RepoHandle, target: string): Prom
       );
       return;
     }
-    throw err;
+    throw err.cause;
   }
 }

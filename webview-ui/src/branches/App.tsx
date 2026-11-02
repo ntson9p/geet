@@ -92,8 +92,8 @@ interface OpenMenu {
 }
 
 /** What a card's facts depend on: when any of it moves, the card asks again. */
-function detailsKey(entry: BranchEntry): string {
-  return `${entry.key}|${entry.presence
+function detailsKey(entry: BranchEntry, scope: readonly string[]): string {
+  return `${entry.key}|${scope.join(',')}|${entry.presence
     .map(
       (p) =>
         `${p.repo.root}@${p.ref.sha}:${p.repo.headSha ?? ''}:${p.repo.head ?? ''}:${p.ref.current === true ? 1 : 0}:${
@@ -228,14 +228,19 @@ export function App() {
   const openRow = model?.rows.find((r) => r.id === openCard);
   const openEntry =
     openRow?.kind === 'branch' ? openRow.entry : openRow?.kind === 'head' ? openRow.entry : undefined;
-  const openKey = openEntry !== undefined ? detailsKey(openEntry) : undefined;
+  const scopeRoots = useMemo(() => (model?.scopeRepos ?? []).map((r) => r.root), [model?.scopeRepos]);
+  const scopeRef = useRef(scopeRoots);
+  scopeRef.current = scopeRoots;
+  const openKey = openEntry !== undefined ? detailsKey(openEntry, scopeRoots) : undefined;
   const openEntryRef = useRef(openEntry);
   openEntryRef.current = openEntry;
   useEffect(() => {
     const entry = openEntryRef.current;
     if (entry === undefined || openKey === undefined || details.has(openKey)) return undefined;
     let live = true;
-    void rpc.request<BranchPanelDetailsDto>(BRANCHES_METHODS.details, { target: targetOf(entry) }).then(
+    void rpc
+      .request<BranchPanelDetailsDto>(BRANCHES_METHODS.details, { target: targetOf(entry), scope: scopeRef.current })
+      .then(
       (d) => {
         if (!live) return;
         setDetails((prev) => {
@@ -315,10 +320,12 @@ export function App() {
 
   const openBranchMenu = useCallback(
     (entry: BranchEntry, at: { x: number; y: number }) => {
-      void rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { target: targetOf(entry) }).then(
-        (items) => showMenu(items ?? [], at, `Actions for ${entry.name}`),
-        () => undefined,
-      );
+      void rpc
+        .request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { target: targetOf(entry), scope: scopeRef.current })
+        .then(
+          (items) => showMenu(items ?? [], at, `Actions for ${entry.name}`),
+          () => undefined,
+        );
     },
     [showMenu],
   );
@@ -361,7 +368,10 @@ export function App() {
     (row: Extract<PanelRow, { kind: 'head' }>, at: { x: number; y: number }) => {
       const branch =
         row.entry !== undefined
-          ? rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { target: targetOf(row.entry) })
+          ? rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, {
+              target: targetOf(row.entry),
+              scope: scopeRef.current,
+            })
           : Promise.resolve([] as BranchPanelMenuItemDto[]);
       const repo = rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { root: row.repo.root });
       void Promise.all([branch, repo]).then(
@@ -411,6 +421,19 @@ export function App() {
         item('revision', 'Checkout Tag or Revision…', () =>
           runCommand('gittree.branches.checkoutRevision', single),
         ),
+        // POST-P14ax: one branch in every repository in view, from a picker of them all.
+        ...(model.scopeRepos.length > 1
+          ? [
+              item(
+                'checkoutAcross',
+                model.scopeRepos.length === state.repos.length
+                  ? 'Checkout Branch in All Repositories…'
+                  : `Checkout Branch in ${model.scopeRepos.length} Repositories…`,
+                () => run({ type: 'checkoutAcross', roots: model.scopeRepos.map((r) => r.root) }),
+                { icon: 'arrow-swap' },
+              ),
+            ]
+          : []),
         item('cleanup', 'Clean Up Branches…', () => runCommand('gittree.branches.cleanup', single), {
           icon: 'trash',
         }),
@@ -443,7 +466,7 @@ export function App() {
       ];
       setMenu({ items, at, label: 'More actions', runs });
     },
-    [model, openForm, runCommand, setSetting, state],
+    [model, openForm, run, runCommand, setSetting, state],
   );
 
   // ---- gestures on rows ---------------------------------------------------------
@@ -618,7 +641,7 @@ export function App() {
   ) => (
     <BranchCard
       entry={entry}
-      details={entry !== undefined ? details.get(detailsKey(entry)) : { repos: [], buttons: [] }}
+      details={entry !== undefined ? details.get(detailsKey(entry, scopeRoots)) : { repos: [], buttons: [] }}
       markers={model.markers}
       now={state.now}
       indent={indent}

@@ -37,6 +37,8 @@ import {
   eligibleRepos,
   formProblem,
   fromText,
+  startPointNote,
+  startPoints,
   trackingNote,
 } from '../../../webview-ui/src/branches/newBranch';
 
@@ -485,6 +487,29 @@ describe('the New Branch form', () => {
     expect(eligibleRepos([api, web], 'bugfix/header').map((r) => r.root)).toEqual(['/web']);
     expect(eligibleRepos([api, web], 'upstream/main').map((r) => r.root)).toEqual(['/web']);
     expect(eligibleRepos([api, web], 'v1.1').map((r) => r.root)).toEqual(['/web']);
+  });
+
+  it('offers one no repository has as a ref everywhere, for the host to resolve: a hash, main~2', () => {
+    expect(eligibleRepos([api, web], '1a2b3c4').map((r) => r.root)).toEqual(['/api', '/web']);
+    expect(eligibleRepos([api, web], 'main~2').map((r) => r.root)).toEqual(['/api', '/web']);
+  });
+
+  it("suggests every start point, the ones most repositories share first (POST-P14ax)", () => {
+    const points = startPoints([api, web]);
+    expect(points.slice(0, 3)).toEqual([
+      { name: 'develop', kind: 'local', count: 2 },
+      { name: 'main', kind: 'local', count: 2 },
+      { name: 'origin/main', kind: 'remote', count: 2 },
+    ]);
+    expect(points.map((p) => p.name)).toContain('upstream/main');
+    expect(points.map((p) => p.name)).toContain('v1.1');
+    expect(points.at(-1)?.kind).toBe('tag');
+  });
+
+  it('says beside a suggestion what it is and where', () => {
+    expect(startPointNote({ name: 'main', kind: 'local', count: 2 }, 2)).toBe('branch · in all 2');
+    expect(startPointNote({ name: 'origin/x', kind: 'remote', count: 1 }, 3)).toBe('remote branch · in 1 of 3');
+    expect(startPointNote({ name: 'v1.0', kind: 'tag', count: 1 }, 1)).toBe('tag');
   });
 
   it('says what would make Create fail, before it does', () => {

@@ -19,6 +19,7 @@ import {
   type RepoRow,
 } from '../../../src/branches/branchesPopup';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
+import { repoLabels } from '../../../src/core/util/repoLabels';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
 
 /**
@@ -299,9 +300,11 @@ suite('POST-P14p project-level branches popup', () => {
       assert.strictEqual(headOf(repoD), COMMON_BRANCH);
       assert.strictEqual(headOf(repoE), COMMON_BRANCH);
       // POST-P14ap: said once for both repositories, as IntelliJ says it.
+      // POST-P14ax: and which they are, since it is one run across them.
+      const labels = repoLabels(core.repos.map((r) => r.root));
       assert.deepStrictEqual(
         notes.recent().map((n) => n.message),
-        [`Checked out ${COMMON_BRANCH}`],
+        [`Checked out ${COMMON_BRANCH} in ${labels.get(repoD.root)} and ${labels.get(repoE.root)}.`],
       );
 
       // Running it again is a no-op, not a failure: both roots are already

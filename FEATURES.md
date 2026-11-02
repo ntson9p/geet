@@ -236,12 +236,21 @@ standing open (D34). It answers three questions, top to bottom.
     `'origin/x'`** follows it;
   - with several repositories, the all-repositories operations come first (*Checkout in all 3
     repositories*), then one submenu per repository with its own full menu.
+  - **Checkout reaches every repository in view that has the branch, on a remote too.**
+    `release/2.0` may be a local branch in one repository and only `origin/release/2.0` in
+    three more: its row offers **Checkout in 4 of 5 repositories**, the local branch where
+    there is one and a new one tracking the remote branch where not. A remote row does the
+    same. A repository with no such branch stays where it is, and one in the middle of a merge
+    or with conflicts to resolve is skipped; the result says which.
   - **Show in Git Log** opens the branch's history in a Log tab of its own.
 * **Drag** a local branch onto another to merge or rebase (the branch trees' own prompt).
 * **The toolbar:** the filter, **Fetch** (every repository; spins until done), **New Branch**,
   and **`⋯`**:
   - Update Project…, Commit…, Push…;
-  - New Branch…, Checkout Tag or Revision…, **Clean Up Branches…**;
+  - New Branch…, Checkout Tag or Revision…, **Checkout Branch in All Repositories…** (with
+    several repositories in view: every branch any of them has, local or remote, most widely
+    held first, *4 of 5 repositories · local in api · from origin in web, docs and tools · not
+    in infra*), **Clean Up Branches…**;
   - *Show*: Tags, Incoming / Outgoing Counts, Group by Folder;
   - Collapse All.
 * **The filter** searches every section at once. Every word must match; matched letters are
@@ -251,12 +260,23 @@ standing open (D34). It answers three questions, top to bottom.
 * **New Branch** is a form in the panel, not a chain of input boxes:
   - a name, cleaned as you type as IntelliJ's field does (a space becomes `_`);
   - **Check it out** (ticked);
+  - **From**: where it starts, typed or picked from what the repositories have, the most
+    widely shared first (`main · branch · in all 5`); empty, each repository's own current
+    branch. A repository without that start point cannot be chosen;
   - with several repositories, a chip per repository to choose where;
   - from a remote branch, a line saying what the branch will track: nothing, or the remote
     branch whose name it takes.
   - It says what would make Create fail before Create is pressed: an invalid name, a name a
-    chosen repository already has, a start point a repository lacks. *New Branch from 'x'…*
-    on any branch opens the same form starting at `x`.
+    chosen repository already has, a start point a repository lacks, a repository in the
+    middle of a merge. *New Branch from 'x'…* on any branch opens the same form starting at `x`.
+* **Across several repositories, local changes in the way are asked about once.** A Checkout,
+  or a New Branch checked out, that meets uncommitted changes git would overwrite goes on with
+  the other repositories; then one question covers every repository it stopped: **Smart
+  Checkout** (set them aside, switch, put them back), **Force Checkout** (throw them away; Local
+  History keeps a copy), or Cancel, leaving those repositories where they were (a new branch is
+  made there all the same). `gittree.smartCheckout.behavior` answers it when set. One repository
+  that fails does not stop the others: one notification says what happened in each, problems
+  first.
 * **Clean Up Branches…** lists the local branches that look finished, grouped by repository:
   - merged into the main branch — ticked;
   - their remote branch deleted but not merged (a squash merge leaves exactly that) — unticked,

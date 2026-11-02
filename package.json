@@ -1128,6 +1128,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "gittree.branches.checkoutEverywhere",
+        "title": "%gittree.command.branches.checkoutEverywhere.title%",
+        "category": "GitTree",
+        "icon": "$(arrow-swap)"
+      },
+      {
         "command": "gittree.branches.showInLog",
         "title": "%gittree.command.branches.showInLog.title%",
         "category": "GitTree"
@@ -1933,6 +1939,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gittree.branches.checkoutEverywhere",
+          "when": "gittree.multiRepo"
+        },
         {
           "command": "gittree.branches.compareWithCurrent",
           "when": "false"

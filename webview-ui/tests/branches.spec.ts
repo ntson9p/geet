@@ -198,6 +198,45 @@ test.describe('several repositories', () => {
   });
 });
 
+test.describe('one branch in every repository (POST-P14ax)', () => {
+  test('More Actions offers a checkout across every repository in view, and asks the host for the picker', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Checkout Branch in All Repositories…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'checkoutAcross', roots: [API, SHARED, WEB] },
+    });
+  });
+
+  test('narrowed to some repositories, it says how many', async ({ page }) => {
+    await openPanel(page);
+    await row(page, `repo:${WEB}`).click();
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Checkout Branch in 2 Repositories…' }).click();
+    const run = (await requests(page, 'branches/run')).at(-1)?.['run'] as { roots?: string[] } | undefined;
+    expect([...(run?.roots ?? [])].sort()).toEqual([API, WEB]);
+  });
+
+  test('one repository has nothing to check out across', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await expect(page.getByRole('menuitem', { name: /Checkout Branch in/u })).toHaveCount(0);
+  });
+
+  test("a branch's menu and card are asked for with every repository in view", async ({ page }) => {
+    await openPanel(page);
+    await row(page, 'br:local:local:develop').click({ button: 'right' });
+    await expect(page.getByRole('menu', { name: 'Actions for develop' })).toBeVisible();
+    expect((await requests(page, 'branches/menu')).at(-1)?.['scope']).toEqual([API, SHARED, WEB]);
+    await page.keyboard.press('Escape');
+    await row(page, 'br:local:local:develop').click();
+    await expect.poll(async () => (await requests(page, 'branches/details')).at(-1)?.['scope']).toEqual([API, SHARED, WEB]);
+  });
+});
+
 test.describe('the New Branch form', () => {
   test('says what is wrong before Create, and creates in the repositories ticked', async ({ page }) => {
     await openPanel(page);
@@ -225,6 +264,46 @@ test.describe('the New Branch form', () => {
       checkout: true,
     });
     await expect(form).toHaveCount(0);
+  });
+
+  test('From picks where it starts, and the repositories that lack it are left out (POST-P14ax)', async ({ page }) => {
+    await openPanel(page);
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'New Branch' }).click();
+    const form = page.getByRole('form', { name: 'New branch' });
+    const from = form.getByLabel('Start point');
+    await expect(from).toHaveValue('');
+    await expect(from).toHaveAttribute('placeholder', 'each repository’s current branch');
+    // The suggestions: what most of them share comes first.
+    const options = await page.locator('#gtp-from-points option').evaluateAll((els) =>
+      els.map((e) => (e as HTMLOptionElement).value),
+    );
+    expect(options.slice(0, 2)).toEqual(['main', 'origin/main']);
+
+    await form.getByLabel('Branch name').fill('feature/from-develop');
+    await from.fill('develop');
+    await expect(form).toContainText('New branch from develop');
+    // shared has no develop: it cannot take a branch from it.
+    await expect(form.getByRole('button', { name: 'shared' })).toBeDisabled();
+    await form.getByRole('button', { name: 'Create' }).click();
+    expect((await requests(page, 'branches/create')).at(-1)).toEqual({
+      name: 'feature/from-develop',
+      from: 'develop',
+      roots: [API, WEB],
+      checkout: true,
+    });
+  });
+
+  test('clearing From goes back to each repository’s own current branch', async ({ page }) => {
+    await openPanel(page);
+    await row(page, 'br:local:local:develop').click({ button: 'right' });
+    await page.getByRole('menu', { name: 'Actions for develop' }).getByRole('menuitem', { name: "New Branch from 'develop'…" }).click();
+    const form = page.getByRole('form', { name: 'New branch' });
+    await expect(form.getByLabel('Start point')).toHaveValue('develop');
+    await form.getByLabel('Start point').fill('');
+    await expect(form).toContainText('each repository’s current branch');
+    await form.getByLabel('Branch name').fill('feature/own-heads');
+    await form.getByRole('button', { name: 'Create' }).click();
+    expect((await requests(page, 'branches/create')).at(-1)?.['from']).toBe('HEAD');
   });
 
   test("the host's refusal stays in the form", async ({ page }) => {
