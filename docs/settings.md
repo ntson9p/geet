@@ -95,6 +95,12 @@ What the editor gutter bars compare against: the index (IntelliJ behavior — ba
   - `index`
   - `head`
 
+### `gittree.diff.goToNextFileAfterLastChange`
+
+In a diff opened from a list of files, such as a commit's Changed Files, Next Change at the last change of a file says that pressing it again goes to the next file, and Previous Change does the same at the first change. Off: VS Code's own behaviour, wrapping to the other end of the same file.
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.changeBars.base`
 
 What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).

@@ -19,6 +19,7 @@ import {
 } from '../lib/status';
 import { buildTree, countFiles, type TreeNode } from '../lib/treeModel';
 import { useElementSize } from '../lib/useElementSize';
+import { ancestorDirs, diffChain } from './changedFilesChain';
 
 const REPO_ROOT_PATH = '@repo';
 
@@ -32,8 +33,14 @@ export interface ChangedFilesPaneProps {
   colors?: StatusColorOverrides;
   /** Single-click preview mode (the pane toolbar's toggle). */
   previewOnClick: boolean;
-  onOpenFile: (file: CommitFileDto) => void;
+  /**
+   * `files` is what the diff walks through. `browsing`: the file came up because
+   * the selection moved onto it, so the list keeps the keyboard.
+   */
+  onOpenFile: (file: CommitFileDto, files: readonly CommitFileDto[], browsing: boolean) => void;
   onSelectedFileChange: (file: CommitFileDto | undefined) => void;
+  /** The diff moved to another file: the selection follows, without opening it again. */
+  follow?: { readonly path: string };
 }
 
 export function ChangedFilesPane({
@@ -46,9 +53,11 @@ export function ChangedFilesPane({
   previewOnClick,
   onOpenFile,
   onSelectedFileChange,
+  follow,
 }: ChangedFilesPaneProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  const [reveal, setReveal] = useState<{ readonly path: string } | undefined>(undefined);
   const [paneRef, paneSize] = useElementSize<HTMLDivElement>();
 
   const files = useMemo(() => data?.files ?? [], [data]);
@@ -93,6 +102,17 @@ export function ChangedFilesPane({
     setSelection(new Set());
     onSelectedFileChange(undefined);
   }, [nodes, onSelectedFileChange]);
+
+  useEffect(() => {
+    if (follow === undefined) return;
+    const file = byPath.get(follow.path);
+    if (!file) return;
+    setExpanded((prev) => new Set([...prev, ...ancestorDirs(nodes, follow.path)]));
+    setSelection(new Set([follow.path]));
+    setReveal({ path: follow.path });
+    onSelectedFileChange(file);
+    // Only a move of the diff: `nodes` changing is a new change set, which starts unselected.
+  }, [follow]);
 
   const dirKinds = useCallback(
     (node: TreeNode): ReadonlySet<StatusKind> => {
@@ -174,18 +194,20 @@ export function ChangedFilesPane({
         }}
         selection={selection}
         onSelectionChange={(paths) => {
-          setSelection(new Set(paths));
+          const next = new Set(paths);
+          setSelection(next);
           const only = paths.length === 1 ? byPath.get(paths[0] ?? '') : undefined;
           onSelectedFileChange(only);
-          if (previewOnClick && only) onOpenFile(only);
+          if (previewOnClick && only) onOpenFile(only, diffChain(nodes, byPath, next, only), true);
         }}
         onActivate={(node) => {
           const file = byPath.get(node.path);
-          if (file) onOpenFile(file);
+          if (file) onOpenFile(file, diffChain(nodes, byPath, selection, file), false);
         }}
         description={description}
         icon={icon}
         nameColor={nameColor}
+        {...(reveal !== undefined ? { reveal } : {})}
       />
     </div>
   );

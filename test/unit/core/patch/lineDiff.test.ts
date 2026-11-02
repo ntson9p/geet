@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addedLineNumbers,
   computeLineChanges,
+  exceedsLineDiffCap,
   modifiedRanges,
 } from '../../../../src/core/patch/lineDiff';
 import { applyLineChanges } from '../../../../src/core/patch/patchBuilder';
@@ -12,6 +13,48 @@ function roundTrip(a: string, b: string): void {
   expect(applyLineChanges(a, b, changes)).toBe(b);
   expect(applyLineChanges(a, b, [])).toBe(a);
 }
+
+describe('exceedsLineDiffCap', () => {
+  const rows = (n: number): string[] => Array.from({ length: n }, (_, i) => `row ${i}`);
+
+  it('is false for small or identical texts', () => {
+    expect(exceedsLineDiffCap('', '')).toBe(false);
+    expect(exceedsLineDiffCap('a\nb\n', 'a\nX\n')).toBe(false);
+    expect(exceedsLineDiffCap(rows(5000).join('\n'), rows(5000).join('\n'))).toBe(false);
+  });
+
+  it('goes by what is left between the first change and the last', () => {
+    // A big file with its changes close together is no trouble at all.
+    const near = rows(5000);
+    near[2000] = 'first';
+    near[2010] = 'last';
+    expect(exceedsLineDiffCap(rows(5000).join('\n'), near.join('\n'))).toBe(false);
+
+    const far = rows(5000);
+    far[10] = 'first';
+    far[4990] = 'last';
+    expect(exceedsLineDiffCap(rows(5000).join('\n'), far.join('\n'))).toBe(true);
+  });
+
+  it('agrees with computeLineChanges, which then answers with one block', () => {
+    const far = rows(3000);
+    far[10] = 'first';
+    far[2990] = 'last';
+    const a = rows(3000).join('\n');
+    const b = far.join('\n');
+    expect(exceedsLineDiffCap(a, b)).toBe(true);
+    expect(computeLineChanges(a, b)).toHaveLength(1);
+  });
+
+  it('counts the end of the file in when the final newline differs', () => {
+    // computeLineChanges keeps the suffix inside the diff in that case.
+    const a = rows(3000);
+    const b = [...a];
+    b[10] = 'first';
+    expect(exceedsLineDiffCap(`${a.join('\n')}\n`, `${b.join('\n')}\n`)).toBe(false);
+    expect(exceedsLineDiffCap(`${a.join('\n')}\n`, b.join('\n'))).toBe(true);
+  });
+});
 
 describe('computeLineChanges basics', () => {
   it('empty ↔ empty and identical texts produce no changes', () => {

@@ -134,6 +134,11 @@
             "description": "%gittree.config.quickDiff.base.description%",
             "markdownDeprecationMessage": "%gittree.config.quickDiff.base.deprecated%"
           },
+          "gittree.diff.goToNextFileAfterLastChange": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.diff.goToNextFileAfterLastChange.description%"
+          },
           "gittree.changeBars.base": {
             "type": "string",
             "enum": [
@@ -1808,6 +1813,20 @@
         "icon": "$(arrow-up)"
       },
       {
+        "command": "gittree.diff.prevFile",
+        "title": "%gittree.command.diff.prevFile.title%",
+        "category": "GitTree",
+        "icon": "$(arrow-left)",
+        "enablement": "gittree.diff.hasPrevFile"
+      },
+      {
+        "command": "gittree.diff.nextFile",
+        "title": "%gittree.command.diff.nextFile.title%",
+        "category": "GitTree",
+        "icon": "$(arrow-right)",
+        "enablement": "gittree.diff.hasNextFile"
+      },
+      {
         "command": "gittree.diff.toggleSideBySide",
         "title": "%gittree.command.diff.toggleSideBySide.title%",
         "category": "GitTree",
@@ -2311,6 +2330,16 @@
           "command": "gittree.merge.abortFile",
           "when": "resourceScheme == gittree-merge",
           "group": "navigation@5"
+        },
+        {
+          "command": "gittree.diff.prevFile",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "navigation@12"
+        },
+        {
+          "command": "gittree.diff.nextFile",
+          "when": "isInDiffEditor && gittree.diff.active",
+          "group": "navigation@13"
         },
         {
           "command": "gittree.diff.toggleSideBySide",
@@ -3101,18 +3130,6 @@
           "when": "resourceScheme == file",
           "group": "2_gittree@4"
         }
-      ],
-      "editor/title/navigation": [
-        {
-          "command": "gittree.diff.prevChange",
-          "when": "isInDiffEditor && gittree.diff.active",
-          "group": "navigation@1"
-        },
-        {
-          "command": "gittree.diff.nextChange",
-          "when": "isInDiffEditor && gittree.diff.active",
-          "group": "navigation@2"
-        }
       ]
     },
     "keybindings": [
@@ -3224,6 +3241,18 @@
         "command": "gittree.diff.prevChange",
         "key": "shift+f7",
         "when": "config.gittree.keymap.intellij && gittree.diff.active && editorTextFocus"
+      },
+      {
+        "command": "gittree.diff.nextFile",
+        "key": "shift+alt+right",
+        "mac": "shift+alt+cmd+right",
+        "when": "gittree.diff.active && editorTextFocus"
+      },
+      {
+        "command": "gittree.diff.prevFile",
+        "key": "shift+alt+left",
+        "mac": "shift+alt+cmd+left",
+        "when": "gittree.diff.active && editorTextFocus"
       }
     ],
     "walkthroughs": [

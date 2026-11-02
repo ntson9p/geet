@@ -28,6 +28,7 @@ import { canonicalKey } from '../../core/repoDiscovery';
 import { repoLabels, sortRootsByLabel } from '../../core/util/repoLabels';
 import { makeRevUri } from '../../core/vdocs/revContentProvider';
 import type { DiffEntry } from '../../diff/diffSession';
+import { hasIdenticalSides } from '../../diff/navigationStep';
 import { LogService } from '../../log/logService';
 import { zipChanges } from '../../log/zipChanges';
 import {
@@ -402,8 +403,8 @@ function issueConfig(): { pattern: string; url: string } | undefined {
 
 /**
  * `Show Diff`: the files of the pane in one diff sequence, opened at the one
- * asked for — an added or deleted file opens on its own, there being nothing
- * to compare it with.
+ * asked for. An added or a deleted file is a stop like any other: the side it
+ * lacks reads as empty.
  */
 async function openDiffs(
   deps: PushDialogDeps,
@@ -415,22 +416,15 @@ async function openDiffs(
   if (!file) return;
   const before = (f: CommitFileDto): string => f.before ?? 'HEAD';
   const after = (f: CommitFileDto): string => f.after ?? 'HEAD';
-  if (file.status.startsWith('A')) {
-    await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, after(file)), { preview: true });
-    return;
-  }
-  if (file.status.startsWith('D')) {
-    await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, before(file)), { preview: true });
-    return;
-  }
   const short = (rev: string): string => (rev.endsWith('^') ? `${rev.slice(0, 7)}^` : rev.slice(0, 7));
-  const diffable = files.filter((f) => !f.status.startsWith('A') && !f.status.startsWith('D'));
-  const entries: DiffEntry[] = diffable.map((f) => ({
+  const entries: DiffEntry[] = files.map((f) => ({
     original: makeRevUri(repoRoot, f.origPath ?? f.path, before(f)),
     modified: makeRevUri(repoRoot, f.path, after(f)),
     title: `${path.posix.basename(f.path)} (${short(before(f))}..${short(after(f))})`,
+    label: f.path,
+    identical: hasIdenticalSides(f.status),
   }));
-  const at = Math.max(0, diffable.indexOf(file));
+  const at = index;
   const p14 = deps.core.debugRegistry.get('phase14') as
     | { sessions: { open(entries: readonly DiffEntry[], index: number): Promise<void> } }
     | undefined;

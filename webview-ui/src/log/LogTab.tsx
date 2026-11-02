@@ -202,6 +202,8 @@ export function LogTab({
   const [changed, setChanged] = useState<LogChangedFilesDto | undefined>(undefined);
   const [changedLoading, setChangedLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<CommitFileDto | undefined>(undefined);
+  // The diff opened from the pane has moved on to another of its files.
+  const [diffFile, setDiffFile] = useState<{ sha: string; path: string } | undefined>(undefined);
   // P12-T5: refs data is shared by the Branches pane AND the filter row.
   const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
   // POST-P14x: the row hover card. `text` is the full commit message, fetched
@@ -225,6 +227,14 @@ export function LogTab({
   const messages = useRef(new Map<string, string>());
   /** The sha the pointer is over right now — a late reply for any other is dropped. */
   const hoverSha = useRef<string | undefined>(undefined);
+
+  useEffect(
+    () =>
+      rpc.onEvent(LOG_METHODS.evtDiffFile, (params) => {
+        if (isFor(params, tabId)) setDiffFile(params as { sha: string; path: string });
+      }),
+    [rpc, tabId],
+  );
 
   useEffect(() => {
     const reload = (): void => {
@@ -1035,12 +1045,13 @@ export function LogTab({
             grouped={filesRollup}
             colors={init.colors}
             previewOnClick={previewOnClick}
-            onOpenFile={(file: CommitFileDto) => {
+            onOpenFile={(file, files, browsing) => {
               if (changed?.newest === undefined) return;
               // Several commits: the file carries its own two revisions.
-              void send(LOG_METHODS.openFileDiff, { sha: changed.newest, file });
+              void send(LOG_METHODS.openFileDiff, { sha: changed.newest, file, files, browsing });
             }}
             onSelectedFileChange={setSelectedFile}
+            {...(diffFile !== undefined && diffFile.sha === changed?.newest ? { follow: diffFile } : {})}
           />
         }
         details={

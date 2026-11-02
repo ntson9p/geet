@@ -16,6 +16,8 @@ any of them in Keyboard Shortcuts):
 | `Ctrl+Enter` (`Cmd+Enter`) | `gittree.commit` | commit tool window — replaces the SCM input box's accept action (P14-T4) |
 | `Ctrl+Alt+Enter` | `gittree.stage.selectedRanges` | diff editor — stages the selected lines/hunk |
 | `F7` / `Shift+F7` | `gittree.merge.nextConflict` / `prevConflict` | merge tri-editor |
+| `Alt+F5` / `Shift+Alt+F5` | VS Code's own Next / Previous Change | any diff. On a diff from a list of files they carry on into the next or previous file (see below) |
+| `Shift+Alt+→` / `Shift+Alt+←` (`Cmd+Shift+Alt+→` / `←`) | `gittree.diff.nextFile` / `prevFile` | a diff from a list of files |
 | `Alt+Enter` | `gittree.merge.acceptFocusedSide` | merge tri-editor — chevron accept |
 | `Ctrl+Alt+Enter` | `gittree.merge.apply` | merge tri-editor (outside diff editors) |
 | `Ctrl+Alt+G F` (`Cmd+Alt+G F`) | `gittree.log.focusFilter` | anywhere — reveals the log and focuses its search box |
@@ -69,13 +71,12 @@ flavor" means; disable the setting to restore the defaults):
   `gittree.diff.active`, the merge one `gittree.merge.triEditorActive` — so
   only one is ever live, and neither fires in an ordinary editor.
 
-**Why GitTree's diff arrows and not VS Code's:** VS Code's next-change button
-wraps back to the top of the *same* file at the last change. GitTree's walks
-into the next file in the changed-files list, IntelliJ-style: the first press
-at the boundary announces which file is next, the second press goes there, and
-the end of the last file stops rather than wrapping. Both sets of arrows appear
-in the diff toolbar — an extension cannot remove a built-in one — and GitTree's
-sort first (deviation D20).
+**Walking a commit:** in a diff opened from a list of files, VS Code's own ↓
+button and `Alt+F5`, like `F7` here, walk into the next file IntelliJ-style. The
+first press at the last change shows *Press again to go to the next file* and
+which file that is, the second press goes there, and the end of the last file
+stops rather than wrapping (deviation D20). Every other diff keeps VS Code's
+behaviour, and `gittree.diff.goToNextFileAfterLastChange` turns this off.
 
 Both open the P13 dialogs rather than acting silently, matching IntelliJ. The
 no-questions `gittree.pull` is still in the palette; the no-questions push is not

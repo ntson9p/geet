@@ -88,19 +88,15 @@ export function lcsBlocks(a: string[], b: string[]): Array<[number, number, numb
 }
 
 /**
- * Computes LineChange[] (1-based; end 0 marks pure insert/delete — the same
- * convention the dirty-diff widget uses, so PatchBuilder consumes either).
+ * Trim common prefix/suffix for speed and cleaner blocks. When the final
+ * newline state differs, the last lines are NOT equal at the byte level —
+ * keep them inside the diff so the change list carries the EOL fix.
  */
-export function computeLineChanges(originalText: string, modifiedText: string): LineChange[] {
-  const aSplit = splitLines(originalText);
-  const bSplit = splitLines(modifiedText);
-  const a = aSplit.lines;
-  const b = bSplit.lines;
-
-  // Trim common prefix/suffix for speed and cleaner blocks. When the final
-  // newline state differs, the last lines are NOT equal at the byte level —
-  // keep them inside the diff so the change list carries the EOL fix.
-  const eolMismatch = aSplit.hadFinalNewline !== bSplit.hadFinalNewline;
+function trimmedMiddle(
+  a: readonly string[],
+  b: readonly string[],
+  eolMismatch: boolean,
+): { start: number; endA: number; endB: number } {
   let start = 0;
   const maxStart = eolMismatch ? Math.min(a.length, b.length) - 1 : Math.min(a.length, b.length);
   while (start < maxStart && a[start] === b[start]) start++;
@@ -112,6 +108,34 @@ export function computeLineChanges(originalText: string, modifiedText: string): 
       endB--;
     }
   }
+  return { start, endA, endB };
+}
+
+/**
+ * True when `computeLineChanges` would answer these texts with one coarse block
+ * from the first change to the last: still an exact diff, but it no longer says
+ * where the changes are.
+ */
+export function exceedsLineDiffCap(originalText: string, modifiedText: string): boolean {
+  const aSplit = splitLines(originalText);
+  const bSplit = splitLines(modifiedText);
+  const eolMismatch = aSplit.hadFinalNewline !== bSplit.hadFinalNewline;
+  const { start, endA, endB } = trimmedMiddle(aSplit.lines, bSplit.lines, eolMismatch);
+  return (endA - start) * (endB - start) > LCS_CELL_CAP;
+}
+
+/**
+ * Computes LineChange[] (1-based; end 0 marks pure insert/delete — the same
+ * convention the dirty-diff widget uses, so PatchBuilder consumes either).
+ */
+export function computeLineChanges(originalText: string, modifiedText: string): LineChange[] {
+  const aSplit = splitLines(originalText);
+  const bSplit = splitLines(modifiedText);
+  const a = aSplit.lines;
+  const b = bSplit.lines;
+
+  const eolMismatch = aSplit.hadFinalNewline !== bSplit.hadFinalNewline;
+  const { start, endA, endB } = trimmedMiddle(a, b, eolMismatch);
 
   let blocks = lcsBlocks(a.slice(start, endA), b.slice(start, endB));
   if (eolMismatch) {

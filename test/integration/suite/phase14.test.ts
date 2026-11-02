@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { Phase01Registry } from '../../../src/scm/register';
 import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
-import type { DiffEntry } from '../../../src/diff/diffSession';
+import type { DiffEntry, DiffSessionRegistry } from '../../../src/diff/diffSession';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
@@ -413,7 +413,7 @@ suite('P14 owning the SCM surface', () => {
   suite('T7 diff navigation', () => {
     let repoRoot: string;
     let fsRoot: string;
-    let reg: { sessions: { open(e: readonly DiffEntry[], i: number): Promise<void> }; lastHint?: string };
+    let reg: { sessions: Pick<DiffSessionRegistry, 'open'>; lastHint?: string };
     const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
 
     /** Where the cursor is, and which file the open diff is showing. */
@@ -487,36 +487,283 @@ suite('P14 owning the SCM surface', () => {
       assert.deepStrictEqual(
         unique,
         [
-          'p14n1.txt:3',
-          'p14n1.txt:14',
-          'p14n2.txt:3',
-          'p14n2.txt:14',
-          'p14n3.txt:3',
-          'p14n3.txt:14',
+          'p14n1.txt 1/3:3',
+          'p14n1.txt 1/3:14',
+          'p14n2.txt 2/3:3',
+          'p14n2.txt 2/3:14',
+          'p14n3.txt 3/3:3',
+          'p14n3.txt 3/3:14',
         ],
         `walk was ${visited.join(' -> ')}`,
       );
       assert.ok(
-        visited.filter((v) => v === 'p14n1.txt:14').length >= 2,
+        visited.filter((v) => v === 'p14n1.txt 1/3:14').length >= 2,
         'the last change of a file must be visited twice: once reached, once arming',
       );
 
       // At the very end it must say so and stay put, never wrap to the top.
       const end = at()!;
-      assert.strictEqual(end.title, 'p14n3.txt');
+      assert.strictEqual(end.title, 'p14n3.txt 3/3');
       assert.strictEqual(end.line, 14, 'navigation wrapped instead of stopping');
-      assert.match(String(reg.lastHint), /Last change/u);
+      assert.match(String(reg.lastHint), /last change/u);
 
       for (const n of names) git('rm', '-q', '-f', n);
       git('commit', '-m', 'p14 nav cleanup');
     });
 
+    /**
+     * What VS Code's toolbar button and `Alt+F5` do: run the command by id from
+     * the workbench, which is what has to land on GitTree's registration. Calling
+     * it from here would stay inside the extension host and prove nothing.
+     */
+    const pressNative = async (direction: 'next' | 'previous'): Promise<void> => {
+      await vscode.commands.executeCommand('runCommands', {
+        commands: [`workbench.action.compareEditor.${direction}Change`],
+      });
+      await new Promise((r) => setTimeout(r, 250));
+    };
+
+    /**
+     * A commit of a few files with two well-separated changes each, plus `extras`
+     * and the paths it touches. Staged by name: this repository is shared with the
+     * other suites, whose files are none of this commit's business.
+     */
+    const commitWalk = (
+      names: readonly string[],
+      extras: () => void = () => undefined,
+      touched: readonly string[] = [],
+    ): { head: string; cleanup: () => void; entries: DiffEntry[] } => {
+      const body = Array.from({ length: 20 }, (_, i) => `row ${i + 1}`).join('\n') + '\n';
+      for (const n of names) fs.writeFileSync(path.join(fsRoot, n), body);
+      git('add', ...names);
+      git('commit', '-m', 'p14 walk base');
+      for (const n of names) {
+        fs.writeFileSync(
+          path.join(fsRoot, n),
+          body.replace('row 4\n', 'row 4 EDITED\n').replace('row 15\n', 'row 15 EDITED\n'),
+        );
+      }
+      extras();
+      git('add', '-A', '--', ...names, ...touched);
+      git('commit', '-m', 'p14 walk edits');
+      const head = git('rev-parse', 'HEAD').trim();
+      const entries: DiffEntry[] = names.map((n) => ({
+        original: makeRevUri(fsRoot, n, `${head}^`),
+        modified: makeRevUri(fsRoot, n, head),
+        title: n,
+        label: n,
+      }));
+      return {
+        head,
+        entries,
+        cleanup: () => {
+          git('rm', '-q', '-rf', '--ignore-unmatch', '--', ...names, ...touched);
+          git('commit', '-m', 'p14 walk cleanup');
+        },
+      };
+    };
+
+    const firstHunkOpen = async (): Promise<void> => {
+      await waitFor(() => at() !== undefined && at()!.line === 3, 15_000);
+    };
+
+    test("VS Code's own next-change button and key do the walk", async function () {
+      this.timeout(120_000);
+      const { entries, cleanup } = commitWalk(['p14b1.txt', 'p14b2.txt']);
+      await reg.sessions.open(entries, 0);
+      await firstHunkOpen();
+
+      await pressNative('next');
+      assert.strictEqual(at()?.line, 14, 'the second change of the file');
+
+      await pressNative('next');
+      assert.strictEqual(at()?.line, 14, 'the last change must hold, not wrap to the first');
+      assert.match(String(reg.lastHint), /Press again to go to the next file/u);
+
+      await pressNative('next');
+      await waitFor(() => at()?.title === 'p14b2.txt 2/2', 15_000);
+      await waitFor(() => at()?.line === 3, 15_000);
+      cleanup();
+    });
+
+    test('going back lands on the last change, and says so going past the first', async function () {
+      this.timeout(120_000);
+      const { entries, cleanup } = commitWalk(['p14p1.txt', 'p14p2.txt']);
+      await reg.sessions.open(entries, 1);
+      await firstHunkOpen();
+
+      await pressNative('previous');
+      assert.strictEqual(at()?.line, 3, 'the first change holds');
+      assert.match(String(reg.lastHint), /Press again to go to the previous file/u);
+
+      await pressNative('previous');
+      await waitFor(() => at()?.title === 'p14p1.txt 1/2', 15_000);
+      await waitFor(() => at()?.line === 14, 15_000);
+
+      await pressNative('previous');
+      await waitFor(() => at()?.line === 3, 15_000);
+      await pressNative('previous');
+      assert.strictEqual(at()?.title, 'p14p1.txt 1/2');
+      assert.strictEqual(at()?.line, 3, 'navigation wrapped instead of stopping');
+      assert.match(String(reg.lastHint), /first change/u);
+      cleanup();
+    });
+
+    test('moving the cursor takes back the warning', async function () {
+      this.timeout(120_000);
+      const { entries, cleanup } = commitWalk(['p14c1.txt', 'p14c2.txt']);
+      await reg.sessions.open(entries, 0);
+      await firstHunkOpen();
+      await pressNative('next');
+      await pressNative('next');
+      assert.match(String(reg.lastHint), /Press again/u);
+
+      const editor = vscode.window.activeTextEditor!;
+      editor.selection = new vscode.Selection(0, 0, 0, 0);
+      await new Promise((r) => setTimeout(r, 200));
+      await pressNative('next');
+      assert.strictEqual(at()?.title, 'p14c1.txt 1/2', 'a press from elsewhere must stay in the file');
+      assert.strictEqual(at()?.line, 3);
+      cleanup();
+    });
+
+    test('walking a commit stays in one tab, unless the tab was kept', async function () {
+      this.timeout(120_000);
+      const { entries, cleanup } = commitWalk(['p14t1.txt', 'p14t2.txt', 'p14t3.txt']);
+      await reg.sessions.open(entries, 0);
+      await firstHunkOpen();
+      const tabs = (): number => vscode.window.tabGroups.activeTabGroup.tabs.length;
+
+      await vscode.commands.executeCommand('gittree.diff.nextFile');
+      await waitFor(() => at()?.title === 'p14t2.txt 2/3', 15_000);
+      assert.strictEqual(tabs(), 1, 'a preview tab is replaced');
+
+      await vscode.commands.executeCommand('workbench.action.keepEditor');
+      await vscode.commands.executeCommand('gittree.diff.nextFile');
+      await waitFor(() => at()?.title === 'p14t3.txt 3/3', 15_000);
+      assert.strictEqual(tabs(), 2, 'a tab the user kept stays');
+      cleanup();
+    });
+
+    test('an added and a deleted file are stops; a rename with no edit is not', async function () {
+      this.timeout(120_000);
+      const gone = path.join(fsRoot, 'p14goner.txt');
+      const moved = path.join(fsRoot, 'p14moved-old.txt');
+      fs.writeFileSync(gone, 'going away\n');
+      fs.writeFileSync(moved, 'only renamed\n');
+      git('add', 'p14goner.txt', 'p14moved-old.txt');
+      git('commit', '-m', 'p14 stops base');
+      const { head, cleanup } = commitWalk(['p14s1.txt'], () => {
+        fs.writeFileSync(path.join(fsRoot, 'p14added.txt'), 'brand new\nsecond line\n');
+        fs.rmSync(gone);
+        fs.renameSync(moved, path.join(fsRoot, 'p14moved-new.txt'));
+      }, ['p14added.txt', 'p14goner.txt', 'p14moved-old.txt', 'p14moved-new.txt']);
+      const entry = (o: string, m: string, title: string, identical = false): DiffEntry => ({
+        original: makeRevUri(fsRoot, o, `${head}^`),
+        modified: makeRevUri(fsRoot, m, head),
+        title,
+        identical,
+      });
+      await reg.sessions.open(
+        [
+          entry('p14s1.txt', 'p14s1.txt', 'edited'),
+          entry('p14moved-old.txt', 'p14moved-new.txt', 'renamed', true),
+          entry('p14added.txt', 'p14added.txt', 'added'),
+          entry('p14goner.txt', 'p14goner.txt', 'deleted'),
+        ],
+        0,
+      );
+      await firstHunkOpen();
+
+      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await new Promise((r) => setTimeout(r, 250));
+      assert.strictEqual(at()?.line, 14);
+      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await new Promise((r) => setTimeout(r, 250));
+      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await waitFor(() => at()?.title === 'added 3/4', 15_000);
+
+      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await new Promise((r) => setTimeout(r, 250));
+      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await waitFor(() => at()?.title === 'deleted 4/4', 15_000);
+
+      // The file arrows stop on it all the same: it is in the list.
+      await vscode.commands.executeCommand('gittree.diff.prevFile');
+      await waitFor(() => at()?.title === 'added 3/4', 15_000);
+      await vscode.commands.executeCommand('gittree.diff.prevFile');
+      await waitFor(() => at()?.title === 'renamed 2/4', 15_000);
+      cleanup();
+    });
+
+    test('a binary file opens as a diff that says what it is, in any tab', async function () {
+      this.timeout(120_000);
+      const name = 'p14image.png';
+      const { head, cleanup } = commitWalk(['p14i1.txt'], () => {
+        fs.writeFileSync(path.join(fsRoot, name), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 13, 1, 2, 3]));
+      }, [name]);
+      const entries: DiffEntry[] = [
+        {
+          original: makeRevUri(fsRoot, name, `${head}^`),
+          modified: makeRevUri(fsRoot, name, head),
+          title: 'image',
+        },
+      ];
+      await reg.sessions.open(entries, 0);
+      // By name VS Code would hand this to its image viewer, which cannot read
+      // `gittree-rev:` and shows an error page with no toolbar.
+      await waitFor(() => vscode.window.activeTextEditor !== undefined, 15_000);
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      assert.ok(tab?.input instanceof vscode.TabInputTextDiff);
+      assert.match(vscode.window.activeTextEditor!.document.getText(), /^Binary file, 11 bytes \(/u);
+      cleanup();
+    });
+
+    test('a diff GitTree did not open still wraps, untouched', async function () {
+      this.timeout(120_000);
+      const { head, cleanup } = commitWalk(['p14u1.txt']);
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        makeRevUri(fsRoot, 'p14u1.txt', `${head}^`),
+        makeRevUri(fsRoot, 'p14u1.txt', head),
+        'plain',
+      );
+      await firstHunkOpen();
+      reg.lastHint = undefined;
+      await pressNative('next');
+      assert.strictEqual(at()?.line, 14);
+      await pressNative('next');
+      assert.strictEqual(at()?.line, 3, "VS Code's own behaviour on everyone else's diffs");
+      assert.strictEqual(reg.lastHint, undefined);
+      cleanup();
+    });
+
+    test('the setting hands the arrows back', async function () {
+      this.timeout(120_000);
+      const cfg = vscode.workspace.getConfiguration('gittree.diff');
+      const { entries, cleanup } = commitWalk(['p14o1.txt', 'p14o2.txt']);
+      await cfg.update('goToNextFileAfterLastChange', false, vscode.ConfigurationTarget.Global);
+      try {
+        await reg.sessions.open(entries, 0);
+        await firstHunkOpen();
+        reg.lastHint = undefined;
+        await pressNative('next');
+        await pressNative('next');
+        assert.strictEqual(at()?.title, 'p14o1.txt 1/2', 'stays in the file');
+        assert.strictEqual(at()?.line, 3, 'and wraps');
+        assert.strictEqual(reg.lastHint, undefined);
+      } finally {
+        await cfg.update('goToNextFileAfterLastChange', undefined, vscode.ConfigurationTarget.Global);
+      }
+      cleanup();
+    });
+
     test('the diff toolbar controls are scoped to GitTree diffs', () => {
       const menus = contributes()['menus'] as Record<string, Array<{ command?: string; when?: string }>>;
-      const ours = [...(menus['editor/title/navigation'] ?? []), ...(menus['editor/title'] ?? [])].filter(
-        (e) => String(e.command ?? '').startsWith('gittree.diff.'),
+      const ours = (menus['editor/title'] ?? []).filter((e) =>
+        String(e.command ?? '').startsWith('gittree.diff.'),
       );
-      assert.strictEqual(ours.length, 5, 'expected 2 arrows + 3 view toggles');
+      assert.strictEqual(ours.length, 5, 'expected 2 file arrows + 3 view toggles');
       for (const e of ours) {
         // Unscoped, these would appear on every diff in the window, including
         // ones GitTree knows nothing about.

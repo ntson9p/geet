@@ -7,11 +7,12 @@
  * inside it is decorative (see TriCheckbox). That keeps one tab stop for the
  * whole tree, which is the tree pattern screen readers expect.
  */
-import { useCallback, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { TriCheckbox } from './TriCheckbox';
 import {
   flatten,
   rollup,
+  rowIndexOf,
   toggle,
   type CheckState,
   type FlatRow,
@@ -50,6 +51,8 @@ export interface FileTreeProps {
   rowHeight?: number;
   onFocusPath?: (path: string) => void;
   className?: string;
+  /** Scrolls this row into view whenever a new object arrives; focus stays where it is. */
+  reveal?: { readonly path: string };
 }
 
 const DEFAULT_ROW_HEIGHT = 22;
@@ -74,10 +77,19 @@ export function FileTree({
   rowHeight = DEFAULT_ROW_HEIGHT,
   onFocusPath,
   className,
+  reveal,
 }: FileTreeProps) {
   const listRef = useRef<VirtualListHandle>(null);
   const anchorRef = useRef<number>(0);
   const rows = useMemo<FlatRow[]>(() => flatten(nodes, expanded), [nodes, expanded]);
+
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  useEffect(() => {
+    if (reveal === undefined) return;
+    const index = rowIndexOf(rowsRef.current, reveal.path);
+    if (index >= 0) listRef.current?.scrollToIndex(index);
+  }, [reveal]);
 
   const showsCheckbox = useCallback(
     (row: FlatRow): boolean =>

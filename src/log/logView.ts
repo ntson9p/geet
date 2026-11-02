@@ -29,7 +29,8 @@ import {
 } from '../shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
-import type { DiffEntry } from '../diff/diffSession';
+import type { DiffEntry, DiffSessionRegistry } from '../diff/diffSession';
+import { hasIdenticalSides } from '../diff/navigationStep';
 import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
 import { WorktreesPaneBridge } from './worktreesPaneBridge';
@@ -110,12 +111,6 @@ interface Session {
   rows: LogRowDto[];
   nextPage: number;
   eof: boolean;
-  /**
-   * P14-T7: the Changed Files pane's current contents, which double as the
-   * diff *sequence* — clicking a file opens it as position i of N so "next
-   * change" can leave it for the next file instead of wrapping to its top.
-   */
-  lastChangedFiles: CommitFileDto[];
   /**
    * The HEAD the rows were paged at. `sections.has('head')` is too coarse to
    * gate on — it also fires for ahead/behind and lastFetchAt, which change
@@ -453,8 +448,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: typeof root === 'string' && this.showRoot(root, tabOf(params)) };
     });
     rpc.on(LOG_METHODS.openFileDiff, async (params) => {
-      const { sha, file } = params as { sha: string; file: CommitFileDto };
-      await this.openFileDiff(tabOf(params), sha, file);
+      const { sha, file, files, browsing } = params as {
+        sha: string;
+        file: CommitFileDto;
+        files?: CommitFileDto[];
+        browsing?: boolean;
+      };
+      await this.openFileDiff(tabOf(params), sha, file, files ?? [file], browsing === true);
       return { ok: true };
     });
     rpc.on(LOG_METHODS.openAllDiffs, async (params) => {
@@ -492,13 +492,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
             path: f.path,
             ...(f.origPath !== undefined ? { origPath: f.origPath } : {}),
           })) ?? [];
-        // P14-T7: the pane's contents are the diff sequence.
-        session.lastChangedFiles = files;
         return { files, newest: shas[0]! };
       }
       const sorted = this.newestFirst(session, shas);
       const files = await this.zippedFiles(session, sorted);
-      session.lastChangedFiles = files;
       return { files, newest: sorted[0]!, shas: sorted };
     });
 
@@ -860,7 +857,6 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       rows: [],
       nextPage: 0,
       eof: false,
-      lastChangedFiles: [],
       lastHeadSha: repo.model.snapshot.headSha,
       dirty: false,
       sub: undefined,
@@ -1588,7 +1584,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     }));
   }
 
-  private async openFileDiff(tab: string, sha: string, file: CommitFileDto): Promise<void> {
+  private async openFileDiff(
+    tab: string,
+    sha: string,
+    file: CommitFileDto,
+    files: readonly CommitFileDto[],
+    browsing: boolean,
+  ): Promise<void> {
     const session = this.sessions.get(tab);
     if (!session) return;
     const repoRoot = session.repo.root;
@@ -1604,40 +1606,32 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
           ? `${short(beforeOf(f))}..${short(afterOf(f))}`
           : sha.slice(0, 7)
       })`;
-    if (file.status.startsWith('A')) {
-      await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, afterOf(file)), { preview: true });
-      return;
-    }
-    if (file.status.startsWith('D')) {
-      await vscode.window.showTextDocument(makeRevUri(repoRoot, file.path, beforeOf(file)), {
-        preview: true,
-      });
-      return;
-    }
-
     // P14-T7: open through the sequence, not as a standalone pair. The pane the
     // user clicked in IS the sequence, so "next change" can leave this file for
-    // the next one instead of wrapping to the top of it. Added and deleted
-    // files open as plain documents (there is nothing to diff), so they are
-    // excluded from the sequence rather than being dead stops inside it.
+    // the next one instead of wrapping to the top of it. An added or a deleted
+    // file is a stop like any other: the side it lacks reads as empty, and a
+    // plain document would have no next-change button to carry on with.
     const p14 = this.core.debugRegistry.get('phase14') as
-      | { sessions: { open(entries: readonly DiffEntry[], index: number): Promise<void> } }
+      | { sessions: Pick<DiffSessionRegistry, 'open'> }
       | undefined;
-    const diffable = session.lastChangedFiles.filter(
-      (f) => !f.status.startsWith('A') && !f.status.startsWith('D'),
-    );
-    const entries: DiffEntry[] = (diffable.length > 0 ? diffable : [file]).map((f) => ({
+    const entries: DiffEntry[] = files.map((f) => ({
       original: makeRevUri(repoRoot, f.origPath ?? f.path, beforeOf(f)),
       modified: makeRevUri(repoRoot, f.path, afterOf(f)),
       title: titleOf(f),
+      label: f.path,
+      identical: hasIdenticalSides(f.status),
     }));
-    const target = makeRevUri(repoRoot, file.path, afterOf(file)).toString();
     const index = Math.max(
       0,
-      entries.findIndex((e) => e.modified.toString() === target),
+      files.findIndex((f) => f.path === file.path),
     );
     if (p14) {
-      await p14.sessions.open(entries, index);
+      await p14.sessions.open(entries, index, {
+        preserveFocus: browsing,
+        onMove: (at) => {
+          this.rpc?.notify(LOG_METHODS.evtDiffFile, { logTab: tab, sha, path: files[at]?.path });
+        },
+      });
       return;
     }
     await vscode.commands.executeCommand(

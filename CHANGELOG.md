@@ -6,6 +6,41 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — walking a commit from one file's changes to the next
+
+In a diff opened from a commit's Changed Files, VS Code's own ↓ button and `Alt+F5` now carry on
+into the next file, as IntelliJ's do, where they used to loop inside the same file. At the last
+change a tooltip says **Press again to go to the next file** and which file that is, and the second
+press goes there. ↑ does the same in the other direction, landing on the last change of the previous
+file. At the end of the list it says so and stays put. Any diff GitTree did not open keeps VS Code's
+behaviour, and `gittree.diff.goToNextFileAfterLastChange` turns this off.
+
+Also in those diffs:
+
+- **`←` and `→` in the toolbar** go to the previous and next file, `Shift+Alt+←` and `→` from the
+  keyboard (`Cmd+Shift+Alt+←` and `→` on macOS).
+- **One tab.** The next file replaces the one you were on, instead of leaving a tab behind per
+  file. Keep the tab (double-click it) and the next file gets its own.
+- **The tab says where you are** (`foo.ts (62c3e1a) 3/7`), and the list's selection follows the diff.
+- **The order is the list's**, or only the rows selected when several are.
+- **Added and deleted files are stops.** They used to be skipped, and clicking one opened it as a
+  plain document with no way on. A file with no text change, such as a pure rename, is skipped by ↓,
+  since VS Code greys that button out on it; `→` and clicking it still show it.
+
+The same goes for Show Diff in the Push dialog.
+
+### Fixed — GitTree's next and previous change arrows never appeared
+
+They were contributed to a menu VS Code does not have, which it drops without a word, so without
+the IntelliJ keymap the cross-file navigation could not be reached at all. VS Code's own
+arrows do it now, so there are no second arrows to find.
+
+### Fixed — a binary file from the log opened an error page
+
+An image opened as *The editor could not be opened due to an unexpected error*, and any other
+binary file as unreadable text. They now read as `Binary file, 79 bytes (7d1ad7a)` on each side.
+Seeing images side by side, as IntelliJ does, is not there yet.
+
 ### Fixed — a new branch no longer pushes onto the branch it started from
 
 A branch created from a remote branch under a new name, such as `mine` from `origin/develop`,

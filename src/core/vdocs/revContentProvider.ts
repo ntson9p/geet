@@ -8,7 +8,8 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { Core } from '../core';
+import type { Core, RepoHandle } from '../core';
+import { binaryPlaceholder, looksBinary } from './binaryPlaceholder';
 
 export const REV_SCHEME = 'gittree-rev';
 
@@ -75,7 +76,31 @@ export class RevContentProvider implements vscode.TextDocumentContentProvider {
     });
     if (token.isCancellationRequested) return '';
     // Path absent at that revision (added file, unborn HEAD, …) → empty original.
-    return result.exitCode === 0 ? result.stdout : '';
+    if (result.exitCode !== 0) return '';
+    return looksBinary(result.stdout)
+      ? this.describeBinary(repo, revObjectSpec(q.ref, q.rel))
+      : result.stdout;
+  }
+
+  private async describeBinary(repo: RepoHandle, spec: string): Promise<string> {
+    const read = (args: readonly string[]) =>
+      repo.queue.enqueue({
+        label: `describe ${spec}`,
+        kind: 'read',
+        run: (git, token) =>
+          git.exec(repo.root, [...args], {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            token,
+          }),
+      });
+    const id = await read(['rev-parse', '--short', spec]);
+    const size = await read(['cat-file', '-s', spec]);
+    return binaryPlaceholder(
+      size.exitCode === 0 ? Number.parseInt(size.stdout, 10) : undefined,
+      id.stdout.trim(),
+    );
   }
 
   private remember(repoRoot: string, uri: vscode.Uri): void {

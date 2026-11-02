@@ -1329,6 +1329,8 @@ export const LOG_METHODS = {
   evtRows: 'log/rows',
   evtReset: 'log/reset',
   evtReveal: 'log/reveal',
+  /** A diff opened from the pane moved to another of its files: `{ logTab, sha, path }`. */
+  evtDiffFile: 'log/diffFile',
   /** P12-T2: refs changed (branch created/deleted, favorite toggled…). */
   evtBranches: 'log/branchesChanged',
   /**

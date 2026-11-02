@@ -38,16 +38,21 @@ ships. Accepted divergences are named here and registered once in
 * **IntelliJ:** the Differences Viewer's own toolbar, and — the part that matters daily — at
   the last change of a file the next-change button offers to continue into the *next file*.
 * **GitTree:** its own controls on its own diffs (`isInDiffEditor && gittree.diff.active`):
-  **↑ ↓ change · side-by-side/inline · ignore whitespace · collapse unchanged**, with
-  `F7`/`Shift+F7` under the IntelliJ keymap.
-* **Cross-file navigation:** the changed-files list you clicked from *is* the sequence. At the
-  last change the first press **arms** and names the next file; the second press crosses,
-  landing on its first change (or its last, going backwards). At the end of the last file it
-  says so and **never wraps** — which is exactly what VS Code's own arrows do instead.
+  **← → file · side-by-side/inline · ignore whitespace · collapse unchanged**, with
+  `Shift+Alt+←`/`→` for the files and `F7`/`Shift+F7` for the changes under the IntelliJ keymap.
+* **Cross-file navigation, on VS Code's own ↑ ↓ and `Alt+F5`:** the changed-files list you clicked
+  from *is* the sequence, in the order the list shows it, or only the rows selected when there are
+  several. At the last change the first press shows a tooltip, **Press again to go to the next
+  file**, with that file's name and position. The second press crosses in the same tab, landing on
+  its first change (or its last, going backwards). At the end of the last file it says so and
+  **never wraps**. Other diffs keep VS Code's behaviour, and
+  `gittree.diff.goToNextFileAfterLastChange` turns this off.
+* **Along the way:** the tab says where you are (`foo.ts (62c3e1a) 3/7`) and the list's selection
+  follows the diff. An added or deleted file is a stop like any other; one with no text change is
+  skipped by ↓, though `→` still shows it. A binary file reads as `Binary file, 79 bytes (7d1ad7a)`.
 * **Deviations:** the renderer is still VS Code's, so IntelliJ's per-change apply arrows,
-  highlight granularity and three-way view modes remain out of reach (D1, narrowed); and VS
-  Code's own change arrows stay in the toolbar beside GitTree's, because an extension cannot
-  unregister a core menu item (D20).
+  highlight granularity and three-way view modes remain out of reach (D1, narrowed); the walk
+  itself differs in four small ways, images among them (D20).
 
 ### Git blame (shape + behaviour)
 

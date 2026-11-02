@@ -197,6 +197,74 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBe(true);
   });
 
+  test('a diff walks the files in the order the tree shows them', async ({ page }) => {
+    await openLog(page);
+    // Two commits: the mock lists src/app.ts, src/agg-added.ts, docs/agg-gone.md.
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await commitRow(page).locator('[data-gt-row="2"]').click({ modifiers: ['Shift'] });
+    const files = page.getByTestId('changed-files');
+    await files.getByRole('treeitem', { name: /app\.ts/ }).dblclick();
+    await expect
+      .poll(async () => {
+        const opened = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').at(-1);
+        return (opened?.params as { files?: Array<{ path: string }> } | undefined)?.files?.map((f) => f.path);
+      })
+      .toEqual(['docs/agg-gone.md', 'src/agg-added.ts', 'src/app.ts']);
+  });
+
+  test('with several files selected, a diff walks only those', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await commitRow(page).locator('[data-gt-row="2"]').click({ modifiers: ['Shift'] });
+    const files = page.getByTestId('changed-files');
+    await files.getByRole('treeitem', { name: /agg-gone\.md/ }).click();
+    await files.getByRole('treeitem', { name: /app\.ts/ }).click({ modifiers: ['Control'] });
+    await files.getByRole('treeitem', { name: /app\.ts/ }).press('Enter');
+    await expect
+      .poll(async () => {
+        const opened = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').at(-1);
+        return (opened?.params as { files?: Array<{ path: string }> } | undefined)?.files?.map((f) => f.path);
+      })
+      .toEqual(['docs/agg-gone.md', 'src/app.ts']);
+  });
+
+  test('the selection follows a diff that moved on, without opening it again', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+    await files.getByRole('treeitem', { name: /app\.ts/ }).dblclick();
+    const sha = await page.evaluate(() => {
+      const list = (window as unknown as { __postedMessages: PostedMsg[] }).__postedMessages;
+      const opened = list.filter((m) => m.method === 'log/openFileDiff').at(-1);
+      return (opened?.params as { sha: string }).sha;
+    });
+    const opens = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').length;
+
+    await page.evaluate(
+      (params) => window.postMessage({ v: 1, id: 'evtdf', kind: 'evt', method: 'log/diffFile', params }, '*'),
+      { sha, path: 'src/new.ts' },
+    );
+    await expect(files.getByRole('treeitem', { name: /new\.ts/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(files.getByRole('treeitem', { name: /app\.ts/ })).toHaveAttribute('aria-selected', 'false');
+    // The toolbar works on what is selected, so it has to know too.
+    await expect(page.getByRole('button', { name: 'Show History for Revision' })).toBeEnabled();
+    expect((await posted(page)).filter((m) => m.method === 'log/openFileDiff').length).toBe(opens);
+  });
+
+  test('a diff moving on in another commit leaves the selection alone', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+    await files.getByRole('treeitem', { name: /app\.ts/ }).click();
+    await page.evaluate(
+      (params) => window.postMessage({ v: 1, id: 'evtdf', kind: 'evt', method: 'log/diffFile', params }, '*'),
+      { sha: 'not-this-commit', path: 'src/new.ts' },
+    );
+    await page.waitForTimeout(100);
+    await expect(files.getByRole('treeitem', { name: /app\.ts/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(files.getByRole('treeitem', { name: /new\.ts/ })).toHaveAttribute('aria-selected', 'false');
+  });
+
   test('P12-T3: preview-on-click and Show History for Revision', async ({ page }) => {
     await openLog(page);
     await commitRow(page).locator('[data-gt-row="1"]').click();
@@ -225,6 +293,9 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect
       .poll(async () => (await posted(page)).filter((m) => m.method === 'log/openFileDiff').length)
       .toBeGreaterThan(before);
+    // The list keeps the keyboard: it is being browsed, not left.
+    const previewed = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').at(-1);
+    expect((previewed?.params as { browsing?: boolean }).browsing).toBe(true);
   });
 
   test('P12-T4: details carry subject, meta, committer, signature and ref chips', async ({ page }) => {
