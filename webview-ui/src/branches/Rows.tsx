@@ -20,9 +20,11 @@ import {
   quickActions,
   relationShort,
   relationText,
+  remoteTwin,
   shortAge,
   trackingShort,
   trackingText,
+  upstreamElsewhere,
   type BranchEntry,
   type PanelRow,
   type QuickAction,
@@ -100,6 +102,11 @@ export function SyncCounts({ ahead, behind }: { ahead?: number; behind?: number 
       ) : null}
     </span>
   );
+}
+
+/** What a `→ origin/x` says under the pointer. */
+function elsewhereTitle(upstream: string): string {
+  return `Tracks ${upstream}, a remote branch of another name: a push goes there, not to a branch of its own. Right-click to stop tracking.`;
 }
 
 /** A name with its lead dimmed and the search's matches marked. */
@@ -240,6 +247,8 @@ export function RepoRow({
 }) {
   const { repo } = row;
   const dim = row.narrowed && !row.inScope;
+  const elsewhere =
+    repo.head !== undefined ? upstreamElsewhere(repo, repo.head, repo.upstream, repo.upstreamGone) : undefined;
   const hint = row.narrowed && row.inScope
     ? 'Click to show every repository again · Ctrl+click to leave this one out'
     : 'Click to show only its branches · Ctrl+click to add it to what is shown';
@@ -252,7 +261,16 @@ ${hint}`}>
         aria-hidden="true"
       />
       <span className="gtp-repo-name">{repo.label}</span>
-      <span className="gtp-repo-head" title={repo.upstream !== undefined ? `Tracks ${repo.upstream}` : undefined}>
+      <span
+        className="gtp-repo-head"
+        title={
+          elsewhere !== undefined
+            ? elsewhereTitle(elsewhere)
+            : repo.upstream !== undefined
+              ? `Tracks ${repo.upstream}`
+              : undefined
+        }
+      >
         <Codicon name={repo.detached ? 'git-commit' : 'git-branch'} />
         <span className="gtp-repo-head-name">{headText(repo)}</span>
       </span>
@@ -282,6 +300,8 @@ export function HeadRow({
 }) {
   const { repo } = row;
   const onBranch = !repo.detached && repo.head !== undefined;
+  const elsewhere = row.entry?.tracksElsewhere;
+  const twin = repo.head !== undefined ? remoteTwin(repo, repo.head) : undefined;
   return (
     <div className="gtp-head-wrap">
       <div className="gtp-head">
@@ -291,11 +311,20 @@ export function HeadRow({
         <Codicon name={onBranch ? 'check' : 'git-commit'} className="gtp-icon gtp-current-icon" />
         <span className="gtp-head-name">{headText(repo)}</span>
         {repo.upstream !== undefined ? (
-          <span className={`gtp-dim${repo.upstreamGone === true ? ' gtp-gone-text' : ''}`}>
-            {repo.upstreamGone === true ? `${repo.upstream} (gone)` : repo.upstream}
+          <span
+            className={`gtp-dim${
+              repo.upstreamGone === true ? ' gtp-gone-text' : elsewhere !== undefined ? ' gtp-elsewhere' : ''
+            }`}
+            title={elsewhere !== undefined ? elsewhereTitle(elsewhere) : undefined}
+          >
+            {repo.upstreamGone === true
+              ? `${repo.upstream} (gone)`
+              : elsewhere !== undefined
+                ? `→ ${elsewhere}`
+                : repo.upstream}
           </span>
         ) : onBranch && !repo.unborn ? (
-          <span className="gtp-dim">not published</span>
+          <span className="gtp-dim">{twin !== undefined ? `not tracking ${twin}` : 'not published'}</span>
         ) : null}
         {showInOut ? <SyncCounts ahead={repo.ahead} behind={repo.behind} /> : null}
         {repo.changes > 0 ? (
@@ -504,6 +533,11 @@ Click for details · right-click for every action${
             gone
           </span>
         ) : null}
+        {entry.tracksElsewhere !== undefined ? (
+          <span className="gtp-chip gtp-elsewhere" title={elsewhereTitle(entry.tracksElsewhere)}>
+            → {entry.tracksElsewhere}
+          </span>
+        ) : null}
         {entry.merged && !current ? (
           <span
             className="gtp-chip gtp-merged"
@@ -549,10 +583,25 @@ export interface CardProps {
   readonly colorOf: (repo: BranchPanelRepoDto) => string;
   readonly onButton: (button: BranchPanelButtonDto) => void;
   readonly onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => void;
+  /** Stops the branch tracking its upstream, in `root` alone when it names one. */
+  readonly onStopTracking: (root?: string) => void;
   /** Detached HEAD: there is no branch to describe. */
   readonly detachedAt?: string;
   /** The button whose action is running: it spins until the host is done. */
   readonly running?: string;
+}
+
+function StopTracking({ upstream, onClick }: { upstream: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="gtp-link gtp-stop-tracking"
+      title={`Stop tracking ${upstream}. The branch and the remote branch both stay.`}
+      onClick={onClick}
+    >
+      Stop tracking
+    </button>
+  );
 }
 
 /**
@@ -569,6 +618,7 @@ export function BranchCard({
   colorOf,
   onButton,
   onMenu,
+  onStopTracking,
   detachedAt,
   running,
 }: CardProps) {
@@ -602,6 +652,8 @@ export function BranchCard({
       for (const p of entry.presence) {
         const d = details?.repos.find((r) => r.root === p.repo.root);
         const relation = p.ref.current === true ? undefined : relationShort(d);
+        const elsewhere = upstreamElsewhere(p.repo, entry.name, p.ref.upstream, p.ref.gone);
+        const twin = entry.kind === 'local' ? remoteTwin(p.repo, entry.name) : undefined;
         lines.push(
           <div key={p.repo.root} className="gtp-card-line">
             <span
@@ -612,9 +664,17 @@ export function BranchCard({
             <span className="gtp-card-repo">{p.repo.label}</span>
             <span className="gtp-ellipsis gtp-dim">
               {p.ref.current === true ? 'checked out · ' : ''}
-              {trackingShort(p.ref, entry.kind, d?.trackedBy)}
+              {elsewhere !== undefined ? (
+                <span className="gtp-elsewhere" title={elsewhereTitle(elsewhere)}>
+                  → {elsewhere} ·{' '}
+                </span>
+              ) : null}
+              {trackingShort(p.ref, entry.kind, d?.trackedBy, twin)}
               {relation !== undefined ? ` · ${relation}` : ''}
             </span>
+            {elsewhere !== undefined ? (
+              <StopTracking upstream={elsewhere} onClick={() => onStopTracking(p.repo.root)} />
+            ) : null}
           </div>,
         );
       }
@@ -622,13 +682,21 @@ export function BranchCard({
       const p = entry.presence[0];
       const d = details?.repos[0];
       const merged = entry.merged ? ` · merged into ${p?.repo.mainBranch ?? 'the main branch'}` : '';
+      const elsewhere = entry.tracksElsewhere;
+      const twin = p !== undefined && entry.kind === 'local' ? remoteTwin(p.repo, entry.name) : undefined;
       lines.push(
         <div key="tracking" className="gtp-card-line">
           <Codicon name={entry.kind === 'tag' ? 'tag' : 'cloud'} />
-          <span className="gtp-ellipsis">
-            {p !== undefined ? trackingText(p.ref, entry.kind, d?.trackedBy) : ''}
+          <span
+            className={`gtp-ellipsis${elsewhere !== undefined ? ' gtp-elsewhere' : ''}`}
+            title={elsewhere !== undefined ? elsewhereTitle(elsewhere) : undefined}
+          >
+            {p !== undefined ? trackingText(p.ref, entry.kind, d?.trackedBy, twin) : ''}
             {merged}
           </span>
+          {p?.ref.upstream !== undefined ? (
+            <StopTracking upstream={p.ref.upstream} onClick={() => onStopTracking()} />
+          ) : null}
         </div>,
       );
       if (!isCurrentEverywhere(entry)) {

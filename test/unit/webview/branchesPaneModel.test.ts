@@ -32,6 +32,23 @@ describe('buildBranchesPaneTree', () => {
     expect(refs.get('@tags/v1.0.0')).toEqual({ name: 'v1.0.0', type: 'tag' });
   });
 
+  it('marks the local branches with an upstream: what adds Stop Tracking to their menu', () => {
+    const { refs } = buildBranchesPaneTree(
+      {
+        detached: false,
+        locals: [
+          { name: 'mine', favorite: false, upstream: 'origin/develop' },
+          { name: 'other', favorite: false },
+        ],
+        remotes: [],
+        tags: [],
+      },
+      { favOnly: false, search: '', showTags: true },
+    );
+    expect(refs.get('@local/mine')?.tracked).toBe(true);
+    expect(refs.get('@local/other')?.tracked).toBeUndefined();
+  });
+
   describe('Branches Pane Settings · Show Tags', () => {
     it('drops the Tags node when it is off', () => {
       const { nodes, refs } = buildBranchesPaneTree(DATA, { ...ALL, showTags: false });

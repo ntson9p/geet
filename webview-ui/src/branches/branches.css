@@ -328,8 +328,19 @@
 }
 
 .gtp-gone,
-.gtp-gone-text {
+.gtp-gone-text,
+.gtp-elsewhere {
   color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, #cca700));
+}
+
+/* A long upstream gives way before the branch's own name does. */
+.gtp-chip.gtp-elsewhere {
+  flex: 0 8 auto;
+  min-width: 28px;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gtp-merged {
@@ -583,6 +594,11 @@
   font-weight: 600;
 }
 
+.gtp-stop-tracking {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .gtp-card-buttons {
   height: 30px;
   display: flex;
@@ -619,7 +635,8 @@
 
 /* A very narrow sidebar keeps the buttons and drops their words; the tooltips keep them. */
 @container (max-width: 170px) {
-  .gtp-card .gtp-button-label {
+  .gtp-card .gtp-button-label,
+  .gtp-stop-tracking {
     display: none;
   }
 }
@@ -707,6 +724,11 @@
 .gtp-repo-chip:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+.gtp-form-note {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
 }
 
 .gtp-form-footer {

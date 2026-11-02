@@ -79,7 +79,7 @@ test.describe('P13-T6 new worktree dialog', () => {
     await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled();
     await page.getByTestId('worktree-new-branch').fill('feature/x-wt');
     await expect(page.getByTestId('will-run')).toContainText(
-      'git worktree add -b feature/x-wt D:/repos/demo-feature-x-wt feature/x',
+      'git worktree add --no-track -b feature/x-wt D:/repos/demo-feature-x-wt feature/x',
     );
     await expect(page.getByRole('button', { name: 'Create' })).toBeEnabled();
   });
@@ -102,7 +102,7 @@ test.describe('P13-T6 new worktree dialog', () => {
 
     await page.getByTestId('worktree-new-branch').fill('feature/y');
     await expect(page.getByTestId('will-run')).toContainText(
-      'git worktree add -b feature/y D:/repos/demo-feature-y feature/x',
+      'git worktree add --no-track -b feature/y D:/repos/demo-feature-y feature/x',
     );
     await expect(page.getByRole('button', { name: 'Create' })).toBeEnabled();
   });

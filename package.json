@@ -1559,6 +1559,10 @@
         "title": "%gittree.command.log.branch.toggleFavorite.title%"
       },
       {
+        "command": "gittree.log.branch.stopTracking",
+        "title": "%gittree.command.log.branch.stopTracking.title%"
+      },
+      {
         "command": "gittree.openWalkthrough",
         "title": "%gittree.command.openWalkthrough.title%",
         "category": "GitTree"
@@ -1717,6 +1721,11 @@
       {
         "command": "gittree.branch.update",
         "title": "%gittree.command.branch.update.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branch.stopTracking",
+        "title": "%gittree.command.branch.stopTracking.title%",
         "category": "GitTree"
       },
       {
@@ -1959,7 +1968,15 @@
           "when": "false"
         },
         {
+          "command": "gittree.log.branch.stopTracking",
+          "when": "false"
+        },
+        {
           "command": "gittree.branch.update",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branch.stopTracking",
           "when": "false"
         },
         {
@@ -2600,6 +2617,11 @@
           "group": "6_tracked@1"
         },
         {
+          "command": "gittree.branch.stopTracking",
+          "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current):(tracked|gone)(:|$)/",
+          "group": "6_tracked@2"
+        },
+        {
           "command": "gittree.branches.rename",
           "when": "(view == gittree.branchesTree || view == gittree.branchesLegacy) && viewItem =~ /^branch:(local|current)(:|$)/",
           "group": "7_manage@1"
@@ -2827,19 +2849,24 @@
           "group": "4_manage@1"
         },
         {
-          "command": "gittree.log.branch.rename",
-          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "command": "gittree.log.branch.stopTracking",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch' && gittree.branchTracked",
           "group": "4_manage@2"
         },
         {
-          "command": "gittree.log.branch.delete",
+          "command": "gittree.log.branch.rename",
           "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
           "group": "4_manage@3"
         },
         {
-          "command": "gittree.log.branch.toggleFavorite",
+          "command": "gittree.log.branch.delete",
           "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
           "group": "4_manage@4"
+        },
+        {
+          "command": "gittree.log.branch.toggleFavorite",
+          "when": "webviewId == 'gittree.log' && webviewSection == 'logBranch'",
+          "group": "4_manage@5"
         },
         {
           "command": "gittree.shelf.unshelve",

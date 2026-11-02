@@ -70,6 +70,8 @@ export interface BranchEntry {
   readonly gone: boolean;
   /** Published nowhere: a local branch with no upstream in any repository. */
   readonly unpublished: boolean;
+  /** The remote branch it tracks under another name, in the first repository where it does. */
+  readonly tracksElsewhere?: string;
   readonly ahead: number;
   readonly behind: number;
   /** The newest tip's date, unix seconds. */
@@ -112,6 +114,29 @@ export function buildEntries(
   return out;
 }
 
+/**
+ * The remote branch a local branch tracks under another name: `mine` tracking
+ * `origin/develop`. A push goes there rather than to a branch of its own, which
+ * is worth saying wherever the branch is shown. Undefined when it tracks its own
+ * name, nothing, or something the remote has deleted.
+ */
+export function upstreamElsewhere(
+  repo: BranchPanelRepoDto,
+  name: string,
+  upstream: string | undefined,
+  gone: boolean | undefined,
+): string | undefined {
+  if (upstream === undefined || gone === true) return undefined;
+  const remote = repo.remotes.find((r) => r.name === upstream)?.remote;
+  const cut = remote !== undefined ? remote.length + 1 : upstream.indexOf('/') + 1;
+  return upstream.slice(cut) === name ? undefined : upstream;
+}
+
+/** The remote branch of a local branch's own name, whether or not it tracks it. */
+export function remoteTwin(repo: BranchPanelRepoDto, name: string): string | undefined {
+  return repo.remotes.find((r) => r.remote !== undefined && r.name === `${r.remote}/${name}`)?.name;
+}
+
 function toEntry(kind: BranchPanelRefKind, name: string, presence: readonly Presence[]): BranchEntry {
   let newest: BranchPanelRefDto | undefined;
   let ahead = 0;
@@ -123,6 +148,11 @@ function toEntry(kind: BranchPanelRefKind, name: string, presence: readonly Pres
   }
   newest ??= presence[0]?.ref;
   const local = kind === 'local';
+  const elsewhere = local
+    ? presence
+        .map((p) => upstreamElsewhere(p.repo, name, p.ref.upstream, p.ref.gone))
+        .find((upstream) => upstream !== undefined)
+    : undefined;
   return {
     key: entryKey(kind, name),
     kind,
@@ -133,6 +163,7 @@ function toEntry(kind: BranchPanelRefKind, name: string, presence: readonly Pres
     merged: local && presence.length > 0 && presence.every((p) => p.repo.merged.includes(name)),
     gone: local && presence.some((p) => p.ref.gone === true),
     unpublished: local && presence.every((p) => p.ref.upstream === undefined),
+    ...(elsewhere !== undefined ? { tracksElsewhere: elsewhere } : {}),
     ahead,
     behind,
     ...(newest?.date !== undefined ? { date: newest.date } : {}),
@@ -718,14 +749,20 @@ function commits(n: number): string {
 /**
  * Where a ref stands against what it tracks, in a few words: `↑2 to push`,
  * `↓3 to pull`, `Up to date with origin/main`, `Not published`,
- * `origin/x was deleted`.
+ * `origin/x was deleted`. `twin` is the remote branch of a local branch's own
+ * name: a branch with no upstream is not unpublished while one exists.
  */
-export function trackingText(ref: BranchPanelRefDto, kind: BranchPanelRefKind, trackedBy?: string): string {
+export function trackingText(
+  ref: BranchPanelRefDto,
+  kind: BranchPanelRefKind,
+  trackedBy?: string,
+  twin?: string,
+): string {
   if (kind === 'tag') return 'Tag';
   if (kind === 'remote') {
     return trackedBy !== undefined ? `Checked out locally as ${trackedBy}` : 'Not checked out locally';
   }
-  if (ref.upstream === undefined) return 'Not published';
+  if (ref.upstream === undefined) return twin !== undefined ? `Not tracking ${twin}` : 'Not published';
   if (ref.gone === true) return `${ref.upstream} was deleted on the remote`;
   const parts: string[] = [];
   if ((ref.ahead ?? 0) > 0) parts.push(`${ref.ahead} to push`);
@@ -748,10 +785,15 @@ export function relationText(details: BranchPanelRepoDetailsDto | undefined): st
  * `↑2 ↓4`, `up to date`, `not published`, `upstream gone`; for a remote
  * branch, the local branch that tracks it.
  */
-export function trackingShort(ref: BranchPanelRefDto, kind: BranchPanelRefKind, trackedBy?: string): string {
+export function trackingShort(
+  ref: BranchPanelRefDto,
+  kind: BranchPanelRefKind,
+  trackedBy?: string,
+  twin?: string,
+): string {
   if (kind === 'tag') return 'tag';
   if (kind === 'remote') return trackedBy !== undefined ? `local ${trackedBy}` : 'not checked out';
-  if (ref.upstream === undefined) return 'not published';
+  if (ref.upstream === undefined) return twin !== undefined ? 'not tracking' : 'not published';
   if (ref.gone === true) return 'upstream gone';
   const parts: string[] = [];
   if ((ref.behind ?? 0) > 0) parts.push(`↓${ref.behind}`);

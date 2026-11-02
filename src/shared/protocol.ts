@@ -895,6 +895,8 @@ export interface NewWorktreeDialogParamsDto {
   repoRoot: string;
   repoLabel: string;
   branches: string[];
+  /** The remotes, for what a new branch would track: the dialog previews the real command. */
+  remoteNames: string[];
   seedBranch: string;
   /**
    * The seed is this worktree's checked-out branch, so git will refuse to

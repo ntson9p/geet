@@ -1,8 +1,9 @@
 /**
  * The New Branch form's rules (new-way-4), apart from the form so they are
  * unit-tested: which repositories can take the branch, what is wrong with what
- * was typed, and how the start point reads.
+ * was typed, how the start point reads, and what the branch will track.
  */
+import { newBranchTrackFlag } from '../../../src/branches/newBranchArgs';
 import { isValidRefName } from '../../../src/core/git/refName';
 import type { BranchPanelRepoDto } from '../../../src/shared/protocol';
 
@@ -45,4 +46,20 @@ export function fromText(from: string, chosen: readonly BranchPanelRepoDto[]): s
   const heads = [...new Set(chosen.map((r) => (r.detached ? 'HEAD' : (r.head ?? 'HEAD'))))];
   if (heads.length === 1) return heads[0]!;
   return 'each repository’s current branch';
+}
+
+/**
+ * What the new branch will track, when there is something to say: only a remote
+ * start point raises the question, and the answer is the rule the host runs.
+ */
+export function trackingNote(
+  name: string,
+  from: string,
+  chosen: readonly BranchPanelRepoDto[],
+): string | undefined {
+  const remote = chosen.flatMap((r) => r.remotes).find((r) => r.name === from)?.remote;
+  if (remote === undefined) return undefined;
+  return newBranchTrackFlag(name.trim(), from, [remote]) === '--track'
+    ? `It will track ${from}, the remote branch of the same name.`
+    : `It will track nothing: your first push creates a branch of its own on ${remote}.`;
 }

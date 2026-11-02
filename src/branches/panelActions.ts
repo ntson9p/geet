@@ -258,6 +258,7 @@ const ACTION_ICON: Partial<Record<string, string>> = {
   mergeIntoCurrent: 'git-merge',
   update: 'arrow-down',
   push: 'arrow-up',
+  stopTracking: 'debug-disconnect',
   delete: 'trash',
   newFrom: 'add',
   compareWithCurrent: 'git-compare',

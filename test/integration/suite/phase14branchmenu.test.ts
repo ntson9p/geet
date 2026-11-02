@@ -160,6 +160,25 @@ suite('P14 branch menu parity', () => {
     assert.strictEqual(await contextValueOf(TARGET), 'branch:local');
   });
 
+  test('an upstream the remote deleted is its own state: Stop Tracking stays, Update goes', async function () {
+    this.timeout(90_000);
+    git('branch', `--set-upstream-to=${REMOTE}/${TARGET}`, TARGET);
+    git('update-ref', '-d', `refs/remotes/${REMOTE}/${TARGET}`);
+    await refreshUntil(() =>
+      repo.model.snapshot.refs.some((r) => r.type === 'head' && r.name === TARGET && r.upstreamGone === true),
+    );
+    assert.strictEqual(await contextValueOf(TARGET), 'branch:local:gone');
+    const labels = labelsFor({ repo, name: TARGET, type: 'local', isCurrent: false });
+    assert.ok(labels.includes(`Stop Tracking '${REMOTE}/${TARGET}'`), labels.join(' | '));
+    assert.ok(!labels.includes('Update'), 'nothing to update from');
+    assert.ok(!labels.some((l) => l.startsWith('Tracked Branch')), 'nothing to drill into');
+
+    // As the suite found it.
+    git('branch', '--unset-upstream', TARGET);
+    git('fetch', REMOTE);
+    await refreshUntil(() => targetUpstream() === undefined);
+  });
+
   // ---- the registry, which the popup and the tree both read -----------------
 
   test('the checked-out branch keeps the rows that apply to it', function () {

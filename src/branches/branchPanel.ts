@@ -496,7 +496,15 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       void this.fetchRepository(run.root);
       return;
     }
-    await runPanel(this.actionDeps(), run);
+    try {
+      await runPanel(this.actionDeps(), run);
+    } catch (err) {
+      // Elsewhere VS Code reports a failed command; here the failure would stop
+      // at the webview, which can only stop its button turning. Not awaited: the
+      // answer tells that button the action is over, and a toast stays open.
+      const reason = (err instanceof Error ? err.message : String(err)).split('\n', 1)[0] ?? '';
+      void vscode.window.showErrorMessage(reason);
+    }
   }
 
   /** One repository's fetch; its row spins until it is done. A second click is dropped. */

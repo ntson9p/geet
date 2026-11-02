@@ -3,7 +3,7 @@
  *
  * This exists because the menu silently lost rows for years: the tree emits
  * four `contextValue`s (`branch:local`, `branch:current`, `branch:remote`,
- * `branch:tag`, now each optionally `:tracked`) while nine `when` clauses were
+ * `branch:tag`, the first two now optionally `:tracked` or `:gone`) while nine `when` clauses were
  * written as `/^branch:(local|remote)$/` — an anchored two-value regex that
  * quietly excludes the checked-out branch. Nothing failed; the rows just were
  * not there, which is invisible to every other kind of test.
@@ -70,17 +70,19 @@ describe('the Branches tree context menu', () => {
       'Update',
       'Push…',
       'Tracked Branch ▸',
+      'Stop Tracking',
       'Rename…',
       'Toggle Favorite',
     ]);
   });
 
-  it('drops Update and the Tracked Branch submenu when nothing is tracked', () => {
-    // Both are meaningless without an upstream, and IntelliJ omits rather than
+  it('drops Update, the Tracked Branch submenu and Stop Tracking when nothing is tracked', () => {
+    // All meaningless without an upstream, and IntelliJ omits rather than
     // disables them.
     const untracked = menuFor('branch:current');
     expect(untracked).not.toContain('Update');
     expect(untracked).not.toContain('Tracked Branch ▸');
+    expect(untracked).not.toContain('Stop Tracking');
     expect(untracked).toEqual([
       'New Branch from Selected…',
       'Show Diff with Working Tree',
@@ -120,10 +122,22 @@ describe('the Branches tree context menu', () => {
       'Update',
       'Push…',
       'Tracked Branch ▸',
+      'Stop Tracking',
       'Rename…',
       'Delete…',
       'Toggle Favorite',
     ]);
+  });
+
+  it('still lets go of an upstream the remote has deleted, and offers nothing that needs it', () => {
+    for (const kind of ['local', 'current'] as const) {
+      const gone = menuFor(`branch:${kind}:gone`);
+      expect(gone).toContain('Stop Tracking');
+      expect(gone).not.toContain('Update');
+      expect(gone).not.toContain('Tracked Branch ▸');
+      // Apart from that one row, the same menu as a branch that tracks nothing.
+      expect(gone.filter((l) => l !== 'Stop Tracking')).toEqual(menuFor(`branch:${kind}`));
+    }
   });
 
   it('offers both pull strategies on a remote branch, and no local-only rows', () => {
@@ -131,7 +145,7 @@ describe('the Branches tree context menu', () => {
     expect(remote).toContain('Pull into Current Using Merge');
     expect(remote).toContain('Pull into Current Using Rebase');
     expect(remote).toContain('Delete Branch on Remote…');
-    for (const absent of ['Rename…', 'Delete…', 'Push…', 'Update', 'Tracked Branch ▸']) {
+    for (const absent of ['Rename…', 'Delete…', 'Push…', 'Update', 'Tracked Branch ▸', 'Stop Tracking']) {
       expect(remote).not.toContain(absent);
     }
   });
@@ -143,8 +157,8 @@ describe('the Branches tree context menu', () => {
   it('survives the :tracked suffix on every clause, inline actions included', () => {
     // The regression the suffix could have caused: an anchored `$` or an `==`
     // comparison would make a tracked branch lose rows an untracked one keeps.
-    // Only Update and Tracked Branch may differ between the two.
-    const trackedOnly = ['Update', 'Tracked Branch ▸'];
+    // Only Update, Tracked Branch and Stop Tracking may differ between the two.
+    const trackedOnly = ['Update', 'Tracked Branch ▸', 'Stop Tracking'];
     for (const kind of ['local', 'current'] as const) {
       const plain = menuFor(`branch:${kind}`);
       const tracked = menuFor(`branch:${kind}:tracked`).filter((l) => !trackedOnly.includes(l));
@@ -207,8 +221,26 @@ describe('both branch trees', () => {
   it('share every row, so neither is missing what the other offers', () => {
     expect(entries.length).toBeGreaterThan(0);
     for (const e of entries) {
-      expect(e.when).toContain('view == gittree.branches ');
+      expect(e.when).toContain('view == gittree.branchesTree');
       expect(e.when).toContain('view == gittree.branchesLegacy');
+    }
+  });
+});
+
+describe("the log's Branches pane menu", () => {
+  const rows = pkg.contributes.menus['webview/context'] ?? [];
+
+  it('offers Stop Tracking only on a row that says it tracks something', () => {
+    const stop = rows.find((r) => r.command === 'gittree.log.branch.stopTracking');
+    expect(stop?.when).toContain("webviewSection == 'logBranch'");
+    // The key `BranchesPane.tsx` puts in the row's `data-vscode-context`.
+    expect(stop?.when).toContain('gittree.branchTracked');
+  });
+
+  it('keeps the row out of the command palette, where it would name no branch', () => {
+    const hidden = (pkg.contributes.menus['commandPalette'] ?? []).filter((m) => m.when === 'false');
+    for (const command of ['gittree.log.branch.stopTracking', 'gittree.branch.stopTracking']) {
+      expect(hidden.some((m) => m.command === command)).toBe(true);
     }
   });
 });

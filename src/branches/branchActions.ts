@@ -96,6 +96,15 @@ export function upstreamOf(ctx: BranchActionContext): string | undefined {
 }
 
 /**
+ * The upstream the branch is configured with, whether or not the remote branch
+ * still exists: what `Stop Tracking` removes. A gone upstream is no use to
+ * `Update`, but it is still a link the user may want rid of.
+ */
+export function configuredUpstream(ctx: BranchActionContext): string | undefined {
+  return ctx.repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === ctx.name)?.upstream;
+}
+
+/**
  * The `viewItem` a branch row carries, which is what every `when` clause in
  * `view/item/context` matches against. Two tree views draw branch rows — the
  * POST-P14u Branches view and the legacy all-repositories tree — and both read
@@ -106,7 +115,9 @@ export function upstreamOf(ctx: BranchActionContext): string | undefined {
  * fields, and two rows — `Update` and the `Tracked Branch` submenu — are
  * meaningless without a live upstream. `upstreamOf` above is the definition this
  * projects; the two have to keep answering the same thing, so every clause
- * matches with `(:|$)` and never a bare `$`.
+ * matches with `(:|$)` and never a bare `$`. `:gone` is an upstream the remote
+ * has deleted: those two rows stay away, `Stop Tracking` (`configuredUpstream`)
+ * does not.
  */
 export function branchContextValue(ref: RefInfo): string {
   const kind =
@@ -117,11 +128,8 @@ export function branchContextValue(ref: RefInfo): string {
         : ref.type === 'tag'
           ? 'tag'
           : 'local';
-  const tracked =
-    (kind === 'current' || kind === 'local') &&
-    ref.upstream !== undefined &&
-    ref.upstreamGone !== true;
-  return tracked ? `branch:${kind}:tracked` : `branch:${kind}`;
+  if ((kind !== 'current' && kind !== 'local') || ref.upstream === undefined) return `branch:${kind}`;
+  return ref.upstreamGone === true ? `branch:${kind}:gone` : `branch:${kind}:tracked`;
 }
 
 export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
@@ -290,6 +298,18 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
         if (upstream === undefined) return;
         await deps.showActionsFor?.(ctx.repo, upstream);
       },
+    },
+    {
+      /**
+       * A step past IntelliJ, whose only way to do this is a checkbox in the
+       * Rename dialog (D35): nobody looks for it there, and a branch tracking the
+       * wrong remote branch pushes onto it.
+       */
+      id: 'stopTracking',
+      group: 'tracked',
+      label: (ctx) => vscode.l10n.t("Stop Tracking '{0}'", configuredUpstream(ctx) ?? ''),
+      applies: (ctx) => isLocalBranch(ctx) && configuredUpstream(ctx) !== undefined,
+      run: (ctx) => deps.ops.stopTracking(ctx.repo, ctx.name),
     },
     {
       id: 'rename',

@@ -98,7 +98,7 @@ function detailsKey(entry: BranchEntry): string {
       (p) =>
         `${p.repo.root}@${p.ref.sha}:${p.repo.headSha ?? ''}:${p.repo.head ?? ''}:${p.ref.current === true ? 1 : 0}:${
           p.repo.merged.includes(entry.name) ? 1 : 0
-        }:${p.ref.gone === true ? 1 : 0}`,
+        }:${p.ref.gone === true ? 1 : 0}:${p.ref.upstream ?? ''}`,
     )
     .join(',')}`;
 }
@@ -643,6 +643,15 @@ export function App() {
         const r = e.currentTarget.getBoundingClientRect();
         menuFor({ x: r.right, y: r.bottom });
       }}
+      onStopTracking={(root) => {
+        if (entry === undefined) return;
+        run({
+          type: 'action',
+          target: targetOf(entry),
+          action: 'stopTracking',
+          ...(root !== undefined ? { root } : {}),
+        });
+      }}
       {...(detachedAt !== undefined ? { detachedAt } : {})}
     />
   );
@@ -904,7 +913,9 @@ export function App() {
                     : undefined;
               const label =
                 row.kind === 'branch'
-                  ? `${row.entry.name}${row.entry.currentIn.length > 0 ? ', checked out' : ''}`
+                  ? `${row.entry.name}${row.entry.currentIn.length > 0 ? ', checked out' : ''}${
+                      row.entry.tracksElsewhere !== undefined ? `, tracks ${row.entry.tracksElsewhere}` : ''
+                    }`
                   : row.kind === 'repo'
                     ? `${row.repo.label}, on ${row.repo.head ?? 'a detached HEAD'}${row.repo.fetching ? ', fetching' : ''}`
                     : row.kind === 'head'

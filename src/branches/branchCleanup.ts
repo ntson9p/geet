@@ -34,6 +34,7 @@ interface Deleted {
   readonly repo: RepoHandle;
   readonly name: string;
   readonly sha: string;
+  readonly upstream?: string;
 }
 
 async function mergedIn(
@@ -149,12 +150,22 @@ export async function cleanUpBranches(core: Core, roots?: readonly string[]): Pr
           await git.exec(repo.root, ['branch', '-D', '--', ...list.map((c) => c.name)], { token });
         },
       });
-      deleted.push(...list.map((c) => ({ repo, name: c.name, sha: c.sha })));
+      deleted.push(
+        ...list.map((c) => ({
+          repo,
+          name: c.name,
+          sha: c.sha,
+          ...(c.upstream !== undefined ? { upstream: c.upstream } : {}),
+        })),
+      );
     } catch (err) {
       const reason = (err instanceof Error ? err.message : String(err)).split('\n', 1)[0] ?? '';
       void vscode.window.showErrorMessage(
         vscode.l10n.t('{0}: {1}', labels.get(repo.root) ?? repo.root, reason),
       );
+    } finally {
+      // Before the notification: its Restore asks the snapshot whether a branch
+      // of that name has appeared since, and these must not still look present.
       await repo.refresher.refreshNow();
     }
   }
@@ -167,7 +178,10 @@ export async function cleanUpBranches(core: Core, roots?: readonly string[]): Pr
   );
 }
 
-/** Every deleted branch back at its old tip — unless a branch of that name has appeared since. */
+/**
+ * Every deleted branch back at its old tip, tracking what it tracked — unless a
+ * branch of that name has appeared since.
+ */
 async function restore(deleted: readonly Deleted[]): Promise<void> {
   let restored = 0;
   for (const d of deleted) {
@@ -178,6 +192,13 @@ async function restore(deleted: readonly Deleted[]): Promise<void> {
         kind: 'mutate',
         run: async (git, token) => {
           await git.exec(d.repo.root, ['branch', '--', d.name, d.sha], { token });
+          if (d.upstream !== undefined) {
+            // The remote branch may be gone by now; the branch itself is back either way.
+            await git.exec(d.repo.root, ['branch', `--set-upstream-to=${d.upstream}`, '--', d.name], {
+              token,
+              allowNonZeroExit: true,
+            });
+          }
         },
       });
       restored++;

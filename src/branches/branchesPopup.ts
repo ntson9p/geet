@@ -442,6 +442,7 @@ export const COMMON_ACTIONS: readonly CommonActionSpec[] = [
     kinds: ['remote'],
   },
   { id: 'push', verb: 'Push', kinds: ['local'] },
+  { id: 'stopTracking', verb: 'Stop tracking', kinds: ['local'] },
 ];
 
 /**

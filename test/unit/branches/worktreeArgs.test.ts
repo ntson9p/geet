@@ -27,10 +27,11 @@ describe('buildWorktreeAddArgs', () => {
     expect(add()).toEqual(['worktree', 'add', 'D:/repos/demo-feature', 'feature/x']);
   });
 
-  it('creates a new branch with -b from a start point', () => {
+  it('creates a new branch with -b from a start point, tracking nothing', () => {
     expect(add({ mode: 'new', newBranch: 'feature/y', ref: 'main' })).toEqual([
       'worktree',
       'add',
+      '--no-track',
       '-b',
       'feature/y',
       'D:/repos/demo-feature',
@@ -42,9 +43,48 @@ describe('buildWorktreeAddArgs', () => {
     expect(add({ mode: 'new', newBranch: 'feature/y', ref: '' })).toEqual([
       'worktree',
       'add',
+      '--no-track',
       '-b',
       'feature/y',
       'D:/repos/demo-feature',
+    ]);
+  });
+
+  it('does not track a remote branch of another name', () => {
+    const options = {
+      ...EMPTY_NEW_WORKTREE_OPTIONS,
+      path: 'D:/wt',
+      mode: 'new' as const,
+      newBranch: 'mine',
+      ref: 'origin/develop',
+    };
+    expect(buildWorktreeAddArgs(options, ['origin'])).toEqual([
+      'worktree',
+      'add',
+      '--no-track',
+      '-b',
+      'mine',
+      'D:/wt',
+      'origin/develop',
+    ]);
+  });
+
+  it('tracks a remote branch whose name it takes', () => {
+    const options = {
+      ...EMPTY_NEW_WORKTREE_OPTIONS,
+      path: 'D:/wt',
+      mode: 'new' as const,
+      newBranch: 'develop',
+      ref: 'origin/develop',
+    };
+    expect(buildWorktreeAddArgs(options, ['origin'])).toEqual([
+      'worktree',
+      'add',
+      '--track',
+      '-b',
+      'develop',
+      'D:/wt',
+      'origin/develop',
     ]);
   });
 

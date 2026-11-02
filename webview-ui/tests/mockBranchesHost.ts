@@ -31,6 +31,7 @@ export const mockBranchesHostScript = `
       ref('feature/search', 4, 6 * D, { upstream: 'origin/feature/search', gone: true }),
       ref('bugfix/header', 5, 20 * D),
       ref('hotfix/1.0.2', 6, 40 * D, { upstream: 'origin/hotfix/1.0.2' }),
+      ref('feature/mistracked', 12, 4 * H, { upstream: 'origin/develop', ahead: 1 }),
     ],
     remotes: [
       ref('origin/main', 7, 2 * D, { remote: 'origin' }),

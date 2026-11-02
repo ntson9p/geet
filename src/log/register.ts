@@ -99,6 +99,7 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
     'diffWithWorkingTree',
     'rebaseOntoCurrent',
     'push',
+    'stopTracking',
     'rename',
     'delete',
     'toggleFavorite',

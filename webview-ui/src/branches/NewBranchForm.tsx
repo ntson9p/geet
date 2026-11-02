@@ -15,7 +15,7 @@ import type {
   BranchPanelCreateResultDto,
   BranchPanelRepoDto,
 } from '../../../src/shared/protocol';
-import { eligibleRepos, formProblem, fromText } from './newBranch';
+import { eligibleRepos, formProblem, fromText, trackingNote } from './newBranch';
 import { Codicon } from './Rows';
 
 export interface NewBranchRequest {
@@ -78,6 +78,7 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
   };
 
   const message = error ?? problem;
+  const note = trackingNote(name, request.from, chosen.length > 0 ? chosen : eligible);
   return (
     <form
       className="gtp-form"
@@ -158,6 +159,7 @@ export function NewBranchForm({ repos, request, colorOf, onCreate, onClose }: Ne
           })}
         </div>
       ) : null}
+      {note !== undefined ? <div className="gtp-form-note">{note}</div> : null}
       <div className="gtp-form-footer">
         {message !== undefined ? (
           <span className={`gtp-form-message${error !== undefined ? ' gtp-error' : ''}`} role="alert">

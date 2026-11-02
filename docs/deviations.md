@@ -49,6 +49,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, *Update all repositories* to a setting | No (API) |
 | [D33](#d33--console-and-worktrees-cannot-be-closed) | In the Git tool window only the extra Log tabs close; Console and Worktrees always stay | Deliberate (owner's decision) |
 | [D34](#d34--the-sidebars-branches-panel-is-gittrees-own-design) | The sidebar's Branches panel is GitTree's own design: status first, one list for every repository, a card per branch | Deliberate (owner's request) |
+| [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 
 ---
 
@@ -875,4 +876,36 @@ What is new is the arrangement:
 
 **Revisitable:** yes — the popup and the opt-in trees (`gittree.sidebar.extraViews`) are
 untouched.
+
+## D35 · A new branch tracks nothing by default, and Stop Tracking is a menu row
+
+**IntelliJ:** a new branch follows git's default (`GitBranchCheckoutOperation` never touches
+tracking), so `mine` created from `origin/develop` tracks `origin/develop`. Its only way to remove
+an upstream is the *Unset upstream branch* checkbox in the Rename dialog
+(`GitRenameBranchAction`).
+**GitTree:**
+* a new branch tracks a remote branch only when it takes that branch's own name: `develop` from
+  `origin/develop` tracks it, `mine` from `origin/develop` tracks nothing;
+* the flag is always passed (`--track` or `--no-track`), so `branch.autoSetupMerge` does not
+  change the answer;
+* **Stop Tracking** is a row in every branch menu and a link on the panel's card;
+* a branch tracking a remote branch of another name is marked `→ origin/x` in the panel.
+
+**Why:** the owner's report (2026-11-02). They made a branch from a remote branch and pushed it.
+Nothing was created on GitHub, and the commits landed on an existing branch there. The Push
+dialog targets what a branch tracks, as IntelliJ's does, so tracking set silently at creation
+decides where the first push goes. A wrong guess publishes commits onto someone else's branch.
+That cost is out of proportion to what the guess saves: one `-u` on the first push, which the
+Push dialog does anyway for a new branch.
+
+The rule is the one git offers as `branch.autoSetupMerge=simple`. A push from a branch that took
+the remote branch's own name goes where the name says.
+
+**What stays IntelliJ's:**
+* `Checkout` on a remote branch makes the local branch of that name and tracks it;
+* the Push dialog still targets the tracked branch when there is one;
+* the Rename dialog's question becomes the notification's **Stop Tracking** button.
+
+**Revisitable:** yes. A *Track Remote Branch…* row and a warning in the Push dialog for a target of
+another name are the natural additions if a branch needs tracking set by hand.
 

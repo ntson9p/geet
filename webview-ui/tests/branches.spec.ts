@@ -239,6 +239,169 @@ test.describe('the New Branch form', () => {
   });
 });
 
+test.describe('what a branch tracks', () => {
+  const MISTRACKED = 'br:local:local:feature/mistracked';
+
+  test('a branch tracking a remote branch of another name says so on its row', async ({ page }) => {
+    await openPanel(page, { single: true });
+    const chip = row(page, MISTRACKED).locator('.gtp-chip.gtp-elsewhere');
+    await expect(chip).toHaveText('→ origin/develop');
+    await expect(chip).toHaveAttribute('title', /a push goes there/u);
+    await expect(row(page, MISTRACKED)).toHaveAttribute(
+      'aria-label',
+      'feature/mistracked, tracks origin/develop',
+    );
+    // A branch tracking its own name has nothing to warn about.
+    await expect(row(page, 'br:recent:local:develop').locator('.gtp-elsewhere')).toHaveCount(0);
+  });
+
+  test("its card's Stop tracking asks the host to cut the link, and nothing else", async ({ page }) => {
+    await openPanel(page, { single: true });
+    const mistracked = row(page, MISTRACKED);
+    await mistracked.click();
+    const card = mistracked.locator('.gtp-card');
+    await expect(card.locator('.gtp-elsewhere')).toContainText('origin/develop');
+    await card.getByRole('button', { name: 'Stop tracking' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: {
+        type: 'action',
+        target: { kind: 'local', name: 'feature/mistracked', roots: [WEB] },
+        action: 'stopTracking',
+      },
+    });
+    await expect(card).toBeVisible();
+  });
+
+  test('a card asks for its buttons again once the branch stops tracking', async ({ page }) => {
+    await openPanel(page, { single: true });
+    const mistracked = row(page, MISTRACKED);
+    await mistracked.click();
+    await expect(mistracked.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' })).toBeVisible();
+    const asked = (await requests(page, 'branches/details')).length;
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<{ locals: Array<{ name: string; upstream?: string; ahead?: number }> }> };
+        __pushState: () => void;
+      };
+      const branch = w.__mockState.repos[0]!.locals.find((l) => l.name === 'feature/mistracked')!;
+      delete branch.upstream;
+      delete branch.ahead;
+      w.__pushState();
+    });
+    // No longer tracking: no chip, no link, and `Update` must not linger on the card.
+    await expect(mistracked.locator('.gtp-elsewhere')).toHaveCount(0);
+    await expect(mistracked.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' })).toHaveCount(0);
+    await expect(mistracked.locator('.gtp-card')).toContainText('Not published');
+    await expect.poll(async () => (await requests(page, 'branches/details')).length).toBeGreaterThan(asked);
+  });
+
+  test('a branch tracking its own name still offers Stop tracking on its card', async ({ page }) => {
+    await openPanel(page, { single: true });
+    const develop = row(page, 'br:recent:local:develop');
+    await develop.click();
+    await develop.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'action', target: { kind: 'local', name: 'develop', roots: [WEB] }, action: 'stopTracking' },
+    });
+  });
+
+  test('a branch tracking nothing has no link', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await row(page, 'dir:local:bugfix/').click();
+    const header = row(page, 'br:local:local:bugfix/header');
+    await header.click();
+    await expect(header.locator('.gtp-card')).toContainText('Not published');
+    await expect(header.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' })).toHaveCount(0);
+  });
+
+  test('across repositories, the line that tracks elsewhere is the one with the link', async ({ page }) => {
+    await openPanel(page);
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<{ root: string; locals: Array<{ name: string; upstream?: string }> }> };
+        __pushState: () => void;
+      };
+      const api = w.__mockState.repos.find((r) => r.root === '/work/api')!;
+      api.locals.find((l) => l.name === 'develop')!.upstream = 'origin/main';
+      w.__pushState();
+    });
+    const develop = row(page, 'br:local:local:develop');
+    await expect(develop.locator('.gtp-chip.gtp-elsewhere')).toHaveText('→ origin/main');
+    await develop.click();
+    const links = develop.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' });
+    await expect(links).toHaveCount(1);
+    await links.click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: {
+        type: 'action',
+        target: { kind: 'local', name: 'develop', roots: [API, WEB] },
+        action: 'stopTracking',
+        root: API,
+      },
+    });
+  });
+
+  test("the current branch's row warns too, and says 'not tracking' rather than 'not published'", async ({
+    page,
+  }) => {
+    await openPanel(page, { single: true });
+    const head = row(page, `head:${WEB}`);
+    const setHead = async (upstream: string | undefined): Promise<void> => {
+      await page.evaluate((u) => {
+        const w = window as unknown as {
+          __mockState: {
+            repos: Array<{
+              upstream?: string;
+              head?: string;
+              locals: Array<{ name: string; upstream?: string; current?: boolean }>;
+            }>;
+          };
+          __pushState: () => void;
+        };
+        const web = w.__mockState.repos[0]!;
+        const current = web.locals.find((l) => l.current === true)!;
+        if (u === null) {
+          delete web.upstream;
+          delete current.upstream;
+        } else {
+          web.upstream = u;
+          current.upstream = u;
+        }
+        w.__pushState();
+      }, upstream ?? null);
+    };
+    await setHead('origin/develop');
+    await expect(head.locator('.gtp-elsewhere')).toHaveText('→ origin/develop');
+    await setHead(undefined);
+    await expect(head.locator('.gtp-elsewhere')).toHaveCount(0);
+    // origin/feature/login exists: the branch is published, it just isn't tracked.
+    await expect(head).toContainText('not tracking origin/feature/login');
+  });
+
+  test('the New Branch form says what the new branch will track', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await row(page, 'sec:remote').click();
+    await row(page, 'br:remote:remote:origin/develop').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: "New Branch from 'origin/develop'…" }).click();
+    const form = page.getByRole('form', { name: 'New branch' });
+    const note = form.locator('.gtp-form-note');
+    await expect(note).toHaveText('It will track nothing: your first push creates a branch of its own on origin.');
+    await form.getByLabel('Branch name').fill('mine');
+    await expect(note).toHaveText('It will track nothing: your first push creates a branch of its own on origin.');
+    // `develop` is taken here, so the name problem shows as well; the note still answers.
+    await form.getByLabel('Branch name').fill('develop');
+    await expect(note).toHaveText('It will track origin/develop, the remote branch of the same name.');
+  });
+
+  test('a local start point raises no question', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'New Branch' }).click();
+    const form = page.getByRole('form', { name: 'New branch' });
+    await form.getByLabel('Branch name').fill('mine');
+    await expect(form.locator('.gtp-form-note')).toHaveCount(0);
+  });
+});
+
 test.describe('searching', () => {
   test('flattens the list, marks the matches, and Escape clears it', async ({ page }) => {
     await openPanel(page);

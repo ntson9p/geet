@@ -28,6 +28,7 @@ import {
   validateNewWorktree,
   type NewWorktreeOptions,
 } from './worktreeArgs';
+import { remoteNamesOf } from './newBranchArgs';
 
 export interface WorktreeOutcome {
   ok: boolean;
@@ -104,7 +105,7 @@ export class WorktreeService {
   async add(options: NewWorktreeOptions): Promise<WorktreeOutcome> {
     const errors = validateNewWorktree(options);
     if (errors.length > 0) return { ok: false, message: errors.join(' '), commands: [] };
-    const args = buildWorktreeAddArgs(options);
+    const args = buildWorktreeAddArgs(options, remoteNamesOf(this.repo.model.snapshot.refs));
     return this.run(vscode.l10n.t('Add worktree'), [args], () =>
       vscode.l10n.t('Worktree created at {0}.', options.path.trim()),
     );
@@ -264,6 +265,7 @@ export function buildNewWorktreeParams(
     repoRoot: repo.root,
     repoLabel: repo.root.split(/[\\/]/u).pop() ?? repo.root,
     branches,
+    remoteNames: remoteNamesOf(snap.refs),
     // Branches already checked out somewhere cannot be checked out again.
     seedBranch: branch,
     seedBranchIsHead: branch.length > 0 && branch === snap.headRef,

@@ -69,7 +69,10 @@ export function NewWorktree() {
   );
 
   const errors = useMemo(() => validateNewWorktree(options), [options]);
-  const argv = useMemo(() => buildWorktreeAddArgs(options), [options]);
+  const argv = useMemo(
+    () => buildWorktreeAddArgs(options, params?.remoteNames),
+    [options, params?.remoteNames],
+  );
 
   if (error !== undefined) return <div className="gt-dialog-unknown">{error}</div>;
   if (!params) return <div className="gt-dialog-unknown">Loading…</div>;

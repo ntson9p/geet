@@ -15,6 +15,8 @@ export interface RefEntry {
   type: RefType;
   favorite?: boolean;
   isCurrent?: boolean;
+  /** A local branch with an upstream: `Stop Tracking` joins its menu. */
+  tracked?: boolean;
 }
 
 export interface BranchesPaneOptions {
@@ -77,6 +79,7 @@ export function buildBranchesPaneTree(
         type: 'local',
         favorite: local?.favorite === true,
         isCurrent: data.current === name,
+        ...(local?.upstream !== undefined ? { tracked: true } : {}),
       });
     }
   }

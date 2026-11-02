@@ -13,6 +13,7 @@ import { countPulled } from '../scm/dialogs/updateDialog';
 import { pullResultMessage } from '../scm/resultMessages';
 import { confirmModal } from '../ui/confirm';
 import { notifySuccess, type NotificationAction } from '../ui/notify';
+import { buildNewBranchArgs, remoteNamesOf } from './newBranchArgs';
 import { checkoutWithSmart } from './smartCheckout';
 import {
   buildAheadBehindArgs,
@@ -97,6 +98,14 @@ export class BranchOps {
               placeHolder: vscode.l10n.t('Create "{0}" from {1}', name, startPoint),
             });
     if (mode === undefined) return;
+    const snap = repo.model.snapshot;
+    const args = buildNewBranchArgs({
+      name,
+      startPoint,
+      checkout: mode === checkoutItem,
+      unborn: snap.initial,
+      refs: snap.refs,
+    });
     if (mode === checkoutItem) {
       await repo.queue.enqueue({
         label: vscode.l10n.t('Create + checkout {0}', name),
@@ -105,7 +114,7 @@ export class BranchOps {
         snapshotLabel: SNAPSHOT_LABELS.checkoutDirty,
         snapshotAfter: true,
         run: async (git, token) => {
-          await git.exec(repo.root, ['checkout', '-b', name, startPoint], { token });
+          await git.exec(repo.root, args, { token });
         },
       });
       // IntelliJ's words: a new branch off where you are "was created"
@@ -121,7 +130,7 @@ export class BranchOps {
         label: vscode.l10n.t('Create branch {0}', name),
         kind: 'mutate',
         run: async (git, token) => {
-          await git.exec(repo.root, ['branch', '--', name, startPoint], { token });
+          await git.exec(repo.root, args, { token });
         },
       });
       notifySuccess(vscode.l10n.t('Branch {0} was created', name));
@@ -139,32 +148,102 @@ export class BranchOps {
         await git.exec(repo.root, ['branch', '-m', '--', branch, newName], { token });
       },
     });
-    notifySuccess(vscode.l10n.t('Branch {0} was renamed to {1}', branch, newName));
-    if (ref?.upstream !== undefined && !ref.upstreamGone) {
-      const pushNew = vscode.l10n.t('Push "{0}" and delete "{1}" on the remote', newName, branch);
-      const choice = await vscode.window.showInformationMessage(
-        vscode.l10n.t('"{0}" tracked {1}. Update the remote?', branch, ref.upstream),
-        pushNew,
-      );
-      if (choice === pushNew) {
-        const remote = ref.upstream.split('/')[0] ?? 'origin';
-        const oldRemoteName = ref.upstream.slice(remote.length + 1);
-        await repo.queue.enqueue({
-          label: vscode.l10n.t('Update remote after rename'),
-          kind: 'mutate',
-          run: async (git, token) => {
-            await git.exec(repo.root, ['push', '-u', remote, newName], { token });
-            await git.exec(repo.root, ['push', remote, '--delete', oldRemoteName], {
-              token,
-              allowNonZeroExit: true, // already gone is fine
-            });
-          },
-        });
-        notifySuccess(
-          vscode.l10n.t('Pushed {0} to {1} and deleted {2} on the remote', newName, remote, oldRemoteName),
-        );
-      }
+    const upstream = ref?.upstream !== undefined && !ref.upstreamGone ? ref.upstream : undefined;
+    if (upstream === undefined) {
+      notifySuccess(vscode.l10n.t('Branch {0} was renamed to {1}', branch, newName));
+      return;
     }
+    // A rename keeps the link, so the next push still goes to the old remote branch.
+    const actions: NotificationAction[] = [];
+    const remoteBranch = splitUpstream(upstream, remoteNamesOf(repo.model.snapshot.refs));
+    // Only a remote branch carrying the old name is the branch being renamed.
+    // Any other is someone else's: `mine` tracking `origin/develop` must never
+    // offer to delete `develop`.
+    if (remoteBranch?.branch === branch) {
+      actions.push({
+        title: vscode.l10n.t('Push "{0}" and delete "{1}" on the remote', newName, branch),
+        run: () => this.renameOnRemote(repo, remoteBranch.remote, branch, newName),
+      });
+    }
+    actions.push({
+      title: vscode.l10n.t('Stop Tracking {0}', upstream),
+      run: () => this.unsetUpstream(repo, newName, upstream, false),
+    });
+    notifySuccess(
+      vscode.l10n.t('Branch {0} was renamed to {1}. It still tracks {2}.', branch, newName, upstream),
+      ...actions,
+    );
+  }
+
+  /** The rename's follow-up: the new name on the remote, tracked, and the old one gone. */
+  private async renameOnRemote(
+    repo: RepoHandle,
+    remote: string,
+    oldName: string,
+    newName: string,
+  ): Promise<void> {
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Update remote after rename'),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['push', '-u', remote, newName], { token });
+        await git.exec(repo.root, ['push', remote, '--delete', oldName], {
+          token,
+          allowNonZeroExit: true, // already gone is fine
+        });
+      },
+    });
+    notifySuccess(
+      vscode.l10n.t('Pushed {0} to {1} and deleted {2} on the remote', newName, remote, oldName),
+    );
+  }
+
+  /**
+   * `Stop Tracking`: the branch keeps its commits and the remote keeps its
+   * branch; only the link between them goes, so the next push offers a branch
+   * of the branch's own name again. `Undo` puts the link back while the remote
+   * branch still exists.
+   */
+  async stopTracking(repo: RepoHandle, branch: string): Promise<void> {
+    const ref = repo.model.snapshot.refs.find((r) => r.type === 'head' && r.name === branch);
+    await this.unsetUpstream(repo, branch, ref?.upstream, ref?.upstreamGone === true);
+  }
+
+  private async unsetUpstream(
+    repo: RepoHandle,
+    branch: string,
+    upstream: string | undefined,
+    gone: boolean,
+  ): Promise<void> {
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Stop tracking for {0}', branch),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['branch', '--unset-upstream', '--', branch], { token });
+      },
+    });
+    await repo.refresher.refreshNow();
+    const undo: NotificationAction[] =
+      upstream !== undefined && !gone
+        ? [{ title: vscode.l10n.t('Undo'), run: () => this.setUpstream(repo, branch, upstream) }]
+        : [];
+    notifySuccess(
+      vscode.l10n.t('Branch {0} no longer tracks {1}', branch, upstream ?? vscode.l10n.t('its remote branch')),
+      ...undo,
+    );
+  }
+
+  /** `Undo` on `Stop Tracking`. */
+  private async setUpstream(repo: RepoHandle, branch: string, upstream: string): Promise<void> {
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Track {0} on {1}', upstream, branch),
+      kind: 'mutate',
+      run: async (git, token) => {
+        await git.exec(repo.root, ['branch', `--set-upstream-to=${upstream}`, '--', branch], { token });
+      },
+    });
+    await repo.refresher.refreshNow();
+    notifySuccess(vscode.l10n.t('Branch {0} tracks {1} again', branch, upstream));
   }
 
   /**

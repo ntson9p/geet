@@ -4,6 +4,8 @@
  * commands at all — these are the write half.
  */
 
+import { newBranchTrackFlag } from './newBranchArgs';
+
 export type WorktreeBranchMode = 'existing' | 'new' | 'detach';
 
 export interface NewWorktreeOptions {
@@ -44,15 +46,25 @@ export function validateNewWorktree(o: NewWorktreeOptions): string[] {
   return errors;
 }
 
-export function buildWorktreeAddArgs(o: NewWorktreeOptions): string[] {
+/**
+ * `remotes` names the repository's remotes, for what a new branch tracks: nothing,
+ * unless it takes the name of the remote branch it starts from (`newBranchArgs.ts`
+ * says why). The dialog previews this argv, so it passes the same list.
+ */
+export function buildWorktreeAddArgs(
+  o: NewWorktreeOptions,
+  remotes: readonly string[] = [],
+): string[] {
   const args = ['worktree', 'add'];
   if (o.force) args.push('--force');
   if (o.noCheckout) args.push('--no-checkout');
-  if (o.mode === 'new') args.push('-b', o.newBranch.trim());
-  else if (o.mode === 'detach') args.push('--detach');
+  const ref = o.ref.trim();
+  if (o.mode === 'new') {
+    const name = o.newBranch.trim();
+    args.push(newBranchTrackFlag(name, ref, remotes), '-b', name);
+  } else if (o.mode === 'detach') args.push('--detach');
   args.push(o.path.trim());
   // `new` may start from nothing (git uses HEAD); the other modes need the ref.
-  const ref = o.ref.trim();
   if (ref.length > 0) args.push(ref);
   return args;
 }

@@ -22,16 +22,23 @@ import {
   recentEntries,
   relationShort,
   relationText,
+  remoteTwin,
   ROW,
   scopeReposOf,
   shortAge,
   targetOf,
   trackingShort,
   trackingText,
+  upstreamElsewhere,
   type PanelRow,
   type PanelUiState,
 } from '../../../webview-ui/src/branches/model';
-import { eligibleRepos, formProblem, fromText } from '../../../webview-ui/src/branches/newBranch';
+import {
+  eligibleRepos,
+  formProblem,
+  fromText,
+  trackingNote,
+} from '../../../webview-ui/src/branches/newBranch';
 
 const NOW = 1_800_000_000;
 
@@ -155,6 +162,79 @@ describe('buildEntries: one entry per name, across repositories', () => {
   it('targets every repository it is in', () => {
     const main = buildEntries([api, web], 'local').find((e) => e.name === 'main')!;
     expect(targetOf(main)).toEqual({ kind: 'local', name: 'main', roots: ['/api', '/web'] });
+  });
+});
+
+describe('a branch tracking a remote branch of another name', () => {
+  const remotes = [
+    ref('origin/develop', { remote: 'origin' }),
+    ref('origin/feature/x', { remote: 'origin' }),
+    ref('team/eu/feature/x', { remote: 'team/eu' }),
+  ];
+
+  it('is named on its entry: its pushes go there', () => {
+    const [mine] = buildEntries(
+      [repo('/a', { remotes, locals: [ref('mine', { upstream: 'origin/develop', ahead: 1 })] })],
+      'local',
+    );
+    expect(mine!.tracksElsewhere).toBe('origin/develop');
+  });
+
+  it('is not one that tracks its own name, nothing, or something deleted', () => {
+    const entries = buildEntries(
+      [
+        repo('/a', {
+          remotes,
+          locals: [
+            ref('develop', { upstream: 'origin/develop' }),
+            ref('feature/x', { upstream: 'team/eu/feature/x' }),
+            ref('untracked'),
+            ref('old', { upstream: 'origin/develop', gone: true }),
+          ],
+        }),
+      ],
+      'local',
+    );
+    for (const entry of entries) expect(entry.tracksElsewhere, entry.name).toBeUndefined();
+  });
+
+  it('is said of the entry if any repository has it so', () => {
+    const [x] = buildEntries(
+      [
+        repo('/a', { remotes, locals: [ref('x', { upstream: 'origin/x' })] }),
+        repo('/b', { remotes, locals: [ref('x', { upstream: 'origin/develop' })] }),
+      ],
+      'local',
+    );
+    expect(x!.tracksElsewhere).toBe('origin/develop');
+  });
+
+  it('reads a remote the refs do not list by its first segment', () => {
+    // A remote branch not fetched here, or a branch tracking a local one.
+    const r = repo('/a');
+    expect(upstreamElsewhere(r, 'x', 'origin/x', false)).toBeUndefined();
+    expect(upstreamElsewhere(r, 'x', 'origin/y', false)).toBe('origin/y');
+    expect(upstreamElsewhere(r, 'x', 'main', undefined)).toBe('main');
+    expect(upstreamElsewhere(r, 'x', undefined, undefined)).toBeUndefined();
+  });
+
+  it('is never said of a remote branch or a tag', () => {
+    const [remote] = buildEntries([repo('/a', { remotes: [ref('origin/x', { remote: 'origin' })] })], 'remote');
+    expect(remote!.tracksElsewhere).toBeUndefined();
+  });
+});
+
+describe('a branch tracking nothing', () => {
+  const remotes = [ref('origin/develop', { remote: 'origin' })];
+
+  it('is unpublished only when the remote has no branch of its name', () => {
+    const r = repo('/a', { remotes });
+    expect(remoteTwin(r, 'develop')).toBe('origin/develop');
+    expect(remoteTwin(r, 'mine')).toBeUndefined();
+    expect(trackingText(ref('develop'), 'local', undefined, 'origin/develop')).toBe('Not tracking origin/develop');
+    expect(trackingText(ref('mine'), 'local')).toBe('Not published');
+    expect(trackingShort(ref('develop'), 'local', undefined, 'origin/develop')).toBe('not tracking');
+    expect(trackingShort(ref('mine'), 'local')).toBe('not published');
   });
 });
 
@@ -417,6 +497,24 @@ describe('the New Branch form', () => {
     expect(formProblem('first', [empty], false, 'HEAD')).toMatch(/no commit yet/u);
     expect(formProblem('first', [empty], true, 'HEAD')).toBeUndefined();
     expect(formProblem('feature/fine', [api, web], true, 'HEAD')).toBeUndefined();
+  });
+
+  it('says what the branch will track, from a remote branch only', () => {
+    expect(trackingNote('mine', 'origin/main', [web])).toBe(
+      'It will track nothing: your first push creates a branch of its own on origin.',
+    );
+    expect(trackingNote('', 'origin/main', [web])).toMatch(/track nothing/u);
+    expect(trackingNote('main', 'origin/main', [web])).toBe(
+      'It will track origin/main, the remote branch of the same name.',
+    );
+    expect(trackingNote(' main ', 'origin/main', [web])).toMatch(/It will track origin\/main/u);
+    expect(trackingNote('main', 'upstream/main', [web])).toBe(
+      'It will track upstream/main, the remote branch of the same name.',
+    );
+    // A local branch, a tag and HEAD raise no question.
+    expect(trackingNote('mine', 'develop', [web])).toBeUndefined();
+    expect(trackingNote('mine', 'v1.0', [web])).toBeUndefined();
+    expect(trackingNote('mine', 'HEAD', [web])).toBeUndefined();
   });
 
   it('names the start point', () => {

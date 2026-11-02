@@ -150,7 +150,7 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
   unchanged.
 * **Common rows act on every root:** `Checkout` · `Update` · `Merge into the current branch` ·
   `Rebase the current branch onto it` · `Pull into the current branch using Merge`/`… Rebase` ·
-  `Push`, each dispatched per root through the same registry, labelled with the count it will
+  `Push` · `Stop tracking`, each dispatched per root through the same registry, labelled with the count it will
   actually touch (`Checkout in 5 of 7 repositories`) and stopping at the first refusal.
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5); and the all-roots set is the operations needing no per-root input,
@@ -182,10 +182,12 @@ standing open (D34). It answers three questions, top to bottom.
 * **Remote** — one group per remote, folded the same way. Starts shut.
 * **Tags** — newest first. Starts shut; hidden by *Show Tags*.
 * Every branch row shows its `↓ ↑` against its upstream, its last commit's age (`3h`, `2d`,
-  `5mo`) and two chips:
+  `5mo`) and up to three chips:
   - **merged**: all its commits are on the main branch (`origin/HEAD`'s target, else
     `origin/main`, `origin/master`, `main`, `master`);
-  - **gone**: the remote branch it tracked was deleted.
+  - **gone**: the remote branch it tracked was deleted;
+  - **`→ origin/x`**, in the warning colour: it tracks a remote branch of another name, so a
+    push goes there. The current-branch row says the same in place of its upstream.
 * **Several repositories are one list.** A branch name is one row however many repositories
   have it. A row carries a marker per repository in view: filled where it is checked out,
   ringed where it exists, a dot where it does not. Its actions run in every repository it
@@ -199,7 +201,9 @@ standing open (D34). It answers three questions, top to bottom.
 * **A click never changes anything.** It opens the branch's **card** under its row:
   - the last commit, its author and age;
   - where the branch stands against what it tracks (*2 to push, 1 to pull · origin/x*,
-    *Not published*, *origin/x was deleted on the remote*);
+    *Not published*, *Not tracking origin/x*, *origin/x was deleted on the remote*), with a
+    **Stop tracking** link while it tracks anything. With several repositories, a repository's
+    line has that link only when it tracks a remote branch of another name;
   - where it stands against what is checked out (*3 commits ahead of main, 1 behind*,
     *Already in main*);
   - the actions its state makes likely:
@@ -213,7 +217,8 @@ standing open (D34). It answers three questions, top to bottom.
   branch), the **star** and **`⋯`**. The age column makes way for them.
 * **Right-click or `⋯`** shows every action, from the same registry as the popup and the log's
   Branches pane (below), with real submenus:
-  - **Tracked Branch `'origin/x'`** holds the upstream's own actions;
+  - **Tracked Branch `'origin/x'`** holds the upstream's own actions, and **Stop Tracking
+    `'origin/x'`** follows it;
   - with several repositories, the all-repositories operations come first (*Checkout in all 3
     repositories*), then one submenu per repository with its own full menu.
   - **Show in Git Log** opens the branch's history in a Log tab of its own.
@@ -231,7 +236,9 @@ standing open (D34). It answers three questions, top to bottom.
 * **New Branch** is a form in the panel, not a chain of input boxes:
   - a name, cleaned as you type as IntelliJ's field does (a space becomes `_`);
   - **Check it out** (ticked);
-  - with several repositories, a chip per repository to choose where.
+  - with several repositories, a chip per repository to choose where;
+  - from a remote branch, a line saying what the branch will track: nothing, or the remote
+    branch whose name it takes.
   - It says what would make Create fail before Create is pressed: an invalid name, a name a
     chosen repository already has, a start point a repository lacks. *New Branch from 'x'…*
     on any branch opens the same form starting at `x`.
@@ -240,7 +247,8 @@ standing open (D34). It answers three questions, top to bottom.
   - their remote branch deleted but not merged (a squash merge leaves exactly that) — unticked,
     and asked about once more before deleting;
   - sitting on the main branch's very tip — unticked: just created, or merged by fast-forward.
-  - The checked-out branch is never offered. The notification after deleting has **Restore**.
+  - The checked-out branch is never offered. The notification after deleting has **Restore**,
+    which brings each branch back tracking what it tracked.
 
 ### The `›` row submenu (shape + behaviour)
 
@@ -251,15 +259,15 @@ the reference's groups, and **items that do not apply are hidden, not disabled**
 `Checkout` · `New Branch from 'X'…` · `Checkout and Rebase onto '<current>'` · ——
 `Compare with '<current>'` · `Show Diff with Working Tree` · ——
 `Rebase '<current>' onto 'X'` · **`Merge 'X' into '<current>'`** · —— `New Worktree from 'X'…`
-· —— **`Update`** · `Push…` · —— **`Tracked Branch 'origin/X'…`** · —— `Rename… (F2)` ·
-`Delete` · `Toggle Favorite`.
+· —— **`Update`** · `Push…` · —— **`Tracked Branch 'origin/X'…`** · **`Stop Tracking
+'origin/X'`** · —— `Rename… (F2)` · `Delete` · `Toggle Favorite`.
 Remote rows swap in `Pull into '<current>' Using Merge`, **`Pull into '<current>' Using
 Rebase`** and `Delete 'origin/x' on Remote`.
 
 **The checked-out branch is a branch.** It keeps everything that can mean something on it —
 `New Branch from 'X'…`, `Show Diff with Working Tree` (which on HEAD is the uncommitted
-work), `New Worktree from 'X'…`, `Update`, `Push…`, `Tracked Branch…`, `Rename…`,
-`Toggle Favorite` — and drops only what cannot: checking it out, comparing it with itself,
+work), `New Worktree from 'X'…`, `Update`, `Push…`, `Tracked Branch…`, `Stop Tracking…`,
+`Rename…`, `Toggle Favorite` — and drops only what cannot: checking it out, comparing it with itself,
 merging it into itself, deleting it. Both the tree's context menu and the popup submenu now
 show that same set, in the reference's own order.
 
@@ -278,8 +286,25 @@ they do on the remote branch itself. **Deviation:** VS Code menu titles are stat
 tree's submenu reads `Tracked Branch` without the ref name; the popup, which builds its labels
 in code, names it.
 
+**`Stop Tracking 'origin/X'`** removes the link and nothing else (`git branch --unset-upstream`):
+the branch and the remote branch both stay, and the next push offers a branch of the branch's own
+name. It appears on any local branch with an upstream, one the remote has deleted included. The
+notification has **Undo** while the remote branch still exists. **Deviation:** IntelliJ offers
+this only as a checkbox in its Rename dialog (D35).
+
+**`Rename…`** on a tracked branch notes that it still tracks its upstream, and offers **Stop
+Tracking**. If the remote branch has the old name it also offers to push the new name and delete
+the old one; a remote branch of any other name is not the branch being renamed, so deleting it is
+never offered.
+
 ### Core behaviour
 
+* **A new branch tracks nothing, unless it takes the remote branch's own name.** `mine` from
+  `origin/develop` tracks nothing, so its first push creates `mine` on the remote; `develop` from
+  `origin/develop` tracks it, as `Checkout` on a remote branch does. The same goes for the panel's
+  form, the input box and New Worktree, and for every start point, whatever
+  `branch.autoSetupMerge` says. **Deviation:** git and IntelliJ both make `mine` track
+  `origin/develop`, after which its push lands on `develop` (D35).
 * **Smart Checkout:** a checkout blocked by local changes is intercepted, not just reported —
   GitTree offers stash → checkout → unstash (`gittree.smartCheckout.behavior`), routing any
   resulting conflicts into the merge flow.
@@ -858,7 +883,8 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   The `gittree.worktrees` tree view survives behind `gittree.sidebar.extraViews` (off by default, D26).
 * **`New Worktree` dialog:** three branch modes (existing branch · new branch from a start
   point · detach at a revision), a location defaulting to the sibling `../<repo>-<branch>`, and
-  `--no-checkout` / `--force` behind Modify options.
+  `--no-checkout` / `--force` behind Modify options. A new branch follows §2's rule for what it
+  tracks, and the command preview spells it out (`--no-track` or `--track`).
 * **Behaviour:** removing a **dirty** worktree is refused with git's own reason, `--force`
   being the explicit escape hatch; the main worktree cannot be removed.
 * **Deviation:** on git < 2.36 the lock/prunable flags are derived from git's on-disk layout,

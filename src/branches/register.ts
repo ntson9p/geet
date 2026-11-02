@@ -16,7 +16,7 @@ import {
   showBranchesPopup,
   showCommonBranchActions,
 } from './branchesPopup';
-import type { CommonRef } from './popupTree';
+import type { CommonRef, TreeRow } from './popupTree';
 import { cleanUpBranches } from './branchCleanup';
 import { BranchPanelProvider } from './branchPanel';
 import { BranchHubViewProvider } from './branchHubView';
@@ -284,10 +284,19 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   compare.register(context);
 
   // Branch commands (from view context menus and the palette).
+  // The two trees hand their menus different elements for the same menu: the
+  // legacy tree a `BranchNode`, the hub a `TreeRow`. Accepting only the first
+  // left every right-click on the hub doing nothing.
   const branchArg = (node: unknown): { repo: RepoHandle; name: string } | undefined => {
-    if (typeof node === 'object' && node !== null && 'kind' in node && node.kind === 'branch') {
+    if (typeof node !== 'object' || node === null || !('kind' in node)) return undefined;
+    if (node.kind === 'branch') {
       const b = node as Extract<BranchNode, { kind: 'branch' }>;
       return { repo: b.repo, name: b.ref.name };
+    }
+    if (node.kind === 'ref') {
+      const row = node as TreeRow;
+      const repo = row.repoRoot !== undefined ? core.getRepo(row.repoRoot) : undefined;
+      if (repo !== undefined && row.ref !== undefined) return { repo, name: row.ref.name };
     }
     return undefined;
   };
@@ -399,6 +408,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   registerAction('gittree.branch.pullIntoCurrent', 'pullIntoCurrent');
   registerAction('gittree.branch.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
   registerAction('gittree.branch.update', 'update');
+  registerAction('gittree.branch.stopTracking', 'stopTracking');
   registerAction('gittree.branch.deleteOnRemote', 'deleteOnRemote');
 
   // ---- The `Tracked Branch` submenu ----------------------------------------

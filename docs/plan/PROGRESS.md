@@ -854,3 +854,37 @@ Testing (written, **not run**, by the owner's standing instruction):
 
 Gates: typecheck (both tsconfigs, plus the integration tsconfig), lint, extension bundle and webview build clean. Screenshots of the mock in dark theme checked by eye at 380px and 280px wide.
 
+POST-P14as ✅ 2026-11-02 (branch `new-way-4`): **New branches stop tracking on their own; Stop Tracking.** The owner reported two problems: a branch made from an existing branch "automatically set that branch to be remotely tracked", so pushing it "created no branch on GitHub, and an existing branch there received new commits"; and "there is no way to untrack the remote branch". The first reproduced in a scratch repository: GitTree passed the start point straight to git, `branch.autoSetupMerge` (on by default) set the upstream, and the Push dialog targets the upstream (`defaultPushTarget`, as IntelliJ's). IntelliJ behaves the same on both counts (`GitBranchCheckoutOperation` leaves tracking alone; its only untrack is a checkbox in the Rename dialog), so both changes are deliberate deviations (D35).
+
+**The rule (`src/branches/newBranchArgs.ts`, vscode-free):** a new branch tracks nothing, unless it takes the name of the remote branch it starts from. That is git's `branch.autoSetupMerge=simple`, but the flag is always spelled out so the user's config cannot change the answer.
+- `buildNewBranchArgs` is the argv for the panel's form (`createBranches.ts`) and the input box (`BranchOps.newBranchFrom`).
+- `buildWorktreeAddArgs(o, remotes)` follows it too. The New Worktree dialog gets `remoteNames` in its params, so its preview shows the real command.
+- `checkoutRemote` keeps `--track`: same name. `commitActions.ts` starts from a sha, which nothing tracks.
+
+**Stop Tracking:**
+- `stopTracking` in the `branchActions` registry, group `tracked`, on any local branch with a configured upstream (`configuredUpstream`, which includes a gone one).
+- `BranchOps.stopTracking`: `git branch --unset-upstream`, an immediate refresh, a notification with `Undo` (`--set-upstream-to`) unless the upstream was gone.
+- In `COMMON_ACTIONS`, so it works across repositories.
+- Trees: `gittree.branch.stopTracking`, group `6_tracked@2`. `branchContextValue` now has `branch:<kind>:gone`, so a gone upstream gets this row and not `Update`.
+- Log's Branches pane: `gittree.log.branch.stopTracking`, shown when the row's `data-vscode-context` has `gittree.branchTracked`.
+
+**Panel:**
+- `BranchEntry.tracksElsewhere` and `upstreamElsewhere`: a `→ origin/x` chip on rows, the same in place of the current-branch row's upstream, on the repository row's tooltip, and in a multi-repository card's lines.
+- A **Stop tracking** link on a card: always for one repository; across several, only on a line that tracks elsewhere.
+- `remoteTwin`: *Not tracking origin/x* rather than *Not published* when the remote has a branch of that name.
+- `trackingNote` in the New Branch form, using the host's `newBranchTrackFlag`.
+- `detailsKey` includes the upstream: a card's cached buttons kept `Update` after Stop Tracking.
+
+**Found while reading, fixed:**
+- **Rename could delete the wrong remote branch.** `renameBranch` offered `Push "new" and delete "old" on the remote` and deleted the *upstream's* name. For `mine` tracking `origin/develop` that is `develop`. It is now offered only when the upstream's name is the old name. The question also became actions on the notification (`Stop Tracking` always), so a rename no longer stays pending until a toast is answered.
+- **The panel swallowed failures.** A rejection from `runPanel` on one repository stopped at the webview's `.catch`. `BranchPanelProvider.run` now shows the first line of the message and still answers, so a card's button stops turning.
+- **Clean Up's Restore dropped the upstream.** It now passes it back (`--set-upstream-to`, non-zero allowed). The refresh moved to a `finally` before the notification: Restore skips a branch the snapshot still lists, and a fast click could beat the post-op refresh.
+- **The opt-in tree's menu did nothing.** `branchArg` accepted only the legacy tree's `BranchNode`, while `gittree.branchesTree` hands its menu a `TreeRow`, so every row there returned early, the new one included. It accepts both now.
+- **Stale test:** `branchMenu.test.ts` still asserted `view == gittree.branches ` from before the view moved to `gittree.branchesTree`.
+
+Docs: FEATURES §2 and §10, D35, CHANGELOG.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `test/unit/branches/newBranchArgs.test.ts` (new), `worktreeArgs.test.ts`, `branchMenu.test.ts`, `test/unit/webview/branchPanelModel.test.ts`, `branchesPaneModel.test.ts`.
+- **Integration:** `branchPanel.test.ts` T7-T17, against a bare repository: no tracking from another name, with `autoSetupMerge=always` too; tracking under the same name; the input box; Stop Tracking and Undo; a gone upstream; several repositories; rename's offers; Restore; a reported failure; the opt-in tree's row. `phase14branchmenu.test.ts`: `branch:local:gone`.
+- **Playwright:** `branches.spec.ts` ("what a branch tracks", mock gains `feature/mistracked`), `newWorktree.spec.ts` (preview).

@@ -158,6 +158,7 @@ export function BranchesPane({
         repoRoot,
         refName: ref.name,
         refType: ref.type,
+        ...(ref.tracked === true ? { 'gittree.branchTracked': true } : {}),
       };
     },
     [refs, repoRoot],

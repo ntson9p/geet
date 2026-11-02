@@ -6,6 +6,66 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a new branch no longer pushes onto the branch it started from
+
+A branch created from a remote branch under a new name, such as `mine` from `origin/develop`,
+was left tracking that remote branch. Its first push created nothing on the remote and put its
+commits on `develop`.
+
+A new branch now tracks nothing, so its first push creates a branch of its own. The exception is
+a branch that takes the remote branch's own name, such as `develop` from `origin/develop`. It
+tracks that branch, as Checkout on a remote branch always has. This applies wherever a branch is
+created (the panel's form, the input box and New Worktree), whatever `branch.autoSetupMerge`
+says, and the panel's form tells you which of the two it will do.
+
+A branch created before this fix keeps tracking until you stop it. In the panel, one that tracks a
+remote branch of another name now shows `→ origin/develop` on its row.
+
+### Added — Stop Tracking
+
+You can now remove the link between a local branch and the remote branch it tracks. The branch
+and the remote branch both stay, and the next push offers a branch of the branch's own name. It
+works on a branch whose remote branch was deleted, too. The notification has **Undo** while the
+remote branch still exists.
+
+* In the Branches panel: **Stop tracking** on a branch's card, and in its right-click and `⋯`
+  menus.
+* In the branches popup, the branch trees and the log's Branches pane: a row in the branch's menu.
+* Across several repositories: *Stop tracking in all 3 repositories*.
+* After a rename: a button on the notification.
+
+### Fixed — renaming a branch can no longer delete another branch on the remote
+
+After renaming a tracked branch, GitTree offered to push the new name and delete the old one on
+the remote. The button named the old local branch, but what it deleted was the remote branch being
+tracked. For `mine` tracking `origin/develop`, that meant deleting `develop`. The offer now
+appears only when the remote branch has the old name.
+
+The offer is now a button on the *renamed* notification, instead of a second message that held
+the operation open until it was answered.
+
+### Fixed — a failed action in the Branches panel says so
+
+An action run on a single repository from the panel, such as Checkout or Delete, failed in
+silence: the row simply stayed as it was. It now shows git's reason.
+
+### Fixed — a branch tells you when it is not published or just not tracked
+
+A branch with no upstream was always called *Not published*, even with a remote branch of its own
+name. The panel now says *Not tracking origin/x* for that case. A card's buttons also update when
+a branch stops or starts tracking, so **Update** no longer lingers on one with nothing to update
+from.
+
+### Fixed — the opt-in Branches tree's right-click menu works
+
+In the Branches tree behind `gittree.sidebar.extraViews`, every entry in a branch's right-click
+menu did nothing. They all act on the branch now.
+
+### Fixed — Clean Up's Restore brings back tracking
+
+**Restore** on the Clean Up Branches notification put each branch back without its upstream. It
+now tracks what it tracked, if the remote branch still exists.
+
 ### Changed — the Branches panel, redesigned
 
 The sidebar's Branches panel was IntelliJ's branches popup left standing open:

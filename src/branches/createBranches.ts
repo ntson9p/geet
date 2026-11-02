@@ -15,6 +15,7 @@ import { isValidRefName } from '../core/git/refName';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import type { BranchPanelCreateDto, BranchPanelCreateResultDto } from '../shared/protocol';
 import { notifySuccess } from '../ui/notify';
+import { buildNewBranchArgs } from './newBranchArgs';
 import { reposOf } from './panelActions';
 
 /** git's failures are multi-line; the form gets the sentence that matters. */
@@ -25,17 +26,6 @@ function firstLine(text: string): string {
       .map((l) => l.trim())
       .find((l) => l.length > 0) ?? ''
   );
-}
-
-/** The argv that makes `name` at `from` in one repository. */
-export function createArgs(name: string, from: string, checkout: boolean, unborn: boolean): string[] {
-  if (checkout) {
-    // An unborn HEAD has no commit to start from; `checkout -b` with no start
-    // point is how git renames the branch-to-be.
-    if (from === 'HEAD' && unborn) return ['checkout', '-b', name];
-    return ['checkout', '-b', name, from];
-  }
-  return ['branch', '--', name, from];
 }
 
 export async function createBranches(
@@ -92,7 +82,14 @@ export async function createBranches(
 
   const done: string[] = [];
   for (const repo of repos) {
-    const args = createArgs(name, from, request.checkout, repo.model.snapshot.initial);
+    const snap = repo.model.snapshot;
+    const args = buildNewBranchArgs({
+      name,
+      startPoint: from,
+      checkout: request.checkout,
+      unborn: snap.initial,
+      refs: snap.refs,
+    });
     try {
       await repo.queue.enqueue({
         label: request.checkout
