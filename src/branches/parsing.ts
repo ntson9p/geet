@@ -1,36 +1,7 @@
 /**
  * Pure parsing helpers for Phase 2 (vscode-free, unit-tested):
- * left/right commit lists, -z name-status, checkout-blocking file lists.
+ * -z name-status, checkout-blocking file lists.
  */
-
-export interface CompareCommit {
-  side: 'left' | 'right';
-  sha: string;
-  time: number;
-  author: string;
-  subject: string;
-}
-
-export const LEFT_RIGHT_FORMAT = '%m%x00%H%x00%at%x00%an%x00%s%x1e';
-
-export function parseLeftRight(output: string): CompareCommit[] {
-  const commits: CompareCommit[] = [];
-  for (const frameRaw of output.split('\x1e')) {
-    const frame = frameRaw.startsWith('\n') ? frameRaw.slice(1) : frameRaw;
-    if (frame.length === 0) continue;
-    const f = frame.split('\0');
-    if (f.length < 5) continue;
-    const marker = f[0] as string;
-    commits.push({
-      side: marker === '<' ? 'left' : 'right',
-      sha: f[1] as string,
-      time: Number.parseInt(f[2] as string, 10),
-      author: f[3] as string,
-      subject: f.slice(4).join('\0'),
-    });
-  }
-  return commits;
-}
 
 export interface NameStatusEntry {
   status: string;

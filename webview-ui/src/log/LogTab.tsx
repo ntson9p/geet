@@ -25,6 +25,7 @@ import {
   type CommitFileDto,
   type LogBranchesDto,
   type LogChangedFilesDto,
+  type LogRangeCountsDto,
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
@@ -53,6 +54,7 @@ import {
 import { SAMPLE_COMMIT_TIME, commitDate } from './dateFormat';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
+import { CompareStrip } from './CompareStrip';
 import { commitMenuContext } from './commitMenuContext';
 import { CommitTooltip } from './CommitTooltip';
 import { DetailsPanel } from './DetailsPanel';
@@ -68,7 +70,7 @@ import {
   shiftTarget,
   type LogSelection,
 } from './logSelection';
-import { MAIN_LOG_TAB } from './logTabsModel';
+import { comparedRefs, MAIN_LOG_TAB } from './logTabsModel';
 import {
   groupRefs,
   labelTooltip,
@@ -202,6 +204,8 @@ export function LogTab({
   const [changed, setChanged] = useState<LogChangedFilesDto | undefined>(undefined);
   const [changedLoading, setChangedLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<CommitFileDto | undefined>(undefined);
+  // Two branches side by side: how many commits only one of them has.
+  const [rangeCounts, setRangeCounts] = useState<LogRangeCountsDto | undefined>(undefined);
   // The diff opened from the pane has moved on to another of its files.
   const [diffFile, setDiffFile] = useState<{ sha: string; path: string } | undefined>(undefined);
   // P12-T5: refs data is shared by the Branches pane AND the filter row.
@@ -228,6 +232,26 @@ export function LogTab({
   /** The sha the pointer is over right now — a late reply for any other is dropped. */
   const hoverSha = useRef<string | undefined>(undefined);
 
+  // Read again on every reset, since that is what history moving looks like here.
+  useEffect(() => {
+    if (init === undefined || comparedRefs(init.filter) === undefined) {
+      setRangeCounts(undefined);
+      return;
+    }
+    let current = true;
+    send<LogRangeCountsDto | undefined>(LOG_METHODS.rangeCounts).then(
+      (counts) => {
+        if (current) setRangeCounts(counts);
+      },
+      () => {
+        if (current) setRangeCounts(undefined);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [init, send]);
+
   useEffect(
     () =>
       rpc.onEvent(LOG_METHODS.evtDiffFile, (params) => {
@@ -252,6 +276,7 @@ export function LogTab({
   // Only reached before the host's first `log/init` answers; it has to agree
   // with DEFAULT_FILTER or the sort dropdown reads wrong for that one frame.
   const filter = init?.filter ?? { sort: 'date' as const, refs: 'HEAD' as const };
+  const compared = comparedRefs(filter);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   // The loaded commits as shas and their rows, for the selection rules.
@@ -1010,6 +1035,13 @@ export function LogTab({
         onPresentationChange={changePresentation}
         searchInputRef={searchInputRef}
       />
+      {compared !== undefined ? (
+        <CompareStrip
+          range={compared}
+          counts={rangeCounts}
+          onShowFilesDiff={() => void send(LOG_METHODS.showFilesDiff)}
+        />
+      ) : null}
       {/* P10-T2: async loads announced to screen readers. */}
       <div className="gt-visually-hidden" aria-live="polite" data-testid="log-status">
         {loading ? 'Loading commits…' : `${rows.length} commits loaded${eof ? ', end of history' : ''}`}

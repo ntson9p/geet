@@ -12,6 +12,7 @@ import type { Phase02Registry } from '../../../src/branches/register';
 import type { BranchNode } from '../../../src/branches/branchesView';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
+import type { Phase04Registry } from '../../../src/log/register';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
@@ -542,13 +543,16 @@ suite('P14 branch menu parity', () => {
     git('branch', `--set-upstream-to=${REMOTE}/${TARGET}`, TARGET);
     await refreshUntil(() => targetUpstream() === `${REMOTE}/${TARGET}`);
 
-    // `Compare with Current` opens the compare view against whichever ref it
-    // was given; the tracked row must hand it `<remote>/<branch>`.
+    // `Compare with Current` opens a Log tab over whichever ref it was given;
+    // the tracked row must hand it `<remote>/<branch>`.
+    const { logView } = core.debugRegistry.get('phase04') as Phase04Registry;
     await vscode.commands.executeCommand(
       'gittree.branch.tracked.compareWithCurrent',
       await nodeFor(TARGET),
     );
-    await waitFor(() => p2.compare.provider.state?.branch !== undefined, 30_000);
-    assert.strictEqual(p2.compare.provider.state?.branch, `${REMOTE}/${TARGET}`);
+    await waitFor(() => logView.currentSession?.filter.range !== undefined, 30_000);
+    assert.strictEqual(logView.currentSession?.filter.range?.a, `${REMOTE}/${TARGET}`);
+    // The suites after this one read the Log tab in front, and expect an ordinary one.
+    await logView.openTab({ sort: 'date', refs: 'HEAD' }, repoRoot);
   });
 });

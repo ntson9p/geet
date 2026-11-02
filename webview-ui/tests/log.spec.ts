@@ -515,6 +515,75 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBe(true);
   });
 
+  /** The host turning a tab into a comparison of two branches. */
+  const compareTab = (page: Page, a = 'feature/f1', b = 'main') =>
+    page.evaluate(
+      (range) => {
+        window.postMessage(
+          {
+            v: 1,
+            id: 'evtreset-range',
+            kind: 'evt',
+            method: 'log/reset',
+            params: { repoRoot: '/repo', repoLabel: 'repo', filter: { sort: 'topo', range }, laneWidth: 12 },
+          },
+          '*',
+        );
+      },
+      { a, b },
+    );
+
+  test('a comparison says what its marks mean, and how many commits each side has', async ({ page }) => {
+    await openLog(page);
+    await expect(page.getByTestId('compare-strip')).toHaveCount(0);
+    await compareTab(page);
+    const strip = page.getByTestId('compare-strip');
+    await expect(strip).toContainText('2 commits only on feature/f1');
+    await expect(strip).toContainText('3 commits only on main');
+  });
+
+  test('a comparison still names its sides when a count cannot be read', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockRangeCounts: null }).__mockRangeCounts = null;
+    });
+    await openLog(page);
+    await compareTab(page);
+    await expect(page.getByTestId('compare-strip')).toContainText('Only on feature/f1');
+  });
+
+  test('Show Files Diff asks the host for every file between the two ends', async ({ page }) => {
+    await openLog(page);
+    await compareTab(page);
+    await page.getByTestId('compare-strip').getByRole('button', { name: 'Show Files Diff' }).click();
+    await expect.poll(async () => (await posted(page)).some((m) => m.method === 'log/showFilesDiff')).toBe(true);
+  });
+
+  test('the commits an update brought in are not a comparison: no line', async ({ page }) => {
+    await openLog(page);
+    await compareTab(page, 'a'.repeat(40), 'b'.repeat(40));
+    await expect(page.getByTestId('filter-branch')).toContainText('aaaaaaa');
+    await expect(page.getByTestId('compare-strip')).toHaveCount(0);
+  });
+
+  test('leaving the comparison takes the line away', async ({ page }) => {
+    await openLog(page);
+    await compareTab(page);
+    await expect(page.getByTestId('compare-strip')).toBeVisible();
+    await page.evaluate(() => {
+      window.postMessage(
+        {
+          v: 1,
+          id: 'evtreset-plain',
+          kind: 'evt',
+          method: 'log/reset',
+          params: { repoRoot: '/repo', repoLabel: 'repo', filter: { sort: 'topo', refs: 'HEAD' }, laneWidth: 12 },
+        },
+        '*',
+      );
+    });
+    await expect(page.getByTestId('compare-strip')).toHaveCount(0);
+  });
+
   test('P4 auto-refresh: a preserved reset keeps the focused commit', async ({ page }) => {
     await openLog(page);
     await commitRow(page).locator('[data-gt-row="4"]').click();

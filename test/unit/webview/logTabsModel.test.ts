@@ -4,6 +4,9 @@ import {
   MAIN_LOG_TAB,
   afterClose,
   closeTargets,
+  comparedRefs,
+  shortRef,
+  sideLabel,
   stripOrder,
   tabTitle,
 } from '../../../webview-ui/src/log/logTabsModel';
@@ -20,10 +23,13 @@ describe('tabTitle (IntelliJ titles a Log tab by what it shows)', () => {
     expect(tabTitle({ sort: 'date', refs: 'ALL' })).toBe('Log: All');
   });
 
-  it('reads a range as a range, with commit hashes shortened', () => {
+  it('calls two branches side by side a comparison, as IntelliJ does', () => {
     expect(tabTitle({ sort: 'topo', range: { a: 'feature/tags', b: 'main' } })).toBe(
-      'Log: feature/tags...main',
+      'Compare: feature/tags and main',
     );
+  });
+
+  it('reads what an update brought in as a range, with its commit hashes shortened', () => {
     const a = 'a'.repeat(40);
     const b = 'b'.repeat(40);
     expect(tabTitle({ sort: 'topo', range: { a, b } })).toBe('Log: aaaaaaa...bbbbbbb');
@@ -68,7 +74,7 @@ describe('tabTitle (IntelliJ titles a Log tab by what it shows)', () => {
 
   it('gives a range no prefix among others, as IntelliJ does', () => {
     expect(tabTitle({ sort: 'topo', range: { a: 'feature/tags', b: 'main' }, authors: ['Ava Tran'] })).toBe(
-      'Log: feature/tags...main by Ava Tran',
+      'Compare: feature/tags and main by Ava Tran',
     );
   });
 
@@ -132,5 +138,34 @@ describe('closeTargets (Close Tab / Close Other Tabs / Close All Tabs)', () => {
   it('closes every extra tab, never the main one', () => {
     expect(closeTargets(TABS, 'log-4', 'all')).toEqual(['log-1', 'log-4']);
     expect(closeTargets([tab(MAIN_LOG_TAB)], MAIN_LOG_TAB, 'all')).toEqual([]);
+  });
+});
+
+describe('the line above a comparison', () => {
+  it('is for two named sides', () => {
+    const range = { a: 'feature/tags', b: 'main' };
+    expect(comparedRefs({ sort: 'topo', range })).toEqual(range);
+    // A detached checkout compares a branch with HEAD: still two sides.
+    expect(comparedRefs({ sort: 'topo', range: { a: 'main', b: 'HEAD' } })).toEqual({ a: 'main', b: 'HEAD' });
+  });
+
+  it('is not for the commits an update brought in, or a log with no range', () => {
+    expect(comparedRefs({ sort: 'topo', range: { a: 'a'.repeat(40), b: 'b'.repeat(40) } })).toBeUndefined();
+    expect(comparedRefs({ sort: 'date', refs: 'HEAD' })).toBeUndefined();
+  });
+
+  it('counts the commits only one side has', () => {
+    expect(sideLabel(2)).toBe('2 commits only on');
+    expect(sideLabel(1)).toBe('1 commit only on');
+    expect(sideLabel(0)).toBe('0 commits only on');
+  });
+
+  it('still says what the mark means with no count', () => {
+    expect(sideLabel(undefined)).toBe('Only on');
+  });
+
+  it('names a branch whole, and a commit by the start of its hash', () => {
+    expect(shortRef('feature/tags')).toBe('feature/tags');
+    expect(shortRef('a'.repeat(40))).toBe('aaaaaaa');
   });
 });

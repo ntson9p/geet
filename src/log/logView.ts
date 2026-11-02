@@ -468,6 +468,24 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       await vscode.env.clipboard.writeText(text);
       return { ok: true };
     });
+    rpc.on(LOG_METHODS.rangeCounts, async (params) => {
+      const session = this.sessions.get(tabOf(params));
+      const range = session?.filter.range;
+      if (!session || !range) return undefined;
+      return session.service.getRangeCounts(range.a, range.b);
+    });
+    rpc.on(LOG_METHODS.showFilesDiff, async (params) => {
+      const session = this.sessions.get(tabOf(params));
+      const range = session?.filter.range;
+      if (!session || !range) return { ok: false };
+      await vscode.commands.executeCommand(
+        'gittree.compare.showFilesDiff',
+        session.repo.root,
+        range.a,
+        range.b,
+      );
+      return { ok: true };
+    });
     // P12-T1: the selection lives host-side so "Compare", "Squash", "Push all
     // up to here" and the panes all read one model instead of racing copies.
     rpc.on(LOG_METHODS.select, (params) => {

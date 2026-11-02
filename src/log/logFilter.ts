@@ -120,6 +120,12 @@ export interface LogPage {
  * Builds the argv for one page. `--parents` keeps graph topology correct
  * under pathspec filtering (parent rewriting).
  */
+/** `git rev-list --left-right --count a...b` prints the two counts on a line: `2\t3`. */
+export function parseRangeCounts(output: string): { left: number; right: number } | undefined {
+  const match = /^(\d+)\s+(\d+)\s*$/u.exec(output.trim());
+  return match ? { left: Number(match[1]), right: Number(match[2]) } : undefined;
+}
+
 export function buildLogArgs(f: LogFilter, format: string, page: LogPage): string[] {
   // Full ref names: only they tell a local `feature/x` from a remote branch.
   const args = ['log', `--format=${format}`, '--parents', '--decorate=full'];

@@ -50,6 +50,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D33](#d33--console-and-worktrees-cannot-be-closed) | In the Git tool window only the extra Log tabs close; Console and Worktrees always stay | Deliberate (owner's decision) |
 | [D34](#d34--the-sidebars-branches-panel-is-gittrees-own-design) | The sidebar's Branches panel is GitTree's own design: status first, one list for every repository, a card per branch | Deliberate (owner's request) |
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
+| [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 
 ---
 
@@ -920,3 +921,22 @@ the remote branch's own name goes where the name says.
 **Revisitable:** yes. A *Track Remote Branch…* row and a warning in the Push dialog for a target of
 another name are the natural additions if a branch needs tracking set by hand.
 
+## D36 · Comparing branches: one table, the working tree on the right
+
+IntelliJ's `Compare with 'X'` is two logs in one editor tab, and its Show Diff with Working Tree and
+Show Files Diff are a file tree in a Changes tool window. GitTree keeps that split, a log for the first
+and a list of files for the other two, with these differences:
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Two logs, one above the other, one per side | **One Log tab**, its commits marked ◀ ▶ under a line saying how many each side has alone | A Log tab is one log, with its own filters, panes and session. It sorts topologically, which keeps each side's commits together |
+| An editor tab | **A tab in the Git tool window** | That is where every other log is |
+| Show Files Diff needs two branches selected in the tree | **It is on that line**, for the two branches on screen | The Branches panel selects one branch at a time |
+| The Changes tool window | **The Compare pane** in GitTree's sidebar | Also on the left, also one list that each request replaces |
+| The working tree on the left, with a Swap Branches link | **The branch on the left, the working tree on the right**, and no swap | VS Code only lets you edit the right side of a diff, and editing as you walk is the point of having the real file there |
+| Get from Branch on the list | **Not offered** | Not done yet |
+| Several rows selected: a double click walks them | **Show Diff in the row's menu** | VS Code runs a tree row's command only when one row is selected |
+
+**Revisitable:** Swap Branches and Get from Branch are both ordinary additions to the pane. Two stacked
+logs would need a Log tab to hold two sessions, which is a larger piece of work for what the marks and
+the counts already say.

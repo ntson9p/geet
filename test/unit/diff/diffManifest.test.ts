@@ -197,3 +197,50 @@ describe("taking over VS Code's own next and previous change", () => {
     expect(nls[(setting?.description ?? '').slice(1, -1)]).toMatch(/next file/u);
   });
 });
+
+describe('the Compare pane in the manifest', () => {
+  const title = (command: string): string => {
+    const entry = manifest.contributes.commands.find((c) => c.command === command);
+    expect(entry, `${command} is not contributed`).toBeDefined();
+    return nls[entry!.title.replace(/%/gu, '')] ?? '';
+  };
+
+  it("takes IntelliJ's words for what it does", () => {
+    expect(title('gittree.compare.showFilesDiff')).toBe('Show Files Diff');
+    expect(title('gittree.compare.openChanges')).toBe('Show Diff');
+  });
+
+  it('puts refresh, the multi-diff and close on its title bar', () => {
+    const onTitle = (manifest.contributes.menus['view/title'] ?? []).filter((e) => e.when === 'view == gittree.compare');
+    expect(onTitle.map((e) => e.command)).toEqual([
+      'gittree.compare.refresh',
+      'gittree.compare.openAll',
+      'gittree.compare.close',
+    ]);
+    for (const entry of onTitle) expect(entry.group).toMatch(/^navigation@/u);
+  });
+
+  it('offers Show Diff on its rows, for several selected or a folder', () => {
+    const onRow = (manifest.contributes.menus['view/item/context'] ?? []).filter((e) => e.when?.includes('gittree.compare'));
+    expect(onRow.map((e) => e.command)).toEqual(['gittree.compare.openChanges']);
+  });
+
+  it('keeps what needs a row or a branch out of the palette', () => {
+    const hidden = new Set(
+      (manifest.contributes.menus['commandPalette'] ?? []).filter((e) => e.when === 'false').map((e) => e.command),
+    );
+    for (const command of [
+      'gittree.branches.compareWithCurrent',
+      'gittree.branches.diffWithWorkingTree',
+      'gittree.branches.compareInLog',
+      'gittree.compare.showFilesDiff',
+      'gittree.compare.openFile',
+      'gittree.compare.openChanges',
+      'gittree.compare.refresh',
+      'gittree.compare.openAll',
+      'gittree.compare.close',
+    ]) {
+      expect(hidden.has(command), command).toBe(true);
+    }
+  });
+});

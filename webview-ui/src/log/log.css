@@ -600,6 +600,41 @@ body.gt-col-resizing * {
   font-size: 0.8em;
 }
 
+/* What a range tab is comparing, and the way to its files. */
+.gt-compare-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 16px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-compare-strip code {
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.gt-compare-files {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-compare-files:hover {
+  color: var(--vscode-textLink-activeForeground);
+  text-decoration: underline;
+}
+
+.gt-compare-files:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 .gt-side-left {
   color: var(--vscode-charts-orange, #d18616);
 }

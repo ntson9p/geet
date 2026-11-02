@@ -6,6 +6,7 @@ import {
   graphSort,
   hidesCommit,
   isUnfiltered,
+  parseRangeCounts,
   DEFAULT_FILTER,
   type LogFilter,
 } from '../../../src/log/logFilter';
@@ -244,5 +245,18 @@ describe('Graph Options on the host', () => {
     expect(hidesCommit({ sort: 'date', noMerges: true }, ['p1'])).toBe(false);
     expect(hidesCommit({ sort: 'date', noMerges: true }, [])).toBe(false);
     expect(hidesCommit({ sort: 'date' }, ['p1', 'p2'])).toBe(false);
+  });
+});
+
+describe('parseRangeCounts', () => {
+  it('reads the two counts git prints on a line', () => {
+    expect(parseRangeCounts('2\t3\n')).toEqual({ left: 2, right: 3 });
+    expect(parseRangeCounts('0\t0\r\n')).toEqual({ left: 0, right: 0 });
+  });
+
+  it('is nothing when git printed anything else', () => {
+    expect(parseRangeCounts('')).toBeUndefined();
+    expect(parseRangeCounts('2\n')).toBeUndefined();
+    expect(parseRangeCounts('fatal: ambiguous argument')).toBeUndefined();
   });
 });

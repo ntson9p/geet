@@ -9,7 +9,8 @@ import type { CompareService } from '../../../src/branches/compare';
 import type { RefService } from '../../../src/branches/refService';
 import { buildPopupItems } from '../../../src/branches/branchesPopup';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import type { RepoHandle } from '../../../src/core/core';
+import type { Core, RepoHandle } from '../../../src/core/core';
+import type { Phase04Registry } from '../../../src/log/register';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
@@ -24,6 +25,7 @@ interface Phase02RegistryShape {
 suite('P2 branches', () => {
   let repoRoot: string;
   let repo: RepoHandle;
+  let core: Core;
   let reg: Phase02RegistryShape;
 
   const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
@@ -37,7 +39,7 @@ suite('P2 branches', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoB();
-    const core = await activateGitTree();
+    core = await activateGitTree();
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoB not discovered');
     reg = core.debugRegistry.get('phase02') as Phase02RegistryShape;
@@ -261,7 +263,7 @@ suite('P2 branches', () => {
     await refresh();
   });
 
-  test('T5: compare with current shows left/right commits and file diff opens', async function () {
+  test('T5: Compare with Current is a log of both sides, and its files a list', async function () {
     this.timeout(60_000);
     // smart/target has 1 commit not on main; give main one of its own.
     write('main-only.txt', 'm\n');
@@ -269,16 +271,25 @@ suite('P2 branches', () => {
     git('commit', '-m', 'main only');
     await refresh();
 
+    const { logView } = core.debugRegistry.get('phase04') as Phase04Registry;
     await vscode.commands.executeCommand('gittree.branches.compareWithCurrent', repoRoot, 'smart/target');
+    await waitFor(() => logView.currentSession?.filter.range !== undefined, 15_000);
+    const current = repo.model.snapshot.headRef!;
+    assert.deepStrictEqual(logView.currentSession!.filter.range, { a: 'smart/target', b: current });
+    const counts = await logView.logServiceFor(repo).getRangeCounts('smart/target', current);
+    assert.ok(counts && counts.left >= 1 && counts.right >= 1, `each side has its own: ${JSON.stringify(counts)}`);
+    // Other suites read the Log tab in front, and expect an ordinary one.
+    await logView.openTab({ sort: 'date', refs: 'HEAD' }, repoRoot);
+    await waitFor(() => logView.currentSession?.filter.range === undefined, 15_000);
+
+    await vscode.commands.executeCommand('gittree.compare.showFilesDiff', repoRoot, 'smart/target', current);
     const state = reg.compare.provider.state;
     assert.ok(state, 'compare state not set');
-    assert.strictEqual(state.branch, 'smart/target');
-    const left = state.commits.filter((c) => c.side === 'left');
-    const right = state.commits.filter((c) => c.side === 'right');
-    assert.ok(left.some((c) => c.subject === 'target change'), 'left commits missing');
-    assert.ok(right.some((c) => c.subject === 'main only'), 'right commits missing');
+    assert.strictEqual(state.comparison.left.name, 'smart/target');
+    assert.strictEqual(state.comparison.left.sha, git('rev-parse', 'smart/target').trim());
+    assert.ok(state.files.some((f) => f.path === 'main-only.txt'), 'a file only one tip has');
 
-    await vscode.commands.executeCommand('gittree.compare.showFileDiff');
+    await vscode.commands.executeCommand('gittree.compare.openAll');
     // The multi-diff editor opened as a tab.
     const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs);
     assert.ok(
@@ -292,6 +303,8 @@ suite('P2 branches', () => {
     // tests, which resolve everything from the active editor, are where that
     // surfaced.
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await vscode.commands.executeCommand('gittree.compare.close');
+    assert.strictEqual(reg.compare.provider.state, undefined);
   });
 
   test('T6: branches view exposes sections, context values and drag-merge', async function () {

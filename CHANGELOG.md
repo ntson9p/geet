@@ -42,6 +42,29 @@ real file, so you can edit as you go, and a tab you have edited stays open when 
 An untracked file now opens as a diff too, and so does one deleted from disk, instead of as a plain
 document with no way on.
 
+### Added — comparing branches walks the same way
+
+`Compare with 'X'` now opens a Log tab of its own over both branches, as the log has long been able
+to do, instead of a list of commits in the sidebar. Each commit has its Changed Files and its menu,
+and a line above the commits says how many each branch has alone.
+
+**Show Files Diff** on that line, and **Show Diff with Working Tree** in a branch's menu, list every
+file that differs in a Compare pane in the sidebar. A click opens the diff, and ↑ ↓, `Alt+F5` and the
+`←` `→` buttons walk the whole list, or the rows selected when there are several. They used to open
+VS Code's multi-diff page, which **Show All Files in Multi-Diff** on the pane still does.
+
+Against the working tree the right side is the real file, so you can edit as you go.
+
+### Fixed — clicking a commit in Compare left an unsaved document behind
+
+Each click opened the commit as raw `git show` text in a new unsaved `Untitled` tab, which then asked
+to be saved when closed. A commit now shows in the log like any other.
+
+### Fixed — Compare with and Show Diff with Working Tree in the Command Palette
+
+Run from the palette, with no branch to go on, they failed on a branch called `undefined`. They are
+now only offered on a branch.
+
 ### Fixed — Show Diff in the Commit window compared against the wrong side
 
 With changelists, Show Diff compared with the index, while the preview pane and the commit itself

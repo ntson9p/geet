@@ -14,7 +14,7 @@ import {
   parseLogRecord,
   type Commit,
 } from '../core/git/parsers/logFormat';
-import { buildLogArgs, filterKey, type LogFilter } from './logFilter';
+import { buildLogArgs, filterKey, parseRangeCounts, type LogFilter } from './logFilter';
 import { parseCommitsNameStatus, type CommitFiles } from './zipChanges';
 
 export const PAGE_SIZE = 2000;
@@ -179,6 +179,22 @@ export class LogService {
       if (row.refs.length > 0) map.set(row.sha, parseDecorations(row.refs));
     }
     return map;
+  }
+
+  /** How many commits are only on each side of `a...b`. Undefined when a side no longer resolves. */
+  async getRangeCounts(a: string, b: string): Promise<{ left: number; right: number } | undefined> {
+    const result = await this.repo.queue.enqueue({
+      label: `count ${a}...${b}`,
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(this.repo.root, ['rev-list', '--left-right', '--count', `${a}...${b}`], {
+          structured: true,
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    return result.exitCode === 0 ? parseRangeCounts(result.stdout) : undefined;
   }
 
   /**

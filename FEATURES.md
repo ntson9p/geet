@@ -41,8 +41,8 @@ ships. Accepted divergences are named here and registered once in
   **← → file · side-by-side/inline · ignore whitespace · collapse unchanged**, with
   `Shift+Alt+←`/`→` for the files and `F7`/`Shift+F7` for the changes under the IntelliJ keymap.
 * **Cross-file navigation, on VS Code's own ↑ ↓ and `Alt+F5`:** the list you clicked from *is* the
-  sequence, a commit's Changed Files or the Commit window's changes, in the order the list shows it,
-  or only the rows selected when there are several. At the last change the first press shows a tooltip, **Press again to go to the next
+  sequence, a commit's Changed Files, the Commit window's changes or the Compare pane's files, in the
+  order the list shows it, or only the rows selected when there are several. At the last change the first press shows a tooltip, **Press again to go to the next
   file**, with that file's name and position. The second press crosses in the same tab, landing on
   its first change (or its last, going backwards). At the end of the last file it says so and
   **never wraps**. Other diffs keep VS Code's behaviour, and
@@ -51,6 +51,9 @@ ships. Accepted divergences are named here and registered once in
   Files last, as IntelliJ's does. A file that starts changing joins the walk, one that is reverted
   or committed leaves it, and the file on screen stays up either way. The right side is the real
   file, so you can edit it as you go.
+* **The Compare pane's list stays as it was read**, as IntelliJ's does, so every diff keeps agreeing
+  with it when a branch moves. Refresh reads it again. Against the working tree the right side is the
+  real file, so you can edit it as you go.
 * **What a row compares:** with changelists, `HEAD` against the working tree, which is what the
   commit will produce and what the preview pane shows. With staging, what is not staged yet against
   the index, or else what is staged against `HEAD`.
@@ -320,8 +323,15 @@ never offered.
 * **Smart Checkout:** a checkout blocked by local changes is intercepted, not just reported —
   GitTree offers stash → checkout → unstash (`gittree.smartCheckout.behavior`), routing any
   resulting conflicts into the merge flow.
-* **Compare with Current** opens the log filtered to the range with side badges;
-  **Show Diff with Working Tree** opens the native diff.
+* **Compare with Current** opens a Log tab of its own, `Compare: main and feature/x`, holding both
+  branches' commits, marked ◀ and ▶, under a line that says how many each has alone. Each commit has
+  its Changed Files and its menu, as anywhere in the log. **Show Files Diff** on that line lists every
+  file that differs between the two tips (D36).
+* **Show Diff with Working Tree** lists every file that differs between the branch and the working
+  tree. Both lists are in the **Compare pane** in the sidebar, which each request replaces: status
+  colours and letters, folders, renames marked `← old/path`. A click opens the diff and leaves the
+  keyboard in the list; a double click goes into the diff. **Refresh** reads the list again, **Show All
+  Files in Multi-Diff** gives VS Code's page of all of them, and **Close** puts the pane away.
 
 ---
 

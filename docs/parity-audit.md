@@ -106,6 +106,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
 | Bottom tool window with `Log \| Console` tabs | ✅ | P12-T1, P12-T8 |
+| Compare with Current as a log of both branches; Show Files Diff and Show Diff with Working Tree as a list whose files a diff walks | ✅ | POST-P14av; one table rather than two logs, no Swap or Get from Branch yet (**D36**) |
 | More than one Log tab: `+`, filter-made titles, `×` and the tab menu; File History / Compare / Show in Log in tabs of their own | ✅ | POST-P14aj; Console and Worktrees cannot close (**D33**) |
 | Four panes in persisted splitters, each with a toolbar | ✅ | P12-T1/T2/T3 |
 | Branches pane + vertical icon rail | ✅ | P12-T2 |

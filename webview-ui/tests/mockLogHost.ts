@@ -180,6 +180,10 @@ export const mockLogHostScript = `
           res({ message: 'commit ' + msg.params.sha.slice(0, 7) + '\\n\\nBody line one.\\nBody line two.' });
           break;
         }
+        case 'log/rangeCounts': {
+          res(window.__mockRangeCounts === undefined ? { left: 2, right: 3 } : window.__mockRangeCounts);
+          break;
+        }
         case 'log/containedBranches': {
           window.__containsCalls = (window.__containsCalls || 0) + 1;
           res({ branches: ['main', 'release'] });

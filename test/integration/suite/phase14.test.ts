@@ -2,6 +2,7 @@ import * as assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { CompareService } from '../../../src/branches/compare';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { Phase01Registry } from '../../../src/scm/register';
 import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
@@ -871,6 +872,133 @@ suite('P14 owning the SCM surface', () => {
 
         for (const n of [...names, 'p14f4.txt']) fs.rmSync(path.join(fsRoot, n));
         await refresh();
+      });
+    });
+
+    suite('from the Compare pane', () => {
+      const BASE = 'p14c-base';
+      const FILES = ['p14c-mod.txt', 'p14c-gone.txt', 'p14c-same.txt', 'p14c-new.txt', 'p14c-moved.txt', 'p14c-later.txt'];
+      const body = Array.from({ length: 20 }, (_, i) => `row ${i + 1}`).join('\n') + '\n';
+      let compare: CompareService;
+      let repo: RepoHandle;
+      let current: string;
+      const onTab = (): vscode.Tab | undefined => vscode.window.tabGroups.activeTabGroup.activeTab;
+      const listed = (): string[] => (compare.provider.state?.files ?? []).map((f) => f.path).sort();
+      const openRow = async (file: string): Promise<void> => {
+        const node = compare.provider.fileNode(file);
+        assert.ok(node, `${file} is not listed`);
+        await vscode.commands.executeCommand('gittree.compare.openFile', node);
+      };
+
+      suiteSetup(async () => {
+        const core = await activateGitTree();
+        repo = core.repoForPath(repoRoot)!;
+        compare = (core.debugRegistry.get('phase02') as { compare: CompareService }).compare;
+      });
+
+      /** A branch at the commit before: one file edited since, one added, one deleted, one renamed untouched. */
+      setup(async () => {
+        fs.writeFileSync(path.join(fsRoot, 'p14c-mod.txt'), body);
+        fs.writeFileSync(path.join(fsRoot, 'p14c-gone.txt'), 'going away\n');
+        fs.writeFileSync(path.join(fsRoot, 'p14c-same.txt'), `${body}same\n`);
+        git('add', 'p14c-mod.txt', 'p14c-gone.txt', 'p14c-same.txt');
+        git('commit', '-m', 'p14 compare base');
+        git('branch', '-f', BASE, 'HEAD');
+        fs.writeFileSync(path.join(fsRoot, 'p14c-mod.txt'), body.replace('row 4\n', 'row 4 EDITED\n'));
+        fs.writeFileSync(path.join(fsRoot, 'p14c-new.txt'), 'new\n');
+        fs.rmSync(path.join(fsRoot, 'p14c-gone.txt'));
+        git('mv', 'p14c-same.txt', 'p14c-moved.txt');
+        git('add', 'p14c-mod.txt', 'p14c-new.txt', 'p14c-gone.txt');
+        git('commit', '-m', 'p14 compare edits');
+        await repo.refresher.refreshNow();
+        current = repo.model.snapshot.headRef!;
+      });
+
+      teardown(async () => {
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        await vscode.commands.executeCommand('gittree.compare.close');
+        git('rm', '-q', '-f', '--ignore-unmatch', ...FILES);
+        git('commit', '-m', 'p14 compare cleanup');
+        git('branch', '-D', BASE);
+        await repo.refresher.refreshNow();
+      });
+
+      test('Show Files Diff lists what differs and walks all of it in one tab', async function () {
+        this.timeout(120_000);
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        assert.deepStrictEqual(listed(), ['p14c-gone.txt', 'p14c-mod.txt', 'p14c-moved.txt', 'p14c-new.txt']);
+
+        // In the order the pane shows them, and straight past the rename with no change in it.
+        await openRow('p14c-gone.txt');
+        await waitFor(() => at()?.title === `p14c-gone.txt (${BASE} ⟷ ${current}) 1/4`, 15_000);
+        await pressNative('next');
+        await pressNative('next');
+        await waitFor(() => at()?.title.startsWith('p14c-mod.txt') === true, 15_000);
+        await pressNative('next');
+        assert.match(String(reg.lastHint), /Press again to go to the next file/u);
+        await pressNative('next');
+        await waitFor(() => at()?.title.startsWith('p14c-new.txt') === true, 15_000);
+        assert.strictEqual(vscode.window.tabGroups.activeTabGroup.tabs.length, 1);
+      });
+
+      test('a branch moving on leaves the walk on what was listed, until Refresh', async function () {
+        this.timeout(120_000);
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await openRow('p14c-mod.txt');
+        await waitFor(() => at()?.title.startsWith('p14c-mod.txt') === true, 15_000);
+        const before = (onTab()?.input as vscode.TabInputTextDiff).modified;
+
+        fs.writeFileSync(path.join(fsRoot, 'p14c-new.txt'), 'new, and then some\n');
+        fs.writeFileSync(path.join(fsRoot, 'p14c-later.txt'), 'later\n');
+        git('add', 'p14c-new.txt', 'p14c-later.txt');
+        git('commit', '-m', 'p14 compare later');
+        await repo.refresher.refreshNow();
+
+        assert.strictEqual(listed().length, 4, 'the list is what was read');
+        assert.strictEqual((onTab()?.input as vscode.TabInputTextDiff).modified.toString(), before.toString());
+
+        await vscode.commands.executeCommand('gittree.compare.refresh');
+        assert.ok(listed().includes('p14c-later.txt'), 'read again, it has the new tip');
+        // The file on screen keeps its place, and the walk now knows the longer list.
+        assert.strictEqual(at()?.title.startsWith('p14c-mod.txt'), true);
+      });
+
+      test('several rows selected walk only those, and a folder stands for its files', async function () {
+        this.timeout(120_000);
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        const mod = compare.provider.fileNode('p14c-mod.txt')!;
+        const fresh = compare.provider.fileNode('p14c-new.txt')!;
+        await vscode.commands.executeCommand('gittree.compare.openChanges', mod, [mod, fresh]);
+        await waitFor(() => at()?.title === `p14c-mod.txt (${BASE} ⟷ ${current}) 1/2`, 15_000);
+
+        // One click on a row is back to the whole list.
+        await openRow('p14c-new.txt');
+        await waitFor(() => at()?.title === `p14c-new.txt (${BASE} ⟷ ${current}) 4/4`, 15_000);
+      });
+
+      test('Show Diff with Working Tree has the real file on the right', async function () {
+        this.timeout(120_000);
+        fs.writeFileSync(path.join(fsRoot, 'p14c-mod.txt'), body.replace('row 9\n', 'row 9 NOT COMMITTED\n'));
+        await vscode.commands.executeCommand('gittree.branches.diffWithWorkingTree', fsRoot, BASE);
+        assert.strictEqual(compare.provider.state?.comparison.right, 'worktree');
+        assert.deepStrictEqual(listed(), ['p14c-gone.txt', 'p14c-mod.txt', 'p14c-moved.txt', 'p14c-new.txt']);
+
+        await openRow('p14c-mod.txt');
+        await waitFor(() => at()?.title === `p14c-mod.txt (${BASE} ⟷ Working Tree) 2/4`, 15_000);
+        assert.strictEqual((onTab()?.input as vscode.TabInputTextDiff).modified.scheme, 'file');
+
+        // Gone from disk: the right side is nothing, and not an error page.
+        await openRow('p14c-gone.txt');
+        await waitFor(() => at()?.title.startsWith('p14c-gone.txt') === true, 15_000);
+        assert.ok(onTab()?.input instanceof vscode.TabInputTextDiff);
+        assert.strictEqual(vscode.window.activeTextEditor!.document.getText(), '');
+      });
+
+      test('no differences says so, and lists nothing', async function () {
+        this.timeout(60_000);
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, current, current);
+        assert.deepStrictEqual(listed(), []);
+        assert.ok(compare.provider.state, 'read, with nothing in it');
       });
     });
 

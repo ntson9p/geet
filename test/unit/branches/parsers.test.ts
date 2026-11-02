@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBlockingFiles, parseLeftRight, parseNameStatusZ } from '../../../src/branches/parsing';
+import { parseBlockingFiles, parseNameStatusZ } from '../../../src/branches/parsing';
 
 describe('parseBlockingFiles', () => {
   it('extracts the indented file list from checkout stderr', () => {
@@ -28,22 +28,6 @@ describe('parseBlockingFiles', () => {
 
   it('returns empty for unrelated errors', () => {
     expect(parseBlockingFiles('fatal: not a git repository')).toEqual([]);
-  });
-});
-
-describe('parseLeftRight', () => {
-  it('splits < and > commits', () => {
-    const mk = (marker: string, sha: string, subject: string) =>
-      `${marker}\0${sha}\0` + `1700000000\0Author\0${subject}\x1e\n`;
-    const out = mk('<', 'a'.repeat(40), 'only on branch') + mk('>', 'b'.repeat(40), 'only on head');
-    const commits = parseLeftRight(out);
-    expect(commits).toHaveLength(2);
-    expect(commits[0]).toMatchObject({ side: 'left', subject: 'only on branch' });
-    expect(commits[1]).toMatchObject({ side: 'right', sha: 'b'.repeat(40) });
-  });
-
-  it('tolerates empty output', () => {
-    expect(parseLeftRight('')).toEqual([]);
   });
 });
 

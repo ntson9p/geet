@@ -920,13 +920,31 @@
         "category": "GitTree"
       },
       {
-        "command": "gittree.compare.showFileDiff",
-        "title": "%gittree.command.compare.showFileDiff.title%",
+        "command": "gittree.compare.showFilesDiff",
+        "title": "%gittree.command.compare.showFilesDiff.title%"
+      },
+      {
+        "command": "gittree.compare.openFile",
+        "title": "%gittree.command.compare.openChanges.title%"
+      },
+      {
+        "command": "gittree.compare.openChanges",
+        "title": "%gittree.command.compare.openChanges.title%"
+      },
+      {
+        "command": "gittree.compare.refresh",
+        "title": "%gittree.command.compare.refresh.title%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gittree.compare.openAll",
+        "title": "%gittree.command.compare.openAll.title%",
         "icon": "$(diff-multiple)"
       },
       {
-        "command": "gittree.compare.showCommit",
-        "title": "%gittree.command.compare.showCommit.title%"
+        "command": "gittree.compare.close",
+        "title": "%gittree.command.compare.close.title%",
+        "icon": "$(close)"
       },
       {
         "command": "gittree.commitAndPush",
@@ -1916,6 +1934,42 @@
       ],
       "commandPalette": [
         {
+          "command": "gittree.branches.compareWithCurrent",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branches.diffWithWorkingTree",
+          "when": "false"
+        },
+        {
+          "command": "gittree.branches.compareInLog",
+          "when": "false"
+        },
+        {
+          "command": "gittree.compare.showFilesDiff",
+          "when": "false"
+        },
+        {
+          "command": "gittree.compare.openFile",
+          "when": "false"
+        },
+        {
+          "command": "gittree.compare.openChanges",
+          "when": "false"
+        },
+        {
+          "command": "gittree.compare.refresh",
+          "when": "false"
+        },
+        {
+          "command": "gittree.compare.openAll",
+          "when": "false"
+        },
+        {
+          "command": "gittree.compare.close",
+          "when": "false"
+        },
+        {
           "command": "gittree.commit.openChanges",
           "when": "false"
         },
@@ -2413,9 +2467,19 @@
           "group": "navigation@2"
         },
         {
-          "command": "gittree.compare.showFileDiff",
+          "command": "gittree.compare.refresh",
           "when": "view == gittree.compare",
           "group": "navigation@1"
+        },
+        {
+          "command": "gittree.compare.openAll",
+          "when": "view == gittree.compare",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittree.compare.close",
+          "when": "view == gittree.compare",
+          "group": "navigation@4"
         },
         {
           "command": "gittree.history.clearFilter",
@@ -2680,9 +2744,9 @@
           "group": "9_danger@1"
         },
         {
-          "command": "gittree.commit.cherryPick",
-          "when": "view == gittree.compare && viewItem == compare:commit:left",
-          "group": "1_pick@1"
+          "command": "gittree.compare.openChanges",
+          "when": "view == gittree.compare",
+          "group": "1_open@1"
         },
         {
           "command": "gittree.merge.acceptYoursFile",

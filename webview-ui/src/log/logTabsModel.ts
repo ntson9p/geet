@@ -13,7 +13,17 @@ export const MAIN_LOG_TAB = 'log';
 export const FIXED_TABS = ['console', 'worktrees'] as const;
 
 const SHA_RE = /^[0-9a-f]{40}$/iu;
-const short = (ref: string): string => (SHA_RE.test(ref) ? ref.slice(0, 7) : ref);
+/** A ref by its own name, a commit hash by the start of it. */
+export const shortRef = (ref: string): string => (SHA_RE.test(ref) ? ref.slice(0, 7) : ref);
+
+/**
+ * Two branches or tags side by side. A range of two hashes is something else: the
+ * commits an update brought in, an older revision and a newer, with no two sides.
+ */
+export function comparedRefs(filter: LogFilterDto): { readonly a: string; readonly b: string } | undefined {
+  const { range } = filter;
+  return range === undefined || (SHA_RE.test(range.a) && SHA_RE.test(range.b)) ? undefined : range;
+}
 
 function basename(path: string): string {
   const parts = path.split('/').filter((p) => p.length > 0);
@@ -36,11 +46,13 @@ const part = (value: string, prefix = ''): TitlePart => ({ value, prefixed: `${p
 function titleParts(filter: LogFilterDto): TitlePart[] {
   const parts: TitlePart[] = [];
   if (filter.range !== undefined) {
-    parts.push(part(`${short(filter.range.a)}...${short(filter.range.b)}`));
+    const { a, b } = filter.range;
+    const between = comparedRefs(filter) !== undefined ? ' and ' : '...';
+    parts.push(part(`${shortRef(a)}${between}${shortRef(b)}`));
   } else if (filter.refs === 'ALL') {
     parts.push(part('All', 'on '));
   } else if (Array.isArray(filter.refs) && filter.refs.length > 0) {
-    parts.push(part(filter.refs.map(short).join(', '), 'on '));
+    parts.push(part(filter.refs.map(shortRef).join(', '), 'on '));
   }
   if (filter.authors !== undefined && filter.authors.length > 0) {
     parts.push(part(filter.authors.join(', '), 'by '));
@@ -61,14 +73,20 @@ function titleParts(filter: LogFilterDto): TitlePart[] {
   return parts;
 }
 
+/** `2 commits only on` / `1 commit only on`, or just `Only on` until there is a count. */
+export function sideLabel(count: number | undefined): string {
+  if (count === undefined) return 'Only on';
+  return `${count} ${count === 1 ? 'commit' : 'commits'} only on`;
+}
+
 /**
  * A Log tab's title, made from what it shows by IntelliJ's own rule
  * (`VcsLogFilterCollection.getPresentation`): one filter reads as its bare
  * value — `Log: 2026.1`, `Log: --no-merges` — and several each take their
  * prefix, joined by spaces — `Log: on HEAD --no-merges`. Unfiltered it is
- * plain `Log`; a file's history reads `History: <file>`, IntelliJ's name for
- * that tab. The sort and First Parent are how the graph is drawn, not filters,
- * so they never show.
+ * plain `Log`; a file's history reads `History: <file>` and two branches side by
+ * side `Compare: a and b`, IntelliJ's names for those tabs. The sort and First
+ * Parent are how the graph is drawn, not filters, so they never show.
  */
 export function tabTitle(filter: LogFilterDto): string {
   if (filter.follow === true && filter.paths?.length === 1) {
@@ -76,7 +94,8 @@ export function tabTitle(filter: LogFilterDto): string {
   }
   const parts = titleParts(filter);
   if (parts.length === 0) return 'Log';
-  return `Log: ${parts.length === 1 ? parts[0]!.value : parts.map((p) => p.prefixed).join(' ')}`;
+  const name = comparedRefs(filter) !== undefined ? 'Compare' : 'Log';
+  return `${name}: ${parts.length === 1 ? parts[0]!.value : parts.map((p) => p.prefixed).join(' ')}`;
 }
 
 /** Every strip item in order: the main Log tab, Console, Worktrees, then the extra Log tabs. */

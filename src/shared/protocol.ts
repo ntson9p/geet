@@ -1271,9 +1271,18 @@ export interface CommitDetailsDto {
  * Requests and events about one Log tab carry its id as `logTab` (absent means
  * the main tab, `MAIN_LOG_TAB`): init, page, details, commitMessage, setFilter,
  * the pickers, setRoot, the diffs, select, branches, branchAction,
- * changedFiles, showFileHistory, containedBranches, goTo, authors, refresh and
- * goToRef; and back, rows, reset, reveal, branchesChanged and focusFilter.
+ * changedFiles, showFileHistory, containedBranches, goTo, rangeCounts,
+ * showFilesDiff, authors, refresh and goToRef; and back, rows, reset, reveal,
+ * branchesChanged and focusFilter.
  */
+/** `git rev-list --left-right --count a...b`. */
+export interface LogRangeCountsDto {
+  /** Commits only on `a`. */
+  readonly left: number;
+  /** Commits only on `b`. */
+  readonly right: number;
+}
+
 export const LOG_METHODS = {
   /** webview → host */
   /** The Log tabs (`LogTabsDto`), asked for once before any tab starts. */
@@ -1319,6 +1328,10 @@ export const LOG_METHODS = {
   containedBranches: 'log/containedBranches',
   /** P12-T4: parent-link navigation — reveal + select a sha in the graph. */
   goTo: 'log/goTo',
+  /** How many commits are only on each side of the tab's range (`LogRangeCountsDto`). */
+  rangeCounts: 'log/rangeCounts',
+  /** Show Files Diff: every file that differs between the two ends of the tab's range. */
+  showFilesDiff: 'log/showFilesDiff',
   /** P12-T5: author list for the User ▾ dropdown. */
   authors: 'log/authors',
   /** P12-T5: the toolbar's refresh. */

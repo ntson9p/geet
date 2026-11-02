@@ -13,19 +13,14 @@
  * The host owns all state. The webview renders what it is given and posts
  * intents back; every handler is idempotent so a rehydrate can re-send.
  */
-import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { isUntracked, shortCode, type StatusEntry } from '../../core/model/statusEntry';
 import { canonicalKey } from '../../core/repoDiscovery';
-import {
-  diffTitle,
-  EMPTY_SIDE_REF,
-  makeRevUri,
-  WORKTREE_STUB_REF,
-} from '../../core/vdocs/revContentProvider';
+import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
+import { settleWorktreeSide } from '../../diff/worktreeSide';
 import {
   COMMIT_METHODS,
   type CommitChangeDto,
@@ -365,25 +360,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       onShown: () => {
         this.rpc?.notify(COMMIT_METHODS.evtDiffFile, { repoRoot: repo.root, path: relPath });
       },
-      // Whether VS Code will show the file is VS Code's to say, and asking it
-      // again each time is what notices a file deleted since the list was read.
-      ...(sides.right === 'worktree'
-        ? {
-            settle: async (): Promise<DiffEntry> => {
-              try {
-                await vscode.workspace.openTextDocument(worktree);
-                return entry;
-              } catch {
-                const present = await fsp.stat(worktree.fsPath).then(
-                  () => true,
-                  () => false,
-                );
-                const ref = present ? WORKTREE_STUB_REF : EMPTY_SIDE_REF;
-                return { ...entry, modified: makeRevUri(repo.root, relPath, ref) };
-              }
-            },
-          }
-        : {}),
+      ...(sides.right === 'worktree' ? { settle: () => settleWorktreeSide(entry, repo.root, relPath) } : {}),
     };
     return entry;
   }

@@ -407,8 +407,11 @@ row in the branches tree.
 | **Force Checkout** | offered in the smart-checkout prompt | ✅ |
 | Checkout and Rebase onto Current | `branches.rebaseOntoCurrent` | ✅ |
 | New Branch from Selected | `branches.newFrom` | ✅ |
-| Compare with Current | `branches.compareWithCurrent` plus compare tree | ✅ |
-| Show Diff with Working Tree | `branches.diffWithWorkingTree` | ✅ |
+| Compare with Current | `branches.compareWithCurrent`: a Log tab over both branches, one table marked by side (**D36**) | ✅ |
+| Show Diff with Working Tree | `branches.diffWithWorkingTree`: the Compare pane, whose files a diff walks | ✅ |
+| **Show Files Diff** (two branches, tip against tip) | the line above a comparison, into the same pane (**D36**) | ✅ |
+| **Swap Branches** in Show Diff with Working Tree | — (**D36**) | ❌ |
+| **Get from Branch** in Show Diff with Working Tree | — (**D36**) | ❌ |
 | Rename / Delete / Push | `branches.{rename,delete,push}` | ✅ |
 | **Merge \<branch\> into \<current\>** | P13-T5: registry entry, `›` submenu row, tree menu row and `gittree.branch.mergeIntoCurrent` | ✅ |
 | **Rebase \<current\> onto \<selected\>** (this direction) | P13-T5 `BranchOps.rebaseCurrentOnto` | ✅ |

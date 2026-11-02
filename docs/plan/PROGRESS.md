@@ -941,7 +941,7 @@ POST-P14au ✅ 2026-11-02 (branch `new-way-4`): **The Commit window's changes wa
 
 **Checked in a real window, not by the suites**, with the driver from POST-P14at, on real VS Code 1.96.0 and 1.144.0: a scratch repository with a TypeScript project and a dirty tree holding modified, staged, added, renamed, deleted, binary and untracked files. Walked forwards, backwards and by file arrows, with the first visible line per animation frame. Also: a file appearing and one reverted mid-walk, the file on screen reverted, typing in the diff, the same file open in another group, several rows selected, a folder row, the row menu, the staging paradigm, and two repositories in one workspace. Screenshots checked by eye.
 
-**Not done:** stashes, shelves and Compare Branches still open diffs one at a time. A tab's `3/7` is set when it opens, so it can be behind a list that has changed until the next move: VS Code keeps a tab's title when the same diff is opened again.
+**Not done:** stashes, shelves and Compare Branches do not walk yet (POST-P14av took Compare Branches, which opened multi-diff, not one diff at a time as this said). A tab's `3/7` is set when it opens, so it can be behind a list that has changed until the next move: VS Code keeps a tab's title when the same diff is opened again.
 
 Docs: FEATURES, D20, CHANGELOG.
 
@@ -949,3 +949,33 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Unit:** `test/unit/commit/localDiffSides.test.ts` (new), `test/unit/webview/treeModel.test.ts`, `commitTree.test.ts`, `changedFilesChain.test.ts`, `test/unit/diff/navigationStep.test.ts`, `diffManifest.test.ts`, `test/unit/core/binaryPlaceholder.test.ts`.
 - **Integration:** `phase14.test.ts` T7, "from the Commit window": every kind of local change on real files, a staged file against `HEAD`, the list changing under the walk.
 - **Playwright:** `commit.spec.ts`: order, a selection, a folder, following without reopening, a selection left alone, the menu's path, and the host told about a changing list only for a walk over all of it.
+
+POST-P14av ✅ 2026-11-02 (branch `new-way-4`): **Comparing branches walks the same way.** The owner: "Please continue with Compare Branches".
+
+**What was there, by driving it:** `Compare with 'X'` opened the `gittree.compare` tree of two commit lists, whose rows ran `git show` into a new unsaved `Untitled` document each click, with no file list and no walk. Its title action and Show Diff with Working Tree opened VS Code's multi-diff. The log's range mode had been built for this at P4-T5, with a comment saying the command had been rerouted, but only a separate `compareInLog` went there, so FEATURES described something the menu never did.
+
+**IntelliJ, read first:** `GitCompareBranchesUi` is two `VcsLogUi`s in an editor tab (`Compare: X and Y`). `GitShowDiffWithBranchPanel` and `GitBrancherImpl.showDiff` (`action.Git.Compare.Selected.Heads.title` = Show Files Diff) are a `SimpleAsyncChangesBrowser` in the `ChangesBrowserToolWindow`, which `showTab` empties on each request, with `DefaultChangesTreeDiffPreviewHandler` walking it by `getListSelectionOrAll`. The list is read once. `GitChangeUtils.getDiff` is tip against tip.
+
+**What changed:**
+- **`Compare with 'X'` is a log.** `gittree.branches.compareWithCurrent` runs `compareInLog`. The tab is titled `Compare: a and b`. `CompareStrip.tsx` above its commits is IntelliJ's explanation line for a table holding both sides: what ◀ ▶ mean, how many commits each side has alone (`git rev-list --left-right --count`, read on every reset), and Show Files Diff. The commit-list tree, `parseLeftRight` and `showCommit` are gone.
+- **The `gittree.compare` pane lists files** (`compare.ts`, pure parts in `compareModel.ts`), a native tree: `canSelectMany`, `showCollapseAll`, `reveal` to follow the diff. Colours and letters take a `FileDecorationProvider` on a private `gittree-compare:` scheme, since a tree row's label has no colour of its own; that URI also gives the icon theme a file name. Words go in `TreeView.message`, since VS Code capitalizes a view's title, which turned `feature/compare` into `Feature/Compare`.
+- **A comparison holds shas**, resolved when it is read. A branch moving under a walk leaves every diff agreeing with the list until Refresh.
+- **A row's click**: VS Code runs a tree row's command with no word of how it was clicked, so a second click within 500ms on the same row goes into the diff (`goesIntoDiff`), and a lone click browses, as in its own Source Control view. It also runs it only when one row is selected, so several rows walk from Show Diff in the row's menu.
+- **`treeModel.ts` moved to `src/shared/`**, so the host's tree and the webviews' agree on order and on `diffWalk`. `settleWorktreeSide` moved out of the Commit window for the pane's working-tree side.
+- **Against the working tree, the right side is the real file**, the branch on the left, opposite to IntelliJ's default: VS Code only edits the right side (D36).
+- **Palette:** `compareWithCurrent` and `diffWithWorkingTree` were offered there with no branch, and failed on `undefined...HEAD`. `compareInLog` did nothing. All hidden.
+
+**Found while building:** lint's complaint about `string | 'worktree'` was a real bug, a branch called `worktree` would have been taken for the working tree. The right side of a request is now `undefined` for that. And an update's Show in Log opens a range tab too, of two hashes, which would have read `Compare:` with `0 commits only on …`: `comparedRefs` keeps the title and the line to named sides.
+
+**Checked in a real window, not by the suites**, with a throwaway driver clicking the real UI, on real VS Code 1.96.0 and 1.144.0: a scratch repository with two diverged branches holding modified, added, deleted, renamed, renamed-untouched and binary files and a path with a space and an accent. Compare with from a branch's menu, running it twice, a commit's own walk; Show Files Diff, walked forwards, backwards and by file arrows with the selection following; a click, a double click, `Alt+F5` with focus in the list; several rows, a folder row; the multi-diff; Refresh after the branch moved; Close and reopening; a branch at the same commit; Show Diff with Working Tree, walked, with an edit that kept its tab, a binary file and the file gone from disk; two repositories in one workspace; the strip leaving with the filter.
+
+**Observed limits:** the pane's Close sits left of VS Code's own Collapse All, which it always puts last. With a row selected, the diff's `1/2` stays until the next move when the same file reopens under a different walk: VS Code keeps a tab's title when the same diff is opened again. A diff opened before a new comparison keeps walking the old list until another is opened.
+
+**Not done:** Swap Branches and Get from Branch (D36), stashes and shelves. Compare with Local and Compare Versions on a commit still open multi-diff, though in IntelliJ they are this same window.
+
+Docs: FEATURES, D36, gap analysis, parity audit, CHANGELOG.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `test/unit/branches/compareModel.test.ts` (new), `test/unit/log/logFilter.test.ts`, `test/unit/webview/logTabsModel.test.ts`, `test/unit/diff/diffManifest.test.ts`; `parseLeftRight`'s removed from `parsers.test.ts`.
+- **Integration:** `phase14.test.ts` T7, "from the Compare pane": the walk, a branch moving, several rows, the working tree, no differences. `phase02.test.ts` T5 and `phase14branchmenu.test.ts` rewritten for the log.
+- **Playwright:** `log.spec.ts`: the line's counts and words, no counts, Show Files Diff, leaving the comparison.
