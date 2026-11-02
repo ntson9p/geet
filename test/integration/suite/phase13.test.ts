@@ -549,12 +549,12 @@ suite('P13 dialogs', () => {
       assert.deepStrictEqual(prompt.buttons, ['Merge', 'Rebase', 'Reset to the Remote Branch']);
       // Each button's exact commands, from the same argv the host runs.
       // POST-P14ac: with nothing staged, the rebase sets local changes aside.
+      // POST-P14aw: the question comes after the fetch, so the fetch is not on it.
       assert.ok(
-        prompt.detail.includes(
-          `Rebase: git fetch --prune ${REMOTE} && git rebase --autostash ${REMOTE}/${branch}`,
-        ),
+        prompt.detail.includes(`Rebase: git rebase --autostash ${REMOTE}/${branch}`),
         prompt.detail,
       );
+      assert.ok(!prompt.detail.includes('git fetch'), prompt.detail);
     });
 
     test('T2: the merge strategy fetches, integrates and reports what came in', async function () {
@@ -638,10 +638,47 @@ suite('P13 dialogs', () => {
       assert.strictEqual(next?.buttons[0], 'Rebase', 'Enter must repeat the last answer');
 
       // Put Merge back the way a user would — by answering — so later suites
-      // start from IntelliJ's default. Nothing is incoming, so nothing moves.
+      // start from IntelliJ's default. POST-P14aw: with nothing to pull there is
+      // no question to answer, so something has to be coming in.
+      incoming('p13/t2-answer-back.txt', 'answered back\n', 'P13-T2 incoming, to answer Merge');
       const restore = await withUpdateChoice('merge', () => reg.showUpdateDialog(repo));
       assert.ok(restore?.ok, restore?.message ?? 'no outcome');
       assert.strictEqual(reg.rememberedUpdateStrategy(), 'merge');
+    });
+
+    test('POST-P14aw: with nothing to pull, nothing is asked and nothing runs', async function () {
+      this.timeout(60_000);
+      // Level with the remote: whatever an earlier test left incoming is taken in first.
+      git('fetch', REMOTE);
+      git('merge', '--ff-only', `${REMOTE}/${branch}`);
+      await repo.refresher.refreshNow();
+      const head = git('rev-parse', 'HEAD').trim();
+      reg.clearLastUpdatePrompt();
+
+      // `cancel` guards the regression: asked anyway, it would come back undefined.
+      const outcome = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo));
+      assert.ok(outcome?.ok, outcome?.message ?? 'no outcome');
+      assert.strictEqual(outcome.commitsPulled, 0);
+      assert.match(outcome.message, /Already up to date/u);
+      assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'nothing to pull, so nothing to ask');
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), head);
+    });
+
+    test('POST-P14aw: the question counts what the fetch found, not what the last one did', async function () {
+      this.timeout(60_000);
+      // The remote moves on and nothing here has fetched it: the snapshot says
+      // up to date. The question used to say so too, then pull the commits anyway.
+      incoming('p13/t2-counted-1.txt', 'one\n', 'P13-T2 counted 1');
+      incoming('p13/t2-counted-2.txt', 'two\n', 'P13-T2 counted 2');
+      reg.clearLastUpdatePrompt();
+      const outcome = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo));
+      assert.strictEqual(outcome, undefined, 'cancelled');
+      const prompt = reg.lastUpdatePrompt();
+      assert.ok(prompt, 'two commits to pull: it must ask');
+      assert.ok(prompt.detail.includes(`${branch} ← ${REMOTE}/${branch} · 2 to pull`), prompt.detail);
+      // Taken in, so the tests after this one count only their own commits.
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'merge', '--no-edit', `${REMOTE}/${branch}`);
+      await repo.refresher.refreshNow();
     });
 
     test('POST-P14ab: Cancel runs nothing and remembers nothing', async function () {
@@ -653,8 +690,9 @@ suite('P13 dialogs', () => {
       const outcome = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo));
       assert.strictEqual(outcome, undefined);
       assert.strictEqual(git('rev-parse', 'HEAD').trim(), head);
-      // Not even the fetch: a cancelled question is no update at all.
-      assert.strictEqual(
+      // POST-P14aw: the fetch has run — the question comes after it, so it can
+      // say what is coming in — but nothing was merged.
+      assert.notStrictEqual(
         git('rev-parse', `refs/remotes/${REMOTE}/${branch}`).trim(),
         upstreamBefore,
       );
@@ -691,6 +729,8 @@ suite('P13 dialogs', () => {
       assert.ok(store, 'phase09 store missing');
 
       localCommit('p13/t2-doomed.txt', 'this commit dies\n', 'P13-T2 doomed local commit');
+      // POST-P14aw: the question is only asked with something to pull.
+      incoming('p13/t2-reset-incoming.txt', 'from the remote\n', 'P13-T2 incoming, before the reset');
       // An uncommitted edit is what a hard reset would otherwise destroy without
       // trace — this is exactly what the P9 snapshot has to capture.
       const dirtyRel = 'p13/t2-dirty.txt';
@@ -1024,6 +1064,8 @@ suite('P13 dialogs', () => {
 
       test('POST-P14ae: Update Project with nothing named asks once, about every repository', async function () {
         this.timeout(60_000);
+        // POST-P14aw: something to pull, or there would be no question to read.
+        incoming('p13/project-asked.txt', 'asked\n', 'P13 project: incoming, to be asked about');
         reg.clearLastUpdatePrompt();
         const headsBefore = core.repos.map((r) => cli(r.root, 'rev-parse', 'HEAD').trim());
         // Cancelled, so nothing runs anywhere: this reads the question only.
@@ -1058,8 +1100,10 @@ suite('P13 dialogs', () => {
           // No Reset across several repositories, and the skipped one is named.
           assert.deepStrictEqual(prompt.choices, ['merge', 'rebase']);
           assert.ok(prompt.detail.includes(`${label(repoE)}: skipped — no upstream branch`), prompt.detail);
+          // POST-P14aw: asked after the fetch, so repoD's one commit is counted.
+          assert.match(prompt.detail, new RegExp(`${label(repoD)}: .* · 1 to pull`, 'u'), prompt.detail);
 
-          assert.strictEqual(result.stoppedAt, undefined);
+          assert.strictEqual(result.notAttempted, undefined);
           assert.deepStrictEqual(
             result.results.map((r) => [r.repo.root, r.outcome.ok]),
             [
@@ -1073,23 +1117,94 @@ suite('P13 dialogs', () => {
         });
       });
 
-      test('POST-P14ae: the run stops at the first repository that fails', async function () {
+      const notes = (): NotificationsRegistry => core.debugRegistry.get('notifications') as NotificationsRegistry;
+
+      test('POST-P14aw: a repository that cannot be fetched does not stop the others', async function () {
         this.timeout(120_000);
-        await withProject(async (_dAhead, dBase) => {
-          // repoC runs first and cannot fetch; repoD, behind by one, must then
-          // be left exactly where it was rather than merged after a failure.
+        await withProject(async (dAhead) => {
+          // repoC comes first and cannot fetch. repoD, behind by one, used to be
+          // left where it was; now it is updated, and the summary says both.
           const url = git('remote', 'get-url', REMOTE).trim();
           git('remote', 'set-url', REMOTE, path.join(tmpDir, 'no-such-remote.git'));
           try {
+            notes().clear();
             const result = await withChoice('merge', () => reg.showProjectUpdate([repo, repoD]));
             assert.ok(result, 'no result');
-            assert.strictEqual(result.stoppedAt?.root, repo.root);
-            assert.strictEqual(result.results.length, 1, 'nothing may run after the failure');
-            assert.strictEqual(result.results[0]?.outcome.ok, false);
-            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dBase);
+            assert.deepStrictEqual(
+              result.results.map((r) => [r.repo.root, r.outcome.ok]),
+              [
+                [repo.root, false],
+                [repoD.root, true],
+              ],
+            );
+            const failed = result.results[0]!.outcome;
+            assert.strictEqual(failed.fetchFailed?.remote, REMOTE);
+            assert.doesNotMatch(failed.message, /exited with code/u, failed.message);
+            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dAhead);
+
+            const said = notes().recent().map((n) => n.message);
+            assert.strictEqual(said.length, 1, `one summary, not one toast per repository: ${JSON.stringify(said)}`);
+            assert.ok(said[0]!.startsWith(`Couldn't fetch ${label(repo)} from ${REMOTE}: `), said[0]);
+            assert.ok(said[0]!.includes(`Updated ${label(repoD)}: 1 commit`), said[0]);
           } finally {
             git('remote', 'set-url', REMOTE, url);
           }
+        });
+      });
+
+      test('POST-P14aw: a conflict in one repository does not stop the next, and is named in the summary', async function () {
+        this.timeout(180_000);
+        const CLASH = 'p13/project-clash.txt';
+        await withProject(async (dAhead) => {
+          // repoC: the same new file, here and on the remote, with different content.
+          incoming(CLASH, 'theirs\n', 'P13 project: theirs, conflicting');
+          localCommit(CLASH, 'mine\n', 'P13 project: mine, conflicting');
+          await repo.refresher.refreshNow();
+          try {
+            notes().clear();
+            const result = await withChoice('merge', () => reg.showProjectUpdate([repo, repoD]));
+            assert.ok(result, 'no result');
+            const conflicted = result.results.find((r) => r.repo === repo)?.outcome;
+            assert.strictEqual(conflicted?.conflicts, true, conflicted?.message);
+            assert.deepStrictEqual(conflicted.conflictFiles, [CLASH]);
+            assert.strictEqual(conflicted.message, `The merge stopped on conflicts in ${CLASH}.`);
+            // repoD comes after the conflict, and is updated all the same.
+            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dAhead);
+
+            // One toast: the conflict lifecycle's own is held back for the summary's.
+            const said = notes().recent();
+            assert.strictEqual(said.length, 1, JSON.stringify(said.map((n) => n.message)));
+            assert.strictEqual(said[0]!.kind, 'warning');
+            assert.ok(
+              said[0]!.message.startsWith(`${label(repo)}: the merge stopped on conflicts in ${CLASH}.`),
+              said[0]!.message,
+            );
+            assert.ok(said[0]!.actions.includes('Show Conflicts'), JSON.stringify(said[0]!.actions));
+          } finally {
+            git('merge', '--abort');
+            git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+            await endConflicts();
+          }
+        });
+      });
+
+      test('POST-P14aw: nothing to pull anywhere is said without a question', async function () {
+        this.timeout(120_000);
+        await withProject(async (dAhead) => {
+          cli(repoD.root, 'reset', '-q', '--hard', dAhead);
+          git('fetch', REMOTE);
+          git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+          await settle(repoD, () => (repoD.model.snapshot.behind ?? 0) === 0);
+          reg.clearLastUpdatePrompt();
+          notes().clear();
+          const result = await withChoice('cancel', () => reg.showProjectUpdate([repo, repoD, repoE]));
+          assert.ok(result, 'a result, though nothing was asked');
+          assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'nothing to pull, so nothing to ask');
+          assert.ok(result.results.every((r) => r.outcome.ok && r.outcome.commitsPulled === 0));
+          const said = notes().recent().map((n) => n.message);
+          assert.deepStrictEqual(said, [
+            `All 2 repositories are already up to date. Skipped ${label(repoE)} (no upstream branch).`,
+          ]);
         });
       });
 

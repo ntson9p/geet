@@ -29,6 +29,8 @@ export class MergeLifecycle implements vscode.Disposable {
   private readonly holds = new Map<string, { dispose(): void }>();
   /** One-shot producer hints for op-less conflicts (stash-pop, unshelve, checkout -m). */
   private readonly expected = new Map<string, ConflictSource>();
+  /** Repositories whose conflicts an operation in progress will report itself, and how many hold each. */
+  private readonly quiet = new Map<string, number>();
   private readonly store = new DisposableStore();
   private readonly _onDidChangeSessions = new vscode.EventEmitter<void>();
   readonly onDidChangeSessions = this._onDidChangeSessions.event;
@@ -62,6 +64,26 @@ export class MergeLifecycle implements vscode.Disposable {
    */
   expectConflict(repoRoot: string, source: ConflictSource): void {
     this.expected.set(canonicalKey(repoRoot), source);
+  }
+
+  /**
+   * POST-P14aw: while held, a session starting in `repoRoot` raises no toast of
+   * its own — the operation holding it names the conflicts in its result, and
+   * Update Project across seven repositories would otherwise say "merge
+   * produced 1 conflicted file(s)" once for each, before its own summary. The
+   * session itself, the Conflicts view and the dialog are unchanged.
+   */
+  holdNotices(repoRoot: string): vscode.Disposable {
+    const key = canonicalKey(repoRoot);
+    this.quiet.set(key, (this.quiet.get(key) ?? 0) + 1);
+    let released = false;
+    return new vscode.Disposable(() => {
+      if (released) return;
+      released = true;
+      const left = (this.quiet.get(key) ?? 1) - 1;
+      if (left > 0) this.quiet.set(key, left);
+      else this.quiet.delete(key);
+    });
   }
 
   private attach(repo: RepoHandle): void {
@@ -117,16 +139,23 @@ export class MergeLifecycle implements vscode.Disposable {
       this._onDidChangeSessions.fire();
       // IntelliJ Conflicts-dialog parity: reveal + one-shot toast.
       void vscode.commands.executeCommand('gittree.conflicts.focus');
-      const show = vscode.l10n.t('Show Conflicts');
-      void vscode.window
-        .showWarningMessage(
-          vscode.l10n.t('{0} produced {1} conflicted file(s).', source, unmerged),
-          show,
-        )
-        .then((choice) => {
+      if (!this.quiet.has(key)) {
+        const show = vscode.l10n.t('Show Conflicts');
+        // With several repositories open, which one: the toast was the same for each.
+        const message =
+          this.core.repos.length > 1
+            ? vscode.l10n.t(
+                '{0} in {1} produced {2} conflicted file(s).',
+                source,
+                path.basename(repo.root),
+                unmerged,
+              )
+            : vscode.l10n.t('{0} produced {1} conflicted file(s).', source, unmerged);
+        void vscode.window.showWarningMessage(message, show).then((choice) => {
           if (choice === show) return vscode.commands.executeCommand('gittree.conflicts.focus');
           return undefined;
         });
+      }
       session.onDidChange(() => this._onDidChangeSessions.fire());
       session.onDidResolveAll(() => {
         this._onDidChangeSessions.fire();

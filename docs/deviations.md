@@ -612,8 +612,12 @@ multi-root is the same decide/apply split as above. `Commit…` and `Fetch` *are
 from that level, because both already had a no-argument all-roots form (`runCommitAcross`, and
 POST-P14o's fan-out). **`Update Project…` joined them in POST-P14ae**: once its question became a
 message box (D30) there was no per-root dialog left to split — one question covers every
-repository, which then updates in order and stops at the first failure, skipping any it cannot
-update and naming them in the question.
+repository, skipping any it cannot update and naming them in the question. **Since POST-P14aw
+it does not stop at the first failure**, unlike the fan-out above: each repository pulls *its
+own* upstream into *its own* branch, so a conflict in one makes the next no less safe to update,
+and IntelliJ's Update Project goes on past a conflict too. Stopping left the repositories after
+it, which had nothing wrong with them, not updated at all. One summary names everything that
+happened, conflicts and failures first.
 
 **Revisitable:** yes, and the order is clear — hoisting the input out of `BranchOps` unlocks
 `New Branch`, `Rename` and `Delete` on a common row, and the same split unlocks a multi-root
@@ -744,7 +748,7 @@ itself.
 branch* / *Rebase the current branch on top of incoming changes* as two radio buttons,
 `Don't show again`, `OK` / `Cancel`, and in some states `Reset to the Remote Branch`.
 **GitTree:** a native modal message box titled *Update Project*. Its text names what is being
-updated — `develop ← origin/develop · 3 behind · 0 ahead` — and, with
+updated — `develop ← origin/develop · 3 to pull · 1 to push` — and, with
 `gittree.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
 `Merge`, `Rebase`, `Reset to the Remote Branch` and VS Code's own `Cancel`; pressing one is
 the `OK`. The strategy answered last comes first, so `Enter` repeats it the way IntelliJ's
@@ -767,6 +771,13 @@ Local History snapshot. And the answer is remembered in workspace *state* rather
 setting: it changes on every answer, and writing a setting that often would keep rewriting a
 `.vscode/settings.json` that many repositories track. IntelliJ keeps its equivalent in
 `workspace.xml` for the same reason.
+
+**Asked after the fetch (POST-P14aw).** IntelliJ asks first and fetches after. GitTree fetches
+first — every repository at once — so the question can say what each one will pull, where it
+used to read the last fetch's `0 behind` and then pull commits anyway; and when nothing is coming
+in anywhere it is not asked at all. The cost is that Cancel no longer leaves the remote-tracking
+branches where they were, since the fetch has run, which is all a Fetch does in any case. It also
+means `Reset to the Remote Branch` is offered only when there is something to pull.
 
 **Revisitable:** only with a new API — a modal webview, or checkboxes in `showInformationMessage`.
 

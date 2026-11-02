@@ -42,6 +42,27 @@ real file, so you can edit as you go, and a tab you have edited stays open when 
 An untracked file now opens as a diff too, and so does one deleted from disk, instead of as a plain
 document with no way on.
 
+### Changed — Update Project fetches first, and one repository's trouble no longer stops the rest
+
+`Ctrl+T` across several repositories now fetches them all first, then asks Merge or Rebase with
+what each one will really pull: `main ← origin/main · 3 to pull · 1 to push`, `up to date`, or
+why it could not be fetched. It used to show the counts from the last fetch, `0 behind`, and
+then pull commits anyway. With nothing to pull anywhere it asks nothing and says so. One
+repository on its own is fetched first the same way.
+
+A repository whose merge stops on conflicts, or whose fetch fails, no longer stops the others.
+Every repository with something to pull is updated, and one notification says what became of
+each, problems first, with **Show Conflicts** and **Show Details**.
+
+### Fixed — Update Project said `git exited with code 1`
+
+A merge that stopped on conflicts, and other failures git explains on its standard output, were
+reported as `git exited with code 1`. The result now says what happened: *The merge stopped on
+conflicts in src/app.ts*, *Couldn't fetch from origin: Could not resolve host: github.com*,
+*Your local changes to the following files would be overwritten by merge: notes.txt*. The
+conflict's own notification no longer appears alongside it, and with several repositories open
+it names the repository.
+
 ### Added — comparing branches walks the same way
 
 `Compare with 'X'` now opens a Log tab of its own over both branches, as the log has long been able

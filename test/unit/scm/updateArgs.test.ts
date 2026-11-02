@@ -129,6 +129,21 @@ describe('buildUpdateQuestion (POST-P14ab)', () => {
   });
 });
 
+describe('buildUpdateQuestion once fetched (POST-P14aw)', () => {
+  it('leaves the fetch out of every button: it has run, so the question can count what comes in', () => {
+    const { commands } = buildUpdateQuestion('merge', 'origin/main', 'origin', undefined, true);
+    expect(commands.merge).toBe('git merge origin/main');
+    expect(commands.rebase).toBe('git rebase origin/main');
+    expect(commands.reset).toBe('git reset --hard origin/main');
+  });
+
+  it('still shows what each strategy puts aside', () => {
+    const q = buildUpdateQuestion('rebase', 'origin/main', 'origin', () => ({ autostash: true, detach: [] }), true);
+    expect(q.commands.rebase).toBe('git rebase --autostash origin/main');
+    expect(q.choices).toEqual(['rebase', 'merge', 'reset']);
+  });
+});
+
 describe('setting local changes aside (POST-P14ac)', () => {
   /** A porcelain-v2 entry, as `parseStatusV2` would produce it. */
   const entry = (

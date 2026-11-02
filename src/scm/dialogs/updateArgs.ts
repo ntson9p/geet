@@ -209,21 +209,26 @@ export function updateChoices(remembered: UpdateStrategy, offerReset = true): Up
  * `asideFor` says what each strategy would put aside, judged from the status
  * the question was built from; the run re-reads status and decides again, so
  * the lines describe the likely run rather than bind it.
+ *
+ * POST-P14aw: `fetched` — Update Project asks once it has fetched, so the
+ * question can say what is coming in. Each button then runs only what is left.
  */
 export function buildUpdateQuestion(
   remembered: UpdateStrategy,
   upstreamRef: string,
   remote?: string,
   asideFor: (strategy: UpdateStrategy) => SetAside = () => NOTHING_SET_ASIDE,
+  fetched = false,
 ): UpdateQuestion {
+  const after = (plan: string[][]): string[][] => (fetched ? plan.slice(1) : plan);
   const plan = (strategy: UpdateStrategy): string =>
-    formatGitCommands(buildUpdatePlan('update', strategy, upstreamRef, remote, asideFor(strategy)));
+    formatGitCommands(after(buildUpdatePlan('update', strategy, upstreamRef, remote, asideFor(strategy))));
   return {
     choices: updateChoices(remembered),
     commands: {
       merge: plan('merge'),
       rebase: plan('rebase'),
-      reset: formatGitCommands(buildUpdatePlan('reset', 'merge', upstreamRef, remote)),
+      reset: formatGitCommands(after(buildUpdatePlan('reset', 'merge', upstreamRef, remote))),
     },
   };
 }

@@ -12,12 +12,19 @@
  *
  * Every command comes from the vscode-free `updateArgs.ts`, so the question's
  * command lines and the execution cannot drift apart.
+ *
+ * POST-P14aw: it fetches before it asks. The question can then say what each
+ * repository will pull — it used to read the last fetch's `0 behind` and pull
+ * commits anyway — and is not asked at all when nothing is coming in. Across
+ * a project the run no longer stops at the first repository that fails: each
+ * one's update is its own merge in its own repository, as IntelliJ's are, and
+ * one summary (`updateReport.ts`) says what became of every one of them.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
-import { GitError } from '../../core/git/errors';
+import { describeGitFailure, GitError } from '../../core/git/errors';
 import { parseStatusV2 } from '../../core/git/parsers/statusV2';
 import { detectInProgressOp } from '../../core/model/inProgressOp';
 import { canonicalKey } from '../../core/repoDiscovery';
@@ -25,8 +32,11 @@ import { repoLabels } from '../../core/util/repoLabels';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import type { CancelToken, GitExecutor } from '../../core/git/executor';
 import { anyToken } from '../../core/util/cancellation';
+import { parseRangeCounts } from '../../log/logFilter';
 import { confirmModal } from '../../ui/confirm';
+import { notifySuccess, notifyWarning, type NotificationAction } from '../../ui/notify';
 import { beginOperationProgress, type OperationProgress } from '../../ui/progress';
+import { runFetchAll } from '../fetchAll';
 import { splitUpstream } from './pushArgs';
 import {
   buildDetachArgs,
@@ -43,6 +53,12 @@ import {
   type UpdateStrategy,
   type UpdateStrategySetting,
 } from './updateArgs';
+import {
+  conflictsPhrase,
+  standing,
+  summarizeProjectUpdate,
+  type RepoUpdateResult,
+} from './updateReport';
 
 export interface UpdateDialogDeps {
   core: Core;
@@ -88,11 +104,32 @@ export interface UpdateOutcome {
    * this update is cancelled with IntelliJ's "conflicts during the update".
    */
   conflicts?: boolean;
+  /** POST-P14aw: the files it stopped on, when `conflicts`. */
+  conflictFiles?: string[];
+  /** POST-P14aw: it got no further than a fetch that failed — from where, and why. */
+  fetchFailed?: { readonly remote?: string; readonly reason: string };
 }
 
 /** Structural slice of phase06's conflict lifecycle — imported by shape, not module. */
 interface ConflictLifecycleShape {
-  lifecycle?: { expectConflict(repoRoot: string, source: 'stash-pop'): void };
+  lifecycle?: {
+    expectConflict(repoRoot: string, source: 'stash-pop'): void;
+    holdNotices?(repoRoot: string): vscode.Disposable;
+  };
+}
+
+/**
+ * Holds back the conflict lifecycle's own toast for `repos` until disposed:
+ * the update names the conflicts in its result, with the same Show Conflicts.
+ */
+function holdConflictNotices(core: Core, repos: readonly RepoHandle[]): vscode.Disposable {
+  const lifecycle = (core.debugRegistry.get('phase06') as ConflictLifecycleShape | undefined)?.lifecycle;
+  const holds: vscode.Disposable[] = [];
+  for (const repo of repos) {
+    const hold = lifecycle?.holdNotices?.(repo.root);
+    if (hold !== undefined) holds.push(hold);
+  }
+  return vscode.Disposable.from(...holds);
 }
 
 function readSetting(): UpdateStrategySetting {
@@ -202,35 +239,72 @@ function labelsFor(core: Core): (repo: RepoHandle) => string {
   return (repo) => labels.get(repo.root) ?? path.basename(repo.root);
 }
 
-function summaryOf(repo: RepoHandle): string {
-  const snap = repo.model.snapshot;
-  return vscode.l10n.t(
-    '{0} ← {1} · {2} behind · {3} ahead',
-    snap.headRef ?? '',
-    snap.upstream ?? '',
-    snap.behind ?? 0,
-    snap.ahead ?? 0,
-  );
+/**
+ * One repository fetched for an update (POST-P14aw): what it tracks, and what
+ * the fetch found there. The question is built from these, after the fetch,
+ * so the counts in it are the ones the merge will meet.
+ */
+export interface FetchedUpdate {
+  readonly repo: RepoHandle;
+  readonly branch: string;
+  readonly upstream: string;
+  readonly remote: string | undefined;
+  /** The upstream before the fetch, `''` when it did not resolve. */
+  readonly before: string;
+  /** The upstream after it: undefined when the fetch failed, or pruned it. */
+  readonly after: string | undefined;
+  /** Commits the upstream has that the branch does not. */
+  readonly behind: number;
+  /** Commits the branch has that the upstream does not. */
+  readonly ahead: number;
+  /** Why the fetch failed, in git's words. */
+  readonly fetchError?: string;
+}
+
+/** What one Update Project run found, once fetched. */
+export interface FetchedScope {
+  /** Every repository it fetched, in workspace order, the failed ones too. */
+  readonly fetched: readonly FetchedUpdate[];
+  readonly skipped: readonly SkippedRepo[];
+}
+
+/** Fetched, still tracking something, and with commits to take in. */
+function isPullable(f: FetchedUpdate): boolean {
+  return f.fetchError === undefined && f.after !== undefined && f.behind > 0;
+}
+
+/** One repository's line in the question: where it stands, or why it will not be updated. */
+function standingLine(f: FetchedUpdate): string {
+  if (f.fetchError !== undefined) {
+    return f.remote !== undefined
+      ? vscode.l10n.t("couldn't fetch from {0} — {1}", f.remote, f.fetchError)
+      : vscode.l10n.t("couldn't fetch — {0}", f.fetchError);
+  }
+  if (f.after === undefined) return vscode.l10n.t('{0} no longer exists on the remote', f.upstream);
+  return standing(f.branch, f.upstream, f.behind, f.ahead);
 }
 
 /**
- * The Update Project question, or `undefined` when nothing can be updated.
+ * The Update Project question, or `undefined` when no repository in it could
+ * be fetched. Whether to ask at all is the caller's to decide: nothing to pull
+ * anywhere is said without a question.
  *
  * The buttons carry the verbs; the detail says what they act on, which a
- * dialog title alone never did — `develop ← origin/develop · 3 behind`, one
+ * dialog title alone never did — `develop ← origin/develop · 3 to pull`, one
  * line per repository, named when the workspace has more than one, then any
  * repository being skipped and why. With `gittree.dialogs.showCommandLine`
  * on, one repository gets each button's exact commands, the lines the P13
  * dialogs showed as `will run:`; several get one sentence saying what each of
  * them runs, rather than two command lines per repository.
  */
-export async function buildUpdatePrompt(
+export function buildUpdatePrompt(
   deps: UpdateDialogDeps,
-  scope: UpdateScope,
-): Promise<UpdatePrompt | undefined> {
-  const { targets, skipped } = scope;
-  const only = targets.length === 1 ? targets[0] : undefined;
-  if (targets.length === 0) return undefined;
+  scope: FetchedScope,
+): UpdatePrompt | undefined {
+  const { fetched, skipped } = scope;
+  const reachable = fetched.filter((f) => f.fetchError === undefined && f.after !== undefined);
+  if (reachable.length === 0) return undefined;
+  const only = fetched.length === 1 ? reachable[0] : undefined;
   const label = labelsFor(deps.core);
   const named = deps.core.repos.length > 1;
   const remembered = rememberedUpdateStrategy(deps.state);
@@ -238,8 +312,8 @@ export async function buildUpdatePrompt(
     .getConfiguration('gittree')
     .get<boolean>('dialogs.showCommandLine', true);
 
-  const lines = targets.map((repo) =>
-    named ? `${label(repo)}: ${summaryOf(repo)}` : summaryOf(repo),
+  const lines = fetched.map((f) =>
+    named ? `${label(f.repo)}: ${standingLine(f)}` : standingLine(f),
   );
   for (const s of skipped) {
     lines.push(vscode.l10n.t('{0}: skipped — {1}', label(s.repo), s.reason));
@@ -248,17 +322,17 @@ export async function buildUpdatePrompt(
 
   let choices: UpdateChoice[];
   if (only !== undefined) {
-    const snap = only.model.snapshot;
-    const upstream = snap.upstream ?? '';
-    const remote = splitUpstream(upstream, await remoteNames(deps.core, only))?.remote;
+    const snap = only.repo.model.snapshot;
     const question = buildUpdateQuestion(
       remembered,
-      upstream,
-      remote,
+      only.upstream,
+      only.remote,
       // The command lines show what would be put aside given the tree as last
       // seen; the run reads status again and decides for itself.
       (strategy) =>
         planSetAside(snap.statusEntries, strategy, deps.core.git.caps.mergeAutostash),
+      // Already fetched: each button runs what is left.
+      true,
     );
     choices = [...question.choices];
     if (showCommands) {
@@ -269,7 +343,7 @@ export async function buildUpdatePrompt(
     if (showCommands) {
       lines.push(
         vscode.l10n.t(
-          'Each repository runs git fetch --prune <its remote>, then git merge or git rebase onto its upstream, in the order listed. The update stops at the first repository that fails.',
+          'Each repository with something to pull runs git merge or git rebase onto its upstream, in the order listed. One that stops on conflicts or fails does not stop the others.',
         ),
       );
     }
@@ -331,6 +405,139 @@ async function revParse(core: Core, repo: RepoHandle, ref: string): Promise<stri
   return res.exitCode === 0 ? res.stdout.trim() : undefined;
 }
 
+/** What failed, worded for the user: git's reason rather than its exit code. */
+function failureOf(err: unknown): string {
+  if (err instanceof GitError) {
+    // GitTree's own words when git never ran: a step cancelled before it began.
+    return err.exitCode < 0 ? err.message : describeGitFailure(err.details);
+  }
+  const text = err instanceof Error ? err.message : String(err);
+  return text.split('\n', 1)[0]?.trim() ?? text;
+}
+
+function branchName(repo: RepoHandle): string {
+  return repo.model.snapshot.headRef ?? path.basename(repo.root);
+}
+
+/** Where `upstream` is now, and how far the branch is from it either way. */
+async function measureStanding(
+  core: Core,
+  repo: RepoHandle,
+  upstream: string,
+): Promise<Pick<FetchedUpdate, 'after' | 'behind' | 'ahead'>> {
+  const after = await revParse(core, repo, upstream);
+  if (after === undefined) return { after, behind: 0, ahead: 0 };
+  const res = await core.git.exec(
+    repo.root,
+    ['rev-list', '--left-right', '--count', `HEAD...${upstream}`],
+    { allowNonZeroExit: true },
+  );
+  const counts = res.exitCode === 0 ? parseRangeCounts(res.stdout) : undefined;
+  return { after, behind: counts?.right ?? 0, ahead: counts?.left ?? 0 };
+}
+
+/**
+ * The fetch half of an update (POST-P14aw). Never throws: a fetch that fails
+ * is that repository's result, and a project goes on without it.
+ */
+export async function fetchForUpdate(
+  deps: UpdateDialogDeps,
+  repo: RepoHandle,
+  progress: OperationProgress | undefined,
+): Promise<FetchedUpdate> {
+  const { core } = deps;
+  const branch = branchName(repo);
+  const upstream = repo.model.snapshot.upstream ?? '';
+  let remote: string | undefined;
+  let before = '';
+  try {
+    remote = splitUpstream(upstream, await remoteNames(core, repo))?.remote;
+    before = (await revParse(core, repo, upstream)) ?? '';
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Fetch'),
+      kind: 'mutate',
+      ...stepUnder(progress, async (git, token) => {
+        await git.exec(repo.root, buildUpdateFetchArgs(remote), { token });
+      }),
+    });
+    repo.model.update({ lastFetchAt: Date.now() });
+    return { repo, branch, upstream, remote, before, ...(await measureStanding(core, repo, upstream)) };
+  } catch (err) {
+    return {
+      repo,
+      branch,
+      upstream,
+      remote,
+      before,
+      after: undefined,
+      behind: 0,
+      ahead: 0,
+      fetchError: failureOf(err),
+    };
+  }
+}
+
+/**
+ * The repositories of `repos` an update would cover, measured against what
+ * was fetched last, without fetching. The question as it would read — a test
+ * seam, since the real one is only ever built after a fetch.
+ */
+export async function scopeAsLastFetched(
+  deps: UpdateDialogDeps,
+  repos: readonly RepoHandle[],
+): Promise<FetchedScope> {
+  const scope = updateScope(repos);
+  const fetched = await Promise.all(
+    scope.targets.map(async (repo): Promise<FetchedUpdate> => {
+      const upstream = repo.model.snapshot.upstream ?? '';
+      const remote = splitUpstream(upstream, await remoteNames(deps.core, repo))?.remote;
+      const measured = await measureStanding(deps.core, repo, upstream);
+      return { repo, branch: branchName(repo), upstream, remote, before: measured.after ?? '', ...measured };
+    }),
+  );
+  return { fetched, skipped: scope.skipped };
+}
+
+/** A fetch that failed, as the update's outcome. */
+function fetchFailure(f: FetchedUpdate): UpdateOutcome {
+  const reason = f.fetchError ?? '';
+  return {
+    ok: false,
+    commitsPulled: 0,
+    filesChanged: 0,
+    from: f.before,
+    to: f.before,
+    message:
+      f.remote !== undefined
+        ? vscode.l10n.t("Couldn't fetch from {0}: {1}", f.remote, reason)
+        : vscode.l10n.t("Couldn't fetch: {0}", reason),
+    fetchFailed: { ...(f.remote !== undefined ? { remote: f.remote } : {}), reason },
+  };
+}
+
+/** What a repository that was fetched but not merged or rebased comes to. */
+function outcomeWithoutUpdate(f: FetchedUpdate): UpdateOutcome {
+  if (f.fetchError !== undefined) return fetchFailure(f);
+  if (f.after === undefined) {
+    return {
+      ok: false,
+      commitsPulled: 0,
+      filesChanged: 0,
+      from: f.before,
+      to: f.before,
+      message: vscode.l10n.t('{0} no longer exists on the remote.', f.upstream),
+    };
+  }
+  return {
+    ok: true,
+    commitsPulled: 0,
+    filesChanged: 0,
+    from: f.after,
+    to: f.after,
+    message: vscode.l10n.t('Already up to date.'),
+  };
+}
+
 /**
  * The accept half, separated so integration tests drive it with exactly the
  * answer the question returns. Returns what happened, for the notification and
@@ -341,16 +548,31 @@ export async function applyUpdateResult(
   repo: RepoHandle,
   result: UpdateRequest,
 ): Promise<UpdateOutcome> {
+  const snap = repo.model.snapshot;
+  if (snap.upstream === undefined) {
+    return {
+      ok: false,
+      commitsPulled: 0,
+      filesChanged: 0,
+      from: '',
+      to: '',
+      message: vscode.l10n.t('"{0}" has no upstream branch to update from.', snap.headRef ?? ''),
+    };
+  }
   // The fetch and the merge or rebase are one operation to the user: one
   // progress for both, not a notification that closes after the fetch and
   // opens again for the merge. Reset asks a question in between, so its two
   // steps keep their own.
-  if (result.action !== 'update') return applyUpdateSteps(deps, repo, result, undefined);
-  const progress = beginOperationProgress(
-    vscode.l10n.t('Updating {0}', repo.model.snapshot.headRef ?? path.basename(repo.root)),
-  );
+  if (result.action !== 'update') {
+    const fetched = await fetchForUpdate(deps, repo, undefined);
+    return fetched.fetchError !== undefined ? fetchFailure(fetched) : resetFetched(deps, fetched);
+  }
+  const progress = beginOperationProgress(vscode.l10n.t('Updating {0}', branchName(repo)));
   try {
-    return await applyUpdateSteps(deps, repo, result, progress);
+    progress.report(vscode.l10n.t('Fetching…'));
+    const fetched = await fetchForUpdate(deps, repo, progress);
+    if (fetched.fetchError !== undefined) return fetchFailure(fetched);
+    return await integrateFetched(deps, fetched, result.strategy === 'rebase' ? 'rebase' : 'merge', progress);
   } finally {
     progress.done();
   }
@@ -401,101 +623,92 @@ async function incomingFromUpstream(
   return { commits, files, base };
 }
 
-async function applyUpdateSteps(
-  deps: UpdateDialogDeps,
-  repo: RepoHandle,
-  result: UpdateRequest,
-  progress: OperationProgress | undefined,
-): Promise<UpdateOutcome> {
+/** `Reset to the Remote Branch`, onto what `fetched` found — behind its own confirmation. */
+async function resetFetched(deps: UpdateDialogDeps, fetched: FetchedUpdate): Promise<UpdateOutcome> {
   const { core } = deps;
+  const { repo, upstream, before } = fetched;
   const snap = repo.model.snapshot;
-  const upstream = snap.upstream;
-  if (upstream === undefined) {
+  const after = fetched.after;
+  if (after === undefined) return outcomeWithoutUpdate(fetched);
+  const counted = await incomingFromUpstream(core, repo, upstream, before);
+  const from = counted.base;
+  const ok = await confirmModal(
+    vscode.l10n.t('Reset "{0}" to {1}?', snap.headRef ?? '', upstream),
+    vscode.l10n.t(
+      'Discards every local commit and uncommitted change on this branch. A Local History snapshot is taken first.',
+    ),
+    vscode.l10n.t('Reset Hard'),
+  );
+  if (!ok) {
     return {
       ok: false,
-      commitsPulled: 0,
-      filesChanged: 0,
-      from: '',
-      to: '',
-      message: vscode.l10n.t('"{0}" has no upstream branch to update from.', snap.headRef ?? ''),
+      commitsPulled: counted.commits,
+      filesChanged: counted.files,
+      from,
+      to: after,
+      message: vscode.l10n.t('Reset cancelled.'),
     };
   }
-  const remote = splitUpstream(upstream, await remoteNames(core, repo))?.remote;
-
-  const before = (await revParse(core, repo, upstream)) ?? '';
-  progress?.report(vscode.l10n.t('Fetching…'));
   try {
     await repo.queue.enqueue({
-      label: vscode.l10n.t('Fetch'),
+      label: vscode.l10n.t('Reset to {0}', upstream),
       kind: 'mutate',
-      ...stepUnder(progress, async (git, token) => {
-        await git.exec(repo.root, buildUpdateFetchArgs(remote), { token });
-      }),
+      isDestructive: true,
+      snapshotLabel: SNAPSHOT_LABELS.reset,
+      run: async (git, token) => {
+        await git.exec(repo.root, buildResetToRemoteArgs(upstream), { token });
+      },
     });
-    repo.model.update({ lastFetchAt: Date.now() });
+    await repo.refresher.refreshNow();
+    return {
+      ok: true,
+      commitsPulled: counted.commits,
+      filesChanged: counted.files,
+      from,
+      to: after,
+      message: vscode.l10n.t('Reset {0} to {1}.', snap.headRef ?? '', upstream),
+    };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, commitsPulled: 0, filesChanged: 0, from: before, to: before, message };
+    return { ok: false, commitsPulled: 0, filesChanged: 0, from, to: after, message: failureOf(err) };
   }
-  const after = (await revParse(core, repo, upstream)) ?? before;
+}
+
+/**
+ * The merge or rebase half of an update, onto what `fetched` found. A branch
+ * with nothing to pull is left alone: the merge could only say so. `named`
+ * prefixes the progress, for a project's several repositories.
+ */
+async function integrateFetched(
+  deps: UpdateDialogDeps,
+  fetched: FetchedUpdate,
+  strategy: UpdateStrategy,
+  progress: OperationProgress | undefined,
+  named?: string,
+): Promise<UpdateOutcome> {
+  const { core } = deps;
+  const { repo, upstream, before } = fetched;
+  const after = fetched.after;
+  if (after === undefined) return outcomeWithoutUpdate(fetched);
 
   // Measured against HEAD, before integrating: everything the upstream has
   // that the branch does not is what comes in — fetched now or earlier. Not
   // HEAD before→after, which a rebase's rewritten local commits would inflate.
   const counted = await incomingFromUpstream(core, repo, upstream, before);
   const from = counted.base;
-
-  if (result.action === 'reset') {
-    const ok = await confirmModal(
-      vscode.l10n.t('Reset "{0}" to {1}?', snap.headRef ?? '', upstream),
-      vscode.l10n.t(
-        'Discards every local commit and uncommitted change on this branch. A Local History snapshot is taken first.',
-      ),
-      vscode.l10n.t('Reset Hard'),
-    );
-    if (!ok) {
-      return {
-        ok: false,
-        commitsPulled: counted.commits,
-        filesChanged: counted.files,
-        from,
-        to: after,
-        message: vscode.l10n.t('Reset cancelled.'),
-      };
-    }
-    try {
-      await repo.queue.enqueue({
-        label: vscode.l10n.t('Reset to {0}', upstream),
-        kind: 'mutate',
-        isDestructive: true,
-        snapshotLabel: SNAPSHOT_LABELS.reset,
-        run: async (git, token) => {
-          await git.exec(repo.root, buildResetToRemoteArgs(upstream), { token });
-        },
-      });
-      await repo.refresher.refreshNow();
-      return {
-        ok: true,
-        commitsPulled: counted.commits,
-        filesChanged: counted.files,
-        from,
-        to: after,
-        message: vscode.l10n.t('Reset {0} to {1}.', snap.headRef ?? '', upstream),
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, commitsPulled: 0, filesChanged: 0, from, to: after, message };
-    }
+  if (counted.commits === 0) {
+    return { ok: true, commitsPulled: 0, filesChanged: 0, from, to: after, message: vscode.l10n.t('Already up to date.') };
   }
+  const report = (step: string): void => {
+    progress?.report(named !== undefined ? `${named}: ${step}` : step);
+  };
 
-  const strategy: UpdateStrategy = result.strategy === 'rebase' ? 'rebase' : 'merge';
   // Intent-to-add paths still out of the index when the integrate step stopped
   // half-way — reported rather than put back, see the `finally` below.
   let leftUntracked: string[] = [];
   // Files left conflicted by git putting the user's own changes back.
   let restoreConflicts = 0;
   try {
-    progress?.report(
+    report(
       strategy === 'rebase'
         ? vscode.l10n.t('Rebasing onto {0}…', upstream)
         : vscode.l10n.t('Merging {0}…', upstream),
@@ -570,22 +783,29 @@ async function applyUpdateSteps(
       }),
     });
   } catch (err) {
-    const first = err instanceof Error ? err.message : String(err);
-    // One line: the notification shows only the first one.
-    const message =
-      leftUntracked.length === 0
-        ? first
-        : `${first} — ${vscode.l10n.t(
-            '{0} file(s) added to VCS are unversioned until the {1} is finished; they stay in their changelist.',
-            leftUntracked.length,
-            strategy,
-          )}`;
     // Stopped on conflicts — still in progress — or refused before starting?
     // The operation left on disk is the reliable answer; git's wording is not.
     const conflicts =
       (err instanceof GitError && err.kind === 'merge-conflict') ||
       detectInProgressOp(repo.dirs.gitDir) !== undefined;
     await repo.refresher.refreshNow();
+    // POST-P14aw: the reason, not `git exited with code 1` — which is all a
+    // conflicted merge leaves on stderr, git saying the rest on stdout.
+    const conflictFiles = conflicts
+      ? repo.model.snapshot.statusEntries.filter((e) => e.kind === 'unmerged').map((e) => e.path)
+      : [];
+    const reason = conflicts
+      ? vscode.l10n.t('The {0} stopped on {1}', strategy, conflictsPhrase(conflictFiles))
+      : failureOf(err).replace(/\.$/u, '');
+    // One line: the notification shows only the first one.
+    const message =
+      leftUntracked.length === 0
+        ? `${reason}.`
+        : `${reason} — ${vscode.l10n.t(
+            '{0} file(s) added to VCS are unversioned until the {1} is finished; they stay in their changelist.',
+            leftUntracked.length,
+            strategy,
+          )}`;
     return {
       ok: false,
       commitsPulled: counted.commits,
@@ -593,7 +813,7 @@ async function applyUpdateSteps(
       from,
       to: after,
       message,
-      ...(conflicts ? { conflicts: true } : {}),
+      ...(conflicts ? { conflicts: true, conflictFiles } : {}),
     };
   }
   await repo.refresher.refreshNow();
@@ -673,15 +893,26 @@ export interface ReportOptions {
  * fetched range.
  */
 export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}): void {
+  const showConflicts = vscode.l10n.t('Show Conflicts');
   if (!outcome.ok) {
-    void vscode.window.showErrorMessage(
-      vscode.l10n.t('Update Project: {0}', outcome.message.split('\n', 1)[0] ?? outcome.message),
-    );
+    const message = vscode.l10n.t('Update Project: {0}', outcome.message.split('\n', 1)[0] ?? outcome.message);
+    // Stopped on conflicts is not a failure to report but work to finish: the
+    // merge is in progress, and the conflict lifecycle's own toast is held back
+    // in favour of this one, which names the files.
+    if (outcome.conflicts === true) {
+      notifyWarning(message, showConflictsAction());
+      return;
+    }
+    const details = vscode.l10n.t('Show Details');
+    void vscode.window.showErrorMessage(message, details).then(async (choice) => {
+      if (choice === details) await vscode.commands.executeCommand('gittree.log.showConsole');
+    });
     return;
   }
   const showInLog = vscode.l10n.t('Show in Log');
   const dontAsk = vscode.l10n.t("Don't Ask Again");
   const actions = outcome.commitsPulled > 0 ? [showInLog] : [];
+  if ((outcome.restoreConflicts ?? 0) > 0) actions.unshift(showConflicts);
   const remember = options.dontAskAgain;
   if (remember !== undefined) actions.push(dontAsk);
   // Deliberately not awaited: a notification carrying an action button stays
@@ -694,6 +925,10 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
       ? vscode.window.showWarningMessage(outcome.message, ...actions)
       : vscode.window.showInformationMessage(outcome.message, ...actions);
   void shown.then(async (choice) => {
+    if (choice === showConflicts) {
+      await vscode.commands.executeCommand('gittree.conflicts.focus');
+      return;
+    }
     if (choice === showInLog) {
       if (options.root !== undefined) {
         await showRangeInLog(outcome, options.root);
@@ -709,6 +944,14 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
       await rememberDontAskAgain(remember);
     }
   });
+}
+
+/** Show Conflicts, as the conflict lifecycle's own toast offers it. */
+function showConflictsAction(): NotificationAction {
+  return {
+    title: vscode.l10n.t('Show Conflicts'),
+    run: () => vscode.commands.executeCommand('gittree.conflicts.focus'),
+  };
 }
 
 /**
@@ -728,61 +971,134 @@ export async function showUpdateDialog(
     );
     return undefined;
   }
-  return updateOne(deps, repo, { targets: [repo], skipped: [] });
+  return updateOne(deps, repo, []);
 }
 
-/** One repository: exact commands, `Reset` offered, `Show in Log` for it. */
+/**
+ * One repository: exact commands, `Reset` offered, `Show in Log` for it.
+ *
+ * POST-P14aw: fetched before anything is asked, so the question says what is
+ * coming in. With nothing to pull it is not asked: `Already up to date`.
+ */
 async function updateOne(
   deps: UpdateDialogDeps,
   repo: RepoHandle,
-  scope: UpdateScope,
+  skipped: readonly SkippedRepo[],
 ): Promise<UpdateOutcome | undefined> {
-  const setting = readSetting();
-  if (setting !== 'ask') {
-    const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy: setting });
-    reportUpdate(outcome, { root: repo.root });
+  const hold = holdConflictNotices(deps.core, [repo]);
+  try {
+    const setting = readSetting();
+    const progress = beginOperationProgress(vscode.l10n.t('Updating {0}', branchName(repo)));
+    let fetched: FetchedUpdate;
+    try {
+      progress.report(vscode.l10n.t('Fetching…'));
+      fetched = await fetchForUpdate(deps, repo, progress);
+      // Cancelled while fetching: a killed fetch reports nothing worth asking about.
+      if (progress.token.isCancellationRequested) return undefined;
+      const settled = isPullable(fetched) ? undefined : outcomeWithoutUpdate(fetched);
+      if (settled !== undefined) {
+        reportUpdate(settled, { root: repo.root });
+        return settled;
+      }
+      if (setting !== 'ask') {
+        // Nobody is asked, so one progress covers the fetch and the merge.
+        const outcome = await integrateFetched(deps, fetched, setting, progress);
+        reportUpdate(outcome, { root: repo.root });
+        return outcome;
+      }
+    } finally {
+      // Taken down before the question, which would otherwise sit over it.
+      progress.done();
+    }
+
+    const prompt = buildUpdatePrompt(deps, { fetched: [fetched], skipped });
+    if (!prompt) return undefined;
+    const choice = await askUpdate(prompt);
+    if (choice === undefined) return undefined;
+
+    if (choice === 'reset') {
+      const outcome = await resetFetched(deps, fetched);
+      reportUpdate(outcome, { root: repo.root });
+      return outcome;
+    }
+
+    // Saved before the update runs, as IntelliJ saves the radio on OK: the answer
+    // is the user's choice whether or not this particular update succeeds.
+    await rememberStrategy(deps.state, choice);
+    const integrating = beginOperationProgress(vscode.l10n.t('Updating {0}', branchName(repo)));
+    let outcome: UpdateOutcome;
+    try {
+      outcome = await integrateFetched(deps, fetched, choice, integrating);
+    } finally {
+      integrating.done();
+    }
+    reportUpdate(outcome, { dontAskAgain: choice, root: repo.root });
     return outcome;
+  } finally {
+    hold.dispose();
   }
-
-  const prompt = await buildUpdatePrompt(deps, scope);
-  if (!prompt) return undefined;
-  const choice = await askUpdate(prompt);
-  if (choice === undefined) return undefined;
-
-  if (choice === 'reset') {
-    // `strategy` is unused on the reset path; the remembered one is passed so
-    // the request stays a complete answer rather than a special case.
-    const outcome = await applyUpdateResult(deps, repo, {
-      action: 'reset',
-      strategy: rememberedUpdateStrategy(deps.state),
-    });
-    reportUpdate(outcome, { root: repo.root });
-    return outcome;
-  }
-
-  // Saved before the update runs, as IntelliJ saves the radio on OK: the answer
-  // is the user's choice whether or not this particular update succeeds.
-  await rememberStrategy(deps.state, choice);
-  const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy: choice });
-  reportUpdate(outcome, { dontAskAgain: choice, root: repo.root });
-  return outcome;
 }
 
 /** What a project-wide update did, repository by repository. */
 export interface ProjectUpdateResult {
-  /** In the order they ran; a stopped run ends with the one that failed. */
+  /** Every repository it fetched, in workspace order, with what became of it. */
   results: Array<{ repo: RepoHandle; outcome: UpdateOutcome }>;
   skipped: SkippedRepo[];
-  /** The repository the run stopped at, when one failed. */
-  stoppedAt?: RepoHandle;
+  /** Fetched, then cancelled before their turn to merge came. */
+  notAttempted?: RepoHandle[];
+}
+
+/** Fetches every target at once, a few at a time, under one progress. */
+async function fetchAllForUpdate(
+  deps: UpdateDialogDeps,
+  targets: readonly RepoHandle[],
+  progress: OperationProgress,
+  label: (repo: RepoHandle) => string,
+): Promise<FetchedUpdate[]> {
+  const byRoot = new Map<string, FetchedUpdate>();
+  progress.report(vscode.l10n.t('Fetching {0} repositories…', targets.length));
+  await runFetchAll(
+    targets.map((repo) => ({ repo, root: repo.root, name: label(repo) })),
+    async (target) => {
+      byRoot.set(target.root, await fetchForUpdate(deps, target.repo, progress));
+    },
+    {
+      isCancelled: () => progress.token.isCancellationRequested,
+      onSettled: (_outcome, done, total) => {
+        progress.report(vscode.l10n.t('Fetched {0} of {1} repositories…', done, total));
+      },
+    },
+  );
+  return targets.map(
+    (repo) =>
+      byRoot.get(repo.root) ?? {
+        repo,
+        branch: branchName(repo),
+        upstream: repo.model.snapshot.upstream ?? '',
+        remote: undefined,
+        before: '',
+        after: undefined,
+        behind: 0,
+        ahead: 0,
+        fetchError: vscode.l10n.t('cancelled'),
+      },
+  );
 }
 
 /**
  * `Ctrl+T` and `Update Project…` with no repository named: the **project**,
- * as IntelliJ's Update Project is (POST-P14ae). One question covers every
- * repository it can update; they then run in order and the run **stops at the
- * first failure** — the idiom `runCommitAcross` and `runCommonAction` share,
- * so a conflict in one repository is not followed by merges in the rest.
+ * as IntelliJ's Update Project is (POST-P14ae).
+ *
+ * POST-P14aw, in three steps:
+ * 1. **Fetch every repository**, together. One that cannot be fetched is left
+ *    out of the rest, and said so; it used to end the run.
+ * 2. **Ask, now that the question can say what comes in** — one line per
+ *    repository, `3 to pull` or `up to date` — and not at all when nothing is
+ *    coming in anywhere.
+ * 3. **Merge or rebase each one with something to pull**, in order. A conflict
+ *    or a failure in one does not stop the rest: each is its own merge in its
+ *    own repository, and IntelliJ's update goes on past a conflict too. One
+ *    summary says what became of every repository, worst news first.
  *
  * With a single repository to update the flow is exactly the one-repository
  * one, so a single-root workspace — and a multi-root one where only one
@@ -808,118 +1124,157 @@ export async function showProjectUpdate(
   }
   const first = scope.targets[0];
   if (scope.targets.length === 1 && first !== undefined) {
-    const outcome = await updateOne(deps, first, scope);
+    const outcome = await updateOne(deps, first, scope.skipped);
     return outcome
       ? { results: [{ repo: first, outcome }], skipped: scope.skipped }
       : undefined;
   }
 
-  const setting = readSetting();
-  let strategy: UpdateStrategy;
-  let asked = false;
-  if (setting !== 'ask') {
-    strategy = setting;
-  } else {
-    const prompt = await buildUpdatePrompt(deps, scope);
-    if (!prompt) return undefined;
-    const choice = await askUpdate(prompt);
-    // `reset` is never offered across several repositories; treat anything
-    // else the same as Cancel rather than trust an answer nobody was shown.
-    if (choice !== 'merge' && choice !== 'rebase') return undefined;
-    await rememberStrategy(deps.state, choice);
-    strategy = choice;
-    asked = true;
-  }
-
-  const result: ProjectUpdateResult = { results: [], skipped: scope.skipped };
-  for (const repo of scope.targets) {
-    const outcome = await applyUpdateResult(deps, repo, { action: 'update', strategy });
-    result.results.push({ repo, outcome });
-    if (!outcome.ok) {
-      result.stoppedAt = repo;
-      break;
+  const hold = holdConflictNotices(deps.core, scope.targets);
+  try {
+    const fetching = beginOperationProgress(vscode.l10n.t('Update Project'));
+    let fetched: FetchedUpdate[];
+    try {
+      fetched = await fetchAllForUpdate(deps, scope.targets, fetching, label);
+    } finally {
+      fetching.done();
     }
+    if (fetching.token.isCancellationRequested) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('Update Project cancelled: nothing was merged or rebased.'),
+      );
+      return undefined;
+    }
+
+    const pullable = fetched.filter(isPullable);
+    if (pullable.length === 0) {
+      const result: ProjectUpdateResult = {
+        results: fetched.map((f) => ({ repo: f.repo, outcome: outcomeWithoutUpdate(f) })),
+        skipped: scope.skipped,
+      };
+      reportProjectUpdate(deps, result, 'merge', undefined);
+      return result;
+    }
+
+    const setting = readSetting();
+    let strategy: UpdateStrategy;
+    let asked = false;
+    if (setting !== 'ask') {
+      strategy = setting;
+    } else {
+      const prompt = buildUpdatePrompt(deps, { fetched, skipped: scope.skipped });
+      if (!prompt) return undefined;
+      const choice = await askUpdate(prompt);
+      // `reset` is never offered across several repositories; treat anything
+      // else the same as Cancel rather than trust an answer nobody was shown.
+      if (choice !== 'merge' && choice !== 'rebase') return undefined;
+      await rememberStrategy(deps.state, choice);
+      strategy = choice;
+      asked = true;
+    }
+
+    const outcomes = new Map<RepoHandle, UpdateOutcome>();
+    const notAttempted: RepoHandle[] = [];
+    const integrating = beginOperationProgress(vscode.l10n.t('Update Project'));
+    try {
+      for (const [i, f] of pullable.entries()) {
+        // Cancel stops the next one from starting, never one half-way through.
+        if (integrating.token.isCancellationRequested) {
+          notAttempted.push(f.repo);
+          continue;
+        }
+        const named = vscode.l10n.t('{0} ({1} of {2})', label(f.repo), i + 1, pullable.length);
+        outcomes.set(f.repo, await integrateFetched(deps, f, strategy, integrating, named));
+      }
+    } finally {
+      integrating.done();
+    }
+
+    const result: ProjectUpdateResult = {
+      results: fetched
+        .filter((f) => !notAttempted.includes(f.repo))
+        .map((f) => ({ repo: f.repo, outcome: outcomes.get(f.repo) ?? outcomeWithoutUpdate(f) })),
+      skipped: scope.skipped,
+      ...(notAttempted.length > 0 ? { notAttempted } : {}),
+    };
+    reportProjectUpdate(deps, result, strategy, asked ? strategy : undefined);
+    return result;
+  } finally {
+    hold.dispose();
   }
-  reportProjectUpdate(deps, result, scope, asked ? strategy : undefined);
-  return result;
+}
+
+/** One repository's outcome, as the summary words it. */
+function resultRow(name: string, outcome: UpdateOutcome, strategy: UpdateStrategy): RepoUpdateResult {
+  if (outcome.ok) {
+    return outcome.commitsPulled > 0
+      ? {
+          kind: 'updated',
+          name,
+          commits: outcome.commitsPulled,
+          files: outcome.filesChanged,
+          ...((outcome.restoreConflicts ?? 0) > 0 ? { restoreConflicts: true } : {}),
+        }
+      : { kind: 'upToDate', name };
+  }
+  if (outcome.conflicts === true) {
+    return { kind: 'conflicts', name, operation: strategy, files: outcome.conflictFiles ?? [] };
+  }
+  if (outcome.fetchFailed !== undefined) {
+    return {
+      kind: 'failed',
+      name,
+      during: 'fetch',
+      reason: outcome.fetchFailed.reason,
+      ...(outcome.fetchFailed.remote !== undefined ? { remote: outcome.fetchFailed.remote } : {}),
+    };
+  }
+  return { kind: 'failed', name, during: 'update', reason: outcome.message.split('\n', 1)[0] ?? outcome.message };
 }
 
 /**
  * One notification for the whole run — N toasts for N repositories would bury
- * the one that matters. A stop names where, what was already done and what
- * was never attempted; a finished run totals what came in and names anything
- * skipped or conflicted. `Show in Log` is offered only when exactly one
+ * the one that matters. Its words are `summarizeProjectUpdate`'s: conflicts
+ * and failures first, then what came in, what had nothing to pull and what
+ * was never in scope. `Show in Log` is offered only when exactly one
  * repository received commits: the log shows one repository at a time (D24),
  * and a range spanning several has nowhere to go.
  */
 function reportProjectUpdate(
   deps: UpdateDialogDeps,
   result: ProjectUpdateResult,
-  scope: UpdateScope,
+  strategy: UpdateStrategy,
   dontAskAgain: UpdateStrategy | undefined,
 ): void {
   const label = labelsFor(deps.core);
-  const names = (repos: readonly RepoHandle[]): string => repos.map(label).join(', ');
-  const done = result.results.filter((r) => r.outcome.ok).map((r) => r.repo);
+  const rows: RepoUpdateResult[] = result.results.map(({ repo, outcome }) =>
+    resultRow(label(repo), outcome, strategy),
+  );
+  for (const repo of result.notAttempted ?? []) rows.push({ kind: 'notAttempted', name: label(repo) });
+  for (const s of result.skipped) rows.push({ kind: 'skipped', name: label(s.repo), reason: s.reason });
+  const summary = summarizeProjectUpdate(rows);
 
-  if (result.stoppedAt !== undefined) {
-    const failed = result.results[result.results.length - 1]?.outcome;
-    const reason = failed?.message.split('\n', 1)[0] ?? '';
-    const untouched = scope.targets.slice(result.results.length);
-    const parts = [vscode.l10n.t('Update Project stopped at {0}: {1}', label(result.stoppedAt), reason)];
-    if (done.length > 0) parts.push(vscode.l10n.t('Already updated: {0}.', names(done)));
-    if (untouched.length > 0) parts.push(vscode.l10n.t('Not attempted: {0}.', names(untouched)));
-    void vscode.window.showErrorMessage(parts.join(' '));
-    return;
-  }
-
-  const commits = result.results.reduce((n, r) => n + r.outcome.commitsPulled, 0);
-  const files = result.results.reduce((n, r) => n + r.outcome.filesChanged, 0);
-  const conflicted = result.results.filter((r) => (r.outcome.restoreConflicts ?? 0) > 0);
-  const parts = [
-    commits === 0
-      ? vscode.l10n.t('{0} repositories already up to date.', result.results.length)
-      : vscode.l10n.t(
-          'Updated {0} repositories: {1} commit(s), {2} file(s) changed.',
-          result.results.length,
-          commits,
-          files,
-        ),
-  ];
-  if (conflicted.length > 0) {
-    parts.push(
-      vscode.l10n.t(
-        'Your local changes conflict with what came in, in {0}; a copy is kept in the stash.',
-        names(conflicted.map((r) => r.repo)),
-      ),
-    );
-  }
-  if (result.skipped.length > 0) {
-    parts.push(vscode.l10n.t('Skipped: {0}.', names(result.skipped.map((s) => s.repo))));
-  }
-
-  const showInLog = vscode.l10n.t('Show in Log');
-  const dontAsk = vscode.l10n.t("Don't Ask Again");
-  const pulled = result.results.filter((r) => r.outcome.commitsPulled > 0);
+  const actions: NotificationAction[] = [];
+  if (summary.conflicts) actions.push(showConflictsAction());
+  const pulled = result.results.filter((r) => r.outcome.commitsPulled > 0 && r.outcome.ok);
   const single = pulled.length === 1 ? pulled[0] : undefined;
-  const actions = [
-    ...(single !== undefined ? [showInLog] : []),
-    ...(dontAskAgain !== undefined ? [dontAsk] : []),
-  ];
-  const message = parts.join(' ');
-  const shown =
-    conflicted.length > 0
-      ? vscode.window.showWarningMessage(message, ...actions)
-      : vscode.window.showInformationMessage(message, ...actions);
-  void shown.then(async (choice) => {
-    if (choice === showInLog && single !== undefined) {
-      await showRangeInLog(single.outcome, single.repo.root);
-      return;
-    }
-    if (choice === dontAsk && dontAskAgain !== undefined) {
-      await rememberDontAskAgain(dontAskAgain);
-    }
-  });
+  if (single !== undefined) {
+    actions.push({
+      title: vscode.l10n.t('Show in Log'),
+      run: () => showRangeInLog(single.outcome, single.repo.root),
+    });
+  }
+  if (summary.failures) {
+    // git's own words, every line of them, for what one sentence could not hold.
+    actions.push({
+      title: vscode.l10n.t('Show Details'),
+      run: () => vscode.commands.executeCommand('gittree.log.showConsole'),
+    });
+  } else if (dontAskAgain !== undefined) {
+    actions.push({ title: vscode.l10n.t("Don't Ask Again"), run: () => rememberDontAskAgain(dontAskAgain) });
+  }
+  if (summary.kind === 'warning') notifyWarning(summary.message, ...actions);
+  else notifySuccess(summary.message, ...actions);
 }
 
 /**
@@ -966,12 +1321,17 @@ export async function runRememberedUpdate(
     );
     return undefined;
   }
-  const outcome = await applyUpdateResult(deps, repo, {
-    action: 'update',
-    strategy: rememberedUpdateStrategy(deps.state),
-  });
-  reportUpdate(outcome, { root: repo.root });
-  return outcome;
+  const hold = holdConflictNotices(deps.core, [repo]);
+  try {
+    const outcome = await applyUpdateResult(deps, repo, {
+      action: 'update',
+      strategy: rememberedUpdateStrategy(deps.state),
+    });
+    reportUpdate(outcome, { root: repo.root });
+    return outcome;
+  } finally {
+    hold.dispose();
+  }
 }
 
 /** What `Ctrl+T` will do right now — `ask` means the question is still asked. */

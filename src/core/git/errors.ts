@@ -119,6 +119,67 @@ export function classifyGitError(stderr: string, stdout = ''): GitErrorKind {
   return 'unknown';
 }
 
+/** Lines that say how git got where it was going, not what went wrong. */
+const NOISE = /^(hint|warning):|^From |^remote: (Enumerating|Counting|Compressing|Total)|^(Receiving|Resolving|Unpacking) /u;
+/** Says only that something before it went wrong, which that line says better. */
+const GENERIC = /^fatal: Could not read from remote repository\.?$/iu;
+/** Where git says what stopped a merge or rebase: on stdout, often with nothing on stderr. */
+const STDOUT_REASON = /^(CONFLICT \(|error:|fatal:|Automatic merge failed)/u;
+
+/**
+ * What went wrong, in git's own words without the rest of what it printed
+ * (POST-P14aw): the line naming the problem, the files it lists after a colon,
+ * and not `git exited with code 1`, which is all the first stderr line gives a
+ * merge that stopped on conflicts, since git says that on stdout.
+ */
+export function describeGitFailure(
+  details: Pick<GitErrorDetails, 'stderr' | 'stdout' | 'exitCode'>,
+): string {
+  const lines = details.stderr.split(/\r?\n/u);
+  const candidates = lines
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter(({ line }) => line.length > 0 && !NOISE.test(line));
+  const chosen =
+    candidates.find(({ line }) => /^(fatal|error):/u.test(line) && !GENERIC.test(line)) ??
+    candidates.find(({ line }) => !GENERIC.test(line)) ??
+    candidates[0];
+  if (chosen === undefined) {
+    const fromStdout = details.stdout
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .find((line) => STDOUT_REASON.test(line));
+    return fromStdout !== undefined ? stripPrefix(fromStdout) : `git exited with code ${details.exitCode}`;
+  }
+  let reason = stripPrefix(chosen.line);
+  // `unable to access 'https://…/': Could not resolve host: x` — the URL is
+  // the remote the user already knows; what failed is the part after it.
+  const access = /^unable to access '[^']*': (.+)$/u.exec(reason);
+  if (access?.[1] !== undefined) reason = access[1];
+  // `'C:/very/long/path.git' does not appear to be a git repository`: likewise.
+  if (/^'[^']*' does not appear to be a git repository$/u.test(reason)) {
+    reason = 'the remote does not appear to be a git repository';
+  }
+  // `…would be overwritten by merge:` then the files, one per indented line.
+  if (reason.endsWith(':')) {
+    const listed: string[] = [];
+    for (const line of lines.slice(chosen.index + 1)) {
+      if (!/^\s+\S/u.test(line)) break;
+      listed.push(line.trim());
+    }
+    if (listed.length > 0) {
+      const shown = listed.slice(0, 3).join(', ');
+      reason = `${reason} ${shown}${listed.length > 3 ? ` and ${listed.length - 3} more` : ''}`;
+    } else {
+      reason = reason.slice(0, -1);
+    }
+  }
+  return reason;
+}
+
+function stripPrefix(line: string): string {
+  return line.replace(/^(fatal|error):\s*/u, '');
+}
+
 export function makeGitError(details: GitErrorDetails): GitError {
   const kind = classifyGitError(details.stderr, details.stdout);
   const firstLine =

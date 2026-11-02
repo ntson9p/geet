@@ -819,11 +819,18 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   aside around the merge or rebase and put back (git's `--autostash`; files added to VCS
   survive as added; staged content is left alone rather than unstaged), and a conflict putting
   them back is a warning plus a `stash-pop` conflict session (D31). **It updates the project**:
-  with no repository named — `Ctrl+T`, the popup's verb, the Operations Popup — one question
-  covers every repository, each named with its branch and upstream, then they update in order
-  and the run stops at the first failure. A repository it cannot update (detached, no upstream,
-  a merge or rebase in progress) is skipped and named, and `Reset` is offered only when a single
-  repository is in play. A Repositories row's own `Update Project…` updates just that one.
+  with no repository named — `Ctrl+T`, the popup's verb, the Operations Popup — it **fetches
+  every repository first**, together, then asks one question that says what each will pull:
+  `api: main ← origin/main · 3 to pull · 1 to push`, `web: … · up to date`, `docs: couldn't
+  fetch from origin — Could not resolve host: github.com`. With nothing to pull anywhere it asks
+  nothing and says so. Then each repository with something to pull is merged or rebased in
+  turn, and **one that stops on conflicts or fails does not stop the others**. One notification
+  says what became of every repository, problems first — *api: the merge stopped on conflicts
+  in src/app.ts. Updated web and docs: 5 commits, 9 files changed. Skipped tools (no upstream
+  branch).* — with **Show Conflicts**, and **Show Details** (the Console) when something
+  failed. A repository it cannot update (detached, no upstream, a merge or rebase in progress)
+  is skipped and named, and `Reset` is offered only when a single repository is in play. A
+  Repositories row's own `Update Project…` updates just that one, fetched first the same way.
 * **A rejected push asks, updates, and pushes again** (IntelliJ's *Push Rejected*, D32). When
   the remote has commits the branch does not, the push is not left as an error: a warning box —
   *Push of the current branch "X" was rejected. Remote changes need to be merged before

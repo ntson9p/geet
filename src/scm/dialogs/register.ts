@@ -53,9 +53,9 @@ import {
   reportUpdate,
   runRememberedUpdate,
   setUpdateStrategy,
+  scopeAsLastFetched,
   showProjectUpdate,
   showUpdateDialog,
-  updateScope,
   type ProjectUpdateResult,
   type UpdateDialogDeps,
   type UpdateOutcome,
@@ -547,8 +547,12 @@ export function registerPhase13Dialogs(
     lastPushDialogOpened,
     clearLastPushDialogRequest,
     setShowPushDialogForCommitAndPush,
-    buildUpdatePrompt: (repo) => buildUpdatePrompt(updateDeps, { targets: [repo], skipped: [] }),
-    buildProjectPrompt: (repos) => buildUpdatePrompt(updateDeps, updateScope(repos)),
+    // The question as it would read against what was fetched last: the real
+    // one is only ever built after a fetch.
+    buildUpdatePrompt: async (repo) =>
+      buildUpdatePrompt(updateDeps, await scopeAsLastFetched(updateDeps, [repo])),
+    buildProjectPrompt: async (repos) =>
+      buildUpdatePrompt(updateDeps, await scopeAsLastFetched(updateDeps, repos)),
     showProjectUpdate: (repos) => showProjectUpdate(updateDeps, repos),
     lastUpdatePrompt,
     clearLastUpdatePrompt,
