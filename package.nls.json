@@ -106,7 +106,7 @@
   "gittree.command.blame.revealCursorCommit.title": "Reveal Cursor Commit in Log",
   "gittree.command.showFileHistory.title": "Show File History (GitTree)",
   "gittree.command.branches.compareInLog.title": "Compare Branch in Log",
-  "gittree.command.branches.showInLog.title": "Show Branch in Git Log",
+  "gittree.command.branches.showInLog.title": "Show Branch in New Log Tab",
   "gittree.command.branches.cleanup.title": "Clean Up Branches…",
   "gittree.command.branches.checkoutEverywhere.title": "Checkout Branch in All Repositories…",
   "gittree.command.branches.newBranchInPanel.title": "New Branch (Branches Panel)",

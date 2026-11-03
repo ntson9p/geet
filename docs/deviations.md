@@ -472,6 +472,12 @@ only an explicit act moves it: a `Roots` row, or a command that names its reposi
 drops the parts of a filter that name one repository (paths, an explicit ref list, a range) and
 keeps the parts that travel.
 
+**A branch several repositories have** (POST-P14ay). IntelliJ's log would show it in all of
+them at once. The Branches panel's **Show in New Log Tab ›** names each repository instead, a
+tab each. Two tabs that would read the same while showing different repositories each name
+theirs, in IntelliJ's words for a root filter: `Log: on main in api` beside `Log: on main in
+web`.
+
 **Revisitable:** yes, as a phase of work. Nothing above is blocked by a VS Code API — the graph,
 the paging model and the per-commit repository identity are all ours to change.
 
@@ -911,6 +917,10 @@ What is new is the arrangement:
 * status, then relevance, then the full lists;
 * one row per branch name across repositories;
 * a card instead of a submenu for the common actions.
+
+And one item IntelliJ's branch menu has no counterpart for, **Show in New Log Tab** (POST-P14ay).
+IntelliJ's branches tree sits in the log and filters it on a double-click (`Update Branch Filter
+in Log`). The panel sits in the sidebar, so it opens the branch in a Log tab of its own.
 
 **Revisitable:** yes — the popup and the opt-in trees (`gittree.sidebar.extraViews`) are
 untouched.

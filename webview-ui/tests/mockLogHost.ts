@@ -75,10 +75,11 @@ export const mockLogHostScript = `
   const postTabs = (show) =>
     post({ v: 1, id: 'evttabs', kind: 'evt', method: 'log/tabsChanged', params: tabsDto(show) });
   // A command opening a tab of its own (File History and the like), as a test drives it.
-  window.__mockOpenTab = (filter) => {
+  // With several repositories the host also says which one the tab shows.
+  window.__mockOpenTab = (filter, repo) => {
     const s = tabsState();
     const id = 'log-' + s.next++;
-    s.tabs.push({ id, filter, closable: true });
+    s.tabs.push(repo ? { id, filter, closable: true, repo } : { id, filter, closable: true });
     s.active = id;
     postTabs(id);
     return id;

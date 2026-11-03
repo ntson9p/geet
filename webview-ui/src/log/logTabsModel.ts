@@ -87,15 +87,54 @@ export function sideLabel(count: number | undefined): string {
  * plain `Log`; a file's history reads `History: <file>` and two branches side by
  * side `Compare: a and b`, IntelliJ's names for those tabs. The sort and First
  * Parent are how the graph is drawn, not filters, so they never show.
+ *
+ * `repo` names the repository as IntelliJ names a root filter, `in api`:
+ * `Log: on main in api`, or `Log: api` with nothing else filtered.
  */
-export function tabTitle(filter: LogFilterDto): string {
+export function tabTitle(filter: LogFilterDto, repo?: string): string {
+  const where = repo !== undefined ? part(repo, 'in ') : undefined;
   if (filter.follow === true && filter.paths?.length === 1) {
-    return `History: ${basename(filter.paths[0]!)}`;
+    const history = `History: ${basename(filter.paths[0]!)}`;
+    return where !== undefined ? `${history} ${where.prefixed}` : history;
   }
   const parts = titleParts(filter);
+  if (where !== undefined) parts.push(where);
   if (parts.length === 0) return 'Log';
   const name = comparedRefs(filter) !== undefined ? 'Compare' : 'Log';
   return `${name}: ${parts.length === 1 ? parts[0]!.value : parts.map((p) => p.prefixed).join(' ')}`;
+}
+
+/**
+ * What each Log tab reads in the strip, and on hover. A tab shows one
+ * repository (D24), and its title names it only when another tab would read
+ * the same while showing a different one — `Log: on main in api` beside
+ * `Log: on main in web` — as VS Code's editor tabs add a folder only to two
+ * files of one name. The hover always names it.
+ */
+export function stripTitles(
+  tabs: readonly LogTabDto[],
+): Map<string, { readonly label: string; readonly title: string }> {
+  const repoOf = (t: LogTabDto): string | undefined =>
+    typeof t.repo === 'string' && t.repo.length > 0 ? t.repo : undefined;
+  const plain = new Map(tabs.map((t) => [t.id, tabTitle(t.filter)]));
+  const reposByTitle = new Map<string, Set<string>>();
+  for (const t of tabs) {
+    const repo = repoOf(t);
+    if (repo === undefined) continue;
+    const key = plain.get(t.id)!;
+    const repos = reposByTitle.get(key) ?? new Set<string>();
+    repos.add(repo);
+    reposByTitle.set(key, repos);
+  }
+  const out = new Map<string, { label: string; title: string }>();
+  for (const t of tabs) {
+    const bare = plain.get(t.id)!;
+    const repo = repoOf(t);
+    const named = repo !== undefined ? tabTitle(t.filter, repo) : bare;
+    const clash = (reposByTitle.get(bare)?.size ?? 0) > 1;
+    out.set(t.id, { label: clash ? named : bare, title: named });
+  }
+  return out;
 }
 
 /** Every strip item in order: the main Log tab, Console, Worktrees, then the extra Log tabs. */

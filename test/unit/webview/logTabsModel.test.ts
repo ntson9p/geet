@@ -8,6 +8,7 @@ import {
   shortRef,
   sideLabel,
   stripOrder,
+  stripTitles,
   tabTitle,
 } from '../../../webview-ui/src/log/logTabsModel';
 
@@ -93,6 +94,72 @@ describe('tabTitle (IntelliJ titles a Log tab by what it shows)', () => {
     expect(
       tabTitle({ sort: 'date', authors: [], paths: [], text: { q: '', regex: true, matchCase: false } }),
     ).toBe('Log');
+  });
+
+  it("names a repository as IntelliJ names a root filter — bare alone, 'in' among others", () => {
+    expect(tabTitle({ sort: 'date', refs: 'HEAD' }, 'api')).toBe('Log: api');
+    expect(tabTitle({ sort: 'topo', refs: ['main'] }, 'api')).toBe('Log: on main in api');
+    expect(tabTitle({ sort: 'topo', refs: ['main'], noMerges: true }, 'api')).toBe(
+      'Log: on main --no-merges in api',
+    );
+    expect(tabTitle({ sort: 'topo', range: { a: 'feature/tags', b: 'main' } }, 'api')).toBe(
+      'Compare: feature/tags and main in api',
+    );
+    expect(tabTitle({ sort: 'topo', refs: 'ALL', paths: ['src/a.ts'], follow: true }, 'api')).toBe(
+      'History: a.ts in api',
+    );
+  });
+});
+
+describe('stripTitles (a tab names its repository only where two would read the same)', () => {
+  const branchTab = (id: string, ref: string, repo?: string): LogTabDto => ({
+    id,
+    filter: { sort: 'topo', refs: [ref] },
+    closable: id !== MAIN_LOG_TAB,
+    ...(repo !== undefined ? { repo } : {}),
+  });
+  const main: LogTabDto = { id: MAIN_LOG_TAB, filter: { sort: 'date', refs: 'HEAD' }, closable: false, repo: 'api' };
+
+  it('one branch shown in two repositories: each tab says which', () => {
+    const titles = stripTitles([main, branchTab('log-1', 'main', 'api'), branchTab('log-2', 'main', 'web')]);
+    expect(titles.get('log-1')).toEqual({ label: 'Log: on main in api', title: 'Log: on main in api' });
+    expect(titles.get('log-2')).toEqual({ label: 'Log: on main in web', title: 'Log: on main in web' });
+  });
+
+  it('a title no other tab has stays short; its hover still names the repository', () => {
+    const titles = stripTitles([main, branchTab('log-1', 'main', 'api'), branchTab('log-2', 'dev', 'web')]);
+    expect(titles.get('log-1')).toEqual({ label: 'Log: main', title: 'Log: on main in api' });
+    expect(titles.get('log-2')).toEqual({ label: 'Log: dev', title: 'Log: on dev in web' });
+    expect(titles.get(MAIN_LOG_TAB)).toEqual({ label: 'Log', title: 'Log: api' });
+  });
+
+  it('two tabs alike in one repository are not told apart by it: it is the same', () => {
+    // `+` copies the tab it is opened from, repository and all.
+    const titles = stripTitles([main, branchTab('log-1', 'main', 'api'), branchTab('log-2', 'main', 'api')]);
+    expect(titles.get('log-1')?.label).toBe('Log: main');
+    expect(titles.get('log-2')?.label).toBe('Log: main');
+  });
+
+  it('the main tab is named too when an unfiltered tab shows another repository', () => {
+    const other: LogTabDto = { id: 'log-1', filter: { sort: 'date', refs: 'HEAD' }, closable: true, repo: 'web' };
+    const titles = stripTitles([main, other]);
+    expect(titles.get(MAIN_LOG_TAB)?.label).toBe('Log: api');
+    expect(titles.get('log-1')?.label).toBe('Log: web');
+  });
+
+  it('one repository in the workspace: the host names none, and nothing changes', () => {
+    const titles = stripTitles([
+      { id: MAIN_LOG_TAB, filter: { sort: 'date', refs: 'HEAD' }, closable: false },
+      branchTab('log-1', 'main'),
+      branchTab('log-2', 'main'),
+    ]);
+    expect(titles.get(MAIN_LOG_TAB)).toEqual({ label: 'Log', title: 'Log' });
+    expect(titles.get('log-1')).toEqual({ label: 'Log: main', title: 'Log: main' });
+  });
+
+  it('ignores a repository field that is not a name', () => {
+    const odd = { ...branchTab('log-1', 'main'), repo: '' };
+    expect(stripTitles([main, odd, branchTab('log-2', 'main', 'web')]).get('log-1')?.label).toBe('Log: main');
   });
 });
 

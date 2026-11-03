@@ -1983,6 +1983,43 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(stripTab(page, 'log')).toHaveText('Log');
   });
 
+  test('Log tabs: one branch shown in two repositories, each tab names its own', async ({ page }) => {
+    // With several repositories the host says which one each tab shows.
+    await page.addInitScript(() => {
+      (window as unknown as { __mockTabs?: unknown }).__mockTabs = [
+        { id: 'log', filter: { sort: 'topo', refs: 'HEAD' }, closable: false, repo: 'api' },
+      ];
+    });
+    await openLog(page);
+    const open = (refs: string[], repo: string) =>
+      page.evaluate(
+        ([r, where]) =>
+          (window as unknown as { __mockOpenTab: (f: unknown, repo: string) => string }).__mockOpenTab(
+            { sort: 'topo', refs: r },
+            where,
+          ),
+        [refs, repo] as const,
+      );
+
+    // Alone, a branch's tab reads short; the hover says where, as IntelliJ names a root.
+    await open(['release/2.0'], 'api');
+    await expect(stripTab(page, 'log-1')).toHaveText('Log: release/2.0');
+    await expect(stripTab(page, 'log-1')).toHaveAttribute('title', 'Log: on release/2.0 in api');
+    await expect(stripTab(page, 'log')).toHaveAttribute('title', 'Log: api');
+
+    // The same branch in another repository: now each says which.
+    await open(['release/2.0'], 'web');
+    await expect(stripTab(page, 'log-1')).toHaveText('Log: on release/2.0 in api');
+    await expect(stripTab(page, 'log-2')).toHaveText('Log: on release/2.0 in web');
+    await expect(stripTab(page, 'log-2')).toHaveAttribute('aria-selected', 'true');
+    // Nothing else reads `Log`, so the main tab is left as it was.
+    await expect(stripTab(page, 'log')).toHaveText('Log');
+
+    // One of the two gone, the other has nothing to be told apart from.
+    await page.getByTestId('tab-close-log-1').click();
+    await expect(stripTab(page, 'log-2')).toHaveText('Log: release/2.0');
+  });
+
   test('Log tabs: restored tabs cost nothing until they are shown', async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __mockTabs?: unknown }).__mockTabs = [

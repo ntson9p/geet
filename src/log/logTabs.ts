@@ -2,8 +2,9 @@
  * The Git tool window's Log tabs (IntelliJ's `Open Another Log Tab`, the `+`
  * beside the tabs). The first tab, `Log`, is always there; the others are
  * opened with `+` (a copy of the current filters), by File History, by Compare
- * with Current and by an update's Show in Log, and closed with their `×` or
- * the tab menu's Close Tab / Close Other Tabs / Close All Tabs.
+ * with Current, by a branch's Show in New Log Tab and by an update's Show in
+ * Log, and closed with their `×` or the tab menu's Close Tab / Close Other
+ * Tabs / Close All Tabs.
  *
  * This is only the list: which tabs exist, what each one filters, which one
  * commands act on. Nothing here imports `vscode`; `LogViewProvider` owns the

@@ -111,11 +111,28 @@ export function headName(repo: RepoHandle): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * `Show in New Log Tab`: the ref's history in a Log tab of its own, so the
+ * filters the Log's tabs were set to survive. One already showing exactly
+ * that comes forward instead (`gittree.branches.showInLog`). It changes
+ * nothing, so it needs no registry entry.
+ */
+function logTabRun(repo: RepoHandle, name: string): BranchPanelRunDto {
+  return { type: 'command', command: 'gittree.branches.showInLog', root: repo.root, arg: name };
+}
+
+/** Where `Show in New Log Tab` goes among a ref's registry entries. */
+const SHOW_IN_LOG = 'showInLog';
+
+/**
  * One repository's menu for one ref: the registry's applicable actions, in
  * its order, a rule wherever the group changes. Two entries become something
  * a webview can do better than the registry's QuickPick fallbacks:
  * `New Branch from…` opens the panel's own form, and `Tracked Branch` is a
  * real submenu holding the upstream's own actions, as in IntelliJ.
+ *
+ * `Show in New Log Tab` leads the group that looks at the ref, beside
+ * `Compare with…` and `Show Diff with Working Tree`, right after the checkout
+ * group, where IntelliJ keeps its own ways of looking.
  */
 function repoRefMenu(
   deps: PanelActionDeps,
@@ -128,10 +145,23 @@ function repoRefMenu(
   const items: BranchPanelMenuItemDto[] = [];
   let lastGroup: string | undefined;
   const root = pinRoot ? repo.root : undefined;
-  for (const action of applicableBranchActions(deps.actions, ctx)) {
-    const group = action.group ?? 'manage';
+  const actions = applicableBranchActions(deps.actions, ctx);
+  const lookAt = actions.findIndex((a) => (a.group ?? 'manage') !== 'checkout');
+  const entries: Array<BranchAction | typeof SHOW_IN_LOG> = [...actions];
+  entries.splice(lookAt === -1 ? entries.length : lookAt, 0, SHOW_IN_LOG);
+  for (const action of entries) {
+    const group = action === SHOW_IN_LOG ? 'compare' : (action.group ?? 'manage');
     if (lastGroup !== undefined && group !== lastGroup) items.push({ kind: 'separator' });
     lastGroup = group;
+    if (action === SHOW_IN_LOG) {
+      items.push({
+        kind: 'item',
+        label: vscode.l10n.t('Show in New Log Tab'),
+        icon: 'git-commit',
+        run: logTabRun(repo, ctx.name),
+      });
+      continue;
+    }
     if (action.id === 'newFrom') {
       items.push({
         kind: 'item',
@@ -172,16 +202,6 @@ function repoRefMenu(
       },
       ...(action.accelerator !== undefined ? { accelerator: action.accelerator } : {}),
       ...(ACTION_ICON[action.id] !== undefined ? { icon: ACTION_ICON[action.id] } : {}),
-    });
-  }
-  // Showing the branch's history needs no registry entry: it changes nothing.
-  if (target.kind !== 'tag' || items.length > 0) {
-    items.push({ kind: 'separator' });
-    items.push({
-      kind: 'item',
-      label: vscode.l10n.t('Show in Git Log'),
-      icon: 'git-commit',
-      run: { type: 'command', command: 'gittree.branches.showInLog', root: repo.root, arg: ctx.name },
     });
   }
   return items;
@@ -233,7 +253,8 @@ function acrossRun(
 /**
  * A branch row's menu. In one repository, that repository's menu. Across
  * several, the operations that run in all of them first — labelled with how
- * many they will touch — then one submenu per repository holding its own.
+ * many they will touch — then `Show in New Log Tab` naming each repository,
+ * then one submenu per repository holding its own.
  *
  * `scope` is every repository in view: a Checkout across them reaches the ones
  * where only a remote has the branch (POST-P14ax).
@@ -281,6 +302,20 @@ export function branchMenu(
     label: vscode.l10n.t("New Branch from '{0}' in {1} Repositories…", target.name, pairs.length),
     icon: 'add',
     run: { type: 'newBranch', from: target.name, roots: pairs.map((p) => p.repo.root) },
+  });
+  // The log draws one repository at a time (D24), so a branch several of them
+  // have is shown in the repository picked here, each in a tab of its own.
+  items.push({ kind: 'separator' });
+  items.push({
+    kind: 'submenu',
+    label: vscode.l10n.t('Show in New Log Tab'),
+    icon: 'git-commit',
+    items: pairs.map(({ repo, ctx }) => ({
+      kind: 'item',
+      label: deps.labelOf(repo.root),
+      icon: 'repo',
+      run: logTabRun(repo, ctx.name),
+    })),
   });
   items.push({ kind: 'separator' });
   items.push({ kind: 'header', label: vscode.l10n.t('In one repository') });

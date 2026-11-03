@@ -66,6 +66,8 @@ function isEnabled(item: MenuItem): boolean {
 
 export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  /** The open submenu, drawn beside this menu rather than inside it. */
+  const subRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const [pos, setPos] = useState(at);
   const [active, setActive] = useState<number>(() => items.findIndex(isEnabled));
@@ -98,7 +100,10 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuPr
   useEffect(() => {
     if (nested === true) return undefined;
     const onDown = (e: MouseEvent): void => {
-      if (!hostRef.current?.contains(e.target as Node)) onClose();
+      // A press in a submenu is a press in the menu. Missing that, the menu
+      // closed under the press, and a click never picked a submenu's item.
+      const target = e.target as Node;
+      if (!hostRef.current?.contains(target) && !subRef.current?.contains(target)) onClose();
     };
     // `capture` so a click on a row underneath cannot act before we dismiss.
     document.addEventListener('mousedown', onDown, true);
@@ -255,20 +260,23 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuPr
         })}
       </div>
       {openSub !== null && sub?.kind === 'submenu' ? (
-        <Menu
-          nested
-          items={sub.items}
-          at={{ x: openSub.x, y: openSub.y }}
-          ariaLabel={sub.label}
-          onSelect={(id) => {
-            onSelect(id);
-            onClose();
-          }}
-          onClose={() => {
-            setOpenSub(null);
-            hostRef.current?.focus();
-          }}
-        />
+        // No box of its own (each menu is fixed in place): only for `contains`.
+        <div ref={subRef} style={{ display: 'contents' }}>
+          <Menu
+            nested
+            items={sub.items}
+            at={{ x: openSub.x, y: openSub.y }}
+            ariaLabel={sub.label}
+            onSelect={(id) => {
+              onSelect(id);
+              onClose();
+            }}
+            onClose={() => {
+              setOpenSub(null);
+              hostRef.current?.focus();
+            }}
+          />
+        </div>
       ) : null}
     </>
   );

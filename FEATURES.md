@@ -242,7 +242,12 @@ standing open (D34). It answers three questions, top to bottom.
     there is one and a new one tracking the remote branch where not. A remote row does the
     same. A repository with no such branch stays where it is, and one in the middle of a merge
     or with conflicts to resolve is skipped; the result says which.
-  - **Show in Git Log** opens the branch's history in a Log tab of its own.
+  - **Show in New Log Tab** opens the branch's graph in a Log tab of its own in the Git panel
+    (`Log: release/2.0`), so the tabs already open keep their filters; a tab already showing it
+    comes forward instead. It leads the group that looks at a branch, after the checkout group
+    and beside **Compare with `'main'`** and **Show Diff with Working Tree**, and a remote
+    branch or a tag has it too. The log draws one repository at a time (**D24**), so a branch
+    several repositories have offers **Show in New Log Tab ›** naming each of them.
 * **Drag** a local branch onto another to merge or rebase (the branch trees' own prompt).
 * **The toolbar:** the filter, **Fetch** (every repository; spins until done), **New Branch**,
   and **`⋯`**:
@@ -491,12 +496,17 @@ docked bottom, tabs `Log | Console`").
   by IntelliJ's own rule: `Log` unfiltered; one filter reads as its value (`Log: 2026.1`,
   `Log: --no-merges`); several each take IntelliJ's prefix, joined by spaces
   (`Log: on main by Ava made since 2026-10-01 --no-merges`); `History: store.ts` for a
-  file's history. The sort and First Parent never show. The full title is the hover. Extra tabs close
+  file's history. The sort and First Parent never show. The full title is the hover. With
+  several repositories, two tabs that would read the same while showing different ones each
+  name theirs, in IntelliJ's words for a root filter (`Log: on main in api` beside `Log: on
+  main in web`), as VS Code's editor tabs add a folder only to two files of one name; the
+  hover always names it. Extra tabs close
   with their **`×`**, a middle-click, or the tab menu (right-click): **Close Tab · Close Other
   Tabs · Close All Tabs**. The first Log tab never closes, and Console and Worktrees stay too
   (**D33**). Closing the tab in front brings its left neighbour forward.
 * **Commands that used to overwrite your filter open a tab of their own:** File History
-  (`History: <file>`), Compare with Current and an update's `Show in Log`. A tab already
+  (`History: <file>`), Compare with Current, the Branches panel's **Show in New Log Tab**
+  (`Log: <branch>`) and an update's `Show in Log`. A tab already
   showing exactly that (the sort aside) is brought forward instead, so running File History
   on one file twice lands on one tab. Navigation stays in the tab in front: blame's
   Show in Log, Go to Hash/Branch/Tag, Go to Parent/Child.

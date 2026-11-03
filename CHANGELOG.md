@@ -42,6 +42,26 @@ real file, so you can edit as you go, and a tab you have edited stays open when 
 An untracked file now opens as a diff too, and so does one deleted from disk, instead of as a plain
 document with no way on.
 
+### Added — a branch's graph in a Log tab of its own, from the Branches panel
+
+Right-click a branch in the Branches panel, local or remote, or a tag: **Show in New Log Tab** opens
+its graph in a new tab of the Git panel's Log (`Log: release/2.0`) and leaves the tabs already open
+as they were. Asked again, that tab comes forward instead of a second one. The item sits with the
+other ways of looking at a branch, right after the checkout group, beside **Compare with 'main'**
+and **Show Diff with Working Tree**. It used to be the menu's last item, as **Show in Git Log**, and
+a branch several repositories have offered it only inside each repository's own submenu.
+
+The log draws one repository at a time, so a branch several repositories have offers **Show in New
+Log Tab ›** naming each of them. Two tabs showing one branch in two repositories say which is which,
+in IntelliJ's words for a repository: `Log: on main in api` beside `Log: on main in web`. Any tab's
+hover names its repository.
+
+### Fixed — a click in a submenu did nothing
+
+A click on an item in a submenu closed the menu and did nothing. This hit every repository's own
+menu and **Tracked Branch** in the Branches panel, **Columns** in the log's Presentation Settings
+and **Delete preset** in its saved filters. The keyboard worked.
+
 ### Added — one branch in every repository: Checkout across them, and New Branch from a common one
 
 **Checkout Branch in All Repositories…** in the Branches panel's `⋯` and the Command Palette lists

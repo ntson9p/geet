@@ -17,6 +17,7 @@ import type {
   BranchPanelTargetDto,
 } from '../../../src/shared/protocol';
 import type { BranchOps } from '../../../src/branches/branchOps';
+import type { Phase04Registry } from '../../../src/log/register';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import { repoLabels } from '../../../src/core/util/repoLabels';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
@@ -137,8 +138,9 @@ suite('new-way-4 Branches panel', () => {
     const items = await panel.menu({ target });
     const labels = items.flatMap((i) => (i.kind === 'item' || i.kind === 'submenu' ? [i.label] : []));
     assert.ok(labels.includes('Checkout in all 2 repositories'), labels.join(' | '));
-    assert.ok(items.some((i) => i.kind === 'header' && i.label === 'In one repository'));
-    const subs = items.filter((i) => i.kind === 'submenu');
+    const header = items.findIndex((i) => i.kind === 'header' && i.label === 'In one repository');
+    assert.ok(header > 0);
+    const subs = items.slice(header + 1).filter((i) => i.kind === 'submenu');
     assert.strictEqual(subs.length, 2, 'a submenu per repository');
     const first = subs[0];
     assert.ok(first?.kind === 'submenu');
@@ -705,6 +707,98 @@ suite('new-way-4 Branches panel', () => {
       assert.ok(said?.message.includes('gtp/from-base is there, not checked out'), said?.message);
       fs.rmSync(path.join(repoD.root, 'gtp-base.txt'));
     });
+  });
+
+  // ---- Show in New Log Tab ----------------------------------------------------
+
+  const showInLog = (repo: RepoHandle, name: string): BranchPanelRunDto => ({
+    type: 'command',
+    command: 'gittree.branches.showInLog',
+    root: repo.root,
+    arg: name,
+  });
+
+  test('T23 Show in New Log Tab sits with the ways of looking at a branch, and names each repository', async () => {
+    const one = await panel.menu({ target: { kind: 'local', name: 'gtp/shared', roots: [repoD.root] } });
+    const at = one.findIndex((i) => i.kind === 'item' && i.label === 'Show in New Log Tab');
+    const show = one[at];
+    assert.ok(show?.kind === 'item', labelsIn(one).join(' | '));
+    assert.deepStrictEqual(show.run, showInLog(repoD, 'gtp/shared'));
+    assert.strictEqual(labelsIn(one).filter((l) => l === 'Show in New Log Tab').length, 1, 'once');
+    // After the checkout group, leading Compare with… and Show Diff with Working Tree.
+    assert.strictEqual(one[at - 1]?.kind, 'separator');
+    const before = one[at - 2];
+    assert.ok(before?.kind === 'item' && /^(Checkout|New Branch from)/u.test(before.label), JSON.stringify(before));
+    const after = one[at + 1];
+    assert.ok(
+      after?.kind === 'item' && /^(Compare with|Show Diff with Working Tree)/u.test(after.label),
+      JSON.stringify(after),
+    );
+
+    // A remote branch has it too, and shows the remote branch.
+    const remoteBranch = `${REMOTE}/gtp/develop`;
+    const remote = await panel.menu({ target: { kind: 'remote', name: remoteBranch, roots: [repoD.root] } });
+    const remoteItem = remote.find((i) => i.kind === 'item' && i.label === 'Show in New Log Tab');
+    assert.ok(remoteItem?.kind === 'item', labelsIn(remote).join(' | '));
+    assert.deepStrictEqual(remoteItem.run, showInLog(repoD, remoteBranch));
+
+    // A branch both have: the Log draws one repository at a time, so it asks which.
+    const both = await panel.menu({
+      target: { kind: 'local', name: 'gtp/shared', roots: [repoD.root, repoE.root] },
+    });
+    const sub = both.find((i) => i.kind === 'submenu' && i.label === 'Show in New Log Tab');
+    assert.ok(sub?.kind === 'submenu', labelsIn(both).join(' | '));
+    const labels = repoLabels(core.repos.map((r) => r.root));
+    assert.deepStrictEqual(
+      sub.items.map((i) => (i.kind === 'item' ? { label: i.label, run: i.run } : i.kind)),
+      [repoD, repoE].map((repo) => ({ label: labels.get(repo.root), run: showInLog(repo, 'gtp/shared') })),
+    );
+    // After what runs in all of them, before each repository's own menu.
+    const header = both.findIndex((i) => i.kind === 'header' && i.label === 'In one repository');
+    const where = both.indexOf(sub);
+    assert.ok(where > 0 && where < header, labelsIn(both).join(' | '));
+  });
+
+  test('T24 Show in New Log Tab opens that repository’s branch in a Log tab of its own, once', async function () {
+    this.timeout(120_000);
+    const log = (core.debugRegistry.get('phase04') as Phase04Registry).logView;
+    await vscode.commands.executeCommand('gittree.log.focus');
+    await waitFor(() => log.currentSession !== undefined, 30_000);
+    const before = log.logTabs.tabs;
+    const inFront = log.logTabs.active;
+    const labels = repoLabels(core.repos.map((r) => r.root));
+    const opened: string[] = [];
+    try {
+      await panel.run(showInLog(repoE, 'gtp/shared'));
+      const tabE = log.logTabs.active;
+      assert.ok(!before.includes(tabE), 'a tab of its own: the one in front keeps its filter');
+      opened.push(tabE);
+      await waitFor(() => log.currentSession?.logTab === tabE, 30_000);
+      assert.strictEqual(canonicalKey(log.currentSession!.repoRoot), canonicalKey(repoE.root));
+      assert.deepStrictEqual(log.currentSession!.filter.refs, ['gtp/shared']);
+      await waitFor(() => (log.currentSession?.rowCount ?? 0) > 0, 30_000);
+      // The strip can say which repository it shows: there are several.
+      assert.strictEqual(log.logTabs.repos[tabE], labels.get(repoE.root));
+
+      // Asked again, that tab comes forward: no second one.
+      await panel.run(showInLog(repoE, 'gtp/shared'));
+      assert.strictEqual(log.logTabs.active, tabE);
+      assert.strictEqual(log.logTabs.tabs.length, before.length + 1);
+
+      // The same branch in the other repository is a tab of its own.
+      await panel.run(showInLog(repoD, 'gtp/shared'));
+      const tabD = log.logTabs.active;
+      assert.notStrictEqual(tabD, tabE);
+      opened.push(tabD);
+      await waitFor(() => log.currentSession?.logTab === tabD, 30_000);
+      assert.strictEqual(canonicalKey(log.currentSession!.repoRoot), canonicalKey(repoD.root));
+      assert.strictEqual(log.logTabs.repos[tabD], labels.get(repoD.root));
+    } finally {
+      log.closeLogTabs(opened);
+      log.showLogTab(inFront);
+    }
+    assert.deepStrictEqual(log.logTabs.tabs, before, 'the Log is left as it was found');
+    assert.strictEqual(log.logTabs.active, inFront);
   });
 
   test('T17 a right-click on the opt-in Branches tree reaches the branch', async function () {

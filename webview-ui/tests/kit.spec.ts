@@ -121,6 +121,32 @@ test.describe('P11-T1 menu', () => {
     await expect(menu).toHaveCount(0);
   });
 
+  test('a click picks an item in a submenu', async ({ page }) => {
+    // The menu used to close on the press, since a submenu is drawn beside
+    // its menu and not inside it, and the click then landed on nothing.
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    const menu = page.getByRole('menu', { name: 'Branch actions' });
+    await menu.getByRole('menuitem', { name: 'Compare' }).click();
+    const sub = page.getByRole('menu', { name: 'Compare' });
+    await expect(sub).toBeVisible();
+    await sub.getByRole('menuitem', { name: 'Show Diff with Working Tree' }).click();
+    await expect(page.getByTestId('menu-picked')).toHaveText('diff-working');
+    await expect(menu).toHaveCount(0);
+    await expect(sub).toHaveCount(0);
+  });
+
+  test('a click outside a menu with a submenu open still closes both', async ({ page }) => {
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    await page.getByRole('menu', { name: 'Branch actions' }).getByRole('menuitem', { name: 'Compare' }).hover();
+    await expect(page.getByRole('menu', { name: 'Compare' })).toBeVisible();
+    await page.mouse.click(5, 5);
+    await expect(page.getByRole('menu', { name: 'Branch actions' })).toHaveCount(0);
+    await expect(page.getByRole('menu', { name: 'Compare' })).toHaveCount(0);
+    await expect(page.getByTestId('menu-picked')).not.toHaveText('diff-working');
+  });
+
   test('interpolated labels, accelerators and disabled items render', async ({ page }) => {
     await openKit(page, 'Menu');
     await page.getByTestId('open-menu').click();

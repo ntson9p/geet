@@ -6,7 +6,9 @@
  * Tab / Close Other Tabs / Close All Tabs; only the extra Log tabs ever close.
  *
  * The host owns the Log tabs: it opens them for File History, Compare with
- * Current and an update's Show in Log, and keeps them across restarts. The
+ * Current, a branch's Show in New Log Tab and an update's Show in Log, and
+ * keeps them across restarts. Each shows one repository; a title names it
+ * when two tabs would otherwise read the same (`stripTitles`). The
  * strip asks for the list once and then follows `evtTabs`. A Log tab is
  * mounted the first time it is shown and kept from then on, so a tab restored
  * after a restart costs nothing until it is looked at, and one already seen
@@ -35,7 +37,7 @@ import {
   afterClose,
   closeTargets,
   stripOrder,
-  tabTitle,
+  stripTitles,
   type CloseAction,
 } from './logTabsModel';
 import type { ShellLayout } from './Shell';
@@ -287,12 +289,13 @@ export function App() {
     getVsCodeApi().setState({ ...state, tabsUi: { ...tabsUi, [id]: { ...tabsUi[id], ...patch } } });
   };
 
+  const titles = stripTitles(tabs);
   const stripTabs: TabDef[] = stripOrder(tabs).map((id) => {
     if (id === 'console') return { id, label: 'Console' };
     if (id === 'worktrees') return { id, label: 'Worktrees' };
     const tab = tabs.find((t) => t.id === id);
-    const title = tab !== undefined ? tabTitle(tab.filter) : 'Log';
-    return { id, label: title, title, closable: tab?.closable === true };
+    const { label, title } = titles.get(id) ?? { label: 'Log', title: 'Log' };
+    return { id, label, title, closable: tab?.closable === true };
   });
 
   const menuItems = (id: string): MenuItem[] => [

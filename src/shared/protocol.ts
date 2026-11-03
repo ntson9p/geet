@@ -1130,6 +1130,12 @@ export interface LogTabDto {
   filter: LogFilterDto;
   /** Every tab but the first, which is the log itself. */
   closable: boolean;
+  /**
+   * The repository the tab shows, by the name `Roots` gives it, when the
+   * workspace has more than one. Two tabs that would read the same, each
+   * showing its own repository, add it to their titles.
+   */
+  repo?: string;
 }
 
 /** The Log tabs, and which one commands act on. */

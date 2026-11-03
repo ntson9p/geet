@@ -199,12 +199,25 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   }
 
   private tabsDto(show?: string): LogTabsDto {
+    // Each tab shows one repository (D24); with several in the workspace, the
+    // strip may have to say which, in the names `Roots` uses.
+    const labels = this.core.repos.length > 1 ? repoLabels(this.core.repos.map((r) => r.root)) : undefined;
+    const repoOf = (tab: LogTabRecord): string | undefined => {
+      if (labels === undefined) return undefined;
+      const root = this.rootOfTab(tab);
+      const repo = root !== undefined ? this.core.getRepo(root) : undefined;
+      return repo !== undefined ? labels.get(repo.root) : undefined;
+    };
     return {
-      tabs: this.tabsState.tabs.map((tab) => ({
-        id: tab.id,
-        filter: this.sessions.get(tab.id)?.filter ?? tab.filter,
-        closable: isClosable(tab.id),
-      })),
+      tabs: this.tabsState.tabs.map((tab) => {
+        const repo = repoOf(tab);
+        return {
+          id: tab.id,
+          filter: this.sessions.get(tab.id)?.filter ?? tab.filter,
+          closable: isClosable(tab.id),
+          ...(repo !== undefined ? { repo } : {}),
+        };
+      }),
       active: this.tabsState.active,
       ...(show !== undefined ? { show } : {}),
     };
@@ -379,16 +392,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     rpc.on(LOG_METHODS.closeTabs, (params) => {
       const ids = (params as { tabs?: unknown } | undefined)?.tabs;
       const closing = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
-      const next = closeTabs(this.tabsState, closing);
-      if (next === this.tabsState) return { ok: false };
-      for (const id of closing) if (isClosable(id)) this.dropSession(id);
-      this.tabsState = next;
-      this.saveTabs();
-      this.debugTrail.push(`tabs closed ${closing.join(',')}`);
-      // No `onActivated` here: the strip says which tab it brings forward next
-      // (`activateTab`), and re-paging the fallback first would be wasted.
-      this.notifyTabs();
-      return { ok: true };
+      return { ok: this.closeLogTabs(closing) };
     });
     rpc.on(LOG_METHODS.activateTab, (params) => {
       const tab = tabOf(params);
@@ -685,9 +689,13 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
     // A repository joining or leaving the workspace changes the `Roots` list
     // and nothing else, so it is pushed on its own — `evtReset` would restart
-    // paging and drop the selection over a list of repository names.
+    // paging and drop the selection over a list of repository names. The tabs
+    // go too: whether they name their repositories, and by what, can change.
     this.rootsSub?.dispose();
-    const notifyRoots = (): void => this.rpc?.notify(LOG_METHODS.evtRoots, { roots: this.roots() });
+    const notifyRoots = (): void => {
+      this.rpc?.notify(LOG_METHODS.evtRoots, { roots: this.roots() });
+      this.notifyTabs();
+    };
     const addSub = this.core.onDidAddRepo(notifyRoots);
     const removeSub = this.core.onDidRemoveRepo(notifyRoots);
     this.rootsSub = new vscode.Disposable(() => {
@@ -1220,11 +1228,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       (a, b) => canonicalKey(a) === canonicalKey(b),
     );
     if (existing !== undefined) {
-      this.tabsState = activateTab(this.tabsState, existing);
-      this.saveTabs();
       this.debugTrail.push(`tab reused ${existing}`);
-      this.notifyTabs(existing);
-      this.onActivated(existing);
+      this.showLogTab(existing);
       return;
     }
     const opened = openTab(this.tabsState, filter, root);
@@ -1328,9 +1333,48 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       : undefined;
   }
 
-  /** The Log tabs, as the integration tests read them. */
-  get logTabs(): { tabs: readonly string[]; active: string } {
-    return { tabs: this.tabsState.tabs.map((tab) => tab.id), active: this.tabsState.active };
+  /**
+   * The Log tabs, as the integration tests read them: their ids, the active
+   * one, and the repository each one names when the strip has to say.
+   */
+  get logTabs(): { tabs: readonly string[]; active: string; repos: Readonly<Record<string, string>> } {
+    const repos: Record<string, string> = {};
+    for (const tab of this.tabsDto().tabs) if (tab.repo !== undefined) repos[tab.id] = tab.repo;
+    return { tabs: this.tabsState.tabs.map((tab) => tab.id), active: this.tabsState.active, repos };
+  }
+
+  /**
+   * Brings a Log tab forward: commands act on it from now on, and the strip
+   * shows it. A command finding its tab already open, and a test putting the
+   * Log back as it found it.
+   * @returns false when there is no such tab.
+   */
+  showLogTab(id: string): boolean {
+    if (!this.tabsState.tabs.some((tab) => tab.id === id)) return false;
+    this.tabsState = activateTab(this.tabsState, id);
+    this.saveTabs();
+    this.notifyTabs(id);
+    this.onActivated(id);
+    return true;
+  }
+
+  /**
+   * Closes extra Log tabs: the strip's `×` and Close Tab, and a test putting
+   * the Log back as it found it. The main tab never closes; if the active
+   * tab goes, the main tab is active.
+   * @returns false when none of `ids` was a tab that could close.
+   */
+  closeLogTabs(ids: readonly string[]): boolean {
+    const next = closeTabs(this.tabsState, ids);
+    if (next === this.tabsState) return false;
+    for (const id of ids) if (isClosable(id)) this.dropSession(id);
+    this.tabsState = next;
+    this.saveTabs();
+    this.debugTrail.push(`tabs closed ${ids.join(',')}`);
+    // No `onActivated` here: the strip says which tab it brings forward next
+    // (`activateTab`), and re-paging the fallback first would be wasted.
+    this.notifyTabs();
+    return true;
   }
 
   // ---- pickers (host-side QuickPicks/InputBoxes) ----------------------------
