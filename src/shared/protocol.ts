@@ -137,6 +137,11 @@ export interface CommitOpenDiffParamsDto extends CommitDiffFileDto {
   files: CommitDiffFileDto[];
 }
 
+/** The row a diff opened from this list is showing. No `file`: none is on screen. */
+export interface CommitDiffOnScreenDto {
+  file?: CommitDiffFileDto;
+}
+
 export interface CommitStateDto {
   repos: CommitRepoDto[];
   /** Repo the message box and the amend checkbox act on. */
@@ -165,6 +170,8 @@ export interface CommitStateDto {
    * statuses fall back to GitTree's own `gittree.color.*` theme colors (P14-T5).
    */
   colors?: Record<string, string>;
+  /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
+  diffOnScreen?: CommitDiffFileDto;
 }
 
 /**
@@ -207,6 +214,8 @@ export const COMMIT_METHODS = {
   diffChain: 'commit/diffChain',
   /** host → webview: the walk moved to another file (`CommitDiffFileDto`). */
   evtDiffFile: 'commit/diffFile',
+  /** host → webview: the file whose diff is on screen, or none (`CommitDiffOnScreenDto`). */
+  evtDiffOnScreen: 'commit/diffOnScreen',
   /** host → webview: `Open Changes` from a row's menu (`CommitDiffFileDto`). */
   evtOpenDiff: 'commit/openDiffAt',
   rollback: 'commit/rollback',
@@ -1113,6 +1122,8 @@ export interface LogInitDto {
   presentation?: LogPresentationDto;
   /** The Log tab this init is for (`LogTabDto.id`); absent means the main tab. */
   logTab?: string;
+  /** `LogDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
+  diffOnScreen?: { sha: string; path: string };
   /**
    * Set only on an `evtReset` the *host* raised because history moved (a
    * commit, checkout, rebase, pull…), never on one the user asked for. The
@@ -1179,6 +1190,15 @@ export interface LogChangedFilesDto {
   newest?: string;
   /** Present for several commits: the ones the files come from, newest first. */
   shas?: string[];
+}
+
+/**
+ * The file a diff opened from one Log tab's Changed Files is showing. `sha` is
+ * the `newest` of the change set it was opened from. No `file`: none is on screen.
+ */
+export interface LogDiffOnScreenDto {
+  logTab: string;
+  file?: { sha: string; path: string };
 }
 
 /** P12-T8 — one Console row: a redacted, structured git run. */
@@ -1367,6 +1387,8 @@ export const LOG_METHODS = {
   evtReveal: 'log/reveal',
   /** A diff opened from the pane moved to another of its files: `{ logTab, sha, path }`. */
   evtDiffFile: 'log/diffFile',
+  /** The file whose diff, opened from this tab's pane, is on screen, or none (`LogDiffOnScreenDto`). */
+  evtDiffOnScreen: 'log/diffOnScreen',
   /** P12-T2: refs changed (branch created/deleted, favorite toggled…). */
   evtBranches: 'log/branchesChanged',
   /**

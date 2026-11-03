@@ -20,11 +20,13 @@ import { isUntracked, shortCode, type StatusEntry } from '../../core/model/statu
 import { canonicalKey } from '../../core/repoDiscovery';
 import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
+import { nextMark } from '../../diff/onScreen';
 import { settleWorktreeSide } from '../../diff/worktreeSide';
 import {
   COMMIT_METHODS,
   type CommitChangeDto,
   type CommitDiffFileDto,
+  type CommitDiffOnScreenDto,
   type CommitFileDiffDto,
   type CommitOpenDiffParamsDto,
   type CommitGroupDto,
@@ -103,6 +105,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   /** POST-P14l: the Stash tab data source, attached by the same layer. */
   private stashBridge: StashBridge | undefined;
   private readonly subs: vscode.Disposable[] = [];
+  /** The file a diff opened from this list is showing, which the tree marks. */
+  private diffOnScreen: CommitDiffFileDto | undefined;
   /** Test observability, mirroring the RebaseViewController convention. */
   readonly debugTrail: string[] = [];
 
@@ -257,6 +261,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       paradigm: this.deps.paradigm.paradigm,
       ...(this.lastError !== undefined ? { error: this.lastError } : {}),
       colors: statusColorOverrides(),
+      ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
     };
   }
 
@@ -360,9 +365,29 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       onShown: () => {
         this.rpc?.notify(COMMIT_METHODS.evtDiffFile, { repoRoot: repo.root, path: relPath });
       },
+      onScreen: (showing) => this.markDiffOnScreen({ repoRoot: repo.root, path: relPath }, showing),
       ...(sides.right === 'worktree' ? { settle: () => settleWorktreeSide(entry, repo.root, relPath) } : {}),
     };
     return entry;
+  }
+
+  /** A diff opened from this list came on screen or left it: the tree marks the file it shows. */
+  private markDiffOnScreen(file: CommitDiffFileDto, showing: boolean): void {
+    const next = nextMark(
+      this.diffOnScreen,
+      file,
+      showing,
+      (a, b) => a.repoRoot === b.repoRoot && a.path === b.path,
+    );
+    if (next === 'unchanged') return;
+    this.diffOnScreen = next.mark;
+    const dto: CommitDiffOnScreenDto = next.mark !== undefined ? { file: next.mark } : {};
+    this.rpc?.notify(COMMIT_METHODS.evtDiffOnScreen, dto);
+  }
+
+  /** Test seam: the file the tree marks as on screen. */
+  get diffOnScreenFile(): CommitDiffFileDto | undefined {
+    return this.diffOnScreen;
   }
 
   /** True once the view has been made visible and the webview exists. */

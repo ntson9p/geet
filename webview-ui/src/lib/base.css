@@ -396,15 +396,36 @@ button {
   flex: 0 1 auto;
 }
 
+/* The keyboard's row is lit only while the tree has the keyboard, as VS Code's
+   and IntelliJ's are. Lit all the time, it outlived the selection it came with:
+   after a diff had walked the list on to another file, the row first opened was
+   the brighter of the two. */
+.gt-tree .gt-virtual-row.gt-focused {
+  background: transparent;
+  color: inherit;
+}
+
+.gt-tree .gt-virtual-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
 /* Full-width selection bar — IntelliJ highlights the row, not the label. */
 .gt-tree .gt-virtual-row[aria-selected='true'] {
   background: var(--vscode-list-inactiveSelectionBackground);
 }
 
-.gt-tree .gt-virtual-row.gt-focused[aria-selected='true'],
-.gt-tree .gt-virtual-row.gt-focused {
+.gt-tree:focus-within .gt-virtual-row.gt-focused {
   background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* The file a diff opened from the tree is showing: its name highlighted the way
+   VS Code highlights one in a tree view (its rule for `.pane-body .monaco-tl-contents
+   .highlight`), which is how the Compare pane's native tree shows the same thing. */
+.gt-tree-current .gt-tree-name {
+  background-color: var(--vscode-list-filterMatchBackground);
+  outline: 1px dotted var(--vscode-list-filterMatchBorder);
+  outline-offset: -1px;
 }
 
 /* ---- Tabs ---- */
@@ -829,7 +850,8 @@ button {
     background: Highlight;
   }
 
-  .gt-tree .gt-virtual-row[aria-selected='true'] {
+  .gt-tree .gt-virtual-row[aria-selected='true'],
+  .gt-tree:focus-within .gt-virtual-row.gt-focused {
     forced-color-adjust: none;
     background: SelectedItem;
     color: SelectedItemText;

@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   COMMIT_METHODS,
   type CommitDiffFileDto,
+  type CommitDiffOnScreenDto,
   type CommitFileDiffDto,
   type CommitHistoryDto,
   type CommitMessageEvtDto,
@@ -132,6 +133,8 @@ export function App() {
   );
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   const [reveal, setReveal] = useState<{ readonly path: string } | undefined>(undefined);
+  // The file a diff opened from the list is showing, while it is on screen.
+  const [diffOnScreen, setDiffOnScreen] = useState<CommitDiffFileDto | undefined>(undefined);
   // Mirror of the uncontrolled editor's value — drives `canCommit`, the
   // webview-state persist, and re-seeds the editor when its TabPanel remounts
   // after a Shelf-tab round trip (P11-T6). The editor owns the DOM value; a
@@ -159,6 +162,7 @@ export function App() {
 
   const apply = useCallback((next: CommitStateDto) => {
     setState(next);
+    setDiffOnScreen(next.diffOnScreen);
     setReady(true);
   }, []);
 
@@ -288,11 +292,21 @@ export function App() {
       const treePath = treePathOf(modelRef.current, p as CommitDiffFileDto);
       if (treePath !== undefined) openDiffAt(treePath);
     });
+    const offOnScreen = rpc.onEvent(COMMIT_METHODS.evtDiffOnScreen, (p) => {
+      setDiffOnScreen((p as CommitDiffOnScreenDto).file);
+    });
     return () => {
       offMoved();
       offOpen();
+      offOnScreen();
     };
   }, [openDiffAt, rpc]);
+
+  // Looked up in each new tree, so a file moved to another changelist keeps its mark.
+  const onScreenPath = useMemo(
+    () => (diffOnScreen !== undefined ? treePathOf(model, diffOnScreen) : undefined),
+    [diffOnScreen, model],
+  );
 
   // Refresh turns until the host has re-read every repository and pushed the
   // state it found — the moment the badge and the tree are current.
@@ -593,12 +607,21 @@ export function App() {
       onToggleCheck={onToggleCheck}
       selection={selection}
       onSelectionChange={(paths) => setSelection(new Set(paths))}
-      onActivate={(node) => openDiffAt(node.path)}
+      onActivate={(node) => {
+        if (!model.files.has(node.path)) return;
+        openDiffAt(node.path);
+        // Enter opens the keyboard's row, which the arrows moved without
+        // selecting: the selection goes with the diff, as it does on a walk.
+        setSelection((prev) =>
+          prev.size === 1 && prev.has(node.path) ? prev : selectionFollowing(model.nodes, prev, node.path),
+        );
+      }}
       description={description}
       icon={icon}
       nameColor={nameColor}
       rowContext={rowContext}
       {...(reveal !== undefined ? { reveal } : {})}
+      {...(onScreenPath !== undefined ? { current: onScreenPath } : {})}
     />
   );
 

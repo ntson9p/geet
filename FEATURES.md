@@ -57,9 +57,13 @@ ships. Accepted divergences are named here and registered once in
 * **What a row compares:** with changelists, `HEAD` against the working tree, which is what the
   commit will produce and what the preview pane shows. With staging, what is not staged yet against
   the index, or else what is staged against `HEAD`.
-* **Along the way:** the tab says where you are (`foo.ts (62c3e1a) 3/7`) and the list's selection
-  follows the diff. An added or deleted file is a stop like any other; one with no text change is
-  skipped by ↓, though `→` still shows it. A binary file reads as `Binary file, 79 bytes (7d1ad7a)`.
+* **Along the way:** the tab says where you are (`foo.ts (62c3e1a) 3/7`), and the list shows it too:
+  the name of the file on screen is highlighted, the way VS Code highlights a name in a tree, until
+  the diff is closed or another editor comes in front. A walk over the whole list moves the
+  selection with it, as IntelliJ's does; one over several selected rows leaves them selected, and
+  the highlight says which of them is open. An added or deleted file is a stop like any other; one
+  with no text change is skipped by ↓, though `→` still shows it. A binary file reads as
+  `Binary file, 79 bytes (7d1ad7a)`.
 * **Deviations:** the renderer is still VS Code's, so IntelliJ's per-change apply arrows,
   highlight granularity and three-way view modes remain out of reach (D1, narrowed); the walk
   itself differs in four small ways, images among them (D20).

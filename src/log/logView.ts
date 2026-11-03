@@ -17,6 +17,7 @@ import {
   LOG_METHODS,
   type CommitDetailsDto,
   type CommitFileDto,
+  type LogDiffOnScreenDto,
   type LogFilterDto,
   type LogInitDto,
   type LogPageDto,
@@ -31,6 +32,7 @@ import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/we
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../diff/diffSession';
 import { hasIdenticalSides } from '../diff/navigationStep';
+import { nextMark } from '../diff/onScreen';
 import { statusColorOverrides } from '../ui/statusColors';
 import { BranchesPaneBridge } from './branchesPaneBridge';
 import { WorktreesPaneBridge } from './worktreesPaneBridge';
@@ -140,6 +142,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private readonly services = new Map<string, LogService>();
   /** P12-T1: the host-side selection model (`log/select`), per tab. */
   private readonly selections = new Map<string, string[]>();
+  /**
+   * Per tab, the file a diff opened from its Changed Files is showing, which the
+   * pane marks. Kept when the view goes, since the diff stays.
+   */
+  private readonly diffsOnScreen = new Map<string, { sha: string; path: string }>();
   /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
   readonly branchesBridge: BranchesPaneBridge;
   /** POST-P14k: the Worktrees tab's list + `gittree.worktree.*` dispatch. */
@@ -925,6 +932,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       presets: vscode.workspace.getConfiguration('gittree.log').get('filterPresets') ?? [],
       presentation: this.presentation(),
       logTab: tab,
+      ...(this.diffsOnScreen.has(tab) ? { diffOnScreen: this.diffsOnScreen.get(tab) } : {}),
     };
   }
 
@@ -1343,6 +1351,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return { tabs: this.tabsState.tabs.map((tab) => tab.id), active: this.tabsState.active, repos };
   }
 
+  /** The file a tab's Changed Files marks as on screen, as the integration tests read it. */
+  diffOnScreenOf(tab: string): { sha: string; path: string } | undefined {
+    return this.diffsOnScreen.get(tab);
+  }
+
   /**
    * Brings a Log tab forward: commands act on it from now on, and the strip
    * shows it. A command finding its tab already open, and a test putting the
@@ -1367,7 +1380,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   closeLogTabs(ids: readonly string[]): boolean {
     const next = closeTabs(this.tabsState, ids);
     if (next === this.tabsState) return false;
-    for (const id of ids) if (isClosable(id)) this.dropSession(id);
+    for (const id of ids) {
+      if (!isClosable(id)) continue;
+      this.dropSession(id);
+      this.diffsOnScreen.delete(id);
+    }
     this.tabsState = next;
     this.saveTabs();
     this.debugTrail.push(`tabs closed ${ids.join(',')}`);
@@ -1646,7 +1663,11 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     }));
   }
 
-  private async openFileDiff(
+  /**
+   * The pane's double click, Enter and preview: `file`'s diff, walkable through
+   * `files`. Public for the integration tests, which have no pane to click in.
+   */
+  async openFileDiff(
     tab: string,
     sha: string,
     file: CommitFileDto,
@@ -1685,6 +1706,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       onShown: () => {
         this.rpc?.notify(LOG_METHODS.evtDiffFile, { logTab: tab, sha, path: f.path });
       },
+      onScreen: (showing) => this.markDiffOnScreen(tab, { sha, path: f.path }, showing),
     }));
     const index = Math.max(
       0,
@@ -1700,6 +1722,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       entries[index]!.modified,
       entries[index]!.title,
     );
+  }
+
+  /** A diff opened from `tab`'s pane came on screen or left it: the pane marks the file it shows. */
+  private markDiffOnScreen(tab: string, file: { sha: string; path: string }, showing: boolean): void {
+    // Closed since: there is no pane to mark.
+    if (showing && this.record(tab) === undefined) return;
+    const next = nextMark(this.diffsOnScreen.get(tab), file, showing, (a, b) => a.sha === b.sha && a.path === b.path);
+    if (next === 'unchanged') return;
+    if (next.mark !== undefined) this.diffsOnScreen.set(tab, next.mark);
+    else this.diffsOnScreen.delete(tab);
+    const dto: LogDiffOnScreenDto = { logTab: tab, ...(next.mark !== undefined ? { file: next.mark } : {}) };
+    this.rpc?.notify(LOG_METHODS.evtDiffOnScreen, dto);
   }
 
   private async openAllDiffs(tab: string, sha: string, shas: readonly string[] = []): Promise<void> {

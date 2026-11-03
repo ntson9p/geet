@@ -30,6 +30,11 @@ export interface VirtualListHandle {
    * and keys without that becoming a plain one-row selection.
    */
   focusIndex(index: number, opts?: { silent?: boolean }): void;
+  /**
+   * Makes a row the one the keyboard goes on from, without taking focus or
+   * scrolling: the list follows something done outside it, a diff walking it.
+   */
+  setLead(index: number): void;
 }
 
 export interface VirtualListProps {
@@ -191,7 +196,9 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     [clamp, onFocusIndex, scrollToIndex],
   );
 
-  useImperativeHandle(ref, () => ({ scrollToIndex, focusIndex }), [scrollToIndex, focusIndex]);
+  const setLead = useCallback((index: number) => setFocusedIndex(clamp(index)), [clamp]);
+
+  useImperativeHandle(ref, () => ({ scrollToIndex, focusIndex, setLead }), [scrollToIndex, focusIndex, setLead]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (onRowKeyDown?.(focusedIndex, e) === true) return;

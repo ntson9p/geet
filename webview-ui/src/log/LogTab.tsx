@@ -25,6 +25,7 @@ import {
   type CommitFileDto,
   type LogBranchesDto,
   type LogChangedFilesDto,
+  type LogDiffOnScreenDto,
   type LogRangeCountsDto,
   type LogFilterDto,
   type LogInitDto,
@@ -208,6 +209,8 @@ export function LogTab({
   const [rangeCounts, setRangeCounts] = useState<LogRangeCountsDto | undefined>(undefined);
   // The diff opened from the pane has moved on to another of its files.
   const [diffFile, setDiffFile] = useState<{ sha: string; path: string } | undefined>(undefined);
+  // The file that diff is showing, while it is on screen.
+  const [diffOnScreen, setDiffOnScreen] = useState<{ sha: string; path: string } | undefined>(undefined);
   // P12-T5: refs data is shared by the Branches pane AND the filter row.
   const [branchesData, setBranchesData] = useState<LogBranchesDto | null>(null);
   // POST-P14x: the row hover card. `text` is the full commit message, fetched
@@ -256,6 +259,14 @@ export function LogTab({
     () =>
       rpc.onEvent(LOG_METHODS.evtDiffFile, (params) => {
         if (isFor(params, tabId)) setDiffFile(params as { sha: string; path: string });
+      }),
+    [rpc, tabId],
+  );
+
+  useEffect(
+    () =>
+      rpc.onEvent(LOG_METHODS.evtDiffOnScreen, (params) => {
+        if (isFor(params, tabId)) setDiffOnScreen((params as LogDiffOnScreenDto).file);
       }),
     [rpc, tabId],
   );
@@ -615,6 +626,8 @@ export function LogTab({
       if (!dto) return;
       setInit(dto);
       if (dto.presentation) presentationSeenRef.current(dto.presentation);
+      // A view started again while a diff it opened is still up.
+      if (dto.diffOnScreen !== undefined) setDiffOnScreen(dto.diffOnScreen);
       requestPage(0);
     });
     return () => {
@@ -1084,6 +1097,9 @@ export function LogTab({
             }}
             onSelectedFileChange={setSelectedFile}
             {...(diffFile !== undefined && diffFile.sha === changed?.newest ? { follow: diffFile } : {})}
+            {...(diffOnScreen !== undefined && diffOnScreen.sha === changed?.newest
+              ? { onScreen: diffOnScreen.path }
+              : {})}
           />
         }
         details={

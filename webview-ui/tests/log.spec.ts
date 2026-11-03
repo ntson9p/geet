@@ -226,6 +226,9 @@ test.describe('P4-T3/T4 log webview', () => {
         return (opened?.params as { files?: Array<{ path: string }> } | undefined)?.files?.map((f) => f.path);
       })
       .toEqual(['docs/agg-gone.md', 'src/app.ts']);
+    // Opening one of them keeps them all selected: they are what the diff walks.
+    await expect(files.getByRole('treeitem', { name: /agg-gone\.md/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(files.getByRole('treeitem', { name: /app\.ts/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   test('the selection follows a diff that moved on, without opening it again', async ({ page }) => {
@@ -263,6 +266,122 @@ test.describe('P4-T3/T4 log webview', () => {
     await page.waitForTimeout(100);
     await expect(files.getByRole('treeitem', { name: /app\.ts/ })).toHaveAttribute('aria-selected', 'true');
     await expect(files.getByRole('treeitem', { name: /new\.ts/ })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  /** Colours the pane paints with, each its own, so what is lit can be told apart. */
+  const LIST_VARS = `
+    body {
+      --vscode-list-activeSelectionBackground: rgb(0, 0, 200);
+      --vscode-list-inactiveSelectionBackground: rgb(60, 60, 60);
+      --vscode-list-hoverBackground: rgb(30, 30, 30);
+      --vscode-list-filterMatchBackground: rgb(200, 100, 0);
+    }
+  `;
+  const postLogEvent = (page: Page, method: string, params: unknown) =>
+    page.evaluate(
+      ({ method, params }) => window.postMessage({ v: 1, id: `evt-${method}`, kind: 'evt', method, params }, '*'),
+      { method, params },
+    );
+  /** The commit the last file diff was opened from: the pane's `newest`. */
+  const openedFrom = async (page: Page): Promise<string> => {
+    const opened = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').at(-1);
+    return (opened?.params as { sha: string }).sha;
+  };
+
+  test('the file a diff is showing is highlighted in the pane, and only while it is', async ({ page }) => {
+    await openLog(page);
+    await page.addStyleTag({ content: LIST_VARS });
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+    const app = files.getByRole('treeitem', { name: /app\.ts/ });
+    const moved = files.getByRole('treeitem', { name: /new\.ts/ });
+    const marked = files.locator('[role="treeitem"][aria-current="true"]');
+    await app.dblclick();
+    const sha = await openedFrom(page);
+
+    await postLogEvent(page, 'log/diffOnScreen', { file: { sha, path: 'src/app.ts' } });
+    await expect(app).toHaveAttribute('aria-current', 'true');
+    await expect(marked).toHaveCount(1);
+    // Its name is lit the way VS Code lights one in a tree view.
+    await expect(app.locator('.gt-tree-name')).toHaveCSS('background-color', 'rgb(200, 100, 0)');
+    await expect(moved.locator('.gt-tree-name')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+
+    // A diff of another commit's file is nothing to this pane.
+    await postLogEvent(page, 'log/diffOnScreen', { file: { sha: 'not-this-commit', path: 'src/new.ts' } });
+    await expect(marked).toHaveCount(0);
+
+    await postLogEvent(page, 'log/diffOnScreen', { file: { sha, path: 'src/new.ts' } });
+    await expect(moved).toHaveAttribute('aria-current', 'true');
+    await expect(marked).toHaveCount(1);
+    // The mark is not the selection, which stays where it was.
+    await expect(app).toHaveAttribute('aria-selected', 'true');
+
+    // No diff on screen: nothing is marked, and the selection stays.
+    await postLogEvent(page, 'log/diffOnScreen', {});
+    await expect(marked).toHaveCount(0);
+    await expect(app).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test("a walk takes the keyboard's row with the selection, and leaves no bar behind", async ({ page }) => {
+    await openLog(page);
+    await page.addStyleTag({ content: LIST_VARS });
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+    const app = files.getByRole('treeitem', { name: /app\.ts/ });
+    const moved = files.getByRole('treeitem', { name: /new\.ts/ });
+    await app.dblclick();
+    const sha = await openedFrom(page);
+    // The pointer off the rows, so no hover colours them.
+    await page.mouse.move(0, 0);
+    // While the tree has the keyboard, its row is lit as the keyboard's.
+    await expect(app).toHaveCSS('background-color', 'rgb(0, 0, 200)');
+
+    // The diff takes the keyboard: the selection is all that is lit.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(app).toHaveCSS('background-color', 'rgb(60, 60, 60)');
+
+    await postLogEvent(page, 'log/diffFile', { sha, path: 'src/new.ts' });
+    await expect(moved).toHaveAttribute('aria-selected', 'true');
+    await expect(moved).toHaveClass(/gt-focused/);
+    await expect(app).not.toHaveClass(/gt-focused/);
+    await expect(moved).toHaveCSS('background-color', 'rgb(60, 60, 60)');
+    // Lit as the keyboard's, the row first opened outlived the walk and looked current.
+    await expect(app).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  });
+
+  test('a tree never shown the keyboard lights no row', async ({ page }) => {
+    await openLog(page);
+    await page.addStyleTag({ content: LIST_VARS });
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    await page.mouse.move(0, 0);
+    // The repository row is the keyboard's until something is clicked; it was lit as if selected.
+    const top = page.getByTestId('changed-files').locator('[role="treeitem"]').first();
+    await expect(top).toHaveClass(/gt-focused/);
+    await expect(top).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  });
+
+  test('Enter on the row the arrows reached selects it as the diff opens it', async ({ page }) => {
+    await openLog(page);
+    await commitRow(page).locator('[data-gt-row="1"]').click();
+    const files = page.getByTestId('changed-files');
+    const app = files.getByRole('treeitem', { name: /app\.ts/ });
+    const moved = files.getByRole('treeitem', { name: /new\.ts/ });
+    await app.click();
+    await page.keyboard.press('ArrowDown');
+    // The arrows move the keyboard's row and nothing else.
+    await expect(moved).toHaveClass(/gt-focused/);
+    await expect(moved).toHaveAttribute('aria-selected', 'false');
+
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(async () => {
+        const opened = (await posted(page)).filter((m) => m.method === 'log/openFileDiff').at(-1);
+        return (opened?.params as { file?: { path: string } } | undefined)?.file?.path;
+      })
+      .toBe('src/new.ts');
+    await expect(moved).toHaveAttribute('aria-selected', 'true');
+    await expect(app).toHaveAttribute('aria-selected', 'false');
+    await expect(page.getByRole('button', { name: 'Show History for Revision' })).toBeEnabled();
   });
 
   test('P12-T3: preview-on-click and Show History for Revision', async ({ page }) => {

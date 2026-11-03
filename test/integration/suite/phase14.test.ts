@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { CompareService } from '../../../src/branches/compare';
 import type { Phase03Registry } from '../../../src/commit/register';
+import type { Phase04Registry } from '../../../src/log/register';
 import type { Phase01Registry } from '../../../src/scm/register';
 import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../../../src/diff/diffSession';
@@ -649,6 +650,76 @@ suite('P14 owning the SCM surface', () => {
       cleanup();
     });
 
+    test('the list a diff came from hears when its file comes on screen, and when it leaves', async function () {
+      this.timeout(120_000);
+      const names = ['p14o1.txt', 'p14o2.txt'];
+      const { entries, cleanup } = commitWalk(names);
+      const heard: string[] = [];
+      const told: DiffEntry[] = entries.map((e) => ({
+        ...e,
+        onScreen: (showing: boolean) => heard.push(`${showing ? '+' : '-'}${e.title}`),
+      }));
+      await reg.sessions.open(told, 0);
+      await waitFor(() => heard.length === 1, 15_000);
+      assert.deepStrictEqual(heard, ['+p14o1.txt']);
+
+      // The file leaving is told before the one coming.
+      await vscode.commands.executeCommand('gittree.diff.nextFile');
+      await waitFor(() => heard.length === 3, 15_000);
+      assert.deepStrictEqual(heard.slice(1), ['-p14o1.txt', '+p14o2.txt']);
+
+      // Another editor in front, and the diff is not on screen; brought back, it is.
+      const file = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(fsRoot, names[0]!)));
+      await vscode.window.showTextDocument(file, { preview: false });
+      await waitFor(() => heard.length === 4, 15_000);
+      assert.strictEqual(heard[3], '-p14o2.txt');
+      await vscode.commands.executeCommand('workbench.action.previousEditor');
+      await waitFor(() => heard.length === 5, 15_000);
+      assert.strictEqual(heard[4], '+p14o2.txt');
+
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+      await waitFor(() => heard.length === 6, 15_000);
+      assert.strictEqual(heard[5], '-p14o2.txt');
+      cleanup();
+    });
+
+    test('a Log tab marks the file its diff is showing, and only while it is', async function () {
+      this.timeout(120_000);
+      const names = ['p14g1.txt', 'p14g2.txt'];
+      const { head, cleanup } = commitWalk(names);
+      const log = ((await activateGitTree()).debugRegistry.get('phase04') as Phase04Registry).logView;
+      await vscode.commands.executeCommand('gittree.log.focus');
+      await waitFor(() => log.currentSession !== undefined, 30_000);
+      const before = log.logTabs.tabs;
+      const inFront = log.logTabs.active;
+      let tab: string | undefined;
+      try {
+        // A tab of its own over this repository, which has the commit.
+        await log.openTab({ sort: 'date', refs: 'HEAD', paths: names }, fsRoot);
+        await waitFor(
+          () => !before.includes(log.logTabs.active) && log.currentSession?.logTab === log.logTabs.active,
+          30_000,
+        );
+        tab = log.logTabs.active;
+        const files = names.map((p) => ({ status: 'M', path: p }));
+        await log.openFileDiff(tab, head, files[0]!, files, false);
+        await waitFor(() => log.diffOnScreenOf(tab!)?.path === names[0], 15_000);
+        assert.strictEqual(log.diffOnScreenOf(tab)?.sha, head);
+        assert.strictEqual(log.diffOnScreenOf(inFront), undefined, 'only the tab it came from');
+
+        await vscode.commands.executeCommand('gittree.diff.nextFile');
+        await waitFor(() => log.diffOnScreenOf(tab!)?.path === names[1], 15_000);
+
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        await waitFor(() => log.diffOnScreenOf(tab!) === undefined, 15_000);
+      } finally {
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        if (tab !== undefined && !before.includes(tab)) log.closeLogTabs([tab]);
+        log.showLogTab(inFront);
+        cleanup();
+      }
+    });
+
     test('an added and a deleted file are stops; a rename with no edit is not', async function () {
       this.timeout(120_000);
       const gone = path.join(fsRoot, 'p14goner.txt');
@@ -873,6 +944,30 @@ suite('P14 owning the SCM surface', () => {
         for (const n of [...names, 'p14f4.txt']) fs.rmSync(path.join(fsRoot, n));
         await refresh();
       });
+
+      test('marks the file its diff is showing, and only while it is', async function () {
+        this.timeout(60_000);
+        const names = ['p14m1.txt', 'p14m2.txt'];
+        for (const n of names) fs.writeFileSync(path.join(fsRoot, n), 'untracked\n');
+        await refresh();
+        try {
+          await commitWindow.openDiff(walkOf(names));
+          await waitFor(() => commitWindow.diffOnScreenFile?.path === names[0], 15_000);
+          assert.strictEqual(commitWindow.diffOnScreenFile?.repoRoot, fsRoot);
+          // Every state carries it, for a view that starts again while the diff is up.
+          assert.deepStrictEqual(commitWindow.buildState().diffOnScreen, { repoRoot: fsRoot, path: names[0] });
+
+          await vscode.commands.executeCommand('gittree.diff.nextFile');
+          await waitFor(() => commitWindow.diffOnScreenFile?.path === names[1], 15_000);
+
+          await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+          await waitFor(() => commitWindow.diffOnScreenFile === undefined, 15_000);
+          assert.strictEqual(commitWindow.buildState().diffOnScreen, undefined);
+        } finally {
+          for (const n of names) fs.rmSync(path.join(fsRoot, n), { force: true });
+          await refresh();
+        }
+      });
     });
 
     suite('from the Compare pane', () => {
@@ -999,6 +1094,43 @@ suite('P14 owning the SCM surface', () => {
         await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, current, current);
         assert.deepStrictEqual(listed(), []);
         assert.ok(compare.provider.state, 'read, with nothing in it');
+      });
+
+      test('the row of the file on screen is highlighted, and only while it is', async function () {
+        this.timeout(120_000);
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        const label = (file: string): string | vscode.TreeItemLabel | undefined =>
+          compare.provider.getTreeItem(compare.provider.fileNode(file)!).label;
+        const lit = (file: string): boolean => typeof label(file) === 'object';
+
+        await openRow('p14c-gone.txt');
+        await waitFor(() => lit('p14c-gone.txt'), 15_000);
+        // VS Code's own highlight, over the whole name.
+        assert.deepStrictEqual(label('p14c-gone.txt'), {
+          label: 'p14c-gone.txt',
+          highlights: [[0, 'p14c-gone.txt'.length]],
+        });
+        assert.ok(!lit('p14c-mod.txt'));
+
+        await vscode.commands.executeCommand('gittree.diff.nextFile');
+        await waitFor(() => lit('p14c-mod.txt'), 15_000);
+        assert.ok(!lit('p14c-gone.txt'), 'one row at a time');
+
+        // Read again, the same comparison keeps its mark.
+        await vscode.commands.executeCommand('gittree.compare.refresh');
+        assert.ok(lit('p14c-mod.txt'));
+
+        // Another comparison is another list: the diff still up is not in it.
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, current, BASE);
+        assert.strictEqual(compare.provider.showing, undefined);
+        assert.ok(!lit('p14c-mod.txt'));
+
+        // Back to the first, and the diff closed: nothing is lit.
+        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await openRow('p14c-new.txt');
+        await waitFor(() => lit('p14c-new.txt'), 15_000);
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        await waitFor(() => !lit('p14c-new.txt'), 15_000);
       });
     });
 

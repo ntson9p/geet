@@ -31,6 +31,12 @@ export interface DiffEntry {
   readonly settle?: () => Promise<DiffEntry>;
   /** Navigation brought this file up, so the list it came from can follow. */
   readonly onShown?: () => void;
+  /**
+   * Its diff came on screen (`true`) or left it, so the list it came from can mark
+   * the file: by navigation, by a click in the list, or by a tab brought forward.
+   * The entry leaving is told before the one coming.
+   */
+  readonly onScreen?: (showing: boolean) => void;
 }
 
 export interface OpenDiffOptions {
@@ -66,6 +72,8 @@ export class DiffSessionRegistry implements vscode.Disposable {
   /** Fires when the diff on screen becomes, or stops being, another position of a sequence. */
   readonly onDidChangeActive = this.changed.event;
   private lastActive: string | undefined;
+  /** The entry whose diff is on screen, as its list was last told. */
+  private onScreen: DiffEntry | undefined;
   /** When a diff was last brought up, since VS Code computes it after showing it. */
   private shownAt = 0;
 
@@ -82,6 +90,7 @@ export class DiffSessionRegistry implements vscode.Disposable {
 
   private sync(): void {
     const active = this.active();
+    this.mark(active ? entryAt(active) : undefined);
     const key = active ? `${active.index}/${active.entries.length} ${pairKey(entryAt(active))}` : undefined;
     if (key === this.lastActive) return;
     this.lastActive = key;
@@ -95,6 +104,19 @@ export class DiffSessionRegistry implements vscode.Disposable {
       active !== undefined && active.index < active.entries.length - 1,
     );
     this.changed.fire();
+  }
+
+  /**
+   * The diff the arrows act on is the one on screen. A list read again, or a file
+   * opened again, hands over a new entry for the same file: its list is told that
+   * one left and the other came, and ends where it was.
+   */
+  private mark(entry: DiffEntry | undefined): void {
+    if (entry === this.onScreen) return;
+    const before = this.onScreen;
+    this.onScreen = entry;
+    before?.onScreen?.(false);
+    entry?.onScreen?.(true);
   }
 
   /** Opens `entries[index]` and remembers the sequence it came from. */

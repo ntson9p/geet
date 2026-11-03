@@ -332,6 +332,85 @@ test.describe('P11-T2 commit actions', () => {
     await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'true');
   });
 
+  test("a walk takes the keyboard's row along", async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md, docs').dblclick();
+    await postEvent(page, 'commit/diffFile', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
+    await expect(row(page, '2.txt')).toHaveClass(/gt-focused/);
+    await expect(row(page, 'guide.md, docs')).not.toHaveClass(/gt-focused/);
+  });
+
+  test('the file a diff is showing is highlighted, and only while it is', async ({ page }) => {
+    await openCommit(page);
+    const marked = page.locator('[role="treeitem"][aria-current="true"]');
+    await postEvent(page, 'commit/diffOnScreen', { file: { repoRoot: 'D:/repos/demo-git', path: '2.txt' } });
+    await expect(row(page, '2.txt')).toHaveAttribute('aria-current', 'true');
+    await expect(marked).toHaveCount(1);
+    // Marked, not selected: a walk over several rows leaves the selection as it was.
+    await expect(row(page, '2.txt')).toHaveAttribute('aria-selected', 'false');
+
+    // A file of another repository is not this row.
+    await postEvent(page, 'commit/diffOnScreen', { file: { repoRoot: 'D:/repos/other', path: '2.txt' } });
+    await expect(marked).toHaveCount(0);
+
+    await postEvent(page, 'commit/diffOnScreen', { file: { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' } });
+    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-current', 'true');
+    await postEvent(page, 'commit/diffOnScreen', {});
+    await expect(marked).toHaveCount(0);
+  });
+
+  test('a state that names the file on screen marks it, for a view started again', async ({ page }) => {
+    await openCommit(page);
+    await postEvent(page, 'commit/state', {
+      repos: [
+        {
+          root: 'D:/repos/demo-git',
+          label: 'demo-git',
+          groups: [
+            {
+              id: 'default',
+              name: 'Changes',
+              isActive: true,
+              isDefault: true,
+              checkable: true,
+              changes: [{ path: 'docs/guide.md', code: '.M', kind: 'modified', checked: true }],
+            },
+          ],
+        },
+      ],
+      targets: [],
+      message: '',
+      amend: false,
+      signing: false,
+      busy: false,
+      modifiedCount: 1,
+      checkedCount: 1,
+      paradigm: 'changelists',
+      diffOnScreen: { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' },
+    });
+    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-current', 'true');
+  });
+
+  test('Enter on the row the arrows reached selects it as the diff opens it', async ({ page }) => {
+    await openCommit(page);
+    const first = row(page, 'ArticleDataController.java, src/main/java/api');
+    const next = row(page, 'CommentController.java, src/main/java/api');
+    await first.click();
+    await page.keyboard.press('ArrowDown');
+    await expect(next).toHaveClass(/gt-focused/);
+    await expect(next).toHaveAttribute('aria-selected', 'false');
+
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(async () => {
+        const msg = (await posted(page)).filter((m) => m.method === 'commit/openDiff').at(-1);
+        return (msg?.params as { path?: string } | undefined)?.path;
+      })
+      .toBe('src/main/java/api/CommentController.java');
+    await expect(next).toHaveAttribute('aria-selected', 'true');
+    await expect(first).toHaveAttribute('aria-selected', 'false');
+  });
+
   test("a row's menu opens through the same walk", async ({ page }) => {
     await openCommit(page);
     await postEvent(page, 'commit/openDiffAt', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });

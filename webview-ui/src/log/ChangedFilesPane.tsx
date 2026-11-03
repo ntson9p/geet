@@ -41,6 +41,8 @@ export interface ChangedFilesPaneProps {
   onSelectedFileChange: (file: CommitFileDto | undefined) => void;
   /** The diff moved to another file: the selection follows, without opening it again. */
   follow?: { readonly path: string };
+  /** The file a diff opened from the pane is showing, whose row is marked. */
+  onScreen?: string;
 }
 
 export function ChangedFilesPane({
@@ -54,6 +56,7 @@ export function ChangedFilesPane({
   onOpenFile,
   onSelectedFileChange,
   follow,
+  onScreen,
 }: ChangedFilesPaneProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
@@ -203,12 +206,21 @@ export function ChangedFilesPane({
         }}
         onActivate={(node) => {
           const file = byPath.get(node.path);
-          if (file) onOpenFile(file, diffChain(nodes, byPath, selection, file), false);
+          if (!file) return;
+          onOpenFile(file, diffChain(nodes, byPath, selection, file), false);
+          // Enter opens the keyboard's row, which the arrows moved without
+          // selecting: the selection goes with the diff, as it does on a walk.
+          const next = selectionFollowing(nodes, selection, file.path);
+          if (next !== selection && !(selection.size === 1 && selection.has(file.path))) {
+            setSelection(next);
+            onSelectedFileChange(file);
+          }
         }}
         description={description}
         icon={icon}
         nameColor={nameColor}
         {...(reveal !== undefined ? { reveal } : {})}
+        {...(onScreen !== undefined ? { current: onScreen } : {})}
       />
     </div>
   );

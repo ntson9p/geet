@@ -6,6 +6,28 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — the list a diff came from shows which file it is on
+
+In the Log's Changed Files, the Commit window and the Compare pane, the name of the file whose diff
+is on screen is now highlighted, the way VS Code highlights a name in a tree. It moves with the diff,
+whether you walk with ↑ ↓ or ← →, open another file, or bring the diff's tab back, and it goes when
+the diff is closed or another editor is in front. It does not depend on the selection: a walk over
+several selected files leaves all of them selected, as IntelliJ's does, and the highlight still
+says which one you are looking at.
+
+### Fixed — the file you opened stayed lit after the walk had moved on
+
+In the Log's Changed Files and the Commit window, the row you double-clicked kept a strong highlight
+while the walk went on to other files. The file actually on screen was selected, but in the fainter
+colour, so the old one looked current.
+
+- **A row is lit for the keyboard only while the list has the keyboard**, as in VS Code's own lists.
+  A list you are not in shows its selection and nothing else. That also stops the top row of a list
+  you never clicked in looking selected.
+- **The walk takes the keyboard with it**, so the arrow keys carry on from the file on screen.
+- **Enter on a row you reached with the arrow keys selects it** as it opens it. The arrows only move
+  the keyboard there, so the selection stayed a row away from the file you opened.
+
 ### Added — walking a commit from one file's changes to the next
 
 In a diff opened from a commit's Changed Files, VS Code's own ↓ button and `Alt+F5` now carry on

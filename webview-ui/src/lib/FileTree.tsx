@@ -51,8 +51,17 @@ export interface FileTreeProps {
   rowHeight?: number;
   onFocusPath?: (path: string) => void;
   className?: string;
-  /** Scrolls this row into view whenever a new object arrives; focus stays where it is. */
+  /**
+   * Scrolls this row into view whenever a new object arrives, and makes it the
+   * row the keyboard goes on from; focus stays where it is.
+   */
   reveal?: { readonly path: string };
+  /**
+   * The row of the file a diff opened from this tree is showing: its name
+   * highlighted, whatever is selected. A walk over several selected rows leaves
+   * them selected, so this is what says which of them is on screen.
+   */
+  current?: string;
 }
 
 const DEFAULT_ROW_HEIGHT = 22;
@@ -78,6 +87,7 @@ export function FileTree({
   onFocusPath,
   className,
   reveal,
+  current,
 }: FileTreeProps) {
   const listRef = useRef<VirtualListHandle>(null);
   const anchorRef = useRef<number>(0);
@@ -88,7 +98,13 @@ export function FileTree({
   useEffect(() => {
     if (reveal === undefined) return;
     const index = rowIndexOf(rowsRef.current, reveal.path);
-    if (index >= 0) listRef.current?.scrollToIndex(index);
+    if (index < 0) return;
+    listRef.current?.scrollToIndex(index);
+    // The row first clicked would otherwise stay the keyboard's, and lit as it
+    // when the tree has focus again, long after the walk left it. Shift+click
+    // goes on from here too, as after a click.
+    listRef.current?.setLead(index);
+    anchorRef.current = index;
   }, [reveal]);
 
   const showsCheckbox = useCallback(
@@ -226,7 +242,10 @@ export function FileTree({
       const ico = icon?.(node);
       const labelColor = nameColor?.(node);
       return (
-        <span className="gt-tree-row-inner" style={{ paddingLeft: node.depth * INDENT_PX }}>
+        <span
+          className={`gt-tree-row-inner${node.path === current ? ' gt-tree-current' : ''}`}
+          style={{ paddingLeft: node.depth * INDENT_PX }}
+        >
           <span
             className={`gt-twistie${row.expandable ? '' : ' gt-twistie-empty'}`}
             aria-hidden="true"
@@ -272,7 +291,7 @@ export function FileTree({
         </span>
       );
     },
-    [applyToggle, description, icon, nameColor, rows, setExpanded, stateOf],
+    [applyToggle, current, description, icon, nameColor, rows, setExpanded, stateOf],
   );
 
   const rowAria = useCallback(
@@ -286,9 +305,10 @@ export function FileTree({
         'aria-selected': selection?.has(row.node.path) ?? false,
         'aria-checked':
           state === undefined ? undefined : state === 'partial' ? 'mixed' : String(state === 'checked'),
+        'aria-current': row.node.path === current ? 'true' : undefined,
       };
     },
-    [rows, selection, stateOf],
+    [current, rows, selection, stateOf],
   );
 
   const rowAriaLabel = useCallback(

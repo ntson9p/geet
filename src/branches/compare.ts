@@ -16,6 +16,7 @@ import type { Core, RepoHandle } from '../core/core';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../diff/diffSession';
 import { hasIdenticalSides } from '../diff/navigationStep';
+import { nextMark } from '../diff/onScreen';
 import { settleWorktreeSide } from '../diff/worktreeSide';
 import {
   allFiles,
@@ -86,12 +87,25 @@ function rowUri(rowPath: string, status?: string): vscode.Uri {
 }
 
 export class CompareViewProvider implements vscode.TreeDataProvider<TreeNode> {
-  private readonly changed = new vscode.EventEmitter<void>();
+  private readonly changed = new vscode.EventEmitter<TreeNode | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   state: CompareState | undefined;
+  /** The file whose diff, opened from this list, is on screen. */
+  showing: string | undefined;
   private files = new Map<string, NameStatusEntry>();
   private fileNodes = new Map<string, TreeFileNode>();
   private parents = new Map<TreeNode, TreeDirNode>();
+
+  /** Marks the row of the file on screen, and only that one. */
+  setShowing(filePath: string | undefined): void {
+    if (filePath === this.showing) return;
+    const before = this.showing;
+    this.showing = filePath;
+    for (const p of [before, filePath]) {
+      const node = p !== undefined ? this.fileNodes.get(p) : undefined;
+      if (node) this.changed.fire(node);
+    }
+  }
 
   setState(state: CompareState | undefined): void {
     this.state = state;
@@ -106,7 +120,7 @@ export class CompareViewProvider implements vscode.TreeDataProvider<TreeNode> {
       }
     };
     index(state?.nodes ?? [], undefined);
-    this.changed.fire();
+    this.changed.fire(undefined);
   }
 
   file(filePath: string): NameStatusEntry | undefined {
@@ -134,7 +148,11 @@ export class CompareViewProvider implements vscode.TreeDataProvider<TreeNode> {
       return item;
     }
     const file = this.files.get(node.path);
-    const item = new vscode.TreeItem(node.name, vscode.TreeItemCollapsibleState.None);
+    // The file on screen is lit the way VS Code lights a name it found: the
+    // label's highlight, which a tree view's own API can draw.
+    const label: string | vscode.TreeItemLabel =
+      node.path === this.showing ? { label: node.name, highlights: [[0, node.name.length]] } : node.name;
+    const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
     item.id = node.path;
     item.resourceUri = rowUri(node.path, file?.status);
     item.iconPath = vscode.ThemeIcon.File;
@@ -236,6 +254,8 @@ export class CompareService {
   private async show(request: CompareRequest): Promise<void> {
     this.request = request;
     this.walksWholeList = false;
+    // A diff of the comparison this one replaces may stay up, but not in this list.
+    this.provider.setShowing(undefined);
     this.provider.setState(undefined);
     if (this.view) {
       this.view.description = undefined;
@@ -352,6 +372,7 @@ export class CompareService {
   private entryOf(state: CompareState, file: NameStatusEntry): DiffEntry {
     const { repo, comparison } = state;
     const sides = sidesOf(comparison, file);
+    const request = this.request;
     const common = {
       // A file keeps its place when the list is read again and its sides have moved.
       key: `${repo.root}\n${file.path}`,
@@ -360,6 +381,12 @@ export class CompareService {
       label: file.path,
       onShown: () => {
         this.follow(file.path);
+      },
+      onScreen: (showing: boolean) => {
+        // Refresh reads the same comparison again; another one is another list.
+        if (request !== this.request) return;
+        const next = nextMark(this.provider.showing, file.path, showing, (a, b) => a === b);
+        if (next !== 'unchanged') this.provider.setShowing(next.mark);
       },
     };
     if (sides.right !== 'worktree') {
@@ -415,6 +442,7 @@ export class CompareService {
     this.generation++;
     this.request = undefined;
     this.walksWholeList = false;
+    this.provider.setShowing(undefined);
     this.provider.setState(undefined);
     await vscode.commands.executeCommand('setContext', 'gittree.compare.active', false);
   }
