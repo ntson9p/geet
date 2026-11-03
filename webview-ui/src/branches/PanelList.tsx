@@ -1,5 +1,5 @@
 /**
- * The Branches panel's list: windowed like `VirtualList`, but with rows of
+ * The Repositories panel's list: windowed like `VirtualList`, but with rows of
  * their own heights — a branch with its card open is taller than one without,
  * a section header taller than a row — and with focus held by a row's **id**,
  * not its position. The panel's rows move under the cursor all the time (a
@@ -15,6 +15,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -51,6 +52,12 @@ export interface PanelListProps<R extends ListRow> {
   readonly rowClassName?: (row: R) => string;
   /** Extra space the window renders beyond the viewport, in pixels. */
   readonly overscan?: number;
+  /**
+   * A row that stays at the top once the list scrolls past it: the tabs over
+   * the branch list, which are no use out of sight. The pinned copy is for the
+   * pointer; the keyboard reaches the row itself, which comes back into view.
+   */
+  readonly stickyId?: string;
 }
 
 /** First index whose row reaches below `y`, by binary search over the offsets. */
@@ -87,11 +94,14 @@ function PanelListInner<R extends ListRow>(
     onRowContextMenu,
     rowClassName,
     overscan = 200,
+    stickyId,
   }: PanelListProps<R>,
   ref: ForwardedRef<PanelListHandle>,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
+  /** The scrollbar's width, which the pinned row must leave uncovered. */
+  const [gutter, setGutter] = useState(0);
   const pendingFocus = useRef<string | undefined>(undefined);
 
   const { offsets, heights, total, indexOf } = useMemo(() => {
@@ -108,20 +118,30 @@ function PanelListInner<R extends ListRow>(
     return { offsets: offs, heights: hs, total: y, indexOf: index };
   }, [rows]);
 
+  const stickyIndex = stickyId !== undefined ? indexOf.get(stickyId) : undefined;
+
   const scrollToIndex = useCallback(
     (i: number) => {
       const el = hostRef.current;
       if (!el || i < 0 || i >= offsets.length) return;
+      // A row below the pinned one must not come to rest under it.
+      const reserve = stickyIndex !== undefined && i > stickyIndex ? heights[stickyIndex]! : 0;
       const top = offsets[i]!;
       const bottom = top + heights[i]!;
-      if (top < el.scrollTop) el.scrollTop = top;
+      if (top - reserve < el.scrollTop) el.scrollTop = Math.max(0, top - reserve);
       else if (bottom > el.scrollTop + el.clientHeight) {
         // A row taller than the window (a big card) shows its top.
-        el.scrollTop = Math.min(top, bottom - el.clientHeight);
+        el.scrollTop = Math.min(top - reserve, bottom - el.clientHeight);
       }
     },
-    [heights, offsets],
+    [heights, offsets, stickyIndex],
   );
+
+  useLayoutEffect(() => {
+    const el = hostRef.current;
+    const width = el ? el.offsetWidth - el.clientWidth : 0;
+    if (width !== gutter) setGutter(width);
+  });
 
   const focusRow = useCallback(
     (id: string) => {
@@ -233,24 +253,38 @@ function PanelListInner<R extends ListRow>(
   // row takes the tab stop, so Tab into the list always lands somewhere.
   const tabStopMissing = focusedId === undefined || !indexOf.has(focusedId);
 
+  const stickyRow = stickyIndex !== undefined ? rows[stickyIndex] : undefined;
+  const pinned = stickyRow !== undefined && stickyIndex !== undefined && scrollTop > offsets[stickyIndex]!;
+
   return (
-    <div
-      ref={hostRef}
-      className="gtp-list"
-      role="tree"
-      aria-label={ariaLabel}
-      tabIndex={tabStopMissing ? 0 : -1}
-      style={{ height }}
-      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-      onFocus={(e) => {
-        if (e.target !== e.currentTarget) return;
-        const firstRow = rows[0];
-        if (tabStopMissing && firstRow) focusRow(firstRow.id);
-      }}
-    >
-      <div className="gtp-list-content" style={{ height: total }}>
-        {rendered}
+    <div className="gtp-list-frame" style={{ height }}>
+      <div
+        ref={hostRef}
+        className="gtp-list"
+        role="tree"
+        aria-label={ariaLabel}
+        tabIndex={tabStopMissing ? 0 : -1}
+        style={{ height }}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        onFocus={(e) => {
+          if (e.target !== e.currentTarget) return;
+          const firstRow = rows[0];
+          if (tabStopMissing && firstRow) focusRow(firstRow.id);
+        }}
+      >
+        <div className="gtp-list-content" style={{ height: total }}>
+          {rendered}
+        </div>
       </div>
+      {pinned ? (
+        <div
+          className={`gtp-row gtp-pinned${rowClassName ? ` ${rowClassName(stickyRow)}` : ''}`}
+          style={{ top: 0, height: stickyRow.height, right: gutter }}
+          aria-hidden="true"
+        >
+          {renderRow(stickyRow, stickyIndex)}
+        </div>
+      ) : null}
     </div>
   );
 }

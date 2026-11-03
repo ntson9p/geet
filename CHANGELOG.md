@@ -6,6 +6,30 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Branches panel is the Repositories panel, its branches under tabs
+
+The sidebar panel that lists every repository and then their branches is titled
+**Repositories** now, since that is what it shows first. Its id is the same, so where you put
+it and any keybinding you gave it stay. The opt-in tree it replaced is *Repositories (Tree)*.
+
+Recent, Local, Remote and Tags were four sections stacked one under another, and they
+overlap: every recent branch is a local one, and most local ones have a remote twin. They are
+tabs now, one list at a time:
+
+- **Each tab counts what it holds**, and the panel starts again on the tab last picked: Recent
+  at first, or Local when nothing is recent yet.
+- **Scrolled past, the tabs stay at the top** of the list, and a click there starts the new
+  list right under them. On the tabs, `←` and `→` switch and `↓` goes into the list.
+- **In a narrow sidebar the counts go first**, so every tab keeps its name.
+- **The filter still searches every kind at once.** The tabs step aside while it does, and come
+  back as they were.
+
+### Fixed — Collapse All in the panel left the folders you had opened
+
+It shut only the folders that start open, the one holding the checked-out branch and each
+remote. A folder you had opened yourself stayed open. Now every folder of the tab on show
+shuts.
+
 ### Fixed — file names in GitTree's own panes had lost their status colors
 
 The file lists in the Log's Changed Files, the Commit window with its Shelf and Stash tabs, and

@@ -41,7 +41,7 @@ export interface Phase02Registry {
   /** Exposed so an integration test can drive the real view, not just the provider. */
   reposView: vscode.TreeView<string>;
   hub: BranchHubViewProvider;
-  /** new-way-4: the sidebar's Branches panel. */
+  /** new-way-4: the sidebar's Repositories panel (`gittree.branches`). */
   panel: BranchPanelProvider;
   /**
    * P13-T5: the single branch-action registry the popup, the branches tree and
@@ -226,11 +226,12 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   context.subscriptions.push(hubView);
 
   /**
-   * The Branches panel (new-way-4): every repository's status and every branch
-   * in one list, a card per branch with the actions its state calls for. A
-   * webview, because what it draws — a branch's card under its row, the
-   * repository markers, the inline New Branch form — is more than a tree row
-   * can hold. The trees above draw the plain tree, one setting away.
+   * The Repositories panel (new-way-4; once titled Branches): every repository's
+   * status, then its branches under Recent, Local, Remote and Tags tabs, a card
+   * per branch with the actions its state calls for. A webview, because what it
+   * draws — a branch's card under its row, the repository markers, the inline
+   * New Branch form — is more than a tree row can hold. The trees above draw the
+   * plain tree, one setting away.
    */
   const panel = new BranchPanelProvider({
     core,

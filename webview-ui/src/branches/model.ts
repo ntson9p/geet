@@ -1,6 +1,7 @@
 /**
- * The Branches panel's rows, from the host's state and the panel's own view
- * state (new-way-4). Pure: no React, no DOM, so every rule is unit-tested.
+ * The Repositories panel's rows (once the Branches panel), from the host's
+ * state and the panel's own view state (new-way-4). Pure: no React, no DOM, so
+ * every rule is unit-tested.
  *
  * **One list for every repository.** A branch name is one row however many
  * repositories have it; the row carries a marker per repository in view, and
@@ -8,13 +9,16 @@
  * the view to some repositories (the scope) narrows both the rows and what
  * they act on.
  *
- * **What is wanted first comes first**: the repositories and what each has
- * checked out, then the branches recently used and the starred ones, then
- * every local branch, then the remote ones and the tags, which start shut.
+ * **Where you are, then where you can go**: the repositories and what each has
+ * checked out, then the branches, one kind at a time under tabs: Recent (the
+ * starred and the recently used), Local, Remote and Tags. The four overlap —
+ * every recent branch is a local one, most local ones have a remote twin — so
+ * the panel shows one of them, never all four stacked.
  *
- * **Searching flattens.** With text in the filter, sections hold their matches
- * as one flat list of whole names, matched letters marked, Recent gives way to
- * avoid listing a match twice, and every section with a match opens.
+ * **Searching looks everywhere.** With text in the filter the tabs give way:
+ * every kind holds its matches, as one flat list of whole names under a
+ * heading, matched letters marked, and Recent steps aside so as not to list a
+ * match twice.
  */
 import type {
   BranchPanelRefDto,
@@ -39,8 +43,16 @@ export const CARD_LINE = 20;
 /** The card's row of buttons. */
 export const CARD_BUTTONS = 30;
 export const CARD_PAD = 12;
+/** The tabs over the branch list. */
+export const TABS = 30;
 
 export type SectionId = 'repos' | 'recent' | 'local' | 'remote' | 'tags';
+
+/** The kinds of branch the list shows, one at a time. */
+export type BranchTab = 'recent' | 'local' | 'remote' | 'tags';
+
+/** The tabs row's id: the one row the list keeps at its top once scrolled past. */
+export const TABS_ID = 'tabs';
 
 /** Recent branches listed, starred ones aside. */
 const RECENT_MAX = 8;
@@ -332,7 +344,22 @@ export type PanelRow =
       /** A name the search offers to create. */
       readonly create?: string;
       readonly height: number;
+    }
+  | {
+      /** Which kind of branch the list below shows. Not while searching. */
+      readonly kind: 'tabs';
+      readonly id: string;
+      readonly tabs: readonly TabCount[];
+      readonly active: BranchTab;
+      readonly height: number;
     };
+
+export interface TabCount {
+  readonly id: BranchTab;
+  readonly label: string;
+  /** Branches of that kind in view; the recent ones for Recent. */
+  readonly count: number;
+}
 
 export interface PanelUiState {
   readonly query: string;
@@ -342,6 +369,8 @@ export interface PanelUiState {
   readonly toggled: ReadonlySet<string>;
   /** The row whose card is open. */
   readonly openCard?: string;
+  /** The tab picked. None: Recent, unless nothing is recent. */
+  readonly tab?: BranchTab;
 }
 
 export interface PanelModel {
@@ -354,6 +383,8 @@ export interface PanelModel {
   readonly markers: boolean;
   /** Matches across every section, while searching. */
   readonly matches: number;
+  /** The tab whose branches are listed, or would be once the search is cleared. */
+  readonly tab: BranchTab;
 }
 
 const SECTION_LABEL: Record<SectionId, string> = {
@@ -364,13 +395,47 @@ const SECTION_LABEL: Record<SectionId, string> = {
   tags: 'Tags',
 };
 
-/** What is open before anyone touches it. */
-function defaultOpen(section: SectionId): boolean {
-  return section !== 'remote' && section !== 'tags';
-}
-
 function isOpen(id: string, byDefault: boolean, ui: PanelUiState): boolean {
   return ui.toggled.has(id) ? !byDefault : byDefault;
+}
+
+/**
+ * Collapse All: every folder and remote in view shut, whatever it was by
+ * default. A folder opened by hand is open because it is toggled, so shutting
+ * it drops the toggle; one open by default (it holds the current branch) gains
+ * one. What is out of view (another tab, a shut folder) stays as it was.
+ */
+export function collapsedAll(rows: readonly PanelRow[], toggled: ReadonlySet<string>): ReadonlySet<string> {
+  const next = new Set(toggled);
+  for (const row of rows) {
+    if ((row.kind !== 'folder' && row.kind !== 'remote') || !row.open) continue;
+    if (next.has(row.id)) next.delete(row.id);
+    else next.add(row.id);
+  }
+  return next;
+}
+
+/** What a screen reader hears on the tabs row: the tab shown, where it sits, and how to move. */
+export function tabsLabel(row: Extract<PanelRow, { kind: 'tabs' }>): string {
+  const at = row.tabs.findIndex((t) => t.id === row.active);
+  return `${row.tabs[at]?.label ?? ''} tab, ${at + 1} of ${row.tabs.length}. Left and Right switch.`;
+}
+
+/** A tab's hover, which still counts its branches when the strip is too narrow to. */
+export function tabTitle(tab: TabCount): string {
+  const noun =
+    tab.id === 'tags' ? (tab.count === 1 ? 'tag' : 'tags') : `${tab.id} ${tab.count === 1 ? 'branch' : 'branches'}`;
+  return `${tab.count} ${noun}`;
+}
+
+/**
+ * The tab whose branches are listed: the one picked, else Recent while anything
+ * is recent, else Local. Tags is no choice while tags are hidden.
+ */
+export function shownTab(picked: BranchTab | undefined, recentCount: number, showTags: boolean): BranchTab {
+  if (picked === 'tags' && !showTags) return 'local';
+  if (picked !== undefined) return picked;
+  return recentCount > 0 ? 'recent' : 'local';
 }
 
 /** Repositories in view: the scope, or every one when the scope names none that are open. */
@@ -578,89 +643,84 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
     walk('', depth);
   };
 
-  const sectionHeader = (section: SectionId, count: number): boolean => {
-    const id = `sec:${section}`;
-    const open = isOpen(id, defaultOpen(section), ui);
-    rows.push({
-      kind: 'section',
-      id,
-      section,
-      label: SECTION_LABEL[section],
-      count,
-      open,
-      height: SECTION,
-    });
-    return open;
-  };
+  const recent = recentEntries(scopeRepos, localByKey);
+  const remotes = buildEntries(scopeRepos, 'remote');
+  const tags = state.showTags ? buildEntries(scopeRepos, 'tag') : [];
+  const tab = shownTab(ui.tab, recent.length, state.showTags);
 
-  // ---- Recent -------------------------------------------------------------
-  if (!searching) {
-    const recent = recentEntries(scopeRepos, localByKey);
-    if (recent.length > 0 && sectionHeader('recent', recent.length)) {
-      for (const entry of recent) rows.push(branchRow(entry, 'recent', 0, true, entry.name));
-    }
-  }
-
-  // ---- Local --------------------------------------------------------------
-  if (searching) pushSection('local', locals, compareEntries, false);
-  else if (sectionHeader('local', locals.length)) {
-    if (locals.length === 0) {
+  // ---- Searching: every kind at once, each under its heading --------------
+  if (searching) {
+    pushSection('local', locals, compareEntries, false);
+    pushSection('remote', remotes, compareEntries, false);
+    if (state.showTags) pushSection('tags', tags, compareTags, false);
+    if (matches === 0) {
+      const name = ui.query.trim();
       rows.push({
         kind: 'hint',
-        id: 'hint:local',
-        text: scopeRepos.every((r) => r.unborn)
-          ? 'No branches yet: the first commit creates one.'
-          : 'No local branches.',
+        id: 'hint:nomatch',
+        text: `No branch matches “${name}”.`,
+        ...(isPlausibleBranchName(name) ? { create: name } : {}),
         height: HINT,
       });
     }
-    pushSection('local', locals, compareEntries, state.groupByFolder);
+    return { rows, scopeRepos, multi, markers, matches, tab };
   }
 
-  // ---- Remote, one group per remote ---------------------------------------
-  const remotes = buildEntries(scopeRepos, 'remote');
-  if (searching) pushSection('remote', remotes, compareEntries, false);
-  else if (remotes.length > 0 && sectionHeader('remote', remotes.length)) {
-    const names = [...new Set(remotes.map((e) => remoteOf(e)))].sort((a, b) => a.localeCompare(b));
-    for (const remote of names) {
-      const mine = remotes.filter((e) => remoteOf(e) === remote);
-      const id = `rem:${remote}`;
-      const open = isOpen(id, true, ui);
-      rows.push({ kind: 'remote', id, remote, count: mine.length, open, depth: 0, height: ROW });
-      if (!open) continue;
-      pushSection(
-        'remote',
-        mine,
-        compareEntries,
-        state.groupByFolder,
-        (e) => e.name.slice(remote.length + 1),
-        1,
-        `remote:${remote}`,
-      );
+  // ---- The tabs, then the one kind they show ------------------------------
+  const counts: TabCount[] = [
+    { id: 'recent', label: SECTION_LABEL.recent, count: recent.length },
+    { id: 'local', label: SECTION_LABEL.local, count: locals.length },
+    { id: 'remote', label: SECTION_LABEL.remote, count: remotes.length },
+    ...(state.showTags ? [{ id: 'tags' as const, label: SECTION_LABEL.tags, count: tags.length }] : []),
+  ];
+  rows.push({ kind: 'tabs', id: TABS_ID, tabs: counts, active: tab, height: TABS });
+  const hint = (id: string, text: string): void => {
+    rows.push({ kind: 'hint', id: `hint:${id}`, text, height: HINT });
+  };
+
+  switch (tab) {
+    case 'recent':
+      if (recent.length === 0) hint('recent', 'No recent branches yet. The ones you check out or star appear here.');
+      for (const entry of recent) rows.push(branchRow(entry, 'recent', 0, true, entry.name));
+      break;
+    case 'local':
+      if (locals.length === 0) {
+        hint(
+          'local',
+          scopeRepos.every((r) => r.unborn) ? 'No branches yet: the first commit creates one.' : 'No local branches.',
+        );
+      }
+      pushSection('local', locals, compareEntries, state.groupByFolder);
+      break;
+    case 'remote': {
+      // One group per remote, each folded the way Local is.
+      if (remotes.length === 0) hint('remote', 'No remote branches.');
+      const names = [...new Set(remotes.map((e) => remoteOf(e)))].sort((a, b) => a.localeCompare(b));
+      for (const remote of names) {
+        const mine = remotes.filter((e) => remoteOf(e) === remote);
+        const id = `rem:${remote}`;
+        const open = isOpen(id, true, ui);
+        rows.push({ kind: 'remote', id, remote, count: mine.length, open, depth: 0, height: ROW });
+        if (!open) continue;
+        pushSection(
+          'remote',
+          mine,
+          compareEntries,
+          state.groupByFolder,
+          (e) => e.name.slice(remote.length + 1),
+          1,
+          `remote:${remote}`,
+        );
+      }
+      break;
     }
-  }
-
-  // ---- Tags ---------------------------------------------------------------
-  if (state.showTags) {
-    const tags = buildEntries(scopeRepos, 'tag');
-    if (searching) pushSection('tags', tags, compareTags, false);
-    else if (tags.length > 0 && sectionHeader('tags', tags.length)) {
+    case 'tags':
+      if (tags.length === 0) hint('tags', 'No tags.');
       pushSection('tags', tags, compareTags, false);
-    }
+      break;
   }
 
-  if (searching && matches === 0) {
-    const name = ui.query.trim();
-    rows.push({
-      kind: 'hint',
-      id: 'hint:nomatch',
-      text: `No branch matches “${name}”.`,
-      ...(isPlausibleBranchName(name) ? { create: name } : {}),
-      height: HINT,
-    });
-  }
-
-  return { rows, scopeRepos, multi, markers, matches };
+  return { rows, scopeRepos, multi, markers, matches, tab };
 }
 
 /** The remote a remote-branch entry belongs to: `origin` of `origin/x`. */

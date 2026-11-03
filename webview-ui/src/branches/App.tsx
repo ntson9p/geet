@@ -1,11 +1,12 @@
 /**
- * The Branches panel (new-way-4).
+ * The Repositories panel (new-way-4; once titled Branches).
  *
  * Top to bottom: a toolbar (the filter, Fetch, New Branch, more); the New
  * Branch form while it is open; then one list — every repository with what it
- * has checked out (or, with one repository, its current branch), then the
- * recent and starred branches, every local branch, the remote ones and the
- * tags.
+ * has checked out (or, with one repository, its current branch), then tabs
+ * over the branches: Recent (the starred and recently used), Local, Remote and
+ * Tags, one kind at a time. The tabs stay at the top once the list scrolls
+ * past them, and step aside while the filter searches every kind.
  *
  * **A click never changes anything.** Clicking a branch opens its card — the
  * last commit, where it stands against what it tracks and against what is
@@ -50,8 +51,12 @@ import { getVsCodeApi } from '../lib/vscodeApi';
 import { laneColor } from '../log/GraphCanvas';
 import {
   buildPanel,
+  collapsedAll,
+  TABS_ID,
+  tabsLabel,
   targetOf,
   type BranchEntry,
+  type BranchTab,
   type PanelRow,
   type PanelUiState,
   type QuickAction,
@@ -69,6 +74,7 @@ import {
   RepoRow,
   RowButton,
   SectionRow,
+  TabsRow,
 } from './Rows';
 
 const rpc = new RpcClient();
@@ -82,7 +88,11 @@ const DRAG_MIME = 'application/x-gittree-branch';
 interface Persisted {
   readonly scope?: readonly string[];
   readonly toggled?: readonly string[];
+  /** The branch tab picked, kept until another is. */
+  readonly tab?: BranchTab;
 }
+
+const TAB_ORDER: readonly BranchTab[] = ['recent', 'local', 'remote', 'tags'];
 
 interface OpenMenu {
   readonly items: MenuItem[];
@@ -115,6 +125,9 @@ export function App() {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<readonly string[]>(() => saved.scope ?? []);
   const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set(saved.toggled ?? []));
+  const [tab, setTab] = useState<BranchTab | undefined>(() =>
+    saved.tab !== undefined && TAB_ORDER.includes(saved.tab) ? saved.tab : undefined,
+  );
   const [openCard, setOpenCard] = useState<string | undefined>(undefined);
   const [focusedId, setFocusedId] = useState<string | undefined>(undefined);
   const [details, setDetails] = useState<ReadonlyMap<string, BranchPanelDetailsDto>>(new Map());
@@ -132,12 +145,22 @@ export function App() {
   const dark = theme === 'dark' || theme === 'high-contrast';
 
   useEffect(() => {
-    api.setState({ scope: [...scope], toggled: [...toggled] } satisfies Persisted);
-  }, [api, scope, toggled]);
+    api.setState({
+      scope: [...scope],
+      toggled: [...toggled],
+      ...(tab !== undefined ? { tab } : {}),
+    } satisfies Persisted);
+  }, [api, scope, tab, toggled]);
 
   const ui: PanelUiState = useMemo(
-    () => ({ query, scope, toggled, ...(openCard !== undefined ? { openCard } : {}) }),
-    [openCard, query, scope, toggled],
+    () => ({
+      query,
+      scope,
+      toggled,
+      ...(openCard !== undefined ? { openCard } : {}),
+      ...(tab !== undefined ? { tab } : {}),
+    }),
+    [openCard, query, scope, tab, toggled],
   );
   const model = useMemo(() => (state ? buildPanel(state, ui) : undefined), [state, ui]);
   const searching = query.trim().length > 0;
@@ -451,14 +474,8 @@ export function App() {
           'collapse',
           'Collapse All',
           () => {
-            // Back to how the panel starts: every folder, Remote and Tags shut.
-            setToggled(() => {
-              const next = new Set<string>();
-              for (const r of model.rows) {
-                if ((r.kind === 'folder' || r.kind === 'remote') && r.open) next.add(r.id);
-              }
-              return next;
-            });
+            // Every folder and remote of the tab on show, shut.
+            setToggled((prev) => collapsedAll(model.rows, prev));
             setOpenCard(undefined);
           },
           { icon: 'collapse-all' },
@@ -481,6 +498,15 @@ export function App() {
 
   const toggleCard = useCallback((id: string) => {
     setOpenCard((prev) => (prev === id ? undefined : id));
+  }, []);
+
+  /**
+   * A tab picked, by the pointer or the arrows. The keyboard goes on from the
+   * tabs, and a list scrolled far down starts again right under them.
+   */
+  const selectTab = useCallback((next: BranchTab) => {
+    setTab(next);
+    listRef.current?.focusRow(TABS_ID);
   }, []);
 
   const onQuick = useCallback(
@@ -528,6 +554,7 @@ export function App() {
           if (row.create !== undefined) openForm({ from: 'HEAD', name: row.create });
           return;
         case 'operation':
+        case 'tabs':
           return;
       }
     },
@@ -545,6 +572,15 @@ export function App() {
 
   const onRowKeyDown = useCallback(
     (row: PanelRow, _index: number, e: ReactKeyboardEvent<HTMLDivElement>): boolean => {
+      // On the tabs, Left and Right go from one to the next, round the ends as a tab strip does.
+      if (row.kind === 'tabs' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const at = row.tabs.findIndex((t) => t.id === row.active);
+        const step = e.key === 'ArrowRight' ? 1 : -1;
+        const next = row.tabs[(at + step + row.tabs.length) % row.tabs.length];
+        if (next !== undefined) selectTab(next.id);
+        return true;
+      }
       const open =
         row.kind === 'section' || row.kind === 'folder' || row.kind === 'remote'
           ? row.open
@@ -595,7 +631,7 @@ export function App() {
       }
       return false;
     },
-    [activate, focusSearch, openRowMenu, run, searching],
+    [activate, focusSearch, openRowMenu, run, searching, selectTab],
   );
 
   // ---- rendering ----------------------------------------------------------------------
@@ -767,6 +803,8 @@ export function App() {
             }
           />
         );
+      case 'tabs':
+        return <TabsRow row={row} onSelect={selectTab} />;
       case 'remote':
         return <GroupRow icon="cloud" label={row.remote} count={row.count} open={row.open} depth={row.depth} />;
       case 'folder':
@@ -920,11 +958,12 @@ export function App() {
             ref={listRef}
             rows={model.rows}
             height={listSize.height}
-            ariaLabel="Branches"
+            ariaLabel="Repositories"
             focusedId={focusedId}
             onFocusId={setFocusedId}
             renderRow={renderRow}
             rowClassName={(row) => `gtp-kind-${row.kind}`}
+            stickyId={TABS_ID}
             rowAttributes={(row) => {
               const level =
                 row.kind === 'branch' || row.kind === 'folder' || row.kind === 'remote' ? row.depth + 2 : 1;
@@ -945,7 +984,9 @@ export function App() {
                       ? `Current branch ${row.repo.head ?? 'detached HEAD'}`
                       : row.kind === 'section'
                         ? `${row.label}, ${row.count}`
-                        : undefined;
+                        : row.kind === 'tabs'
+                          ? tabsLabel(row)
+                          : undefined;
               return {
                 'aria-level': level,
                 ...(expanded !== undefined ? { 'aria-expanded': expanded } : {}),

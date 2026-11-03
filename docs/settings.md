@@ -69,7 +69,7 @@ Allow GitTree usage telemetry (activation timing, operation duration buckets, er
 
 ### `gittree.sidebar.extraViews`
 
-Show the Repositories, Branches (tree), Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: the Branches panel lists the repositories itself, and IntelliJ keeps the other surfaces in the Git tool window, the branches popup and the Stash tab.
+Show the Repositories (Tree), Branches (Tree), Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: the Repositories panel lists the repositories itself, and IntelliJ keeps the other surfaces in the Git tool window, the branches popup and the Stash tab.
 
 - Type: `boolean` · Default: `false`
 
@@ -145,19 +145,19 @@ How many recent branches (by checkout frequency and recency) the Branches popup 
 
 ### `gittree.branches.showIncomingOutgoing`
 
-Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Branches panel. Toggled from the popup's header and the panel's More Actions menu (the `⋯` button).
+Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Repositories panel. Toggled from the popup's header and the panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.branches.showTags`
 
-List tags as a separate Tags node in the branches popup, the Branches views and the log's Branches pane. Toggled from the log's Branches Pane Settings menu (the gear button).
+List tags in the branches popup, as the Repositories panel's Tags tab, and as a Tags node in the Branches (Tree) view and the log's Branches pane. Toggled from the log's Branches Pane Settings menu (the gear button) and the panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.branches.groupByFolder`
 
-Group branches into folders on `/` in the Branches panel (`feature/login` under `feature`). Toggled from the panel's More Actions menu (the `⋯` button).
+Group branches into folders on `/` in the Repositories panel (`feature/login` under `feature`). Toggled from the panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 

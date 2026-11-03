@@ -140,7 +140,7 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
 
 ---
 
-## 2. Branch Management (the Branches popup, and the sidebar's Branches panel)
+## 2. Branch Management (the Branches popup, and the sidebar's Repositories panel)
 
 ### The popup itself (shape)
 
@@ -174,10 +174,11 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5); and the all-roots set is the operations needing no per-root input,
   since GitTree's take their input inside the per-repository call (D27).
-### The sidebar's Branches panel (shape + behaviour)
+### The sidebar's Repositories panel (shape + behaviour)
 
-The sidebar's **Branches** section (`gittree.branches`) is GitTree's own design, not the popup
-standing open (D34). It answers three questions, top to bottom.
+The sidebar's **Repositories** section (`gittree.branches`, titled *Branches* until it showed
+more than branches; the id stayed, so layouts and keybindings carry over) is GitTree's own
+design, not the popup standing open (D34). It answers three questions, top to bottom.
 
 **Where am I?**
 
@@ -194,12 +195,24 @@ standing open (D34). It answers three questions, top to bottom.
 
 **Where can I go?**
 
+The branches sit under four **tabs**, one list at a time, since the four overlap: every recent
+branch is a local one, and most local ones have a remote twin. Each tab counts what it holds,
+and its hover says so in words (*18 local branches*). The panel starts again on the tab last
+picked; at first, on Recent while anything is recent, else Local.
+
 * **Recent** — the starred branches, then the ones checked out lately (from the reflog), at
   most eight.
 * **Local** — folded into folders on `/` (*Group by Folder*), starred first, then by name; the
   folder holding the current branch starts open.
-* **Remote** — one group per remote, folded the same way. Starts shut.
-* **Tags** — newest first. Starts shut; hidden by *Show Tags*.
+* **Remote** — one group per remote, folded the same way.
+* **Tags** — newest first. Not there while *Show Tags* is off.
+* **Scrolled past, the tabs stay at the top** of the list, and a click on one starts the new
+  list right under them. On the tabs, `←` and `→` switch, round the ends, and `↓` goes into the
+  list.
+* **In a narrow sidebar the counts go first**, then some padding: every tab keeps its name down
+  to VS Code's narrowest sidebar.
+* **An empty tab says so**, and what would fill it: *No recent branches yet. The ones you check
+  out or star appear here.*
 * Every branch row shows its `↓ ↑` against its upstream, its last commit's age (`3h`, `2d`,
   `5mo`) and up to three chips:
   - **merged**: all its commits are on the main branch (`origin/HEAD`'s target, else
@@ -261,11 +274,13 @@ standing open (D34). It answers three questions, top to bottom.
     held first, *4 of 5 repositories · local in api · from origin in web, docs and tools · not
     in infra*), **Clean Up Branches…**;
   - *Show*: Tags, Incoming / Outgoing Counts, Group by Folder;
-  - Collapse All.
-* **The filter** searches every section at once. Every word must match; matched letters are
-  marked. Sections flatten to whole names, Recent steps aside, `Enter` opens the first match.
-  When nothing matches it offers **Create branch "…"**. Typing anywhere in the list starts a
-  search.
+  - Collapse All: every folder and remote of the tab on show, the ones opened by hand too.
+* **The filter** searches every kind at once, whatever tab is picked: the tabs step aside, and
+  each kind's matches sit under a heading (*Local*, *Remote*, *Tags*) as whole names, Recent
+  stepping aside so as not to list a match twice. Every word must match; matched letters are
+  marked; `Enter` opens the first match. When nothing matches it offers **Create branch
+  "…"**. Typing anywhere in the list starts a search; clearing it brings the tabs back as they
+  were.
 * **New Branch** is a form in the panel, not a chain of input boxes:
   - a name, cleaned as you type as IntelliJ's field does (a space becomes `_`);
   - **Check it out** (ticked);
@@ -509,7 +524,7 @@ docked bottom, tabs `Log | Console`").
   Tabs · Close All Tabs**. The first Log tab never closes, and Console and Worktrees stay too
   (**D33**). Closing the tab in front brings its left neighbour forward.
 * **Commands that used to overwrite your filter open a tab of their own:** File History
-  (`History: <file>`), Compare with Current, the Branches panel's **Show in New Log Tab**
+  (`History: <file>`), Compare with Current, the Repositories panel's **Show in New Log Tab**
   (`Log: <branch>`) and an update's `Show in Log`. A tab already
   showing exactly that (the sort aside) is brought forward instead, so running File History
   on one file twice lands on one tab. Navigation stays in the tab in front: blame's
@@ -544,7 +559,8 @@ docked bottom, tabs `Log | Console`").
   Settings** (gear) · collapse.
 * **Branches Pane Settings** holds **Show Tags** (`gittree.branches.showTags`, on): off,
   the `Tags` node is gone. As in IntelliJ it is one setting for every branch list, so the
-  Branches popup and the sidebar's Branches views drop their tags with it; the `Branch ▾`
+  Branches popup, the sidebar's Repositories panel (its Tags tab) and the branch trees drop
+  their tags with it; the `Branch ▾`
   filter keeps offering them. IntelliJ's menu also has the single-click action and
   `Group By Directory`; GitTree lists neither (a click always filters; branches always
   group by directory).

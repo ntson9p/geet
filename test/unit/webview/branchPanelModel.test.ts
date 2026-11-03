@@ -12,6 +12,7 @@ import {
   CARD_PAD,
   cardHeight,
   cardLineCount,
+  collapsedAll,
   compareTags,
   entryKey,
   isPlausibleBranchName,
@@ -26,10 +27,16 @@ import {
   ROW,
   scopeReposOf,
   shortAge,
+  shownTab,
+  TABS,
+  TABS_ID,
+  tabsLabel,
+  tabTitle,
   targetOf,
   trackingShort,
   trackingText,
   upstreamElsewhere,
+  type BranchTab,
   type PanelRow,
   type PanelUiState,
 } from '../../../webview-ui/src/branches/model';
@@ -271,67 +278,187 @@ describe('recentEntries', () => {
 
 describe('buildPanel: one repository', () => {
   const model = buildPanel(state([web]), ui());
+  const onTab = (tab: BranchTab, extra: Partial<PanelUiState> = {}) =>
+    buildPanel(state([web]), ui({ tab, ...extra }));
+  const names = (rows: readonly PanelRow[]) => rows.flatMap((r) => (r.kind === 'branch' ? [r.entry.name] : []));
 
-  it('starts with the current branch, then Recent, Local, Remote and Tags', () => {
+  it('starts with the current branch, then the tabs over its branches', () => {
     expect(model.multi).toBe(false);
     expect(model.markers).toBe(false);
     const first = model.rows[0]!;
     expect(first.kind).toBe('head');
     if (first.kind === 'head') expect(first.entry?.name).toBe('feature/login');
-    const sections = model.rows.filter((r) => r.kind === 'section').map((r) => r.id);
-    expect(sections).toEqual(['sec:recent', 'sec:local', 'sec:remote', 'sec:tags']);
+    expect(model.rows[1]).toMatchObject({ kind: 'tabs', id: TABS_ID, height: TABS });
+    // Recent, Local, Remote and Tags are tabs now, never headings stacked one under another.
+    expect(model.rows.some((r) => r.kind === 'section')).toBe(false);
   });
 
-  it('opens Recent and Local, and keeps Remote and Tags shut', () => {
-    const open = Object.fromEntries(
-      model.rows.flatMap((r) => (r.kind === 'section' ? [[r.section, r.open]] : [])),
-    );
-    expect(open).toEqual({ recent: true, local: true, remote: false, tags: false });
-    expect(model.rows.some((r) => r.kind === 'remote')).toBe(false);
+  it('counts each kind on its tab', () => {
+    const tabs = model.rows[1]!;
+    expect(tabs.kind === 'tabs' && tabs.tabs.map((t) => [t.id, t.label, t.count])).toEqual([
+      ['recent', 'Recent', 2],
+      ['local', 'Local', 4],
+      ['remote', 'Remote', 3],
+      ['tags', 'Tags', 2],
+    ]);
   });
 
-  it('folds names into folders, and opens the folder holding the current branch', () => {
-    const feature = model.rows.find((r) => r.kind === 'folder' && r.label === 'feature');
-    const bugfix = model.rows.find((r) => r.kind === 'folder' && r.label === 'bugfix');
+  it('opens on Recent, and lists only what that tab holds', () => {
+    expect(model.tab).toBe('recent');
+    expect(model.rows[1]?.kind === 'tabs' && model.rows[1].active).toBe('recent');
+    const recent = model.rows.filter((r) => r.kind === 'branch');
+    expect(recent.map((r) => (r.kind === 'branch' ? [r.section, r.entry.name] : []))).toEqual([
+      ['recent', 'develop'],
+      ['recent', 'main'],
+    ]);
+    expect(model.rows.some((r) => r.kind === 'folder' || r.kind === 'remote')).toBe(false);
+  });
+
+  it('opens on Local when nothing is recent; Recent picked says why it is empty', () => {
+    const quiet = repo('/quiet', { head: 'main', locals: [ref('main', { current: true }), ref('spare')] });
+    expect(buildPanel(state([quiet]), ui()).tab).toBe('local');
+    const picked = buildPanel(state([quiet]), ui({ tab: 'recent' }));
+    expect(picked.tab).toBe('recent');
+    expect(picked.rows.at(-1)).toMatchObject({ kind: 'hint', id: 'hint:recent' });
+  });
+
+  it('says so when a tab has nothing in it', () => {
+    const bare = repo('/bare', { head: 'main', locals: [ref('main', { current: true })] });
+    expect(buildPanel(state([bare]), ui({ tab: 'remote' })).rows.at(-1)).toMatchObject({
+      kind: 'hint',
+      text: 'No remote branches.',
+    });
+    expect(buildPanel(state([bare]), ui({ tab: 'tags' })).rows.at(-1)).toMatchObject({ kind: 'hint', text: 'No tags.' });
+    const unborn = repo('/new', { unborn: true });
+    expect(buildPanel(state([unborn]), ui({ tab: 'local' })).rows.at(-1)).toMatchObject({
+      kind: 'hint',
+      text: 'No branches yet: the first commit creates one.',
+    });
+  });
+
+  it('folds Local into folders, and opens the folder holding the current branch', () => {
+    const local = onTab('local');
+    const feature = local.rows.find((r) => r.kind === 'folder' && r.label === 'feature');
+    const bugfix = local.rows.find((r) => r.kind === 'folder' && r.label === 'bugfix');
     expect(feature?.kind === 'folder' && feature.open).toBe(true);
     expect(bugfix?.kind === 'folder' && bugfix.open).toBe(false);
-    const login = model.rows.find((r) => r.kind === 'branch' && r.section === 'local' && r.entry.name === 'feature/login');
+    const login = local.rows.find((r) => r.kind === 'branch' && r.section === 'local' && r.entry.name === 'feature/login');
     expect(login?.kind === 'branch' && login.label).toBe('login');
     expect(login?.kind === 'branch' && login.depth).toBe(1);
+    // Starred first, then by name.
+    expect(names(local.rows)).toEqual(['feature/login', 'develop', 'main']);
   });
 
   it('shows whole names, prefix dimmed, in Recent', () => {
-    const recent = model.rows.filter((r) => r.kind === 'branch' && r.section === 'recent');
-    expect(recent.map((r) => (r.kind === 'branch' ? r.entry.name : ''))).toEqual(['develop', 'main']);
+    const withPrefix = buildPanel(state([{ ...web, favorites: ['bugfix/header'] }]), ui());
+    const header = withPrefix.rows.find((r) => r.kind === 'branch' && r.entry.name === 'bugfix/header');
+    expect(header?.kind === 'branch' && [header.prefix, header.label, header.depth]).toEqual(['bugfix/', 'header', 0]);
   });
 
   it('lists every name flat when folders are off', () => {
-    const flat = buildPanel(state([web], { groupByFolder: false }), ui());
+    const flat = buildPanel(state([web], { groupByFolder: false }), ui({ tab: 'local' }));
     expect(flat.rows.some((r) => r.kind === 'folder')).toBe(false);
     const bugfix = flat.rows.find((r) => r.kind === 'branch' && r.section === 'local' && r.entry.name === 'bugfix/header');
     expect(bugfix?.kind === 'branch' && [bugfix.prefix, bugfix.label]).toEqual(['bugfix/', 'header']);
   });
 
-  it('a toggle flips what a node does by default', () => {
-    const toggled = buildPanel(state([web]), ui({ toggled: new Set(['sec:remote', 'dir:local:feature/']) }));
-    const remote = toggled.rows.find((r) => r.id === 'sec:remote');
-    expect(remote?.kind === 'section' && remote.open).toBe(true);
-    expect(toggled.rows.find((r) => r.id === 'dir:local:feature/')?.kind === 'folder').toBe(true);
-    const feature = toggled.rows.find((r) => r.id === 'dir:local:feature/');
-    expect(feature?.kind === 'folder' && feature.open).toBe(false);
-    // Remote, open: a group per remote.
-    expect(toggled.rows.filter((r) => r.kind === 'remote').map((r) => (r.kind === 'remote' ? r.remote : ''))).toEqual([
+  it('groups Remote by remote, each open until shut', () => {
+    const remote = onTab('remote');
+    expect(remote.rows.filter((r) => r.kind === 'remote').map((r) => (r.kind === 'remote' ? r.remote : ''))).toEqual([
       'origin',
       'upstream',
     ]);
+    // feature/ under origin holds no checked-out branch, so it starts shut.
+    expect(remote.rows.find((r) => r.id === 'dir:remote:origin:feature/')).toMatchObject({ kind: 'folder', open: false });
+    expect(names(remote.rows)).toEqual(['origin/main', 'upstream/main']);
+    const shut = onTab('remote', { toggled: new Set(['rem:origin']) });
+    expect(names(shut.rows)).toEqual(['upstream/main']);
+  });
+
+  it('lists Tags newest first', () => {
+    expect(names(onTab('tags').rows)).toEqual(['v1.1', 'v1.0']);
+  });
+
+  it('a toggle flips what a node does by default', () => {
+    const toggled = onTab('local', { toggled: new Set(['dir:local:feature/', 'dir:local:bugfix/']) });
+    const feature = toggled.rows.find((r) => r.id === 'dir:local:feature/');
+    const bugfix = toggled.rows.find((r) => r.id === 'dir:local:bugfix/');
+    expect(feature?.kind === 'folder' && feature.open).toBe(false);
+    expect(bugfix?.kind === 'folder' && bugfix.open).toBe(true);
   });
 
   it('opens a card under the row it belongs to, and sizes it', () => {
     const id = 'br:local:local:main';
-    const withCard = buildPanel(state([web]), ui({ openCard: id }));
+    const withCard = onTab('local', { openCard: id });
     const row = withCard.rows.find((r) => r.id === id);
     expect(row?.kind === 'branch' && row.card).toBe(true);
     expect(row?.height).toBe(ROW + CARD_PAD + 3 * CARD_LINE + CARD_BUTTONS);
+  });
+});
+
+describe('the tabs over the branch list', () => {
+  it('show the tab picked; with none, Recent while anything is recent, else Local', () => {
+    expect(shownTab('remote', 3, true)).toBe('remote');
+    expect(shownTab(undefined, 3, true)).toBe('recent');
+    expect(shownTab(undefined, 0, true)).toBe('local');
+    expect(shownTab('recent', 0, true)).toBe('recent');
+  });
+
+  it('leave Tags out while tags are hidden, and show Local in its place', () => {
+    expect(shownTab('tags', 3, false)).toBe('local');
+    const hidden = buildPanel(state([web], { showTags: false }), ui({ tab: 'tags' }));
+    const tabs = hidden.rows.find((r) => r.kind === 'tabs');
+    expect(tabs?.kind === 'tabs' && tabs.tabs.map((t) => t.id)).toEqual(['recent', 'local', 'remote']);
+    expect(hidden.tab).toBe('local');
+    expect(hidden.rows.some((r) => r.kind === 'branch' && r.entry.kind === 'tag')).toBe(false);
+  });
+
+  it('count what each holds in their hover, one or many', () => {
+    expect(tabTitle({ id: 'local', label: 'Local', count: 18 })).toBe('18 local branches');
+    expect(tabTitle({ id: 'remote', label: 'Remote', count: 1 })).toBe('1 remote branch');
+    expect(tabTitle({ id: 'recent', label: 'Recent', count: 5 })).toBe('5 recent branches');
+    expect(tabTitle({ id: 'tags', label: 'Tags', count: 1 })).toBe('1 tag');
+    expect(tabTitle({ id: 'tags', label: 'Tags', count: 6 })).toBe('6 tags');
+  });
+
+  it('tell a screen reader which tab is shown, where it sits, and how to move', () => {
+    const local = buildPanel(state([web]), ui({ tab: 'local' }));
+    const tabs = local.rows.find((r) => r.kind === 'tabs');
+    expect(tabs?.kind === 'tabs' && tabsLabel(tabs)).toBe('Local tab, 2 of 4. Left and Right switch.');
+  });
+
+  it('sit under the repositories when there are several', () => {
+    const multi = buildPanel(state([api, web]), ui());
+    const at = multi.rows.findIndex((r) => r.kind === 'tabs');
+    expect(kinds(multi.rows.slice(0, at))).toEqual(['section', 'repo', 'repo']);
+  });
+
+  it('step aside while the filter searches every kind, whatever tab is picked', () => {
+    const searching = buildPanel(state([web]), ui({ query: 'log', tab: 'tags' }));
+    expect(searching.rows.some((r) => r.kind === 'tabs')).toBe(false);
+    expect(searching.tab).toBe('tags');
+    const hits = searching.rows.flatMap((r) => (r.kind === 'branch' ? [r.entry.name] : []));
+    expect(hits).toEqual(['feature/login', 'origin/feature/login']);
+  });
+});
+
+describe('Collapse All', () => {
+  it('shuts every folder and remote in view, opened by hand or by default', () => {
+    // bugfix/ opened by hand; feature/ open by default, holding the current branch.
+    const toggled = new Set(['dir:local:bugfix/']);
+    const local = buildPanel(state([web]), ui({ tab: 'local', toggled }));
+    const after = buildPanel(state([web]), ui({ tab: 'local', toggled: collapsedAll(local.rows, toggled) }));
+    const folders = after.rows.flatMap((r) => (r.kind === 'folder' ? [[r.label, r.open]] : []));
+    expect(folders).toEqual([
+      ['bugfix', false],
+      ['feature', false],
+    ]);
+  });
+
+  it('leaves alone what is out of view, in another tab', () => {
+    const remote = buildPanel(state([web]), ui({ tab: 'remote' }));
+    const toggled = collapsedAll(remote.rows, new Set(['dir:local:bugfix/']));
+    expect([...toggled].sort()).toEqual(['dir:local:bugfix/', 'rem:origin', 'rem:upstream']);
   });
 });
 
@@ -347,12 +474,15 @@ describe('buildPanel: several repositories', () => {
   });
 
   it('draws a name once, however many repositories have it', () => {
-    const mains = model.rows.filter((r) => r.kind === 'branch' && r.section === 'local' && r.entry.name === 'main');
+    const local = buildPanel(state([api, web]), ui({ tab: 'local' }));
+    const mains = local.rows.filter((r) => r.kind === 'branch' && r.section === 'local' && r.entry.name === 'main');
     expect(mains).toHaveLength(1);
+    // Recent too: the branch one repository used last beside the one another did.
+    expect(model.rows.flatMap((r) => (r.kind === 'branch' ? [r.entry.name] : []))).toEqual(['develop', 'main']);
   });
 
   it('narrows to the scope, and drops the markers when one repository is left', () => {
-    const narrowed = buildPanel(state([api, web]), ui({ scope: ['/api'] }));
+    const narrowed = buildPanel(state([api, web]), ui({ scope: ['/api'], tab: 'local' }));
     expect(narrowed.scopeRepos.map((r) => r.root)).toEqual(['/api']);
     expect(narrowed.markers).toBe(false);
     const repos = narrowed.rows.filter((r) => r.kind === 'repo');

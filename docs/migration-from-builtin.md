@@ -31,7 +31,7 @@ draw. If you run both and want only one set, turn off
 | --- | --- |
 | Source Control view | Commit tool window in the **GitTree** container — changelists or Staged/Unstaged with hunk & line staging |
 | `Git: Commit` | `GitTree: Commit` (pre-commit checks, amend, sign, message history — `Ctrl+Up`) |
-| Branch status-bar item | Branches view: current/recent/local/remote, favorites, smart checkout |
+| Branch status-bar item | Repositories view: each repository's current branch, then its branches under Recent / Local / Remote / Tags tabs, favorites, smart checkout |
 | `Git: Stash` commands | Stash view with diffs, plus the Shelf (patches stored outside `.git`) |
 | Timeline / `Git: View History` | Log tool window: graph, filters, IntelliSort, revision actions, file history |
 | Merge editor | 3-pane merge editor with a real editor result pane, `F7`, chevrons, magic wand |

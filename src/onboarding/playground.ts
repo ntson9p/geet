@@ -22,7 +22,7 @@ projects — delete this folder when you're done.
 1. **Your first commit** — \`NOTES.md\` has a pending edit. Open the Source
    Control view (\`Ctrl+Shift+G\`), click the file to review the diff, write a
    message and commit.
-2. **Resolve a conflict** — in the Branches view, right-click
+2. **Resolve a conflict** — in the Repositories view's **Local** tab, right-click
    \`feature/polish\` → **Checkout and Rebase onto Current**. \`src/greeting.js\`
    conflicts: open it from the SCM view and resolve in the 3-pane merge
    editor — \`F7\` jumps between conflicts, \`Alt+Enter\` accepts the side at the

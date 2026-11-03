@@ -422,7 +422,7 @@ row in the branches tree.
 | **New Worktree from \<branch\>** | P13-T5 submenu row → P13-T6 New Worktree dialog; offered on the checked-out branch too, where the dialog opens in new-branch mode | ✅ |
 | Multi-select batch branch operations | — | ❌ |
 | **Checkout on all roots** (a common branch, local or remote) | POST-P14ax `checkoutAcross`: the panel's row and `Checkout Branch in All Repositories…`, a remote branch made a tracking branch where needed, one question for local changes, one summary; no Rollback (**D27**) | ✅ |
-| **New Branch on all roots** from a common start point | the Branches panel's form, its **From** field chosen in the form (POST-P14ax) | ✅ |
+| **New Branch on all roots** from a common start point | the Repositories panel's form, its **From** field chosen in the form (POST-P14ax) | ✅ |
 | Delete-branch undo notification | — | ❌ |
 | Protected-branch awareness | — | ❌ |
 

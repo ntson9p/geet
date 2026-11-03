@@ -1,13 +1,16 @@
 /**
- * The Branches panel's rows and a branch's card (new-way-4). Presentational:
+ * The Repositories panel's rows and a branch's card (new-way-4). Presentational:
  * every decision about what a row holds is the model's (`model.ts`), every
  * gesture goes back to the App through the callbacks.
  */
-import type {
-  CSSProperties,
-  DragEvent as ReactDragEvent,
-  MouseEvent as ReactMouseEvent,
-  ReactNode,
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from 'react';
 import type {
   BranchPanelButtonDto,
@@ -22,10 +25,12 @@ import {
   relationText,
   remoteTwin,
   shortAge,
+  tabTitle,
   trackingShort,
   trackingText,
   upstreamElsewhere,
   type BranchEntry,
+  type BranchTab,
   type PanelRow,
   type QuickAction,
 } from './model';
@@ -166,6 +171,70 @@ export function SectionRow({
       <span className="gtp-count">{row.count}</span>
       <span className="gtp-spacer" />
       {actions !== undefined ? <span className="gtp-section-actions">{actions}</span> : null}
+    </div>
+  );
+}
+
+type TabsFit = 'full' | 'names' | 'snug' | 'tight';
+/** Roomiest first: names and counts, names alone, then less and less padding. */
+const TABS_FITS: readonly TabsFit[] = ['full', 'names', 'snug', 'tight'];
+
+/**
+ * Recent, Local, Remote and Tags: which kind of branch the list below shows,
+ * styled as GitTree's other tab strips. The row is what the keyboard reaches
+ * (Left and Right switch, as on a tab strip); the tabs themselves are for the
+ * pointer, and a press on one leaves focus where it was until the click lands.
+ */
+export function TabsRow({
+  row,
+  onSelect,
+}: {
+  row: Extract<PanelRow, { kind: 'tabs' }>;
+  onSelect: (tab: BranchTab) => void;
+}) {
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [fit, setFit] = useState<TabsFit>('full');
+  // The roomiest look that fits the sidebar's width: the counts go first, then
+  // some padding, so a narrow sidebar never cuts the last tab off.
+  useLayoutEffect(() => {
+    const el = stripRef.current;
+    if (!el) return undefined;
+    const measure = (): void => {
+      const level = TABS_FITS.find((candidate) => {
+        el.dataset['fit'] = candidate;
+        return el.scrollWidth <= el.clientWidth;
+      });
+      const chosen = level ?? 'tight';
+      el.dataset['fit'] = chosen;
+      setFit(chosen);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [row.tabs]);
+  return (
+    <div ref={stripRef} className="gtp-tabs" data-fit={fit} role="tablist" aria-label="Branches to show">
+      {row.tabs.map((tab) => {
+        const selected = tab.id === row.active;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            tabIndex={-1}
+            aria-selected={selected}
+            title={tabTitle(tab)}
+            className={`gt-tab gtp-tab${selected ? ' gt-active' : ''}`}
+            data-tab={tab.id}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onSelect(tab.id)}
+          >
+            <span className="gt-tab-label">{tab.label}</span>
+            <span className="gtp-tab-count">{tab.count}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -53,7 +53,7 @@ binding set (all gated on the setting — off by default):
 | `Alt+9` (`Cmd+9`) | Git tool window | `gittree.log.focus` |
 | ``Alt+` `` (`Ctrl+V`) | VCS Operations Popup | `gittree.operationsPopup` |
 | `Ctrl+Alt+N` (`Cmd+Alt+N`) | New Branch… | `gittree.branch.new` |
-| `F2` | Rename branch (in the Branches view) | `gittree.branches.rename` |
+| `F2` | Rename branch (in the Repositories view) | `gittree.branches.rename` |
 | `Ctrl+Alt+Z` (`Cmd+Alt+Z`) | Rollback | `gittree.rollbackFile` (active file) |
 | `F7` / `Shift+F7` | Next / Previous Difference | `gittree.diff.nextChange` / `prevChange` (GitTree diffs only) |
 
@@ -107,12 +107,13 @@ arrows move within):
 | Middle-click (tab strip) | close an extra Log tab |
 | Drag / double-click (a column's left border) | resize a column / fit it to its content again. Pointer-only: a width is cosmetic, and the columns themselves are switched from Presentation Settings ▸ Columns (keyboard-reachable) or the `gittree.log.columns.*` settings |
 
-**Branches panel (`gittree.branches` view)**
+**Repositories panel (`gittree.branches` view, once titled Branches)**
 
 | Key | Action |
 | --- | --- |
 | `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through the rows |
-| `→` / `←` | open / close a section, remote or folder; on a branch, open / close its card |
+| `←` / `→` (on the tabs) | switch between Recent, Local, Remote and Tags, round the ends |
+| `→` / `←` | open / close the Repositories section, a remote or a folder; on a branch, open / close its card |
 | `Enter` / `Space` | the same as a click: open or close a section, folder or a branch's card; on a repository, show only its branches (`Ctrl+Enter`: add it to what is shown) |
 | `Tab` (card open) | into the card's buttons |
 | `Shift+F10` / context-menu key | the focused row's menu |

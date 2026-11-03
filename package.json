@@ -3452,7 +3452,7 @@
           "id": "gittree.repositories",
           "name": "%gittree.view.repositories.name%",
           "contextualTitle": "GitTree",
-          "icon": "$(repo)",
+          "icon": "$(list-tree)",
           "visibility": "collapsed",
           "when": "gittree.multiRepo && config.gittree.sidebar.extraViews"
         },
@@ -3460,7 +3460,7 @@
           "id": "gittree.branches",
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
-          "icon": "$(list-tree)",
+          "icon": "$(repo)",
           "type": "webview"
         },
         {

@@ -48,7 +48,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
 | [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, *Update all repositories* to a setting | No (API) |
 | [D33](#d33--console-and-worktrees-cannot-be-closed) | In the Git tool window only the extra Log tabs close; Console and Worktrees always stay | Deliberate (owner's decision) |
-| [D34](#d34--the-sidebars-branches-panel-is-gittrees-own-design) | The sidebar's Branches panel is GitTree's own design: status first, one list for every repository, a card per branch | Deliberate (owner's request) |
+| [D34](#d34--the-sidebars-repositories-panel-is-gittrees-own-design) | The sidebar's Repositories panel is GitTree's own design: status first, one list for every repository under Recent / Local / Remote / Tags tabs, a card per branch | Deliberate (owner's request) |
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 
@@ -762,7 +762,7 @@ scope — deliberately left for its own task.
 
 **Superseded in part by D34:** the Branches view is no longer the popup standing open, and the
 Repositories section joined the opt-in panes, since the Branches panel lists the repositories
-itself.
+itself. That panel is now titled Repositories, and this tree *Repositories (Tree)*.
 
 ## D30 · Update Project asks with a message box, not a dialog
 
@@ -888,16 +888,30 @@ it offers nothing GitTree's strip lacks.
 
 **Revisitable:** yes, if a reopen route is added (the VCS Operations Popup is the natural one).
 
-## D34 · The sidebar's Branches panel is GitTree's own design
+## D34 · The sidebar's Repositories panel is GitTree's own design
 
 **IntelliJ:** branches live in the branch widget's popup (transient, search-first, a submenu per
 branch) and in the Git tool window's Branches pane (a tree that filters the log). There is no
 standing panel that combines every repository's state with its branches.
-**GitTree:** the sidebar's Branches section is a panel designed for VS Code's sidebar:
+**GitTree:** the sidebar's Repositories section (`gittree.branches`, titled Branches until
+POST-P14bb) is a panel designed for VS Code's sidebar:
 * every repository's status first;
-* then one list of branches for all of them, recent and starred first;
+* then one list of branches for all of them, under **Recent**, **Local**, **Remote** and
+  **Tags** tabs;
 * a card per branch with the actions its state calls for;
 * an inline New Branch form, and Clean Up Branches….
+
+**Tabs where IntelliJ stacks groups.** IntelliJ's popup lists Recent, Local, Remote and Tags one
+under another, and so did the panel at first. The four overlap — every recent branch is a local
+one, most local ones have a remote twin — and a standing panel shows them at once, so the same
+names came back two and three times. The owner asked for one list switched in place; tabs beat
+a dropdown with four short choices, all in sight and a click away. They stay at the top once
+the list scrolls past them, and step aside while the filter searches every kind, as the popup's
+search does.
+
+**Repositories, not Branches**, since what it shows first is each repository: the word VS Code's
+own Source Control uses for the same list. The opt-in tree it replaced (D29) is *Repositories
+(Tree)*, so no two views share a title.
 
 **Why:** the owner's request. The earlier panel copied the popup into a standing view (D29), and
 what made the popup good made the panel poor:

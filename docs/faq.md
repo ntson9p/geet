@@ -112,17 +112,14 @@ removes them again — no reload either way.
 first attempt at this, which set them to `"visibility": "hidden"`: that is only a default for
 a profile that has never rendered the container, so an existing install kept showing them.)
 
-### What are the Repositories and Branches sections in the sidebar?
+### What is the Repositories panel in the sidebar?
 
-**Branches** is the branches popup, standing open: the same `Actions` verbs, the same
-Current / Favorites / Recent / Local / Remote / Tags sections, the same right-click menu.
-Two differences, both in its favour — `feature/` is a real expandable folder rather than a
-drill-in (a popup cannot nest; see D5), and it does not close when you look away.
-
-**Repositories** lists every repository with its current branch and how far that branch is
-from its upstream. Click one to show it in Branches. It appears only when the workspace has
-more than one repository, and starts collapsed, so a single-repository workspace never sees
-it and a multi-repository one pays one row for it.
+**Repositories** (titled *Branches* until it showed more than branches) answers three
+questions, top to bottom. *Where am I:* every repository with what it has checked out, how
+far that is from its upstream and how many files are changed; with one repository, its
+current branch. *Where can I go:* the branches, under **Recent**, **Local**, **Remote** and
+**Tags** tabs, one list at a time. *What can I do:* a click opens a branch's card, with the
+actions its state calls for; right-click has the rest. See FEATURES and D34.
 
 Why it exists, when IntelliJ puts branches in the branch widget and the Git tool window:
 the status bar cannot be the way in. **Cursor has no status bar at all**, so the GitTree
@@ -130,16 +127,16 @@ button does not exist there — and a VS Code user who has just installed the ex
 in the sidebar, not at a widget two entries from the one the built-in Git extension draws.
 Both surfaces still work exactly as before; this is a third way in, not a replacement.
 
-**What focusing a repository does *not* do:** it does not change what `Ctrl+K`, `Ctrl+T` or
-Push act on. Those still resolve their repository from the active editor, as they always
-have. Focus scopes the two sections that draw it and nothing else — the same split VS Code
-has (its Source Control selection filters that view; the status-bar branch follows the
-editor) and IntelliJ has (the log has a root filter; the branch widget follows the editor).
-The Branches section names its repository in the header so there is never a question which
-one it means.
+**What clicking a repository does *not* do:** it narrows the panel to that repository's
+branches, and what its rows act on, but it does not change what `Ctrl+K`, `Ctrl+T` or Push
+act on. Those still resolve their repository from the active editor, as they always have —
+the same split VS Code has (its Source Control selection filters that view; the status-bar
+branch follows the editor) and IntelliJ has (the log has a root filter; the branch widget
+follows the editor). The filter field names the repositories shown (`web ×`), so there is
+never a question which one it means.
 
-The all-repositories branch tree that used to be here is still available as
-**Branches (All Repositories)** under `gittree.sidebar.extraViews`.
+The trees the panel replaced are still available under `gittree.sidebar.extraViews`:
+**Repositories (Tree)**, **Branches (Tree)** and **Branches (All Repositories)**.
 
 ### Where does Local History store its data? Does it leave my machine?
 

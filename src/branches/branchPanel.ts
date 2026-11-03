@@ -1,6 +1,8 @@
 /**
- * The Branches panel (new-way-4): the sidebar section that answers, for every
- * repository at once, "where am I, what is waiting, and where can I go".
+ * The Repositories panel (new-way-4; once titled Branches): the sidebar section
+ * that answers, for every repository at once, "where am I, what is waiting, and
+ * where can I go". The view's id is still `gittree.branches`, so a layout or a
+ * keybinding made before the rename keeps working.
  *
  * **The host owns the facts; the webview owns the view.** This side builds one
  * state object from the snapshots the status refresher keeps, plus the two
@@ -167,7 +169,7 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       app: 'branches',
       webview: view.webview,
       extensionUri: this.deps.context.extensionUri,
-      title: vscode.l10n.t('Branches'),
+      title: vscode.l10n.t('Repositories'),
     });
     const rpc = new WebviewRpcHost(view.webview, (l) =>
       this.deps.core.output.appendLine(`[branches] ${l}`),

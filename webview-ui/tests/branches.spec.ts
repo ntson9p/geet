@@ -2,8 +2,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mockBranchesHostScript } from './mockBranchesHost';
 
 /**
- * The Branches panel (new-way-4), against the in-page mock host: three
- * repositories — `api`, `shared` (mid-rebase) and `web` — or `web` alone.
+ * The Repositories panel (new-way-4; once titled Branches), against the in-page
+ * mock host: three repositories — `api`, `shared` (mid-rebase) and `web` — or
+ * `web` alone. The branches sit under Recent, Local, Remote and Tags tabs, and
+ * the panel opens on Recent.
  */
 
 interface PostedMsg {
@@ -39,6 +41,15 @@ const WEB = '/work/web';
 const API = '/work/api';
 const SHARED = '/work/shared';
 
+type TabName = 'Recent' | 'Local' | 'Remote' | 'Tags';
+/** A tab over the branch list, the one in the list rather than its pinned copy. */
+const tabButton = (page: Page, name: TabName): Locator =>
+  row(page, 'tabs').locator('[role="tab"]', { hasText: new RegExp(`^${name}`, 'u') });
+async function showTab(page: Page, name: TabName): Promise<void> {
+  await tabButton(page, name).click();
+  await expect(tabButton(page, name)).toHaveAttribute('aria-selected', 'true');
+}
+
 test.describe('several repositories', () => {
   test('lists each repository with what it has checked out, and a banner for the one mid-rebase', async ({
     page,
@@ -60,6 +71,7 @@ test.describe('several repositories', () => {
 
   test('a branch several repositories have is one row, with a marker for each', async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     await expect(row(page, 'br:local:local:main')).toHaveCount(1);
     const markers = row(page, 'br:local:local:main').locator('.gtp-markers .gtp-marker');
     // api has it, shared has it checked out, web has it — in the panel's order.
@@ -81,6 +93,7 @@ test.describe('several repositories', () => {
 
   test('clicking a repository narrows the list to it; the pill widens it again', async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     await row(page, 'dir:local:refactor/').click();
     await expect(row(page, 'br:local:local:refactor/types')).toBeVisible();
 
@@ -108,6 +121,7 @@ test.describe('several repositories', () => {
 
   test("a branch's card shows each repository's side, and its button acts in all of them", async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
     await develop.click();
     const card = develop.locator('.gtp-card');
@@ -132,6 +146,7 @@ test.describe('several repositories', () => {
 
   test("a card's button turns until the host has done its action", async ({ page }) => {
     await openPanel(page, { holdRun: true });
+    await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
     await develop.click();
     const button = develop.locator('.gtp-card').getByRole('button', { name: 'Checkout in 2' });
@@ -146,6 +161,7 @@ test.describe('several repositories', () => {
 
   test("a row's own buttons: Checkout in every repository that has it, and the star", async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
     await develop.hover();
     await develop.getByRole('button', { name: 'Checkout in 2 repositories' }).click();
@@ -188,6 +204,7 @@ test.describe('several repositories', () => {
 
   test("right-click opens the host's menu for the branch, with its submenus", async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     await row(page, 'br:local:local:develop').click({ button: 'right' });
     const menu = page.getByRole('menu', { name: 'Actions for develop' });
     await expect(menu).toBeVisible();
@@ -228,6 +245,7 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
 
   test("a branch's menu and card are asked for with every repository in view", async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     await row(page, 'br:local:local:develop').click({ button: 'right' });
     await expect(page.getByRole('menu', { name: 'Actions for develop' })).toBeVisible();
     expect((await requests(page, 'branches/menu')).at(-1)?.['scope']).toEqual([API, SHARED, WEB]);
@@ -295,6 +313,7 @@ test.describe('the New Branch form', () => {
 
   test('clearing From goes back to each repository’s own current branch', async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Local');
     await row(page, 'br:local:local:develop').click({ button: 'right' });
     await page.getByRole('menu', { name: 'Actions for develop' }).getByRole('menuitem', { name: "New Branch from 'develop'…" }).click();
     const form = page.getByRole('form', { name: 'New branch' });
@@ -323,6 +342,10 @@ test.describe('what a branch tracks', () => {
 
   test('a branch tracking a remote branch of another name says so on its row', async ({ page }) => {
     await openPanel(page, { single: true });
+    // A branch tracking its own name has nothing to warn about.
+    await expect(row(page, 'br:recent:local:develop')).toBeVisible();
+    await expect(row(page, 'br:recent:local:develop').locator('.gtp-elsewhere')).toHaveCount(0);
+    await showTab(page, 'Local');
     const chip = row(page, MISTRACKED).locator('.gtp-chip.gtp-elsewhere');
     await expect(chip).toHaveText('→ origin/develop');
     await expect(chip).toHaveAttribute('title', /a push goes there/u);
@@ -330,12 +353,11 @@ test.describe('what a branch tracks', () => {
       'aria-label',
       'feature/mistracked, tracks origin/develop',
     );
-    // A branch tracking its own name has nothing to warn about.
-    await expect(row(page, 'br:recent:local:develop').locator('.gtp-elsewhere')).toHaveCount(0);
   });
 
   test("its card's Stop tracking asks the host to cut the link, and nothing else", async ({ page }) => {
     await openPanel(page, { single: true });
+    await showTab(page, 'Local');
     const mistracked = row(page, MISTRACKED);
     await mistracked.click();
     const card = mistracked.locator('.gtp-card');
@@ -353,6 +375,7 @@ test.describe('what a branch tracks', () => {
 
   test('a card asks for its buttons again once the branch stops tracking', async ({ page }) => {
     await openPanel(page, { single: true });
+    await showTab(page, 'Local');
     const mistracked = row(page, MISTRACKED);
     await mistracked.click();
     await expect(mistracked.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' })).toBeVisible();
@@ -386,6 +409,7 @@ test.describe('what a branch tracks', () => {
 
   test('a branch tracking nothing has no link', async ({ page }) => {
     await openPanel(page, { single: true });
+    await showTab(page, 'Local');
     await row(page, 'dir:local:bugfix/').click();
     const header = row(page, 'br:local:local:bugfix/header');
     await header.click();
@@ -404,6 +428,7 @@ test.describe('what a branch tracks', () => {
       api.locals.find((l) => l.name === 'develop')!.upstream = 'origin/main';
       w.__pushState();
     });
+    await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
     await expect(develop.locator('.gtp-chip.gtp-elsewhere')).toHaveText('→ origin/main');
     await develop.click();
@@ -459,7 +484,7 @@ test.describe('what a branch tracks', () => {
 
   test('the New Branch form says what the new branch will track', async ({ page }) => {
     await openPanel(page, { single: true });
-    await row(page, 'sec:remote').click();
+    await showTab(page, 'Remote');
     await row(page, 'br:remote:remote:origin/develop').click({ button: 'right' });
     await page.getByRole('menuitem', { name: "New Branch from 'origin/develop'…" }).click();
     const form = page.getByRole('form', { name: 'New branch' });
@@ -482,10 +507,14 @@ test.describe('what a branch tracks', () => {
 });
 
 test.describe('searching', () => {
-  test('flattens the list, marks the matches, and Escape clears it', async ({ page }) => {
+  test('looks in every kind at once, marks the matches, and Escape brings the tabs back', async ({ page }) => {
     await openPanel(page);
+    await showTab(page, 'Tags');
     const filter = page.getByLabel('Filter branches');
     await filter.fill('log');
+    // The tabs step aside: the search is not just the tab on show.
+    await expect(row(page, 'tabs')).toHaveCount(0);
+    await expect(row(page, 'sec:local')).toBeVisible();
     await expect(row(page, 'sec:recent')).toHaveCount(0);
     await expect(row(page, 'br:local:local:feature/login')).toBeVisible();
     await expect(row(page, 'br:local:local:feature/login').locator('.gtp-match')).toHaveText('log');
@@ -497,7 +526,9 @@ test.describe('searching', () => {
     await filter.focus();
     await filter.press('Escape');
     await expect(filter).toHaveValue('');
-    await expect(row(page, 'sec:recent')).toBeVisible();
+    // Back as they were: Tags, as picked before the search.
+    await expect(tabButton(page, 'Tags')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, 'sec:local')).toHaveCount(0);
   });
 
   test('a name nobody has is offered for creation', async ({ page }) => {
@@ -525,7 +556,7 @@ test.describe('one repository', () => {
     await page.getByLabel('Filter branches').press('ArrowDown');
     await expect(row(page, `head:${WEB}`)).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(row(page, 'sec:recent')).toBeFocused();
+    await expect(row(page, 'tabs')).toBeFocused();
     await page.keyboard.press('ArrowDown');
     const develop = row(page, 'br:recent:local:develop');
     await expect(develop).toBeFocused();
@@ -538,22 +569,37 @@ test.describe('one repository', () => {
     await expect(page.getByLabel('Filter branches')).toHaveValue('m');
   });
 
-  test('Remote and Tags start shut, and a folder opens where the current branch is', async ({ page }) => {
+  test('Local folds into folders, opening the one the current branch is in; Remote groups by remote', async ({
+    page,
+  }) => {
     await openPanel(page, { single: true });
-    await expect(row(page, 'sec:remote')).toHaveAttribute('aria-expanded', 'false');
-    await expect(row(page, 'sec:tags')).toHaveAttribute('aria-expanded', 'false');
+    await showTab(page, 'Local');
     await expect(row(page, 'dir:local:feature/')).toHaveAttribute('aria-expanded', 'true');
     await expect(row(page, 'dir:local:bugfix/')).toHaveAttribute('aria-expanded', 'false');
-    await row(page, 'sec:remote').click();
-    await expect(row(page, 'rem:origin')).toBeVisible();
+    await showTab(page, 'Remote');
+    await expect(row(page, 'rem:origin')).toHaveAttribute('aria-expanded', 'true');
+    await expect(row(page, 'dir:local:feature/')).toHaveCount(0);
   });
 
   test('More Actions changes a setting on the host', async ({ page }) => {
     await openPanel(page, { single: true });
+    await expect(tabButton(page, 'Tags')).toHaveCount(1);
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitemcheckbox', { name: 'Tags' }).click();
     expect((await requests(page, 'branches/setting')).at(-1)).toEqual({ key: 'showTags', value: false });
-    await expect(row(page, 'sec:tags')).toHaveCount(0);
+    // Tags hidden: no Tags tab either.
+    await expect(tabButton(page, 'Tags')).toHaveCount(0);
+  });
+
+  test('Collapse All shuts every folder of the tab, the ones opened by hand too', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await showTab(page, 'Local');
+    await row(page, 'dir:local:bugfix/').click();
+    await expect(row(page, 'dir:local:bugfix/')).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Collapse All' }).click();
+    await expect(row(page, 'dir:local:bugfix/')).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, 'dir:local:feature/')).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('a branch dragged onto another asks the host what to do', async ({ page }) => {
@@ -565,5 +611,144 @@ test.describe('one repository', () => {
       source: { kind: 'local', name: 'develop', roots: [WEB] },
       target: { kind: 'local', name: 'main', roots: [WEB] },
     });
+  });
+});
+
+test.describe('the tabs over the branches', () => {
+  test('Recent, Local, Remote and Tags are tabs over one list, and the one picked is kept', async ({ page }) => {
+    await openPanel(page, { single: true });
+    // It opens on Recent: the starred and the recently used.
+    await expect(tabButton(page, 'Recent')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, 'br:recent:local:develop')).toBeVisible();
+    await expect(row(page, 'dir:local:bugfix/')).toHaveCount(0);
+    // Each counts what it holds, and its hover says so in words.
+    await expect(tabButton(page, 'Recent')).toHaveAttribute('title', '3 recent branches');
+    await expect(tabButton(page, 'Local')).toHaveAttribute('title', '7 local branches');
+    await expect(tabButton(page, 'Tags')).toHaveAttribute('title', '2 tags');
+
+    await showTab(page, 'Local');
+    await expect(row(page, 'dir:local:bugfix/')).toBeVisible();
+    await expect(row(page, 'br:recent:local:develop')).toHaveCount(0);
+    await showTab(page, 'Tags');
+    await expect(row(page, 'br:tags:tag:v1.1')).toBeVisible();
+    await expect(row(page, 'dir:local:bugfix/')).toHaveCount(0);
+    // Kept with the view's state, for the next time it starts.
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { __mockVsState?: { tab?: string } }).__mockVsState?.tab))
+      .toBe('tags');
+  });
+
+  test('the panel starts again on the tab last picked', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockVsState: unknown }).__mockVsState = { tab: 'remote' };
+    });
+    await openPanel(page, { single: true });
+    await expect(tabButton(page, 'Remote')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, 'rem:origin')).toBeVisible();
+  });
+
+  test('on the tabs, Left and Right switch them, round the ends, and Down goes into the list', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await page.getByLabel('Filter branches').press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    const tabs = row(page, 'tabs');
+    await expect(tabs).toBeFocused();
+    await expect(tabs).toHaveAttribute('aria-label', 'Recent tab, 1 of 4. Left and Right switch.');
+    await page.keyboard.press('ArrowRight');
+    await expect(tabButton(page, 'Local')).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    await expect(tabButton(page, 'Tags')).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs).toHaveAttribute('aria-label', 'Tags tab, 4 of 4. Left and Right switch.');
+    // Newest first.
+    await page.keyboard.press('ArrowDown');
+    await expect(row(page, 'br:tags:tag:v1.1')).toBeFocused();
+  });
+
+  test('the tabs stay in view once the list scrolls past them, and a click there starts the list under them', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 400, height: 320 });
+    await openPanel(page, { single: true });
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<{ locals: Array<Record<string, unknown>> }> };
+        __pushState: () => void;
+      };
+      const web = w.__mockState.repos[0]!;
+      for (let i = 1; i <= 30; i++) {
+        const name = `topic-${String(i).padStart(2, '0')}`;
+        web.locals.push({ name, sha: 'f'.repeat(40), date: 1_800_000_000 - i * 3600, subject: `Work on ${name}` });
+      }
+      w.__pushState();
+    });
+    await showTab(page, 'Local');
+    await expect(row(page, 'br:local:local:topic-01')).toBeVisible();
+    const pinned = page.locator('.gtp-pinned');
+    await expect(pinned).toHaveCount(0);
+
+    await page.locator('.gtp-list').evaluate((el) => {
+      el.scrollTop = 400;
+    });
+    await expect(pinned).toBeVisible();
+    await expect(pinned.locator('[role="tab"]', { hasText: /^Local/u })).toHaveAttribute('aria-selected', 'true');
+    // It covers the list's top edge, and leaves the scrollbar free.
+    const [list, strip] = await Promise.all([page.locator('.gtp-list').boundingBox(), pinned.boundingBox()]);
+    expect(strip!.y).toBe(list!.y);
+    expect(strip!.width).toBeLessThanOrEqual(list!.width);
+
+    await pinned.locator('[role="tab"]', { hasText: /^Remote/u }).click();
+    await expect(tabButton(page, 'Remote')).toHaveAttribute('aria-selected', 'true');
+    await expect(pinned).toHaveCount(0);
+    await expect(row(page, 'tabs')).toBeFocused();
+    await expect(row(page, 'rem:origin')).toBeVisible();
+  });
+
+  test('a narrow sidebar drops the counts before it cuts a tab off', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await page.addStyleTag({ content: 'body { --vscode-font-family: Arial, sans-serif; --vscode-font-size: 13px; }' });
+    const strip = row(page, 'tabs').locator('.gtp-tabs');
+    const lastTabFits = (): Promise<boolean> =>
+      strip.evaluate((el) => {
+        const tabs = el.querySelectorAll('[role="tab"]');
+        return tabs[tabs.length - 1]!.getBoundingClientRect().right <= el.getBoundingClientRect().right + 0.5;
+      });
+    await page.setViewportSize({ width: 600, height: 600 });
+    await expect(strip).toHaveAttribute('data-fit', 'full');
+    await expect(strip.locator('.gtp-tab-count').first()).toBeVisible();
+    for (const width of [320, 260, 220]) {
+      await page.setViewportSize({ width, height: 600 });
+      await expect.poll(lastTabFits).toBe(true);
+    }
+    await expect(strip).not.toHaveAttribute('data-fit', 'full');
+    await expect(strip.locator('.gtp-tab-count').first()).toBeHidden();
+    // The hover still counts.
+    await expect(tabButton(page, 'Local')).toHaveAttribute('title', '7 local branches');
+  });
+
+  test('a tab with nothing in it says what would fill it', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await showTab(page, 'Recent');
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<{ recent: string[]; favorites: string[] }> };
+        __pushState: () => void;
+      };
+      const web = w.__mockState.repos[0]!;
+      web.recent = [];
+      web.favorites = [];
+      w.__pushState();
+    });
+    await expect(row(page, 'hint:recent')).toContainText('No recent branches yet');
+    await expect(tabButton(page, 'Recent')).toHaveAttribute('title', '0 recent branches');
+  });
+
+  test('with several repositories, the tabs sit under them', async ({ page }) => {
+    await openPanel(page);
+    const order = await page.locator('[data-row-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
+    expect(order.indexOf('tabs')).toBeGreaterThan(order.indexOf(`repo:${WEB}`));
+    expect(order.indexOf('tabs')).toBeGreaterThan(order.indexOf(`op:${SHARED}`));
+    await expect(row(page, 'sec:repos')).toBeVisible();
   });
 });

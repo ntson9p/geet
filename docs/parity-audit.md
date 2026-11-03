@@ -112,7 +112,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Branches pane + vertical icon rail | ✅ | P12-T2 |
 | Graph, 100k commits, filters, search, Graph Options (By Commit Date / Topologically = IntelliSort, First Parent, No Merges) | ✅ | P4 + P12-T5 + POST-P14ak; perf-gated |
 | Presentation & highlight menus | 🟡 | *Presentation Settings* (eye) holds **Compact References View**, **Tag Names**, **References on the Left** and **Columns** (2026-11-01); *Highlight my commits* is a toolbar toggle and the other highlight modes are absent. *Collapse linear branches* / *Show long edges* need whole-graph edge spans the row-local model cannot give (recorded in PHASE-12). Corrected 2026-10-31: this row used to credit P12-T5 with both menus, which it never shipped |
-| Branches Pane Settings · Show Tags | ✅ | The rail's gear; `gittree.branches.showTags`, shared with the Branches popup and the sidebar's Branches views, as IntelliJ's Show Tags is |
+| Branches Pane Settings · Show Tags | ✅ | The rail's gear; `gittree.branches.showTags`, shared with the Branches popup, the sidebar's Repositories panel and the branch trees, as IntelliJ's Show Tags is |
 | Go to Hash / Branch / Tag | ✅ | P12-T4 |
 | Commit context menu (28 items) | ✅ | P12-T7 — incl. fixup/squash, push-all-up-to-here, reset **Keep**, show-repo-at-revision |
 | Changed Files pane with counts, status colors, toolbar | ✅ | P12-T3 |
