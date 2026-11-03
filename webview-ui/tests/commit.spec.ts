@@ -737,6 +737,16 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
     expect(untrackedStyle).toContain('gittree-color-untracked');
   });
 
+  test('a theme color reaches a name under the name VS Code gives it in a webview', async ({ page }) => {
+    await openCommit(page);
+    // As VS Code's webview sets it: only the first dot of `gittree.color.untracked` replaced.
+    await page.evaluate(() =>
+      document.documentElement.style.setProperty('--vscode-gittree-color.untracked', 'rgb(1, 2, 3)'),
+    );
+    await expect(row(page, '2.txt').locator('.gt-tree-name')).toHaveCSS('color', 'rgb(1, 2, 3)');
+    await expect(row(page, '2.txt').locator('.gt-tree-icon')).toHaveCSS('color', 'rgb(1, 2, 3)');
+  });
+
   test('a directory of mixed statuses reads as modified (IntelliJ)', async ({ page }) => {
     await openCommit(page);
     // api/ holds one modified + one added file → mixed → the modified override.

@@ -1063,3 +1063,17 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Unit:** `test/unit/diff/onScreen.test.ts`: the mark is the file that came on screen; it goes when that diff leaves; it stays when another file's diff leaves, the same path from another commit included; a list read again ends where it was.
 - **Integration:** `phase14.test.ts` T7: the registry tells a list on and off (the leaving entry first), with another editor in front and back, and on close; a Log tab marks its file and no other tab's, follows a walk, clears; the Commit window marks, carries the mark in every state, follows a walk, clears; the Compare pane lights one row, keeps it through Refresh, drops it for another comparison, clears on close.
 - **Playwright:** `log.spec.ts`: the pane marks the file on screen and only it, ignores another commit's, clears; a walk takes the keyboard's row and leaves no bar behind; an unused tree lights no row; Enter on a row reached with the arrows selects it; Enter inside a multi-selection keeps it. `commit.spec.ts`: a walk takes the keyboard's row; the tree marks the file on screen and not another repository's, and clears; a state naming it marks it; Enter on a row reached with the arrows selects it.
+
+POST-P14ba ✅ 2026-11-03 (branch `new-way-4`): **File names in GitTree's webviews have their status colors again.** Found while checking POST-P14az in a real window: every name in the Log's Changed Files was the plain foreground.
+
+**Why:** VS Code exposes a theme color to a webview as `'vscode-' + id.replace('.', '-')` (its webview theming, the same in 1.96.0 and 1.144.0), so only the first dot becomes a dash. GitTree's `gittree.color.added` arrives as `--vscode-gittree-color.added`. `status.ts` read `--vscode-gittree-color-added`, which nothing defines, and fell back to `--vscode-foreground`, for every status in every webview tree since P14-T5 moved the palette from `gitDecoration.*` (one dot) to `gittree.color.*` (two). The Compare pane and the editor take a `ThemeColor` and were never affected.
+
+**What changed:** `themeColor(id, fallback)` reads the name VS Code gives, with the dot left escaped (`var(--vscode-gittree-color\.added, …)`), then the all-dashes name in case VS Code ever replaces every dot, then the fallback. `statusColor` goes through it, and so `dirStatusColor`.
+
+**Checked in a real window** on VS Code 1.144.0 and 1.96.0: the Log's Changed Files over a seven-file commit reads modified `#E2C08D`, added `#81B88B`, renamed `#73C991`, deleted `#C74E39`, where every name had read `#BFBFBF` (1.144.0's foreground).
+
+Docs: CHANGELOG. FEATURES already promised status-colored names.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `test/unit/webview/status.test.ts`: the reference names the variable as VS Code does, escaped, then the all-dashes one, then the fallback; an id with one dot is a plain name.
+- **Playwright:** `commit.spec.ts`: a color set the way VS Code's webview sets it (`--vscode-gittree-color.untracked`) reaches the row's name and icon.

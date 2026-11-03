@@ -6,6 +6,16 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — file names in GitTree's own panes had lost their status colors
+
+The file lists in the Log's Changed Files, the Commit window with its Shelf and Stash tabs, and
+the Push, Rollback, Shelve, Unstash and merge-conflict dialogs show each file's name and icon in
+its status color again, as IntelliJ does: modified, added, deleted, renamed. They had been plain
+text since GitTree began shipping its own `gittree.color.*` colors. VS Code hands a webview a
+theme color under its id with only the first dot replaced, `--vscode-gittree-color.added`, and
+GitTree was reading `--vscode-gittree-color-added`. The Compare pane and the editor, which VS Code
+draws itself, always had them.
+
 ### Added — the list a diff came from shows which file it is on
 
 In the Log's Changed Files, the Commit window and the Compare pane, the name of the file whose diff

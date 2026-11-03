@@ -30,21 +30,35 @@ export const STATUS_ICONS: Record<StatusKind, string> = {
   conflicted: 'warning',
 };
 
-const THEME_VARS: Record<StatusKind, string> = {
-  added: 'gittree-color-added',
-  modified: 'gittree-color-modified',
-  deleted: 'gittree-color-deleted',
-  renamed: 'gittree-color-renamed',
-  untracked: 'gittree-color-untracked',
-  conflicted: 'gittree-color-conflicted',
+const THEME_COLORS: Record<StatusKind, string> = {
+  added: 'gittree.color.added',
+  modified: 'gittree.color.modified',
+  deleted: 'gittree.color.deleted',
+  renamed: 'gittree.color.renamed',
+  untracked: 'gittree.color.untracked',
+  conflicted: 'gittree.color.conflicted',
 };
+
+/**
+ * A theme color as a webview reads it. VS Code replaces only the first dot of the
+ * id (`'vscode-' + id.replace('.', '-')` in its webview theming, 1.96 and 1.144
+ * alike), so `gittree.color.added` arrives as `--vscode-gittree-color.added`, and
+ * the reference has to escape the dot left. Reading `--vscode-gittree-color-added`
+ * matched nothing, and every name fell back to the plain foreground. That name is
+ * still read second, in case VS Code ever replaces every dot.
+ */
+export function themeColor(id: string, fallback: string): string {
+  const firstDot = `--vscode-${id.replace('.', '-').replace(/\./g, '\\.')}`;
+  const everyDot = `--vscode-${id.replace(/\./g, '-')}`;
+  return `var(${firstDot}, var(${everyDot}, ${fallback}))`;
+}
 
 /** CSS color for a status: the user override, else the theme variable. */
 export function statusColor(kind: StatusKind, overrides?: StatusColorOverrides): string {
   const override = overrides?.[kind];
   if (override !== undefined && override.length > 0) return override;
   // Fallback to the plain foreground so an exotic theme never renders blank.
-  return `var(--vscode-${THEME_VARS[kind]}, var(--vscode-foreground))`;
+  return themeColor(THEME_COLORS[kind], 'var(--vscode-foreground)');
 }
 
 export function statusIcon(kind: StatusKind): string {
