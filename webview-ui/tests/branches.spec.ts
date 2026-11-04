@@ -752,3 +752,102 @@ test.describe('the tabs over the branches', () => {
     await expect(row(page, 'sec:repos')).toBeVisible();
   });
 });
+
+test.describe('a narrow sidebar', () => {
+  /** VS Code's own 13px, which the panel's narrow rules are measured in. */
+  const VS_CODE_FONT = 'body { --vscode-font-family: Arial, sans-serif; --vscode-font-size: 13px; }';
+  const isCut = (l: Locator): Promise<boolean> => l.evaluate((el) => el.scrollWidth > el.clientWidth + 0.5);
+  const visibleButtons = (l: Locator): Locator => l.locator('.gtp-row-buttons > button:visible');
+
+  test('the current branch keeps its name, and what it tracks gives way first', async ({ page }) => {
+    await page.setViewportSize({ width: 340, height: 600 });
+    await openPanel(page, { single: true });
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    const head = row(page, `head:${WEB}`);
+    await page.getByLabel('Filter branches').press('ArrowDown');
+    await expect(head).toBeFocused();
+    // Its buttons show, and still `feature/login` is whole: `origin/feature/login` is what shrinks.
+    await expect(visibleButtons(head)).toHaveCount(4);
+    await expect.poll(() => isCut(head.locator('.gtp-head-name'))).toBe(false);
+    await expect.poll(() => isCut(head.locator('.gtp-head-upstream'))).toBe(true);
+    await expect(head.locator('.gtp-head-upstream')).toHaveAttribute('title', 'Tracks origin/feature/login');
+  });
+
+  test("narrower, a repository's row keeps only ⋯, then leaves out its changes and what it tracks", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 400, height: 600 });
+    await openPanel(page, { single: true });
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    const head = row(page, `head:${WEB}`);
+    await page.getByLabel('Filter branches').press('ArrowDown');
+    await expect(visibleButtons(head)).toHaveCount(4);
+    await page.setViewportSize({ width: 230, height: 600 });
+    await expect(visibleButtons(head)).toHaveCount(1);
+    await expect(visibleButtons(head)).toHaveAttribute('title', 'More Actions…');
+    await expect(head.locator('.gtp-changes')).toBeVisible();
+    await page.setViewportSize({ width: 180, height: 600 });
+    await expect(head.locator('.gtp-changes')).toBeHidden();
+    await expect(head.locator('.gtp-head-upstream')).toBeHidden();
+    // The name has the room they left.
+    await expect(head.locator('.gtp-head-name')).toBeVisible();
+  });
+
+  test("with several repositories, a repository's row on hover keeps only ⋯ too", async ({ page }) => {
+    await page.setViewportSize({ width: 230, height: 600 });
+    await openPanel(page);
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    const api = row(page, `repo:${API}`);
+    await api.hover();
+    await expect(visibleButtons(api)).toHaveCount(1);
+    await expect.poll(() => isCut(api.locator('.gtp-repo-name'))).toBe(false);
+  });
+
+  test("a card's buttons drop their words, the first one's last, before any is cut off", async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 600 });
+    await openPanel(page, { single: true });
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    const head = row(page, `head:${WEB}`);
+    await head.click();
+    const buttons = head.locator('.gtp-card-buttons');
+    await expect(buttons).toHaveAttribute('data-fit', 'full');
+    await expect(buttons.getByRole('button', { name: 'Checkout' }).locator('.gtp-button-label')).toBeVisible();
+    for (const width of [300, 220, 180, 170]) {
+      await page.setViewportSize({ width, height: 600 });
+      await expect
+        .poll(() =>
+          buttons.evaluate((el) =>
+            [...el.querySelectorAll('button')].every(
+              (b) => b.getBoundingClientRect().right <= el.getBoundingClientRect().right + 0.5,
+            ),
+          ),
+        )
+        .toBe(true);
+      // Never a label shrunk to a letter or two: whole, or not there.
+      for (const label of await buttons.locator('.gtp-button-label:visible').all()) {
+        expect(await isCut(label)).toBe(false);
+      }
+    }
+    await expect(buttons).not.toHaveAttribute('data-fit', 'full');
+    // An icon alone is still named, for a screen reader and on its hover.
+    await expect(buttons.getByRole('button', { name: 'New Branch…' })).toHaveAttribute(
+      'title',
+      "New Branch from 'feature/login'…",
+    );
+  });
+
+  test('a narrow card leaves out who made the last commit, and keeps when', async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 600 });
+    await openPanel(page, { single: true });
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    const head = row(page, `head:${WEB}`);
+    await head.click();
+    const meta = head.locator('.gtp-card-meta');
+    await expect(head.locator('.gtp-card-author')).toBeVisible();
+    await expect(meta).toContainText('Alice · ');
+    await page.setViewportSize({ width: 240, height: 600 });
+    await expect(head.locator('.gtp-card-author')).toBeHidden();
+    await expect(meta).toBeVisible();
+    await expect(meta).toHaveAttribute('title', /^Alice · /u);
+  });
+});

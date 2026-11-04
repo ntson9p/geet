@@ -208,6 +208,8 @@
 
 .gtp-list-frame {
   position: relative;
+  /* Its width is the sidebar's: what the rows' narrow rules ask about. */
+  container: gtp-list / inline-size;
 }
 
 /* The tabs, kept at the top once the list scrolls past them. The list paints
@@ -460,6 +462,33 @@
   font-weight: 600;
 }
 
+/* What the branch tracks gives way before the branch's own name does: the
+   name cut to `n` beside a whole `origin/main` said nothing. Its hover has it all. */
+.gtp-head-upstream {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A narrow sidebar: on hover a repository's row keeps only `⋯`, whose menu has
+   Update Project, Push and Fetch too, so the names keep their room. A Fetch
+   still turning stays. Narrower still, the changed-file count goes (the Commit
+   view counts them as well) and so does what the branch tracks, which its card
+   says in full. */
+@container gtp-list (max-width: 19em) {
+  :is(.gtp-head, .gtp-repo) .gtp-row-buttons > .gtp-icon-button:not(:last-child):not(.gtp-keep) {
+    display: none;
+  }
+}
+
+@container gtp-list (max-width: 14.5em) {
+  :is(.gtp-head, .gtp-repo) .gtp-changes,
+  .gtp-head-upstream {
+    display: none;
+  }
+}
+
 .gtp-out-of-scope {
   opacity: 0.55;
 }
@@ -644,6 +673,14 @@
   font-size: 11px;
 }
 
+/* A narrow card leaves out who, so the commit's subject keeps its room; when
+   stays, and the hover has both. Shrunk with the subject, it read `Y…`. */
+@container (max-width: 20em) {
+  .gtp-card-author {
+    display: none;
+  }
+}
+
 .gtp-card-repo {
   flex: 0 0 auto;
   max-width: 35%;
@@ -665,9 +702,9 @@
   overflow: hidden;
 }
 
+/* Whole buttons, never shrunk: `BranchCard` drops their words instead (`data-fit`). */
 .gtp-card-button {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -691,9 +728,22 @@
   font-size: 11px;
 }
 
-/* A very narrow sidebar keeps the buttons and drops their words; the tooltips keep them. */
+.gtp-card-buttons[data-fit='lead'] .gtp-card-button:not(:first-child) .gtp-button-label,
+.gtp-card-buttons:is([data-fit='icons'], [data-fit='tight']) .gtp-button-label {
+  display: none;
+}
+
+/* Down to VS Code's narrowest sidebar (170px), every button and `⋯` still show. */
+.gtp-card-buttons[data-fit='tight'] {
+  gap: 4px;
+}
+
+.gtp-card-buttons[data-fit='tight'] .gtp-card-button {
+  padding: 0 5px;
+}
+
+/* A very narrow card drops the Stop tracking link; the menu still has it. */
 @container (max-width: 170px) {
-  .gtp-card .gtp-button-label,
   .gtp-stop-tracking {
     display: none;
   }

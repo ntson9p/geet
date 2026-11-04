@@ -190,6 +190,10 @@ design, not the popup standing open (D34). It answers three questions, top to bo
 * Every repository row (and the current-branch row) has **Update Project…**, **Push…**,
   **Fetch** (that repository alone; it spins while it runs) and **`⋯`** on hover. Right-click
   or `⋯` gives the repository's menu.
+* **A narrow sidebar keeps the names.** What a branch tracks gives way before the branch's own
+  name does, and its hover still has it. Below about 250px the hover buttons fold into `⋯`,
+  whose menu has the rest (a Fetch still turning stays); below about 190px the changed-file
+  count and what the branch tracks go, and the card says the latter in full.
 * **An operation in progress** gets a banner under its repository: *Rebasing 2/5 · 2
   conflicts* with **Resolve…**, **Continue** and **Abort**.
 
@@ -245,6 +249,10 @@ picked; at first, on Recent while anything is recent, else Local.
     - **Checkout** and **New Branch…** for a tag.
   - With several repositories the card has a line per repository, and its buttons are the
     all-repositories operations (*Checkout in 2*).
+  - When they do not all fit, the buttons drop their words rather than shrink each to a
+    letter: the first keeps its own longest, then they are icons, each named on its hover,
+    down to VS Code's narrowest sidebar. A narrow card leaves out who made the last commit
+    and keeps when.
 * **Hovering a row** shows **Checkout** (or **Update** and **Push…** on the checked-out
   branch), the **star** and **`⋯`**. The age column makes way for them.
 * **Right-click or `⋯`** shows every action, from the same registry as the popup and the log's

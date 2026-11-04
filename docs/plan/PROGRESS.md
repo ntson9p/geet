@@ -1101,3 +1101,22 @@ Docs: FEATURES, D34 (tabs, the name), D29, CHANGELOG, keyboard, FAQ (rewritten: 
 Testing (written, **not run**, by the owner's standing instruction):
 - **Unit:** `branchPanelModel.test.ts`: the tabs after the status rows, counted; Recent first and Local when nothing is recent; empty tabs' hints; Local's folders, Remote's groups, Tags newest first, each its own; Tags out while hidden; the hover and the screen-reader label; the tabs under several repositories; the search stepping past them; Collapse All on folders opened by hand and by default, and leaving other tabs alone. `panelName.test.ts`: the view is Repositories under its old id, no two GitTree views share a title, no user-facing string calls it the Branches panel or view.
 - **Playwright:** `branches.spec.ts`: every test that used a Local or Remote row picks its tab first; new: tabs one list at a time with their counts and the choice kept, starting on the tab last picked, the keyboard on the tabs, the pinned copy and a click on it, a narrow sidebar dropping counts before a tab, an empty tab's hint, the tabs under several repositories, Collapse All on a folder opened by hand, the Tags tab going with Show Tags, the search bringing back the tab picked.
+
+POST-P14bc ✅ 2026-11-04 (branch `new-way-4`): **A narrow Repositories panel keeps the names.** Found while checking POST-P14bb and reported; the owner: "Yes, please fix them."
+
+**What was wrong:**
+- The current branch's row let only the branch's own name shrink. What it tracks (`origin/main`) could not shrink at all, being a plain span, so with the row's four hover buttons showing the name read `n`, and at VS Code's narrowest sidebar (170px) it was gone.
+- A card's buttons were `flex: 0 1 auto` with ellipsized labels, so as soon as they did not quite fit they all shrank together: `U…`, `P…`, `New B…` in a 370px sidebar. And the card's first line kept `You · yesterday` whole while the commit's subject went to `ch…`.
+
+**What changed:**
+- `.gtp-head-upstream` (what the branch tracks, or *not published*) shrinks a thousand times faster than the name, with its hover saying it whole.
+- The list frame is a size container (`gtp-list`). Below 19em (about 250px) a head or repository row's hover buttons fold into `⋯`, whose menu has Update Project, Push and Fetch too; a Fetch still turning stays. Below 14.5em (about 190px) the changed-file count and what the branch tracks go; the Commit view counts the files, and the card says what it tracks.
+- `useFit` (`Rows.tsx`), the measuring the tabs strip already did, now also serves the card: its buttons never shrink, and the card keeps the roomiest of every button's words, the first one's alone, icons, then icons with less padding. Each button carries its label as `aria-label` and its title as hover.
+- A card narrower than 20em leaves out the author and keeps the age; the hover has both.
+
+**Checked in a real window**, with a throwaway driver on real VS Code 1.144.0 and 1.96.0, reading each width from 420px down to 170px with the pointer on the row: the name's own scroll and client widths, how much of what it tracks shows, which hover buttons show, the card's chosen fit and whether any button runs past the card. On the owner-shaped repository and on five repositories. Screenshots checked by eye.
+
+Docs: FEATURES, CHANGELOG.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Playwright:** `branches.spec.ts`, *a narrow sidebar*: the current branch's name whole while what it tracks is cut; four hover buttons, then only `⋯`, then the changed-file count and what it tracks gone; a repository row's hover keeping only `⋯`; a card's buttons never cut off nor shrunk to a letter at 300, 220, 180 and 170px, an icon still named; a narrow card without its author, with its age.

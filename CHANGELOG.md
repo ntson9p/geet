@@ -6,6 +6,18 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a narrow Repositories panel cut the current branch's name first
+
+- **The current branch's row** shrank only the branch's own name, so with its buttons showing
+  it read `n origin/main`, and in VS Code's narrowest sidebar it was gone. What it tracks gives
+  way first now. Below about 250px the row's hover buttons fold into `⋯`, whose menu has the
+  rest; below about 190px the changed-file count and what the branch tracks go too. A
+  repository's row in a workspace of several does the same.
+- **A card's buttons** all shrank together as soon as they did not quite fit, to `U…` and
+  `P…`. They drop their words instead: the first keeps its own longest, then each is an icon
+  with its name on its hover, and none is cut off, down to 170px. A narrow card also leaves out
+  who made the last commit, so its subject keeps more room.
+
 ### Changed — the Branches panel is the Repositories panel, its branches under tabs
 
 The sidebar panel that lists every repository and then their branches is titled

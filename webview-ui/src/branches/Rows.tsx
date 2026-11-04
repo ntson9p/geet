@@ -10,6 +10,7 @@ import {
   type CSSProperties,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
   type ReactNode,
 } from 'react';
 import type {
@@ -175,9 +176,46 @@ export function SectionRow({
   );
 }
 
+/**
+ * The roomiest of `levels` its element fits in, for a strip that would rather
+ * drop words than cut a control off or shrink every label to a letter. Each
+ * level is tried on the element's `data-fit`, roomiest first, and the first
+ * with nothing overflowing is kept; CSS says what each level drops. Measured
+ * again when the element is resized, or when `content` says what it holds changed.
+ */
+function useFit<L extends string>(
+  levels: readonly L[],
+  content: string,
+): [MutableRefObject<HTMLDivElement | null>, L] {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [fit, setFit] = useState<L>(levels[0]!);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const measure = (): void => {
+      const chosen =
+        levels.find((level) => {
+          el.dataset['fit'] = level;
+          return el.scrollWidth <= el.clientWidth;
+        }) ?? levels[levels.length - 1]!;
+      el.dataset['fit'] = chosen;
+      setFit(chosen);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [content, levels]);
+  return [ref, fit];
+}
+
 type TabsFit = 'full' | 'names' | 'snug' | 'tight';
 /** Roomiest first: names and counts, names alone, then less and less padding. */
 const TABS_FITS: readonly TabsFit[] = ['full', 'names', 'snug', 'tight'];
+
+type CardFit = 'full' | 'lead' | 'icons' | 'tight';
+/** Roomiest first: every button's words, the first one's alone, icons with their hovers, then less padding. */
+const CARD_FITS: readonly CardFit[] = ['full', 'lead', 'icons', 'tight'];
 
 /**
  * Recent, Local, Remote and Tags: which kind of branch the list below shows,
@@ -192,27 +230,8 @@ export function TabsRow({
   row: Extract<PanelRow, { kind: 'tabs' }>;
   onSelect: (tab: BranchTab) => void;
 }) {
-  const stripRef = useRef<HTMLDivElement | null>(null);
-  const [fit, setFit] = useState<TabsFit>('full');
-  // The roomiest look that fits the sidebar's width: the counts go first, then
-  // some padding, so a narrow sidebar never cuts the last tab off.
-  useLayoutEffect(() => {
-    const el = stripRef.current;
-    if (!el) return undefined;
-    const measure = (): void => {
-      const level = TABS_FITS.find((candidate) => {
-        el.dataset['fit'] = candidate;
-        return el.scrollWidth <= el.clientWidth;
-      });
-      const chosen = level ?? 'tight';
-      el.dataset['fit'] = chosen;
-      setFit(chosen);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [row.tabs]);
+  // The counts go first, then some padding, so a narrow sidebar never cuts the last tab off.
+  const [stripRef, fit] = useFit(TABS_FITS, row.tabs.map((t) => `${t.id}:${t.count}`).join(','));
   return (
     <div ref={stripRef} className="gtp-tabs" data-fit={fit} role="tablist" aria-label="Branches to show">
       {row.tabs.map((tab) => {
@@ -381,10 +400,10 @@ export function HeadRow({
         <span className="gtp-head-name">{headText(repo)}</span>
         {repo.upstream !== undefined ? (
           <span
-            className={`gtp-dim${
+            className={`gtp-dim gtp-head-upstream${
               repo.upstreamGone === true ? ' gtp-gone-text' : elsewhere !== undefined ? ' gtp-elsewhere' : ''
             }`}
-            title={elsewhere !== undefined ? elsewhereTitle(elsewhere) : undefined}
+            title={elsewhere !== undefined ? elsewhereTitle(elsewhere) : `Tracks ${repo.upstream}`}
           >
             {repo.upstreamGone === true
               ? `${repo.upstream} (gone)`
@@ -393,7 +412,9 @@ export function HeadRow({
                 : repo.upstream}
           </span>
         ) : onBranch && !repo.unborn ? (
-          <span className="gtp-dim">{twin !== undefined ? `not tracking ${twin}` : 'not published'}</span>
+          <span className="gtp-dim gtp-head-upstream">
+            {twin !== undefined ? `not tracking ${twin}` : 'not published'}
+          </span>
         ) : null}
         {showInOut ? <SyncCounts ahead={repo.ahead} behind={repo.behind} /> : null}
         {repo.changes > 0 ? (
@@ -691,6 +712,12 @@ export function BranchCard({
   detachedAt,
   running,
 }: CardProps) {
+  // Too narrow for every button's words: the first keeps its own, then only
+  // icons, each with its hover. Shrunk together, they read `U…`, `P…`.
+  const [buttonsRef, buttonsFit] = useFit(
+    CARD_FITS,
+    `${(details?.buttons ?? []).map((b) => b.label).join('|')}|${details === undefined ? 'loading' : ''}`,
+  );
   const lines: ReactNode[] = [];
   if (entry === undefined) {
     lines.push(
@@ -704,15 +731,16 @@ export function BranchCard({
     );
   } else {
     const newest = details?.repos.find((r) => r.date !== undefined && r.author !== undefined) ?? details?.repos[0];
+    const age = longAge(now, newest?.date ?? entry.date);
     lines.push(
       <div key="commit" className="gtp-card-line">
         <Codicon name="git-commit" />
         <span className="gtp-ellipsis gtp-subject" title={entry.subject}>
           {entry.subject ?? '…'}
         </span>
-        <span className="gtp-card-meta">
-          {newest?.author !== undefined ? `${newest.author} · ` : ''}
-          {longAge(now, newest?.date ?? entry.date)}
+        <span className="gtp-card-meta" title={newest?.author !== undefined ? `${newest.author} · ${age}` : age}>
+          {newest?.author !== undefined ? <span className="gtp-card-author">{newest.author} · </span> : null}
+          {age}
         </span>
       </div>,
     );
@@ -781,7 +809,7 @@ export function BranchCard({
   return (
     <div className="gtp-card" style={{ marginLeft: indent }} onClick={(e) => e.stopPropagation()}>
       {lines}
-      <div className="gtp-card-buttons">
+      <div ref={buttonsRef} className="gtp-card-buttons" data-fit={buttonsFit}>
         {(details?.buttons ?? []).map((button, i) => {
           const busy = running === button.label;
           return (
@@ -790,6 +818,7 @@ export function BranchCard({
               type="button"
               className={`gt-button gtp-card-button${i === 0 ? ' gt-primary' : ''}`}
               title={button.title}
+              aria-label={button.label}
               aria-busy={busy ? true : undefined}
               disabled={running !== undefined}
               onClick={() => onButton(button)}
