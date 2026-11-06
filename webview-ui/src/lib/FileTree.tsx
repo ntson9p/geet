@@ -21,12 +21,21 @@ import {
 } from './treeModel';
 import { VirtualList, type VirtualListHandle } from './VirtualList';
 
-export interface FileTreeIcon {
-  /** Codicon name without the `codicon-` prefix. */
-  readonly codicon: string;
-  /** A `--vscode-*` variable reference or theme color; omit for default. */
-  readonly color?: string;
-}
+export type FileTreeIcon =
+  | {
+      /** Codicon name without the `codicon-` prefix. */
+      readonly codicon: string;
+      /** A `--vscode-*` variable reference or theme color; omit for default. */
+      readonly color?: string;
+    }
+  | {
+      /**
+       * A filled square in this colour, in a glyph's slot: a colour that is data,
+       * such as a repository's (IntelliJ's root icon, the log's `Roots` chip).
+       * The codicons have no filled square to tint.
+       */
+      readonly swatch: string;
+    };
 
 export interface FileTreeProps {
   nodes: readonly TreeNode[];
@@ -272,13 +281,15 @@ export function FileTree({
               <TriCheckbox state={state} />
             </span>
           ) : null}
-          {ico ? (
+          {ico === undefined ? null : 'swatch' in ico ? (
+            <span className="gt-tree-icon gt-tree-swatch" style={{ color: ico.swatch }} aria-hidden="true" />
+          ) : (
             <span
               className={`codicon codicon-${ico.codicon} gt-tree-icon`}
               style={ico.color !== undefined ? { color: ico.color } : undefined}
               aria-hidden="true"
             />
-          ) : null}
+          )}
           <span
             className="gt-tree-name"
             style={labelColor !== undefined ? { color: labelColor } : undefined}

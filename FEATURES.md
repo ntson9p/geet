@@ -430,6 +430,10 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   repository row carries the scoped versions, including shelve (a shelf belongs to one
   repository). Storage stays per repository
   ([D23](docs/deviations.md#d23--changelists-are-stored-per-repository-presented-per-project)).
+  A **repository row wears its repository's colour**, a filled square as IntelliJ draws a root:
+  the colour of its chip in the log's `Roots` and its dot in the Repositories panel, in a light
+  theme or a dark one and with `gittree.log.graphPalette`. Its name is plain text, whatever its
+  files' status; the files keep their status colours.
 
 ### Paradigm A: Changelists (the default)
 

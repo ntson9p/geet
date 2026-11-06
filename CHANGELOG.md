@@ -6,6 +6,16 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Commit window's repository rows wore their files' colour
+
+With several repositories, each repository's row under **Changes** and **Unversioned Files**
+was drawn as a folder in its files' status colour: a repository holding only new files was
+green, one holding modified files took the modified colour, and two repositories looked alike.
+A repository's row now wears the repository's own colour, a filled square as IntelliJ draws a
+root, the same colour as its dot in the Repositories panel and its chip in the log's `Roots`.
+It follows a light or a dark theme and `gittree.log.graphPalette`. Its name is plain text, and
+its files keep their status colours.
+
 ### Fixed — a narrow Repositories panel cut the current branch's name first
 
 - **The current branch's row** shrank only the branch's own name, so with its buttons showing

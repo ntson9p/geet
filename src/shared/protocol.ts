@@ -124,6 +124,11 @@ export interface CommitGroupDto {
 export interface CommitRepoDto {
   root: string;
   label: string;
+  /**
+   * The repository's palette slot (`rootColorIndices`): its colour in the log's
+   * `Roots` and the Repositories panel, which its row in the tree wears too.
+   */
+  colorIdx: number;
   groups: CommitGroupDto[];
 }
 
@@ -170,6 +175,8 @@ export interface CommitStateDto {
    * statuses fall back to GitTree's own `gittree.color.*` theme colors (P14-T5).
    */
   colors?: Record<string, string>;
+  /** `gittree.log.graphPalette`, which the repositories' colours follow, as the log's do. */
+  palette?: 'default' | 'colorBlind';
   /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
   diffOnScreen?: CommitDiffFileDto;
 }

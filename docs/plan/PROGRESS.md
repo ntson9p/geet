@@ -1120,3 +1120,21 @@ Docs: FEATURES, CHANGELOG.
 
 Testing (written, **not run**, by the owner's standing instruction):
 - **Playwright:** `branches.spec.ts`, *a narrow sidebar*: the current branch's name whole while what it tracks is cut; four hover buttons, then only `⋯`, then the changed-file count and what it tracks gone; a repository row's hover keeping only `⋯`; a card's buttons never cut off nor shrunk to a letter at 300, 220, 180 and 170px, an icon still named; a narrow card without its author, with its age.
+
+POST-P14bd ✅ 2026-11-07 (branch `new-way-4`): **The Commit window's repository rows wear their repository's colour.** The owner, with a screenshot of two repositories under *Unversioned Files* drawn as green folders: "Please carefully update the source code so that they will show the correct color of each repository."
+
+**What was wrong:** a repository row (`@g:<list>@r:<root>`, multi-root only) was a directory to the tree, so `icon` and `nameColor` gave it `dirStatusColor` of the files beneath it: green over untracked files, the modified colour over modified ones, and every repository in one list the same. IntelliJ's `RepositoryChangesBrowserNode` draws `CheckboxIcon.createAndScale(colorManager.getRootColor(root))`, a filled square in the log's root colour, and its name in plain attributes.
+
+**What changed:**
+- `CommitRepoDto.colorIdx` (`buildState`, from `rootColorIndices` over `core.repos`, as the log's `Roots` and the Repositories panel take theirs) and `CommitStateDto.palette` (`gittree.log.graphPalette`, which the view now also listens to).
+- `CommitGroupRef.colorIdx` on a `repo` row (0 if the DTO lacks it). The App draws that row's icon as `laneColor(colorIdx, dark, palette)`, `dark` from `useVsCodeTheme`, and leaves its name uncoloured. Group rows, folders and files are as before.
+- `FileTreeIcon` is a codicon or a `swatch`: a 9px filled square with 2px corners in a glyph's 16px slot, the log's `Roots` chip. The codicons have no filled square (`primitive-square` and `debug-stop` are outlines in 0.0.36; seen in the real window). Under forced colours the square stays, in the text's colour.
+
+**Checked in a real window**, with a throwaway driver on real VS Code 1.144.0 and 1.96.0 and five repositories (two with modified files, two with only new ones): each repository row's square against its dot in the Repositories panel, by computed colour, in Dark Modern, then Light Modern switched live, then with the colour-blind palette. All matched; names plain; enlarged screenshots checked by eye.
+
+Docs: FEATURES, CHANGELOG, parity audit.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `commitTree.test.ts`: a repository row carries its slot under Changes and under Unversioned Files, a merged changelist row none; a repository whose slot did not arrive takes 0; a single repository has no repository row.
+- **Integration:** `multiRoot.test.ts`: every repository's `colorIdx` is `rootColorIndices`', the same as the Repositories panel gives it, repoD's differs from repoE's, and both views report the same palette.
+- **Playwright:** `commit.spec.ts` (the mock's opt-in second repository): a repository row's swatch in its colour under both lists, its name plain, its files still coloured; the light theme's shade; the colour-blind palette; a lone repository without a swatch, its folders still folders.

@@ -6,6 +6,8 @@ import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
+import { rootColorIndices } from '../../../src/log/graphLayout/colors';
+import type { BranchPanelStateDto } from '../../../src/shared/protocol';
 import {
   activateGitTree,
   gitWithRetry,
@@ -146,6 +148,25 @@ suite('Multi-root commit', () => {
       [labelOf(repoD), labelOf(repoE)].sort(),
       'both ticked repos are named, and no clean one is',
     );
+  });
+
+  test('each repository wears the colour it has in the Repositories panel', async () => {
+    const state = reg.commitWindow.buildState();
+    const colors = rootColorIndices(core.repos.map((r) => r.root));
+    for (const repo of state.repos) {
+      assert.strictEqual(repo.colorIdx, colors.get(repo.root), `${repo.label}: the log's root colour`);
+    }
+    const panel = (core.debugRegistry.get('phase02') as { panel: { buildState(): Promise<BranchPanelStateDto> } })
+      .panel;
+    const panelState = await panel.buildState();
+    for (const repo of state.repos) {
+      const there = panelState.repos.find((r) => r.root === repo.root);
+      assert.ok(there, `${repo.label} is in the Repositories panel too`);
+      assert.strictEqual(repo.colorIdx, there.colorIdx, `${repo.label}: one colour in both panels`);
+    }
+    const colorOf = (handle: RepoHandle) => state.repos.find((r) => r.root === handle.root)?.colorIdx;
+    assert.notStrictEqual(colorOf(repoD), colorOf(repoE), 'two repositories, two colours');
+    assert.strictEqual(state.palette, panelState.palette, 'both follow gittree.log.graphPalette');
   });
 
   test('one gesture commits every repository that has something ticked', async function () {

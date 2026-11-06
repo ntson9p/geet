@@ -19,6 +19,7 @@ import type { Core, RepoHandle } from '../../core/core';
 import { isUntracked, shortCode, type StatusEntry } from '../../core/model/statusEntry';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
+import { rootColorIndices } from '../../log/graphLayout/colors';
 import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
 import { nextMark } from '../../diff/onScreen';
 import { settleWorktreeSide } from '../../diff/worktreeSide';
@@ -125,9 +126,12 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       core.onDidRemoveRepo(() => this.push()),
       deps.paradigm.onDidChange(() => this.push()),
       deps.commitService.onDidCommit(() => this.push()),
-      // P11-T8: a changed color override must repaint without a reload.
+      // P11-T8: a changed color override must repaint without a reload; so must
+      // the palette the repositories' colours come from.
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.colors')) this.push();
+        if (e.affectsConfiguration('gittree.colors') || e.affectsConfiguration('gittree.log.graphPalette')) {
+          this.push();
+        }
       }),
     );
   }
@@ -233,9 +237,12 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     // Every snapshot starts from a pruned model, so no badge can outlive the
     // file it describes — the state push is the only place that needs to know.
     this.pruneInclusion();
+    // Each repository in the colour it has in the log's Roots and the Repositories panel.
+    const colors = rootColorIndices(this.deps.core.repos.map((repo) => repo.root));
     const repos: CommitRepoDto[] = this.deps.core.repos.map((repo) => ({
       root: repo.root,
       label: path.basename(repo.root),
+      colorIdx: colors.get(repo.root) ?? 0,
       groups: this.groupsFor(repo),
     }));
     const active = this.activeRepo();
@@ -261,6 +268,10 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       paradigm: this.deps.paradigm.paradigm,
       ...(this.lastError !== undefined ? { error: this.lastError } : {}),
       colors: statusColorOverrides(),
+      palette:
+        vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette') === 'colorBlind'
+          ? 'colorBlind'
+          : 'default',
       ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
     };
   }

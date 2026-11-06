@@ -35,8 +35,9 @@ function namedList(id: string, name: string, changes: CommitChangeDto[]): Commit
   return { id, name, isActive: false, isDefault: false, checkable: true, changes };
 }
 
-function repo(root: string, label: string, groups: CommitGroupDto[]) {
-  return { root, label, groups };
+/** `colorIdx` is the palette slot the host hands out (`rootColorIndices`). */
+function repo(root: string, label: string, groups: CommitGroupDto[], colorIdx = 0) {
+  return { root, label, colorIdx, groups };
 }
 
 function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
@@ -69,7 +70,7 @@ function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
 
 /** The two-repo shape the merge exists for. */
 function twoRepos(second = defaultList([change('api/a.ts')])): CommitStateDto {
-  return state({ repos: [...state().repos, repo('D:/repos/other', 'other', [second])] });
+  return state({ repos: [...state().repos, repo('D:/repos/other', 'other', [second], 1)] });
 }
 
 describe('what a diff from the Commit window walks', () => {
@@ -187,6 +188,48 @@ describe('assembleCommitTree groups map (P14-T2)', () => {
     expect(repoRow?.kind).toBe('repo');
     expect(repoRow?.repoRoot).toBe('D:/repos/other');
     expect(repoRow?.listId).toBe('default');
+  });
+
+  it("a repository row carries its repository's colour, in every list it shows up in", () => {
+    const unversioned: CommitGroupDto = {
+      id: '__unversioned__',
+      name: 'Unversioned Files',
+      isActive: false,
+      isDefault: false,
+      checkable: false,
+      changes: [change('fresh.ts', false, 'untracked')],
+    };
+    const model = assembleCommitTree(
+      state({
+        repos: [
+          repo('D:/repos/demo', 'demo', [defaultList([change('a.ts')]), unversioned], 4),
+          repo('D:/repos/other', 'other', [defaultList([change('b.ts')]), unversioned], 7),
+        ],
+      }),
+    );
+    // Its colour, not its files' status: the same slot under Changes and under
+    // Unversioned Files, where everything beneath it is untracked.
+    expect(model.groups.get('@g:@default@r:D:/repos/demo')?.colorIdx).toBe(4);
+    expect(model.groups.get('@g:@default@r:D:/repos/other')?.colorIdx).toBe(7);
+    expect(model.groups.get('@g:@unversioned@r:D:/repos/demo')?.colorIdx).toBe(4);
+    expect(model.groups.get('@g:@unversioned@r:D:/repos/other')?.colorIdx).toBe(7);
+    // A changelist row stands for several repositories, so it wears none.
+    expect(model.groups.get('@g:@default')?.colorIdx).toBeUndefined();
+    expect(model.groups.get('@g:@unversioned')?.colorIdx).toBeUndefined();
+  });
+
+  it('a repository whose colour did not arrive takes the first slot', () => {
+    // The DTO crosses postMessage, where nothing checks it.
+    const bare = { root: 'D:/repos/other', label: 'other', groups: [defaultList([change('b.ts')])] };
+    const model = assembleCommitTree(
+      state({ repos: [...state().repos, bare as unknown as CommitStateDto['repos'][number]] }),
+    );
+    expect(model.groups.get('@g:@default@r:D:/repos/other')?.colorIdx).toBe(0);
+  });
+
+  it('a single repository has no repository row to colour', () => {
+    const model = assembleCommitTree(state());
+    expect([...model.groups.values()].some((ref) => ref.kind === 'repo')).toBe(false);
   });
 
   it('never returns a group ref for a file row', () => {

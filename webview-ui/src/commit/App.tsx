@@ -46,7 +46,9 @@ import {
 } from '../lib/treeModel';
 import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
+import { useVsCodeTheme } from '../lib/useVsCodeTheme';
 import { getVsCodeApi } from '../lib/vscodeApi';
+import { laneColor } from '../log/GraphCanvas';
 import {
   allDiffFiles,
   assembleCommitTree,
@@ -149,6 +151,9 @@ export function App() {
   const [rpcError, setRpcError] = useState<string | undefined>(undefined);
   const [treeRef, treeSize] = useElementSize<HTMLDivElement>();
   const [diffRef, diffSize] = useElementSize<HTMLDivElement>();
+  // The repositories' colours have a light and a dark shade, as the log's lanes do.
+  const theme = useVsCodeTheme();
+  const dark = theme === 'dark' || theme === 'high-contrast';
   const seededExpansion = useRef(false);
   const editorRef = useRef<MessageEditorHandle | null>(null);
   const stateRef = useRef(state);
@@ -353,6 +358,14 @@ export function App() {
   const icon = useCallback(
     (node: TreeNode) => {
       if (node.kind === 'dir') {
+        // A repository's row wears its colour, whatever its files' status: a
+        // filled square, as IntelliJ's repository node draws the log's root
+        // colour and the log's Roots draw its chip; the same colour as its dot
+        // in the Repositories panel.
+        const group = model.groups.get(node.path);
+        if (group?.kind === 'repo') {
+          return { swatch: laneColor(group.colorIdx ?? 0, dark, state.palette) };
+        }
         // P11-T8: a folder of modified descendants wears the modified color.
         const color = dirStatusColor(model.dirKinds.get(node.path) ?? new Set(), state.colors);
         return color !== undefined ? { codicon: 'folder', color } : { codicon: 'folder' };
@@ -360,13 +373,15 @@ export function App() {
       const ref = model.files.get(node.path);
       return ref ? iconFor(ref.change, state.colors) : { codicon: 'file' };
     },
-    [model, state.colors],
+    [dark, model, state.colors, state.palette],
   );
 
   // IntelliJ colors the file *names*, not only the icons (P11-T8).
   const nameColor = useCallback(
     (node: TreeNode): string | undefined => {
       if (node.kind === 'dir') {
+        // A repository's name in plain text, as IntelliJ's: its square says which it is.
+        if (model.groups.get(node.path)?.kind === 'repo') return undefined;
         return dirStatusColor(model.dirKinds.get(node.path) ?? new Set(), state.colors);
       }
       const ref = model.files.get(node.path);

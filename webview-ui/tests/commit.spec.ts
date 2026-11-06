@@ -772,6 +772,87 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
   });
 });
 
+test.describe('repository rows wear their repository colour', () => {
+  /** Two repositories, so the tree has repository rows; `palette` is gittree.log.graphPalette. */
+  async function openTwoRepos(page: Page, palette?: 'colorBlind'): Promise<void> {
+    await page.addInitScript((p) => {
+      const w = window as unknown as { __mockSecondRepo?: boolean; __mockGraphPalette?: string };
+      w.__mockSecondRepo = true;
+      if (p !== null) w.__mockGraphPalette = p;
+    }, palette ?? null);
+    await page.addInitScript(mockCommitHostScript);
+    await page.goto('/commit.html');
+    await expect(row(page, 'Changes, 5 files')).toBeVisible();
+  }
+
+  /** What the browser computes for a CSS colour, so an hsl() can be compared with a computed style. */
+  async function computed(page: Page, color: string): Promise<string> {
+    return page.evaluate((c) => {
+      const probe = document.createElement('span');
+      probe.style.color = c;
+      document.body.appendChild(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    }, color);
+  }
+
+  test("a repository row wears its colour, not its files' status", async ({ page }) => {
+    await openTwoRepos(page);
+    // Under Changes and under Unversioned Files alike: the second repository's
+    // slot (1), the log's lane colour in a dark theme, whatever is beneath it.
+    const lib = await computed(page, 'hsl(30 65% 65%)');
+    const git = await computed(page, 'hsl(210 65% 65%)');
+    const libRows = row(page, 'demo-lib, 1 file');
+    await expect(libRows).toHaveCount(2);
+    for (const r of await libRows.all()) {
+      // A filled square, as IntelliJ draws a root: no glyph, its colour filled in.
+      const icon = r.locator('.gt-tree-icon');
+      await expect(icon).toHaveClass(/gt-tree-swatch/);
+      await expect(icon).not.toHaveClass(/codicon/);
+      await expect(icon).toHaveCSS('color', lib);
+      expect(await icon.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe(lib);
+    }
+    await expect(row(page, 'demo-git, 4 files').locator('.gt-tree-icon')).toHaveCSS('color', git);
+    await expect(row(page, 'demo-git, 1 file').locator('.gt-tree-icon')).toHaveCSS('color', git);
+    // The name is plain, as IntelliJ's: an all-untracked repository is not green.
+    for (const r of await libRows.all()) {
+      expect(await r.locator('.gt-tree-name').getAttribute('style')).toBeNull();
+    }
+    // Its files keep their status colours.
+    const untrackedStyle = await row(page, 'Unversioned Files, 2 files')
+      .locator('.gt-tree-name')
+      .getAttribute('style');
+    expect(untrackedStyle).toContain('gittree-color-untracked');
+  });
+
+  test("a repository's colour follows the theme", async ({ page }) => {
+    await openTwoRepos(page);
+    await page.evaluate(() => (document.body.className = 'vscode-light'));
+    const light = await computed(page, 'hsl(30 70% 40%)');
+    await expect(row(page, 'demo-lib, 1 file').first().locator('.gt-tree-icon')).toHaveCSS('color', light);
+  });
+
+  test("a repository's colour follows the color-blind palette", async ({ page }) => {
+    await openTwoRepos(page, 'colorBlind');
+    // Okabe–Ito, dark: slot 0 sky blue, slot 1 yellow.
+    await expect(row(page, 'demo-git, 4 files').locator('.gt-tree-icon')).toHaveCSS(
+      'color',
+      'rgb(86, 180, 233)',
+    );
+    await expect(row(page, 'demo-lib, 1 file').first().locator('.gt-tree-icon')).toHaveCSS(
+      'color',
+      'rgb(245, 195, 66)',
+    );
+  });
+
+  test('a lone repository has no repository row, and its folders keep their status colours', async ({ page }) => {
+    await openCommit(page);
+    await expect(page.locator('.gt-tree-swatch')).toHaveCount(0);
+    await expect(row(page, 'api, 2 files').locator('.gt-tree-icon')).toHaveClass(/codicon-folder/);
+  });
+});
+
 test.describe('P11-T6 shelf tab', () => {
   async function openShelf(page: Page): Promise<void> {
     await openCommit(page);

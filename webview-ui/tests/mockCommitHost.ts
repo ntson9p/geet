@@ -147,12 +147,36 @@ export const mockCommitHostScript = `
     return copy;
   }
 
+  // Opt-in (window.__mockSecondRepo): a second repository, so the tree grows
+  // its repository rows. Read-only: nothing below acts on it.
+  const SECOND = 'D:/repos/demo-lib';
+  function secondRepo() {
+    return {
+      root: SECOND,
+      label: 'demo-lib',
+      colorIdx: 1,
+      groups: [
+        {
+          id: 'default', name: 'Changes', isActive: true, isDefault: true, checkable: true,
+          changes: [{ path: 'lib/index.ts', code: '.M', kind: 'modified', checked: false }],
+        },
+        {
+          id: '__unversioned__', name: 'Unversioned Files', isActive: false, isDefault: false,
+          checkable: true,
+          changes: [{ path: 'lib/notes.txt', code: '??', kind: 'untracked', checked: false }],
+        },
+      ],
+    };
+  }
+
   function build() {
     return {
       repos: [
         {
           root: REPO,
           label: 'demo-git',
+          // The host's rootColorIndices slot; the first root in path order.
+          colorIdx: 0,
           groups: [
             {
               id: 'default',
@@ -173,7 +197,7 @@ export const mockCommitHostScript = `
             },
           ],
         },
-      ],
+      ].concat(window.__mockSecondRepo === true ? [secondRepo()] : []),
       activeRepo: REPO,
       // The real host lists the repos a commit would touch; with one repo that
       // is either it or nothing, and the button label follows.
@@ -189,6 +213,8 @@ export const mockCommitHostScript = `
       paradigm: 'changelists',
       // P11-T8: one override so specs can see it win; the rest follow the theme.
       colors: { modified: '#ff8800' },
+      // gittree.log.graphPalette, which the repositories' colours follow.
+      palette: window.__mockGraphPalette === 'colorBlind' ? 'colorBlind' : 'default',
     };
   }
 

@@ -381,6 +381,25 @@ button {
   flex: 0 0 auto;
 }
 
+/* A colour that is data (a repository's): a filled square in a codicon's
+   16px slot, as the log's Roots chip draws it. `color` carries the colour, as
+   it does for a glyph. */
+.gt-tree-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.gt-tree-swatch::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
 .gt-tree-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -855,5 +874,17 @@ button {
     forced-color-adjust: none;
     background: SelectedItem;
     color: SelectedItemText;
+  }
+
+  /* A repository's colour has no system equivalent, and a forced background
+     would erase its square: the square stays, in the text's colour. */
+  .gt-tree-swatch::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .gt-tree .gt-virtual-row[aria-selected='true'] .gt-tree-swatch::before,
+  .gt-tree:focus-within .gt-virtual-row.gt-focused .gt-tree-swatch::before {
+    background: SelectedItemText;
   }
 }

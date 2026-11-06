@@ -65,6 +65,11 @@ export interface CommitGroupRef {
   readonly checkable: boolean;
   readonly repoRoot?: string;
   readonly listId?: string;
+  /**
+   * A `repo` row's palette slot: it wears its repository's colour, as IntelliJ's
+   * repository node wears the log's root colour, not its files' status.
+   */
+  readonly colorIdx?: number;
 }
 
 export interface CommitTreeModel {
@@ -229,6 +234,8 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
           checkable: m.checkable,
           repoRoot: repo.root,
           listId: group.id,
+          // Defensive: it crosses postMessage, where nothing checks the DTO.
+          colorIdx: repo.colorIdx ?? 0,
         });
       }
       node = {
