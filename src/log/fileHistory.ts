@@ -29,7 +29,11 @@ export function registerFileHistory(
       // log re-resolved from the focused editor, so a file picked in the
       // Explorer of one repository was filtered against another one's history
       // and simply came back empty.
-      await logView.openTab({ sort: 'topo', refs: 'ALL', paths: [rel], follow: true }, repo.root);
+      // The current branch, as IntelliJ's History opens (Show All Branches is
+      // off): with every branch, a commit on another branch read as the
+      // file's newest change on this one (POST-QA). The tab's Branch filter
+      // widens it.
+      await logView.openTab({ sort: 'topo', refs: 'HEAD', paths: [rel], follow: true }, repo.root);
     }),
   );
 }

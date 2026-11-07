@@ -27,6 +27,16 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — the log shows branches, not stashes; File History shows this branch
+
+- **All branches no longer lists your stashes as commits.** It ran `git log --all`, which also
+  walks the stash. Every stash added its *On main: …*, *index on main: …* and *untracked files
+  on main: …* commits to the graph. It now reads what IntelliJ's log reads: HEAD, every branch,
+  remote branch and tag. The User filter's list of authors comes from the same commits.
+- **File History opens on the current branch,** as IntelliJ's History does. It showed every
+  branch, so a commit made on a hotfix branch read as the newest change to the file here.
+  The tab's **Branch** filter still widens it.
+
 ### Fixed — GitTree no longer writes settings into your repository
 
 - **A push no longer leaves `.vscode/settings.json` behind.** GitTree saved its remembered

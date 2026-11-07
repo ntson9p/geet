@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  allBranchesArgs,
   buildLogArgs,
   filterKey,
   graphParents,
@@ -52,13 +53,22 @@ describe('buildLogArgs', () => {
     expect(args({})).toContain('--decorate=full');
   });
 
-  it('refs: ALL → --all; list → refs; HEAD → nothing', () => {
-    expect(args({ refs: 'ALL' })).toContain('--all');
+  it('refs: ALL → HEAD and every branch, remote branch and tag; list → refs; HEAD → nothing', () => {
+    const all = args({ refs: 'ALL' });
+    expect(all).toEqual(expect.arrayContaining(['HEAD', '--branches', '--remotes', '--tags']));
+    // Not --all: it walks refs/stash too, and every stash's WIP, index and
+    // untracked commits showed up as commits (POST-QA).
+    expect(all).not.toContain('--all');
     const withRefs = args({ refs: ['main', 'feature/x'] });
     expect(withRefs).toContain('main');
     expect(withRefs).toContain('feature/x');
     expect(withRefs).not.toContain('--all');
     expect(args({ refs: 'HEAD' })).not.toContain('--all');
+  });
+
+  it('leaves HEAD out of All branches while it is unborn, where git would refuse it', () => {
+    expect(allBranchesArgs(false)).toEqual(['--branches', '--remotes', '--tags']);
+    expect(buildLogArgs({ ...DEFAULT_FILTER, refs: 'ALL' }, FMT, PAGE, { headExists: false })).not.toContain('HEAD');
   });
 
   it('range mode wins over refs and adds --left-right', () => {

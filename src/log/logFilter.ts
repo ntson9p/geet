@@ -177,7 +177,22 @@ export function parseRangeCounts(output: string): { left: number; right: number 
   return match ? { left: Number(match[1]), right: Number(match[2]) } : undefined;
 }
 
-export function buildLogArgs(f: LogFilter, format: string, page: LogPage): string[] {
+/**
+ * What "All branches" reads (POST-QA): IntelliJ's `HEAD --branches --remotes`,
+ * with tags. `--all` also walks `refs/stash` — every stash's WIP, index and
+ * untracked commits showed up in the log as commits — and notes, prefetch and
+ * backup refs. HEAD is left out while it is unborn, where git would refuse it.
+ */
+export function allBranchesArgs(headExists: boolean): string[] {
+  return [...(headExists ? ['HEAD'] : []), '--branches', '--remotes', '--tags'];
+}
+
+export function buildLogArgs(
+  f: LogFilter,
+  format: string,
+  page: LogPage,
+  opts: { readonly headExists?: boolean } = {},
+): string[] {
   // Full ref names: only they tell a local `feature/x` from a remote branch.
   const args = ['log', `--format=${format}`, '--parents', '--decorate=full'];
 
@@ -188,7 +203,7 @@ export function buildLogArgs(f: LogFilter, format: string, page: LogPage): strin
   if (f.range) {
     args.push('--left-right', `${f.range.a}...${f.range.b}`);
   } else if (f.refs === 'ALL') {
-    args.push('--all');
+    args.push(...allBranchesArgs(opts.headExists !== false));
   } else if (Array.isArray(f.refs) && f.refs.length > 0) {
     args.push(...f.refs);
   }

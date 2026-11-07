@@ -15,6 +15,7 @@ import {
   type Commit,
 } from '../core/git/parsers/logFormat';
 import {
+  allBranchesArgs,
   buildLogArgs,
   filterKey,
   missingFromBatchCheck,
@@ -133,7 +134,12 @@ export class LogService {
 
     const rangeMode = toRead.range !== undefined;
     const format = rangeMode ? `%m%x00${LOG_FORMAT}` : LOG_FORMAT;
-    const args = buildLogArgs(toRead, format, { skip: page * PAGE_SIZE, maxCount: PAGE_SIZE });
+    const args = buildLogArgs(
+      toRead,
+      format,
+      { skip: page * PAGE_SIZE, maxCount: PAGE_SIZE },
+      { headExists: this.repo.model.snapshot.headSha !== undefined },
+    );
 
     const rows: LogRow[] = [];
     let pendingChunk: LogRow[] = [];
@@ -413,7 +419,12 @@ export class LogService {
       run: async (git, token) => {
         const handle = git.stream(
           this.repo.root,
-          ['log', '--all', '--format=%aN <%aE>', '--use-mailmap'],
+          [
+            'log',
+            ...allBranchesArgs(this.repo.model.snapshot.headSha !== undefined),
+            '--format=%aN <%aE>',
+            '--use-mailmap',
+          ],
           (line) => {
             if (line.trim().length > 0 && seen.size < 100_000) seen.add(line.trim());
           },
