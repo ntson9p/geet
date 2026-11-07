@@ -11,13 +11,22 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { RepoHandle } from '../../core/core';
+import { toBlobEol } from '../../core/patch/eol';
 import { computeLineChanges } from '../../core/patch/lineDiff';
 import { buildPatch, type LineChange } from '../../core/patch/patchBuilder';
 
 export interface FileDiff {
   readonly relPath: string;
   readonly originalText: string;
+  /**
+   * The working-tree file on the blob's line endings (`toBlobEol`), so the
+   * changes are the ones git sees and a partial commit stores what `git add`
+   * would. Anything written back to the working tree from it goes through
+   * `withCrlf` when `worktreeCrlf` is set.
+   */
   readonly modifiedText: string;
+  /** The working tree's CRLF was turned into LF to diff against the blob. */
+  readonly worktreeCrlf: boolean;
   readonly changes: LineChange[];
   /**
    * Per-change inclusion is unavailable: the file is binary, or one side is
@@ -67,15 +76,24 @@ export async function computeFileDiff(repo: RepoHandle, raw: string): Promise<Fi
   const relPath = raw.replace(/\\/g, '/');
   const [head, worktree] = await Promise.all([readHead(repo, relPath), readWorktree(repo, relPath)]);
   const originalText = head ?? '';
-  const modifiedText = worktree ?? '';
+  const worktreeText = worktree ?? '';
   const missingSide = head === undefined || worktree === undefined;
-  if (missingSide || isBinary(originalText) || isBinary(modifiedText)) {
-    return { relPath, originalText, modifiedText, changes: [], wholeFileOnly: true };
+  if (missingSide || isBinary(originalText) || isBinary(worktreeText)) {
+    return {
+      relPath,
+      originalText,
+      modifiedText: worktreeText,
+      worktreeCrlf: false,
+      changes: [],
+      wholeFileOnly: true,
+    };
   }
+  const { text: modifiedText, crlf } = toBlobEol(originalText, worktreeText);
   return {
     relPath,
     originalText,
     modifiedText,
+    worktreeCrlf: crlf,
     changes: computeLineChanges(originalText, modifiedText),
     wholeFileOnly: false,
   };

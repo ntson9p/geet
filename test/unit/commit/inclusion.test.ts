@@ -135,6 +135,7 @@ describe('P11-T3 planPartialCommit', () => {
     relPath,
     originalText: original,
     modifiedText: modified,
+    worktreeCrlf: false,
     changes: computeLineChanges(original, modified),
     wholeFileOnly: false,
   });
@@ -197,6 +198,7 @@ describe('P11-T3 planPartialCommit', () => {
           relPath,
           originalText: '',
           modifiedText: '',
+          worktreeCrlf: false,
           changes: [],
           wholeFileOnly: true,
         }),

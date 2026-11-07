@@ -6,6 +6,27 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a part of a file is committed and staged where it belongs
+
+- **Committing some of a file's changes no longer moves the lines it commits.** A change
+  left out above the committed one shifted where git put it: a line typed above a closing
+  brace, with three new lines left out at the top, went into the commit three lines lower,
+  after the brace. The same happened to **Stage** in the change popup, the diff editor's
+  *Stage hunk* lens and *Stage Selected Ranges*. Each change now lands where it is in the
+  file, whatever is left out around it.
+- **Unstage Selected Ranges takes out the lines selected.** It read a selection in the
+  working-tree file as line numbers of the staged text, so with unstaged edits above, it
+  unstaged other lines. It now works where the staged lines are on screen: the right side
+  of the *HEAD ↔ Index* diff.
+- **Files checked out with Windows line endings work like any other.** Under
+  `core.autocrlf=true`, the Git for Windows default, the working tree has CRLF while git
+  stores LF. GitTree compared the two byte for byte, so the change bars marked every line
+  of every file as changed, a commit of some changes saw one change covering the file, a
+  staged change wrote `\r` into the index, and rolling back one change rolled back the
+  file. Changes are now measured on the line endings git stores, as IntelliJ's are, and a
+  staged or committed part is stored the way `git add` would store it. Shelving part of
+  a file leaves the rest with its own line endings.
+
 ### Fixed — a new commit shows in the log
 
 - **A commit made while the log is scrolled to the top now shows as its first row.** When

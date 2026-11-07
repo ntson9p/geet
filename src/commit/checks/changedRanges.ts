@@ -4,6 +4,7 @@
  */
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../core/core';
+import { toBlobEol } from '../../core/patch/eol';
 import { computeLineChanges } from '../../core/patch/lineDiff';
 import type { LineChange } from '../../core/patch/patchBuilder';
 import { repoRelative } from '../../core/util/paths';
@@ -45,5 +46,6 @@ export async function changesVsHead(
     return undefined; // deleted/binary
   }
   const base = await headText(repo, rel, baseRev);
-  return { doc, changes: computeLineChanges(base, doc.getText()) };
+  // On the blob's line endings, or a CRLF checkout counts every line as changed.
+  return { doc, changes: computeLineChanges(base, toBlobEol(base, doc.getText()).text) };
 }

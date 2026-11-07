@@ -12,6 +12,7 @@
 import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
+import { withCrlf } from '../core/patch/eol';
 import { applyLineChanges, complementChanges } from '../core/patch/patchBuilder';
 import { canonicalKey } from '../core/repoDiscovery';
 import { isUntracked, shortCode } from '../core/model/statusEntry';
@@ -186,10 +187,13 @@ export async function applyShelveResult(
     }
     const chosen = diff.changes.filter((_, i) => included.includes(i));
     const excluded = complementChanges(diff.changes, included);
+    const residue = applyLineChanges(diff.originalText, diff.modifiedText, excluded);
     partials.push({
       relPath: partial.relPath,
+      // Goes into a blob: the blob's line endings, as `git add` would store it.
       includedText: applyLineChanges(diff.originalText, diff.modifiedText, chosen),
-      residueText: applyLineChanges(diff.originalText, diff.modifiedText, excluded),
+      // Goes back into the working tree: its own line endings again.
+      residueText: diff.worktreeCrlf ? withCrlf(residue) : residue,
     });
   }
   if (stale.length > 0) {

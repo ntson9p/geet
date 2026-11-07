@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { GitError } from '../../core/git/errors';
 import { isStaged, isDirty } from '../../core/model/statusEntry';
+import { toBlobEol } from '../../core/patch/eol';
 import { computeLineChanges } from '../../core/patch/lineDiff';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import {
@@ -427,11 +428,13 @@ export async function rollbackFileDiff(
     modified = ''; // deleted in the worktree
   }
   if (head.stdout.includes('\0') || modified.includes('\0')) return empty;
+  // On the blob's line endings, so a CRLF checkout previews its real changes.
+  const modifiedText = toBlobEol(head.stdout, modified).text;
   return {
     path: relPath,
     originalText: head.stdout,
-    modifiedText: modified,
-    changes: computeLineChanges(head.stdout, modified),
+    modifiedText,
+    changes: computeLineChanges(head.stdout, modifiedText),
     wholeFileOnly: false,
   };
 }

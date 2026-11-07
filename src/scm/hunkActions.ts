@@ -5,8 +5,16 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { reportStageOutcome } from '../commit/staging/stageMessages';
+import { stageWorktreeLines } from '../commit/staging/stageLines';
 import type { Core, RepoHandle } from '../core/core';
-import { applyLineChanges, buildPatch, complementChanges, type LineChange } from '../core/patch/patchBuilder';
+import { toBlobEol } from '../core/patch/eol';
+import {
+  applyLineChanges,
+  complementChanges,
+  correspondingChanges,
+  type LineChange,
+} from '../core/patch/patchBuilder';
 import { repoRelative } from '../core/util/paths';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 // P14-T3: one base-text read, shared with the change bars and the popup.
@@ -60,10 +68,12 @@ export function registerHunkActions(context: vscode.ExtensionContext, core: Core
         run: async () => {
           // Revert = re-apply every change EXCEPT the rolled-back one. A
           // single full-document replace keeps the editor undo stack intact
-          // (Ctrl+Z restores the hunk — IntelliJ parity).
+          // (Ctrl+Z restores the hunk — IntelliJ parity). The bars were
+          // measured on the blob's line endings, so the text is too; the
+          // editor puts its own line endings back on whatever it is given.
           const reverted = applyLineChanges(
             original,
-            doc.getText(),
+            toBlobEol(original, doc.getText()).text,
             complementChanges(parsed.changes, [parsed.index]),
           );
           const edit = new vscode.WorkspaceEdit();
@@ -82,34 +92,25 @@ export function registerHunkActions(context: vscode.ExtensionContext, core: Core
       if (doc.isDirty) {
         await doc.save(); // stage what the user sees
       }
-      // The peek's LineChanges were computed against the quick-diff base —
-      // the patch must use the same text or the @@ offsets won't align.
-      // (With base=index this is exactly `git apply --cached` semantics; with
-      // base=HEAD and a divergent index, git rejects the patch cleanly.)
-      const baseText = await readBaseText(parsed.repo, parsed.rel);
-      if (baseText === undefined) {
-        void vscode.window.showWarningMessage(
-          vscode.l10n.t('Cannot stage a hunk of an untracked file — stage the whole file instead.'),
-        );
-        return;
-      }
-      const change = parsed.changes[parsed.index]!;
-      const patch = buildPatch({
-        relPath: parsed.rel,
-        originalText: baseText,
-        modifiedText: doc.getText(),
-        changes: [change],
-      });
-      await parsed.repo.queue.enqueue({
+      // The bar was measured against the change-bar base, which may be HEAD
+      // and may be a moment old; staging works on the index as it is now, so
+      // the clicked change is matched onto a fresh index diff of the same
+      // working-tree lines (POST-QA F1).
+      const picked = parsed.changes[parsed.index]!;
+      const outcome = await parsed.repo.queue.enqueue({
         label: vscode.l10n.t('Stage hunk in {0}', path.basename(parsed.rel)),
         kind: 'mutate',
-        run: async (git, token) => {
-          await git.exec(parsed.repo.root, ['apply', '--cached', '--unidiff-zero', '-'], {
-            stdin: patch,
+        run: (git, token) =>
+          stageWorktreeLines(
+            git,
+            parsed.repo.root,
+            parsed.rel,
+            doc.getText(),
+            (fresh) => correspondingChanges(fresh, picked),
             token,
-          });
-        },
+          ),
       });
+      reportStageOutcome(outcome);
     }),
 
     vscode.commands.registerCommand('gittree.hunk.openCommitView', async () => {

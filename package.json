@@ -3333,7 +3333,7 @@
         },
         {
           "command": "gittree.unstage.selectedRanges",
-          "when": "isInDiffEditor && resourceScheme == file && gittree.paradigm == staging",
+          "when": "isInDiffEditor && resourceScheme == gittree-rev && resource =~ /%22ref%22%3A%22%3A0%22/ && gittree.paradigm == staging",
           "group": "2_gittree@2"
         },
         {
