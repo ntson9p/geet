@@ -117,7 +117,10 @@ describe('what a diff from the Commit window walks', () => {
     const { files } = commitDiffWalk(model, new Set(), rowOf(model, 'api/a.ts', 'D:/repos/other'));
     expect(files.map((f) => f.repoRoot)).toContain(DEMO);
     expect(files.map((f) => f.repoRoot)).toContain('D:/repos/other');
-    expect(files.at(-1)).toEqual(file('api/a.ts', 'D:/repos/other'));
+    // The other repository's file closes the changelist; Unversioned Files
+    // come after every changelist, whichever repository they are in.
+    expect(files.at(-2)).toEqual(file('api/a.ts', 'D:/repos/other'));
+    expect(files.at(-1)).toEqual(file('api/new.ts'));
   });
 
   it('is only the rows selected with several selected, and says so', () => {
@@ -158,6 +161,7 @@ describe('assembleCommitTree groups map (P14-T2)', () => {
     const def = model.groups.get(model.groupPaths[0]!);
     expect(def).toEqual({
       kind: 'group',
+      shows: 'list',
       targets: [{ repoRoot: 'D:/repos/demo', listId: 'default' }],
       isDefault: true,
       checkable: true,
