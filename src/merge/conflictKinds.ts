@@ -102,7 +102,10 @@ export function sideRef(
       return 'CHERRY_PICK_HEAD';
     case 'revert':
       return 'REVERT_HEAD';
-    default:
+    // `git am` (rebase-apply without "rebasing") applies a patch, no commit.
+    case 'rebase-apply':
+    case 'rebase-interactive':
+    case undefined:
       return undefined;
   }
 }
