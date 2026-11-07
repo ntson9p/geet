@@ -417,6 +417,30 @@ Show the Hash column (the first eight characters of each commit's hash) in the c
 
 - Type: `boolean` · Default: `false`
 
+### `gittree.log.showGraph`
+
+Draw the commit graph, its coloured lanes and commit dots, beside each commit's message. When off, the commit list shows the message, the branch and tag labels and the columns only. Toggled from the log's Presentation Settings menu (the eye button).
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.log.dateFormat`
+
+How the log's Date column writes each commit's date and time.
+
+- Type: `string` · Default: `"YYYY/MM/DD HH:mm"`
+- Values:
+  - `YYYY/MM/DD HH:mm` — Year first, two digits for everything else, 24-hour clock: 2026/10/29 14:19. The same in every language.
+  - `locale` — The short date and time of VS Code's display language, as IntelliJ shows them: 10/29/2026 2:19 PM in English (US).
+
+### `gittree.log.filterChips`
+
+How the log's Branch, User, Date and Paths filters show what they filter.
+
+- Type: `string` · Default: `"compact"`
+- Values:
+  - `compact` — Small, with each value cut short: a user without their e-mail, a date as Since 2026/10/31, and anything over 20 characters ending in …. Hover over a filter to read its whole value.
+  - `full` — Larger, with every value written out in full.
+
 ### `gittree.log.issuePattern`
 
 Regular expression for issue keys in commit messages (e.g. [A-Z]+-\d+). Empty disables issue linkification.

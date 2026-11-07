@@ -71,6 +71,54 @@ describe('LogService (real git)', () => {
     expect(sides.get('on main')).toBe('right');
   }, 60_000);
 
+  // POST-P14bh: Paths ▾ · Roots keeps the Branch selection, so a branch picked
+  // in one repository reaches another that may not have it.
+  it('leaves out a branch the repository lacks, and reads nothing when it has none', async () => {
+    const fixture = FixtureRepo.create();
+    const handle = await handleFor(fixture);
+    fixture.commit('base', { 'f.txt': 'base\n' });
+    fixture.branch('side', { checkout: true });
+    fixture.commit('on side', { 's.txt': 's\n' });
+    fixture.checkout('main');
+    fixture.commit('on main', { 'm.txt': 'm\n' });
+    const service = new LogService(handle);
+
+    // git alone would refuse this log outright: "unknown revision".
+    const mixed = await service.getPage({ sort: 'topo', refs: ['side', 'elsewhere'] }, 0);
+    expect(mixed.missingRefs).toEqual(['elsewhere']);
+    expect(mixed.rows.map((r) => r.subject)).toEqual(['on side', 'base']);
+
+    // Nothing the repository has: an empty, finished log — never HEAD's history.
+    const none = await service.getPage({ sort: 'topo', refs: ['elsewhere', 'gone/too'] }, 0);
+    expect(none.rows).toEqual([]);
+    expect(none.eof).toBe(true);
+    expect(none.missingRefs).toEqual(['elsewhere', 'gone/too']);
+
+    // A comparison with a missing end has nothing to compare.
+    const range = await service.getPage({ sort: 'topo', range: { a: 'side', b: 'elsewhere' } }, 0);
+    expect(range.rows).toEqual([]);
+    expect(range.missingRefs).toEqual(['elsewhere']);
+  }, 60_000);
+
+  it('still reads hashes, ancestry and typed ranges, which are no branch names', async () => {
+    const fixture = FixtureRepo.create();
+    const handle = await handleFor(fixture);
+    fixture.commit('first', { 'f.txt': '1\n' });
+    fixture.branch('side');
+    fixture.commit('second', { 'f.txt': '2\n' });
+    fixture.commit('third', { 'f.txt': '3\n' });
+    const service = new LogService(handle);
+
+    const revs = await service.getPage({ sort: 'topo', refs: [fixture.head().slice(0, 9), 'HEAD~1'] }, 0);
+    expect(revs.missingRefs).toBeUndefined();
+    expect(revs.rows.map((r) => r.subject)).toEqual(['third', 'second', 'first']);
+
+    // "side..main" is a set of commits, handed to git unchecked.
+    const typed = await service.getPage({ sort: 'topo', refs: ['side..main'] }, 0);
+    expect(typed.missingRefs).toBeUndefined();
+    expect(typed.rows.map((r) => r.subject)).toEqual(['third', 'second']);
+  }, 60_000);
+
   it('details of a rename commit expose the R pair', async () => {
     const fixture = FixtureRepo.create();
     const handle = await handleFor(fixture);

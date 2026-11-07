@@ -2,8 +2,11 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  PRESENTATION_CHOICES,
   PRESENTATION_SETTINGS,
   presentationPatch,
+  presentationSettingIds,
+  readPresentation,
   settingId,
   writeScope,
 } from '../../../src/log/presentation';
@@ -39,6 +42,7 @@ describe('writeScope (Presentation Settings / Branches Pane Settings toggles)', 
       'showAuthorColumn',
       'showDateColumn',
       'showHashColumn',
+      'showGraph',
     ] as const) {
       expect(PRESENTATION_SETTINGS[name].scope).toBe('global');
     }
@@ -48,6 +52,55 @@ describe('writeScope (Presentation Settings / Branches Pane Settings toggles)', 
     expect(settingId('showTagNames')).toBe('gittree.log.showTagNames');
     expect(settingId('showHashColumn')).toBe('gittree.log.columns.hash');
     expect(settingId('showTags')).toBe('gittree.branches.showTags');
+    expect(settingId('showGraph')).toBe('gittree.log.showGraph');
+    expect(settingId('dateFormat')).toBe('gittree.log.dateFormat');
+    expect(settingId('filterChips')).toBe('gittree.log.filterChips');
+  });
+
+  it('lists every setting a view draws from, so a change to any reaches it', () => {
+    const ids = presentationSettingIds();
+    for (const id of [
+      'gittree.log.showTagNames',
+      'gittree.branches.showTags',
+      'gittree.log.columns.date',
+      'gittree.log.showGraph',
+      'gittree.log.dateFormat',
+      'gittree.log.filterChips',
+    ]) {
+      expect(ids).toContain(id);
+    }
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('readPresentation (POST-P14bh)', () => {
+  const settings = (values: Record<string, unknown>) => (section: string, key: string) =>
+    values[`${section}.${key}`];
+
+  it('reads what the settings say, and the defaults for what they do not', () => {
+    const p = readPresentation(
+      settings({ 'gittree.log.showGraph': false, 'gittree.log.dateFormat': 'locale', 'gittree.log.filterChips': 'full' }),
+      DEFAULT_LOG_PRESENTATION,
+    );
+    expect(p).toEqual({ ...DEFAULT_LOG_PRESENTATION, showGraph: false, dateFormat: 'locale', filterChips: 'full' });
+    expect(readPresentation(settings({}), DEFAULT_LOG_PRESENTATION)).toEqual(DEFAULT_LOG_PRESENTATION);
+  });
+
+  it('keeps the default for a value of the wrong kind, or one the setting does not offer', () => {
+    const p = readPresentation(
+      settings({
+        'gittree.log.showGraph': 'no',
+        'gittree.log.dateFormat': 'DD.MM.YYYY',
+        'gittree.log.filterChips': true,
+      }),
+      DEFAULT_LOG_PRESENTATION,
+    );
+    expect(p).toEqual(DEFAULT_LOG_PRESENTATION);
+  });
+
+  it('offers exactly the choices the manifest declares', () => {
+    expect(PRESENTATION_CHOICES.dateFormat.values).toEqual(['YYYY/MM/DD HH:mm', 'locale']);
+    expect(PRESENTATION_CHOICES.filterChips.values).toEqual(['compact', 'full']);
   });
 });
 
@@ -65,6 +118,14 @@ describe('presentationPatch', () => {
       showHashColumn: true,
       compactReferences: false,
     });
+  });
+
+  it('passes the Graph toggle', () => {
+    expect(presentationPatch({ showGraph: false })).toEqual({ showGraph: false });
+  });
+
+  it('never passes the two choices: only the Settings editor changes them', () => {
+    expect(presentationPatch({ dateFormat: 'locale', filterChips: 'full' })).toEqual({});
   });
 
   it('drops anything else', () => {
@@ -98,7 +159,17 @@ describe('the settings behind them', () => {
     });
   }
 
-  it("defaults to IntelliJ's own (`VcsLogApplicationSettings`, the default columns)", () => {
+  for (const [name, choice] of Object.entries(PRESENTATION_CHOICES)) {
+    const id = `${choice.section}.${choice.key}`;
+    it(`declares ${id} as one of its choices, defaulting to what the views assume`, () => {
+      const declared = properties[id] as Property & { enum?: unknown[] };
+      expect(declared?.type).toBe('string');
+      expect(declared?.enum).toEqual([...choice.values]);
+      expect(declared?.default).toBe(DEFAULT_LOG_PRESENTATION[name as keyof typeof DEFAULT_LOG_PRESENTATION]);
+    });
+  }
+
+  it("defaults to IntelliJ's own (`VcsLogApplicationSettings`, the default columns), and the graph shown", () => {
     expect(DEFAULT_LOG_PRESENTATION).toEqual({
       showTagNames: false,
       showTags: true,
@@ -107,6 +178,11 @@ describe('the settings behind them', () => {
       showAuthorColumn: true,
       showDateColumn: true,
       showHashColumn: false,
+      showGraph: true,
+      // GitTree's own, the owner's choice (D40, D39): IntelliJ has the locale's
+      // date and every filter value written out.
+      dateFormat: 'YYYY/MM/DD HH:mm',
+      filterChips: 'compact',
     });
   });
 });

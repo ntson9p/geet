@@ -1,13 +1,21 @@
 /**
  * The settings behind the Git tool window's presentation menus: the Commits
- * pane's `Presentation Settings ▾` (Compact References View, Tag Names,
+ * pane's `Presentation Settings ▾` (Graph, Compact References View, Tag Names,
  * References on the Left, Columns ▸ Author · Hash · Date) and the Branches
- * pane's `Branches Pane Settings · Show Tags`. Nothing here imports `vscode`, so the
- * rules are unit-testable; `LogViewProvider` does the reading and writing.
+ * pane's `Branches Pane Settings · Show Tags` — plus two that only the Settings
+ * editor changes, the Date column's format and the filter dropdowns' look.
+ * Nothing here imports `vscode`, so the rules are unit-testable;
+ * `LogViewProvider` does the reading and writing.
  */
-import type { LogPresentationDto } from '../shared/protocol';
+import {
+  LOG_DATE_FORMATS,
+  LOG_FILTER_CHIPS,
+  type LogPresentationDto,
+  type LogPresentationToggle,
+} from '../shared/protocol';
 
-export type PresentationKey = keyof LogPresentationDto;
+/** A setting a menu row turns on and off. */
+export type PresentationKey = LogPresentationToggle;
 
 export interface PresentationSetting {
   readonly section: string;
@@ -30,12 +38,67 @@ export const PRESENTATION_SETTINGS: Readonly<Record<PresentationKey, Presentatio
   showAuthorColumn: { section: 'gittree.log', key: 'columns.author', scope: 'global' },
   showDateColumn: { section: 'gittree.log', key: 'columns.date', scope: 'global' },
   showHashColumn: { section: 'gittree.log', key: 'columns.hash', scope: 'global' },
+  // GitTree's own, kept with the columns it sits beside.
+  showGraph: { section: 'gittree.log', key: 'showGraph', scope: 'global' },
+};
+
+/** A presentation setting that is one of a few values rather than on or off. */
+export type PresentationChoiceKey = Exclude<keyof LogPresentationDto, PresentationKey>;
+
+export interface PresentationChoice {
+  readonly section: string;
+  readonly key: string;
+  readonly values: readonly string[];
+}
+
+/** Changed in the Settings editor only: no menu offers them. */
+export const PRESENTATION_CHOICES: Readonly<Record<PresentationChoiceKey, PresentationChoice>> = {
+  dateFormat: { section: 'gittree.log', key: 'dateFormat', values: LOG_DATE_FORMATS },
+  filterChips: { section: 'gittree.log', key: 'filterChips', values: LOG_FILTER_CHIPS },
 };
 
 /** The full setting id behind a presentation key, e.g. `gittree.log.columns.hash`. */
-export function settingId(name: PresentationKey): string {
-  const { section, key } = PRESENTATION_SETTINGS[name];
+export function settingId(name: PresentationKey | PresentationChoiceKey): string {
+  const { section, key } =
+    name in PRESENTATION_SETTINGS
+      ? PRESENTATION_SETTINGS[name as PresentationKey]
+      : PRESENTATION_CHOICES[name as PresentationChoiceKey];
   return `${section}.${key}`;
+}
+
+/** Every setting a view draws from: a change to any of them is pushed to it. */
+export function presentationSettingIds(): string[] {
+  return [
+    ...(Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]),
+    ...(Object.keys(PRESENTATION_CHOICES) as PresentationChoiceKey[]),
+  ].map(settingId);
+}
+
+/**
+ * The presentation the settings describe. `read` gives a setting's effective
+ * value; one of the wrong type, or a value the setting does not offer (a typo
+ * in settings.json), falls back to the default rather than reaching a view.
+ */
+export function readPresentation(
+  read: (section: string, key: string) => unknown,
+  defaults: LogPresentationDto,
+): LogPresentationDto {
+  const out: LogPresentationDto = { ...defaults };
+  for (const name of Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]) {
+    const { section, key } = PRESENTATION_SETTINGS[name];
+    const value = read(section, key);
+    if (typeof value === 'boolean') out[name] = value;
+  }
+  const choice = (name: PresentationChoiceKey): string | undefined => {
+    const { section, key, values } = PRESENTATION_CHOICES[name];
+    const value = read(section, key);
+    return typeof value === 'string' && values.includes(value) ? value : undefined;
+  };
+  const dateFormat = choice('dateFormat');
+  if (dateFormat !== undefined) out.dateFormat = dateFormat as LogPresentationDto['dateFormat'];
+  const filterChips = choice('filterChips');
+  if (filterChips !== undefined) out.filterChips = filterChips as LogPresentationDto['filterChips'];
+  return out;
 }
 
 /** The parts of `WorkspaceConfiguration.inspect()` the choice depends on. */
@@ -61,9 +124,12 @@ export function writeScope(
   return preferred === 'workspace' && hasWorkspace ? 'workspace' : 'global';
 }
 
-/** What a `log/setPresentation` request may change: known keys with boolean values. */
-export function presentationPatch(params: unknown): Partial<LogPresentationDto> {
-  const patch: Partial<LogPresentationDto> = {};
+/**
+ * What a `log/setPresentation` request may change: known toggles with boolean
+ * values. The two choices are the Settings editor's alone.
+ */
+export function presentationPatch(params: unknown): Partial<Pick<LogPresentationDto, PresentationKey>> {
+  const patch: Partial<Pick<LogPresentationDto, PresentationKey>> = {};
   if (params === null || typeof params !== 'object') return patch;
   const p = params as Record<string, unknown>;
   for (const key of Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]) {

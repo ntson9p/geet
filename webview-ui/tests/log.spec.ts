@@ -544,7 +544,8 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(panel.locator('.gt-filter-star')).toHaveCount(1);
 
     await panel.getByLabel('Search refs').fill('f1');
-    await panel.getByRole('checkbox').nth(2).click(); // first match under the two presets
+    // The presets are radio buttons above the list: the first checkbox is the first match.
+    await panel.getByRole('checkbox').nth(0).click();
     await expect
       .poll(async () =>
         (await posted(page)).some((m) => {
@@ -559,8 +560,8 @@ test.describe('P4-T3/T4 log webview', () => {
     await openLog(page);
     await page.getByTestId('filter-branch').click();
     const panel = page.getByTestId('filter-branch-panel');
-    const head = panel.getByRole('checkbox').nth(0);
-    const all = panel.getByRole('checkbox').nth(1);
+    const head = panel.getByRole('radio', { name: 'HEAD (Current)' });
+    const all = panel.getByRole('radio', { name: 'All branches' });
 
     // The default filter is HEAD (`DEFAULT_FILTER`), and the dropdown says so
     // instead of leaving it as the unnamed absence of a branch filter.
@@ -619,10 +620,10 @@ test.describe('P4-T3/T4 log webview', () => {
 
     await page.getByTestId('filter-branch').click();
     const panel = page.getByTestId('filter-branch-panel');
-    await expect(panel.getByRole('checkbox').nth(0)).not.toBeChecked(); // HEAD
-    await expect(panel.getByRole('checkbox').nth(1)).not.toBeChecked(); // All branches
+    await expect(panel.getByRole('radio', { name: 'HEAD (Current)' })).not.toBeChecked();
+    await expect(panel.getByRole('radio', { name: 'All branches' })).not.toBeChecked();
 
-    await panel.getByRole('checkbox').nth(1).click();
+    await panel.getByRole('radio', { name: 'All branches' }).click();
     await expect
       .poll(async () =>
         (await posted(page)).some((m) => {
@@ -1648,11 +1649,13 @@ test.describe('P4-T3/T4 log webview', () => {
     ).toHaveAttribute('aria-checked', 'true');
   });
 
-  test("Presentation Settings ▾ lists IntelliJ's rows and opens at the keyboard past the caption", async ({ page }) => {
+  test("Presentation Settings ▾ lists IntelliJ's rows after Graph, and opens at the keyboard past the caption", async ({ page }) => {
     await openLog(page);
     await page.getByRole('button', { name: 'Presentation Settings' }).click();
     const menu = page.getByRole('menu', { name: 'Presentation Settings' });
     await expect(menu.getByRole('menuitemcheckbox')).toHaveText([
+      // POST-P14bh: GitTree's own row, first under Show.
+      'Graph',
       'Compact References View',
       'Tag Names',
       'References on the Left',
@@ -1661,8 +1664,10 @@ test.describe('P4-T3/T4 log webview', () => {
     const compact = page.getByRole('menuitemcheckbox', { name: 'Compact References View' });
     await expect(compact).toHaveAttribute('aria-checked', 'true');
     await expect(compact).toHaveClass(/gt-active/);
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Graph' })).toHaveAttribute('aria-checked', 'true');
+    // The first row past the caption takes the keyboard: Graph.
     await page.keyboard.press('Enter');
-    await expect.poll(() => setPresentationCalls(page)).toEqual([{ compactReferences: false }]);
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showGraph: false }]);
   });
 
   test('a host presentation event redraws the rows without re-paging', async ({ page }) => {
@@ -1742,8 +1747,8 @@ test.describe('P4-T3/T4 log webview', () => {
   test('Columns: the message, then Author and Date; Hash is hidden until switched on', async ({ page }) => {
     await openLog(page);
     await expect(cell(page, 0, 'author')).toHaveText('Alice');
-    // IntelliJ's date: no padded month, day or hour.
-    await expect(cell(page, 0, 'date')).toHaveText(/^\d{1,2}\/\d{1,2}\/\d{4} \d{1,2}:\d{2}\s[AP]M$/u);
+    // POST-P14bh: year first, two digits each, a 24-hour clock (D40).
+    await expect(cell(page, 0, 'date')).toHaveText(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/u);
     await expect(cell(page, 0, 'hash')).toHaveCount(0);
     // The row no longer runs the author, date and hash into the message.
     await expect(commitRow(page).locator('[data-gt-row="0"] .gt-log-subject')).toHaveText('commit 0');
@@ -2277,5 +2282,206 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect
       .poll(() => setFilterCalls(page))
       .toEqual([{ sort: 'intelli', refs: 'HEAD', firstParent: true }]);
+  });
+
+  // ---- POST-P14bh: the filter row's look, the Date column, the Graph toggle ----
+
+  /** The chip's frame: compact or full, active or not, and its × if any. */
+  const chipSet = (page: Page, id: string) => page.getByTestId('filter-' + id).locator('xpath=..');
+
+  test('the filter chips are compact by default: values cut short, the whole value in the tooltip', async ({ page }) => {
+    await openLog(page);
+    await expect(chipSet(page, 'branch')).toHaveClass(/gt-compact/);
+
+    await page.getByTestId('filter-user').click();
+    await page.getByTestId('filter-user-panel').getByRole('checkbox', { name: 'Carol <c@x.dev>' }).click();
+    const user = page.getByTestId('filter-user');
+    // The name without the e-mail; the e-mail is a hover away.
+    await expect(user).toHaveText('User: Carol ▾');
+    await expect(user).toHaveAttribute('title', 'User: Carol <c@x.dev>');
+    // The × is inside the chip, an icon.
+    await expect(chipSet(page, 'user').locator('.gt-chip-clear .codicon-close')).toHaveCount(1);
+
+    // You are 'me', as in IntelliJ.
+    await page.getByTestId('filter-user-panel').getByRole('checkbox', { name: 'Me (a@x.dev)' }).click();
+    await expect(user).toHaveText('User: Carol|me ▾');
+
+    await page.keyboard.press('Escape');
+    await page.getByTestId('filter-date').click();
+    await page.getByTestId('filter-date-panel').getByRole('button', { name: 'Today' }).click();
+    const today = new Date().toISOString().slice(0, 10);
+    await expect(page.getByTestId('filter-date')).toHaveText('Date: Since ' + today.replace(/-/gu, '/') + ' ▾');
+    await expect(page.getByTestId('filter-date')).toHaveAttribute('title', 'Date: ' + today + ' → …');
+  });
+
+  test('a long Branch selection is cut at 20 characters, as IntelliJ cuts it', async ({ page }) => {
+    await openLog(page);
+    const pane = page.getByTestId('branches-pane');
+    await pane.getByRole('treeitem', { name: /^feature, 3$/ }).locator('.gt-twistie').click();
+    await pane.getByRole('treeitem', { name: 'f1', exact: true }).click();
+    await pane.getByRole('treeitem', { name: 'f2', exact: true }).click({ modifiers: ['Control'] });
+    const branch = page.getByTestId('filter-branch');
+    await expect(branch).toHaveText('Branch: feature/f1|feature/… ▾');
+    await expect(branch).toHaveAttribute('title', 'Branch: feature/f1, feature/f2');
+  });
+
+  test('gittree.log.filterChips: full writes every value out, as the row did before', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockPresentation: unknown }).__mockPresentation = { filterChips: 'full' };
+    });
+    await openLog(page);
+    await expect(chipSet(page, 'branch')).not.toHaveClass(/gt-compact/);
+    await page.getByTestId('filter-user').click();
+    await page.getByTestId('filter-user-panel').getByRole('checkbox', { name: 'Carol <c@x.dev>' }).click();
+    await expect(page.getByTestId('filter-user')).toHaveText('User: Carol <c@x.dev> ▾');
+    await expect(chipSet(page, 'user').locator('.gt-chip-clear')).toHaveText('×');
+  });
+
+  test("the Date column reads YYYY/MM/DD HH:mm, or IntelliJ's own format with gittree.log.dateFormat: locale", async ({ page }) => {
+    await openLog(page);
+    const date = commitRow(page).locator('[data-gt-row="0"]').getByTestId('log-date');
+    await expect(date).toHaveText(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/u);
+    const pages = async (): Promise<number> =>
+      (await posted(page)).filter((m) => m.method === 'log/page').length;
+    const before = await pages();
+    await page.evaluate(() =>
+      window.postMessage(
+        {
+          v: 1,
+          id: 'evtpres',
+          kind: 'evt',
+          method: 'log/presentationChanged',
+          params: { showTagNames: false, showTags: true, dateFormat: 'locale' },
+        },
+        '*',
+      ),
+    );
+    // The page runs in en-US: IntelliJ's month/day/year and AM/PM.
+    await expect(date).toHaveText(/^\d{1,2}\/\d{1,2}\/\d{4} \d{1,2}:\d{2}\s[AP]M$/u);
+    // A drawing change: no new git log.
+    expect(await pages()).toBe(before);
+  });
+
+  test('Presentation Settings ▸ Graph hides the lanes and dots, and the message moves to the edge', async ({ page }) => {
+    await openLog(page);
+    const rows = page.getByTestId('log-rows');
+    await expect(rows.locator('canvas.gt-log-graph-canvas')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Graph' }).click();
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ showGraph: false }]);
+    await expect(rows.locator('canvas.gt-log-graph-canvas')).toHaveCount(0);
+    const subject = rows.locator('[data-gt-row="0"] .gt-log-subject-cell');
+    await expect(subject).toHaveCSS('padding-left', '0px');
+    // The message and the columns are all there is.
+    await expect(rows.locator('[data-gt-row="0"] .gt-log-subject')).toHaveText('commit 0');
+    await expect(rows.locator('[data-gt-row="0"]').getByTestId('log-author')).toHaveText('Alice');
+
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Graph' }).click();
+    await expect(rows.locator('canvas.gt-log-graph-canvas')).toHaveCount(1);
+  });
+
+  test('Branch ▾: HEAD and All branches are radio buttons, ruled off above the list', async ({ page }) => {
+    await openLog(page);
+    await page.getByTestId('filter-branch').click();
+    const panel = page.getByTestId('filter-branch-panel');
+    const presets = panel.getByRole('radiogroup');
+    await expect(presets.getByRole('radio')).toHaveCount(2);
+    await expect(presets.getByRole('radio', { name: 'HEAD (Current)' })).toBeChecked();
+    // Only branches and tags are ticked several at a time.
+    const list = panel.getByRole('group', { name: 'Branches and tags' });
+    await expect(list.getByRole('radio')).toHaveCount(0);
+    await expect(list.getByRole('checkbox', { name: 'main', exact: true })).toBeVisible();
+    // Ruled off from the list, and outside its scrolling.
+    await expect(panel.locator('.gt-filter-list .gt-filter-presets')).toHaveCount(0);
+    const rule = await panel.locator('.gt-filter-presets').evaluate((el) => getComputedStyle(el).borderBottomStyle);
+    expect(rule).toBe('solid');
+    // A search narrows the list; the two presets stay.
+    await panel.getByLabel('Search refs').fill('f2');
+    await expect(list.getByRole('checkbox')).toHaveCount(1);
+    await expect(presets.getByRole('radio')).toHaveCount(2);
+
+    // Ticking a branch unticks both presets.
+    await list.getByRole('checkbox', { name: 'feature/f2' }).click();
+    await expect(presets.getByRole('radio', { name: 'HEAD (Current)' })).not.toBeChecked();
+    await expect(presets.getByRole('radio', { name: 'All branches' })).not.toBeChecked();
+  });
+
+  test('Paths ▾ · Roots keeps the Branch selection, and a repository without it says so', async ({ page }) => {
+    await openLog(page);
+    // feature/f1, a branch only /repo has.
+    await page.getByTestId('filter-branch').click();
+    await page.getByTestId('filter-branch-panel').getByRole('checkbox', { name: 'feature/f1', exact: true }).click();
+    await expect(page.getByTestId('filter-branch')).toHaveText('Branch: feature/f1 ▾');
+    await page.keyboard.press('Escape');
+    const branchAsks = async (): Promise<number> =>
+      (await posted(page)).filter((m) => m.method === 'log/branches').length;
+    const asked = await branchAsks();
+
+    await page.getByTestId('filter-paths').click();
+    await page.getByTestId('filter-paths-panel').getByTestId('filter-root-other').click();
+    await expect(page.getByTestId('filter-paths')).toHaveText('Paths: other ▾');
+    // The owner's report: this used to fall back to HEAD.
+    await expect(page.getByTestId('filter-branch')).toHaveText('Branch: feature/f1 ▾');
+    // The new repository's refs are asked for, not the last one's kept.
+    await expect.poll(branchAsks).toBeGreaterThan(asked);
+
+    // Nothing to show, and the log says why.
+    const empty = page.getByTestId('log-empty');
+    await expect(empty).toContainText('No commits matching filters');
+    await expect(page.getByTestId('log-empty-missing')).toHaveText('Not in this repository: feature/f1');
+
+    // Branch ▾ lists /other's branches, with the missing one first, ticked and marked.
+    await page.getByTestId('filter-branch').click();
+    const list = page.getByTestId('filter-branch-panel').getByRole('group', { name: 'Branches and tags' });
+    await expect(list.locator('.gt-filter-checkrow').first()).toContainText('feature/f1');
+    await expect(list.locator('.gt-filter-checkrow').first()).toContainText('not in this repository');
+    await expect(list.getByRole('checkbox', { name: /^feature\/f1/u })).toBeChecked();
+    await expect(list.getByRole('checkbox', { name: 'only-in-other' })).toBeVisible();
+    await expect(list.getByRole('checkbox', { name: 'feature/f2' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    // Reset filters, IntelliJ's link, goes back to HEAD.
+    await empty.getByRole('button', { name: 'Reset filters' }).click();
+    await expect
+      .poll(async () =>
+        (await posted(page)).some((m) => {
+          const f = (m.params as { filter?: { refs?: unknown } } | undefined)?.filter;
+          return m.method === 'log/setFilter' && f?.refs === 'HEAD';
+        }),
+      )
+      .toBe(true);
+    await expect(empty).toHaveCount(0);
+  });
+
+  test('a Log tab behind another is the size of the one in front: a switch moves nothing', async ({ page }) => {
+    await openLog(page);
+    await page.getByRole('button', { name: 'Open Another Log Tab' }).click();
+    await expect(page.getByTestId('log-tab-log-1').getByTestId('log-row-0')).toBeVisible();
+    const box = async (id: string) => page.getByTestId('log-tab-' + id).boundingBox();
+    // The one behind used to be laid out over the strip, taller by its height:
+    // brought forward, it shrank on screen.
+    expect(await box('log')).toEqual(await box('log-1'));
+    for (const id of ['log', 'log-1', 'log']) {
+      await page.locator('[data-tab="' + id + '"]').click();
+      // The commits pane never scrolls around its own list.
+      const overflow = await page
+        .getByTestId('log-tab-' + id)
+        .locator('[data-pane-body="commits"]')
+        .evaluate((el) => el.scrollHeight - el.clientHeight);
+      expect(overflow).toBe(0);
+    }
+  });
+
+  test('the commit list shrinks with a short pane instead of scrolling inside it', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 900 });
+    await openLog(page);
+    const body = page.getByTestId('log-tab-log').locator('[data-pane-body="commits"]');
+    await page.setViewportSize({ width: 1200, height: 360 });
+    // The list was held at its first height: the pane grew a second scrollbar.
+    await expect.poll(() => body.evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
+    const list = page.getByTestId('log-rows').locator('.gt-virtual-list');
+    const listHeight = (await list.boundingBox())!.height;
+    expect(listHeight).toBeLessThanOrEqual((await body.boundingBox())!.height);
   });
 });

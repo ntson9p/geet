@@ -45,6 +45,37 @@
   border-left: 1px solid var(--vscode-contrastBorder, rgba(128, 128, 128, 0.35));
 }
 
+/* POST-P14bh, `gittree.log.filterChips: compact` (D39): a smaller chip, its
+   value cut short by `filterChips.ts` and capped here too, the `×` inside it. */
+.gt-filter-chipset.gt-compact {
+  border-radius: 4px;
+  line-height: 18px;
+}
+
+.gt-filter-chipset.gt-compact .gt-chip-main {
+  padding: 0 6px;
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gt-filter-chipset.gt-compact .gt-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px 0 0;
+  border-left: none;
+  opacity: 0.8;
+}
+
+.gt-filter-chipset.gt-compact .gt-chip-clear:hover {
+  opacity: 1;
+}
+
+.gt-filter-chipset.gt-compact .gt-chip-clear .codicon {
+  font-size: 12px;
+}
+
 .gt-log-search {
   flex: 1 1 160px;
   min-width: 120px;
@@ -57,17 +88,24 @@
 }
 
 /* ---- P12-T1: the four-pane shell ---- */
-.gt-log-tabpanel {
+/* The box under the strip. Every strip item's panel fills all of it, so a
+   panel is the same size in front and behind, and bringing one forward
+   changes nothing but which is seen. */
+.gt-log-stack {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
 }
 
-/* A Log tab behind another: out of the flow and unseen, but still laid out.
+.gt-log-stack > .gt-log-tabpanel {
+  position: absolute;
+  inset: 0;
+}
+
+/* A Log tab behind another: unseen, but still laid out, at its own size.
    `display: none` would reset every scroll position in it, and a tab is kept
    mounted precisely so it is where you left it. */
 .gt-log-tabpanel.gt-tab-behind {
-  position: absolute;
-  inset: 0;
   visibility: hidden;
   pointer-events: none;
 }
@@ -303,6 +341,28 @@
   white-space: nowrap;
 }
 
+/* `Branch ▾`'s HEAD (Current) and All branches: radio buttons in a block of
+   their own, above the branch list and ruled off from it, and not scrolled
+   away with it. Each is the whole filter, never one of several ticked. */
+.gt-filter-presets {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
+}
+
+/* A ticked branch this repository does not have. */
+.gt-filter-note {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
 .gt-filter-star {
   color: var(--vscode-charts-yellow);
 }
@@ -429,10 +489,16 @@
   font-weight: 600;
 }
 
+/* `min-height: 0` lets the rows shrink with their pane. Without it the list,
+   sized from this box's height, held the box at its own height: it could grow
+   with the pane but never shrink back, and the pane grew a second scrollbar
+   around the list's own. */
 .gt-log-rows {
   position: relative;
   flex: 1 1 60%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .gt-log-rows .gt-virtual-list {
@@ -445,6 +511,44 @@
   left: 0;
   pointer-events: none;
   z-index: 1;
+}
+
+/* The log with no rows to show: IntelliJ's empty text, centred in the pane. */
+.gt-log-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.gt-log-empty > * {
+  pointer-events: auto;
+}
+
+.gt-link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-link-button:hover {
+  color: var(--vscode-textLink-activeForeground);
+  text-decoration: underline;
+}
+
+.gt-link-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
 }
 
 /*

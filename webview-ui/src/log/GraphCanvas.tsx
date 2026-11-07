@@ -3,7 +3,7 @@
  * list, redrawn per scroll frame — lanes, joins, forks and nodes for the
  * visible rows only (≤ 8 ms/frame budget).
  */
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import type { GraphRowDto } from '../../../src/shared/protocol';
 import { GRAPH_HUES } from '../../../src/log/graphLayout/colors';
 import { useVsCodeTheme } from '../lib/useVsCodeTheme';
@@ -47,7 +47,10 @@ export function GraphCanvas(props: {
   const dark = theme === 'dark' || theme === 'high-contrast';
   const palette = props.palette ?? 'default';
 
-  useEffect(() => {
+  // Before the browser paints, not after: the canvas's CSS size and the rows
+  // change in the commit, and drawn a frame later the old picture showed
+  // stretched to the new size, or a frame behind a scroll.
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;

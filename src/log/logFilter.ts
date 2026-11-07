@@ -111,6 +111,57 @@ export function hidesCommit(f: LogFilter, parents: readonly string[]): boolean {
   return f.noMerges === true && parents.length > 1;
 }
 
+/**
+ * Whether git reads `name` as a set of commits rather than one revision:
+ * `a..b`, `a...b`, `a^!`, `a^@`, `a^-`. Such a name was typed into the
+ * `Branch or tag` box; it is handed to git as it is, unchecked.
+ */
+export function isRevisionRange(name: string): boolean {
+  return name.includes('..') || /\^[!@]$/u.test(name) || /\^-\d*$/u.test(name);
+}
+
+/**
+ * The single revisions a filter names, each of which a repository may lack: a
+ * range's two ends, or the Branch selection's names. HEAD and `All` name
+ * nothing — every repository has them.
+ */
+export function namedRevisions(f: LogFilter): string[] {
+  const names = f.range !== undefined ? [f.range.a, f.range.b] : Array.isArray(f.refs) ? f.refs : [];
+  return names.filter((n) => !isRevisionRange(n));
+}
+
+/**
+ * Which of `names` `git cat-file --batch-check=%(objecttype)` said are no
+ * commit here. It answers one line per name, in order: `commit` for one that
+ * resolves, `<name>^{commit} missing` (or `ambiguous`) for one that does not.
+ * A short answer means git stopped early: the names it did not answer are
+ * treated as present, so git log has the last word on them, as before.
+ */
+export function missingFromBatchCheck(names: readonly string[], stdout: string): string[] {
+  const lines = stdout.split('\n').map((l) => l.trim());
+  return names.filter((name, i) => {
+    const line = lines[i];
+    return line !== undefined && line.length > 0 && line !== 'commit';
+  });
+}
+
+/**
+ * The filter to read once the names a repository lacks are taken out, or
+ * `undefined` when nothing is left to read: a range with a missing end, or a
+ * Branch selection of missing names only. Reading the rest as if they were
+ * not named is IntelliJ's way — and git would refuse the whole log over one
+ * unknown name.
+ */
+export function withoutMissingRefs(f: LogFilter, missing: readonly string[]): LogFilter | undefined {
+  if (missing.length === 0) return f;
+  const gone = new Set(missing);
+  if (f.range !== undefined) return gone.has(f.range.a) || gone.has(f.range.b) ? undefined : f;
+  if (!Array.isArray(f.refs)) return f;
+  const kept = f.refs.filter((r) => !gone.has(r));
+  if (kept.length === f.refs.length) return f;
+  return kept.length === 0 ? undefined : { ...f, refs: kept };
+}
+
 export interface LogPage {
   skip: number;
   maxCount: number;

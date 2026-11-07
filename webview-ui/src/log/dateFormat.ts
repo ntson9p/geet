@@ -16,7 +16,12 @@
  * `9/5/2026 3:07 PM` exactly as IntelliJ's Date column does — no padded month
  * or hour. IntelliJ's "Today"/"Yesterday" wording is not used: the column
  * always gives the full date (owner's choice, 2026-11-01).
+ *
+ * POST-P14bh: that is now the `locale` choice of `gittree.log.dateFormat`. The
+ * default is `YYYY/MM/DD HH:mm` (owner's choice, 2026-11-07; D40).
  */
+
+import type { LogDateFormat } from '../../../src/shared/protocol';
 
 /**
  * Builds a formatter. The arguments exist so tests can pin a locale and zone;
@@ -46,8 +51,53 @@ export function createCommitDateFormat(
   };
 }
 
-/** The log's own formatter, in the host's locale and time zone. */
+/** IntelliJ's format in the host's locale and time zone (the Push dialog's, and `locale`'s). */
 export const commitDate = createCommitDateFormat();
+
+/**
+ * The Date column's formatter for `gittree.log.dateFormat` (D40).
+ *
+ * `YYYY/MM/DD HH:mm` — the default — reads the same everywhere: year first,
+ * every field two digits wide, a 24-hour clock, so the column lines up and
+ * sorts by eye. `locale` is IntelliJ's own, `createCommitDateFormat`.
+ */
+export function createLogDateFormat(
+  format: LogDateFormat,
+  locale?: string,
+  timeZone?: string,
+): (unixSeconds: number) => string {
+  if (format === 'locale') return createCommitDateFormat(locale, timeZone);
+  // The digits only, in a fixed order: the locale decides nothing here, so
+  // `en-US` stands in for any. `h23`, not `hour12: false`, which some engines
+  // write as `24:05` past midnight.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    ...(timeZone !== undefined ? { timeZone } : {}),
+  });
+  return (unixSeconds: number): string => {
+    const at: Partial<Record<Intl.DateTimeFormatPartTypes, string>> = {};
+    for (const part of parts.formatToParts(new Date(unixSeconds * 1000))) at[part.type] = part.value;
+    return `${at.year}/${at.month}/${at.day} ${at.hour}:${at.minute}`;
+  };
+}
+
+/**
+ * A `Date ▾` filter bound (`2026-10-31`, a calendar day with no time or zone)
+ * written the way the Date column writes dates.
+ */
+export function formatFilterDay(isoDay: string, format: LogDateFormat, locale?: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(isoDay);
+  if (!match) return isoDay;
+  if (format !== 'locale') return `${match[1]}/${match[2]}/${match[3]}`;
+  // Local midnight of that day: a day has no zone to convert from.
+  const day = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'numeric', day: 'numeric' }).format(day);
+}
 
 /**
  * A date as wide as the column ever needs: IntelliJ sizes its Date column by

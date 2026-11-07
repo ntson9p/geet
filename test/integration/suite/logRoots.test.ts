@@ -18,8 +18,9 @@ import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA, workspaceRepoB 
  * nothing let you choose one.
  *
  * Read-only by construction: every assertion here uses history and files the
- * fixtures already have. The one piece of shared state it does move is which
- * root the log is pinned to, which the teardown puts back.
+ * fixtures already have. The shared state it does move is which root the log
+ * is pinned to, which the teardown puts back, and one branch a test makes in
+ * repoA and deletes again.
  */
 suite('Log roots & path filter', () => {
   let core: Core;
@@ -110,17 +111,56 @@ suite('Log roots & path filter', () => {
     reg.logView.showRoot(repoB.root);
     const after = reg.logView.currentSession!.filter;
     assert.strictEqual(session().repoRoot, repoB.root);
-    // `src` does not exist in repoB and `branchA` may not resolve there; either
-    // carried over reads to the user as "this repository has no history".
+    // `src` does not exist in repoB: picking a root is picking the paths afresh.
     assert.strictEqual(after.paths, undefined, 'paths are repo-relative');
     assert.strictEqual(after.follow, undefined, 'follow rides on a single path');
     assert.strictEqual(after.range, undefined);
-    assert.strictEqual(after.refs, 'HEAD', 'an explicit ref list names one repository’s branches');
+    // POST-P14bh: the Branch selection stays, as IntelliJ's filters stay when
+    // its roots change. A name repoB lacks is left out of the read instead.
+    assert.deepStrictEqual(after.refs, [branchA], 'the Branch selection survives the switch');
     // Nothing about an author or a date is repo-relative, so nothing is lost.
     assert.deepStrictEqual(after.authors, ['GitTree Test']);
     assert.deepStrictEqual(after.dateRange, { from: '2000-01-01' });
     assert.strictEqual(after.text?.q, 'initial');
     assert.strictEqual(after.sort, 'date');
+  });
+
+  test('a branch only one repository has: kept across the switch, and the other log says it is missing', async function () {
+    this.timeout(90_000);
+    // The owner's report: Paths ▾ reset Branch ▾ to HEAD. Now the selection
+    // stays even where the repository picked lacks the branch.
+    const onlyInA = `gt-only-in-a-${Date.now()}`;
+    gitWithRetry(repoA.root, ['branch', onlyInA]);
+    const branchB = gitWithRetry(repoB.root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+    try {
+      reg.logView.showRoot(repoA.root);
+      await reg.logView.setFilter({ sort: 'date', refs: [onlyInA] }, repoA.root);
+      await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+      assert.deepStrictEqual(session().missingRefs, []);
+
+      reg.logView.showRoot(repoB.root);
+      assert.strictEqual(session().repoRoot, repoB.root);
+      assert.deepStrictEqual(session().filter.refs, [onlyInA], 'Branch ▾ keeps what was picked');
+      // git would refuse the whole log over the unknown name; the read leaves
+      // it out, finds nothing left, and says which name was missing.
+      await waitFor(() => reg.logView.currentSession?.eof === true, 30_000);
+      assert.strictEqual(session().rowCount, 0, 'repoB has nothing on a branch it does not have');
+      assert.deepStrictEqual(session().missingRefs, [onlyInA]);
+
+      // With a branch repoB does have beside it, that one's history shows.
+      await reg.logView.setFilter({ sort: 'date', refs: [onlyInA, branchB] }, repoB.root);
+      await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+      assert.deepStrictEqual(session().missingRefs, [onlyInA]);
+
+      // And back in repoA, the branch is there again.
+      reg.logView.showRoot(repoA.root);
+      assert.deepStrictEqual(session().filter.refs, [onlyInA, branchB]);
+      await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+      assert.ok(!session().missingRefs.includes(onlyInA), 'repoA has its own branch');
+    } finally {
+      await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' }, repoA.root);
+      gitWithRetry(repoA.root, ['branch', '-D', onlyInA]);
+    }
   });
 
   test('a root outside the workspace is refused rather than guessed at', function () {

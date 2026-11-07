@@ -5,8 +5,12 @@ import {
   graphParents,
   graphSort,
   hidesCommit,
+  isRevisionRange,
   isUnfiltered,
+  missingFromBatchCheck,
+  namedRevisions,
   parseRangeCounts,
+  withoutMissingRefs,
   DEFAULT_FILTER,
   type LogFilter,
 } from '../../../src/log/logFilter';
@@ -258,5 +262,69 @@ describe('parseRangeCounts', () => {
     expect(parseRangeCounts('')).toBeUndefined();
     expect(parseRangeCounts('2\n')).toBeUndefined();
     expect(parseRangeCounts('fatal: ambiguous argument')).toBeUndefined();
+  });
+});
+
+// POST-P14bh: Paths ▾ · Roots keeps the Branch selection, so a name can reach a
+// repository that does not have it. It is left out of the read, not handed to
+// git, which would refuse the whole log over it.
+describe('a Branch selection another repository lacks', () => {
+  it('checks single revisions and leaves ranges to git', () => {
+    for (const range of ['main..topic', 'main...topic', 'main^!', 'main^@', 'main^-', 'main^-2']) {
+      expect(isRevisionRange(range), range).toBe(true);
+    }
+    for (const single of ['main', 'feature/a.b', 'origin/main', 'v1.0.0', 'HEAD~2', 'main^', 'main^2', 'abc1234']) {
+      expect(isRevisionRange(single), single).toBe(false);
+    }
+  });
+
+  it('names a range’s two ends, or the selection’s names; HEAD and All name nothing', () => {
+    expect(namedRevisions({ sort: 'date', refs: ['main', 'feature/x'] })).toEqual(['main', 'feature/x']);
+    expect(namedRevisions({ sort: 'date', range: { a: 'main', b: 'topic' } })).toEqual(['main', 'topic']);
+    // A range outranks refs in the argv build, so it does here too.
+    expect(namedRevisions({ sort: 'date', refs: ['x'], range: { a: 'a', b: 'b' } })).toEqual(['a', 'b']);
+    expect(namedRevisions({ sort: 'date', refs: 'HEAD' })).toEqual([]);
+    expect(namedRevisions({ sort: 'date', refs: 'ALL' })).toEqual([]);
+    expect(namedRevisions({ sort: 'date' })).toEqual([]);
+    // A typed range expression is git's to read.
+    expect(namedRevisions({ sort: 'date', refs: ['main..topic', 'main'] })).toEqual(['main']);
+  });
+
+  it("reads `git cat-file --batch-check`'s answers, one line per name", () => {
+    const names = ['main', 'only-elsewhere', 'v1.0.0', 'abc12'];
+    const stdout = 'commit\nonly-elsewhere^{commit} missing\ncommit\nabc12^{commit} ambiguous\n';
+    // An ambiguous short hash fails `git log` as surely as a missing name.
+    expect(missingFromBatchCheck(names, stdout)).toEqual(['only-elsewhere', 'abc12']);
+    expect(missingFromBatchCheck(['main'], 'commit\n')).toEqual([]);
+    // Windows line ends.
+    expect(missingFromBatchCheck(['a', 'b'], 'commit\r\nb^{commit} missing\r\n')).toEqual(['b']);
+  });
+
+  it('calls nothing missing that git did not answer for', () => {
+    // A short answer means git stopped early; the log read decides those, as before.
+    expect(missingFromBatchCheck(['a', 'b', 'c'], 'commit\n')).toEqual([]);
+    expect(missingFromBatchCheck(['a'], '')).toEqual([]);
+  });
+
+  it('reads the names the repository has, and nothing when it has none of them', () => {
+    const f: LogFilter = { sort: 'date', refs: ['main', 'gone', 'topic'], authors: ['Ann'] };
+    expect(withoutMissingRefs(f, ['gone'])).toEqual({ sort: 'date', refs: ['main', 'topic'], authors: ['Ann'] });
+    expect(withoutMissingRefs(f, ['main', 'gone', 'topic'])).toBeUndefined();
+    // Nothing missing: the filter itself, not a copy — the page cache keys on it.
+    expect(withoutMissingRefs(f, [])).toBe(f);
+    expect(withoutMissingRefs(f, ['not-selected'])).toBe(f);
+  });
+
+  it('reads no range with a missing end', () => {
+    const f: LogFilter = { sort: 'topo', range: { a: 'main', b: 'gone' } };
+    expect(withoutMissingRefs(f, ['gone'])).toBeUndefined();
+    expect(withoutMissingRefs(f, ['other'])).toBe(f);
+  });
+
+  it('leaves HEAD and All alone', () => {
+    const head: LogFilter = { sort: 'date', refs: 'HEAD' };
+    const all: LogFilter = { sort: 'date', refs: 'ALL' };
+    expect(withoutMissingRefs(head, ['x'])).toBe(head);
+    expect(withoutMissingRefs(all, ['x'])).toBe(all);
   });
 });

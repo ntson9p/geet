@@ -449,6 +449,37 @@
             "default": false,
             "description": "%gittree.config.log.columns.hash.description%"
           },
+          "gittree.log.showGraph": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.log.showGraph.description%"
+          },
+          "gittree.log.dateFormat": {
+            "type": "string",
+            "enum": [
+              "YYYY/MM/DD HH:mm",
+              "locale"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.log.dateFormat.ymd%",
+              "%gittree.config.log.dateFormat.locale%"
+            ],
+            "default": "YYYY/MM/DD HH:mm",
+            "description": "%gittree.config.log.dateFormat.description%"
+          },
+          "gittree.log.filterChips": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ],
+            "enumDescriptions": [
+              "%gittree.config.log.filterChips.compact%",
+              "%gittree.config.log.filterChips.full%"
+            ],
+            "default": "compact",
+            "description": "%gittree.config.log.filterChips.description%"
+          },
           "gittree.log.issuePattern": {
             "type": "string",
             "default": "",

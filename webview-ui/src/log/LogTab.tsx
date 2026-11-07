@@ -52,7 +52,8 @@ import {
   type ColumnId,
   type ColumnWidths,
 } from './columns';
-import { SAMPLE_COMMIT_TIME, commitDate } from './dateFormat';
+import { SAMPLE_COMMIT_TIME, createLogDateFormat } from './dateFormat';
+import { hasFilters, missingRefsText, resetFilters } from './filterChips';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
 import { CompareStrip } from './CompareStrip';
@@ -172,6 +173,8 @@ export function LogTab({
   const [rows, setRows] = useState<LogRowDto[]>([]);
   const [eof, setEof] = useState(false);
   const [loading, setLoading] = useState(false);
+  /** What the filter names that this repository lacks, as the rows said (`LogPageDto.missingRefs`). */
+  const [missingRefs, setMissingRefs] = useState<readonly string[]>([]);
   const [viewport, setViewport] = useState<GraphViewport>({ scrollTop: 0, first: 0, last: 0 });
   // The selection, IntelliJ's way: any set of commits, in graph order, with
   // the anchor a Shift range starts from. See `logSelection.ts`.
@@ -271,18 +274,33 @@ export function LogTab({
     [rpc, tabId],
   );
 
+  // The tab's repository: `Paths ▾ · Roots` can move the tab to another one.
+  const repoRoot = init?.repoRoot;
   useEffect(() => {
+    // Nothing is drawn before `init`, and it names the repository to ask about.
+    if (repoRoot === undefined) return undefined;
+    let current = true;
     const reload = (): void => {
       send<LogBranchesDto>(LOG_METHODS.branches).then(
-        (next) => setBranchesData(next ?? null),
-        () => setBranchesData(null),
+        (next) => {
+          if (current) setBranchesData(next ?? null);
+        },
+        () => {
+          if (current) setBranchesData(null);
+        },
       );
     };
+    // Asked again when the repository changes: its branches, not the last
+    // one's, belong in `Branch ▾` and the Branches pane.
     reload();
-    return rpc.onEvent(LOG_METHODS.evtBranches, (params) => {
+    const off = rpc.onEvent(LOG_METHODS.evtBranches, (params) => {
       if (isFor(params, tabId)) reload();
     });
-  }, [rpc, send, tabId]);
+    return () => {
+      current = false;
+      off();
+    };
+  }, [rpc, send, tabId, repoRoot]);
 
   // Only reached before the host's first `log/init` answers; it has to agree
   // with DEFAULT_FILTER or the sort dropdown reads wrong for that one frame.
@@ -508,13 +526,15 @@ export function LogTab({
       ),
     [measure, sizedBy, firstSha],
   );
+  // `gittree.log.dateFormat`: one formatter per choice, not per row.
+  const formatDate = useMemo(() => createLogDateFormat(presentation.dateFormat), [presentation.dateFormat]);
   const autoWidths = useMemo(
     () => ({
       author: authorAuto,
-      date: sampleWidth(commitDate(SAMPLE_COMMIT_TIME), measure.bold),
+      date: sampleWidth(formatDate(SAMPLE_COMMIT_TIME), measure.bold),
       hash: sampleWidth(HASH_SAMPLES, measure.bold),
     }),
-    [authorAuto, measure],
+    [authorAuto, formatDate, measure],
   );
   const repo = useMemo(() => repoRefs(branchesData), [branchesData]);
 
@@ -556,6 +576,7 @@ export function LogTab({
         refreshDoneRef.current?.();
         refreshDoneRef.current = undefined;
       }
+      if (page.page === 0 || page.missingRefs !== undefined) setMissingRefs(page.missingRefs ?? []);
       setEof(page.eof);
       pageRef.current = { next: page.page + 1, loading: false, eof: page.eof };
       setLoading(false);
@@ -587,6 +608,7 @@ export function LogTab({
       } else {
         setRows([]);
         setSelection(EMPTY_SELECTION);
+        setMissingRefs([]);
       }
       pageRef.current = { next: 0, loading: false, eof: false };
       requestPage(0);
@@ -788,9 +810,16 @@ export function LogTab({
   }
 
   const laneWidth = init.laneWidth;
-  const maxLane = rows.reduce((m, r) => Math.max(m, r.graph.nodeLane, ...r.graph.lanesBefore.map((l) => l.lane)), 0);
-  const graphWidth = Math.min((maxLane + 1) * laneWidth + 8, 220);
+  // Presentation Settings ▸ Graph off: no lanes and no dots, the message at
+  // the row's own edge.
+  const showGraph = presentation.showGraph;
+  const maxLane = showGraph
+    ? rows.reduce((m, r) => Math.max(m, r.graph.nodeLane, ...r.graph.lanesBefore.map((l) => l.lane)), 0)
+    : 0;
+  const graphWidth = showGraph ? Math.min((maxLane + 1) * laneWidth + 8, 220) : 0;
   const listHeight = Math.max(size.height, 100);
+  // Every page read and nothing matched: say so, and why when the reason is known.
+  const emptyLog = rows.length === 0 && eof && !loading;
 
   // The message column takes what Author, Date and Hash leave, and never less
   // than the graph and a readable stretch of message.
@@ -859,7 +888,7 @@ export function LogTab({
       case 'author':
         return authorText(row.authorName, row.committedByOther);
       case 'date':
-        return commitDate(row.authorTime);
+        return formatDate(row.authorTime);
       case 'hash':
         return row.sha.slice(0, SHORT_HASH_LENGTH);
     }
@@ -879,15 +908,33 @@ export function LogTab({
       onWheel={cancelHover}
       onMouseDown={cancelHover}
     >
-      <GraphCanvas
-        rows={rows}
-        viewport={viewport}
-        rowHeight={ROW_HEIGHT}
-        laneWidth={laneWidth}
-        width={graphWidth}
-        height={listHeight}
-        palette={init.graphPalette ?? 'default'}
-      />
+      {showGraph ? (
+        <GraphCanvas
+          rows={rows}
+          viewport={viewport}
+          rowHeight={ROW_HEIGHT}
+          laneWidth={laneWidth}
+          width={graphWidth}
+          height={listHeight}
+          palette={init.graphPalette ?? 'default'}
+        />
+      ) : null}
+      {emptyLog ? (
+        // IntelliJ's empty text and its link (`vcs.log.no.commits.matching.status`).
+        <div className="gt-log-empty" role="status" data-testid="log-empty">
+          <div>No commits matching filters</div>
+          {missingRefsText(missingRefs) !== undefined ? (
+            <div className="gt-muted" data-testid="log-empty-missing">
+              {missingRefsText(missingRefs)}
+            </div>
+          ) : null}
+          {hasFilters(filter) ? (
+            <button type="button" className="gt-link-button" onClick={() => applyFilter(resetFilters(filter))}>
+              Reset filters
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <VirtualList
             ref={listRef}
             rowCount={rows.length + (eof ? 0 : 1)}
@@ -913,7 +960,7 @@ export function LogTab({
               const row = rows[i];
               if (!row) return loading ? 'Loading…' : 'Load more';
               const refs = row.refs.length > 0 ? `, branch ${row.refs.map((r) => r.name).join(', ')}` : '';
-              return `commit ${row.subject} by ${row.authorName}, ${commitDate(row.authorTime)}${refs}`;
+              return `commit ${row.subject} by ${row.authorName}, ${formatDate(row.authorTime)}${refs}`;
             }}
             rowContext={(i) => {
               const row = rows[i];
@@ -1047,6 +1094,7 @@ export function LogTab({
         presentation={presentation}
         onPresentationChange={changePresentation}
         searchInputRef={searchInputRef}
+        missingRefs={missingRefs}
       />
       {compared !== undefined ? (
         <CompareStrip

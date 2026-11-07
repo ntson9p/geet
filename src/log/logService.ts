@@ -14,7 +14,15 @@ import {
   parseLogRecord,
   type Commit,
 } from '../core/git/parsers/logFormat';
-import { buildLogArgs, filterKey, parseRangeCounts, type LogFilter } from './logFilter';
+import {
+  buildLogArgs,
+  filterKey,
+  missingFromBatchCheck,
+  namedRevisions,
+  parseRangeCounts,
+  withoutMissingRefs,
+  type LogFilter,
+} from './logFilter';
 import { parseCommitsNameStatus, type CommitFiles } from './zipChanges';
 
 export const PAGE_SIZE = 2000;
@@ -36,6 +44,11 @@ export interface LogPageResult {
   /** True when git returned fewer rows than requested (history exhausted). */
   eof: boolean;
   page: number;
+  /**
+   * What the filter names that this repository does not have — a branch picked
+   * in another repository, say. Left out of the read; absent when none are.
+   */
+  missingRefs?: string[];
 }
 
 export interface CommitDetails {
@@ -67,6 +80,8 @@ export class LogService {
   private wakeMaintenance: (() => void) | undefined;
   private disposed = false;
   private authorsCache: { headSha: string | undefined; authors: string[] } | undefined;
+  /** The last ref check, for the pages after the first: same names, same refs, same answer. */
+  private lastCheck: { key: string; missing: Promise<string[]> } | undefined;
 
   constructor(
     private readonly repo: RepoHandle,
@@ -105,9 +120,20 @@ export class LogService {
       return cached;
     }
 
-    const rangeMode = filter.range !== undefined;
+    // A branch this repository lacks would make git refuse the whole log;
+    // it is left out instead, and with nothing left there is nothing to read.
+    const missing = await this.missingRevisions(filter);
+    const toRead = withoutMissingRefs(filter, missing);
+    const missingRefs = missing.length > 0 ? { missingRefs: missing } : {};
+    if (toRead === undefined) {
+      const empty: LogPageResult = { rows: [], eof: true, page, ...missingRefs };
+      this.remember(key, empty);
+      return empty;
+    }
+
+    const rangeMode = toRead.range !== undefined;
     const format = rangeMode ? `%m%x00${LOG_FORMAT}` : LOG_FORMAT;
-    const args = buildLogArgs(filter, format, { skip: page * PAGE_SIZE, maxCount: PAGE_SIZE });
+    const args = buildLogArgs(toRead, format, { skip: page * PAGE_SIZE, maxCount: PAGE_SIZE });
 
     const rows: LogRow[] = [];
     let pendingChunk: LogRow[] = [];
@@ -147,13 +173,50 @@ export class LogService {
     });
     if (pendingChunk.length > 0) onChunk?.(pendingChunk);
 
-    const result: LogPageResult = { rows, eof: rows.length < PAGE_SIZE, page };
+    const result: LogPageResult = { rows, eof: rows.length < PAGE_SIZE, page, ...missingRefs };
+    this.remember(key, result);
+    return result;
+  }
+
+  private remember(key: string, result: LogPageResult): void {
     this.pageCache.set(key, result);
     while (this.pageCache.size > CACHE_CAPACITY) {
       const oldest = this.pageCache.keys().next().value as string;
       this.pageCache.delete(oldest);
     }
-    return result;
+  }
+
+  /**
+   * The revisions `filter` names that do not resolve to a commit here, in one
+   * `git cat-file --batch-check` for all of them. HEAD and `All` name nothing
+   * to check. If git cannot answer, nothing is called missing and the log
+   * read decides, as it did before the check.
+   */
+  private missingRevisions(filter: LogFilter): Promise<string[]> {
+    const names = namedRevisions(filter);
+    if (names.length === 0) return Promise.resolve([]);
+    const model = this.repo.model;
+    const key = `${JSON.stringify(names)}|${model.snapshot.headSha ?? 'unborn'}|${model.refsGeneration}`;
+    if (this.lastCheck?.key === key) return this.lastCheck.missing;
+    const missing = this.repo.queue
+      .enqueue({
+        label: `check ${names.length} log refs`,
+        kind: 'read',
+        run: (git, token) =>
+          git.exec(this.repo.root, ['cat-file', '--batch-check=%(objecttype)'], {
+            structured: true,
+            noOptionalLocks: true,
+            allowNonZeroExit: true,
+            stdin: names.map((n) => `${n}^{commit}\n`).join(''),
+            token,
+          }),
+      })
+      .then(
+        (result) => (result.exitCode === 0 ? missingFromBatchCheck(names, result.stdout) : []),
+        () => [] as string[],
+      );
+    this.lastCheck = { key, missing };
+    return missing;
   }
 
   private parseFrame(frame: string, rangeMode: boolean): LogRow | undefined {

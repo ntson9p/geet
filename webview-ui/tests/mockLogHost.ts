@@ -56,9 +56,49 @@ export const mockLogHostScript = `
         showAuthorColumn: true,
         showDateColumn: true,
         showHashColumn: false,
+        showGraph: true,
+        dateFormat: 'YYYY/MM/DD HH:mm',
+        filterChips: 'compact',
       },
       window.__mockPresentation || {},
     ));
+  // POST-P14bh: the workspace's two repositories, each with its own refs.
+  // Paths ▾ · Roots moves a tab between them, keeping its filter as logView does.
+  const ROOTS = [
+    { root: '/repo', label: 'repo', colorIdx: 0 },
+    { root: '/other', label: 'other', colorIdx: 1 },
+  ];
+  const REFS = {
+    '/repo': {
+      locals: [
+        { name: 'main', favorite: false, upstream: 'origin/main' },
+        { name: 'release', favorite: true },
+        { name: 'feature/f1', favorite: false },
+        { name: 'feature/f1-1', favorite: false },
+        { name: 'feature/f2', favorite: false },
+      ],
+      remotes: [{ remote: 'origin', branches: ['origin/main', 'origin/dev'] }],
+      tags: ['v1.0'],
+    },
+    '/other': {
+      locals: [
+        { name: 'main', favorite: false },
+        { name: 'only-in-other', favorite: false },
+      ],
+      remotes: [],
+      tags: [],
+    },
+  };
+  const rootByTab = {};
+  const rootOf = (tab) => rootByTab[tab] || '/repo';
+  const rootLabel = (tab) => (ROOTS.find((r) => r.root === rootOf(tab)) || ROOTS[0]).label;
+  const refNames = (root) => {
+    const r = REFS[root];
+    return r.locals.map((b) => b.name).concat(...r.remotes.map((x) => x.branches), r.tags);
+  };
+  // As LogService answers: the names the filter picks that this repository lacks.
+  const missingIn = (root, filter) =>
+    filter && Array.isArray(filter.refs) ? filter.refs.filter((n) => !refNames(root).includes(n)) : [];
   // The Log tabs as logView keeps them: the main tab first, extras appended.
   // Opt-in starting list (window.__mockTabs) for the restore tests.
   const tabsState = () =>
@@ -124,10 +164,7 @@ export const mockLogHostScript = `
           const tab = tabsState().tabs.find((t) => t.id === tabOf(msg.params));
           res({
             repoRoot: '/repo', repoLabel: 'repo',
-            roots: [
-              { root: '/repo', label: 'repo', colorIdx: 0 },
-              { root: '/other', label: 'other', colorIdx: 1 },
-            ],
+            roots: ROOTS,
             filter: (msg.params && msg.params.filter) || (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' },
             laneWidth: 12, graphPalette: window.__mockGraphPalette,
             issue: { pattern: 'GT-\\\\d+', url: 'https://tracker.example/browse/$0' },
@@ -147,11 +184,32 @@ export const mockLogHostScript = `
         }
         case 'log/page': {
           const page = msg.params.page;
+          const logTab = tabOf(msg.params);
+          const tab = tabsState().tabs.find((t) => t.id === logTab);
+          const filter = tab && tab.filter;
+          const missing = missingIn(rootOf(logTab), filter);
+          res({ ok: true });
+          if (missing.length > 0 && missing.length === filter.refs.length) {
+            // Nothing the repository has: an empty, finished log that says why.
+            post({ v: 1, id: 'evt' + page, kind: 'evt', method: 'log/rows', params: { page, rows: [], eof: true, logTab, missingRefs: missing } });
+            break;
+          }
           const start = page * PAGE;
           const rows = [];
           for (let i = start; i < Math.min(start + PAGE, TOTAL); i++) rows.push(row(i));
+          const params = { page, rows, eof: start + PAGE >= TOTAL, logTab };
+          if (missing.length > 0) params.missingRefs = missing;
+          post({ v: 1, id: 'evt' + page, kind: 'evt', method: 'log/rows', params });
+          break;
+        }
+        case 'log/setRoot': {
+          const logTab = tabOf(msg.params);
+          const tab = tabsState().tabs.find((t) => t.id === logTab);
+          rootByTab[logTab] = msg.params.root;
+          const label = (ROOTS.find((r) => r.root === msg.params.root) || { label: 'repo' }).label;
           res({ ok: true });
-          post({ v: 1, id: 'evt' + page, kind: 'evt', method: 'log/rows', params: { page, rows, eof: start + PAGE >= TOTAL, logTab: tabOf(msg.params) } });
+          // The tab's filter rides along, the Branch selection included.
+          post({ v: 1, id: 'evtreset-root', kind: 'evt', method: 'log/reset', params: { repoRoot: msg.params.root, repoLabel: label, roots: ROOTS, filter: (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, logTab } });
           break;
         }
         case 'log/details': {
@@ -223,17 +281,13 @@ export const mockLogHostScript = `
           break;
         }
         case 'log/branches': {
+          // The refs of the repository the tab shows.
+          const refs = REFS[rootOf(tabOf(msg.params))];
           res({
             current: 'main', detached: false,
-            locals: [
-              { name: 'main', favorite: false, upstream: 'origin/main' },
-              { name: 'release', favorite: true },
-              { name: 'feature/f1', favorite: false },
-              { name: 'feature/f1-1', favorite: false },
-              { name: 'feature/f2', favorite: false },
-            ],
-            remotes: [{ remote: 'origin', branches: ['origin/main', 'origin/dev'] }],
-            tags: ['v1.0'],
+            locals: refs.locals,
+            remotes: refs.remotes,
+            tags: refs.tags,
             myAuthor: 'a@x.dev',
             myName: 'Alice',
           });
@@ -256,7 +310,7 @@ export const mockLogHostScript = `
           const logTab = tabOf(msg.params);
           const tab = tabsState().tabs.find((t) => t.id === logTab);
           const reset = () =>
-            post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: '/repo', repoLabel: 'repo', filter: (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, logTab, preserve: true } });
+            post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: rootOf(logTab), repoLabel: rootLabel(logTab), filter: (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, logTab, preserve: true } });
           if (window.__mockHoldRefresh === true) window.__releaseRefresh = reset;
           else reset();
           res({ ok: true });
@@ -297,7 +351,7 @@ export const mockLogHostScript = `
           const tab = tabsState().tabs.find((t) => t.id === logTab);
           if (tab) tab.filter = msg.params.filter;
           res({ ok: true });
-          post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: '/repo', repoLabel: 'repo', filter: msg.params.filter, laneWidth: 12, logTab } });
+          post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: rootOf(logTab), repoLabel: rootLabel(logTab), filter: msg.params.filter, laneWidth: 12, logTab } });
           // The strip retitles from the host's echo, as logView sends it.
           postTabs();
           break;

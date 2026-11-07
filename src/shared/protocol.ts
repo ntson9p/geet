@@ -1090,6 +1090,12 @@ export interface LogPageDto {
   eof: boolean;
   /** The Log tab these rows are for; absent means the main tab. */
   logTab?: string;
+  /**
+   * Branches, tags or revisions the tab's filter names that its repository
+   * does not have. The rows leave them out; with nothing left the log is
+   * empty, and the view says which were missing. Absent when none are.
+   */
+  missingRefs?: string[];
 }
 
 /**
@@ -1132,9 +1138,41 @@ export interface LogPresentationDto {
   showDateColumn: boolean;
   /** `gittree.log.columns.hash`: Presentation Settings ▸ Columns ▸ Hash. */
   showHashColumn: boolean;
+  /**
+   * `gittree.log.showGraph`: Presentation Settings ▸ Graph. Off, the rows are
+   * the message and the columns alone, with no lanes or commit dots.
+   */
+  showGraph: boolean;
+  /** `gittree.log.dateFormat`: how the Date column writes a commit's date and time. */
+  dateFormat: LogDateFormat;
+  /** `gittree.log.filterChips`: how the Branch, User, Date and Paths dropdowns show what they filter. */
+  filterChips: LogFilterChips;
 }
 
-/** What a view draws before the host has said otherwise: IntelliJ's own defaults. */
+/**
+ * The Date column's formats. `YYYY/MM/DD HH:mm` is GitTree's own (D40);
+ * `locale` is IntelliJ's, the system's short date and time.
+ */
+export const LOG_DATE_FORMATS = ['YYYY/MM/DD HH:mm', 'locale'] as const;
+export type LogDateFormat = (typeof LOG_DATE_FORMATS)[number];
+
+/**
+ * The filter dropdowns' looks. `compact` is GitTree's own (D39): smaller, each
+ * value cut short; `full` is the look before it, every value written out.
+ */
+export const LOG_FILTER_CHIPS = ['compact', 'full'] as const;
+export type LogFilterChips = (typeof LOG_FILTER_CHIPS)[number];
+
+/** The presentation settings a menu can flip: the ones that are on or off. */
+export type LogPresentationToggle = {
+  [K in keyof LogPresentationDto]: LogPresentationDto[K] extends boolean ? K : never;
+}[keyof LogPresentationDto];
+
+/**
+ * What a view draws before the host has said otherwise: IntelliJ's own
+ * defaults, except the two GitTree chose for itself — the date format (D40)
+ * and the compact filter dropdowns (D39).
+ */
 export const DEFAULT_LOG_PRESENTATION: LogPresentationDto = {
   showTagNames: false,
   showTags: true,
@@ -1143,6 +1181,9 @@ export const DEFAULT_LOG_PRESENTATION: LogPresentationDto = {
   showAuthorColumn: true,
   showDateColumn: true,
   showHashColumn: false,
+  showGraph: true,
+  dateFormat: 'YYYY/MM/DD HH:mm',
+  filterChips: 'compact',
 };
 
 export interface LogInitDto {

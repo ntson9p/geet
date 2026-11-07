@@ -9,6 +9,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
@@ -22,6 +23,14 @@ import type {
 } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { ToolbarButton } from '../lib/Toolbar';
+import {
+  branchChip,
+  dateChip,
+  pathsChip,
+  resetFilters,
+  userChip,
+  type ChipText,
+} from './filterChips';
 import { applyGraphOption, graphOptionsChanged, graphOptionsItems } from './graphOptions';
 import { presentationItems, presentationToggle } from './presentationMenu';
 
@@ -31,7 +40,10 @@ import { presentationItems, presentationToggle } from './presentationMenu';
 
 interface DropdownProps {
   label: string;
-  value: string | undefined;
+  /** What the chip says it filters (`filterChips.ts`), cut short when compact. */
+  text: ChipText;
+  /** `gittree.log.filterChips` is `compact`: the smaller chip (D39). */
+  compact: boolean;
   onClear: () => void;
   testid: string;
   /**
@@ -43,9 +55,10 @@ interface DropdownProps {
   children: (close: () => void) => ReactNode;
 }
 
-function Dropdown({ label, value, onClear, testid, canClear, children }: DropdownProps) {
+function Dropdown({ label, text, compact, onClear, testid, canClear, children }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const hostRef = useRef<HTMLSpanElement | null>(null);
+  const { value, full } = text;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -58,21 +71,31 @@ function Dropdown({ label, value, onClear, testid, canClear, children }: Dropdow
 
   return (
     <span className="gt-filter-anchor" ref={hostRef}>
-      <span className={`gt-filter-chipset${value !== undefined ? ' gt-active' : ''}`}>
+      <span
+        className={`gt-filter-chipset${compact ? ' gt-compact' : ''}${value !== undefined ? ' gt-active' : ''}`}
+      >
         <button
           type="button"
           className="gt-chip-main"
           aria-label={label}
           aria-expanded={open}
           data-testid={testid}
+          // The whole value: a compact chip cuts its own short.
+          title={full !== undefined ? `${label}: ${full}` : undefined}
           onClick={() => setOpen((v) => !v)}
         >
           {label}
           {value !== undefined ? `: ${value}` : ''} ▾
         </button>
         {(canClear ?? value !== undefined) ? (
-          <button type="button" className="gt-chip-clear" onClick={onClear} aria-label={`Clear ${label}`}>
-            ×
+          <button
+            type="button"
+            className="gt-chip-clear"
+            onClick={onClear}
+            aria-label={`Clear ${label}`}
+            title={`Clear ${label}`}
+          >
+            {compact ? <span className="codicon codicon-close" aria-hidden="true" /> : '×'}
           </button>
         ) : null}
       </span>
@@ -102,16 +125,44 @@ function CheckRow({
   checked,
   onToggle,
   star,
+  note,
 }: {
   label: string;
   checked: boolean;
   onToggle: () => void;
   star?: boolean;
+  /** Said after the label, dimmed: `not in this repository`. */
+  note?: string;
 }) {
   return (
     <label className="gt-filter-checkrow">
       <input type="checkbox" checked={checked} onChange={onToggle} />
       {star === true ? <span className="codicon codicon-star-full gt-filter-star" aria-hidden="true" /> : null}
+      <span className="gt-filter-checkrow-label">{label}</span>
+      {note !== undefined ? <span className="gt-filter-note">{note}</span> : null}
+    </label>
+  );
+}
+
+/**
+ * `HEAD (Current)` and `All branches`: each is the whole Branch filter on its
+ * own, never one of several ticked, so they are radio buttons, kept above the
+ * list of branches and apart from it. Picking a branch below unticks both.
+ */
+function PresetRow({
+  group,
+  label,
+  checked,
+  onPick,
+}: {
+  group: string;
+  label: string;
+  checked: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <label className="gt-filter-checkrow gt-filter-preset">
+      <input type="radio" name={group} checked={checked} onChange={onPick} />
       <span className="gt-filter-checkrow-label">{label}</span>
     </label>
   );
@@ -165,34 +216,12 @@ export interface FilterBarProps {
   onPresentationChange: (patch: Partial<LogPresentationDto>) => void;
   /** P10-T2: lets the host's focus-filter command reach the search box. */
   searchInputRef?: RefObject<HTMLInputElement>;
-}
-
-function refsLabel(f: LogFilterDto): string | undefined {
-  if (f.range) return `${f.range.a}...${f.range.b}`;
-  if (f.refs === 'ALL') return 'All';
-  if (Array.isArray(f.refs)) return f.refs.length > 2 ? `${f.refs.length} refs` : f.refs.join(', ');
-  return undefined; // HEAD default renders as no active value
-}
-
-function datesLabel(f: LogFilterDto): string | undefined {
-  if (!f.dateRange || (f.dateRange.from === undefined && f.dateRange.to === undefined)) return undefined;
-  return `${f.dateRange.from ?? '…'} → ${f.dateRange.to ?? '…'}`;
-}
-
-/**
- * The `Paths ▾` chip. The reference names the ticked roots here alongside the
- * paths, which is the only place on the bar that says which repository the log
- * is showing — and with one repository in the workspace there is nothing to
- * say, so the name appears only when there is a choice to have made.
- */
-function pathsLabel(
-  f: LogFilterDto,
-  roots: readonly LogRootDto[],
-  currentRoot: string,
-): string | undefined {
-  const root = roots.length > 1 ? roots.find((r) => r.root === currentRoot)?.label : undefined;
-  const parts = root !== undefined ? [root, ...(f.paths ?? [])] : (f.paths ?? []);
-  return parts.length > 0 ? parts.join(', ') : undefined;
+  /**
+   * What the Branch selection names that this repository lacks — picked in
+   * another one, before `Paths ▾ · Roots` moved the tab here. Those stay
+   * ticked in `Branch ▾`, marked, so they can be unticked.
+   */
+  missingRefs?: readonly string[];
 }
 
 const HASH_RE = /^[0-9a-f]{7,40}$/i;
@@ -229,8 +258,13 @@ export function FilterBar({
   presentation,
   onPresentationChange,
   searchInputRef,
+  missingRefs,
 }: FilterBarProps) {
   const text = filter.text ?? { q: '', regex: false, matchCase: false };
+  const compact = presentation.filterChips === 'compact';
+  const chipMode = presentation.filterChips;
+  // Radio buttons are grouped by name, and every Log tab's bar is in one page.
+  const presetGroup = `gt-refs-preset-${useId()}`;
   /**
    * What is typed in the search box, ahead of the filter it becomes. Every
    * applied filter re-reads the log (`git log --grep`), so applying one per
@@ -401,86 +435,107 @@ export function FilterBar({
       <Dropdown
         label="Branch"
         testid="filter-branch"
-        value={refsLabel(filter)}
+        text={branchChip(filter, chipMode)}
+        compact={compact}
         onClear={() => {
           const next = { ...filter, refs: 'HEAD' as const };
           delete next.range;
           onChange(next);
         }}
       >
-        {() => (
-          <>
-            <input
-              className="gt-input gt-filter-search"
-              placeholder="Search refs"
-              aria-label="Search refs"
-              value={refSearch}
-              onChange={(e) => setRefSearch(e.currentTarget.value)}
-            />
-            <div className="gt-filter-list">
-              <CheckRow
-                label="HEAD (Current)"
-                checked={headOnly}
-                onToggle={() => {
-                  // Nothing to un-check into: HEAD *is* the empty filter, so an
-                  // already-checked click is a no-op rather than a log re-run
-                  // (`applyFilter` restarts the session on every change).
-                  if (headOnly) return;
-                  const next = { ...filter, refs: 'HEAD' as const };
-                  delete next.range;
-                  onChange(next);
-                }}
+        {() => {
+          // Ticked names this repository's lists do not have: a branch picked
+          // in another repository, or a revision typed into `Branch or tag`.
+          // Listed first, so each can be unticked.
+          const listed = new Set(allRefNames);
+          const missing = new Set(missingRefs ?? []);
+          const unlisted = selectedRefs.filter(
+            (n) => !listed.has(n) && n.toLowerCase().includes(refSearch.toLowerCase()),
+          );
+          return (
+            <>
+              <input
+                className="gt-input gt-filter-search"
+                placeholder="Search refs"
+                aria-label="Search refs"
+                value={refSearch}
+                onChange={(e) => setRefSearch(e.currentTarget.value)}
               />
-              <CheckRow
-                label="All branches"
-                checked={allBranches}
-                onToggle={() => {
-                  const next = { ...filter, refs: allBranches ? ('HEAD' as const) : ('ALL' as const) };
-                  delete next.range;
-                  onChange(next);
-                }}
-              />
-              {sortedLocals
-                .filter((b) => b.name.toLowerCase().includes(refSearch.toLowerCase()))
-                .map((b) => (
+              <div className="gt-filter-presets" role="radiogroup" aria-label="Show">
+                <PresetRow
+                  group={presetGroup}
+                  label="HEAD (Current)"
+                  checked={headOnly}
+                  onPick={() => {
+                    const next = { ...filter, refs: 'HEAD' as const };
+                    delete next.range;
+                    onChange(next);
+                  }}
+                />
+                <PresetRow
+                  group={presetGroup}
+                  label="All branches"
+                  checked={allBranches}
+                  onPick={() => {
+                    const next = { ...filter, refs: 'ALL' as const };
+                    delete next.range;
+                    onChange(next);
+                  }}
+                />
+              </div>
+              <div className="gt-filter-list" role="group" aria-label="Branches and tags">
+                {unlisted.map((n) => (
                   <CheckRow
-                    key={b.name}
-                    label={b.name}
-                    star={b.favorite}
-                    checked={selectedRefs.includes(b.name)}
-                    onToggle={() => toggleRef(b.name)}
-                  />
-                ))}
-              {(branches?.remotes ?? [])
-                .flatMap((r) => r.branches)
-                .filter((n) => n.toLowerCase().includes(refSearch.toLowerCase()))
-                .map((n) => (
-                  <CheckRow
-                    key={n}
+                    key={`unlisted:${n}`}
                     label={n}
-                    checked={selectedRefs.includes(n)}
+                    checked
                     onToggle={() => toggleRef(n)}
+                    {...(missing.has(n) ? { note: 'not in this repository' } : {})}
                   />
                 ))}
-              {(branches?.tags ?? [])
-                .filter((n) => n.toLowerCase().includes(refSearch.toLowerCase()))
-                .map((n) => (
-                  <CheckRow
-                    key={`tag:${n}`}
-                    label={n}
-                    checked={selectedRefs.includes(n)}
-                    onToggle={() => toggleRef(n)}
-                  />
-                ))}
-            </div>
-          </>
-        )}
+                {sortedLocals
+                  .filter((b) => b.name.toLowerCase().includes(refSearch.toLowerCase()))
+                  .map((b) => (
+                    <CheckRow
+                      key={b.name}
+                      label={b.name}
+                      star={b.favorite}
+                      checked={selectedRefs.includes(b.name)}
+                      onToggle={() => toggleRef(b.name)}
+                    />
+                  ))}
+                {(branches?.remotes ?? [])
+                  .flatMap((r) => r.branches)
+                  .filter((n) => n.toLowerCase().includes(refSearch.toLowerCase()))
+                  .map((n) => (
+                    <CheckRow
+                      key={n}
+                      label={n}
+                      checked={selectedRefs.includes(n)}
+                      onToggle={() => toggleRef(n)}
+                    />
+                  ))}
+                {(branches?.tags ?? [])
+                  .filter((n) => n.toLowerCase().includes(refSearch.toLowerCase()))
+                  .map((n) => (
+                    <CheckRow
+                      key={`tag:${n}`}
+                      label={n}
+                      checked={selectedRefs.includes(n)}
+                      onToggle={() => toggleRef(n)}
+                    />
+                  ))}
+              </div>
+            </>
+          );
+        }}
       </Dropdown>
 
       <Dropdown
         label="User"
         testid="filter-user"
-        value={filter.authors && filter.authors.length > 0 ? filter.authors.join(', ') : undefined}
+        text={userChip(filter, chipMode, branches?.myAuthor)}
+        compact={compact}
         onClear={() => {
           const next = { ...filter };
           delete next.authors;
@@ -534,7 +589,8 @@ export function FilterBar({
       <Dropdown
         label="Date"
         testid="filter-date"
-        value={datesLabel(filter)}
+        text={dateChip(filter, chipMode, presentation.dateFormat)}
+        compact={compact}
         onClear={() => {
           const next = { ...filter };
           delete next.dateRange;
@@ -610,7 +666,8 @@ export function FilterBar({
       <Dropdown
         label="Paths"
         testid="filter-paths"
-        value={pathsLabel(filter, roots, currentRoot)}
+        text={pathsChip(filter, chipMode, roots, currentRoot)}
+        compact={compact}
         canClear={(filter.paths ?? []).length > 0}
         onClear={() => {
           const next = { ...filter };
@@ -814,13 +871,7 @@ export function FilterBar({
         icon="clear-all"
         // The sort and First Parent are how the graph is drawn, not filters,
         // so they stay; No Merges is a filter in IntelliJ and goes.
-        onClick={() =>
-          onChange({
-            sort: filter.sort,
-            refs: 'HEAD',
-            ...(filter.firstParent === true ? { firstParent: true } : {}),
-          })
-        }
+        onClick={() => onChange(resetFilters(filter))}
       />
     </div>
   );

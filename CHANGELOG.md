@@ -6,6 +6,44 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Git tool window's Log tabs
+
+- **Switching between two Log tabs no longer makes the window jump.** A tab behind another
+  was laid out a tab strip taller than one in front. Each switch shrank the tab coming
+  forward on screen, gave its commit list a second scrollbar for a moment, and redrew the
+  graph stretched. Every tab is now laid out in the same box, so a switch changes only which
+  one you see.
+- **The commit list shrinks with its pane.** It used to grow with the pane but never shrink
+  back, so a shorter panel left part of the list below the edge, behind a second scrollbar.
+- **Choosing another repository in `Paths ▾` keeps the `Branch ▾` selection**, as IntelliJ
+  keeps its filters when the roots change; it used to go back to HEAD. A branch the new
+  repository does not have stays ticked, first in the list and marked *not in this
+  repository*, and is left out of the log. When nothing selected is left, the log says
+  *No commits matching filters*, names the missing branches, and offers **Reset filters**.
+- After that switch, `Branch ▾` and the Branches pane list the new repository's branches.
+  They used to keep the previous repository's until something changed a branch.
+
+### Changed — the log's filter row and Date column
+
+- **`Branch ▾`: `HEAD (Current)` and `All branches` are radio buttons**, in a block of their
+  own above the branches, ruled off from them, and not scrolled away with the list. Each is
+  the whole Branch filter on its own; the branches and tags below are ticked several at a
+  time.
+- **The filter dropdowns are compact.** Smaller chips with the `×` inside, saying what they
+  filter in a few words: a user without the e-mail (`me` for you), a date as
+  `Since 2026/10/31`, a path by its last part, and anything over 20 characters cut with
+  `…`. Hover over a chip for its whole value. **`gittree.log.filterChips: full`** brings back
+  the larger chips with every value written out.
+- **The Date column reads `2026/09/05 15:07`**: year first, two digits each, a 24-hour
+  clock. **`gittree.log.dateFormat: locale`** brings back IntelliJ's own, `9/5/2026 3:07 PM`
+  in US English.
+
+### Added — Presentation Settings ▸ Graph
+
+The log's eye menu has **Graph**, first under *Show*: untick it to hide the coloured lanes
+and commit dots and keep the message, its labels and the columns. It is also the
+**`gittree.log.showGraph`** setting, on by default.
+
 ### Changed — no commit check is ticked until you tick it
 
 **Analyze code** and **Check TODO**, in the Commit window's options (the gear beside Commit),

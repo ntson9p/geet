@@ -41,6 +41,7 @@ import {
   type CloseAction,
 } from './logTabsModel';
 import type { ShellLayout } from './Shell';
+import { asPresentation } from './presentationMenu';
 import { WorktreesPane } from './WorktreesPane';
 
 interface PersistedState {
@@ -64,23 +65,6 @@ const isFixed = (id: string): boolean => (FIXED_TABS as readonly string[]).inclu
 
 function readState(): PersistedState {
   return (getVsCodeApi().getState() as PersistedState | undefined) ?? {};
-}
-
-/**
- * A whole `LogPresentationDto`, or nothing: a stray `{ ok: true }` must not
- * blank every toggle. A setting the answer does not carry keeps IntelliJ's
- * default rather than turning off — a column must not vanish for want of it.
- */
-function asPresentation(value: unknown): LogPresentationDto | undefined {
-  if (value === null || typeof value !== 'object') return undefined;
-  const raw = value as Record<string, unknown>;
-  if (typeof raw.showTagNames !== 'boolean' || typeof raw.showTags !== 'boolean') return undefined;
-  const out: LogPresentationDto = { ...DEFAULT_LOG_PRESENTATION };
-  for (const key of Object.keys(DEFAULT_LOG_PRESENTATION) as Array<keyof LogPresentationDto>) {
-    const v = raw[key];
-    if (typeof v === 'boolean') out[key] = v;
-  }
-  return out;
 }
 
 /** A usable tab list, or nothing (a host from before tabs answers `{ ok: true }`). */
@@ -331,50 +315,57 @@ export function App() {
           onSelect={(action) => closeLogTabs(closeTargets(tabs, tabMenu.id, action as CloseAction))}
         />
       ) : null}
-      <TabPanel id="worktrees" active={strip} className="gt-log-tabpanel">
-        <WorktreesPane rpc={rpc} />
-      </TabPanel>
-      <TabPanel id="console" active={strip} className="gt-log-tabpanel">
-        <ConsolePane
-          rpc={rpc}
-          onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
-        />
-      </TabPanel>
-      {ready
-        ? logIds.map((id) => (
-            // Hidden, not unmounted, so a tab keeps its place behind another.
-            <div
-              key={id}
-              role="tabpanel"
-              id={`gt-tabpanel-${id}`}
-              aria-labelledby={`gt-tab-${id}`}
-              aria-hidden={id === strip ? undefined : true}
-              className={`gt-tabpanel gt-log-tabpanel${id === strip ? '' : ' gt-tab-behind'}`}
-              data-testid={`log-tab-${id}`}
-            >
-              <LogTab
-                rpc={rpc}
-                tabId={id}
-                visible={id === strip}
-                dark={dark}
-                presentation={presentation}
-                onPresentationChange={changePresentation}
-                onPresentationSeen={(seen) => {
-                  const next = asPresentation(seen);
-                  if (next) setPresentation(next);
-                }}
-                filesRollup={filesRollup}
-                onFilesRollupChange={setFilesRollup}
-                previewOnClick={previewOnClick}
-                onPreviewOnClickChange={setPreviewOnClick}
-                highlightMine={highlightMine}
-                onHighlightMineChange={setHighlightMine}
-                saved={uiFor(id)}
-                onSave={(patch) => saveUi(id, patch)}
-              />
-            </div>
-          ))
-        : null}
+      {/* Every panel fills this one box under the strip, the one in front and
+          the ones behind it alike. A Log tab behind another used to be laid out
+          over the whole view, strip included: brought forward, it shrank by the
+          strip's height, and its panes re-measured on screen — the jump a
+          switch made. Here it is already the size it is shown at. */}
+      <div className="gt-log-stack" data-testid="log-stack">
+        <TabPanel id="worktrees" active={strip} className="gt-log-tabpanel">
+          <WorktreesPane rpc={rpc} />
+        </TabPanel>
+        <TabPanel id="console" active={strip} className="gt-log-tabpanel">
+          <ConsolePane
+            rpc={rpc}
+            onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
+          />
+        </TabPanel>
+        {ready
+          ? logIds.map((id) => (
+              // Hidden, not unmounted, so a tab keeps its place behind another.
+              <div
+                key={id}
+                role="tabpanel"
+                id={`gt-tabpanel-${id}`}
+                aria-labelledby={`gt-tab-${id}`}
+                aria-hidden={id === strip ? undefined : true}
+                className={`gt-tabpanel gt-log-tabpanel${id === strip ? '' : ' gt-tab-behind'}`}
+                data-testid={`log-tab-${id}`}
+              >
+                <LogTab
+                  rpc={rpc}
+                  tabId={id}
+                  visible={id === strip}
+                  dark={dark}
+                  presentation={presentation}
+                  onPresentationChange={changePresentation}
+                  onPresentationSeen={(seen) => {
+                    const next = asPresentation(seen);
+                    if (next) setPresentation(next);
+                  }}
+                  filesRollup={filesRollup}
+                  onFilesRollupChange={setFilesRollup}
+                  previewOnClick={previewOnClick}
+                  onPreviewOnClickChange={setPreviewOnClick}
+                  highlightMine={highlightMine}
+                  onHighlightMineChange={setHighlightMine}
+                  saved={uiFor(id)}
+                  onSave={(patch) => saveUi(id, patch)}
+                />
+              </div>
+            ))
+          : null}
+      </div>
     </div>
   );
 }

@@ -66,6 +66,7 @@ import { buildPathTree, mergeTreeSelection } from './pathTree';
 import {
   PRESENTATION_SETTINGS,
   presentationPatch,
+  readPresentation,
   writeScope,
   type PresentationKey,
 } from './presentation';
@@ -127,6 +128,8 @@ interface Session {
   dirty: boolean;
   /** The repository watches: refs for the Branches pane, history for the rows. */
   sub: vscode.Disposable | undefined;
+  /** What the filter names that the repository lacks, as the last page read found. */
+  missingRefs: string[];
 }
 
 export class LogViewProvider implements vscode.WebviewViewProvider {
@@ -764,18 +767,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     return v === 'colorBlind' ? 'colorBlind' : 'default';
   }
 
-  /** How rows and refs are drawn: every setting in `PRESENTATION_SETTINGS`. */
+  /**
+   * How rows, refs and the filter row are drawn: every setting in
+   * `PRESENTATION_SETTINGS` and `PRESENTATION_CHOICES`.
+   */
   private presentation(): LogPresentationDto {
-    const out: LogPresentationDto = { ...DEFAULT_LOG_PRESENTATION };
-    for (const name of Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]) {
-      const { section, key } = PRESENTATION_SETTINGS[name];
-      const value = vscode.workspace.getConfiguration(section).get<unknown>(key);
-      if (typeof value === 'boolean') out[name] = value;
-    }
-    return out;
+    return readPresentation(
+      (section, key) => vscode.workspace.getConfiguration(section).get<unknown>(key),
+      DEFAULT_LOG_PRESENTATION,
+    );
   }
 
-  private async writePresentation(patch: Partial<LogPresentationDto>): Promise<void> {
+  private async writePresentation(patch: Partial<Pick<LogPresentationDto, PresentationKey>>): Promise<void> {
     const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
     for (const name of Object.keys(patch) as PresentationKey[]) {
       const value = patch[name];
@@ -893,6 +896,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       lastHeadSha: repo.model.snapshot.headSha,
       dirty: false,
       sub: undefined,
+      missingRefs: [],
     };
     this.sessions.set(tab, session);
     this.tabsState = updateTab(this.tabsState, tab, filterDto, tab === MAIN_LOG_TAB ? undefined : repo.root);
@@ -996,6 +1000,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         rows: session.rows,
         eof: session.eof,
         logTab: tab,
+        ...(session.missingRefs.length > 0 ? { missingRefs: session.missingRefs } : {}),
       } satisfies LogPageDto);
       return;
     }
@@ -1028,6 +1033,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     }
     session.nextPage = page + 1;
     session.eof = result.eof;
+    session.missingRefs = result.missingRefs ?? [];
     if (dtoRows.length === 0 && !result.eof) {
       // A page that was all hidden merges. The webview pages on scrolling, and
       // an empty list has nothing to scroll, so read on rather than strand it
@@ -1036,13 +1042,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       this.debugTrail.push(`page ${page} hid every row`);
       return this.sendPage(tab, page + 1);
     }
-    this.debugTrail.push(`page ${page} sent ${dtoRows.length}`);
+    this.debugTrail.push(
+      `page ${page} sent ${dtoRows.length}${
+        session.missingRefs.length > 0 ? ` (missing ${session.missingRefs.join(', ')})` : ''
+      }`,
+    );
     session.rows.push(...dtoRows);
     this.rpc?.notify(LOG_METHODS.evtRows, {
       page,
       rows: dtoRows,
       eof: result.eof,
       logTab: tab,
+      ...(session.missingRefs.length > 0 ? { missingRefs: session.missingRefs } : {}),
     } satisfies LogPageDto);
   }
 
@@ -1328,7 +1339,17 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   /** The active Log tab, as the integration tests and commit actions read it. */
   get currentSession():
-    | { repoRoot: string; filter: LogFilter; rowCount: number; roots: LogRootDto[]; logTab: string }
+    | {
+        repoRoot: string;
+        filter: LogFilter;
+        rowCount: number;
+        roots: LogRootDto[];
+        logTab: string;
+        /** Every page read: the history the filter shows has all been sent. */
+        eof: boolean;
+        /** What the filter names that the repository lacks (`LogPageDto.missingRefs`). */
+        missingRefs: readonly string[];
+      }
     | undefined {
     return this.session
       ? {
@@ -1337,6 +1358,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
           rowCount: this.session.rows.length,
           roots: this.roots(),
           logTab: this.session.tab,
+          eof: this.session.eof,
+          missingRefs: this.session.missingRefs,
         }
       : undefined;
   }
@@ -1775,20 +1798,18 @@ function isoDaysAgo(days: number): string {
 }
 
 /**
- * The part of a filter that still means something in a *different* repository.
+ * The filter a tab keeps when `Paths ▾ · Roots` moves it to another repository.
  *
- * `paths` are repo-relative; an explicit `refs` list and a `range` name one
- * repository's branches. Carried across a root switch the first empties the
- * log and the second fails the page read on `unknown revision`, both of which
- * read to the user as "this repository has no history". Authors, dates, the
- * text query, the sort order and the Graph Options are portable, so they
- * survive.
+ * `paths` are repo-relative, and picking a root is picking the paths afresh, so
+ * they go. Everything else stays, the Branch selection included, as IntelliJ's
+ * filters stay when its roots change. A branch the new repository does not
+ * have is left out of the read (`LogService` checks each name first); when the
+ * Branch selection names nothing the repository has, the log is empty and says
+ * so, and the selection is still there for the next repository picked.
  */
 function rootAgnostic(filter: LogFilter): LogFilter {
   const next: LogFilter = { ...filter };
   delete next.paths;
   delete next.follow;
-  delete next.range;
-  if (Array.isArray(next.refs)) next.refs = 'HEAD';
   return next;
 }

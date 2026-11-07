@@ -53,6 +53,8 @@ surface, which made genuine gaps invisible. Rules:
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 | [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
 | [D38](#d38--every-commit-check-starts-unticked) | Every commit check starts unticked; IntelliJ ticks Analyze code and Check TODO | Deliberate (owner's request) |
+| [D39](#d39--the-filter-dropdowns-are-compact) | The log's filter dropdowns are small chips naming their value by IntelliJ's rules, a date in the Date column's format; `full` writes every value out | Deliberate (owner's request); `gittree.log.filterChips` |
+| [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `gittree.log.dateFormat` |
 
 ---
 
@@ -1034,3 +1036,35 @@ Why: the owner's request. Analyze code waits for the language servers' diagnosti
 before it reports, and a check nobody asked for should not run on every commit.
 
 **Revisitable:** yes — two defaults in package.json and `src/commit/checks/checkDefaults.ts`.
+
+## D39 · The filter dropdowns are compact
+
+**IntelliJ:** the log's `Branch`, `User`, `Date` and `Paths` filters are flat labels that
+name their value by rules of their own: a user by name, without the e-mail, and `me` for you
+(`UserFilterPopupComponent`); a date as `Since …` or `Until …` (`DateFilterPopupComponent`);
+several values joined with `|` and cut at 20 characters with `…`
+(`MultipleValueFilterPopupComponent.MAX_FILTER_VALUE_LENGTH`); the whole value in the tooltip.
+**GitTree:** `gittree.log.filterChips: compact`, the default, names the value by those same
+rules. What differs:
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Flat labels | Small filled chips, the `×` inside | GitTree's filter row has always been chips; these are the smaller kind |
+| A date in the system's short format, `Since 10/31/2026` | In the Date column's format, `Since 2026/10/31` | One way of writing a day in the window (D40) |
+| A range of dates `10/31/2026-11/5/2026` | `2026/10/31–2026/11/05` | The same |
+| — | `gittree.log.filterChips: full`: larger chips, every value written out (`Ben Okafor <ben@example.com>`, `a, b`, `3 refs`, `2026-10-31 → …`) | The look GitTree had before, kept as an option at the owner's request |
+
+**Revisitable:** yes — one setting.
+
+## D40 · The Date column writes YYYY/MM/DD HH:mm
+
+**IntelliJ:** the log's Date column is `DateFormatUtil.formatDateTime`: the system's short date
+with a four-digit year and its short time, `9/5/2026 3:07 PM` in US English.
+**GitTree:** `2026/09/05 15:07` by default (`gittree.log.dateFormat: YYYY/MM/DD HH:mm`): year
+first, two digits for every other field, a 24-hour clock, the same in every language. The
+`Date ▾` chip writes its days the same way. `gittree.log.dateFormat: locale` is IntelliJ's.
+
+Why: the owner's request. Every row's date is the same width and lines up, and dates sort by
+eye.
+
+**Revisitable:** yes — one setting.

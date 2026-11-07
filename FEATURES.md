@@ -636,8 +636,11 @@ docked bottom, tabs `Log | Console`").
   every row lines up. **Author** shows IntelliJ's **`*`** when someone other than the
   author committed the change (a rebase, a cherry-pick), comparing names as IntelliJ does
   (`Ben Okafor` = `ben.okafor`); a commit with no author name shows its email's local part.
-  **Date** is IntelliJ's format, `9/5/2026 3:07 PM` in en-US (the locale's short date with a
-  four-digit year), always the full date — no "Today"/"Yesterday" (owner's choice).
+  **Date** reads `2026/09/05 15:07` — year first, two digits each, a 24-hour clock, the same
+  in every language — always the full date, no "Today"/"Yesterday" (owner's choices;
+  [D40](docs/deviations.md#d40--the-date-column-writes-yyyymmdd-hhmm)).
+  `gittree.log.dateFormat: locale` brings back IntelliJ's own, `9/5/2026 3:07 PM` in en-US
+  (the locale's short date with a four-digit year).
   **Drag a column's left border** to resize it (the width is kept per tab, across reloads);
   **double-click** the border to fit the column to its content again. Columns give way
   together rather than squeeze the message under the graph plus 80 px.
@@ -656,11 +659,23 @@ docked bottom, tabs `Log | Console`").
   pointer get no label.
 * **Filter row, §2A order:** `Branch or tag` combo (datalist over every ref) · `Text or hash`
   with `.*` regex and `Cc` match-case toggles (a hash navigates instead of grepping) · four
-  **multi-select dropdowns with search**: `Branch ▾` (both presets named —
-  `HEAD (Current)` and `All branches` — then refs, favorites-first), `User ▾`
-  (`Me` + author autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (see below).
-  Filters intersect. **Saved presets** live in the toolbar's Saved filters menu
-  (`gittree.log.filterPresets`).
+  **multi-select dropdowns with search**: `Branch ▾`, `User ▾` (`Me` + author
+  autocomplete), `Date ▾` (presets + from/until), `Paths ▾` (see below). In `Branch ▾`,
+  **`HEAD (Current)` and `All branches` are radio buttons** in a block of their own above
+  the list, ruled off from it and not scrolled away with it: each is the whole Branch
+  filter on its own, never one of several ticked. Below them, the refs are checkboxes,
+  favorites first. Filters intersect. **Saved presets** live in the toolbar's Saved filters
+  menu (`gittree.log.filterPresets`).
+* **Compact filter chips** (the default,
+  [D39](docs/deviations.md#d39--the-filter-dropdowns-are-compact)): the four dropdowns are
+  small, with the `×` inside, and say what they filter in a few words — a user without the
+  e-mail (`me` for you, as IntelliJ says), a date as `Since 2026/10/31` or `Until …`, a path
+  by its last part, several values joined with `|`, and anything over IntelliJ's own 20
+  characters cut with `…`. Hovering a chip shows its whole value. `gittree.log.filterChips:
+  full` brings back the larger chips with every value written out.
+* **An empty log says why:** IntelliJ's *No commits matching filters*, its **Reset
+  filters** link, and — when the Branch selection names something this repository does not
+  have — which names those are.
 * **Graph Options ▾**, IntelliJ's button after `Paths ▾` (an arrow beside three rows), in
   place of the old sort dropdown. **Sort:** **By Commit Date** (the default, git's date
   order) or **Topologically** (IntelliSort: a merge's incoming commits directly below it;
@@ -675,7 +690,9 @@ docked bottom, tabs `Log | Console`").
 * Right toolbar: refresh · **Presentation Settings** (eye) · **Go to Hash/Branch/Tag** ·
   Show Details (folds the right column) · Highlight my commits.
 * **Presentation Settings ▾ · Show**, IntelliJ's rows in IntelliJ's order and defaults, all
-  IDE-wide settings:
+  IDE-wide settings, after one of GitTree's own:
+  - **Graph** (`gittree.log.showGraph`, on): the coloured lanes and commit dots. Off, the
+    rows are the message, its labels and the columns alone, the message at the row's edge.
   - **Compact References View** (`gittree.log.compactReferences`, on): all of a commit's
     refs in one label, named after the first; off, each branch is its own label and the tags
     share one.
@@ -718,9 +735,18 @@ docked bottom, tabs `Log | Console`").
 * **Which repository the log shows is a decision, not a guess.** The focused editor seeds it
   the first time and nothing else moves it afterwards except an explicit act: a `Roots` row,
   or a command that names its repository (`Show File History`, `Compare with Current`,
-  `Show in Log` from blame or the rebase editor). The choice survives a restart. Moving root
-  drops the parts of a filter that only mean something in one repository — the paths and any
-  explicit ref list or range — and keeps the parts that travel: author, date, text, sort.
+  `Show in Log` from blame or the rebase editor). The choice survives a restart. Picking a
+  root drops the paths, which belong to one repository, and keeps the rest of the filter —
+  **the Branch selection included**, as IntelliJ's filters stay when its roots change —
+  author, date, text, sort. A branch the repository on show does not have is left out of the
+  read (git would refuse the whole log over it); it stays ticked in `Branch ▾`, first in the
+  list and marked *not in this repository*, and when nothing selected is left the log is
+  empty and names what is missing. `Branch ▾` and the Branches pane then list the new
+  repository's own branches.
+* **Switching Log tabs moves nothing.** Every tab's panes are laid out in the same box,
+  behind or in front, so bringing one forward changes only which is seen — no pane resizes
+  on screen, no second scrollbar appears. The commit list shrinks with its pane as well as
+  growing with it.
 
 ### Changed Files & Commit Details panes (shape)
 
