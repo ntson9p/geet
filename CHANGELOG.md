@@ -6,6 +6,14 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — counts read as English
+
+- **`1 file`, `3 files` — not `1 file(s)`.** Every message that counted files, commits,
+  conflicts, problems or changes said `(s)`. Each now says the singular or the plural, as
+  IntelliJ's do, verbs agreeing (*1 conflicted file remains — resolve it first*). A
+  conflict's toast names the operation, *Unstash stopped on 1 conflicted file*, where it said
+  `stash-pop produced 1 conflicted file(s)`.
+
 ### Fixed — the message editor of Edit Commit Message… is GitTree's alone
 
 - **Built-in Git's Commit and Discard buttons no longer float in GitTree's message editor**

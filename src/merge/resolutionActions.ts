@@ -231,11 +231,9 @@ export function registerResolutionActions(
     const message =
       outcome.applied === 0
         ? vscode.l10n.t('No non-conflicting changes to apply. {0}', mergeStatusText(counts))
-        : vscode.l10n.t(
-            'Applied {0} non-conflicting change(s). {1}',
-            outcome.applied,
-            mergeStatusText(counts),
-          );
+        : outcome.applied === 1
+          ? vscode.l10n.t('Applied 1 non-conflicting change. {0}', mergeStatusText(counts))
+          : vscode.l10n.t('Applied {0} non-conflicting changes. {1}', outcome.applied, mergeStatusText(counts));
     void vscode.window.showInformationMessage(message);
     return message;
   };

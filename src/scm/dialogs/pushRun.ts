@@ -19,6 +19,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount } from '../../ui/counts';
 import { writeSetting } from '../../ui/writeSetting';
 import type { Core, RepoHandle } from '../../core/core';
 import { GitError } from '../../core/git/errors';
@@ -606,8 +607,8 @@ function updateSentence(update: PushUpdate): string {
   if (conflicted > 0) {
     parts.push(
       vscode.l10n.t(
-        'Your local changes conflict with what came in, in {0} file(s); a copy is kept in the stash.',
-        conflicted,
+        'Your local changes conflict with what came in, in {0}; a copy is kept in the stash.',
+        filesCount(conflicted),
       ),
     );
   }
@@ -685,8 +686,8 @@ function describeAlsoUpdated(outcome: UpdateOutcome): string {
   if (conflicted > 0) {
     parts.push(
       vscode.l10n.t(
-        'Your local changes conflict with what came in, in {0} file(s); a copy is kept in the stash.',
-        conflicted,
+        'Your local changes conflict with what came in, in {0}; a copy is kept in the stash.',
+        filesCount(conflicted),
       ),
     );
   }

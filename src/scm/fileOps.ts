@@ -5,6 +5,7 @@
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount, untrackedFilesCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { noConflictsLeft, type StatusEntry } from '../core/model/statusEntry';
@@ -207,7 +208,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (!sel || sel.entries.length === 0) return;
     await runGit(
       sel.repo,
-      vscode.l10n.t('Stage {0} file(s)', sel.entries.length),
+      vscode.l10n.t('Stage {0}', filesCount(sel.entries.length)),
       ['add', '-A', '--', ...sel.entries.map((e) => e.path)],
       undefined,
       noConflictsLeft(sel.repo.model.snapshot.statusEntries),
@@ -219,7 +220,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (!sel || sel.entries.length === 0) return;
     const paths = sel.entries.map((e) => e.path);
     await sel.repo.queue.enqueue({
-      label: vscode.l10n.t('Unstage {0} file(s)', paths.length),
+      label: vscode.l10n.t('Unstage {0}', filesCount(paths.length)),
       kind: 'mutate',
       bypassHold: noConflictsLeft(sel.repo.model.snapshot.statusEntries),
       run: async (git, token) => {
@@ -314,7 +315,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     // vanishing the moment the menu closes is what makes the action legible.
     await repo.refresher.refreshNow();
     void vscode.window.setStatusBarMessage(
-      vscode.l10n.t('Ignored {0} file(s) in {1}', relPaths.length, written.join(', ')),
+      vscode.l10n.t('Ignored {0} in {1}', filesCount(relPaths.length), written.join(', ')),
       4000,
     );
   });
@@ -330,7 +331,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       (n) => vscode.l10n.t('… and {0} more', n),
     );
     const ok = await confirmModal(
-      vscode.l10n.t('Roll back changes in {0} file(s)?', sel.entries.length),
+      vscode.l10n.t('Roll back changes in {0}?', filesCount(sel.entries.length)),
       vscode.l10n.t(
         '{0}\n\nTracked files return to HEAD; untracked files are deleted. A Local History snapshot is taken first.',
         fileList,
@@ -340,7 +341,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (!ok) return;
 
     await sel.repo.queue.enqueue({
-      label: vscode.l10n.t('Rollback {0} file(s)', sel.entries.length),
+      label: vscode.l10n.t('Rollback {0}', filesCount(sel.entries.length)),
       kind: 'mutate',
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.rollback,
@@ -360,7 +361,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       },
     });
     // What the Rollback dialog says for the same operation.
-    notifySuccess(vscode.l10n.t('Rolled back {0} file(s).', sel.entries.length));
+    notifySuccess(vscode.l10n.t('Rolled back {0}.', filesCount(sel.entries.length)));
   });
 
   register('gittree.cleanUntracked', async (...args) => {
@@ -373,7 +374,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       return;
     }
     const ok = await confirmModal(
-      vscode.l10n.t('Delete {0} untracked file(s)?', untracked.length),
+      vscode.l10n.t('Delete {0}?', untrackedFilesCount(untracked.length)),
       pathListDetail(
         untracked.map((e) => e.path),
         (n) => vscode.l10n.t('… and {0} more', n),
@@ -382,7 +383,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     );
     if (!ok) return;
     await repo.queue.enqueue({
-      label: vscode.l10n.t('Clean {0} untracked file(s)', untracked.length),
+      label: vscode.l10n.t('Clean {0}', untrackedFilesCount(untracked.length)),
       kind: 'mutate',
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.cleanUntracked,
@@ -395,7 +396,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
         }
       },
     });
-    notifySuccess(vscode.l10n.t('Deleted {0} untracked file(s).', untracked.length));
+    notifySuccess(vscode.l10n.t('Deleted {0}.', untrackedFilesCount(untracked.length)));
   });
 
   register('gittree.refresh', async () => {

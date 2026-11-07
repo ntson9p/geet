@@ -14,6 +14,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { conflictedFilesCount } from '../ui/counts';
 import type { Core, RepoHandle } from '../core/core';
 import { stopIdentity } from '../core/model/inProgressOp';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -25,6 +26,26 @@ import { ConflictSession, type ConflictSource } from './conflictSession';
 /** P14-T4 — the commit window's message box, via the phase03 registry. */
 interface Phase03MessageBox {
   messageBoxFor(repo: RepoHandle): { value: string } | undefined;
+}
+
+/** What the user did, in the words of the menus they did it from. */
+function operationName(source: ConflictSource): string {
+  switch (source) {
+    case 'merge':
+      return vscode.l10n.t('Merge');
+    case 'rebase':
+      return vscode.l10n.t('Rebase');
+    case 'cherry-pick':
+      return vscode.l10n.t('Cherry-pick');
+    case 'revert':
+      return vscode.l10n.t('Revert');
+    case 'stash-pop':
+      return vscode.l10n.t('Unstash');
+    case 'unshelve':
+      return vscode.l10n.t('Unshelve');
+    case 'checkout-merge':
+      return vscode.l10n.t('Checkout');
+  }
 }
 
 export class MergeLifecycle implements vscode.Disposable {
@@ -179,15 +200,17 @@ export class MergeLifecycle implements vscode.Disposable {
     if (!this.quiet.has(canonicalKey(repo.root)) && !conflictsDialogEnabled()) {
       const show = vscode.l10n.t('Show Conflicts');
       // With several repositories open, which one: the toast was the same for each.
+      // The operation by its name, not its id: `stash-pop produced 1
+      // conflicted file(s)` read like a log line (POST-QA).
       const message =
         this.core.repos.length > 1
           ? vscode.l10n.t(
-              '{0} in {1} produced {2} conflicted file(s).',
-              session.source,
+              '{0} in {1} stopped on {2}.',
+              operationName(session.source),
               path.basename(repo.root),
-              unmerged,
+              conflictedFilesCount(unmerged),
             )
-          : vscode.l10n.t('{0} produced {1} conflicted file(s).', session.source, unmerged);
+          : vscode.l10n.t('{0} stopped on {1}.', operationName(session.source), conflictedFilesCount(unmerged));
       void vscode.window.showWarningMessage(message, show).then((choice) => {
         if (choice === show) return vscode.commands.executeCommand('gittree.conflicts.focus');
         return undefined;

@@ -4,6 +4,7 @@
  * ids), message history, check pipeline.
  */
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import type { Core, RepoHandle } from '../core/core';
 import { isStaged, isUnstaged, isUntracked } from '../core/model/statusEntry';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -377,7 +378,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
         options.length === 1
           ? options[0]
           : await vscode.window.showQuickPick(options, {
-              placeHolder: vscode.l10n.t('Move {0} file(s) to…', list.files.length),
+              placeHolder: vscode.l10n.t('Move {0} to…', filesCount(list.files.length)),
             });
       if (!picked) return;
       target = picked.id;
@@ -447,7 +448,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   const intentToAdd = async (repo: RepoHandle, relPaths: readonly string[]): Promise<void> => {
     if (relPaths.length === 0) return;
     await repo.queue.enqueue({
-      label: vscode.l10n.t('Add {0} file(s) to VCS', relPaths.length),
+      label: vscode.l10n.t('Add {0} to VCS', filesCount(relPaths.length)),
       kind: 'mutate',
       run: async (git, token) => {
         for (const slice of chunked(relPaths)) {
@@ -474,7 +475,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const newListLabel = vscode.l10n.t('$(add) New changelist…');
     const picked = await vscode.window.showQuickPick(
       [...choices.map((c) => ({ label: c.label, key: c.key })), { label: newListLabel, key: '__new__' }],
-      { placeHolder: vscode.l10n.t('Move {0} file(s) to…', count) },
+      { placeHolder: vscode.l10n.t('Move {0} to…', filesCount(count)) },
     );
     if (!picked) return undefined;
     if (picked.key !== '__new__') return { key: picked.key };

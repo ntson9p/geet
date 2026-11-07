@@ -46,7 +46,9 @@ export const todoCheck: CommitCheck = {
       ok: false,
       blocking: false,
       message:
-        vscode.l10n.t('{0} new TODO-like comment(s):', all.length) +
+        (all.length === 1
+          ? vscode.l10n.t('1 new TODO-like comment:')
+          : vscode.l10n.t('{0} new TODO-like comments:', all.length)) +
         '\n' +
         list +
         (all.length > 8 ? '\n…' : ''),

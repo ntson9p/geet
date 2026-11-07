@@ -4,6 +4,7 @@
  * the destructive ones.
  */
 import * as vscode from 'vscode';
+import { commitsCount } from '../ui/counts';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -631,7 +632,7 @@ export class BranchOps {
         return false;
       case 'updated':
         notifySuccess(
-          vscode.l10n.t('Updated {0} to {1}: {2} commit(s).', branch, upstream, outcome.commits),
+          vscode.l10n.t('Updated {0} to {1}: {2}.', branch, upstream, commitsCount(outcome.commits)),
         );
         return true;
       case 'failed':

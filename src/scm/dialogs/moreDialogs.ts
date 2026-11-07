@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { commitsCount, filesCount } from '../../ui/counts';
 import type { Core, RepoHandle } from '../../core/core';
 import { GitError } from '../../core/git/errors';
 import { isStaged } from '../../core/model/statusEntry';
@@ -148,7 +149,7 @@ export async function applyCherryPickResult(
   const args = buildCherryPickArgs(result.options);
   try {
     await repo.queue.enqueue({
-      label: vscode.l10n.t('Cherry-pick {0} commit(s)', result.options.shas.length),
+      label: vscode.l10n.t('Cherry-pick {0}', commitsCount(result.options.shas.length)),
       kind: 'mutate',
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.cherryPick,
@@ -159,7 +160,7 @@ export async function applyCherryPickResult(
     await repo.refresher.refreshNow();
     return {
       ok: true,
-      message: vscode.l10n.t('Cherry-picked {0} commit(s).', result.options.shas.length),
+      message: vscode.l10n.t('Cherry-picked {0}.', commitsCount(result.options.shas.length)),
       commands: [args],
     };
   } catch (err) {
@@ -388,7 +389,7 @@ export async function applyUnstashResult(
     }
     return {
       ok: true,
-      message: vscode.l10n.t('Unstashed {0} file(s).', files.length),
+      message: vscode.l10n.t('Unstashed {0}.', filesCount(files.length)),
       commands: [args],
     };
   } catch (err) {

@@ -6,6 +6,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { commitsCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
@@ -568,7 +569,7 @@ export function registerCommitActions(
     if (!target) return;
     await createPatchToFile(repo, { kind: 'commits', shas }, target.fsPath);
     void vscode.window.showInformationMessage(
-      vscode.l10n.t('Patch with {0} commit(s) written to {1}.', shas.length, target.fsPath),
+      vscode.l10n.t('Patch with {0} written to {1}.', commitsCount(shas.length), target.fsPath),
     );
   });
 

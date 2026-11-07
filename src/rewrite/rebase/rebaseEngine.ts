@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { conflictedFilesCount } from '../../ui/counts';
 import type { RepoHandle } from '../../core/core';
 import type { CancelToken, GitExecutor, GitResult } from '../../core/git/executor';
 import { readStaged, restoreStaged, type StagedSnapshot } from '../../core/ops/keepStaged';
@@ -166,8 +167,8 @@ export class RebaseEngine {
     if (conflicted.length > 0) {
       void vscode.window.showWarningMessage(
         vscode.l10n.t(
-          'Resolve {0} conflicted file(s) and stage the results before continuing.',
-          conflicted.length,
+          'Resolve {0} and stage the results before continuing.',
+          conflictedFilesCount(conflicted.length),
         ),
       );
       return { status: 'paused' };
@@ -219,11 +220,13 @@ export class RebaseEngine {
       const kept = await restoreStaged(git, this.repo.root, pending, token);
       if (kept.skipped.length > 0) {
         void vscode.window.showWarningMessage(
-          vscode.l10n.t(
-            '{0} staged file(s) were changed by the rewrite and are now unstaged: {1}',
-            kept.skipped.length,
-            kept.skipped.join(', '),
-          ),
+          kept.skipped.length === 1
+            ? vscode.l10n.t('1 staged file was changed by the rewrite and is now unstaged: {0}', kept.skipped.join(', '))
+            : vscode.l10n.t(
+                '{0} staged files were changed by the rewrite and are now unstaged: {1}',
+                kept.skipped.length,
+                kept.skipped.join(', '),
+              ),
         );
       }
     } catch (err) {

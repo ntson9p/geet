@@ -9,6 +9,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount } from '../../ui/counts';
 import type { Core, RepoHandle } from '../../core/core';
 import { GitError } from '../../core/git/errors';
 import { isStaged, isDirty } from '../../core/model/statusEntry';
@@ -377,7 +378,7 @@ export async function applyRollbackResult(
 
   try {
     await repo.queue.enqueue({
-      label: vscode.l10n.t('Rollback {0} file(s)', files.length),
+      label: vscode.l10n.t('Rollback {0}', filesCount(files.length)),
       kind: 'mutate',
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.rollback,
@@ -399,7 +400,7 @@ export async function applyRollbackResult(
     await repo.refresher.refreshNow();
     return {
       ok: true,
-      message: vscode.l10n.t('Rolled back {0} file(s).', files.length),
+      message: vscode.l10n.t('Rolled back {0}.', filesCount(files.length)),
       commands,
     };
   } catch (err) {

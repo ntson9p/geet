@@ -11,6 +11,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import type { Core } from '../core/core';
 import type {
   ConflictsDialogParamsDto,
@@ -70,8 +71,8 @@ export async function applyConflictsResult(
   if (paths.length === 0) return vscode.l10n.t('No files selected.');
   await session.acceptSide(paths, result.action === 'acceptYours' ? 'ours' : 'theirs');
   return result.action === 'acceptYours'
-    ? vscode.l10n.t('Accepted your version for {0} file(s).', paths.length)
-    : vscode.l10n.t('Accepted their version for {0} file(s).', paths.length);
+    ? vscode.l10n.t('Accepted your version for {0}.', filesCount(paths.length))
+    : vscode.l10n.t('Accepted their version for {0}.', filesCount(paths.length));
 }
 
 /**

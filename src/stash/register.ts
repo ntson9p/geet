@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import { writeSetting } from '../ui/writeSetting';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
@@ -459,7 +460,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     if (!t) return;
     const ok = await confirmModal(
       vscode.l10n.t('Delete shelved change "{0}"?', t.meta.name),
-      vscode.l10n.t('{0} file(s) will be lost. This cannot be undone.', t.meta.files.length),
+      vscode.l10n.t('{0} will be lost. This cannot be undone.', filesCount(t.meta.files.length)),
       vscode.l10n.t('Delete'),
     );
     if (ok) t.store.delete(t.meta.id);
@@ -513,7 +514,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const branch = (await read(['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim();
     const name = picked[0]!.path.split('/').pop()?.replace(/\.(patch|diff)$/u, '') ?? 'imported';
     store.importPatch(name, bytes, { baseSha, branch, comment: vscode.l10n.t('Imported patch') }, sections.map((s) => ({ relPath: s.relPath, status: s.status === 'modified' ? 'modified' as const : s.status, isBinary: s.isBinary })));
-    notifySuccess(vscode.l10n.t('Imported "{0}" to the shelf ({1} file(s))', name, sections.length));
+    notifySuccess(vscode.l10n.t('Imported "{0}" to the shelf ({1})', name, filesCount(sections.length)));
   });
 
   // Pristine bytes cached at open time so a broken edit can be reverted.
@@ -687,7 +688,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       // them behind the Show-already-unshelved toggle.
       if (!deleteAfter && indexes === undefined) t.store.markUnshelved(t.meta.id);
       void vscode.window.showInformationMessage(
-        vscode.l10n.t('Unshelved "{0}" ({1} file(s)).', t.meta.name, res.relPaths.length),
+        vscode.l10n.t('Unshelved "{0}" ({1}).', t.meta.name, filesCount(res.relPaths.length)),
       );
       return;
     }

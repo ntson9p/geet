@@ -23,6 +23,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { commitsCount, filesCount } from '../../ui/counts';
 import { writeSetting } from '../../ui/writeSetting';
 import type { Core, RepoHandle } from '../../core/core';
 import { describeGitFailure, GitError } from '../../core/git/errors';
@@ -805,11 +806,18 @@ async function integrateFetched(
     const message =
       leftUntracked.length === 0
         ? `${reason}.`
-        : `${reason} — ${vscode.l10n.t(
-            '{0} file(s) added to VCS are unversioned until the {1} is finished; they stay in their changelist.',
-            leftUntracked.length,
-            strategy,
-          )}`;
+        : `${reason} — ${
+            leftUntracked.length === 1
+              ? vscode.l10n.t(
+                  '1 file added to VCS is unversioned until the {0} is finished; it stays in its changelist.',
+                  strategy,
+                )
+              : vscode.l10n.t(
+                  '{0} files added to VCS are unversioned until the {1} is finished; they stay in their changelist.',
+                  leftUntracked.length,
+                  strategy,
+                )
+          }`;
     return {
       ok: false,
       commitsPulled: counted.commits,
@@ -826,10 +834,10 @@ async function integrateFetched(
     counted.commits === 0
       ? vscode.l10n.t('Already up to date.')
       : vscode.l10n.t(
-          '{0}: {1} commit(s), {2} file(s) changed.',
+          '{0}: {1}, {2} changed.',
           strategy === 'rebase' ? vscode.l10n.t('Rebased') : vscode.l10n.t('Merged'),
-          counted.commits,
-          counted.files,
+          commitsCount(counted.commits),
+          filesCount(counted.files),
         );
   return {
     ok: true,
@@ -841,8 +849,8 @@ async function integrateFetched(
       restoreConflicts === 0
         ? summary
         : `${summary} ${vscode.l10n.t(
-            'Your local changes conflict with it in {0} file(s); a copy is kept in the stash.',
-            restoreConflicts,
+            'Your local changes conflict with it in {0}; a copy is kept in the stash.',
+            filesCount(restoreConflicts),
           )}`,
     ...(restoreConflicts > 0 ? { restoreConflicts } : {}),
   };

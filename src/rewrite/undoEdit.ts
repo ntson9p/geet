@@ -106,11 +106,13 @@ export async function undoHistoryEdit(repo: RepoHandle, edit: HistoryEdit, kind:
     });
     if (result.skipped.length > 0) {
       void vscode.window.showWarningMessage(
-        vscode.l10n.t(
-          'Undone. {0} staged file(s) changed with the undo and are now unstaged: {1}',
-          result.skipped.length,
-          result.skipped.join(', '),
-        ),
+        result.skipped.length === 1
+          ? vscode.l10n.t('Undone. 1 staged file changed with the undo and is now unstaged: {0}', result.skipped.join(', '))
+          : vscode.l10n.t(
+              'Undone. {0} staged files changed with the undo and are now unstaged: {1}',
+              result.skipped.length,
+              result.skipped.join(', '),
+            ),
       );
     }
   } catch (err) {

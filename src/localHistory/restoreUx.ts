@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { makeSnapUri } from '../core/vdocs/snapFs';
@@ -264,7 +265,7 @@ export class RestoreUx {
 
     const deletions = targets.filter((f) => f.deleted === true).length;
     const ok = await confirmModal(
-      vscode.l10n.t('Restore {0} file(s) from "{1}"?', targets.length, manifest.label),
+      vscode.l10n.t('Restore {0} from "{1}"?', filesCount(targets.length), manifest.label),
       [
         ...(deletions > 0
           ? [vscode.l10n.t('{0} of them did not exist then and will be deleted.', deletions)]
@@ -307,7 +308,7 @@ export class RestoreUx {
     const undo = vscode.l10n.t('Undo restore');
     void vscode.window
       .showInformationMessage(
-        vscode.l10n.t('Restored {0} file(s) from "{1}".', targets.length, manifest.label),
+        vscode.l10n.t('Restored {0} from "{1}".', filesCount(targets.length), manifest.label),
         undo,
       )
       .then(async (choice) => {

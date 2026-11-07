@@ -5,6 +5,7 @@
  * the stash entry and points at the conflicts.
  */
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
@@ -60,9 +61,9 @@ export async function checkoutWithSmart(core: Core, repo: RepoHandle, target: st
     } else if (behavior === 'never') {
       void vscode.window.showWarningMessage(
         vscode.l10n.t(
-          'Checkout of "{0}" blocked by local changes in {1} file(s). Commit, stash or roll back first.',
+          'Checkout of "{0}" blocked by local changes in {1}. Commit, stash or roll back first.',
           target,
-          blocking.length,
+          filesCount(blocking.length),
         ),
       );
       return;

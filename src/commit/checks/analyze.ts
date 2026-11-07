@@ -65,11 +65,17 @@ export const analyzeCheck: CommitCheck = {
     return {
       ok: false,
       blocking: false,
-      message: vscode.l10n.t(
-        '{0} problem(s) at or above "{1}" in the files being committed.',
-        offenders.length,
-        floor === vscode.DiagnosticSeverity.Warning ? 'warning' : 'error',
-      ),
+      message:
+        offenders.length === 1
+          ? vscode.l10n.t(
+              '1 problem at or above "{0}" in the files being committed.',
+              floor === vscode.DiagnosticSeverity.Warning ? 'warning' : 'error',
+            )
+          : vscode.l10n.t(
+              '{0} problems at or above "{1}" in the files being committed.',
+              offenders.length,
+              floor === vscode.DiagnosticSeverity.Warning ? 'warning' : 'error',
+            ),
       reveal: async () => {
         await vscode.commands.executeCommand('workbench.actions.view.problems');
         const doc = await vscode.window.showTextDocument(first.uri);

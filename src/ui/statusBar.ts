@@ -52,6 +52,7 @@
  * this file is the sink and the tooltip, which needs `l10n`.
  */
 import * as vscode from 'vscode';
+import { conflictedFilesCount } from './counts';
 import type { RepoHandle } from '../core/core';
 import type { RepoSnapshot } from '../core/model/repositoryModel';
 import {
@@ -103,7 +104,7 @@ function buildTooltip(snap: RepoSnapshot, repoCount: number): string {
   const op = opLabel(snap);
   if (op !== undefined) lines.push(op);
   const conflicts = conflictCount(snap);
-  if (conflicts > 0) lines.push(vscode.l10n.t('{0} conflicted file(s)', conflicts));
+  if (conflicts > 0) lines.push(conflictedFilesCount(conflicts));
   if (repoCount > 1) lines.push(vscode.l10n.t('{0} repositories in this project', repoCount));
   lines.push(vscode.l10n.t('Click for branches and actions'));
   return lines.join('\n');

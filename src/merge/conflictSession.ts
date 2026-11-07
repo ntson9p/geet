@@ -5,6 +5,7 @@
  * and the tri-editor (T3) render it; T7 routes producer operations into it.
  */
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
@@ -106,8 +107,8 @@ export class ConflictSession {
     await this.repo.queue.enqueue({
       label:
         side === 'ours'
-          ? vscode.l10n.t('Accept yours ({0} file(s))', paths.length)
-          : vscode.l10n.t('Accept theirs ({0} file(s))', paths.length),
+          ? vscode.l10n.t('Accept yours ({0})', filesCount(paths.length))
+          : vscode.l10n.t('Accept theirs ({0})', filesCount(paths.length)),
       kind: 'mutate',
       bypassHold: true,
       isDestructive: true,
@@ -165,7 +166,9 @@ export class ConflictSession {
   async continueOp(): Promise<boolean> {
     if (!this.canContinue) {
       void vscode.window.showWarningMessage(
-        vscode.l10n.t('{0} conflicted file(s) remain — resolve them first.', this.remaining),
+        this.remaining === 1
+          ? vscode.l10n.t('1 conflicted file remains — resolve it first.')
+          : vscode.l10n.t('{0} conflicted files remain — resolve them first.', this.remaining),
       );
       return false;
     }

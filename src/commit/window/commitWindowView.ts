@@ -15,6 +15,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { filesCount } from '../../ui/counts';
 import type { Core, RepoHandle } from '../../core/core';
 import { isUntracked, noConflictsLeft, shortCode, type StatusEntry } from '../../core/model/statusEntry';
 import { canonicalKey } from '../../core/repoDiscovery';
@@ -396,8 +397,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       repo.queue.enqueue({
         label:
           how === 'stage'
-            ? vscode.l10n.t('Stage {0} file(s)', paths.length)
-            : vscode.l10n.t('Unstage {0} file(s)', paths.length),
+            ? vscode.l10n.t('Stage {0}', filesCount(paths.length))
+            : vscode.l10n.t('Unstage {0}', filesCount(paths.length)),
         kind: 'mutate',
         bypassHold: noConflictsLeft(entries),
         run: (git, token) =>

@@ -4,6 +4,7 @@
  * magic wand, native bridge and lifecycle routing).
  */
 import * as vscode from 'vscode';
+import { filesCount } from '../ui/counts';
 import type { Core, RepoHandle } from '../core/core';
 import { MERGE_SCHEME, MergeFsProvider } from '../core/vdocs/mergeFs';
 import { confirmModal } from '../ui/confirm';
@@ -177,7 +178,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     if (!session) return;
     const paths = session.files().filter((f) => !isSpecialConflict(f.kind)).map((f) => f.path);
     const ok = await confirmModal(
-      vscode.l10n.t('Accept YOUR version for {0} file(s)?', paths.length),
+      vscode.l10n.t('Accept YOUR version for {0}?', filesCount(paths.length)),
       vscode.l10n.t('Their changes to these files are discarded (Local History keeps a snapshot).'),
       vscode.l10n.t('Accept All Yours'),
     );
@@ -188,7 +189,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     if (!session) return;
     const paths = session.files().filter((f) => !isSpecialConflict(f.kind)).map((f) => f.path);
     const ok = await confirmModal(
-      vscode.l10n.t('Accept THEIR version for {0} file(s)?', paths.length),
+      vscode.l10n.t('Accept THEIR version for {0}?', filesCount(paths.length)),
       vscode.l10n.t('Your changes to these files are discarded (Local History keeps a snapshot).'),
       vscode.l10n.t('Accept All Theirs'),
     );
@@ -230,10 +231,10 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     }
     void vscode.window.showInformationMessage(
       vscode.l10n.t(
-        'Resolved {0} of {1} conflicts automatically ({2} file(s) completed).',
+        'Resolved {0} of {1} conflicts automatically ({2} completed).',
         blocksResolved,
         blocksTotal,
-        filesResolved,
+        filesCount(filesResolved),
       ),
     );
   });

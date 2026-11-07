@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { commitsCount, conflictedFilesCount } from '../ui/counts';
 import { notifySuccess, staleNotice } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { stopIdentity } from '../core/model/inProgressOp';
@@ -93,8 +94,8 @@ export class RevertCherryPickService {
     if (conflicted.length > 0) {
       void vscode.window.showWarningMessage(
         vscode.l10n.t(
-          'Resolve {0} conflicted file(s) and stage the results before continuing.',
-          conflicted.length,
+          'Resolve {0} and stage the results before continuing.',
+          conflictedFilesCount(conflicted.length),
         ),
       );
       return { status: 'paused', ...(await this.progress(repo)) };
@@ -198,8 +199,10 @@ export class RevertCherryPickService {
     const shortList = newShas.map((s) => s.slice(0, 7)).join(', ');
     void vscode.window.showInformationMessage(
       kind === 'revert'
-        ? vscode.l10n.t('Reverted — new commit(s): {0}', shortList)
-        : vscode.l10n.t('Cherry-picked {0} commit(s): {1}', newShas.length, shortList),
+        ? newShas.length === 1
+          ? vscode.l10n.t('Reverted — new commit: {0}', shortList)
+          : vscode.l10n.t('Reverted — new commits: {0}', shortList)
+        : vscode.l10n.t('Cherry-picked {0}: {1}', commitsCount(newShas.length), shortList),
     );
     await repo.refresher.refreshNow();
     return { status: 'completed', newShas };

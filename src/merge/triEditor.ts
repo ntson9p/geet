@@ -536,7 +536,9 @@ export class TriMergeEditor {
     if (this.unresolvedCount > 0) {
       this.jumpToConflict(1);
       void vscode.window.showWarningMessage(
-        vscode.l10n.t('{0} conflict(s) still unresolved in this file.', this.unresolvedCount),
+        this.unresolvedCount === 1
+          ? vscode.l10n.t('1 conflict still unresolved in this file.')
+          : vscode.l10n.t('{0} conflicts still unresolved in this file.', this.unresolvedCount),
       );
       return false;
     }
