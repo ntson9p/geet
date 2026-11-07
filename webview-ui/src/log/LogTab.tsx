@@ -38,6 +38,7 @@ import type { RpcClient } from '../lib/rpc';
 import { ToolbarButton } from '../lib/Toolbar';
 import { useBusy } from '../lib/useBusy';
 import { useElementSize } from '../lib/useElementSize';
+import { listWindow } from '../lib/listWindow';
 import { VirtualList, type VirtualListHandle } from '../lib/VirtualList';
 import {
   HASH_SAMPLES,
@@ -82,8 +83,15 @@ import {
   type RefLabel,
 } from './refLabels';
 import { RefLabels } from './RefLabelsView';
+import { scrollAnchor, type ScrollAnchor } from './scrollAnchor';
 import { DEFAULT_LAYOUT, Shell, type ShellLayout } from './Shell';
 import { useTextMeasure } from './useTextMeasure';
+
+/**
+ * Where the list goes once page 0 is in: a commit to select and centre (a
+ * reload restoring its focus), or where it stood before history moved under it.
+ */
+type Restore = { readonly kind: 'select'; readonly sha: string } | ScrollAnchor;
 
 const ROW_HEIGHT = 24;
 /** `.gt-virtual-row`'s padding, both sides: the columns are laid out inside it. */
@@ -193,6 +201,12 @@ export function LogTab({
   const [detailsEpoch, setDetailsEpoch] = useState(0);
   /** A preserving reset is waiting for page 0 to prune the selection against. */
   const pruneOnPageZeroRef = useRef(false);
+  /**
+   * A preserving reset is waiting for page 0, and where the list stands is
+   * taken when it arrives, not when the reset does: the user may scroll or
+   * select in between, and the list goes back to where they left it.
+   */
+  const anchorOnPageZeroRef = useRef(false);
   // Refresh turns from the click until the re-read page 0 is on screen.
   const [refreshing, trackRefresh] = useBusy();
   /** Ends the Refresh in flight; called when page 0 arrives. */
@@ -540,17 +554,28 @@ export function LogTab({
 
   // ---- boot + host events ----
   /**
-   * The commit to land on once page 0 arrives. `select: true` restores a
-   * focused commit (a reload, or an auto-refresh the user had a selection
-   * for); `select: false` only puts the row back where it was, which is what
-   * an auto-refresh under no selection needs — silently selecting a commit
-   * the user never picked would repaint both right-hand panes.
+   * Where to land once the rows are in. `select` restores a focused commit
+   * after a reload, selected and centred. A `ScrollAnchor` puts the list back
+   * where it stood when history moved under it, selecting nothing: silently
+   * selecting a commit the user never picked would repaint both right-hand
+   * panes.
    */
-  const restoreRef = useRef<{ sha: string; select: boolean } | undefined>(undefined);
+  const restoreRef = useRef<Restore | undefined>(undefined);
   useEffect(() => {
     const offRows = rpc.onEvent(LOG_METHODS.evtRows, (params) => {
       if (!isFor(params, tabId)) return;
       const page = params as LogPageDto;
+      if (page.page === 0 && anchorOnPageZeroRef.current) {
+        // Taken from the rows still on screen, before page 0 replaces them.
+        anchorOnPageZeroRef.current = false;
+        const selectedNow = new Set(selectionRef.current.shas);
+        restoreRef.current = scrollAnchor(
+          rowShasRef.current,
+          { scrollTop: listRef.current?.scrollTop() ?? viewportRef.current.scrollTop, height: listHeightRef.current },
+          ROW_HEIGHT,
+          (sha) => selectedNow.has(sha),
+        );
+      }
       setRows((prev) => {
         // Pages arrive in order; page.page * PAGE alignment is guaranteed by
         // the host (it replays from its row store on rehydrate).
@@ -578,7 +603,10 @@ export function LogTab({
       }
       if (page.page === 0 || page.missingRefs !== undefined) setMissingRefs(page.missingRefs ?? []);
       setEof(page.eof);
-      pageRef.current = { next: page.page + 1, loading: false, eof: page.eof };
+      // A replay sends every row the host holds as page 0; `next` says where
+      // the host's paging actually is, so scrolling on asks for the page after
+      // them rather than page 1 again, and again.
+      pageRef.current = { next: page.next ?? page.page + 1, loading: false, eof: page.eof };
       setLoading(false);
     });
     const offReset = rpc.onEvent(LOG_METHODS.evtReset, (params) => {
@@ -589,8 +617,9 @@ export function LogTab({
       // new commit renumbers every page and relays the graph), but the user
       // did not ask for any of it: the graph and the selection stay on screen
       // until page 0 replaces them, rather than blanking and repainting — the
-      // flash this used to be. The row at the top stays at the top. A user act
-      // (filter, root, Refresh) resets cleanly, as before.
+      // flash this used to be. Where the list stood comes back as IntelliJ's
+      // `SelectionSnapshot` puts it (`scrollAnchor`): on top it stays on top,
+      // so the new commit shows. A user act (filter, root) resets cleanly.
       restoreRef.current = undefined;
       setInit(dto);
       if (dto.presentation) presentationSeenRef.current(dto.presentation);
@@ -598,14 +627,12 @@ export function LogTab({
       detailsCache.current.clear();
       setEof(false);
       if (dto.preserve === true) {
-        // `viewport.first` is overscanned — a few rows above the fold — so the
-        // row actually at the top edge is derived from the offset instead.
-        const topRow = rowsRef.current[Math.round(viewportRef.current.scrollTop / ROW_HEIGHT)];
-        if (topRow !== undefined) restoreRef.current = { sha: topRow.sha, select: false };
+        anchorOnPageZeroRef.current = true;
         pruneOnPageZeroRef.current = true;
         // The details on show re-read their refs, in place.
         setDetailsEpoch((n) => n + 1);
       } else {
+        anchorOnPageZeroRef.current = false;
         setRows([]);
         setSelection(EMPTY_SELECTION);
         setMissingRefs([]);
@@ -639,8 +666,7 @@ export function LogTab({
     });
 
     const boot = savedRef.current;
-    restoreRef.current =
-      boot.focusSha !== undefined ? { sha: boot.focusSha, select: true } : undefined;
+    restoreRef.current = boot.focusSha !== undefined ? { kind: 'select', sha: boot.focusSha } : undefined;
     void send<LogInitDto | undefined>(LOG_METHODS.init, {
       ...(tabId === MAIN_LOG_TAB && boot.filter !== undefined ? { filter: boot.filter } : {}),
     }).then((dto) => {
@@ -679,24 +705,37 @@ export function LogTab({
    * Reload / auto-refresh restore. This has to run AFTER the rows commit, not
    * from the `evtRows` handler: a reset empties the list, which collapses its
    * spacer and makes the browser clamp scrollTop to 0, so a scroll set before
-   * React has painted the new rows is silently thrown away. Waiting for the
+   * React has drawn the new rows is silently thrown away. Waiting for the
    * committed `rows` also means an anchor that page 0 does not carry is simply
    * found on whichever later page does.
+   *
+   * A layout effect, so the list is back in place before the frame is painted.
+   * It used to wait a frame for the taller spacer, but the spacer is in the
+   * same commit, and that frame showed the new rows where the old ones had
+   * been, shifted by every commit that had arrived.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     const restore = restoreRef.current;
-    if (restore === undefined) return;
-    const idx = rows.findIndex((r) => r.sha === restore.sha);
-    if (idx === -1) return;
+    const list = listRef.current;
+    if (restore === undefined || !list) return;
+    let index = 0;
+    if (restore.kind !== 'top') {
+      index = rows.findIndex((r) => r.sha === restore.sha);
+      if (index === -1) return;
+    }
     restoreRef.current = undefined;
-    if (restore.select) selectOnly(restore.sha);
-    // One frame so the taller spacer is laid out before the offset is applied.
-    requestAnimationFrame(() =>
-      // A restored selection is being read, so centre it; a scroll-only anchor
-      // was the top row and belongs back at the top.
-      listRef.current?.scrollToIndex(idx, restore.select ? 'center' : 'top'),
+    if (restore.kind === 'select') selectOnly(restore.sha);
+    // A restored focus is being read, so it is centred; an anchor goes back
+    // to its distance from the top edge, and `top` to the very top.
+    list.scrollToIndex(
+      index,
+      restore.kind === 'select' ? 'center' : restore.kind === 'top' ? 'top' : { offset: restore.gap },
     );
-  }, [rows, selectOnly]);
+    // The graph is drawn from `viewport`, which the list reports from an
+    // effect that runs after this frame is painted. Set here, the lines move
+    // with the rows instead of a frame behind them.
+    setViewport(listWindow(list.scrollTop(), listHeightRef.current, ROW_HEIGHT, rows.length + (eof ? 0 : 1)));
+  }, [rows, eof, selectOnly]);
 
   // ---- infinite scroll ----
   const onViewport = useCallback(

@@ -1096,6 +1096,11 @@ export interface LogPageDto {
    * empty, and the view says which were missing. Absent when none are.
    */
   missingRefs?: string[];
+  /**
+   * The page to ask for next, when it is not `page + 1`: a replay sends every
+   * row the host holds as page 0, however many pages they came from.
+   */
+  next?: number;
 }
 
 /**

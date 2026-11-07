@@ -709,11 +709,16 @@ docked bottom, tabs `Log | Console`").
   above.
 * **The graph also refreshes itself.** Any history change — a commit, amend, checkout,
   merge, rebase, reset or pull, from GitTree, the built-in Git extension or a terminal —
-  re-pages the graph without the button. *Shape:* the rows rebuild but the user's place
-  does not move — the focused commit stays selected with its Changed Files and Commit
-  Details panes, and with nothing selected the scroll position holds. Coalesced across a
-  burst (a rebase moves refs once per step) and deferred entirely while the panel is
-  hidden, so a closed log costs no git. A dirty worktree alone never re-pages it.
+  re-pages the graph without the button. *Shape:* the rows rebuild in place and the list
+  comes back as IntelliJ's does: **scrolled to the top, it stays at the top**, so a commit
+  just made is the first row on screen; scrolled down, the first selected row on screen (or
+  else the row at the top edge) stays where it was, to the pixel. The selection stays with
+  its Changed Files and Commit Details panes, and no frame shows the rows shifted on the way.
+  Coalesced across a burst (a rebase moves refs once per step) and deferred entirely while
+  the panel is hidden, so a closed log costs no git. A dirty worktree alone never re-pages it.
+  A change made outside GitTree reaches the log within about a second even while something
+  keeps writing files in the workspace (a dev server's log, a test run), and one made right
+  after a GitTree operation is not mistaken for that operation's own.
 
 ### `Paths ▾` and the repository on show
 

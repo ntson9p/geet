@@ -1,9 +1,10 @@
 /**
  * StatusRefresher (master §4): the single funnel from watcher events to model
- * updates. Debounces 200 ms, coalesces bursts into one refresh, skips
- * self-inflicted events during our own mutations (they fold into the single
- * post-op refresh triggered by onDidFinishMutation), and never runs git
- * outside the OperationQueue reader lane.
+ * updates. Debounces 200 ms, coalesces bursts into one refresh but never holds
+ * one off for more than a second, skips self-inflicted events around our own
+ * mutations while a refresh that reads after them is on its way (the single
+ * post-op refresh triggered by onDidFinishMutation, or one already waiting),
+ * and never runs git outside the OperationQueue reader lane.
  */
 import type { GitExecutor, RepoId } from '../git/executor';
 import { parseStatusV2 } from '../git/parsers/statusV2';
@@ -22,6 +23,14 @@ export interface StatusRefresherDeps {
   model: RepositoryModel;
   queue: OperationQueue;
   debounceMs?: number;
+  /**
+   * The longest a burst of events holds a refresh off (default 1000 ms). The
+   * debounce restarts on every event, so without a cap a process writing a
+   * file in the workspace every 100 ms (a dev server's log, a test run, a
+   * build) held it off for as long as it ran, and a commit made in a terminal
+   * meanwhile never reached the model or the log.
+   */
+  maxWaitMs?: number;
   trace?: (line: string) => void;
 }
 
@@ -29,8 +38,11 @@ export type PokeSource = 'gitdir' | 'worktree' | 'manual' | 'post-op';
 
 export class StatusRefresher implements Disposable {
   private readonly debounceMs: number;
+  private readonly maxWaitMs: number;
   private readonly trace: (line: string) => void;
   private timer: NodeJS.Timeout | undefined;
+  /** When the first event of the burst the timer is waiting out arrived. */
+  private burstStart: number | undefined;
   private refreshRunning = false;
   private refreshQueuedAgain = false;
   /**
@@ -45,24 +57,49 @@ export class StatusRefresher implements Disposable {
 
   constructor(private readonly deps: StatusRefresherDeps) {
     this.debounceMs = deps.debounceMs ?? 200;
+    this.maxWaitMs = Math.max(this.debounceMs, deps.maxWaitMs ?? 1000);
     this.trace = deps.trace ?? (() => undefined);
     // The single post-op refresh that self-inflicted events folded into.
     this.mutationSub = deps.queue.onDidFinishMutation(() => this.poke('post-op'));
   }
 
-  /** Watchers call this on every raw event; refreshes are debounced+coalesced. */
+  /**
+   * Watchers call this on every raw event; refreshes are debounced and
+   * coalesced, and a burst never holds one off for longer than `maxWaitMs`.
+   */
   poke(source: PokeSource, ts: number = Date.now()): void {
     if (this.disposed) return;
     if (source !== 'post-op' && source !== 'manual' && this.deps.queue.isSelfInflicted(ts)) {
-      this.trace(`suppressed self-inflicted ${source} event`);
-      return;
+      // Dropped only when a refresh that reads after it is already coming.
+      // The queue calls an event self-inflicted for a second after an
+      // operation ends, and the post-op refresh has usually read by then: a
+      // commit made in a terminal in that second was dropped with nothing
+      // left to read it, and the log never showed it.
+      if (this.refreshComing()) {
+        this.trace(`suppressed self-inflicted ${source} event`);
+        return;
+      }
+      this.trace(`kept a ${source} event after an operation: its refresh has read`);
     }
+    const now = Date.now();
+    this.burstStart ??= now;
     if (this.timer) clearTimeout(this.timer);
+    const wait = Math.max(0, Math.min(this.debounceMs, this.burstStart + this.maxWaitMs - now));
     this.timer = setTimeout(() => {
       this.timer = undefined;
+      this.burstStart = undefined;
       void this.runRefresh();
-    }, this.debounceMs);
+    }, wait);
     this.timer.unref?.();
+  }
+
+  /**
+   * Whether a refresh that will read the repository after now is already on
+   * its way: one waiting out the debounce, or the post-op refresh a running
+   * operation asks for when it ends.
+   */
+  private refreshComing(): boolean {
+    return this.timer !== undefined || this.deps.queue.isMutationActive;
   }
 
   /**
@@ -77,6 +114,7 @@ export class StatusRefresher implements Disposable {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
+    this.burstStart = undefined;
     if (this.disposed) return Promise.resolve();
     const done = new Promise<void>((resolve) => this.nextPassWaiters.push(resolve));
     void this.runRefresh();
@@ -166,6 +204,7 @@ export class StatusRefresher implements Disposable {
   dispose(): void {
     this.disposed = true;
     if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
     this.mutationSub.dispose();
     // Nobody waits forever on a repository that has gone.
     for (const resolve of this.nextPassWaiters) resolve();

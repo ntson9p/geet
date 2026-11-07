@@ -62,6 +62,7 @@ import {
   type LogTabRecord,
   type LogTabsState,
 } from './logTabs';
+import { PageReads } from './pageReads';
 import { buildPathTree, mergeTreeSelection } from './pathTree';
 import {
   PRESENTATION_SETTINGS,
@@ -114,6 +115,8 @@ interface Session {
   rows: LogRowDto[];
   nextPage: number;
   eof: boolean;
+  /** The page requests: a page asked for twice is read once (`PageReads`). */
+  reads: PageReads;
   /**
    * The HEAD the rows were paged at. `sections.has('head')` is too coarse to
    * gate on — it also fires for ahead/behind and lastFetchAt, which change
@@ -893,6 +896,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       rows: [],
       nextPage: 0,
       eof: false,
+      reads: new PageReads(),
       lastHeadSha: repo.model.snapshot.headSha,
       dirty: false,
       sub: undefined,
@@ -990,20 +994,36 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     };
   }
 
-  private async sendPage(tab: string, page: number): Promise<void> {
+  /**
+   * Answers a request for one of a tab's pages, the webview's or the host's
+   * own. A page asked for while it is being read is not read again, one
+   * already sent is replayed, and one past the next is dropped (`PageReads`).
+   */
+  private sendPage(tab: string, page: number): Promise<void> {
     const session = this.sessions.get(tab);
-    if (!session || !this.rpc) return;
-    if (page < session.nextPage) {
-      // Rehydrate replay: resend everything we already have as page 0-style.
-      this.rpc.notify(LOG_METHODS.evtRows, {
-        page: 0,
-        rows: session.rows,
-        eof: session.eof,
-        logTab: tab,
-        ...(session.missingRefs.length > 0 ? { missingRefs: session.missingRefs } : {}),
-      } satisfies LogPageDto);
-      return;
-    }
+    if (!session || !this.rpc) return Promise.resolve();
+    const { kind, done } = session.reads.request(page, session.nextPage, {
+      read: () => this.readPage(tab, session, page),
+      replay: () => {
+        // Rehydrate replay: everything this session has sent, as page 0. Its
+        // `next` is where the paging is, or scrolling on would ask for page 1
+        // and be answered with this replay again, and never get further.
+        this.rpc?.notify(LOG_METHODS.evtRows, {
+          page: 0,
+          rows: session.rows,
+          eof: session.eof,
+          logTab: tab,
+          next: session.nextPage,
+          ...(session.missingRefs.length > 0 ? { missingRefs: session.missingRefs } : {}),
+        } satisfies LogPageDto);
+      },
+    });
+    if (kind !== 'read') this.debugTrail.push(`page ${page} ${kind} (next ${session.nextPage})`);
+    return done;
+  }
+
+  /** Reads `page` for `session` and sends it, unless the session was replaced meanwhile. */
+  private async readPage(tab: string, session: Session, page: number): Promise<void> {
     let result;
     try {
       result = await session.service.getPage(session.filter, page);
@@ -1055,6 +1075,14 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       logTab: tab,
       ...(session.missingRefs.length > 0 ? { missingRefs: session.missingRefs } : {}),
     } satisfies LogPageDto);
+  }
+
+  /**
+   * Asks for one of a tab's pages, as the webview's `log/page` does: the
+   * integration tests' way to ask twice at once.
+   */
+  async requestPage(page: number, tab: string = this.tabsState.active): Promise<void> {
+    await this.sendPage(tab, page);
   }
 
   private applyFilter(

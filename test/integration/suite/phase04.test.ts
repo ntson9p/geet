@@ -117,6 +117,59 @@ suite('P4 log & blame host', () => {
     }
   });
 
+  test('a page asked for twice while it is being read is laid out once', async function () {
+    this.timeout(60_000);
+    await reg.logView.setFilter({ sort: 'date', refs: 'HEAD' }, fsRoot);
+    await waitFor(() => reg.logView.currentSession?.eof === true, 30_000);
+    const commits = Number(git('rev-list', '--count', 'HEAD').trim());
+    // A fresh session, and its page 0 asked for twice while it is read: what
+    // `rehydrate` re-posting the webview's unanswered request amounts to. Read
+    // twice, the page went through the graph layout twice and the session held
+    // every commit twice.
+    assert.ok(reg.logView.refresh(), 'the tab has a session to re-read');
+    await Promise.all([reg.logView.requestPage(0), reg.logView.requestPage(0)]);
+    await waitFor(() => reg.logView.currentSession?.eof === true, 30_000);
+    assert.strictEqual(
+      reg.logView.currentSession!.rowCount,
+      commits,
+      `trail: ${JSON.stringify(reg.logView.debugTrail.slice(-8))}`,
+    );
+  });
+
+  test('a commit made from outside just after a GitTree operation reaches the model and the log', async function () {
+    this.timeout(60_000);
+    await vscode.commands.executeCommand('gittree.log.focus');
+    await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
+    const headBefore = git('rev-parse', 'HEAD').trim();
+    const rowsBefore = reg.logView.currentSession!.rowCount;
+    // A GitTree operation: for a second after it ends, the queue calls every
+    // watcher event ours.
+    await repo.queue.enqueue({
+      label: 'p4 probe operation',
+      kind: 'mutate',
+      quietProgress: true,
+      run: () => Promise.resolve(),
+    });
+    // Its post-op refresh reads…
+    await new Promise((r) => setTimeout(r, 400));
+    try {
+      // …and then a commit lands from a terminal, inside that second. Its
+      // events used to be dropped as ours, with no refresh left to read them.
+      git('commit', '--allow-empty', '-m', 'p4 commit from outside');
+      if (!repo.queue.isSelfInflicted(Date.now())) {
+        // Too slow a machine to land it inside the window: nothing to measure.
+        this.skip();
+      }
+      const made = git('rev-parse', 'HEAD').trim();
+      // No refreshNow(): the watcher alone has to bring it in.
+      await waitFor(() => repo.model.snapshot.headSha === made, 10_000);
+      await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > rowsBefore, 30_000);
+    } finally {
+      git('reset', '--hard', headBefore);
+      await repo.refresher.refreshNow();
+    }
+  });
+
   test('revealCommit loads pages until the sha is present', async function () {
     this.timeout(60_000);
     const head = git('rev-parse', 'HEAD').trim();

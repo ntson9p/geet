@@ -15,6 +15,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
+import { listWindow } from './listWindow';
 
 export interface VirtualListHandle {
   /**
@@ -258,9 +259,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     focusIndex(next);
   };
 
-  const first = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-  const visible = Math.ceil(height / rowHeight) + overscan * 2;
-  const last = Math.min(rowCount - 1, first + visible);
+  const { first, last } = listWindow(scrollTop, height, rowHeight, rowCount, overscan);
   useEffect(() => {
     onViewport?.({ scrollTop, first, last });
   }, [scrollTop, first, last, onViewport]);

@@ -31,6 +31,32 @@ export const mockLogHostScript = `
       continues: [],
     },
   });
+  // Opt-in (window.__mockNewCommits = n): n commits made since the list was
+  // read, newest first, above the 100k: what a commit, a pull or a cherry-pick
+  // puts at the top of page 0 before the host's preserving reset.
+  const fresh = () => window.__mockNewCommits || 0;
+  const freshSha = (k) => ('e' + k.toString(16).padStart(7, '0')).repeat(5);
+  const freshRow = (i) => {
+    const k = fresh() - i; // 1 is the oldest new commit
+    return {
+      sha: freshSha(k),
+      subject: 'new commit ' + k,
+      authorName: 'Alice',
+      authorTime: Math.floor(Date.now() / 1000) + k * 60,
+      parents: [k > 1 ? freshSha(k - 1) : sha(0)],
+      refs: i === 0 ? [{ name: 'main', type: 'branch', isHeadTarget: true }] : [],
+      graph: {
+        nodeLane: 0,
+        colorIdx: 0,
+        lanesBefore: i === 0 ? [] : [{ lane: 0, colorIdx: 0 }],
+        joins: [],
+        forks: [{ lane: 0, colorIdx: 0, kind: 'first' }],
+        continues: [],
+      },
+    };
+  };
+  // Row i of the history as it stands: the new commits, then the 100k.
+  const rowAt = (i) => (i < fresh() ? freshRow(i) : row(i - fresh()));
   let state;
   // Opt-in (window.__mockWideDetails): a commit whose message line and file
   // path are far wider than the pane that shows them. Off by default so the
@@ -195,9 +221,10 @@ export const mockLogHostScript = `
             break;
           }
           const start = page * PAGE;
+          const total = TOTAL + fresh();
           const rows = [];
-          for (let i = start; i < Math.min(start + PAGE, TOTAL); i++) rows.push(row(i));
-          const params = { page, rows, eof: start + PAGE >= TOTAL, logTab };
+          for (let i = start; i < Math.min(start + PAGE, total); i++) rows.push(rowAt(i));
+          const params = { page, rows, eof: start + PAGE >= total, logTab };
           if (missing.length > 0) params.missingRefs = missing;
           post({ v: 1, id: 'evt' + page, kind: 'evt', method: 'log/rows', params });
           break;

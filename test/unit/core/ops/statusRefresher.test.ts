@@ -33,7 +33,16 @@ function realRepo(): string {
   return dir;
 }
 
-async function makeStack(debounceMs = 30): Promise<{
+/** Polls until `ready()` or `ms` have passed; the test then asserts what it waited for. */
+async function waitFor(ready: () => boolean, ms: number): Promise<void> {
+  const until = Date.now() + ms;
+  while (!ready() && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
+}
+
+async function makeStack(
+  debounceMs = 30,
+  opts: { maxWaitMs?: number; suppressionGraceMs?: number } = {},
+): Promise<{
   repo: string;
   git: GitExecutorImpl;
   model: RepositoryModel;
@@ -52,7 +61,7 @@ async function makeStack(debounceMs = 30): Promise<{
     return inner.exec(r, args, o);
   };
   const model = new RepositoryModel(repo);
-  const queue = new OperationQueue(repo, counting, { suppressionGraceMs: 150 });
+  const queue = new OperationQueue(repo, counting, { suppressionGraceMs: opts.suppressionGraceMs ?? 150 });
   const refresher = new StatusRefresher({
     repo,
     gitDir: path.join(repo, '.git'),
@@ -60,6 +69,7 @@ async function makeStack(debounceMs = 30): Promise<{
     model,
     queue,
     debounceMs,
+    ...(opts.maxWaitMs !== undefined ? { maxWaitMs: opts.maxWaitMs } : {}),
   });
   cleanups.push(() => {
     refresher.dispose();
@@ -150,6 +160,55 @@ describe('StatusRefresher (real git)', () => {
     expect(statusRuns()).toBeGreaterThanOrEqual(1);
     expect(statusRuns()).toBeLessThanOrEqual(2);
     expect(model.snapshot.statusEntries).toHaveLength(0); // commit landed, tree clean
+  });
+
+  it('a steady stream of events never holds a refresh off past maxWaitMs', async () => {
+    const { repo, model, refresher } = await makeStack(50, { maxWaitMs: 300 });
+    await refresher.refreshNow();
+    const before = model.snapshot.headSha;
+    // Something writes a file in the workspace every 20 ms (a dev server's
+    // log, a test run): the debounce restarts on each one. It used to restart
+    // for as long as the writing went on, so a commit made in a terminal
+    // meanwhile reached neither the model nor the log.
+    const noise = setInterval(() => refresher.poke('worktree'), 20);
+    try {
+      execFileSync('git', ['commit', '--allow-empty', '-m', 'from a terminal'], { cwd: repo });
+      refresher.poke('gitdir');
+      await waitFor(() => model.snapshot.headSha !== before, 2000);
+      expect(model.snapshot.headSha).not.toBe(before);
+    } finally {
+      clearInterval(noise);
+    }
+  });
+
+  it('a commit made from outside just after our own operation still reaches the model', async () => {
+    // A long window, so a slow machine cannot step out of it before the commit.
+    const { repo, queue, model, refresher, statusRuns } = await makeStack(20, { suppressionGraceMs: 5000 });
+    await queue.enqueue({ label: 'our own operation', kind: 'mutate', run: () => Promise.resolve() });
+    // The post-op refresh reads, and is done…
+    await waitFor(() => statusRuns() >= 1, 2000);
+    await new Promise((r) => setTimeout(r, 50));
+    const before = model.snapshot.headSha;
+    // …and then a commit lands from a terminal, inside the window in which the
+    // queue calls every event ours. It used to be dropped as such, with no
+    // refresh left to read it.
+    execFileSync('git', ['commit', '--allow-empty', '-m', 'from a terminal'], { cwd: repo });
+    expect(queue.isSelfInflicted(Date.now())).toBe(true);
+    refresher.poke('gitdir');
+    await waitFor(() => model.snapshot.headSha !== before, 2000);
+    expect(model.snapshot.headSha).not.toBe(before);
+  });
+
+  it('our own late events still fold into the post-op refresh waiting for them', async () => {
+    const { queue, refresher, statusRuns } = await makeStack(40, { suppressionGraceMs: 1000 });
+    await queue.enqueue({ label: 'our own operation', kind: 'mutate', run: () => Promise.resolve() });
+    // The post-op refresh is waiting out its debounce: the watchers' events
+    // about what the operation did, arriving after it ended, add nothing.
+    refresher.poke('worktree');
+    refresher.poke('gitdir');
+    refresher.poke('worktree');
+    await new Promise((r) => setTimeout(r, 400));
+    expect(statusRuns()).toBe(1);
   });
 
   it('reports in-progress merge state through the model', async () => {

@@ -6,6 +6,31 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a new commit shows in the log
+
+- **A commit made while the log is scrolled to the top now shows as its first row.** When
+  history moved, the log put the row that had been at the top back at the top, so a commit
+  made on top of it landed one row above the window: the list looked unchanged, apart from
+  the branch label leaving the old first row. It happened with a commit from GitTree, the
+  built-in Git extension or a terminal, and after **Refresh**. Now, as in IntelliJ, a log
+  scrolled to the top stays at the top. One scrolled down keeps the first selected row on
+  screen, or else the row at the top edge, exactly where it was. No frame shows the rows
+  shifted on the way.
+- **A commit made in a terminal shows within about a second even while something keeps
+  writing files in the workspace.** Every file event restarted GitTree's wait for the
+  repository to settle, so a dev server's log or a test run writing a few times a second
+  held off every update. The commit, and anything else done outside GitTree, appeared only
+  once the writing stopped.
+- **A commit made from outside just after a GitTree operation is no longer missed.** For a
+  second after each of its own operations, GitTree treats the repository's file events as
+  its own. One from a commit made in a terminal in that second was dropped after GitTree
+  had already re-read the repository, so the commit stayed out of the log and the rest of
+  GitTree until something else changed.
+- **Hiding and showing the panel while the log is re-reading no longer garbles the graph.**
+  A re-read waits for a git operation in progress (a push, or a commit with slow hooks).
+  If the panel was hidden and shown meanwhile, the same commits were read and laid out
+  twice: an extra line ran beside the graph.
+
 ### Fixed — the Git tool window's Log tabs
 
 - **Switching between two Log tabs no longer makes the window jump.** A tab behind another

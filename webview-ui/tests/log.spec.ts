@@ -822,6 +822,120 @@ test.describe('P4-T3/T4 log webview', () => {
     expect(await commitRow(page).locator('.gt-log-row.gt-selected').count()).toBe(0);
   });
 
+  /** Commits made since the list was read: page 0 starts with them. */
+  const commitsMade = (page: Page, n: number) =>
+    page.evaluate((count) => {
+      (window as unknown as { __mockNewCommits: number }).__mockNewCommits = count;
+    }, n);
+
+  test('a commit made with the list on top shows as its first row', async ({ page }) => {
+    await openLog(page);
+    const list = page.getByRole('listbox', { name: 'Commits' });
+    await commitsMade(page, 1);
+    await postReset(page, { preserve: true });
+    // IntelliJ's SelectionSnapshot: a list on top stays on top. Keeping the old
+    // first row first put the new commit one row above the window, and the
+    // log looked as if nothing had happened.
+    await expect(page.getByTestId('log-row-0')).toContainText('new commit 1');
+    await expect(page.getByTestId('log-row-0')).toBeInViewport();
+    await expect(page.getByTestId('log-row-1')).toContainText('commit 0');
+    expect(await list.evaluate((el) => el.scrollTop)).toBe(0);
+  });
+
+  test('on top with a commit selected, the new commit shows and the selection moves down with its row', async ({
+    page,
+  }) => {
+    await openLog(page);
+    const list = page.getByRole('listbox', { name: 'Commits' });
+    await commitRow(page).locator('[data-gt-row="3"]').click();
+    await commitsMade(page, 2);
+    await postReset(page, { preserve: true });
+    await expect(page.getByTestId('log-row-0')).toContainText('new commit 2');
+    expect(await list.evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(commitRow(page).locator('[data-gt-row="5"] .gt-log-row')).toHaveClass(/gt-selected/);
+    await expect(page.getByTestId('log-row-5')).toContainText('commit 3');
+  });
+
+  test('scrolled down, the row under the top edge keeps its place to the pixel when commits arrive', async ({
+    page,
+  }) => {
+    await openLog(page);
+    const list = page.getByRole('listbox', { name: 'Commits' });
+    await list.evaluate((el) => {
+      el.scrollTop = 600 * 24 + 10;
+    });
+    await expect(page.getByTestId('log-row-600')).toBeVisible();
+    await commitsMade(page, 2);
+    await postReset(page, { preserve: true });
+    // `commit 600` is row 602 now, still 10 px past the top edge.
+    await expect(page.getByTestId('log-row-602')).toContainText('commit 600');
+    await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(602 * 24 + 10);
+  });
+
+  test('scrolled down with a commit selected on screen, that row keeps its place', async ({ page }) => {
+    await openLog(page);
+    const list = page.getByRole('listbox', { name: 'Commits' });
+    await list.evaluate((el) => {
+      el.scrollTop = 600 * 24;
+    });
+    await commitRow(page).locator('[data-gt-row="604"]').click();
+    const gap = await page.getByTestId('log-row-604').evaluate((row) => {
+      const box = row.closest('.gt-virtual-list')!.getBoundingClientRect();
+      return row.getBoundingClientRect().top - box.top;
+    });
+    await commitsMade(page, 3);
+    await postReset(page, { preserve: true });
+    await expect(page.getByTestId('log-row-607')).toContainText('commit 604');
+    await expect(commitRow(page).locator('[data-gt-row="607"] .gt-log-row')).toHaveClass(/gt-selected/);
+    await expect
+      .poll(() =>
+        page.getByTestId('log-row-607').evaluate((row) => {
+          const box = row.closest('.gt-virtual-list')!.getBoundingClientRect();
+          return row.getBoundingClientRect().top - box.top;
+        }),
+      )
+      .toBe(gap);
+  });
+
+  test("after a replay, scrolling on asks for the host's next page, not page 1 again", async ({ page }) => {
+    await openLog(page);
+    // The host replays every row it holds as page 0 (a re-posted request it had
+    // already answered), saying its paging is at page 5.
+    await page.evaluate(() => {
+      const sha = (i: number): string => i.toString(16).padStart(8, '0').repeat(5);
+      const rows = Array.from({ length: 30 }, (_, i) => ({
+        sha: sha(i),
+        subject: `commit ${i}`,
+        authorName: 'Alice',
+        authorTime: 1700000000 - i * 3600,
+        parents: [sha(i + 1)],
+        refs: [],
+        graph: {
+          nodeLane: 0,
+          colorIdx: 0,
+          lanesBefore: i === 0 ? [] : [{ lane: 0, colorIdx: 0 }],
+          joins: [],
+          forks: [{ lane: 0, colorIdx: 0, kind: 'first' }],
+          continues: [],
+        },
+      }));
+      window.postMessage(
+        { v: 1, id: 'evt-replay', kind: 'evt', method: 'log/rows', params: { page: 0, rows, eof: false, next: 5 } },
+        '*',
+      );
+    });
+    // Thirty rows fill no list: it asks for more at once.
+    await expect
+      .poll(async () =>
+        (await posted(page))
+          .filter((m) => m.method === 'log/page')
+          .map((m) => (m.params as { page: number }).page),
+      )
+      .toContain(5);
+    const asked = (await posted(page)).filter((m) => m.method === 'log/page').map((m) => (m.params as { page: number }).page);
+    expect(asked).not.toContain(1);
+  });
+
   test('P12-T5: User ▾ offers Me and searchable authors', async ({ page }) => {
     await openLog(page);
     await page.getByTestId('filter-user').click();
