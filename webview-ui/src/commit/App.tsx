@@ -821,7 +821,28 @@ export function App() {
           the Shelf tab exactly like a failed commit is from the Commit tab. */}
       {errorText !== undefined ? (
         <div className="gt-commit-error" role="alert" data-testid="commit-error">
-          {errorText}
+          <span className="gt-commit-error-text">{errorText}</span>
+          <span className="gt-commit-error-actions">
+            <button
+              type="button"
+              className="gt-link-button"
+              data-testid="commit-error-output"
+              onClick={() => send(COMMIT_METHODS.showOutput, {})}
+            >
+              Show Output
+            </button>
+            <button
+              type="button"
+              className="gt-commit-error-close codicon codicon-close"
+              aria-label="Dismiss"
+              title="Dismiss"
+              data-testid="commit-error-dismiss"
+              onClick={() => {
+                setRpcError(undefined);
+                send(COMMIT_METHODS.dismissError, {});
+              }}
+            />
+          </span>
         </div>
       ) : null}
 

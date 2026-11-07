@@ -311,6 +311,10 @@ export const COMMIT_METHODS = {
   stashAction: 'commit/stashAction',
   /** View Options › Group By: `CommitSetGroupByParamsDto`, saved for the workspace. */
   setGroupBy: 'commit/setGroupBy',
+  /** POST-QA: the failure banner's Show Output — the GitTree output channel. */
+  showOutput: 'commit/showOutput',
+  /** POST-QA: the failure banner's ✕. */
+  dismissError: 'commit/dismissError',
   /** POST-QA F5, staging paradigm: `CommitStageParamsDto` — stage these files. */
   stage: 'commit/stage',
   /** POST-QA F5, staging paradigm: `CommitStageParamsDto` — unstage these files. */

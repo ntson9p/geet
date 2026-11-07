@@ -51,6 +51,7 @@ import type { CommitMessageBox } from '../messageBox';
 import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
 import { stageFiles, unstageFiles } from '../staging/stageFiles';
+import { failureText } from './failureText';
 import { computeFileDiff, computeStagingDiff } from './fileDiff';
 import { stagingGroups } from './stagingGroups';
 import { readCommitGroupBy, writeCommitGroupBy } from './groupBy';
@@ -559,7 +560,12 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
    * `RpcClient` re-posts in-flight requests after a rehydrate — so hiding and
    * re-showing the view mid-commit would otherwise start a second one.
    */
-  private async guard(label: string, run: () => Promise<void>): Promise<void> {
+  /**
+   * Runs one mutation at a time. A failure stays on screen as the window's
+   * banner, in full (`failureText`), naming the repository it happened in when
+   * the workspace has several.
+   */
+  private async guard(label: string, run: () => Promise<void>, repo?: RepoHandle): Promise<void> {
     if (this.busy > 0) {
       this.debugTrail.push(`${label} refused: a mutation is already running`);
       return;
@@ -570,7 +576,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     try {
       await run();
     } catch (err) {
-      this.lastError = err instanceof Error ? err.message : String(err);
+      const several = this.deps.core.repos.length > 1;
+      this.lastError = failureText(err, several && repo !== undefined ? path.basename(repo.root) : undefined);
       this.debugTrail.push(`${label} failed: ${this.lastError}`);
     } finally {
       this.busy--;
@@ -641,6 +648,16 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       return this.fileDiff(repo, p.path, p.side);
     });
 
+    // The banner's Show Output: the full command and stderr behind a failure.
+    rpc.on(COMMIT_METHODS.showOutput, () => {
+      this.deps.core.output.show(true);
+    });
+    // The banner's ✕: the failure was read.
+    rpc.on(COMMIT_METHODS.dismissError, () => {
+      this.lastError = undefined;
+      this.push();
+    });
+
     rpc.on(COMMIT_METHODS.stage, async (raw) => {
       const p = raw as CommitStageParamsDto;
       const repo = this.repoFor(p.repoRoot);
@@ -689,9 +706,13 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const p = raw as CommitRunParamsDto;
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return;
-      await this.guard('commit', async () => {
-        await this.deps.runCommit(repo, { andPush: p.andPush });
-      });
+      await this.guard(
+        'commit',
+        async () => {
+          await this.deps.runCommit(repo, { andPush: p.andPush });
+        },
+        repo,
+      );
     });
 
     rpc.on(COMMIT_METHODS.toggleAmend, async (raw) => {

@@ -27,6 +27,15 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — a failed commit says why
+
+- **A commit refused by a hook shows what the hook said.** The Commit window kept git's first
+  line only. A linter's *"notes.md line 3: trailing whitespace"* was shown, its other
+  findings and its summary were dropped, and the banner never said which repository refused.
+  It now shows the hook's lines, a dozen at most, after the repository's name when several
+  are open, with **Show Output** for the full command and **✕** to put it away. The banner no
+  longer squeezes the toolbar under it to half its height, and a long one scrolls.
+
 ### Fixed — moving a file between changelists keeps it out of the commit
 
 - **A file you left out of the commit stays out when you move it to another changelist.** A
