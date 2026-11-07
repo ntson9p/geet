@@ -121,14 +121,43 @@ export interface CommitGroupDto {
   changes: CommitChangeDto[];
 }
 
+/**
+ * How the Commit window arranges a workspace of several repositories
+ * (`gittree.commit.groupBy`): IntelliJ's changelists at the top with each
+ * repository's share beneath them, or GitTree's own repositories at the top
+ * with their changelists beneath (deviation D37). One repository has no
+ * repository rows to arrange, so it reads the same either way.
+ */
+export type CommitGroupBy = 'changelist' | 'repository';
+
+/** The setting's value, or the default for anything else: it crosses `postMessage` and settings files. */
+export function commitGroupByOf(raw: unknown): CommitGroupBy {
+  return raw === 'repository' ? 'repository' : 'changelist';
+}
+
+/** What a repository has checked out, for the label on its row (IntelliJ's branch label). */
+export interface CommitRepoHeadDto {
+  /** The checked-out branch; absent when HEAD is detached. */
+  branch?: string;
+  /** HEAD's commit, which names a detached HEAD. */
+  sha?: string;
+  /** The branch it tracks. */
+  upstream?: string;
+  /** No commits yet. */
+  unborn?: boolean;
+}
+
 export interface CommitRepoDto {
   root: string;
+  /** Its name in every list of repositories (`repoLabels`), the Repositories panel's included. */
   label: string;
   /**
    * The repository's palette slot (`rootColorIndices`): its colour in the log's
    * `Roots` and the Repositories panel, which its row in the tree wears too.
    */
   colorIdx: number;
+  /** What it has checked out, which its row says, as IntelliJ's repository row does. */
+  head?: CommitRepoHeadDto;
   groups: CommitGroupDto[];
 }
 
@@ -148,6 +177,7 @@ export interface CommitDiffOnScreenDto {
 }
 
 export interface CommitStateDto {
+  /** In the order the user reads: by name, as the Repositories panel lists them. */
   repos: CommitRepoDto[];
   /** Repo the message box and the amend checkbox act on. */
   activeRepo?: string;
@@ -177,6 +207,8 @@ export interface CommitStateDto {
   colors?: Record<string, string>;
   /** `gittree.log.graphPalette`, which the repositories' colours follow, as the log's do. */
   palette?: 'default' | 'colorBlind';
+  /** `gittree.commit.groupBy`: what the tree puts at the top when there are several repositories. */
+  groupBy?: CommitGroupBy;
   /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
   diffOnScreen?: CommitDiffFileDto;
 }
@@ -245,6 +277,8 @@ export const COMMIT_METHODS = {
   stashFiles: 'commit/stashFiles',
   /** POST-P14l: one stash action (apply/pop/drop/branch/…) from the tab. */
   stashAction: 'commit/stashAction',
+  /** View Options › Group By: `CommitSetGroupByParamsDto`, saved for the workspace. */
+  setGroupBy: 'commit/setGroupBy',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
@@ -272,6 +306,10 @@ export interface CommitSetCheckedParamsDto {
 export interface CommitRunParamsDto {
   repoRoot: string;
   andPush: boolean;
+}
+
+export interface CommitSetGroupByParamsDto {
+  groupBy: CommitGroupBy;
 }
 
 export interface CommitSetIncludedParamsDto {

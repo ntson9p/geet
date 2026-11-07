@@ -439,6 +439,7 @@ row in the branches tree.
 | **Per-change checkboxes inside the diff**, with a live `N differences, M included` counter | P11-T3 `InlineDiff` include checkboxes + counter | ✅ |
 | Diff opened from the commit window is a distinct **`Commit: <file>`** tab (with include checkboxes), separate from a plain `Repository Diff: <file>` tab | one diff tab type | ❌ |
 | Commit window toolbar: refresh, rollback, shelve silently, show diff preview, expand/collapse (8 icons in one strip) | P11-T2 one `ToolbarStrip` in the commit window | ✅ |
+| Commit window **View Options › Group By** (Directory, Module, Repository; Repository only with several roots), and the repository rows' **current branch** label | POST-P14be: the eye with several repositories, choosing Changelist › Repository or Repository › Changelist (**D37**); every repository row shows its branch | 🟡 |
 | **Move to Another Changelist…** | `changelist.moveTo` | ✅ |
 | **Move Lines to Another Changelist…** | — | ❌ |
 | **Split Chunks and Include Selected Lines into Commit** | partial via range staging | 🟡 |

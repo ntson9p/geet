@@ -22,8 +22,10 @@ export interface VirtualListHandle {
    * puts it in the middle, `top` pins it to the first visible line — which is
    * what restoring a scroll anchor after a reload needs, since `auto` from a
    * reset list (scrollTop 0) would leave the row at the BOTTOM of the window.
+   * `{ offset }` puts the row that many pixels below the top of the window: a
+   * row brought back where it was after the list was rebuilt around it.
    */
-  scrollToIndex(index: number, align?: 'auto' | 'center' | 'top'): void;
+  scrollToIndex(index: number, align?: 'auto' | 'center' | 'top' | { readonly offset: number }): void;
   /**
    * Moves keyboard focus to a row. `silent` leaves `onFocusIndex` unfired: a
    * list with a selection of its own moves its lead on Ctrl+ and Shift+ clicks
@@ -35,6 +37,10 @@ export interface VirtualListHandle {
    * scrolling: the list follows something done outside it, a diff walking it.
    */
   setLead(index: number): void;
+  /** The row the keyboard goes on from. */
+  lead(): number;
+  /** How far the list is scrolled, in pixels. */
+  scrollTop(): number;
 }
 
 export interface VirtualListProps {
@@ -138,12 +144,15 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   );
 
   const scrollToIndex = useCallback(
-    (index: number, align: 'auto' | 'center' | 'top' = 'auto') => {
+    (index: number, align: 'auto' | 'center' | 'top' | { readonly offset: number } = 'auto') => {
       const el = containerRef.current;
       if (!el) return;
       const i = clamp(index);
       const top = i * rowHeight;
-      if (align === 'center') {
+      if (typeof align === 'object') {
+        // The browser clamps it to what the list can scroll.
+        el.scrollTop = top - align.offset;
+      } else if (align === 'center') {
         el.scrollTop = top - Math.max(0, (height - rowHeight) / 2);
       } else if (align === 'top') {
         el.scrollTop = top;
@@ -152,6 +161,10 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
       } else if (top + rowHeight > el.scrollTop + height) {
         el.scrollTop = top + rowHeight - height;
       }
+      // Windowed now rather than on the scroll event: a caller putting a place
+      // back before paint must not paint the old place's rows first. The event
+      // then sets the same value, which renders nothing.
+      setScrollTop(el.scrollTop);
     },
     [clamp, height, rowHeight],
   );
@@ -197,8 +210,18 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
   );
 
   const setLead = useCallback((index: number) => setFocusedIndex(clamp(index)), [clamp]);
+  // Read through a ref: a caller asking right before a rebuild must get the
+  // row as it stands, not as of the last render it happened to close over.
+  const focusedRef = useRef(focusedIndex);
+  focusedRef.current = focusedIndex;
+  const lead = useCallback(() => focusedRef.current, []);
+  const currentScrollTop = useCallback(() => containerRef.current?.scrollTop ?? 0, []);
 
-  useImperativeHandle(ref, () => ({ scrollToIndex, focusIndex, setLead }), [scrollToIndex, focusIndex, setLead]);
+  useImperativeHandle(
+    ref,
+    () => ({ scrollToIndex, focusIndex, setLead, lead, scrollTop: currentScrollTop }),
+    [scrollToIndex, focusIndex, setLead, lead, currentScrollTop],
+  );
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (onRowKeyDown?.(focusedIndex, e) === true) return;

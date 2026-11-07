@@ -3,11 +3,17 @@ import type { CommitChangeDto, CommitGroupDto, CommitStateDto } from '../../../s
 import {
   allDiffFiles,
   assembleCommitTree,
+  collapsedAll,
   commitDiffWalk,
   fileCountLabel,
   fileRowContext,
+  groupByOf,
+  groupRowContext,
+  headLabel,
   splitDelta,
   treePathOf,
+  twinRow,
+  twinRows,
 } from '../../../webview-ui/src/commit/commitTree';
 import {
   countFiles,
@@ -557,5 +563,368 @@ describe('fileRowContext (POST-P14v)', () => {
   it('has nothing to say about a directory row', () => {
     const model = assembleCommitTree(state());
     expect(fileRowContext(model, model.groupPaths[0]!, new Set())).toBeUndefined();
+  });
+});
+
+/** The Unversioned Files bucket of one repository. */
+function unversionedList(changes: CommitChangeDto[]): CommitGroupDto {
+  return {
+    id: '__unversioned__',
+    name: 'Unversioned Files',
+    isActive: false,
+    isDefault: false,
+    checkable: true,
+    changes,
+  };
+}
+
+/**
+ * Two repositories, repositories first. `web` sends its lists out of order (new
+ * files first, the default last) so the tree has to put them in IntelliJ's.
+ */
+function byRepository(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
+  return state({
+    groupBy: 'repository',
+    repos: [
+      repo(
+        'D:/repos/api',
+        'api',
+        [
+          defaultList([change('src/a.ts', true), change('src/b.ts')]),
+          unversionedList([change('notes.md', false, 'untracked')]),
+        ],
+        0,
+      ),
+      repo(
+        'D:/repos/web',
+        'web',
+        [
+          unversionedList([change('todo.txt', false, 'untracked')]),
+          namedList('fix', 'Login fix', [change('src/login.ts')]),
+          defaultList([change('app.ts', true)]),
+        ],
+        1,
+      ),
+    ],
+    ...overrides,
+  });
+}
+
+describe('Repository › Changelist (D37)', () => {
+  it('puts each repository at the top, its own lists beneath in IntelliJ order', () => {
+    const model = assembleCommitTree(byRepository());
+    expect(model.groupBy).toBe('repository');
+    expect(model.nodes.map((n) => n.name)).toEqual(['api', 'web']);
+    expect(model.nodes.map((n) => n.path)).toEqual(['@r:D:/repos/api', '@r:D:/repos/web']);
+    expect(model.groupPaths).toEqual(['@r:D:/repos/api', '@r:D:/repos/web']);
+    expect(childNames(model.nodes[0])).toEqual(['Changes', 'Unversioned Files']);
+    // The default first, the user's lists next, Unversioned Files last.
+    expect(childNames(model.nodes[1])).toEqual(['Changes', 'Login fix', 'Unversioned Files']);
+    expect(model.nodes[0]?.depth).toBe(0);
+    expect(findNode(model.nodes, '@r:D:/repos/api@g:@default')?.depth).toBe(1);
+    expect(findNode(model.nodes, '@r:D:/repos/api@g:@default/src')?.depth).toBe(2);
+    expect(findNode(model.nodes, '@r:D:/repos/api@g:@default/src/a.ts')?.depth).toBe(3);
+  });
+
+  it('counts every file of a repository, in all its lists', () => {
+    const model = assembleCommitTree(byRepository());
+    expect(model.nodes.map((n) => countFiles(n))).toEqual([3, 3]);
+  });
+
+  it('leaves out a repository with nothing, and an empty list under one', () => {
+    const model = assembleCommitTree(
+      state({
+        groupBy: 'repository',
+        repos: [
+          repo('D:/repos/a', 'a', [defaultList([]), unversionedList([change('n.txt', false, 'untracked')])]),
+          repo('D:/repos/b', 'b', [defaultList([])]),
+        ],
+      }),
+    );
+    expect(model.nodes.map((n) => n.name)).toEqual(['a']);
+    expect(childNames(model.nodes[0])).toEqual(['Unversioned Files']);
+  });
+
+  it('with nothing changed anywhere, shows the one empty Changes row the other grouping shows', () => {
+    const model = assembleCommitTree(
+      state({
+        groupBy: 'repository',
+        repos: [repo('D:/repos/a', 'a', [defaultList([])]), repo('D:/repos/b', 'b', [defaultList([])])],
+      }),
+    );
+    expect(model.groupBy).toBe('repository');
+    expect(model.nodes.map((n) => n.path)).toEqual(['@g:@default']);
+    expect(model.groups.get('@g:@default')?.kind).toBe('group');
+  });
+
+  it('draws one repository by changelist whatever the setting says', () => {
+    const model = assembleCommitTree(state({ groupBy: 'repository' }));
+    expect(model.groupBy).toBe('changelist');
+    expect(model.nodes.map((n) => n.path)).toEqual(['@g:@default', '@g:@unversioned']);
+    expect(groupByOf(state({ groupBy: 'repository' }))).toBe('changelist');
+    expect(groupByOf(byRepository())).toBe('repository');
+    expect(groupByOf(byRepository({ groupBy: 'changelist' }))).toBe('changelist');
+  });
+
+  it('reads anything but repository as the default, as a state from an older host would carry', () => {
+    const odd = byRepository({ groupBy: 'sideways' as unknown as CommitStateDto['groupBy'] });
+    expect(groupByOf(odd)).toBe('changelist');
+    const { groupBy: _, ...without } = byRepository();
+    expect(groupByOf(without as CommitStateDto)).toBe('changelist');
+  });
+
+  it('a repository row stands for every change of its repository; a list under it for one copy', () => {
+    const model = assembleCommitTree(byRepository());
+    const web = model.groups.get('@r:D:/repos/web');
+    expect(web).toMatchObject({
+      kind: 'repository',
+      shows: 'repository',
+      repoRoot: 'D:/repos/web',
+      colorIdx: 1,
+      hasTracked: true,
+      checkable: true,
+    });
+    expect(web?.listId).toBeUndefined();
+    expect(web?.targets).toEqual([
+      { repoRoot: 'D:/repos/web', listId: 'default' },
+      { repoRoot: 'D:/repos/web', listId: 'fix' },
+      { repoRoot: 'D:/repos/web', listId: '__unversioned__' },
+    ]);
+    const fix = model.groups.get('@r:D:/repos/web@g:name:Login fix');
+    expect(fix).toMatchObject({
+      kind: 'repo',
+      shows: 'list',
+      repoRoot: 'D:/repos/web',
+      listId: 'fix',
+      isDefault: false,
+      targets: [{ repoRoot: 'D:/repos/web', listId: 'fix' }],
+    });
+    // Only a row that shows a repository wears its colour.
+    expect(fix?.colorIdx).toBeUndefined();
+  });
+
+  it('knows a repository whose changes are all new files has nothing to roll back', () => {
+    const model = assembleCommitTree(
+      state({
+        groupBy: 'repository',
+        repos: [
+          repo('D:/repos/a', 'a', [defaultList([]), unversionedList([change('n.txt', false, 'untracked')])]),
+          repo('D:/repos/b', 'b', [defaultList([change('x.ts')])]),
+        ],
+      }),
+    );
+    expect(model.groups.get('@r:D:/repos/a')?.hasTracked).toBe(false);
+    expect(model.groups.get('@r:D:/repos/b')?.hasTracked).toBe(true);
+  });
+
+  it('carries the branch on every row that shows a repository, in both groupings', () => {
+    const head = { branch: 'main', upstream: 'origin/main' };
+    const repos = [
+      { ...repo('D:/repos/a', 'a', [defaultList([change('x.ts')])]), head },
+      repo('D:/repos/b', 'b', [defaultList([change('y.ts')])]),
+    ];
+    const byRepo = assembleCommitTree(state({ groupBy: 'repository', repos }));
+    expect(byRepo.groups.get('@r:D:/repos/a')?.head).toEqual(head);
+    expect(byRepo.groups.get('@r:D:/repos/b')?.head).toBeUndefined();
+    expect(byRepo.groups.get('@r:D:/repos/a@g:@default')?.head).toBeUndefined();
+    const byList = assembleCommitTree(state({ repos }));
+    expect(byList.groups.get('@g:@default@r:D:/repos/a')).toMatchObject({ shows: 'repository', head });
+    expect(byList.groups.get('@g:@default')?.shows).toBe('list');
+    expect(byList.groups.get('@g:@default')?.head).toBeUndefined();
+  });
+
+  it('lists its files repository by repository, which is the order a diff walks', () => {
+    const model = assembleCommitTree(byRepository());
+    expect(allDiffFiles(model)).toEqual([
+      { repoRoot: 'D:/repos/api', path: 'src/a.ts' },
+      { repoRoot: 'D:/repos/api', path: 'src/b.ts' },
+      { repoRoot: 'D:/repos/api', path: 'notes.md' },
+      { repoRoot: 'D:/repos/web', path: 'app.ts' },
+      { repoRoot: 'D:/repos/web', path: 'src/login.ts' },
+      { repoRoot: 'D:/repos/web', path: 'todo.txt' },
+    ]);
+  });
+
+  it("ticks a repository's new files with the rest of it", () => {
+    const model = assembleCommitTree(byRepository());
+    const api = findNode(model.nodes, '@r:D:/repos/api')!;
+    expect(rollup(api, model.checked)).toBe('partial');
+    expect(splitDelta(toggle(api, rollup(api, model.checked)), model)).toEqual([
+      { repoRoot: 'D:/repos/api', paths: ['src/a.ts', 'src/b.ts', 'notes.md'], checked: true },
+    ]);
+  });
+
+  it('knows each folder as a folder of one repository list, whatever the grouping', () => {
+    const byRepo = assembleCommitTree(byRepository());
+    const byList = assembleCommitTree(byRepository({ groupBy: 'changelist' }));
+    const folder = { repoRoot: 'D:/repos/api', listId: 'default', rel: 'src' };
+    expect(byRepo.folders.get('@r:D:/repos/api@g:@default/src')).toEqual(folder);
+    expect(byList.folders.get('@g:@default@r:D:/repos/api/src')).toEqual(folder);
+    // A changelist or repository row is not a folder.
+    expect(byRepo.folders.has('@r:D:/repos/api')).toBe(false);
+    expect(byRepo.folders.has('@r:D:/repos/api@g:@default')).toBe(false);
+  });
+
+  it('never shares a path with the other grouping, so each keeps its own rows open', () => {
+    const byRepo = assembleCommitTree(byRepository());
+    const byList = assembleCommitTree(byRepository({ groupBy: 'changelist' }));
+    const paths = (m: typeof byRepo): string[] => {
+      const out: string[] = [];
+      const walk = (nodes: readonly TreeNode[]): void => {
+        for (const n of nodes) {
+          out.push(n.path);
+          if (n.kind === 'dir') walk(n.children);
+        }
+      };
+      walk(m.nodes);
+      return out;
+    };
+    const mine = new Set(paths(byRepo));
+    expect(paths(byList).filter((p) => mine.has(p))).toEqual([]);
+    expect(paths(byRepo).every((p) => p.startsWith('@r:'))).toBe(true);
+    expect(paths(byList).every((p) => p.startsWith('@g:'))).toBe(true);
+  });
+});
+
+describe('twinRow: the same rows in the other grouping', () => {
+  const byList = assembleCommitTree(byRepository({ groupBy: 'changelist' }));
+  const byRepo = assembleCommitTree(byRepository());
+
+  it('finds a file as the same file', () => {
+    expect(twinRow(byList, byRepo, '@g:@default@r:D:/repos/api/src/a.ts')).toBe('@r:D:/repos/api@g:@default/src/a.ts');
+    expect(twinRow(byRepo, byList, '@r:D:/repos/web@g:@unversioned/todo.txt')).toBe(
+      '@g:@unversioned@r:D:/repos/web/todo.txt',
+    );
+  });
+
+  it('finds a folder as the same folder of the same list', () => {
+    expect(twinRow(byList, byRepo, '@g:@default@r:D:/repos/api/src')).toBe('@r:D:/repos/api@g:@default/src');
+    expect(twinRow(byRepo, byList, '@r:D:/repos/web@g:name:Login fix/src')).toBe('@g:name:Login fix@r:D:/repos/web/src');
+  });
+
+  it("finds one repository's copy of a list as the same copy: under the list there, over its files here", () => {
+    expect(twinRow(byList, byRepo, '@g:name:Login fix@r:D:/repos/web')).toBe('@r:D:/repos/web@g:name:Login fix');
+    expect(twinRow(byRepo, byList, '@r:D:/repos/web@g:name:Login fix')).toBe('@g:name:Login fix@r:D:/repos/web');
+  });
+
+  it("hands a changelist spanning repositories to its first repository's copy", () => {
+    expect(twinRow(byList, byRepo, '@g:@default')).toBe('@r:D:/repos/api@g:@default');
+    expect(twinRow(byList, byRepo, '@g:@unversioned')).toBe('@r:D:/repos/api@g:@unversioned');
+  });
+
+  it('hands a repository to its first list', () => {
+    expect(twinRow(byRepo, byList, '@r:D:/repos/web')).toBe('@g:@default@r:D:/repos/web');
+    expect(twinRow(byRepo, byList, '@r:D:/repos/api')).toBe('@g:@default@r:D:/repos/api');
+  });
+
+  it('finds nothing for a row that is gone', () => {
+    expect(twinRow(byRepo, byList, '@r:D:/repos/gone')).toBeUndefined();
+    const fewer = assembleCommitTree(
+      byRepository({ groupBy: 'changelist', repos: byRepository().repos.slice(0, 1) }),
+    );
+    expect(twinRow(byRepo, fewer, '@r:D:/repos/web@g:@default/app.ts')).toBeUndefined();
+  });
+
+  it('keeps the empty Changes row, which both groupings draw', () => {
+    const empty = (groupBy: 'changelist' | 'repository'): CommitStateDto =>
+      state({
+        groupBy,
+        repos: [repo('D:/repos/a', 'a', [defaultList([])]), repo('D:/repos/b', 'b', [defaultList([])])],
+      });
+    expect(twinRow(assembleCommitTree(empty('changelist')), assembleCommitTree(empty('repository')), '@g:@default')).toBe(
+      '@g:@default',
+    );
+  });
+
+  it('maps a selection, each twin once and in the order given', () => {
+    expect(
+      twinRows(byList, byRepo, ['@g:@default@r:D:/repos/api/src/b.ts', '@g:@default', '@g:@default@r:D:/repos/api', 'nope']),
+    ).toEqual(['@r:D:/repos/api@g:@default/src/b.ts', '@r:D:/repos/api@g:@default']);
+  });
+});
+
+describe('Collapse all in one grouping', () => {
+  const open = new Set([
+    '@r:D:/repos/api',
+    '@r:D:/repos/api@g:@default/src',
+    '@g:@default',
+    '@g:@default@r:D:/repos/api',
+  ]);
+
+  it("shuts this grouping's rows and leaves the other's as they were", () => {
+    expect([...collapsedAll(assembleCommitTree(byRepository()), open)]).toEqual([
+      '@g:@default',
+      '@g:@default@r:D:/repos/api',
+    ]);
+    expect([...collapsedAll(assembleCommitTree(byRepository({ groupBy: 'changelist' })), open)]).toEqual([
+      '@r:D:/repos/api',
+      '@r:D:/repos/api@g:@default/src',
+    ]);
+  });
+});
+
+describe('the label on a repository row', () => {
+  it('names the branch, and what it tracks on hover', () => {
+    expect(headLabel({ branch: 'main', sha: 'a1b2c3d4e5', upstream: 'origin/main' })).toEqual({
+      text: 'main',
+      title: 'Branch main, tracking origin/main',
+    });
+    expect(headLabel({ branch: 'feature/login', sha: 'a1b2c3d4e5' })).toEqual({
+      text: 'feature/login',
+      title: 'Branch feature/login',
+    });
+  });
+
+  it('says a branch with no commits has none yet', () => {
+    expect(headLabel({ branch: 'main', unborn: true })).toEqual({ text: 'main', title: 'Branch main, no commits yet' });
+  });
+
+  it('names a detached HEAD by its commit', () => {
+    expect(headLabel({ sha: 'a1b2c3d4e5f6' })).toEqual({ text: 'a1b2c3d', title: 'HEAD detached at a1b2c3d' });
+  });
+
+  it('says nothing when nothing is known', () => {
+    expect(headLabel(undefined)).toBeUndefined();
+    expect(headLabel({})).toBeUndefined();
+  });
+});
+
+describe('the menu a changelist or repository row opens', () => {
+  it('gives a repository row the actions on all of its changes', () => {
+    const model = assembleCommitTree(byRepository());
+    expect(groupRowContext(model, '@r:D:/repos/web')).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitRepository',
+      repoRoot: 'D:/repos/web',
+      repoHasTracked: true,
+    });
+  });
+
+  it("gives a list under a repository the scoped list actions, as the repository row under a list has", () => {
+    const byRepo = groupRowContext(assembleCommitTree(byRepository()), '@r:D:/repos/web@g:name:Login fix');
+    const byList = groupRowContext(
+      assembleCommitTree(byRepository({ groupBy: 'changelist' })),
+      '@g:name:Login fix@r:D:/repos/web',
+    );
+    expect(byRepo).toEqual(byList);
+    expect(byRepo).toMatchObject({
+      webviewSection: 'commitRepo',
+      repoRoot: 'D:/repos/web',
+      listId: 'fix',
+      listIsDefault: false,
+      listSpansRepos: false,
+    });
+  });
+
+  it('gives a changelist spanning repositories the fanned-out actions', () => {
+    const ctx = groupRowContext(assembleCommitTree(byRepository({ groupBy: 'changelist' })), '@g:@default');
+    expect(ctx).toMatchObject({ webviewSection: 'commitGroup', listSpansRepos: true, listIsDefault: true });
+    expect(ctx?.['repoRoot']).toBeUndefined();
+  });
+
+  it('has nothing to say about a file or folder row', () => {
+    const model = assembleCommitTree(byRepository());
+    expect(groupRowContext(model, '@r:D:/repos/api@g:@default/src')).toBeUndefined();
+    expect(groupRowContext(model, '@r:D:/repos/api@g:@default/src/a.ts')).toBeUndefined();
   });
 });

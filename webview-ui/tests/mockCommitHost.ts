@@ -155,6 +155,8 @@ export const mockCommitHostScript = `
       root: SECOND,
       label: 'demo-lib',
       colorIdx: 1,
+      // Published nowhere: its label's hover names no upstream.
+      head: { branch: 'feature/login', sha: 'b98e7e5a1c' },
       groups: [
         {
           id: 'default', name: 'Changes', isActive: true, isDefault: true, checkable: true,
@@ -169,6 +171,14 @@ export const mockCommitHostScript = `
     };
   }
 
+  // gittree.commit.groupBy. Opt-in start (window.__mockGroupBy), read when first
+  // asked so an init script can set it; View Options writes it as the host does.
+  let groupBy;
+  function currentGroupBy() {
+    if (groupBy === undefined) groupBy = window.__mockGroupBy === 'repository' ? 'repository' : 'changelist';
+    return groupBy;
+  }
+
   function build() {
     return {
       repos: [
@@ -177,6 +187,7 @@ export const mockCommitHostScript = `
           label: 'demo-git',
           // The host's rootColorIndices slot; the first root in path order.
           colorIdx: 0,
+          head: { branch: 'main', sha: 'a1b2c3d4e5', upstream: 'origin/main' },
           groups: [
             {
               id: 'default',
@@ -215,6 +226,7 @@ export const mockCommitHostScript = `
       colors: { modified: '#ff8800' },
       // gittree.log.graphPalette, which the repositories' colours follow.
       palette: window.__mockGraphPalette === 'colorBlind' ? 'colorBlind' : 'default',
+      groupBy: currentGroupBy(),
     };
   }
 
@@ -244,6 +256,12 @@ export const mockCommitHostScript = `
   const handlers = {
     'commit/init': () => build(),
     'commit/refresh': () => { setTimeout(push, 5); },
+    // The host saves it to the workspace setting, whose change pushes the state.
+    'commit/setGroupBy': (p) => {
+      if (p.groupBy !== 'changelist' && p.groupBy !== 'repository') return;
+      groupBy = p.groupBy;
+      setTimeout(push, 5);
+    },
     'commit/setChecked': (p) => {
       const wanted = new Set(p.paths);
       for (const c of changes.concat(unversioned)) {

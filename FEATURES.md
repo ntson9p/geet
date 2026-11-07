@@ -402,7 +402,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   buttons · options gear) — all in a single panel. There is no SCM input box to hide: P14-T4
   deleted the `vscode.scm` SourceControl entirely.
 * **Toolbar** (icon buttons with tooltips): Refresh · Rollback · Show Diff · Shelve Changes ·
-  Preview Diff toggle · Expand all · Collapse all.
+  Preview Diff toggle · View Options (with several repositories) · Expand all · Collapse all.
 * **Context menus:** right-click a changelist row for Commit / Set Active / New / Rename /
   Delete / Shelve, or a file row for Show Diff / Open File / Move to Changelist / Roll Back
   (P14-T2a). These were the changelists tree view's menus; they moved here with it.
@@ -433,7 +433,33 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   A **repository row wears its repository's colour**, a filled square as IntelliJ draws a root:
   the colour of its chip in the log's `Roots` and its dot in the Repositories panel, in a light
   theme or a dark one and with `gittree.log.graphPalette`. Its name is plain text, whatever its
-  files' status; the files keep their status colours.
+  files' status; the files keep their status colours. After its file count comes **its branch**
+  in a tinted label, as IntelliJ shows it (a detached HEAD shows its commit); the hover says
+  what the branch tracks. Repositories are named and ordered as the Repositories panel lists
+  them, and so does the Commit button (*Commit to api*). In a narrow sidebar the branch gives way
+  first, then the count; the name stays.
+* **Or repositories first: View Options › Group By** (the eye before Expand all, shown only
+  with several repositories, as IntelliJ shows its Repository grouping only then). It offers
+  **Changelist › Repository** (the default, IntelliJ's shape) and **Repository › Changelist**:
+  one row per repository with changes, its own lists beneath in IntelliJ's order (Changes, your
+  lists, Unversioned Files), folders and files as before
+  ([D37](docs/deviations.md#d37--the-commit-window-can-put-repositories-first)). The eye gets
+  IntelliJ's dot while repositories come first.
+  - A repository row's checkbox ticks everything beneath it, new files included. Its menu has
+    **New Changelist…**, **Shelve Changes…** (that repository's) and **Rollback…** (its tracked
+    changes, ticked in the dialog to untick). A list row under it is that repository's copy of
+    the list and has the same menu a repository row under a list has in the other grouping.
+  - **Switching keeps your place:** the same files stay selected, the keyboard stays on the same
+    row, and the row you were looking at keeps its height on screen. A row with no twin hands
+    over to its nearest one: a changelist spanning repositories to its first repository's copy,
+    a repository to its first list. Each grouping keeps its own folders open or shut, opens
+    everything the first time it is shown, and Collapse all shuts only its own. A repository or
+    list row that appears later appears open.
+  - Saved for the workspace in `gittree.commit.groupBy`; also from the palette, *GitTree: Group
+    Changes by Repository* and *by Changelist*. With one repository both look the same, and
+    neither the eye nor the commands are offered.
+  - Nothing else changes: the counter, the message, Amend and *Commit to 2 repositories* work on
+    the same ticks whatever the grouping, and a diff walks the files in the order shown.
 
 ### Paradigm A: Changelists (the default)
 

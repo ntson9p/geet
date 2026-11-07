@@ -12,6 +12,7 @@ import { splitPatchFiles } from '../core/patch/patchParser';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoStoreKey } from '../localHistory/snapshotStore';
 import { confirmModal, typedConfirm } from '../ui/confirm';
+import { repoRootOf } from '../ui/rowContext';
 import type { ConflictSource } from '../merge/conflictSession';
 import type { Phase03Registry } from '../commit/register';
 import { ShelfBridge } from '../commit/window/shelfBridge';
@@ -853,6 +854,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       if (ctx) {
         repo = ctx.repo;
         listId = ctx.listId;
+      } else {
+        // A repository row of the Commit window: every change of that repository.
+        const root = repoRootOf(arg);
+        if (root !== undefined) repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(root));
       }
     }
     repo ??= repoForNew();

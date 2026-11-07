@@ -12,6 +12,7 @@ import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { registerWorktrees, type WorktreeRegistry } from '../../branches/worktrees';
 import { registerOperationsPopup } from '../../ui/operationsPopup';
+import { repoRootOf } from '../../ui/rowContext';
 import {
   applyConflictsResult,
   buildConflictsParams,
@@ -444,7 +445,9 @@ export function registerPhase13Dialogs(
       await showResetDialog(opDeps, repo, seed);
     }),
     vscode.commands.registerCommand('gittree.rollback.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      // A Commit-window repository row passes `{ repoRoot }`: that repository,
+      // every change listed and ticked, for the dialog to untick.
+      const repo = needRepo(repoRootOf(arg) ?? arg);
       if (!repo) return;
       const preselected =
         Array.isArray(arg) && arg.every((a) => typeof a === 'string') ? arg : undefined;

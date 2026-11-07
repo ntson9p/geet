@@ -287,6 +287,16 @@ How commits are assembled: IntelliJ-style changelists (index-bypassing checked-f
   - `changelists`
   - `staging`
 
+### `gittree.commit.groupBy`
+
+What the Commit window puts at the top of its tree when the workspace has several repositories. The window's View Options › Group By saves it for the workspace. One repository has no repository rows to arrange, so it looks the same either way.
+
+- Type: `string` · Default: `"changelist"`
+- Scope: `window`
+- Values:
+  - `changelist` — Changelists at the top, each repository's share of a list beneath it, as IntelliJ shows them.
+  - `repository` — Repositories at the top, each with its own changelists beneath it.
+
 ### `gittree.commit.signoff`
 
 Append a Signed-off-by trailer (git commit -s) to every commit.

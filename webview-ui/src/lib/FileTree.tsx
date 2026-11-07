@@ -7,9 +7,19 @@
  * inside it is decorative (see TriCheckbox). That keeps one tab stop for the
  * whole tree, which is the tree pattern screen readers expect.
  */
-import { useCallback, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { TriCheckbox } from './TriCheckbox';
 import {
+  ancestorDirs,
   flatten,
   rollup,
   rowIndexOf,
@@ -37,6 +47,42 @@ export type FileTreeIcon =
       readonly swatch: string;
     };
 
+/** A short tinted label after a row's description: a repository's branch, as IntelliJ draws it. */
+export interface FileTreeBadge {
+  readonly text: string;
+  /** Its hover, which a screen reader hears in its place. */
+  readonly title?: string;
+}
+
+/** Where the user is in the tree, so it can be found again once the rows are rebuilt. */
+export interface FileTreeViewState {
+  /** The row the keyboard goes on from. */
+  readonly lead?: string;
+  /**
+   * A row on screen and how far below the top of the window it sits: the lead
+   * when it shows, else the first row that does.
+   */
+  readonly anchor?: { readonly path: string; readonly offset: number };
+  /** The list was scrolled to its very top. */
+  readonly atTop: boolean;
+}
+
+/**
+ * After the rows were rebuilt in another shape (the Commit window's grouping):
+ * `anchor` goes back `offset` pixels below the top of the window, or, with
+ * `top`, the list stays at its top and only scrolls if `lead` would be out of
+ * sight; `lead` becomes the row the keyboard goes on from. Applied once per object.
+ */
+export interface FileTreeRestore {
+  readonly anchor?: { readonly path: string; readonly offset: number };
+  readonly top?: boolean;
+  readonly lead?: string;
+}
+
+export interface FileTreeHandle {
+  viewState(): FileTreeViewState;
+}
+
 export interface FileTreeProps {
   nodes: readonly TreeNode[];
   expanded: ReadonlySet<string>;
@@ -53,6 +99,8 @@ export interface FileTreeProps {
   onActivate?: (node: TreeNode) => void;
   /** Dim trailing text — `2 files` on directories, the parent dir on files. */
   description?: (node: TreeNode) => string | undefined;
+  /** A tinted label after the description; it gives way first in a narrow tree. */
+  badge?: (node: TreeNode) => FileTreeBadge | undefined;
   icon?: (node: TreeNode) => FileTreeIcon | undefined;
   /** P11-T8: status color for the row label (IntelliJ colors names, not icons). */
   nameColor?: (node: TreeNode) => string | undefined;
@@ -71,39 +119,52 @@ export interface FileTreeProps {
    * them selected, so this is what says which of them is on screen.
    */
   current?: string;
+  /** See `FileTreeRestore`. */
+  restore?: FileTreeRestore;
 }
 
 const DEFAULT_ROW_HEIGHT = 22;
 const INDENT_PX = 14;
 
-export function FileTree({
-  nodes,
-  expanded,
-  onToggleExpand,
-  height,
-  ariaLabel,
-  checked,
-  onToggleCheck,
-  checkboxless,
-  selection,
-  onSelectionChange,
-  onActivate,
-  description,
-  icon,
-  nameColor,
-  rowContext,
-  rowHeight = DEFAULT_ROW_HEIGHT,
-  onFocusPath,
-  className,
-  reveal,
-  current,
-}: FileTreeProps) {
+export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
+  {
+    nodes,
+    expanded,
+    onToggleExpand,
+    height,
+    ariaLabel,
+    checked,
+    onToggleCheck,
+    checkboxless,
+    selection,
+    onSelectionChange,
+    onActivate,
+    description,
+    badge,
+    icon,
+    nameColor,
+    rowContext,
+    rowHeight = DEFAULT_ROW_HEIGHT,
+    onFocusPath,
+    className,
+    reveal,
+    current,
+    restore,
+  }: FileTreeProps,
+  ref,
+) {
   const listRef = useRef<VirtualListHandle>(null);
   const anchorRef = useRef<number>(0);
   const rows = useMemo<FlatRow[]>(() => flatten(nodes, expanded), [nodes, expanded]);
 
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  /**
+   * The row the keyboard goes on from, by path. The list keeps it by index, and
+   * folding or opening a folder above it, or a file arriving above it, would
+   * otherwise hand it to whatever row now has that index.
+   */
+  const leadPath = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (reveal === undefined) return;
     const index = rowIndexOf(rowsRef.current, reveal.path);
@@ -113,8 +174,81 @@ export function FileTree({
     // when the tree has focus again, long after the walk left it. Shift+click
     // goes on from here too, as after a click.
     listRef.current?.setLead(index);
+    leadPath.current = reveal.path;
     anchorRef.current = index;
   }, [reveal]);
+
+  // Before paint: the rows changed under the keyboard's row, so find it again.
+  // Folded away, its nearest open folder takes over, as in VS Code's trees.
+  useLayoutEffect(() => {
+    const path = leadPath.current;
+    const list = listRef.current;
+    if (path === undefined || !list || rows[list.lead()]?.node.path === path) return;
+    let index = rowIndexOf(rows, path);
+    if (index < 0) {
+      for (const dir of ancestorDirs(nodes, path)) {
+        index = rowIndexOf(rows, dir);
+        if (index >= 0) break;
+      }
+    }
+    if (index >= 0) list.setLead(index);
+  }, [nodes, rows]);
+
+  // Read through refs: the handle is asked right before the rows are rebuilt.
+  const heightRef = useRef(height);
+  heightRef.current = height;
+  useImperativeHandle(
+    ref,
+    () => ({
+      viewState(): FileTreeViewState {
+        const list = listRef.current;
+        const now = rowsRef.current;
+        if (!list || now.length === 0) return { atTop: true };
+        const top = list.scrollTop();
+        const leadIndex = list.lead();
+        const leadRow = now[leadIndex];
+        const view = heightRef.current;
+        let anchor: FileTreeViewState['anchor'];
+        if (leadRow !== undefined) {
+          const offset = leadIndex * rowHeight - top;
+          if (offset >= 0 && offset + rowHeight <= view) anchor = { path: leadRow.node.path, offset };
+        }
+        if (anchor === undefined) {
+          const first = Math.min(now.length - 1, Math.ceil(top / rowHeight));
+          const row = now[first];
+          if (row !== undefined) anchor = { path: row.node.path, offset: first * rowHeight - top };
+        }
+        return {
+          ...(leadRow !== undefined ? { lead: leadRow.node.path } : {}),
+          ...(anchor !== undefined ? { anchor } : {}),
+          atTop: top <= 0,
+        };
+      },
+    }),
+    [rowHeight],
+  );
+
+  // Before paint, so the rebuilt rows never show at the old scroll position.
+  useLayoutEffect(() => {
+    if (restore === undefined) return;
+    const list = listRef.current;
+    if (!list) return;
+    const leadIndex = restore.lead !== undefined ? rowIndexOf(rowsRef.current, restore.lead) : -1;
+    const anchorIndex = restore.anchor !== undefined ? rowIndexOf(rowsRef.current, restore.anchor.path) : -1;
+    if (restore.top === true) {
+      list.scrollToIndex(0, 'top');
+      if (leadIndex >= 0) list.scrollToIndex(leadIndex, 'auto');
+    } else if (anchorIndex >= 0 && restore.anchor !== undefined) {
+      list.scrollToIndex(anchorIndex, { offset: restore.anchor.offset });
+    } else if (leadIndex >= 0) {
+      list.scrollToIndex(leadIndex, 'auto');
+    }
+    if (leadIndex >= 0 && restore.lead !== undefined) {
+      list.setLead(leadIndex);
+      leadPath.current = restore.lead;
+      anchorRef.current = leadIndex;
+    }
+  }, [restore]);
 
   const showsCheckbox = useCallback(
     (row: FlatRow): boolean =>
@@ -248,11 +382,14 @@ export function FileTree({
       const { node } = row;
       const state = stateOf(row);
       const desc = description?.(node);
+      const label = badge?.(node);
       const ico = icon?.(node);
       const labelColor = nameColor?.(node);
       return (
         <span
-          className={`gt-tree-row-inner${node.path === current ? ' gt-tree-current' : ''}`}
+          className={`gt-tree-row-inner${node.path === current ? ' gt-tree-current' : ''}${
+            label !== undefined ? ' gt-tree-has-badge' : ''
+          }`}
           style={{ paddingLeft: node.depth * INDENT_PX }}
         >
           <span
@@ -299,10 +436,15 @@ export function FileTree({
           {desc !== undefined && desc !== '' ? (
             <span className="gt-tree-desc">{desc}</span>
           ) : null}
+          {label !== undefined ? (
+            <span className="gt-tree-badge" title={label.title}>
+              {label.text}
+            </span>
+          ) : null}
         </span>
       );
     },
-    [applyToggle, current, description, icon, nameColor, rows, setExpanded, stateOf],
+    [applyToggle, badge, current, description, icon, nameColor, rows, setExpanded, stateOf],
   );
 
   const rowAria = useCallback(
@@ -327,9 +469,14 @@ export function FileTree({
       const row = rows[index];
       if (!row) return undefined;
       const desc = description?.(row.node);
-      return desc !== undefined && desc !== '' ? `${row.node.name}, ${desc}` : row.node.name;
+      const label = badge?.(row.node);
+      return [
+        row.node.name,
+        ...(desc !== undefined && desc !== '' ? [desc] : []),
+        ...(label !== undefined ? [label.title ?? label.text] : []),
+      ].join(', ');
     },
-    [description, rows],
+    [badge, description, rows],
   );
 
   return (
@@ -352,7 +499,9 @@ export function FileTree({
       }}
       onFocusIndex={(i) => {
         const row = rows[i];
-        if (row) onFocusPath?.(row.node.path);
+        if (!row) return;
+        leadPath.current = row.node.path;
+        onFocusPath?.(row.node.path);
       }}
       onRowClick={(i, mods) => select(i, mods)}
       onRowContextMenu={onRowContextMenu}
@@ -364,4 +513,4 @@ export function FileTree({
       }}
     />
   );
-}
+});

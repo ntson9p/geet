@@ -51,6 +51,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D34](#d34--the-sidebars-repositories-panel-is-gittrees-own-design) | The sidebar's Repositories panel is GitTree's own design: status first, one list for every repository under Recent / Local / Remote / Tags tabs, a card per branch | Deliberate (owner's request) |
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
+| [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
 
 ---
 
@@ -991,3 +992,25 @@ and a list of files for the other two, with these differences:
 **Revisitable:** Swap Branches and Get from Branch are both ordinary additions to the pane. Two stacked
 logs would need a Log tab to hold two sessions, which is a larger piece of work for what the marks and
 the counts already say.
+
+## D37 · The Commit window can put repositories first
+
+**IntelliJ:** the Commit tool window always lists changelists at the top. Its View Options ›
+Group By ticks **Directory**, **Module** and **Repository** (`ChangesView.GroupBy`); Repository
+adds a row per repository under each changelist, and is offered only when the project has
+several roots (`SetRepositoryChangesGroupingAction`).
+**GitTree:** View Options › Group By chooses which comes first instead:
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Changelists always at the top | **Changelist › Repository** (the default) or **Repository › Changelist**: a row per repository with changes, its own lists beneath | The owner's request. With many repositories, what changed where reads best per repository, as VS Code's own Source Control lays them out |
+| Directory and Repository are toggles | Always grouped by directory and, with several repositories, by repository | Every GitTree file tree groups by directory; a flat list of several repositories' files would need each row to say which |
+| The grouping is kept per project | Kept per workspace, in `gittree.commit.groupBy` | A setting is where VS Code keeps a view's choice, and the palette commands set it too |
+
+Every row looks as IntelliJ draws it: a repository row is its root colour and its branch, a
+changelist row a folder in its files' status colour. In Repository › Changelist a list row under a
+repository is that repository's copy of the list (D23), and carries the menu the repository row
+under a list has; the repository row's own menu has New Changelist…, Shelve Changes… and
+Rollback… for that repository.
+
+**Revisitable:** yes — the default is IntelliJ's shape, and the other is one setting away.

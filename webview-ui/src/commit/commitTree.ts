@@ -9,20 +9,31 @@
  * this is where the two are reconciled — the storage stays per repo, the tree
  * reads as IntelliJ's.
  *
+ * **Or repositories first** (`gittree.commit.groupBy: repository`, GitTree's
+ * own, D37): one row per repository with changes, its own changelists beneath.
+ * Only a workspace of several repositories has the choice; one repository has
+ * no repository rows to arrange.
+ *
  * Pure so the identity rules are unit-tested rather than discovered in the UI:
  *   - node paths are namespaced per group and per repo, because two changelists
  *     may both contain `api/` and must not share an expansion key or a checkbox
  *     rollup, and neither may two repositories inside one group;
+ *   - the two groupings never share a path (`@g:` first or `@r:` first), so
+ *     each keeps its own folders open or shut;
  *   - the returned `files` map is the only way back from a tree path to
  *     `(repoRoot, relPath)`, so a folder toggle can be split into one host call
- *     per repository.
+ *     per repository; `folders` and `groups` do the same for the other rows, so
+ *     a selection survives a change of grouping (`twinRow`).
  */
 import {
+  commitGroupByOf,
   UNVERSIONED_GROUP_ID,
   type CommitChangeDto,
   type CommitDiffFileDto,
+  type CommitGroupBy,
   type CommitGroupDto,
   type CommitRepoDto,
+  type CommitRepoHeadDto,
   type CommitStateDto,
 } from '../../../src/shared/protocol';
 import { statusColor, statusIcon, type StatusColorOverrides, type StatusKind } from '../lib/status';
@@ -59,20 +70,50 @@ export interface CommitListTarget {
  * every `repo` row in a multi-root one.
  */
 export interface CommitGroupRef {
-  readonly kind: 'group' | 'repo';
+  /**
+   * `group`: a changelist, of one repository or merged across several.
+   * `repo`: one repository's copy of a changelist, which is the repository row
+   * under a list (Changelist › Repository) and the list row under a repository
+   * (Repository › Changelist) alike: the same scope, so the same menu.
+   * `repository`: every change of one repository (Repository › Changelist).
+   */
+  readonly kind: 'group' | 'repo' | 'repository';
+  /**
+   * What the row draws: a changelist (a folder in its files' status colour) or
+   * a repository (its colour, its name in plain text, its branch).
+   */
+  readonly shows: 'list' | 'repository';
   readonly targets: readonly CommitListTarget[];
   readonly isDefault: boolean;
   readonly checkable: boolean;
   readonly repoRoot?: string;
   readonly listId?: string;
   /**
-   * A `repo` row's palette slot: it wears its repository's colour, as IntelliJ's
-   * repository node wears the log's root colour, not its files' status.
+   * A row showing a repository: its palette slot. It wears its repository's
+   * colour, as IntelliJ's repository node wears the log's root colour, not its
+   * files' status.
    */
   readonly colorIdx?: number;
+  /** A row showing a repository: what it has checked out, which its label names. */
+  readonly head?: CommitRepoHeadDto;
+  /** A `repository` row: whether any of its changes is tracked, which Rollback needs. */
+  readonly hasTracked?: boolean;
+}
+
+/** A folder row's identity whatever the grouping: a folder of one repository's list. */
+export interface CommitFolderRef {
+  readonly repoRoot: string;
+  readonly listId: string;
+  /** The folder's path inside the repository, chains joined as the row shows them. */
+  readonly rel: string;
 }
 
 export interface CommitTreeModel {
+  /**
+   * The grouping the tree is in: `repository` only when the setting asks for it
+   * and there are several repositories to arrange.
+   */
+  readonly groupBy: CommitGroupBy;
   readonly nodes: TreeNode[];
   /** Tree paths of the ticked files. */
   readonly checked: Set<string>;
@@ -80,10 +121,12 @@ export interface CommitTreeModel {
   readonly checkboxless: Set<string>;
   /** Tree path → the change it stands for. Directories are absent. */
   readonly files: Map<string, CommitFileRef>;
-  /** Group node paths, so callers can default them to expanded. */
+  /** Top-level row paths (changelists, or repositories), so callers can default them to expanded. */
   readonly groupPaths: string[];
-  /** Group and repository row paths → the changelist they stand for. */
+  /** Every changelist and repository row's path → what it stands for. */
   readonly groups: Map<string, CommitGroupRef>;
+  /** Folder row paths → what they are whatever the grouping. */
+  readonly folders: Map<string, CommitFolderRef>;
   /**
    * P11-T8: dir/group node path → the statuses of its descendants. One status
    * colors the folder with it; mixed folders read as plain modified (IntelliJ).
@@ -112,6 +155,25 @@ function groupKey(mergeKey: string): string {
   return `@g:${mergeKey}`;
 }
 
+/** Repository row path (Repository › Changelist). Its lists hang off it, and files off those. */
+function repositoryKey(root: string): string {
+  return `@r:${root}`;
+}
+
+/** IntelliJ's order of lists: the default first, the user's in their order, Unversioned Files last. */
+function listRank(group: CommitGroupDto): number {
+  if (group.isDefault) return -1;
+  return group.id === UNVERSIONED_GROUP_ID ? 1 : 0;
+}
+
+/**
+ * The grouping a state is drawn in. One repository has no repository rows to
+ * put first, so it is always drawn by changelist, whatever the setting says.
+ */
+export function groupByOf(state: CommitStateDto): CommitGroupBy {
+  return state.repos.length > 1 ? commitGroupByOf(state.groupBy) : 'changelist';
+}
+
 interface MergedGroup {
   readonly key: string;
   /** First contributing repository's name for the list — one row, one name. */
@@ -129,8 +191,10 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   const files = new Map<string, CommitFileRef>();
   const groupPaths: string[] = [];
   const groups = new Map<string, CommitGroupRef>();
+  const folders = new Map<string, CommitFolderRef>();
   const dirKinds = new Map<string, ReadonlySet<StatusKind>>();
   const multiRepo = state.repos.length > 1;
+  const groupBy = groupByOf(state);
 
   /** Bottom-up status rollup for the directory highlighting (P11-T8). */
   const annotate = (node: TreeNode): ReadonlySet<StatusKind> => {
@@ -202,8 +266,83 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       if (change.checked) checked.add(leaf);
       if (!checkable) checkboxless.add(leaf);
     }
+    // The same list's folders come out the same under either grouping, only
+    // the prefix differs: what lets an open or selected folder be found again.
+    const recordFolders = (node: TreeNode): void => {
+      if (node.kind !== 'dir') return;
+      for (const child of node.children) {
+        if (child.kind !== 'dir') continue;
+        folders.set(child.path, {
+          repoRoot: repo.root,
+          listId: group.id,
+          rel: child.path.slice(parent.length + 1),
+        });
+        recordFolders(child);
+      }
+    };
+    recordFolders(root);
     return root;
   };
+
+  // Repository › Changelist: one row per repository with changes, in the order
+  // the host sends them (by name, as the Repositories panel lists them), and
+  // its own lists beneath in IntelliJ's order.
+  if (groupBy === 'repository') {
+    for (const repo of state.repos) {
+      const rKey = repositoryKey(repo.root);
+      const lists = [...repo.groups].sort((a, b) => listRank(a) - listRank(b));
+      const children: TreeNode[] = [];
+      const targets: CommitListTarget[] = [];
+      for (const group of lists) {
+        // A repository row says what it holds; an empty list under it says nothing.
+        if (group.changes.length === 0) continue;
+        const lKey = `${rKey}@g:${mergeKeyOf(group)}`;
+        const sub = buildRepoSubtree(lKey, group.name, repo, group, group.checkable);
+        if (!sub) continue;
+        children.push(reDepth(sub, 1));
+        targets.push({ repoRoot: repo.root, listId: group.id });
+        groups.set(lKey, {
+          kind: 'repo',
+          shows: 'list',
+          targets: [{ repoRoot: repo.root, listId: group.id }],
+          isDefault: group.isDefault,
+          checkable: group.checkable,
+          repoRoot: repo.root,
+          listId: group.id,
+        });
+      }
+      if (children.length === 0) continue;
+      const node: TreeNode = {
+        kind: 'dir',
+        path: rKey,
+        name: repo.label,
+        depth: 0,
+        children,
+        fileCount: children.reduce((n, c) => n + countFiles(c), 0),
+      };
+      const checkable = lists.some((g) => g.checkable && g.changes.length > 0);
+      nodes.push(node);
+      groupPaths.push(rKey);
+      groups.set(rKey, {
+        kind: 'repository',
+        shows: 'repository',
+        targets,
+        isDefault: false,
+        checkable,
+        repoRoot: repo.root,
+        // Defensive: it crosses postMessage, where nothing checks the DTO.
+        colorIdx: repo.colorIdx ?? 0,
+        ...(repo.head !== undefined ? { head: repo.head } : {}),
+        hasTracked: lists.some((g) => g.changes.some((c) => c.kind !== 'untracked')),
+      });
+      if (!checkable) checkboxless.add(rKey);
+      annotate(node);
+    }
+    if (nodes.length > 0) {
+      return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds };
+    }
+    // Nothing changed anywhere: the one empty Changes row both groupings show.
+  }
 
   for (const m of [...merged.values()].sort((a, b) => a.order - b.order)) {
     // An empty default list is the "nothing ticked yet" anchor, and there is
@@ -229,6 +368,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
         children.push(reDepth(sub, 1));
         groups.set(rKey, {
           kind: 'repo',
+          shows: 'repository',
           targets: [{ repoRoot: repo.root, listId: group.id }],
           isDefault: m.isDefault,
           checkable: m.checkable,
@@ -236,6 +376,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
           listId: group.id,
           // Defensive: it crosses postMessage, where nothing checks the DTO.
           colorIdx: repo.colorIdx ?? 0,
+          ...(repo.head !== undefined ? { head: repo.head } : {}),
         });
       }
       node = {
@@ -260,6 +401,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     groupPaths.push(gKey);
     groups.set(gKey, {
       kind: 'group',
+      shows: 'list',
       targets,
       isDefault: m.isDefault,
       checkable: m.checkable,
@@ -273,7 +415,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     annotate(node);
   }
 
-  return { nodes, checked, checkboxless, files, groupPaths, groups, dirKinds };
+  return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds };
 }
 
 /**
@@ -316,6 +458,134 @@ export function treePathOf(model: CommitTreeModel, file: CommitDiffFileDto): str
     if (ref.repoRoot === file.repoRoot && ref.relPath === file.path) return treePath;
   }
   return undefined;
+}
+
+/**
+ * The first row of `to` that stands for one repository's copy of a list and that
+ * `wanted` accepts, in tree order: `groups` is filled in the order rows are drawn.
+ */
+function firstListRow(
+  to: CommitTreeModel,
+  wanted: (ref: CommitGroupRef) => boolean,
+): string | undefined {
+  for (const [path, ref] of to.groups) {
+    if (ref.kind === 'repo' && wanted(ref)) return path;
+  }
+  return undefined;
+}
+
+/**
+ * The row of `to` that stands for what `path` stood for in `from`, the same
+ * changes drawn in the other grouping: a file is the same file, a folder the
+ * same folder of the same repository's list, and one repository's copy of a
+ * list the same copy, a row under a list in one grouping and over its files in
+ * the other. A row with no twin hands over to its nearest one: a changelist
+ * spanning repositories to its first repository's copy, a repository to its
+ * first list. `undefined` when the row is gone.
+ */
+export function twinRow(from: CommitTreeModel, to: CommitTreeModel, path: string): string | undefined {
+  const file = from.files.get(path);
+  if (file !== undefined) return treePathOf(to, { repoRoot: file.repoRoot, path: file.relPath });
+
+  const folder = from.folders.get(path);
+  if (folder !== undefined) {
+    for (const [p, f] of to.folders) {
+      if (f.repoRoot === folder.repoRoot && f.listId === folder.listId && f.rel === folder.rel) return p;
+    }
+    return undefined;
+  }
+
+  const group = from.groups.get(path);
+  if (group !== undefined) {
+    // The same row in both, such as the empty Changes row nothing changed leaves.
+    if (to.groups.has(path)) return path;
+    if (group.kind === 'repo') {
+      return firstListRow(to, (r) => r.repoRoot === group.repoRoot && r.listId === group.listId);
+    }
+    if (group.kind === 'repository') {
+      return firstListRow(to, (r) => r.repoRoot === group.repoRoot);
+    }
+    for (const target of group.targets) {
+      const twin = firstListRow(to, (r) => r.repoRoot === target.repoRoot && r.listId === target.listId);
+      if (twin !== undefined) return twin;
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The open rows once Collapse All has shut this grouping's. The other
+ * grouping's stay as they were, to be found again when it comes back: its
+ * paths are its own (`@g:` first or `@r:` first).
+ */
+export function collapsedAll(model: CommitTreeModel, expanded: ReadonlySet<string>): Set<string> {
+  const own = model.groupBy === 'repository' ? '@r:' : '@g:';
+  return new Set([...expanded].filter((path) => !path.startsWith(own)));
+}
+
+/** `twinRow` for every row of a selection, each twin once, in the order given. */
+export function twinRows(from: CommitTreeModel, to: CommitTreeModel, paths: Iterable<string>): string[] {
+  const out = new Set<string>();
+  for (const path of paths) {
+    const twin = twinRow(from, to, path);
+    if (twin !== undefined) out.add(twin);
+  }
+  return [...out];
+}
+
+/**
+ * The label on a repository's row: its branch, or the commit a detached HEAD
+ * is at, with a hover saying which and what it tracks. IntelliJ's repository
+ * row shows the branch the same way, after its file count.
+ */
+export function headLabel(head: CommitRepoHeadDto | undefined): { text: string; title: string } | undefined {
+  if (head === undefined) return undefined;
+  if (head.branch !== undefined) {
+    if (head.unborn === true) return { text: head.branch, title: `Branch ${head.branch}, no commits yet` };
+    return {
+      text: head.branch,
+      title:
+        head.upstream !== undefined
+          ? `Branch ${head.branch}, tracking ${head.upstream}`
+          : `Branch ${head.branch}`,
+    };
+  }
+  if (head.sha !== undefined) {
+    const short = head.sha.slice(0, 7);
+    return { text: short, title: `HEAD detached at ${short}` };
+  }
+  return undefined;
+}
+
+/**
+ * The native context payload for a changelist or repository row. A `repo` row
+ * is one repository's copy of a list in either grouping, so it carries the
+ * scoped list actions; a `group` row may be several, so scoped-only actions
+ * live on the repository row; a `repository` row carries what acts on all of
+ * one repository's changes.
+ */
+export function groupRowContext(model: CommitTreeModel, nodePath: string): Record<string, unknown> | undefined {
+  const group = model.groups.get(nodePath);
+  if (group === undefined) return undefined;
+  if (group.kind === 'repository') {
+    return {
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitRepository',
+      ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
+      repoHasTracked: group.hasTracked === true,
+    };
+  }
+  return {
+    preventDefaultContextMenuItems: true,
+    webviewSection: group.kind === 'repo' ? 'commitRepo' : 'commitGroup',
+    ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
+    ...(group.listId !== undefined ? { listId: group.listId } : {}),
+    targets: group.targets,
+    listIsDefault: group.isDefault,
+    listCheckable: group.checkable,
+    listSpansRepos: group.targets.length > 1,
+  };
 }
 
 export interface RepoCheckDelta {

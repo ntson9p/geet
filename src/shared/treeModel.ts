@@ -221,14 +221,13 @@ export function diffWalk(
     : { files: allFiles(nodes), explicit: false };
 }
 
-/** The folder rows a file sits under, so that it can be brought into view. */
+/** The folder rows a row sits under, file or folder, so that it can be brought into view. */
 export function ancestorDirs(nodes: readonly TreeNode[], path: string): string[] {
   const out: string[] = [];
   const visit = (list: readonly TreeNode[]): boolean => {
     for (const node of list) {
-      if (node.kind === 'file') {
-        if (node.path === path) return true;
-      } else if (visit(node.children)) {
+      if (node.path === path) return true;
+      if (node.kind === 'dir' && visit(node.children)) {
         out.push(node.path);
         return true;
       }

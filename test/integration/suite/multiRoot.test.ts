@@ -169,6 +169,39 @@ suite('Multi-root commit', () => {
     assert.strictEqual(state.palette, panelState.palette, 'both follow gittree.log.graphPalette');
   });
 
+  test('repositories come named and ordered as the Repositories panel lists them, with what they have checked out', async () => {
+    const state = reg.commitWindow.buildState();
+    const panel = (core.debugRegistry.get('phase02') as { panel: { buildState(): Promise<BranchPanelStateDto> } })
+      .panel;
+    const panelState = await panel.buildState();
+    assert.deepStrictEqual(
+      state.repos.map((r) => [r.root, r.label]),
+      panelState.repos.map((r) => [r.root, r.label]),
+      'one order and one name for a repository in both panels',
+    );
+    const d = state.repos.find((r) => r.root === repoD.root);
+    assert.strictEqual(d?.head?.branch, 'main', 'repoD is on main, which its row says');
+    assert.ok(d?.head?.sha, 'with the commit it is at');
+    assert.strictEqual(d?.head?.unborn, undefined, 'and it has commits');
+  });
+
+  test('View Options › Group By lives in gittree.commit.groupBy, saved for the workspace', async function () {
+    this.timeout(30_000);
+    const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree');
+    const saved = config().inspect('commit.groupBy')?.workspaceValue;
+    try {
+      assert.strictEqual(reg.commitWindow.buildState().groupBy, 'changelist', "IntelliJ's grouping by default");
+      await vscode.commands.executeCommand('gittree.commit.groupByRepository');
+      assert.strictEqual(config().inspect('commit.groupBy')?.workspaceValue, 'repository', 'saved for the workspace');
+      assert.strictEqual(reg.commitWindow.buildState().groupBy, 'repository', 'the window reads it on its next push');
+      await vscode.commands.executeCommand('gittree.commit.groupByChangelist');
+      assert.strictEqual(config().inspect('commit.groupBy')?.workspaceValue, 'changelist');
+      assert.strictEqual(reg.commitWindow.buildState().groupBy, 'changelist');
+    } finally {
+      await config().update('commit.groupBy', saved, vscode.ConfigurationTarget.Workspace);
+    }
+  });
+
   test('one gesture commits every repository that has something ticked', async function () {
     this.timeout(90_000);
     // Left ticked by the previous test; re-tick so this one stands alone.

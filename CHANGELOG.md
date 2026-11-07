@@ -6,6 +6,33 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — the Commit window can put repositories first
+
+With several repositories open, the Commit window's toolbar has **View Options**, IntelliJ's eye
+before Expand all, and under **Group By** two choices:
+
+- **Changelist › Repository**, as before and as IntelliJ shows it: each list at the top, each
+  repository's share of it beneath.
+- **Repository › Changelist**, GitTree's own: one row per repository with changes, its own
+  Changes, your lists and Unversioned Files beneath, then folders and files as before. Ticking
+  a repository ticks all of its changes, new files included. Its menu has New Changelist…,
+  Shelve Changes… and Rollback… for that repository.
+
+Switching keeps your place: the same files stay selected, the keyboard stays on the same row,
+and the row you were looking at stays where it was on screen. Each grouping keeps its own
+folders open or shut. The choice is saved for the workspace (`gittree.commit.groupBy`), and the
+palette has *GitTree: Group Changes by Repository* and *by Changelist*.
+
+A repository's row now shows **its branch** in a tinted label after its file count, as IntelliJ
+does, in both groupings; the hover says what the branch tracks. Repositories are named and
+ordered as the Repositories panel lists them, the Commit button's *Commit to api* too.
+
+### Fixed — folding a folder moved the keyboard to another row
+
+In GitTree's file trees, folding or opening a folder above the row the keyboard was on, or a
+file appearing above it, left the keyboard on whatever row took that place. It stays on its own
+row now, and moves to the folder when its row is folded away, as in VS Code's own trees.
+
 ### Fixed — the Commit window's repository rows wore their files' colour
 
 With several repositories, each repository's row under **Changes** and **Unversioned Files**

@@ -773,6 +773,11 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
 });
 
 test.describe('repository rows wear their repository colour', () => {
+  // A repository row's name ends with its branch, which its label hover says.
+  const LIB = 'demo-lib, 1 file, Branch feature/login';
+  const GIT_CHANGES = 'demo-git, 4 files, Branch main, tracking origin/main';
+  const GIT_UNVERSIONED = 'demo-git, 1 file, Branch main, tracking origin/main';
+
   /** Two repositories, so the tree has repository rows; `palette` is gittree.log.graphPalette. */
   async function openTwoRepos(page: Page, palette?: 'colorBlind'): Promise<void> {
     await page.addInitScript((p) => {
@@ -803,7 +808,7 @@ test.describe('repository rows wear their repository colour', () => {
     // slot (1), the log's lane colour in a dark theme, whatever is beneath it.
     const lib = await computed(page, 'hsl(30 65% 65%)');
     const git = await computed(page, 'hsl(210 65% 65%)');
-    const libRows = row(page, 'demo-lib, 1 file');
+    const libRows = row(page, LIB);
     await expect(libRows).toHaveCount(2);
     for (const r of await libRows.all()) {
       // A filled square, as IntelliJ draws a root: no glyph, its colour filled in.
@@ -813,8 +818,8 @@ test.describe('repository rows wear their repository colour', () => {
       await expect(icon).toHaveCSS('color', lib);
       expect(await icon.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe(lib);
     }
-    await expect(row(page, 'demo-git, 4 files').locator('.gt-tree-icon')).toHaveCSS('color', git);
-    await expect(row(page, 'demo-git, 1 file').locator('.gt-tree-icon')).toHaveCSS('color', git);
+    await expect(row(page, GIT_CHANGES).locator('.gt-tree-icon')).toHaveCSS('color', git);
+    await expect(row(page, GIT_UNVERSIONED).locator('.gt-tree-icon')).toHaveCSS('color', git);
     // The name is plain, as IntelliJ's: an all-untracked repository is not green.
     for (const r of await libRows.all()) {
       expect(await r.locator('.gt-tree-name').getAttribute('style')).toBeNull();
@@ -830,17 +835,17 @@ test.describe('repository rows wear their repository colour', () => {
     await openTwoRepos(page);
     await page.evaluate(() => (document.body.className = 'vscode-light'));
     const light = await computed(page, 'hsl(30 70% 40%)');
-    await expect(row(page, 'demo-lib, 1 file').first().locator('.gt-tree-icon')).toHaveCSS('color', light);
+    await expect(row(page, LIB).first().locator('.gt-tree-icon')).toHaveCSS('color', light);
   });
 
   test("a repository's colour follows the color-blind palette", async ({ page }) => {
     await openTwoRepos(page, 'colorBlind');
     // Okabe–Ito, dark: slot 0 sky blue, slot 1 yellow.
-    await expect(row(page, 'demo-git, 4 files').locator('.gt-tree-icon')).toHaveCSS(
+    await expect(row(page, GIT_CHANGES).locator('.gt-tree-icon')).toHaveCSS(
       'color',
       'rgb(86, 180, 233)',
     );
-    await expect(row(page, 'demo-lib, 1 file').first().locator('.gt-tree-icon')).toHaveCSS(
+    await expect(row(page, LIB).first().locator('.gt-tree-icon')).toHaveCSS(
       'color',
       'rgb(245, 195, 66)',
     );
@@ -850,6 +855,245 @@ test.describe('repository rows wear their repository colour', () => {
     await openCommit(page);
     await expect(page.locator('.gt-tree-swatch')).toHaveCount(0);
     await expect(row(page, 'api, 2 files').locator('.gt-tree-icon')).toHaveClass(/codicon-folder/);
+  });
+});
+
+test.describe('View Options › Group By (D37)', () => {
+  // Repository › Changelist: a repository row's name ends with its branch.
+  const GIT = 'demo-git, 5 files, Branch main, tracking origin/main';
+  const LIB = 'demo-lib, 2 files, Branch feature/login';
+  // Changelist › Repository: demo-lib's row under Changes.
+  const LIB_UNDER_CHANGES = 'demo-lib, 1 file, Branch feature/login';
+
+  /** Two repositories, so there is a grouping to choose; `groupBy` is the setting it starts from. */
+  async function openGrouped(page: Page, groupBy: 'changelist' | 'repository' = 'changelist'): Promise<void> {
+    await page.addInitScript((g) => {
+      const w = window as unknown as { __mockSecondRepo?: boolean; __mockGroupBy?: string };
+      w.__mockSecondRepo = true;
+      w.__mockGroupBy = g;
+    }, groupBy);
+    await page.addInitScript(mockCommitHostScript);
+    await page.goto('/commit.html');
+    await expect(groupBy === 'repository' ? row(page, GIT) : row(page, 'Changes, 5 files')).toBeVisible();
+  }
+
+  const viewOptions = (page: Page) => page.getByRole('button', { name: 'View Options' });
+  const level = (page: Page, n: number) => page.locator(`[role="treeitem"][aria-level="${n}"]`);
+
+  async function pick(page: Page, label: string): Promise<void> {
+    await viewOptions(page).click();
+    await page.getByRole('menuitemradio', { name: label }).click();
+  }
+
+  function contextOf(raw: string | null): Record<string, unknown> {
+    return JSON.parse(raw ?? '{}') as Record<string, unknown>;
+  }
+
+  test('is offered only where there are repositories to arrange', async ({ page }) => {
+    await openCommit(page);
+    await expect(viewOptions(page)).toHaveCount(0);
+    await expect(page.locator('.gt-tree-swatch')).toHaveCount(0);
+  });
+
+  test('offers both groupings, the one shown ticked', async ({ page }) => {
+    await openGrouped(page);
+    await viewOptions(page).click();
+    const menu = page.getByRole('menu', { name: 'View Options' });
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('.gt-menu-header')).toHaveText('Group By');
+    const byList = page.getByRole('menuitemradio', { name: 'Changelist › Repository' });
+    const byRepo = page.getByRole('menuitemradio', { name: 'Repository › Changelist' });
+    await expect(byList).toHaveAttribute('aria-checked', 'true');
+    await expect(byRepo).toHaveAttribute('aria-checked', 'false');
+    // The keyboard starts on the choice that holds.
+    await expect(byList).toHaveClass(/gt-active/);
+    // IntelliJ's dot only when the view is not the default one.
+    await expect(viewOptions(page).locator('.gt-toolbar-badge')).toHaveCount(0);
+  });
+
+  test('Repository › Changelist asks the host to save it, and puts repositories first', async ({ page }) => {
+    await openGrouped(page);
+    await pick(page, 'Repository › Changelist');
+    await expect(row(page, GIT)).toBeVisible();
+    const sent = (await posted(page)).filter((m) => m.method === 'commit/setGroupBy');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.kind).toBe('req');
+    expect(sent[0]?.params).toEqual({ groupBy: 'repository' });
+    // Repositories in the order the host gives (by name), each with its own
+    // lists beneath in IntelliJ's order.
+    await expect(level(page, 1)).toHaveCount(2);
+    await expect(level(page, 1).nth(0)).toHaveAttribute('aria-label', GIT);
+    await expect(level(page, 1).nth(1)).toHaveAttribute('aria-label', LIB);
+    await expect(level(page, 2)).toHaveCount(4);
+    await expect(level(page, 2).nth(0)).toHaveAttribute('aria-label', 'Changes, 4 files');
+    await expect(level(page, 2).nth(1)).toHaveAttribute('aria-label', 'Unversioned Files, 1 file');
+    await expect(level(page, 2).nth(2)).toHaveAttribute('aria-label', 'Changes, 1 file');
+    await expect(level(page, 2).nth(3)).toHaveAttribute('aria-label', 'Unversioned Files, 1 file');
+    await expect(viewOptions(page).locator('.gt-toolbar-badge')).toHaveCount(1);
+  });
+
+  test('picking the grouping already shown sends nothing', async ({ page }) => {
+    await openGrouped(page);
+    await pick(page, 'Changelist › Repository');
+    await expect(page.getByRole('menu', { name: 'View Options' })).toHaveCount(0);
+    expect((await posted(page)).some((m) => m.method === 'commit/setGroupBy')).toBe(false);
+  });
+
+  test('a repository row: its colour, its name plain, its branch, its own menu', async ({ page }) => {
+    await openGrouped(page, 'repository');
+    const lib = row(page, LIB);
+    await expect(lib.locator('.gt-tree-icon')).toHaveClass(/gt-tree-swatch/);
+    expect(await lib.locator('.gt-tree-name').getAttribute('style')).toBeNull();
+    await expect(lib.locator('.gt-tree-desc')).toHaveText('2 files');
+    await expect(lib.locator('.gt-tree-badge')).toHaveText('feature/login');
+    await expect(lib.locator('.gt-tree-badge')).toHaveAttribute('title', 'Branch feature/login');
+    expect(contextOf(await lib.getAttribute('data-vscode-context'))).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitRepository',
+      repoRoot: 'D:/repos/demo-lib',
+      repoHasTracked: true,
+    });
+    // A list under it is that repository's copy of the list: a folder, and the
+    // menu a repository row under a list has in the other grouping.
+    const list = level(page, 2).nth(2);
+    await expect(list).toHaveAttribute('aria-label', 'Changes, 1 file');
+    await expect(list.locator('.gt-tree-icon')).toHaveClass(/codicon-folder/);
+    await expect(list.locator('.gt-tree-badge')).toHaveCount(0);
+    const listCtx = contextOf(await list.getAttribute('data-vscode-context'));
+    expect(listCtx['webviewSection']).toBe('commitRepo');
+    expect(listCtx['repoRoot']).toBe('D:/repos/demo-lib');
+    expect(listCtx['listId']).toBe('default');
+  });
+
+  test('the branch is on the repository rows under a list too', async ({ page }) => {
+    await openGrouped(page);
+    const git = row(page, 'demo-git, 4 files, Branch main, tracking origin/main');
+    await expect(git.locator('.gt-tree-badge')).toHaveText('main');
+    await expect(git.locator('.gt-tree-badge')).toHaveAttribute('title', 'Branch main, tracking origin/main');
+    await expect(row(page, 'Changes, 5 files').locator('.gt-tree-badge')).toHaveCount(0);
+  });
+
+  test('ticking a repository ticks every change of it, its new files too', async ({ page }) => {
+    await openGrouped(page, 'repository');
+    await expect(row(page, GIT)).toHaveAttribute('aria-checked', 'mixed');
+    await row(page, GIT).locator('.gt-tree-check').click();
+    await expect(row(page, GIT)).toHaveAttribute('aria-checked', 'true');
+    const sent = (await posted(page)).filter((m) => m.method === 'commit/setChecked');
+    const last = sent[sent.length - 1]?.params as { repoRoot: string; paths: string[]; checked: boolean };
+    expect(last.repoRoot).toBe('D:/repos/demo-git');
+    expect(last.checked).toBe(true);
+    expect([...last.paths].sort()).toEqual(
+      [
+        '2.txt',
+        'docs/guide.md',
+        'src/main/java/api/ArticleDataController.java',
+        'src/main/java/api/CommentController.java',
+        'src/main/java/util/Strings.java',
+      ].sort(),
+    );
+  });
+
+  test('a switch keeps the same file selected, and the keyboard on it', async ({ page }) => {
+    await openGrouped(page);
+    const strings = row(page, 'Strings.java, src/main/java/util');
+    await strings.click();
+    await pick(page, 'Repository › Changelist');
+    await expect(row(page, GIT)).toBeVisible();
+    await expect(strings).toHaveAttribute('aria-selected', 'true');
+    await expect(strings).toHaveAttribute('tabindex', '0');
+    await pick(page, 'Changelist › Repository');
+    await expect(row(page, 'Changes, 5 files')).toBeVisible();
+    await expect(strings).toHaveAttribute('aria-selected', 'true');
+    await expect(strings).toHaveAttribute('tabindex', '0');
+  });
+
+  test("one repository's copy of a list is the same row either way", async ({ page }) => {
+    await openGrouped(page);
+    await row(page, LIB_UNDER_CHANGES).first().click();
+    await pick(page, 'Repository › Changelist');
+    await expect(row(page, LIB)).toBeVisible();
+    await expect(level(page, 2).nth(2)).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[role="treeitem"][aria-selected="true"]')).toHaveCount(1);
+  });
+
+  test('a scrolled tree keeps the selected row where it was on screen', async ({ page }) => {
+    await page.setViewportSize({ width: 420, height: 440 });
+    await openGrouped(page, 'repository');
+    const list = page.getByRole('tree', { name: 'Changes' });
+    await list.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const notes = row(page, 'notes.txt, lib');
+    await notes.click();
+    const offset = () =>
+      notes.evaluate((el) => {
+        const tree = el.closest('[role="tree"]');
+        return tree ? Math.round(el.getBoundingClientRect().top - tree.getBoundingClientRect().top) : NaN;
+      });
+    expect(await list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    const before = await offset();
+    await pick(page, 'Changelist › Repository');
+    await expect(notes).toHaveAttribute('aria-selected', 'true');
+    await expect(notes).toHaveAttribute('tabindex', '0');
+    expect(await offset()).toBe(before);
+  });
+
+  test('each grouping keeps its own rows open or shut', async ({ page }) => {
+    await openGrouped(page, 'repository');
+    await row(page, LIB).locator('.gt-twistie').click();
+    await expect(row(page, LIB)).toHaveAttribute('aria-expanded', 'false');
+    await pick(page, 'Changelist › Repository');
+    // Shown for the first time, every row of it open.
+    await expect(row(page, LIB_UNDER_CHANGES).first()).toHaveAttribute('aria-expanded', 'true');
+    await pick(page, 'Repository › Changelist');
+    await expect(row(page, LIB)).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, GIT)).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('opens every row the first time it is shown', async ({ page }) => {
+    await openGrouped(page, 'repository');
+    const rows = page.locator('[role="treeitem"][aria-expanded]');
+    expect(await rows.count()).toBeGreaterThan(4);
+    for (const r of await rows.all()) await expect(r).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('Collapse all shuts this grouping and leaves the other as it was', async ({ page }) => {
+    await openGrouped(page);
+    await pick(page, 'Repository › Changelist');
+    await expect(row(page, GIT)).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('button', { name: 'Collapse all' }).click();
+    await expect(row(page, GIT)).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, LIB)).toHaveAttribute('aria-expanded', 'false');
+    await pick(page, 'Changelist › Repository');
+    await expect(row(page, 'Changes, 5 files')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a repository row that appears later appears open', async ({ page }) => {
+    await openCommit(page);
+    await page.evaluate(() => {
+      (window as unknown as { __mockSecondRepo?: boolean }).__mockSecondRepo = true;
+    });
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await expect(row(page, LIB_UNDER_CHANGES).first()).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+test.describe('the keyboard row follows its row', () => {
+  test('a folder folding above it leaves the keyboard where it was', async ({ page }) => {
+    await openCommit(page);
+    const strings = row(page, 'Strings.java, src/main/java/util');
+    await strings.click();
+    await expect(strings).toHaveAttribute('tabindex', '0');
+    await row(page, 'api, 2 files').locator('.gt-twistie').click();
+    await expect(row(page, 'api, 2 files')).toHaveAttribute('aria-expanded', 'false');
+    await expect(strings).toHaveAttribute('tabindex', '0');
+  });
+
+  test('folded away, its folder takes the keyboard', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'Strings.java, src/main/java/util').click();
+    await row(page, 'util, 1 file').locator('.gt-twistie').click();
+    await expect(row(page, 'util, 1 file')).toHaveAttribute('tabindex', '0');
   });
 });
 

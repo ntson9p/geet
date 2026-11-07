@@ -29,6 +29,11 @@ export type MenuItem =
       readonly accelerator?: string;
       readonly disabled?: boolean;
       readonly checked?: boolean;
+      /**
+       * One of a run of choices only one of which holds (View Options › Group By):
+       * announced as a radio item, ticked like a checkbox.
+       */
+      readonly radio?: boolean;
       /** Hover text — what IntelliJ's action description says, e.g. why it is disabled. */
       readonly title?: string;
     }
@@ -54,6 +59,8 @@ export interface MenuProps {
   onSelect: (id: string) => void;
   onClose: () => void;
   ariaLabel: string;
+  /** The item the keyboard starts on, such as the choice that holds; the first enabled one otherwise. */
+  activeId?: string;
   /** Internal: submenus skip the outside-click and focus-restore handling. */
   nested?: boolean;
 }
@@ -64,13 +71,16 @@ function isEnabled(item: MenuItem): boolean {
   return (item.kind === 'item' || item.kind === 'submenu') && item.disabled !== true;
 }
 
-export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuProps) {
+export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested }: MenuProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   /** The open submenu, drawn beside this menu rather than inside it. */
   const subRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const [pos, setPos] = useState(at);
-  const [active, setActive] = useState<number>(() => items.findIndex(isEnabled));
+  const [active, setActive] = useState<number>(() => {
+    const wanted = activeId !== undefined ? items.findIndex((i) => isEnabled(i) && i.id === activeId) : -1;
+    return wanted >= 0 ? wanted : items.findIndex(isEnabled);
+  });
   const [openSub, setOpenSub] = useState<{ index: number; x: number; y: number } | null>(null);
 
   // Focus restoration is the top-level menu's job; a submenu returns focus to
@@ -222,11 +232,12 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, nested }: MenuPr
           }
           const isActive = index === active;
           const checkedState = item.kind === 'item' ? item.checked : undefined;
+          const radio = item.kind === 'item' && item.radio === true;
           return (
             <div
               key={item.id}
-              role={checkedState === undefined ? 'menuitem' : 'menuitemcheckbox'}
-              aria-checked={checkedState}
+              role={radio ? 'menuitemradio' : checkedState === undefined ? 'menuitem' : 'menuitemcheckbox'}
+              aria-checked={radio ? checkedState === true : checkedState}
               aria-disabled={item.disabled === true}
               aria-haspopup={item.kind === 'submenu' ? 'menu' : undefined}
               aria-expanded={item.kind === 'submenu' ? openSub?.index === index : undefined}

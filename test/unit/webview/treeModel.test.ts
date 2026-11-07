@@ -104,6 +104,13 @@ describe('walking the files of a tree', () => {
     it('opens nothing for a file that is not there', () => {
       expect(ancestorDirs(nodes, 'gone.txt')).toEqual([]);
     });
+
+    it('opens the rows above a folder too, and not the folder itself', () => {
+      // A grouping change puts the user back on a folder or a changelist row as
+      // well as on a file.
+      expect(ancestorDirs(nodes, 'src/lib')).toEqual(['src', '@repo']);
+      expect(ancestorDirs(nodes, '@repo')).toEqual([]);
+    });
   });
 
   describe('the selection once a walk moves on', () => {

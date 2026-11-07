@@ -18,6 +18,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
 import { isUntracked, shortCode, type StatusEntry } from '../../core/model/statusEntry';
 import { canonicalKey } from '../../core/repoDiscovery';
+import { repoLabels, sortRootsByLabel } from '../../core/util/repoLabels';
 import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
 import { rootColorIndices } from '../../log/graphLayout/colors';
 import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
@@ -34,6 +35,7 @@ import {
   type CommitRepoDto,
   type CommitRunParamsDto,
   type CommitSetCheckedParamsDto,
+  type CommitSetGroupByParamsDto,
   type CommitSetIncludedParamsDto,
   type CommitSetOptionParamsDto,
   type CommitStateDto,
@@ -47,9 +49,11 @@ import type { CommitMessageBox } from '../messageBox';
 import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
 import { computeFileDiff } from './fileDiff';
+import { readCommitGroupBy, writeCommitGroupBy } from './groupBy';
 import { signChanges, type InclusionModel } from './inclusion';
 import { localDiffSides } from './localDiffSides';
 import { applyOption, readOptions, type CommitOptionsStore } from './options';
+import { repoHeadOf } from './repoHead';
 import type { ShelfBridge } from './shelfBridge';
 import type { StashBridge } from './stashBridge';
 import type {
@@ -127,9 +131,14 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       deps.paradigm.onDidChange(() => this.push()),
       deps.commitService.onDidCommit(() => this.push()),
       // P11-T8: a changed color override must repaint without a reload; so must
-      // the palette the repositories' colours come from.
+      // the palette the repositories' colours come from, and the grouping,
+      // which the palette commands and the settings file change too.
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.colors') || e.affectsConfiguration('gittree.log.graphPalette')) {
+        if (
+          e.affectsConfiguration('gittree.colors') ||
+          e.affectsConfiguration('gittree.log.graphPalette') ||
+          e.affectsConfiguration('gittree.commit.groupBy')
+        ) {
           this.push();
         }
       }),
@@ -237,24 +246,37 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     // Every snapshot starts from a pruned model, so no badge can outlive the
     // file it describes — the state push is the only place that needs to know.
     this.pruneInclusion();
-    // Each repository in the colour it has in the log's Roots and the Repositories panel.
-    const colors = rootColorIndices(this.deps.core.repos.map((repo) => repo.root));
-    const repos: CommitRepoDto[] = this.deps.core.repos.map((repo) => ({
-      root: repo.root,
-      label: path.basename(repo.root),
-      colorIdx: colors.get(repo.root) ?? 0,
-      groups: this.groupsFor(repo),
-    }));
+    // Each repository named, ordered and coloured as the Repositories panel and
+    // the log's Roots show it, so its rows here are the same repository at a glance.
+    const byRoot = new Map(this.deps.core.repos.map((repo) => [repo.root, repo]));
+    const roots = sortRootsByLabel([...byRoot.keys()]);
+    const labels = repoLabels(roots);
+    const colors = rootColorIndices(roots);
+    const handles = roots.flatMap((root) => {
+      const repo = byRoot.get(root);
+      return repo !== undefined ? [repo] : [];
+    });
+    const repos: CommitRepoDto[] = handles.map((repo) => {
+      const head = repoHeadOf(repo.model.snapshot);
+      return {
+        root: repo.root,
+        label: labels.get(repo.root) ?? path.basename(repo.root),
+        colorIdx: colors.get(repo.root) ?? 0,
+        ...(head !== undefined ? { head } : {}),
+        groups: this.groupsFor(repo),
+      };
+    });
     const active = this.activeRepo();
     // The tree renders every repository's groups, so the `N of M` counter has
     // to describe everything on screen — not just the repo the message box
     // happens to target.
     const changes = repos.flatMap((r) => r.groups.flatMap((g) => g.changes));
     // Asked through the commit path's own predicate rather than recomputed
-    // from `changes`, so the button cannot promise a repo the flow skips.
-    const targets = this.deps.core.repos
+    // from `changes`, so the button cannot promise a repo the flow skips. Named
+    // as the tree's rows name them.
+    const targets = handles
       .filter((repo) => hasCommittableChanges(this.deps, repo))
-      .map((repo) => path.basename(repo.root));
+      .map((repo) => labels.get(repo.root) ?? path.basename(repo.root));
     return {
       repos,
       targets,
@@ -272,6 +294,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
         vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette') === 'colorBlind'
           ? 'colorBlind'
           : 'default',
+      groupBy: readCommitGroupBy(),
       ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
     };
   }
@@ -705,6 +728,15 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     rpc.on(COMMIT_METHODS.shelfAction, async (raw) => {
       if (!this.shelfBridge) return;
       await this.shelfBridge.dispatch(raw as CommitShelfActionParamsDto);
+    });
+
+    // View Options › Group By. The setting is the one place the choice lives:
+    // the push it causes reaches every view of this window, and a reload.
+    rpc.on(COMMIT_METHODS.setGroupBy, async (raw) => {
+      const value = (raw as Partial<CommitSetGroupByParamsDto> | undefined)?.groupBy;
+      if (value !== 'changelist' && value !== 'repository') return;
+      await writeCommitGroupBy(value);
+      this.push();
     });
   }
 

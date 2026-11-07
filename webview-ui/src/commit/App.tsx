@@ -11,22 +11,30 @@
  * The host owns every piece of state. This component renders what it is given
  * and posts intents, so a status refresh or a rehydrate can never desync it.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   COMMIT_METHODS,
   type CommitDiffFileDto,
   type CommitDiffOnScreenDto,
   type CommitFileDiffDto,
+  type CommitGroupBy,
   type CommitHistoryDto,
   type CommitMessageEvtDto,
   type CommitOpenDiffParamsDto,
   type CommitRecentCommitsDto,
+  type CommitSetGroupByParamsDto,
   type CommitSetIncludedParamsDto,
   type CommitStashStateDto,
   type CommitStateDto,
   type CommitSetCheckedParamsDto,
 } from '../../../src/shared/protocol';
-import { FileTree } from '../lib/FileTree';
+import {
+  FileTree,
+  type FileTreeBadge,
+  type FileTreeHandle,
+  type FileTreeRestore,
+  type FileTreeViewState,
+} from '../lib/FileTree';
 import { InlineDiff } from '../lib/InlineDiff';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { RpcClient, RpcRequestError } from '../lib/rpc';
@@ -52,26 +60,46 @@ import { laneColor } from '../log/GraphCanvas';
 import {
   allDiffFiles,
   assembleCommitTree,
+  collapsedAll,
   commitDiffWalk,
   fileCountLabel,
   fileRowContext,
+  groupByOf,
+  groupRowContext,
+  headLabel,
   iconFor,
   partialLabel,
   splitDelta,
   treePathOf,
+  twinRow,
+  twinRows,
+  type CommitTreeModel,
 } from './commitTree';
 import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
 import { ShelfTab } from './ShelfTab';
 import { StashTab } from './StashTab';
+import { applyViewOption, viewOptionsChanged, viewOptionsItems } from './viewOptions';
 
 interface Persisted {
   tab?: string;
+  /** Open rows of both groupings: their paths never collide, so each keeps its own. */
   expanded?: string[];
+  /** The groupings that have opened every row once, as the window opens the first time. */
+  seeded?: CommitGroupBy[];
+  /** Changelist and repository rows seen before; a new one opens as it appears. */
+  known?: string[];
   message?: string;
   preview?: boolean;
   ratio?: number;
+}
+
+/** A change of grouping on its way: where the user was, to be found again in the rebuilt tree. */
+interface PendingRegroup {
+  readonly from: CommitTreeModel;
+  readonly view: FileTreeViewState;
+  readonly selection: ReadonlySet<string>;
 }
 
 /**
@@ -133,8 +161,21 @@ export function App() {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(saved.expanded ?? []),
   );
+  // A state saved before groupings existed opened every row once already, in
+  // the only grouping there was.
+  const [seeded, setSeeded] = useState<ReadonlySet<CommitGroupBy>>(
+    () => new Set(saved.seeded ?? ((saved.expanded ?? []).length > 0 ? ['changelist'] : [])),
+  );
+  const [known, setKnown] = useState<ReadonlySet<string>>(() => new Set(saved.known ?? []));
+  // Nor did it note the rows it had seen: the first tree's are taken as seen,
+  // or every row the user had shut would open again.
+  const migrateKnown = useRef(saved.known === undefined && (saved.expanded ?? []).length > 0);
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   const [reveal, setReveal] = useState<{ readonly path: string } | undefined>(undefined);
+  const [restore, setRestore] = useState<FileTreeRestore | undefined>(undefined);
+  const [viewMenu, setViewMenu] = useState<{ readonly x: number; readonly y: number } | null>(null);
+  const treeHandle = useRef<FileTreeHandle>(null);
+  const regroup = useRef<PendingRegroup | undefined>(undefined);
   // The file a diff opened from the list is showing, while it is on screen.
   const [diffOnScreen, setDiffOnScreen] = useState<CommitDiffFileDto | undefined>(undefined);
   // Mirror of the uncontrolled editor's value — drives `canCommit`, the
@@ -154,7 +195,6 @@ export function App() {
   // The repositories' colours have a light and a dark shade, as the log's lanes do.
   const theme = useVsCodeTheme();
   const dark = theme === 'dark' || theme === 'high-contrast';
-  const seededExpansion = useRef(false);
   const editorRef = useRef<MessageEditorHandle | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -166,6 +206,16 @@ export function App() {
   selectionRef.current = selection;
 
   const apply = useCallback((next: CommitStateDto) => {
+    // Another grouping rebuilds every row: note where the user is while the old
+    // rows still stand, to put them back on the same rows once it is drawn.
+    const before = modelRef.current;
+    if (groupByOf(next) !== before.groupBy && before.nodes.length > 0) {
+      regroup.current = {
+        from: before,
+        view: treeHandle.current?.viewState() ?? { atTop: true },
+        selection: selectionRef.current,
+      };
+    }
     setState(next);
     setDiffOnScreen(next.diffOnScreen);
     setReady(true);
@@ -199,25 +249,69 @@ export function App() {
     editorRef.current?.adoptExternal(state.message);
   }, [ready, state]);
 
-  // Expand every group and folder the first time real content arrives, the way
-  // the IntelliJ commit window opens.
-  useEffect(() => {
-    if (seededExpansion.current || model.nodes.length === 0) return;
-    seededExpansion.current = true;
-    if ((saved.expanded ?? []).length === 0) {
-      setExpanded(new Set(allDirPaths(model.nodes)));
+  // Expand every row the first time a grouping shows rows of its own, the way
+  // the IntelliJ commit window opens; and a changelist or repository row the
+  // first time it appears, so a repository that changes later is not found
+  // shut. Before paint, and before the regroup below reads what is open.
+  useLayoutEffect(() => {
+    if (!ready || model.nodes.length === 0) return;
+    const rows = [...model.groups.keys()];
+    const migrating = migrateKnown.current;
+    migrateKnown.current = false;
+    const fresh = migrating ? [] : rows.filter((path) => !known.has(path));
+    // Repository › Changelist with nothing changed draws the one empty Changes
+    // row: not its own rows yet, so it opens everything when they come.
+    const ownRows =
+      model.groupBy === 'changelist' || [...model.groups.values()].some((g) => g.kind === 'repository');
+    const firstVisit = ownRows && !seeded.has(model.groupBy);
+    if (firstVisit || fresh.length > 0) {
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (firstVisit) for (const path of allDirPaths(model.nodes)) next.add(path);
+        for (const path of fresh) next.add(path);
+        return next;
+      });
     }
-  }, [model.nodes, saved.expanded]);
+    if (firstVisit) setSeeded((prev) => new Set([...prev, model.groupBy]));
+    if (migrating || fresh.length > 0) setKnown((prev) => new Set([...prev, ...rows]));
+  }, [known, model, ready, seeded]);
+
+  // The grouping changed: the same files stay selected, the keyboard stays on
+  // the same row, and the row the user was looking at goes back where it was.
+  useLayoutEffect(() => {
+    const pending = regroup.current;
+    if (pending === undefined || pending.from.groupBy === model.groupBy) return;
+    regroup.current = undefined;
+    const { from, view } = pending;
+    const lead = view.lead !== undefined ? twinRow(from, model, view.lead) : undefined;
+    const anchor = view.anchor !== undefined ? twinRow(from, model, view.anchor.path) : undefined;
+    // Shut folders would hide them.
+    const open = [lead, anchor].flatMap((path) => (path === undefined ? [] : ancestorDirs(model.nodes, path)));
+    if (open.length > 0) setExpanded((prev) => new Set([...prev, ...open]));
+    setSelection(new Set(twinRows(from, model, pending.selection)));
+    // At the very top it stays at the top: that is where it was.
+    const top = view.atTop && (view.anchor?.offset ?? 0) <= 0;
+    setRestore({
+      ...(top
+        ? { top: true }
+        : anchor !== undefined && view.anchor !== undefined
+          ? { anchor: { path: anchor, offset: view.anchor.offset } }
+          : {}),
+      ...(lead !== undefined ? { lead } : {}),
+    });
+  }, [model]);
 
   useEffect(() => {
     api.setState({
       tab,
       expanded: [...expanded],
+      seeded: [...seeded],
+      known: [...known],
       message,
       preview,
       ratio,
     } satisfies Persisted);
-  }, [api, expanded, message, preview, ratio, tab]);
+  }, [api, expanded, known, message, preview, ratio, seeded, tab]);
 
   const activeRepo = state.activeRepo;
 
@@ -361,9 +455,9 @@ export function App() {
         // A repository's row wears its colour, whatever its files' status: a
         // filled square, as IntelliJ's repository node draws the log's root
         // colour and the log's Roots draw its chip; the same colour as its dot
-        // in the Repositories panel.
+        // in the Repositories panel. Under a list or at the top alike.
         const group = model.groups.get(node.path);
-        if (group?.kind === 'repo') {
+        if (group?.shows === 'repository') {
           return { swatch: laneColor(group.colorIdx ?? 0, dark, state.palette) };
         }
         // P11-T8: a folder of modified descendants wears the modified color.
@@ -381,7 +475,7 @@ export function App() {
     (node: TreeNode): string | undefined => {
       if (node.kind === 'dir') {
         // A repository's name in plain text, as IntelliJ's: its square says which it is.
-        if (model.groups.get(node.path)?.kind === 'repo') return undefined;
+        if (model.groups.get(node.path)?.shows === 'repository') return undefined;
         return dirStatusColor(model.dirKinds.get(node.path) ?? new Set(), state.colors);
       }
       const ref = model.files.get(node.path);
@@ -389,6 +483,12 @@ export function App() {
     },
     [model, state.colors],
   );
+
+  // A repository's branch after its file count, IntelliJ's label, in both groupings.
+  const badge = useCallback((node: TreeNode): FileTreeBadge | undefined => {
+    const group = model.groups.get(node.path);
+    return group?.shows === 'repository' ? headLabel(group.head) : undefined;
+  }, [model]);
 
   /**
    * P14-T2: native context menus for the change tree. The changelists tree view
@@ -401,22 +501,7 @@ export function App() {
    */
   const rowContext = useCallback(
     (node: TreeNode): Record<string, unknown> | undefined => {
-      const group = model.groups.get(node.path);
-      if (group) {
-        return {
-          preventDefaultContextMenuItems: true,
-          // A `repo` row is one repository's copy of the list; a `group` row may
-          // be several, so scoped-only actions live on the repository row.
-          webviewSection: group.kind === 'repo' ? 'commitRepo' : 'commitGroup',
-          ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
-          ...(group.listId !== undefined ? { listId: group.listId } : {}),
-          targets: group.targets,
-          listIsDefault: group.isDefault,
-          listCheckable: group.checkable,
-          listSpansRepos: group.targets.length > 1,
-        };
-      }
-      return fileRowContext(model, node.path, selection);
+      return groupRowContext(model, node.path) ?? fileRowContext(model, node.path, selection);
     },
     [model, selection],
   );
@@ -612,6 +697,7 @@ export function App() {
     </div>
   ) : (
     <FileTree
+      ref={treeHandle}
       nodes={model.nodes}
       height={Math.max(0, treeSize.height)}
       ariaLabel="Changes"
@@ -632,10 +718,12 @@ export function App() {
         );
       }}
       description={description}
+      badge={badge}
       icon={icon}
       nameColor={nameColor}
       rowContext={rowContext}
       {...(reveal !== undefined ? { reveal } : {})}
+      {...(restore !== undefined ? { restore } : {})}
       {...(onScreenPath !== undefined ? { current: onScreenPath } : {})}
     />
   );
@@ -734,16 +822,30 @@ export function App() {
             toggled={preview}
             onClick={() => setPreview((on) => !on)}
           />
+          {/* IntelliJ's eye before Expand All and Collapse All, and like its
+              Repository choice, only where there are repositories to arrange. */}
+          {state.repos.length > 1 ? (
+            <ToolbarButton
+              icon="eye"
+              label="View Options"
+              badge={viewOptionsChanged(model.groupBy)}
+              onClick={(e) => {
+                const box = e.currentTarget.getBoundingClientRect();
+                setViewMenu({ x: box.left, y: box.bottom + 2 });
+              }}
+            />
+          ) : null}
           <ToolbarSeparator />
+          {/* This grouping's rows only: the other keeps its own for when it comes back. */}
           <ToolbarButton
             icon="expand-all"
             label="Expand all"
-            onClick={() => setExpanded(new Set(allDirPaths(model.nodes)))}
+            onClick={() => setExpanded((prev) => new Set([...prev, ...allDirPaths(model.nodes)]))}
           />
           <ToolbarButton
             icon="collapse-all"
             label="Collapse all"
-            onClick={() => setExpanded(new Set())}
+            onClick={() => setExpanded((prev) => collapsedAll(model, prev))}
           />
           <ToolbarSpacer />
         </ToolbarStrip>
@@ -872,6 +974,22 @@ export function App() {
           ariaLabel={menu.label}
           onSelect={onMenuSelect}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+
+      {viewMenu !== null ? (
+        <Menu
+          items={viewOptionsItems(model.groupBy)}
+          at={viewMenu}
+          ariaLabel="View Options"
+          activeId={model.groupBy}
+          onSelect={(id) => {
+            const next = applyViewOption(model.groupBy, id);
+            if (next !== undefined) {
+              send(COMMIT_METHODS.setGroupBy, { groupBy: next } satisfies CommitSetGroupByParamsDto);
+            }
+          }}
+          onClose={() => setViewMenu(null)}
         />
       ) : null}
     </div>
