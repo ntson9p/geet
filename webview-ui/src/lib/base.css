@@ -297,11 +297,17 @@ button {
   line-height: 12px;
 }
 
+/* Ticked: filled, IntelliJ's look, in the button's colour pair — a fill and a
+   foreground VS Code themes keep readable together. Not `checkbox.selectBackground`:
+   that is the box inside a *selected row*, and light themes make it near-white,
+   which left a white tick on white (POST-QA). High-contrast dark has no button
+   fill, so it falls back to the checkbox's own colours and border. */
 .gt-tricheck-checked,
 .gt-tricheck-partial {
-  background: var(--vscode-checkbox-selectBackground, var(--vscode-button-background));
-  border-color: var(--vscode-checkbox-selectBorder, var(--vscode-button-background));
-  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background, var(--vscode-checkbox-background, var(--vscode-input-background)));
+  /* contrastBorder exists only in high-contrast themes, where the box needs its outline. */
+  border-color: var(--vscode-contrastBorder, var(--vscode-button-background, var(--vscode-checkbox-border)));
+  color: var(--vscode-button-foreground, var(--vscode-checkbox-foreground, var(--vscode-foreground)));
 }
 
 /* The partial state must not be fill-only — a dash keeps it distinguishable

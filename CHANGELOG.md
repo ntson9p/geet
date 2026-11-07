@@ -27,6 +27,16 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — ticks show in light themes
+
+- **A ticked checkbox is visible in every theme.** Ticked boxes used the colour VS Code
+  defines for a checkbox inside a *selected* row, which light themes make near-white, so
+  the white tick vanished. In Light Modern the Commit window looked unticked while it said
+  *1 of 1 file*. Ticked boxes are now filled with the theme's button colour and ticked in
+  its button text colour, the pair VS Code keeps readable, which is IntelliJ's look too.
+  High-contrast themes keep their outline. This is checked by reading the colours in Light
+  Modern, Dark Modern and both high-contrast themes.
+
 ### Fixed — several repositories: the palette asks which one
 
 - **Merge…, Rebase…, Reset…, Stash Changes…, Unstash…, Rollback…, Cherry-Pick…, Apply Patch…
