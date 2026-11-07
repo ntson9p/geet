@@ -22,6 +22,8 @@ import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import { notifySuccess } from '../ui/notify';
 import type { StatusBarController } from '../ui/statusBar';
+import { protectedBranches } from './dialogs/pushDialog';
+import { isBranchProtected, remoteBranchName } from './dialogs/pushModel';
 import { countPulled } from './dialogs/updateDialog';
 import {
   fetchSuccessMessage,
@@ -271,6 +273,21 @@ export function registerSyncOps(
         err.kind === 'not-fast-forward' &&
         extraArgs.some((a) => a.startsWith('--force-with-lease'))
       ) {
+        // POST-QA F2: `--force-if-includes` refuses for a different reason —
+        // the remote's commits were fetched but never brought into the
+        // branch, and the push would delete them. Saying "fetch" sent the
+        // user round in a circle.
+        const upstream = await upstreamOf(repo);
+        if (upstream !== undefined && !(await isAncestorOf(repo, upstream, 'HEAD'))) {
+          void vscode.window.showErrorMessage(
+            vscode.l10n.t(
+              'Force push refused: {0} has commits that are not in "{1}", and the push would delete them. Bring them in first (Update Project, or merge or rebase onto {0}), then push.',
+              upstream,
+              repo.model.snapshot.headRef ?? 'HEAD',
+            ),
+          );
+          return;
+        }
         const fetchAction = vscode.l10n.t('Fetch');
         void vscode.window
           .showErrorMessage(
@@ -357,9 +374,30 @@ export function registerSyncOps(
   register('gittree.pushForceWithLease', async (repoRoot) => {
     const repo = pickRepo(core, repoRoot);
     if (!repo) return;
+    const branch = repo.model.snapshot.headRef ?? 'HEAD';
+    const upstream = await upstreamOf(repo);
+    // POST-QA F2: what the Push dialog refuses, this refuses too.
+    if (upstream !== undefined && isBranchProtected(remoteBranchName(upstream), protectedBranches())) {
+      void vscode.window.showWarningMessage(
+        vscode.l10n.t('{0} is a protected branch: GitTree does not force-push it.', upstream),
+      );
+      return;
+    }
+    // The offer may be old: the branch may have been pushed, pulled or put
+    // back since. Only a branch the upstream is not part of needs force.
+    if (upstream !== undefined && (await isAncestorOf(repo, upstream, 'HEAD'))) {
+      void vscode.window.showInformationMessage(
+        vscode.l10n.t('"{0}" no longer needs a force push: {1} is already part of it. Use Push.', branch, upstream),
+      );
+      return;
+    }
     const ok = await confirmModal(
-      vscode.l10n.t('Force-push (with lease) "{0}"?', repo.model.snapshot.headRef ?? ''),
-      '',
+      vscode.l10n.t('Force-push (with lease) "{0}"?', branch),
+      vscode.l10n.t(
+        '{0} will be replaced by your "{1}": the commits that are only on {0} will be gone from it. The push is refused if {0} has commits you have not fetched, or fetched and not brought into "{1}".',
+        upstream ?? vscode.l10n.t('The remote branch'),
+        branch,
+      ),
       vscode.l10n.t('Force Push'),
     );
     if (!ok) return;
@@ -367,6 +405,23 @@ export function registerSyncOps(
     if (core.git.caps.forceIfIncludes) extra.push('--force-if-includes');
     await push(repo, extra);
   });
+
+  async function upstreamOf(repo: RepoHandle): Promise<string | undefined> {
+    const res = await core.git.exec(repo.root, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], {
+      structured: true,
+      allowNonZeroExit: true,
+    });
+    const ref = res.stdout.trim();
+    return res.exitCode === 0 && ref.length > 0 ? ref : undefined;
+  }
+
+  async function isAncestorOf(repo: RepoHandle, a: string, b: string): Promise<boolean> {
+    const res = await core.git.exec(repo.root, ['merge-base', '--is-ancestor', a, b], {
+      structured: true,
+      allowNonZeroExit: true,
+    });
+    return res.exitCode === 0;
+  }
 
   register('gittree.sync', async (repoRoot) => {
     const repo = pickRepo(core, repoRoot);

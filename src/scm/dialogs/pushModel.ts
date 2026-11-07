@@ -246,6 +246,12 @@ export const DEFAULT_PROTECTED_BRANCHES: readonly string[] = ['master', 'main'];
  * `master` protects `master` and not `my-master-copy`. A pattern that is not a
  * valid regular expression protects nothing.
  */
+/** `origin/feature/x` → `feature/x`: the branch name the protected patterns describe. */
+export function remoteBranchName(upstream: string): string {
+  const slash = upstream.indexOf('/');
+  return slash > 0 ? upstream.slice(slash + 1) : upstream;
+}
+
 export function isBranchProtected(branch: string, patterns: readonly string[]): boolean {
   return patterns.some((pattern) => {
     try {

@@ -18,7 +18,7 @@ import type { RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { resetKeepStaged } from '../core/ops/keepStaged';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
-import { DEFAULT_PROTECTED_BRANCHES, isBranchProtected } from '../scm/dialogs/pushModel';
+import { DEFAULT_PROTECTED_BRANCHES, isBranchProtected, remoteBranchName } from '../scm/dialogs/pushModel';
 
 export type HistoryEditKind = 'drop' | 'squash' | 'reword';
 
@@ -73,9 +73,8 @@ async function protectedHolder(repo: RepoHandle, edit: HistoryEdit): Promise<str
     .getConfiguration('gittree')
     .get<string[]>('protectedBranches', [...DEFAULT_PROTECTED_BRANCHES]);
   for (const ref of holders.stdout.split('\n').map((l) => l.trim())) {
-    const slash = ref.indexOf('/');
-    if (slash <= 0) continue;
-    if (isBranchProtected(ref.slice(slash + 1), patterns)) return ref;
+    if (ref.indexOf('/') <= 0) continue;
+    if (isBranchProtected(remoteBranchName(ref), patterns)) return ref;
   }
   return undefined;
 }

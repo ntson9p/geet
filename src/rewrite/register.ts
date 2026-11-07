@@ -7,7 +7,7 @@ import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { resolveShimDir } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
-import { PushSafetyService } from './pushSafety';
+import { headSha, PushSafetyService } from './pushSafety';
 import { MultiCommitEditService } from './multiCommitEdit';
 import { RebaseEngine } from './rebase/rebaseEngine';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
@@ -42,7 +42,9 @@ export function registerPhase05HistoryRewriting(
     monitors.set(key, monitor);
     repo.disposables.add(engine);
     repo.disposables.add(monitor);
-    repo.disposables.add(engine.onDidCompleteRewrite(() => void pushSafety.maybeOffer(repo)));
+    repo.disposables.add(
+      engine.onDidCompleteRewrite((preHead) => void pushSafety.maybeOffer(repo, preHead)),
+    );
     repo.disposables.add({
       dispose: () => {
         engines.delete(key);
@@ -217,8 +219,9 @@ export function registerPhase05HistoryRewriting(
       );
       return;
     }
+    const preHead = await headSha(repo);
     const result = await undoDrop.undoCommit(repo);
-    if (result.status === 'done') void pushSafety.maybeOffer(repo);
+    if (result.status === 'done') void pushSafety.maybeOffer(repo, preHead);
   });
   register('gittree.commit.drop', async (arg) => {
     const repo = logRepo();
@@ -280,10 +283,11 @@ export function registerPhase05HistoryRewriting(
     const repo = logRepo();
     const sha = shaOf(arg);
     if (repo && sha !== undefined) {
+      const preHead = await headSha(repo);
       const result = await reword.reword(repo, sha);
       // HEAD rewords bypass the engine; mid-history ones fire its event and
       // the offered-set dedupes the double call.
-      if (result === 'done') void pushSafety.maybeOffer(repo);
+      if (result === 'done') void pushSafety.maybeOffer(repo, preHead);
     }
   });
 

@@ -52,9 +52,14 @@ export class RebaseEngine {
    * leaves it unclaimed; the next rewrite replaces it.
    */
   private pendingStaged: StagedSnapshot | undefined;
-  /** Fires when any rebase-family rewrite finishes successfully (P5-T6). */
-  private readonly _onDidCompleteRewrite = new Emitter<void>();
-  readonly onDidCompleteRewrite: Event<void> = this._onDidCompleteRewrite.event;
+  /**
+   * Fires when any rebase-family rewrite finishes successfully (P5-T6), with
+   * the HEAD it started from — what the push-safety check compares against.
+   */
+  private readonly _onDidCompleteRewrite = new Emitter<string | undefined>();
+  readonly onDidCompleteRewrite: Event<string | undefined> = this._onDidCompleteRewrite.event;
+  /** HEAD when the current rewrite started; outlives a pause. */
+  private startHead: string | undefined;
 
   constructor(
     private readonly repo: RepoHandle,
@@ -242,7 +247,15 @@ export class RebaseEngine {
       // P6-T7: continue/skip resolve the very pause that holds the lane.
       bypassHold: true,
       run: async (git, token) => {
-        if (starts) this.pendingStaged = await readStaged(git, this.repo.root, token);
+        if (starts) {
+          this.pendingStaged = await readStaged(git, this.repo.root, token);
+          const head = await git.exec(this.repo.root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], {
+            structured: true,
+            allowNonZeroExit: true,
+            token,
+          });
+          this.startHead = head.exitCode === 0 ? head.stdout.trim() : undefined;
+        }
         const r = await git.exec(this.repo.root, args, { env, allowNonZeroExit: true, token });
         if (r.exitCode === 0) {
           await this.restorePending(git, r, token);
@@ -255,7 +268,9 @@ export class RebaseEngine {
     });
     if (result.exitCode === 0) {
       this.disposeSessionTmp();
-      this._onDidCompleteRewrite.fire();
+      const startHead = this.startHead;
+      this.startHead = undefined;
+      this._onDidCompleteRewrite.fire(startHead);
       return { status: 'completed' };
     }
     if (this.isRebaseInProgress()) {

@@ -27,6 +27,24 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — a force push is offered only when one is needed
+
+- **Rewording or dropping commits nobody has seen no longer asks for a force push.** After any
+  history edit GitTree checked whether the upstream was still part of the branch, which is
+  also false whenever a teammate has pushed. So rewording a local commit offered *Push
+  --force-with-lease*, on `main` too. It now asks whether the edit replaced commits that were
+  already on the upstream. If it didn't, nothing is said, because a normal pull and push will
+  do.
+- **A force push is not offered where it would do harm.** On a protected branch
+  (`gittree.protectedBranches`) GitTree says the branch cannot be force-pushed. When the
+  upstream also has commits the branch never brought in, it says a force push would delete
+  them. The *Push (Force With Lease)* command refuses protected branches, as the Push dialog
+  does. It also checks again when clicked: an offer clicked after the edit was undone says
+  no force push is needed.
+- **The force-push confirmation says what will happen,** and a push refused by
+  `--force-if-includes` says why. The upstream has commits that were fetched but never
+  brought in, so the message no longer says "fetch first", which sent you round in a circle.
+
 ### Fixed — Undo keeps your work, and history edits keep your staging
 
 - **Undo after Drop Commit(s) or Squash Commits no longer throws away uncommitted work.** It
