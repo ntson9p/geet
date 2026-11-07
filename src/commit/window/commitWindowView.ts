@@ -27,6 +27,7 @@ import { nextMark } from '../../diff/onScreen';
 import { settleWorktreeSide } from '../../diff/worktreeSide';
 import {
   COMMIT_METHODS,
+  CONFLICTS_GROUP_ID,
   type CommitChangeDto,
   type CommitDiffFileDto,
   type CommitDiffOnScreenDto,
@@ -241,6 +242,26 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       };
     });
 
+    // POST-QA: IntelliJ's Merge Conflicts node, first, with changelists too —
+    // the lists hold no unmerged file, so a conflict was nowhere in the
+    // window, though a commit is refused while one is left.
+    const conflicted = repo.model.snapshot.statusEntries.filter((e) => e.kind === 'unmerged');
+    if (conflicted.length > 0) {
+      groups.unshift({
+        id: CONFLICTS_GROUP_ID,
+        name: vscode.l10n.t('Merge Conflicts'),
+        isActive: false,
+        isDefault: false,
+        checkable: false,
+        changes: conflicted.map((e) => ({
+          path: e.path.replace(/\\/g, '/'),
+          code: shortCode(e),
+          kind: 'conflicted',
+          checked: false,
+        })),
+      });
+    }
+
     const unversioned = service.unversioned();
     if (unversioned.length > 0) {
       // P11-T3: untracked files are tickable. They start unticked, as in
@@ -411,6 +432,9 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
   /** A row's diff, walkable through `files`, the way the tree shows them. */
   async openDiff(params: CommitOpenDiffParamsDto): Promise<void> {
+    // A conflicted file opens where it is resolved, as IntelliJ's Merge
+    // Conflicts node does, not as a diff of its conflict markers (POST-QA).
+    if (await this.openMerge(params)) return;
     const entries = this.diffEntries(params.files);
     const wanted = this.diffEntries([params])[0];
     if (!wanted) return;
@@ -421,6 +445,24 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     await this.diffSessions()?.open(entries.length > 0 ? entries : [wanted], index, {
       id: DIFF_SEQUENCE_ID,
     });
+  }
+
+  /** The merge editor for a file still unmerged, when its conflict session has it. */
+  private async openMerge(file: CommitDiffFileDto): Promise<boolean> {
+    const repo = this.repoFor(file.repoRoot);
+    if (!repo) return false;
+    const unmerged = repo.model.snapshot.statusEntries.some(
+      (e) => e.kind === 'unmerged' && e.path.replace(/\\/g, '/') === file.path,
+    );
+    if (!unmerged) return false;
+    const p6 = this.deps.core.debugRegistry.get('phase06') as
+      | { getSession?: (root: string) => { files(): { path: string; kind: string }[] } | undefined }
+      | undefined;
+    const session = p6?.getSession?.(repo.root);
+    const node = session?.files().find((f) => f.path.replace(/\\/g, '/') === file.path);
+    if (session === undefined || node === undefined) return false;
+    await vscode.commands.executeCommand('gittree.merge.open', { session, path: node.path, kind: node.kind });
+    return true;
   }
 
   /** The list changed under a walk over all of it. */
@@ -674,6 +716,11 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const p = raw as CommitStageParamsDto;
       const repo = this.repoFor(p.repoRoot);
       if (repo && p.paths.length > 0) await this.stagePaths(repo, p.paths, 'unstage');
+    });
+    // The Merge Conflicts row's Resolve: IntelliJ's link on that node.
+    rpc.on(COMMIT_METHODS.resolveConflicts, async (raw) => {
+      const p = (raw ?? {}) as { repoRoot?: string };
+      await vscode.commands.executeCommand('gittree.conflicts.resolve', p.repoRoot);
     });
 
     rpc.on(COMMIT_METHODS.setIncluded, async (raw) => {

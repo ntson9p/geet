@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Commit window shows the conflicts
+
+- **A merge's unresolved files are in the Commit window, under Merge Conflicts, first.** With
+  changelists they were nowhere in it: the lists hold no unmerged file, and a commit was
+  refused for conflicts the window did not show. As IntelliJ's node does, the group has no
+  checkboxes and offers **Resolve Conflicts…** (on hover, in its menu and in the palette). A
+  conflicted file opens in the merge editor, not as a diff of its conflict markers, with
+  staging too. A conflicted file is offered no Move to Another Changelist and no Rollback.
+
 ### Fixed — counts read as English
 
 - **`1 file`, `3 files` — not `1 file(s)`.** Every message that counted files, commits,

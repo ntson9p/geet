@@ -1400,6 +1400,12 @@
         "icon": "$(discard)"
       },
       {
+        "command": "gittree.conflicts.resolve",
+        "title": "%gittree.command.conflicts.resolve.title%",
+        "category": "GitTree",
+        "icon": "$(git-merge)"
+      },
+      {
         "command": "gittree.merge.apply",
         "title": "%gittree.command.merge.apply.title%",
         "icon": "$(check)"
@@ -2447,6 +2453,10 @@
         {
           "command": "gittree.commit.unstage",
           "when": "false"
+        },
+        {
+          "command": "gittree.conflicts.resolve",
+          "when": "gittree.hasConflicts"
         }
       ],
       "editor/title": [
@@ -3103,12 +3113,12 @@
         },
         {
           "command": "gittree.changelist.moveTo",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && gittree.paradigm == changelists && !fileConflicted",
           "group": "2_file@1"
         },
         {
           "command": "gittree.rollbackFile",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile'",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && !fileConflicted",
           "group": "2_file@2"
         },
         {
@@ -3370,6 +3380,11 @@
           "command": "gittree.rebase.row.showInLog",
           "when": "webviewId == 'gittree.rebaseEditor' && webviewSection == 'rebaseRow'",
           "group": "1_row@2"
+        },
+        {
+          "command": "gittree.conflicts.resolve",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitConflicts'",
+          "group": "1_resolve@1"
         }
       ],
       "editor/lineNumber/context": [

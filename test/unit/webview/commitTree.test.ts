@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CommitChangeDto, CommitGroupDto, CommitStateDto } from '../../../src/shared/protocol';
+import { CONFLICTS_GROUP_ID, type CommitChangeDto, type CommitGroupDto, type CommitStateDto } from '../../../src/shared/protocol';
 import {
   allDiffFiles,
   assembleCommitTree,
@@ -11,6 +11,7 @@ import {
   groupByOf,
   groupRowContext,
   headLabel,
+  isConflictsRow,
   originText,
   splitDelta,
   treePathOf,
@@ -1038,6 +1039,45 @@ describe('the menu a folder row opens (POST-P14bf)', () => {
     expect(folderRowContext(model, node(model, '@r:D:/repos/api'), new Set())).toBeUndefined();
     expect(folderRowContext(model, node(model, '@r:D:/repos/api@g:@default'), new Set())).toBeUndefined();
     expect(folderRowContext(model, node(model, '@r:D:/repos/api@g:@default/src/a.ts'), new Set())).toBeUndefined();
+  });
+});
+
+describe('the Merge Conflicts group with changelists (POST-QA)', () => {
+  const conflicts: CommitGroupDto = {
+    id: CONFLICTS_GROUP_ID,
+    name: 'Merge Conflicts',
+    isActive: false,
+    isDefault: false,
+    checkable: false,
+    changes: [change('src/config.ts', false, 'conflicted')],
+  };
+  const withConflicts = (): CommitStateDto =>
+    state({
+      repos: [repo('D:/repos/demo', 'demo', [defaultList([change('api/a.ts', true)]), conflicts])],
+    });
+
+  it("comes first, as IntelliJ's node does, with no ticks", () => {
+    const model = assembleCommitTree(withConflicts());
+    expect(model.nodes.map((n) => n.name)).toEqual(['Merge Conflicts', 'Changes']);
+    const row = model.nodes[0]!;
+    expect(isConflictsRow(model, row.path)).toBe(true);
+    expect(isConflictsRow(model, model.nodes[1]!.path)).toBe(false);
+    const file = [...model.files.entries()].find(([, f]) => f.relPath === 'src/config.ts');
+    expect(file).toBeDefined();
+    expect(model.checked.has(file![0])).toBe(false);
+  });
+
+  it('offers no changelist actions on its row, and marks its files conflicted', () => {
+    const model = assembleCommitTree(withConflicts());
+    expect(groupRowContext(model, model.nodes[0]!.path)).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitConflicts',
+      repoRoot: 'D:/repos/demo',
+    });
+    const [key] = [...model.files.entries()].find(([, f]) => f.relPath === 'src/config.ts')!;
+    expect(fileRowContext(model, key, new Set())?.['fileConflicted']).toBe(true);
+    const [plain] = [...model.files.entries()].find(([, f]) => f.relPath === 'api/a.ts')!;
+    expect(fileRowContext(model, plain, new Set())?.['fileConflicted']).toBeUndefined();
   });
 });
 

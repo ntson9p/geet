@@ -431,6 +431,10 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 
 * Group rows per changelist (plus **Unversioned Files**), IntelliJ **folder rows** beneath
   with single-child chains collapsed (`src/main/java` is one row), files at the leaves.
+* **Merge Conflicts** first while any file is unmerged, in either paradigm, as IntelliJ's
+  node: no checkboxes and no changelist actions. A conflicted file opens in the merge
+  editor. The row's **Resolve Conflicts…** (on hover and in its menu) opens *Files Merged
+  with Conflicts*.
 * **Tri-state checkboxes on group, folder and file rows** — ticking a folder resolves to its
   leaf set; a partially ticked folder renders the mixed state `TreeItemCheckboxState` cannot.
 * **Unversioned files are tickable** and start unticked; a ticked untracked file joins a

@@ -321,6 +321,8 @@ export const COMMIT_METHODS = {
   stage: 'commit/stage',
   /** POST-QA F5, staging paradigm: `CommitStageParamsDto` — unstage these files. */
   unstage: 'commit/unstage',
+  /** POST-QA: the Merge Conflicts row's Resolve — `{ repoRoot?: string }`. */
+  resolveConflicts: 'commit/resolveConflicts',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */

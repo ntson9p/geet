@@ -28,6 +28,7 @@
 import {
   commitGroupByOf,
   stagingSideOf,
+  CONFLICTS_GROUP_ID,
   UNVERSIONED_GROUP_ID,
   type CommitChangeDto,
   type CommitDiffFileDto,
@@ -170,6 +171,7 @@ export interface CommitTreeModel {
 function mergeKeyOf(group: CommitGroupDto): string {
   if (group.isDefault) return '@default';
   if (group.id === UNVERSIONED_GROUP_ID) return '@unversioned';
+  if (group.id === CONFLICTS_GROUP_ID) return '@conflicts';
   return `name:${group.name}`;
 }
 
@@ -185,6 +187,8 @@ function repositoryKey(root: string): string {
 
 /** IntelliJ's order of lists: the default first, the user's in their order, Unversioned Files last. */
 function listRank(group: CommitGroupDto): number {
+  // IntelliJ's Merge Conflicts node comes before every list (POST-QA).
+  if (group.id === CONFLICTS_GROUP_ID) return -2;
   if (group.isDefault) return -1;
   return group.id === UNVERSIONED_GROUP_ID ? 1 : 0;
 }
@@ -235,8 +239,8 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   };
 
   // Collect the same changelist from every repository into one row. Order is
-  // IntelliJ's: the default list first, user lists in first-appearance order,
-  // Unversioned Files last.
+  // IntelliJ's: Merge Conflicts, the default list, user lists in
+  // first-appearance order, Unversioned Files last.
   const merged = new Map<string, MergedGroup>();
   let seq = 0;
   for (const repo of state.repos) {
@@ -249,7 +253,15 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
           name: group.name,
           isDefault: group.isDefault,
           checkable: group.checkable,
-          order: key === '@default' ? -1 : key === '@unversioned' ? Number.MAX_SAFE_INTEGER : seq++,
+          // Merge Conflicts above all (POST-QA), as IntelliJ's node is.
+          order:
+            key === '@conflicts'
+              ? -2
+              : key === '@default'
+                ? -1
+                : key === '@unversioned'
+                  ? Number.MAX_SAFE_INTEGER
+                  : seq++,
           entries: [],
         };
         merged.set(key, m);
@@ -615,9 +627,29 @@ export function headLabel(head: CommitRepoHeadDto | undefined): { text: string; 
  * live on the repository row; a `repository` row carries what acts on all of
  * one repository's changes.
  */
+/** The Merge Conflicts row: no changelist, so none of a changelist's actions — Resolve. */
+export function isConflictsRow(model: CommitTreeModel, nodePath: string): boolean {
+  const group = model.groups.get(nodePath);
+  return (
+    group !== undefined &&
+    group.kind !== 'repository' &&
+    group.targets.length > 0 &&
+    group.targets.every((t) => t.listId === CONFLICTS_GROUP_ID)
+  );
+}
+
 export function groupRowContext(model: CommitTreeModel, nodePath: string): Record<string, unknown> | undefined {
   const group = model.groups.get(nodePath);
   if (group === undefined) return undefined;
+  if (isConflictsRow(model, nodePath)) {
+    // POST-QA: a changelist's Commit, Set Active, Rename and Delete were
+    // offered here; the row's one action is IntelliJ's Resolve.
+    return {
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitConflicts',
+      ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
+    };
+  }
   if (group.kind === 'repository') {
     return {
       preventDefaultContextMenuItems: true,
@@ -756,6 +788,9 @@ export function fileRowContext(
     // Gates `Add to VCS` and `Add to .gitignore`: both are meaningless on a
     // file git already tracks, and a mixed selection would half-apply.
     fileUnversioned: paths.every((f) => f.change.kind === 'untracked'),
+    // POST-QA: an unmerged file is in no changelist to move it from, and its
+    // Rollback would throw the merge's side of it away unseen.
+    ...(paths.some((f) => f.change.kind === 'conflicted') ? { fileConflicted: true } : {}),
     ...sideContext(fileSide(ref)),
   };
 }

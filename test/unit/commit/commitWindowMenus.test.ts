@@ -144,4 +144,20 @@ describe('the Commit window menus (POST-P14bf)', () => {
       expect(shown(section, { ...base, webviewSection: section })).not.toContain('Stage');
     }
   });
+
+  it('gives the Merge Conflicts row Resolve Conflicts… alone, in either paradigm (POST-QA)', () => {
+    for (const paradigm of ['changelists', 'staging']) {
+      const row = { ...base, 'gittree.paradigm': paradigm, webviewSection: 'commitConflicts' };
+      expect(shown('commitConflicts', row)).toEqual(['Resolve Conflicts…']);
+    }
+  });
+
+  it('offers a conflicted file no Move and no Rollback — it is in no list, and its merge is unfinished', () => {
+    const file = { ...base, webviewSection: 'commitFile' };
+    expect(shown('commitFile', file)).toContain('Move to Another Changelist…');
+    const conflicted = shown('commitFile', { ...file, fileConflicted: true });
+    expect(conflicted).not.toContain('Move to Another Changelist…');
+    expect(conflicted).not.toContain('Rollback…');
+    expect(conflicted).toContain('Open File');
+  });
 });

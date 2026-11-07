@@ -73,6 +73,7 @@ import {
   groupRowContext,
   headLabel,
   iconFor,
+  isConflictsRow,
   originText,
   partialLabel,
   splitDelta,
@@ -472,6 +473,26 @@ export function App() {
     [model, send],
   );
 
+  // POST-QA: the Merge Conflicts row's Resolve, IntelliJ's link on that node,
+  // in either paradigm; with staging, every other row its Stage or Unstage.
+  const rowActions = useCallback(
+    (node: TreeNode): FileTreeAction[] | undefined => {
+      if (node.kind === 'dir' && isConflictsRow(model, node.path)) {
+        const repoRoot = model.groups.get(node.path)?.repoRoot;
+        return [
+          {
+            id: 'resolve',
+            codicon: 'git-merge',
+            title: 'Resolve Conflicts…',
+            run: () => send(COMMIT_METHODS.resolveConflicts, repoRoot !== undefined ? { repoRoot } : {}),
+          },
+        ];
+      }
+      return state.paradigm === 'staging' ? stagingActions(node) : undefined;
+    },
+    [model, send, stagingActions, state.paradigm],
+  );
+
   const description = useCallback(
     (node: TreeNode): string | undefined => {
       if (node.kind === 'dir') return fileCountLabel(countFiles(node));
@@ -765,7 +786,7 @@ export function App() {
       icon={icon}
       nameColor={nameColor}
       rowContext={rowContext}
-      actions={state.paradigm === 'staging' ? stagingActions : undefined}
+      actions={rowActions}
       {...(reveal !== undefined ? { reveal } : {})}
       {...(restore !== undefined ? { restore } : {})}
       {...(onScreenPath !== undefined ? { current: onScreenPath } : {})}
