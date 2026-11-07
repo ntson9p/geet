@@ -6,6 +6,16 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Commit window's file rows
+
+- **A file's row no longer repeats the folder it sits under.** Every file named its folder
+  beside it, `release notes/v1.0 draft.md  docs/release notes`, and in a narrow sidebar the
+  repeat squeezed the name to `v1.0 draft…`. The folder rows already say it, as in IntelliJ's
+  tree.
+- **A renamed file says where it came from:** *renamed from math.ts*, or *moved from
+  src/lib/store.ts* when it changed folders. It read `src/utils/math.ts ->`, an arrow at
+  nothing.
+
 ### Fixed — cleaning or rolling back many files at once
 
 - **Clean Untracked Files and Rollback work on any number of files.** Each passed every path

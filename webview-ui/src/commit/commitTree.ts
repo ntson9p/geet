@@ -575,6 +575,20 @@ export function twinRows(from: CommitTreeModel, to: CommitTreeModel, paths: Iter
  * is at, with a hover saying which and what it tracks. IntelliJ's repository
  * row shows the branch the same way, after its file count.
  */
+/**
+ * Where a renamed file came from, in IntelliJ's words (`ChangesBrowserFilePathNode`):
+ * `renamed from old.ts` within its folder, `moved from src/old/old.ts` out of
+ * another. The folder rows already say where a file is, so this is all its
+ * row adds (POST-QA: it read `src/utils/math.ts ->`, an arrow at nothing).
+ */
+export function originText(relPath: string, origPath: string | undefined): string | undefined {
+  if (origPath === undefined) return undefined;
+  const parent = (p: string): string => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+  const name = (p: string): string => p.slice(p.lastIndexOf('/') + 1);
+  if (parent(relPath) !== parent(origPath)) return `moved from ${origPath}`;
+  return name(relPath) !== name(origPath) ? `renamed from ${name(origPath)}` : undefined;
+}
+
 export function headLabel(head: CommitRepoHeadDto | undefined): { text: string; title: string } | undefined {
   if (head === undefined) return undefined;
   if (head.branch !== undefined) {

@@ -11,6 +11,7 @@ import {
   groupByOf,
   groupRowContext,
   headLabel,
+  originText,
   splitDelta,
   treePathOf,
   twinRow,
@@ -1037,5 +1038,22 @@ describe('the menu a folder row opens (POST-P14bf)', () => {
     expect(folderRowContext(model, node(model, '@r:D:/repos/api'), new Set())).toBeUndefined();
     expect(folderRowContext(model, node(model, '@r:D:/repos/api@g:@default'), new Set())).toBeUndefined();
     expect(folderRowContext(model, node(model, '@r:D:/repos/api@g:@default/src/a.ts'), new Set())).toBeUndefined();
+  });
+});
+
+describe('originText — what a renamed file’s row adds (POST-QA)', () => {
+  it('says renamed from the old name within the same folder', () => {
+    expect(originText('src/utils/numbers.ts', 'src/utils/math.ts')).toBe('renamed from math.ts');
+    expect(originText('b.md', 'a.md')).toBe('renamed from a.md');
+  });
+
+  it('says moved from the old path when the folder changed', () => {
+    expect(originText('src/core/store.ts', 'src/lib/store.ts')).toBe('moved from src/lib/store.ts');
+    expect(originText('top.ts', 'deep/dir/top.ts')).toBe('moved from deep/dir/top.ts');
+  });
+
+  it('adds nothing for a file that was not renamed — its folder is the row above', () => {
+    expect(originText('src/utils/math.ts', undefined)).toBeUndefined();
+    expect(originText('src/a.ts', 'src/a.ts')).toBeUndefined();
   });
 });

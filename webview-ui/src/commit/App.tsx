@@ -73,6 +73,7 @@ import {
   groupRowContext,
   headLabel,
   iconFor,
+  originText,
   partialLabel,
   splitDelta,
   treePathOf,
@@ -479,10 +480,9 @@ export function App() {
       // A partially-included file says so first: it is the one row whose
       // checkbox does not tell the whole story.
       if (ref.change.partial !== undefined) return partialLabel(ref.change.partial);
-      const dir = ref.relPath.includes('/')
-        ? ref.relPath.slice(0, ref.relPath.lastIndexOf('/'))
-        : '';
-      return ref.change.origPath !== undefined ? `${ref.change.origPath} ->` : dir;
+      // Its folder is the row above it: what a file's row adds is where a
+      // renamed one came from, as IntelliJ's grouped tree shows (POST-QA).
+      return originText(ref.relPath, ref.change.origPath);
     },
     [model],
   );
