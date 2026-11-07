@@ -27,6 +27,7 @@ import { CompareService } from './compare';
 import { RefService, type FavoritesStorage } from './refService';
 import { RepoScope } from './repoScope';
 import { RepositoriesViewProvider } from './repositoriesView';
+import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
 
 const SCOPE_MEMENTO_KEY = 'gittree.sidebar.focusedRepo';
 
@@ -278,8 +279,14 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     // Show Tags is toggled from the log's Branches pane as often as from the
     // Settings editor, so the sidebar trees cannot wait for the next ref change
     // to drop or regain their Tags node. The popup reads it each time it opens.
+    // The IntelliJ keymap likewise: its keys are named only while it is on.
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (!e.affectsConfiguration('gittree.branches.showTags')) return;
+      if (
+        !e.affectsConfiguration('gittree.branches.showTags') &&
+        !e.affectsConfiguration(`gittree.${INTELLIJ_KEYMAP_SETTING}`)
+      ) {
+        return;
+      }
       hub.refresh();
     }),
   );
