@@ -55,10 +55,8 @@ describe('Move to Another Changelist… choices (POST-P14bf)', () => {
     ]);
   });
 
-  it('keeps the default on offer when it is the only list and the files are in it', () => {
-    expect(moveChoices([{ lists: [changes()], fromKeys: new Set(['@default']) }])).toEqual([
-      { key: '@default', label: 'Changes' },
-    ]);
+  it('offers no list when the files sit in the only one: New changelist… is the choice (POST-QA)', () => {
+    expect(moveChoices([{ lists: [changes()], fromKeys: new Set(['@default']) }])).toEqual([]);
   });
 
   it("finds a repository's copy of a choice, or none to make", () => {

@@ -181,6 +181,23 @@ describe('ChangelistService reconciliation', () => {
     expect(service.isChecked('new.txt')).toBe(true);
   });
 
+  it('POST-QA: a file keeps its tick when it moves to another list', () => {
+    const { service } = rig([modified('a.ts'), modified('b.ts'), untracked('new.txt')]);
+    const other = service.create('Other');
+    service.setChecked(['a.ts'], false);
+    service.moveFiles(['a.ts', 'b.ts'], other.id);
+    // Left out of the commit before the move, left out after it.
+    expect(service.isChecked('a.ts')).toBe(false);
+    expect(service.isChecked('b.ts')).toBe(true);
+    expect(service.getList(other.id)?.checked).toEqual(['b.ts']);
+    // An unticked new file moved out of Unversioned Files stays unticked too.
+    service.moveFiles(['new.txt'], other.id);
+    expect(service.isChecked('new.txt')).toBe(false);
+    // And back again, still as the user left it.
+    service.moveFiles(['a.ts'], DEFAULT_LIST_ID);
+    expect(service.isChecked('a.ts')).toBe(false);
+  });
+
   it('rehydrates from persisted storage', () => {
     const backing = new Map<string, unknown>();
     const storage: ChangelistStorage = {

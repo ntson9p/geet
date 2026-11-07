@@ -248,10 +248,24 @@ export class ChangelistService implements Disposable {
     }
   }
 
-  /** Moves files (tracked or untracked) into a list, enforcing exactly-one-list. */
+  /**
+   * Moves files (tracked or untracked) into a list, enforcing exactly-one-list.
+   * A file keeps its tick across the move (POST-QA): one unticked in its old
+   * list, or unticked in Unversioned Files, stays out of the commit. It used to
+   * arrive ticked, so the next Commit took a file the user had left out. A file
+   * no list knew yet is ticked, as a new change in a list is.
+   */
   moveFiles(relPaths: readonly string[], targetId: string): void {
     const target = this.lists.find((l) => l.id === targetId);
     if (!target) return;
+    const unversioned = new Set(this.unversioned());
+    const leftOut = new Set(
+      relPaths.filter((p) => {
+        const owner = this.lists.find((l) => l.files.includes(p));
+        if (owner) return owner.unchecked.includes(p);
+        return unversioned.has(p) && !this.unversionedChecked.includes(p);
+      }),
+    );
     for (const list of this.lists) {
       if (list.id === targetId) continue;
       list.files = list.files.filter((p) => !relPaths.includes(p));
@@ -259,6 +273,7 @@ export class ChangelistService implements Disposable {
     }
     for (const p of relPaths) {
       if (!target.files.includes(p)) target.files.push(p);
+      if (leftOut.has(p) && !target.unchecked.includes(p)) target.unchecked.push(p);
     }
     // Adopted files answer to their list's checkbox now, not the unversioned one.
     this.unversionedChecked = this.unversionedChecked.filter((p) => !relPaths.includes(p));

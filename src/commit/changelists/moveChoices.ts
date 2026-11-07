@@ -36,8 +36,10 @@ export interface MoveSource {
 /**
  * The lists to offer: the default first, the others in the order they first
  * appear. As IntelliJ's chooser does, the one list every file already sits in
- * is left out, since moving them there would change nothing; were that the only
- * list, the default stays on offer.
+ * is left out, since moving them there would change nothing — even when it is
+ * the only list (POST-QA): it used to stay on offer, first and focused, so
+ * Enter moved the files nowhere. The picker's New changelist… is then the
+ * one choice, which is what moving out of the only list means.
  */
 export function moveChoices(sources: readonly MoveSource[]): MoveChoice[] {
   const byKey = new Map<string, MoveChoice>();
@@ -57,8 +59,7 @@ export function moveChoices(sources: readonly MoveSource[]): MoveChoice[] {
     ...(defaultChoice !== undefined ? [defaultChoice] : []),
     ...[...byKey.values()].filter((c) => c !== defaultChoice),
   ];
-  const offered = ordered.filter((c) => c.key !== only);
-  return offered.length > 0 || defaultChoice === undefined ? offered : [defaultChoice];
+  return ordered.filter((c) => c.key !== only);
 }
 
 /** A repository's list for a choice; `undefined` when it has no copy of it yet. */

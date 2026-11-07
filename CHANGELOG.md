@@ -27,6 +27,15 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — moving a file between changelists keeps it out of the commit
+
+- **A file you left out of the commit stays out when you move it to another changelist.** A
+  move ticked it, unversioned files included, so the next **Commit** took a file you had
+  unticked. It now keeps its tick wherever it goes.
+- **Move to Another Changelist… no longer offers the list the files are already in.** With a
+  single changelist, that list was the first choice and had the focus, so **Enter** moved the
+  files nowhere. As in IntelliJ, it is left out, and **New changelist…** is offered instead.
+
 ### Fixed — the log shows branches, not stashes; File History shows this branch
 
 - **All branches no longer lists your stashes as commits.** It ran `git log --all`, which also
