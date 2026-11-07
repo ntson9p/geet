@@ -6,6 +6,12 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Commit button keeps its label on one line
+
+- **`Commit to 3 repositories` no longer breaks over two lines inside its button.** Short of
+  room, the row of buttons wraps instead: **Commit and Push…** moves below, and both labels
+  stay whole.
+
 ### Fixed — one way of writing dates
 
 - **Commit Details writes the date the way the Date column does.** It read

@@ -148,6 +148,24 @@
   gap: 8px;
 }
 
+/* POST-QA: a label keeps one line. `Commit to 3 repositories` wrapped inside
+   its button at the sidebar's default width; now, short of room, the row
+   wraps instead — `Commit and Push…` moves below, both labels whole. Only a
+   button wider than the whole row gives way, with an ellipsis (the tooltip
+   names every repository). */
+.gt-commit-actions {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.gt-commit-actions > .gt-button {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* P11-T5: the gear popup. No anchored floating windows exist in VS Code, so
    it renders inside the webview, pinned above the actions row. */
 .gt-options-popup {
