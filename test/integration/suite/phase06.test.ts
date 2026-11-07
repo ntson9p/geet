@@ -278,6 +278,87 @@ suite('P6 merge engine — conflict sessions & view', () => {
     await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
   });
 
+  test('POST-QA: a double open makes one merge editor; closing a pane closes it, no modal', async function () {
+    this.timeout(90_000);
+    const session = await buildTwoBlockConflict('twice', 'p6twice.txt');
+    const node = { session, path: 'p6twice.txt', kind: 'both-modified' as const };
+    // A double-click in the Conflicts view: two opens before the first is done.
+    await Promise.all([
+      vscode.commands.executeCommand('gittree.merge.open', node),
+      vscode.commands.executeCommand('gittree.merge.open', node),
+    ]);
+    const tri = reg.triEditors.get(repoRoot, 'p6twice.txt');
+    assert.ok(tri, 'tri-editor must register itself');
+    const ourTabs = (): number =>
+      vscode.window.tabGroups.all
+        .flatMap((g) => g.tabs)
+        .filter((t) => t.input instanceof vscode.TabInputText && /p6twice/.test(t.input.uri.toString())).length;
+    assert.strictEqual(ourTabs(), 3, 'one editor: three panes, not six');
+
+    // Closing one pane tears the whole editor down — nothing written, still conflicted.
+    const left = vscode.window.tabGroups.all
+      .flatMap((g) => g.tabs)
+      .find((t) => t.input instanceof vscode.TabInputText && t.input.uri.query.includes('":2"'));
+    assert.ok(left, 'left pane tab missing');
+    await vscode.window.tabGroups.close(left);
+    await waitFor(() => reg.triEditors.get(repoRoot, 'p6twice.txt') === undefined, 10_000);
+    await waitFor(() => ourTabs() === 0, 10_000);
+    assert.strictEqual(session.remaining, 1, 'the file stays conflicted');
+  });
+
+  test('POST-QA: mid-rebase, Yours is the commit being replayed and Accept Yours keeps it', async function () {
+    this.timeout(90_000);
+    git('checkout', '-f', 'main');
+    git('checkout', '-b', 'p6/rebase-onto');
+    write('p6rebase.txt', 'one\ntwo\nthree\n');
+    commitAll('p6 rebase base');
+    git('checkout', '-b', 'p6/rebase-mine');
+    write('p6rebase.txt', 'one\nMINE\nthree\n');
+    commitAll('p6 rebase mine');
+    git('checkout', 'p6/rebase-onto');
+    write('p6rebase.txt', 'one\nUPSTREAM\nthree\n');
+    commitAll('p6 rebase upstream');
+    git('checkout', 'p6/rebase-mine');
+    try {
+      try {
+        git('rebase', 'p6/rebase-onto');
+        assert.fail('rebase should stop on the conflict');
+      } catch {
+        // expected
+      }
+      await repo.refresher.refreshNow();
+      await waitFor(() => reg.getSession(repoRoot) !== undefined, 15_000);
+      const session = reg.getSession(repoRoot)!;
+      assert.strictEqual(session.reversed, true, 'a rebase swaps git\'s sides back');
+
+      await vscode.commands.executeCommand('gittree.merge.open', {
+        session,
+        path: 'p6rebase.txt',
+        kind: 'both-modified' as const,
+      });
+      const tri = reg.triEditors.get(repoRoot, 'p6rebase.txt');
+      assert.ok(tri, 'tri-editor must register itself');
+      const paneText = (stage: string): string | undefined =>
+        vscode.workspace.textDocuments.find((d) => d.uri.query.includes(`"ref":"${stage}"`) && d.uri.query.includes('p6rebase'))?.getText();
+      // Yours (left) reads stage 3 mid-rebase: the user's own commit.
+      assert.match(paneText(':3') ?? '', /MINE/);
+      assert.strictEqual(tri.blocks[0]?.block.ours.join(''), 'MINE\n');
+      assert.strictEqual(tri.blocks[0]?.block.theirs.join(''), 'UPSTREAM\n');
+      assert.match(await tri.sideDetails('left'), /p6 rebase mine/);
+      await tri.close();
+
+      // File-level Accept Yours keeps the user's change.
+      await session.acceptSide(['p6rebase.txt'], 'ours');
+      assert.strictEqual(fs.readFileSync(abs('p6rebase.txt'), 'utf8'), 'one\nMINE\nthree\n');
+    } finally {
+      try {
+        git('rebase', '--abort');
+      } catch {
+        // already finished
+      }
+    }
+  });
+
   test('T4: chevron commands, ignore/revert, undo reconciliation, blocked Apply', async function () {
     this.timeout(120_000);
     const session = await buildTwoBlockConflict('chev', 'p6chev.txt');
