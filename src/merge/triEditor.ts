@@ -49,6 +49,10 @@ export class TriMergeEditor {
   private scrollGuard = new Map<string, number>();
   private syncScroll = true;
   private closed = false;
+  /** The user typed into the result (accepting a block counts through `resolvedCount`). */
+  private edited = false;
+  /** A pane was closed and the editor is going: said at most once. */
+  private closing = false;
   private readonly _onDidClose = new vscode.EventEmitter<void>();
   readonly onDidClose = this._onDidClose.event;
   private readonly _onDidChangeState = new vscode.EventEmitter<void>();
@@ -230,6 +234,7 @@ export class TriMergeEditor {
   private onCenterEdit(e: vscode.TextDocumentChangeEvent): void {
     if (e.document.uri.toString() !== this.centerUri.toString()) return;
     if (this.selfEdit || e.contentChanges.length === 0) return;
+    this.edited = true;
     const touched = new Set<TrackedBlock>();
     for (const change of e.contentChanges) {
       const delta =
@@ -544,6 +549,12 @@ export class TriMergeEditor {
     return true;
   }
 
+  /** Brings an open editor's result pane to the front (a second open of its file). */
+  async reveal(): Promise<void> {
+    if (this.closed) return;
+    await vscode.window.showTextDocument(this.centerDoc, { viewColumn: vscode.ViewColumn.Two, preview: false });
+  }
+
   /** Resolve-later / user closed a pane: tear down without writing. */
   async close(): Promise<void> {
     if (this.closed) return;
@@ -583,7 +594,8 @@ export class TriMergeEditor {
   }
 
   private onTabsClosed(e: vscode.TabChangeEvent): void {
-    if (this.closed || e.closed.length === 0) return;
+    // Closing all three panes fires a change per tab: one answer is enough.
+    if (this.closed || this.closing || e.closed.length === 0) return;
     const ours = new Set(
       [this.leftUri, this.rightUri, this.centerUri].map((u) => u.toString()),
     );
@@ -591,28 +603,33 @@ export class TriMergeEditor {
       (tab) => tab.input instanceof vscode.TabInputText && ours.has(tab.input.uri.toString()),
     );
     if (!hit) return;
-    void this.promptOnClose();
+    this.closing = true;
+    void this.closedByUser();
   }
 
-  private async promptOnClose(): Promise<void> {
-    const later = vscode.l10n.t('Resolve Later');
-    const seeded = process.env['GITTREE_TEST_TRIEDITOR_CLOSE'];
-    const choice =
-      seeded !== undefined
-        ? seeded === 'abort'
-          ? vscode.l10n.t('Abort File')
-          : later
-        : await vscode.window.showWarningMessage(
-            vscode.l10n.t('{0} is not resolved yet.', this.rel),
-            { modal: true, detail: vscode.l10n.t('The file stays conflicted either way; Resolve Later keeps your partial result for this session.') },
-            later,
-            vscode.l10n.t('Abort File'),
-          );
-    // Both choices keep the file unmerged (nothing was written to the
-    // worktree); the partial result document is discarded with the session
-    // either way — "Resolve Later" simply names the safe default.
-    void choice;
+  /**
+   * The user closed a pane (POST-QA): the editor cannot stay half open, so it
+   * goes, and the file stays conflicted — nothing was written. It used to ask
+   * "Resolve Later / Abort File" in a modal per closed tab (six in a row for a
+   * double-clicked file), and both answers did the same thing, the first
+   * promising a partial result it then threw away. Now it says so once, and
+   * only when there was work to lose, with a way back in.
+   */
+  private async closedByUser(): Promise<void> {
+    const lost = this.edited || this.resolvedCount > 0;
     await this.close();
+    if (!lost || process.env['GITTREE_TEST'] === '1') return;
+    const reopen = vscode.l10n.t('Reopen');
+    const choice = await vscode.window.showWarningMessage(
+      vscode.l10n.t(
+        '{0} is still conflicted: the merge editor was closed before Apply, and the conflicts resolved in it were discarded.',
+        this.rel,
+      ),
+      reopen,
+    );
+    if (choice !== reopen) return;
+    const file = this.session.files().find((f) => f.path === this.rel);
+    if (file) await vscode.commands.executeCommand('gittree.merge.open', { session: this.session, path: file.path, kind: file.kind });
   }
 }
 
@@ -674,6 +691,8 @@ export function createTriEditorDecorations(): TriEditorDecorations {
  */
 export class TriEditorManager implements vscode.Disposable {
   private readonly open = new Map<string, TriMergeEditor>();
+  /** Editors still opening, so a second open of the same file waits for the first. */
+  private readonly opening = new Map<string, Promise<TriMergeEditor>>();
   private readonly statusBar: vscode.StatusBarItem;
   readonly decorations: TriEditorDecorations;
   private readonly _onDidChangeState = new vscode.EventEmitter<void>();
@@ -721,11 +740,25 @@ export class TriEditorManager implements vscode.Disposable {
   ): Promise<TriMergeEditor> {
     const key = this.key(repo.root, rel);
     const existing = this.open.get(key);
-    if (existing) return existing;
-    const editor = await TriMergeEditor.open(repo, rel, session, merge, {
+    if (existing) {
+      await existing.reveal();
+      return existing;
+    }
+    // A double-click opens twice before the first open has finished: one
+    // editor per file, or the second's panes close under the first (POST-QA).
+    const pending = this.opening.get(key);
+    if (pending) return pending;
+    const opened = TriMergeEditor.open(repo, rel, session, merge, {
       mergeFs: this.mergeFs,
       decorations: this.decorations,
     });
+    this.opening.set(key, opened);
+    let editor: TriMergeEditor;
+    try {
+      editor = await opened;
+    } finally {
+      this.opening.delete(key);
+    }
     this.open.set(key, editor);
     editor.onDidClose(() => {
       this.open.delete(key);

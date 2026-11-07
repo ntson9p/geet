@@ -38,6 +38,18 @@ pre-release convention (odd minor = pre-release).
   labels. **Show Details** names the right commit: your commit being replayed for Yours,
   and for Theirs the cherry-picked or reverted commit rather than "revision unavailable".
 
+### Fixed — the merge editor opens once and closes quietly
+
+- **A double-click opens one merge editor.** Opening a conflicted file twice in quick
+  succession, as a double-click in the Conflicts view does, opened two editors over the same
+  three tabs. Each then asked about the other's panes as they closed: after **Apply**, three
+  *"… is not resolved yet"* modals came in a row, and six after closing by hand.
+- **Closing the merge editor no longer asks a question whose answers do the same thing.**
+  *Resolve Later* and *Abort File* both discarded the partial result, though the first
+  promised to keep it. Closing a pane now closes the editor. If conflicts had been resolved
+  in it, one notification says the file is still conflicted and that this work was
+  discarded, with **Reopen**.
+
 ### Fixed — a force push is offered only when one is needed
 
 - **Rewording or dropping commits nobody has seen no longer asks for a force push.** After any
