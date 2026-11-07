@@ -13,11 +13,11 @@
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
-import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import { buildDropPlan, buildSquashPlan, isContiguous, prettySquash } from './multiCommitPlans';
 import { isPublished } from './publishedGuard';
 import type { RebaseEngine, RebaseOutcome } from './rebase/rebaseEngine';
+import { undoHistoryEdit, type HistoryEdit, type HistoryEditKind } from './undoEdit';
 
 export type MultiEditResult = RebaseOutcome['status'] | 'refused' | 'cancelled';
 
@@ -36,8 +36,8 @@ export type PromptMessage = (original: string, acceptTitle: string) => Promise<s
 const SHA = /^[0-9a-f]{40,64}$/u;
 
 export class MultiCommitEditService {
-  /** HEAD before the last drop or squash, per repository — what Undo resets to. */
-  private readonly lastEdit = new Map<string, string>();
+  /** The last drop or squash per repository: HEAD before and after — what Undo needs. */
+  private readonly lastEdit = new Map<string, HistoryEdit & { kind: HistoryEditKind }>();
 
   constructor(
     private readonly engineFor: (repo: RepoHandle) => RebaseEngine | undefined,
@@ -63,7 +63,7 @@ export class MultiCommitEditService {
       ? await engine.dropRange(members[0]!, members[members.length - 1]!, members.length)
       : await engine.start(buildDropPlan(ready.base, ready.range, ready.selected));
     if (outcome.status === 'completed') {
-      this.offerUndo(repo, preHead, vscode.l10n.t('Dropped {0} commits.', members.length));
+      await this.offerUndo(repo, preHead, 'drop', vscode.l10n.t('Dropped {0} commits.', members.length));
     }
     return outcome.status;
   }
@@ -91,31 +91,36 @@ export class MultiCommitEditService {
     const preHead = await this.revParse(repo, 'HEAD');
     const outcome = await engine.start(buildSquashPlan(ready.base, ready.range, ready.selected, message));
     if (outcome.status === 'completed') {
-      this.offerUndo(repo, preHead, vscode.l10n.t('Squashed {0} commits.', ready.selected.size));
+      await this.offerUndo(repo, preHead, 'squash', vscode.l10n.t('Squashed {0} commits.', ready.selected.size));
     }
     return outcome.status;
   }
 
-  /** Resets the repository to where it was before the last drop or squash. */
+  /**
+   * Back to where the repository was before the last drop or squash — while
+   * HEAD is still where that edit left it; local changes are kept
+   * (`undoHistoryEdit`, POST-QA F4).
+   */
   async undoLast(repo: RepoHandle): Promise<boolean> {
-    const preHead = this.lastEdit.get(canonicalKey(repo.root));
-    if (preHead === undefined) return false;
-    await repo.queue.enqueue({
-      label: vscode.l10n.t('Undo (reset to {0})', preHead.slice(0, 7)),
-      kind: 'mutate',
-      isDestructive: true,
-      snapshotLabel: SNAPSHOT_LABELS.reset,
-      run: async (git, token) => {
-        await git.exec(repo.root, ['reset', '--hard', preHead], { token });
-      },
-    });
-    this.lastEdit.delete(canonicalKey(repo.root));
-    await repo.refresher.refreshNow();
-    return true;
+    const key = canonicalKey(repo.root);
+    const edit = this.lastEdit.get(key);
+    if (edit === undefined) return false;
+    const done = await undoHistoryEdit(repo, edit, edit.kind);
+    // Either way this edit cannot be undone again: done, or HEAD has moved on.
+    if (this.lastEdit.get(key) === edit) this.lastEdit.delete(key);
+    return done;
   }
 
-  private offerUndo(repo: RepoHandle, preHead: string | undefined, message: string): void {
-    if (preHead !== undefined) this.lastEdit.set(canonicalKey(repo.root), preHead);
+  private async offerUndo(
+    repo: RepoHandle,
+    preHead: string | undefined,
+    kind: HistoryEditKind,
+    message: string,
+  ): Promise<void> {
+    const postHead = await this.revParse(repo, 'HEAD');
+    if (preHead !== undefined && postHead !== undefined) {
+      this.lastEdit.set(canonicalKey(repo.root), { preHead, postHead, kind });
+    }
     const undo = vscode.l10n.t('Undo');
     void vscode.window.showInformationMessage(message, undo).then(async (choice) => {
       if (choice === undo) await this.undoLast(repo);

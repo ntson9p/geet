@@ -27,6 +27,25 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — Undo keeps your work, and history edits keep your staging
+
+- **Undo after Drop Commit(s) or Squash Commits no longer throws away uncommitted work.** It
+  ran `git reset --hard` to the commit before the edit: every change in the working tree that
+  was not committed went with it, without a word. It also never checked that the branch was
+  still where the edit left it, so an Undo clicked later from the notification centre dropped
+  every commit made since. Undo now does what IntelliJ's does: it refuses once the branch has
+  moved on (*Cannot undo drop: the repository has already been changed.*) or once the edit's
+  commits are on a protected remote branch, and goes back with `git reset --keep`, which keeps
+  every local change and refuses rather than overwrite one.
+- **Staged changes stay staged.** Edit Commit Message, Drop, Squash, Fixup and Interactive
+  Rebase let git's `--autostash` put local changes back, which unstages them all; the Undo
+  of an edit unstaged them too, and turned a staged new file into an untracked one. Smart
+  Checkout popped its stash without `--index`, and Undo Commit followed its soft reset with a
+  plain `git reset`, unstaging everything else as well. Each now leaves the staging as it
+  was. Only a file the operation itself changes in the commit you are on comes back
+  unstaged, its content kept, and GitTree says which. Undo Commit leaves the commit's own
+  changes staged, as IntelliJ's does, so a file it added stays added.
+
 ### Fixed — a new commit shows in the log
 
 - **A commit made while the log is scrolled to the top now shows as its first row.** When

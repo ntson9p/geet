@@ -8,6 +8,8 @@ import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
+import type { CancelToken, GitExecutor } from '../core/git/executor';
+import { readStaged, restoreStaged, type StagedSnapshot } from '../core/ops/keepStaged';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { parseBlockingFiles } from './parsing';
 
@@ -145,7 +147,9 @@ export async function setAsideAround(
   // Quiet when a caller's own progress says what is going on.
   const quiet = options.quietProgress === true ? { quietProgress: true as const } : {};
 
-  // 1. Stash everything (incl. untracked) — destructive-flagged for P9.
+  // 1. Stash everything (incl. untracked) — destructive-flagged for P9 —
+  //    remembering what was staged, for when `pop --index` cannot be used.
+  let staged: StagedSnapshot | undefined;
   await repo.queue.enqueue({
     label: vscode.l10n.t('Smart checkout: stash changes'),
     kind: 'mutate',
@@ -153,6 +157,7 @@ export async function setAsideAround(
     isDestructive: true,
     snapshotLabel: SNAPSHOT_LABELS.smartCheckoutStash,
     run: async (git, token) => {
+      staged = await readStaged(git, repo.root, token);
       await git.exec(repo.root, ['stash', 'push', '-u', '-m', marker], { token });
     },
   });
@@ -175,7 +180,7 @@ export async function setAsideAround(
         kind: 'mutate',
         ...quiet,
         run: async (git, token) => {
-          await git.exec(repo.root, ['stash', 'pop'], { token, allowNonZeroExit: true });
+          await popKeepingIndex(git, repo.root, staged, token).catch(() => undefined);
         },
       })
       .catch(() => undefined);
@@ -190,12 +195,37 @@ export async function setAsideAround(
       kind: 'mutate',
       ...quiet,
       run: async (git, token) => {
-        await git.exec(repo.root, ['stash', 'pop'], { token });
+        await popKeepingIndex(git, repo.root, staged, token);
       },
     });
   } catch (err) {
     throw new RestoreFailedError(err);
   }
+}
+
+/**
+ * `git stash pop --index`: the staged changes come back staged, as IntelliJ's
+ * Smart Checkout puts them back with the staging area on (POST-QA F3). When
+ * the staged half no longer applies on the new branch ("conflicts in index"),
+ * git changes nothing; the plain pop then brings everything back unstaged, and
+ * `restoreStaged` stages again every path the checkout did not change — only
+ * the files that differ between the two branches stay unstaged.
+ */
+async function popKeepingIndex(
+  git: GitExecutor,
+  root: string,
+  staged: StagedSnapshot | undefined,
+  token: CancelToken,
+): Promise<void> {
+  try {
+    await git.exec(root, ['stash', 'pop', '--index'], { token });
+    return;
+  } catch (err) {
+    const output = err instanceof GitError ? `${err.stderr}\n${err.details.stdout}` : '';
+    if (!(err instanceof GitError) || !/conflicts in index/iu.test(output)) throw err;
+  }
+  await git.exec(root, ['stash', 'pop'], { token });
+  if (staged) await restoreStaged(git, root, staged, token);
 }
 
 async function smartCheckout(core: Core, repo: RepoHandle, target: string): Promise<void> {

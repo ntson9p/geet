@@ -2,10 +2,12 @@
  * Undo Commit & Drop Commit (P5-T3). Undo = soft reset of HEAD with
  * IntelliJ-parity aftermath (changelists paradigm files the paths into a new
  * changelist named after the commit subject and restores the message into
- * the commit input; staging paradigm leaves everything staged). Drop = a
- * background `git rebase --autostash --onto <sha>^ <sha>` through the T1
- * engine's classification, with an in-session Undo back to the pre-drop sha.
- * Both refuse published commits unless the warn modal is accepted.
+ * the commit input; the commit's changes stay staged, as `git reset --soft`
+ * leaves them in IntelliJ too, and so does everything the user had staged).
+ * Drop = a background `git rebase --autostash --onto <sha>^ <sha>` through
+ * the T1 engine's classification, with an in-session Undo back to the
+ * pre-drop sha (`undoHistoryEdit`). Both refuse published commits unless the
+ * warn modal is accepted.
  */
 import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
@@ -15,6 +17,7 @@ import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import { isPublished } from './publishedGuard';
 import type { RebaseEngine, RebaseOutcome } from './rebase/rebaseEngine';
+import { undoHistoryEdit, type HistoryEdit } from './undoEdit';
 
 /** Structural slices of the P1/P3 registries this service composes with. */
 interface MessageBoxShape {
@@ -42,7 +45,7 @@ export type DropResult =
 
 export class UndoDropService {
   /** Last successful drop per repo — powers the in-session Undo toast. */
-  private readonly lastDrop = new Map<string, string>();
+  private readonly lastDrop = new Map<string, HistoryEdit>();
 
   constructor(
     private readonly core: Core,
@@ -110,12 +113,11 @@ export class UndoDropService {
       isDestructive: true,
       snapshotLabel: SNAPSHOT_LABELS.reset,
       run: async (git, token) => {
+        // IntelliJ's `GitUncommitAction`: a soft reset and nothing more. A bare
+        // `git reset` after it unstaged everything else the user had staged
+        // and turned the commit's new files into untracked ones (POST-QA F3);
+        // the changelist commit takes the working tree either way.
         await git.exec(repo.root, ['reset', '--soft', 'HEAD^'], { token });
-        if (changelistParadigm) {
-          // Changelists bypass the index — unstage so the files return to
-          // plain worktree modifications the lists can own.
-          await git.exec(repo.root, ['reset'], { token });
-        }
       },
     });
 
@@ -175,7 +177,10 @@ export class UndoDropService {
     const preHead = await this.tryRevParse(repo, 'HEAD');
     const outcome = await engine.dropOnto(sha);
     if (outcome.status === 'completed') {
-      if (preHead !== undefined) this.lastDrop.set(canonicalKey(repo.root), preHead);
+      const postHead = await this.tryRevParse(repo, 'HEAD');
+      if (preHead !== undefined && postHead !== undefined) {
+        this.lastDrop.set(canonicalKey(repo.root), { preHead, postHead });
+      }
       const undo = vscode.l10n.t('Undo');
       void vscode.window
         .showInformationMessage(
@@ -189,22 +194,17 @@ export class UndoDropService {
     return outcome;
   }
 
-  /** In-session Undo of the last drop: hard reset back to the pre-drop sha. */
+  /**
+   * In-session Undo of the last drop: back to the pre-drop sha while HEAD is
+   * still where the drop left it, keeping every local change (POST-QA F4).
+   */
   async undoLastDrop(repo: RepoHandle): Promise<boolean> {
-    const preHead = this.lastDrop.get(canonicalKey(repo.root));
-    if (preHead === undefined) return false;
-    await repo.queue.enqueue({
-      label: vscode.l10n.t('Undo drop (reset to {0})', preHead.slice(0, 7)),
-      kind: 'mutate',
-      isDestructive: true,
-      snapshotLabel: SNAPSHOT_LABELS.reset,
-      run: async (git, token) => {
-        await git.exec(repo.root, ['reset', '--hard', preHead], { token });
-      },
-    });
-    this.lastDrop.delete(canonicalKey(repo.root));
-    await repo.refresher.refreshNow();
-    return true;
+    const key = canonicalKey(repo.root);
+    const edit = this.lastDrop.get(key);
+    if (edit === undefined) return false;
+    const done = await undoHistoryEdit(repo, edit, 'drop');
+    if (this.lastDrop.get(key) === edit) this.lastDrop.delete(key);
+    return done;
   }
 
   private async read(repo: RepoHandle, args: string[]): Promise<string> {

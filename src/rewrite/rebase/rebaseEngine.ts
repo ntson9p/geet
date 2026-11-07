@@ -9,6 +9,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../core/core';
+import type { CancelToken, GitExecutor, GitResult } from '../../core/git/executor';
+import { readStaged, restoreStaged, type StagedSnapshot } from '../../core/ops/keepStaged';
 import { Emitter, type Event } from '../../core/util/events';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import { serializePlan, type RebasePlan } from './planSerializer';
@@ -31,9 +33,25 @@ function toPosix(p: string): string {
   return p.replace(/\\/g, '/');
 }
 
+/**
+ * git's `--autostash` puts the stash back without `--index`: every staged
+ * change comes back unstaged. These rewrites record the staging first and put
+ * it back when the rebase ends (POST-QA F3), unless the stash itself did not
+ * apply — then the changes wait in `git stash list` and the index is left be.
+ */
+function autostashConflicted(result: GitResult): boolean {
+  return /autostash resulted in conflicts/iu.test(`${result.stdout}\n${result.stderr}`);
+}
+
 export class RebaseEngine {
   /** Message files must outlive `start()` — exec lines read them later. */
   private sessionTmpDir: string | undefined;
+  /**
+   * The staging when the current rewrite started, until it ends through
+   * GitTree (completes, or is aborted). A rebase finished from a terminal
+   * leaves it unclaimed; the next rewrite replaces it.
+   */
+  private pendingStaged: StagedSnapshot | undefined;
   /** Fires when any rebase-family rewrite finishes successfully (P5-T6). */
   private readonly _onDidCompleteRewrite = new Emitter<void>();
   readonly onDidCompleteRewrite: Event<void> = this._onDidCompleteRewrite.event;
@@ -92,6 +110,7 @@ export class RebaseEngine {
       SNAPSHOT_LABELS.rebaseStart,
       ['rebase', '-i', '--autostash', plan.baseSha],
       { GIT_SEQUENCE_EDITOR: editor, GIT_EDITOR: 'true' },
+      true,
     );
   }
 
@@ -106,6 +125,7 @@ export class RebaseEngine {
       SNAPSHOT_LABELS.rebaseStart,
       ['rebase', '--autostash', '--onto', `${sha}^`, sha],
       { GIT_EDITOR: 'true' },
+      true,
     );
   }
 
@@ -119,6 +139,7 @@ export class RebaseEngine {
       SNAPSHOT_LABELS.rebaseStart,
       ['rebase', '--autostash', '--onto', `${oldest}^`, newest],
       { GIT_EDITOR: 'true' },
+      true,
     );
   }
 
@@ -173,10 +194,36 @@ export class RebaseEngine {
       bypassHold: true,
       snapshotLabel: SNAPSHOT_LABELS.rebaseAbort,
       run: async (git, token) => {
-        await git.exec(this.repo.root, ['rebase', '--abort'], { token });
+        const result = await git.exec(this.repo.root, ['rebase', '--abort'], { token });
+        // Back on the old HEAD: every staged path is untouched again.
+        await this.restorePending(git, result, token);
       },
     });
     this.disposeSessionTmp();
+  }
+
+  /**
+   * Puts the recorded staging back once git has re-applied its autostash.
+   * Runs inside the step's own mutate task, so nothing stages in between.
+   */
+  private async restorePending(git: GitExecutor, result: GitResult, token: CancelToken): Promise<void> {
+    const pending = this.pendingStaged;
+    this.pendingStaged = undefined;
+    if (pending === undefined || autostashConflicted(result)) return;
+    try {
+      const kept = await restoreStaged(git, this.repo.root, pending, token);
+      if (kept.skipped.length > 0) {
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            '{0} staged file(s) were changed by the rewrite and are now unstaged: {1}',
+            kept.skipped.length,
+            kept.skipped.join(', '),
+          ),
+        );
+      }
+    } catch (err) {
+      this.deps.trace(`rebase: could not restore the staged changes: ${String(err)}`);
+    }
   }
 
   private async runStep(
@@ -184,6 +231,7 @@ export class RebaseEngine {
     snapshotLabel: string,
     args: string[],
     env: Record<string, string>,
+    starts = false,
   ): Promise<RebaseOutcome> {
     const result = await this.repo.queue.enqueue({
       label,
@@ -193,8 +241,17 @@ export class RebaseEngine {
       snapshotAfter: true,
       // P6-T7: continue/skip resolve the very pause that holds the lane.
       bypassHold: true,
-      run: (git, token) =>
-        git.exec(this.repo.root, args, { env, allowNonZeroExit: true, token }),
+      run: async (git, token) => {
+        if (starts) this.pendingStaged = await readStaged(git, this.repo.root, token);
+        const r = await git.exec(this.repo.root, args, { env, allowNonZeroExit: true, token });
+        if (r.exitCode === 0) {
+          await this.restorePending(git, r, token);
+        } else if (!this.isRebaseInProgress()) {
+          // Never started, or gave up on its own: git left the index alone.
+          this.pendingStaged = undefined;
+        }
+        return r;
+      },
     });
     if (result.exitCode === 0) {
       this.disposeSessionTmp();

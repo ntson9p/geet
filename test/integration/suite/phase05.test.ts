@@ -427,10 +427,11 @@ suite('P5 history rewriting — rebase engine', () => {
         JSON.stringify(notes.recent()),
       );
 
-      // Files are back as unstaged worktree changes (changelists paradigm).
+      // IntelliJ's soft reset and nothing more (POST-QA F3): the commit's new
+      // files stay added, not untracked, and nothing else is unstaged.
       const status = git('status', '--porcelain');
-      assert.ok(/\?\?\s+p5undo-a\.txt/.test(status), `expected untracked a: ${status}`);
-      assert.ok(/\?\?\s+p5undo-b\.txt/.test(status), `expected untracked b: ${status}`);
+      assert.ok(/^A\s+p5undo-a\.txt/m.test(status), `expected added a: ${status}`);
+      assert.ok(/^A\s+p5undo-b\.txt/m.test(status), `expected added b: ${status}`);
 
       const list = p3.changelistsFor(repo).getLists().find((l) => l.name === 'Fix parser bug');
       assert.ok(list, 'changelist named after the subject missing');
@@ -444,6 +445,8 @@ suite('P5 history rewriting — rebase engine', () => {
       assert.ok(input.value.includes('details body'), 'full message (body) must be restored');
       assert.notStrictEqual(git('rev-parse', 'HEAD').trim(), committed);
     } finally {
+      // Out of the index too: undo leaves them added.
+      git('reset', '-q', '--', 'p5undo-a.txt', 'p5undo-b.txt');
       fs.rmSync(abs('p5undo-a.txt'), { force: true });
       fs.rmSync(abs('p5undo-b.txt'), { force: true });
       const input = p3.messageBoxFor(repo);

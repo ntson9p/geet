@@ -806,7 +806,11 @@ greys Revert, Drop and Squash Commits.
   editor. Both check IntelliJ's conditions — every commit on the current branch, no merge
   between the oldest and HEAD, not the initial commit — say which one failed, confirm before
   rewriting commits already on the upstream (GitTree's published guard, where IntelliJ refuses
-  a protected branch), and offer **Undo** afterwards.
+  a protected branch), and offer **Undo** afterwards. As in IntelliJ, Undo works while HEAD is
+  still where the edit left it and its commits are not on a protected remote branch; it moves
+  the branch back with `git reset --keep`, so every local change stays, and refuses rather
+  than overwrite one. Staged changes stay staged through the edit and its Undo, and through
+  Edit Commit Message, Fixup, Interactive Rebase and Smart Checkout too.
 * **Compare Versions** (two commits) opens every file that differs between them, lower to
   upper, kept to the log's path filter, in one multi-diff.
 

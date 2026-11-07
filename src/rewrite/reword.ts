@@ -13,6 +13,7 @@ import { confirmModal } from '../ui/confirm';
 import { isPublished } from './publishedGuard';
 import type { RebasePlan, RebasePlanEntry } from './rebase/planSerializer';
 import type { RebaseEngine } from './rebase/rebaseEngine';
+import { undoHistoryEdit } from './undoEdit';
 
 export type RewordResult = 'done' | 'cancelled' | 'refused' | 'failed';
 
@@ -122,23 +123,16 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
   }
 
   private async undo(repo: RepoHandle, preHead: string, postHead: string | undefined): Promise<void> {
-    const now = await this.revParse(repo, 'HEAD');
-    if (postHead === undefined || now !== postHead) {
+    if (postHead === undefined) {
       void vscode.window.showWarningMessage(
         vscode.l10n.t('Cannot undo commit message edit: the repository has already been changed.'),
       );
       return;
     }
     // Only the message changed, so the trees match and `--keep` moves HEAD
-    // without touching a single file, local changes included.
-    await repo.queue.enqueue({
-      label: vscode.l10n.t('Undo commit message edit'),
-      kind: 'mutate',
-      run: async (git, token) => {
-        await git.exec(repo.root, ['reset', '--keep', preHead], { token });
-      },
-    });
-    await repo.refresher.refreshNow();
+    // without touching a single file; `undoHistoryEdit` also puts back what
+    // `--keep` unstages (POST-QA F3).
+    await undoHistoryEdit(repo, { preHead, postHead }, 'reword');
   }
 
   /**

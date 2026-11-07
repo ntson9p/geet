@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
+import { readStaged, restoreStaged } from '../core/ops/keepStaged';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
@@ -405,10 +406,13 @@ export function registerCommitActions(
         isDestructive: true,
         snapshotLabel: SNAPSHOT_LABELS.rebaseStart,
         run: async (git, token) => {
+          // `--autostash` re-applies without `--index`: keep the staging (POST-QA F3).
+          const staged = await readStaged(git, repo.root, token);
           await git.exec(repo.root, ['rebase', '--interactive', '--autosquash', '--autostash', `${sha}^`], {
             env: { GIT_SEQUENCE_EDITOR: ':', GIT_EDITOR: ':' },
             token,
           });
+          if (staged) await restoreStaged(git, repo.root, staged, token);
         },
       });
       notifySuccess(
