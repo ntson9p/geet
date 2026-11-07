@@ -3,11 +3,8 @@
  * stop a commit, and a merge commit asks before leaving changes out.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  excludedFromMergeCommit,
-  hasUnresolvedConflicts,
-  pathListDetail,
-} from '../../../src/commit/mergeCommitChecks';
+import { excludedFromMergeCommit, hasUnresolvedConflicts } from '../../../src/commit/mergeCommitChecks';
+import { pathListDetail } from '../../../src/ui/pathList';
 import type { StatusEntry } from '../../../src/core/model/statusEntry';
 
 const entry = (p: string, kind: StatusEntry['kind'], x = 'M', y = '.'): StatusEntry =>

@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — cleaning or rolling back many files at once
+
+- **Clean Untracked Files and Rollback work on any number of files.** Each passed every path
+  to one git command, which outgrew Windows' command line on a big tree and failed. They now
+  go in slices, as staging already did. Their confirmations list a dozen files and say how
+  many more, instead of growing past the screen.
+
 ### Fixed — the Commit window has room for its changes
 
 - **The preview diff is one column in a narrow sidebar,** a change's removed lines above its

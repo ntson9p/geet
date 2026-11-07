@@ -25,10 +25,3 @@ export function excludedFromMergeCommit(
   const included = new Set(ticked.map(norm));
   return [...new Set(listed)].filter((p) => !included.has(norm(p)) && !isUntracked(p));
 }
-
-/** A dialog's detail: a path a line, the first `max` of them, then how many more. */
-export function pathListDetail(paths: readonly string[], more: (count: number) => string, max = 10): string {
-  const shown = paths.slice(0, max);
-  const rest = paths.length - shown.length;
-  return [...shown, ...(rest > 0 ? [more(rest)] : [])].join('\n');
-}

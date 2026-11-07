@@ -11,7 +11,9 @@ import { noConflictsLeft, type StatusEntry } from '../core/model/statusEntry';
 import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
+import { chunked } from '../commit/changelists/moveChoices';
 import { confirmModal } from '../ui/confirm';
+import { pathListDetail } from '../ui/pathList';
 import { folderOf } from '../ui/rowContext';
 import { appendPatterns, planIgnoreEdits } from './gitignoreRules';
 
@@ -322,7 +324,11 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (!sel || sel.entries.length === 0) return;
     const tracked = sel.entries.filter((e) => e.kind !== 'untracked');
     const untracked = sel.entries.filter((e) => e.kind === 'untracked');
-    const fileList = sel.entries.map((e) => e.path).join('\n');
+    // A dozen paths and a count, not every one: a big selection made a dialog taller than the screen.
+    const fileList = pathListDetail(
+      sel.entries.map((e) => e.path),
+      (n) => vscode.l10n.t('… and {0} more', n),
+    );
     const ok = await confirmModal(
       vscode.l10n.t('Roll back changes in {0} file(s)?', sel.entries.length),
       vscode.l10n.t(
@@ -340,12 +346,11 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       snapshotLabel: SNAPSHOT_LABELS.rollback,
       snapshotPaths: absPaths(sel.repo, sel.entries),
       run: async (git, token) => {
-        if (tracked.length > 0) {
-          await git.exec(
-            sel.repo.root,
-            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...tracked.map((e) => e.path)],
-            { token },
-          );
+        // Sliced: one git call per 200 paths stays under Windows' command-line limit.
+        for (const slice of chunked(tracked.map((e) => e.path))) {
+          await git.exec(sel.repo.root, ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...slice], {
+            token,
+          });
         }
         for (const e of untracked) {
           await vscode.workspace.fs.delete(vscode.Uri.file(path.join(sel.repo.root, e.path)), {
@@ -369,19 +374,27 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     }
     const ok = await confirmModal(
       vscode.l10n.t('Delete {0} untracked file(s)?', untracked.length),
-      untracked.map((e) => e.path).join('\n'),
+      pathListDetail(
+        untracked.map((e) => e.path),
+        (n) => vscode.l10n.t('… and {0} more', n),
+      ),
       vscode.l10n.t('Delete'),
     );
     if (!ok) return;
-    await runGit(
-      repo,
-      vscode.l10n.t('Clean {0} untracked file(s)', untracked.length),
-      ['clean', '-f', '-q', '--', ...untracked.map((e) => e.path)],
-      {
-        snapshotLabel: SNAPSHOT_LABELS.cleanUntracked,
-        snapshotPaths: absPaths(repo, untracked),
+    await repo.queue.enqueue({
+      label: vscode.l10n.t('Clean {0} untracked file(s)', untracked.length),
+      kind: 'mutate',
+      isDestructive: true,
+      snapshotLabel: SNAPSHOT_LABELS.cleanUntracked,
+      snapshotPaths: absPaths(repo, untracked),
+      run: async (git, token) => {
+        // POST-QA: sliced, as Rollback's restore is — every untracked path in
+        // one argv outgrew Windows' command line on a big tree.
+        for (const slice of chunked(untracked.map((e) => e.path))) {
+          await git.exec(repo.root, ['clean', '-f', '-q', '--', ...slice], { token });
+        }
       },
-    );
+    });
     notifySuccess(vscode.l10n.t('Deleted {0} untracked file(s).', untracked.length));
   });
 
