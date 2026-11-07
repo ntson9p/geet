@@ -27,6 +27,17 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — GitTree no longer writes settings into your repository
+
+- **A push no longer leaves `.vscode/settings.json` behind.** GitTree saved its remembered
+  choices as workspace settings. In a folder, that means the repository's own
+  `.vscode/settings.json`, a file teams commit and share, which then showed up in Unversioned
+  Files. The Push dialog wrote its tag mode on every push. The commit paradigm, Group By,
+  the Show items, the shelf's Show Already Unshelved, the diff editor's whitespace option,
+  the commit options, Don't Ask Again and saved Log filters were written there too. Each is
+  now saved where you keep that setting already, and otherwise in your user settings, as VS
+  Code's own toggles are. Nothing is written when the value does not change.
+
 ### Fixed — the staging paradigm has its own Commit window
 
 - **With *Git Staging Area* chosen, the Commit window shows what will be committed.** The

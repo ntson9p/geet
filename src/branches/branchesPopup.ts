@@ -24,6 +24,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { writeSetting } from '../ui/writeSetting';
 import { collectNotifications, showCollected } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import type { RefInfo } from '../core/model/refs';
@@ -781,9 +782,7 @@ export async function showBranchesPopup(
       await populate();
     } else if (button === BTN_INOUT) {
       showInOut = !showInOut;
-      await vscode.workspace
-        .getConfiguration('gittree')
-        .update('branches.showIncomingOutgoing', showInOut, vscode.ConfigurationTarget.Workspace);
+      await writeSetting('gittree', 'branches.showIncomingOutgoing', showInOut);
       await populate();
     } else if (button === BTN_COLLAPSE) {
       expanded.clear();

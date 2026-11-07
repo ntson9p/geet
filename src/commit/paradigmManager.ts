@@ -5,6 +5,7 @@
  * index) after a modal confirm.
  */
 import * as vscode from 'vscode';
+import { writeSetting } from '../ui/writeSetting';
 import type { Core } from '../core/core';
 import { Emitter, type Event } from '../core/util/events';
 import { confirmModal } from '../ui/confirm';
@@ -77,9 +78,7 @@ export class ParadigmManager implements vscode.Disposable {
         }
       }
     }
-    await vscode.workspace
-      .getConfiguration('gittree')
-      .update('commit.paradigm', target, vscode.ConfigurationTarget.Workspace);
+    await writeSetting('gittree', 'commit.paradigm', target);
     // The config listener fires the change; ensure prompt UI update even if
     // the workspace value matches the global default.
     if (this.read() === target && this.current !== target) {

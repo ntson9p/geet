@@ -470,7 +470,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
     a repository to its first list. Each grouping keeps its own folders open or shut, opens
     everything the first time it is shown, and Collapse all shuts only its own. A repository or
     list row that appears later appears open.
-  - Saved for the workspace in `gittree.commit.groupBy`; also from the palette, *GitTree: Group
+  - Saved in `gittree.commit.groupBy` (your settings, or the workspace's if you keep it there); also from the palette, *GitTree: Group
     Changes by Repository* and *by Changelist*. With one repository both look the same, and
     neither the eye nor the commands are offered.
   - Nothing else changes: the counter, the message, Amend and *Commit to 2 repositories* work on

@@ -14,6 +14,7 @@
  * diff in the window never comes through here.
  */
 import * as vscode from 'vscode';
+import { writeSetting } from '../ui/writeSetting';
 import type { Change } from '../scm/gutter/changeModel';
 import { DiffSessionRegistry, entryAt, uriKey, type ActiveDiff, type DiffEntry } from './diffSession';
 import {
@@ -521,9 +522,10 @@ export function registerDiffControls(
    * dropdowns read.
    */
   const toggle = async (key: string): Promise<void> => {
-    const cfg = vscode.workspace.getConfiguration('diffEditor');
-    const current = cfg.get<boolean>(key);
-    await cfg.update(key, !(current ?? true), vscode.ConfigurationTarget.Workspace);
+    const current = vscode.workspace.getConfiguration('diffEditor').get<boolean>(key);
+    // POST-QA: where VS Code's own diff toggles write — the user's settings,
+    // or the workspace when that is where the user keeps it.
+    await writeSetting('diffEditor', key, !(current ?? true));
   };
 
   const register = (id: string, fn: () => Promise<void> | void): void => {

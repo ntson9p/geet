@@ -19,6 +19,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { writeSetting } from '../../ui/writeSetting';
 import type { Core, RepoHandle } from '../../core/core';
 import { GitError } from '../../core/git/errors';
 import { repoLabels } from '../../core/util/repoLabels';
@@ -110,9 +111,7 @@ function autoUpdateIfRejected(): boolean {
 
 /** The persistence half of `Don't Ask Again`, separated so tests drive the same path. */
 export async function setAutoUpdateIfRejected(value: boolean): Promise<void> {
-  await vscode.workspace
-    .getConfiguration('gittree')
-    .update(AUTO_UPDATE_SETTING, value, vscode.ConfigurationTarget.Workspace);
+  await writeSetting('gittree', AUTO_UPDATE_SETTING, value);
 }
 
 /**
@@ -128,9 +127,7 @@ function updateAllRepositoriesIfRejected(): boolean {
 
 /** Test seam; `undefined` puts the default back. */
 export async function setUpdateAllRepositoriesIfRejected(value: boolean | undefined): Promise<void> {
-  await vscode.workspace
-    .getConfiguration('gittree')
-    .update(UPDATE_ALL_SETTING, value, vscode.ConfigurationTarget.Workspace);
+  await writeSetting('gittree', UPDATE_ALL_SETTING, value);
 }
 
 function showCommandLine(): boolean {

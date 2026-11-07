@@ -13,6 +13,7 @@ import {
   type LogPresentationDto,
   type LogPresentationToggle,
 } from '../shared/protocol';
+import { settingScope } from '../ui/settingScope';
 
 /** A setting a menu row turns on and off. */
 export type PresentationKey = LogPresentationToggle;
@@ -108,20 +109,18 @@ export interface InspectedSetting {
 }
 
 /**
- * The scope a menu toggle writes to. A scope that already holds a value wins,
- * the more specific one first: writing anywhere less specific would leave the
- * effective value where it was, and the checkbox would look dead.
+ * The scope a menu toggle writes to. A workspace that already holds a value
+ * keeps it, or the effective value would stay where it was and the checkbox
+ * would look dead. Anything else goes to the user's own settings — never a new
+ * value in the repository's `.vscode/settings.json` (POST-QA), whatever scope
+ * the setting is listed with.
  */
 export function writeScope(
   inspected: InspectedSetting | undefined,
-  preferred: 'global' | 'workspace',
+  _preferred: 'global' | 'workspace',
   hasWorkspace: boolean,
 ): 'global' | 'workspace' {
-  if (hasWorkspace && inspected?.workspaceValue !== undefined) return 'workspace';
-  if (inspected?.globalValue !== undefined) return 'global';
-  // Workspace settings need a workspace; without one, the user's own settings
-  // are the only place left.
-  return preferred === 'workspace' && hasWorkspace ? 'workspace' : 'global';
+  return hasWorkspace && settingScope(inspected) === 'workspace' ? 'workspace' : 'global';
 }
 
 /**

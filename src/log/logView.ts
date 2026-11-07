@@ -7,6 +7,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { writeSetting } from '../ui/writeSetting';
 import type { Core, RepoHandle } from '../core/core';
 import { parseDecorations } from '../core/git/parsers/logFormat';
 import { canonicalKey } from '../core/repoDiscovery';
@@ -642,7 +643,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
         ),
         { name: chosen.trim(), filter },
       ];
-      await config.update('filterPresets', presets, vscode.ConfigurationTarget.Workspace);
+      await writeSetting('gittree.log', 'filterPresets', presets);
       return { ok: true };
     });
 
@@ -652,7 +653,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const presets = (
         config.get<Array<{ name: string; filter: LogFilterDto }>>('filterPresets') ?? []
       ).filter((p) => p.name !== name);
-      await config.update('filterPresets', presets, vscode.ConfigurationTarget.Workspace);
+      await writeSetting('gittree.log', 'filterPresets', presets);
       return { ok: true };
     });
 

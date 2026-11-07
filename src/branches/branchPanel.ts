@@ -16,6 +16,7 @@
  * card opens, since they cost git per branch and nobody wants them for all.
  */
 import * as vscode from 'vscode';
+import { writeSetting } from '../ui/writeSetting';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoLabels, sortRootsByLabel } from '../core/util/repoLabels';
@@ -465,9 +466,7 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       const p = params as { key?: unknown; value?: unknown } | undefined;
       const key = typeof p?.key === 'string' ? SETTING_KEYS[p.key as BranchPanelSettingKey] : undefined;
       if (key === undefined || typeof p?.value !== 'boolean') return null;
-      await vscode.workspace
-        .getConfiguration('gittree.branches')
-        .update(key, p.value, vscode.ConfigurationTarget.Workspace);
+      await writeSetting('gittree.branches', key, p.value);
       return null;
     });
 

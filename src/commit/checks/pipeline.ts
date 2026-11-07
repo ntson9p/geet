@@ -4,6 +4,7 @@
  * Check order (IntelliJ parity): reformat → imports → cleanup → analyze → todo.
  */
 import * as vscode from 'vscode';
+import { writeSetting } from '../../ui/writeSetting';
 import type { RepoHandle } from '../../core/core';
 import type { CancelToken } from '../../core/git/executor';
 
@@ -157,10 +158,6 @@ export async function configureChecks(pipeline: CheckPipeline): Promise<void> {
   if (picked === undefined) return;
   const enabled = new Set(picked.map((p) => p.check.id));
   for (const check of pipeline.all) {
-    await config.update(
-      check.configKey,
-      enabled.has(check.id),
-      vscode.ConfigurationTarget.Workspace,
-    );
+    await writeSetting('gittree.commit.checks', check.configKey, enabled.has(check.id));
   }
 }

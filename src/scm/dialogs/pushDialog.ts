@@ -22,6 +22,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { writeSetting } from '../../ui/writeSetting';
 import type { Core, RepoHandle } from '../../core/core';
 import { isValidRefName } from '../../core/git/refName';
 import { canonicalKey } from '../../core/repoDiscovery';
@@ -679,9 +680,7 @@ export function showPushDialogForCommitAndPush(): boolean {
 
 /** Test seam; `undefined` puts the default back. */
 export async function setShowPushDialogForCommitAndPush(value: boolean | undefined): Promise<void> {
-  await vscode.workspace
-    .getConfiguration('gittree')
-    .update(SHOW_FOR_COMMIT_AND_PUSH, value, vscode.ConfigurationTarget.Workspace);
+  await writeSetting('gittree', SHOW_FOR_COMMIT_AND_PUSH, value);
 }
 
 /** What the dialog was last opened for, as a test reads it. */
@@ -750,10 +749,9 @@ export async function showPushDialog(
   if (!result || result.repos.length === 0) return false;
 
   // IntelliJ remembers the tag mode of the last push; `Run Git hooks` starts
-  // ticked every time.
-  await vscode.workspace
-    .getConfiguration('gittree')
-    .update('push.tags', result.tags, vscode.ConfigurationTarget.Workspace);
+  // ticked every time. Written only when it changes, and never into the
+  // repository: every push used to leave `.vscode/settings.json` behind (POST-QA).
+  await writeSetting('gittree', 'push.tags', result.tags);
 
   // `applyPushResult` reports; a second summary here would say it all twice.
   const outcomes = await applyPushResult(deps, result);

@@ -18,6 +18,7 @@ import {
 } from '../../shared/protocol';
 import { CHECK_DEFAULTS } from '../checks/checkDefaults';
 import type { CheckPipeline } from '../checks/pipeline';
+import { writeSetting } from '../../ui/writeSetting';
 
 const AUTHOR_KEY_PREFIX = 'gittree.commit.author.';
 
@@ -99,17 +100,17 @@ export async function readOptions(
 }
 
 /**
- * Applies one gear-popup change. Settings go to the Workspace target (the
- * P3-T7 QuickPick precedent); the author goes to per-repo workspaceState.
- * Throws on an invalid author so the RPC layer surfaces it to the popup.
+ * Applies one gear-popup change. Settings go where `writeSetting` decides —
+ * never a new value in the repository's `.vscode/settings.json` (POST-QA);
+ * the author goes to per-repo workspaceState. Throws on an invalid author so
+ * the RPC layer surfaces it to the popup.
  */
 export async function applyOption(
   store: CommitOptionsStore,
   repo: RepoHandle,
   change: CommitOptionChangeDto,
 ): Promise<void> {
-  const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
-  const target = vscode.ConfigurationTarget.Workspace;
+  const checks = (key: string, value: unknown): Promise<void> => writeSetting('gittree.commit.checks', key, value);
   switch (change.kind) {
     case 'author': {
       const value = change.value.trim();
@@ -120,22 +121,22 @@ export async function applyOption(
       return;
     }
     case 'signoff':
-      await config().update('signoff', change.value, target);
+      await writeSetting('gittree.commit', 'signoff', change.value);
       return;
     case 'check':
-      await checks.update(change.id, change.value, target);
+      await checks(change.id, change.value);
       return;
     case 'analyzeSeverity':
-      await checks.update('analyzeSeverity', change.value, target);
+      await checks('analyzeSeverity', change.value);
       return;
     case 'todoPattern':
-      await checks.update('todoPattern', change.value, target);
+      await checks('todoPattern', change.value);
       return;
     case 'cleanupKind':
-      await checks.update('cleanupKind', change.value, target);
+      await checks('cleanupKind', change.value);
       return;
     case 'deferAdvanced':
-      await checks.update('deferAdvanced', change.value, target);
+      await checks('deferAdvanced', change.value);
       return;
   }
 }

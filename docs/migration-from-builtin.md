@@ -58,6 +58,11 @@ Keyboard reference: [keyboard.md](keyboard.md). Every setting: [settings.md](set
 - GitTree changes no VS Code or extension setting on your behalf. The one
   exception is the one-shot cleanup described above, which *removes* an override
   an earlier GitTree wrote and is itself removed a release later.
+- An option you change from GitTree's menus and dialogs (a Show item, the commit
+  paradigm, the Push dialog's tag mode, the diff editor's whitespace toggle, Don't
+  Ask Again) is saved where you keep that setting already, and otherwise in your
+  user settings. GitTree never adds a value to a repository's `.vscode/settings.json`,
+  and writes nothing when the value does not change.
 - VS Code's own previous/next-change arrows stay in the diff toolbar next to
   GitTree's. An extension cannot remove a built-in toolbar button; you can hide
   them yourself by right-clicking the toolbar. GitTree's arrows are the ones

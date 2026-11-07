@@ -18,10 +18,10 @@ describe('writeScope (Presentation Settings / Branches Pane Settings toggles)', 
     expect(writeScope({ globalValue: true }, 'workspace', true)).toBe('global');
   });
 
-  it('falls back to the setting\'s own scope when nothing is set yet', () => {
+  it('puts a value set for the first time in the user\'s settings, never the repository\'s (POST-QA)', () => {
     expect(writeScope({}, 'global', true)).toBe('global');
-    expect(writeScope({}, 'workspace', true)).toBe('workspace');
-    expect(writeScope(undefined, 'workspace', true)).toBe('workspace');
+    expect(writeScope({}, 'workspace', true)).toBe('global');
+    expect(writeScope(undefined, 'workspace', true)).toBe('global');
   });
 
   it('never picks workspace settings without a workspace', () => {

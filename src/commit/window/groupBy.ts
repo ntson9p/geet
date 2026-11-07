@@ -4,6 +4,7 @@
  * and the two palette commands write it; the window reads it on every push.
  */
 import * as vscode from 'vscode';
+import { writeSetting } from '../../ui/writeSetting';
 import { commitGroupByOf, type CommitGroupBy } from '../../shared/protocol';
 
 export function readCommitGroupBy(): CommitGroupBy {
@@ -11,15 +12,11 @@ export function readCommitGroupBy(): CommitGroupBy {
 }
 
 /**
- * Saved for the workspace, as IntelliJ keeps its grouping per project and as
- * GitTree saves its other view options (the Repositories panel's Show items,
- * the commit paradigm). A window with no folder open has no workspace to keep
- * it in, so it goes to the user's settings there.
+ * Saved where `writeSetting` decides: the workspace if the user keeps the
+ * setting there already, else the user's own settings — a new value never goes
+ * into the repository's `.vscode/settings.json` (POST-QA).
  */
 export async function writeCommitGroupBy(value: CommitGroupBy): Promise<void> {
-  const target =
-    (vscode.workspace.workspaceFolders?.length ?? 0) > 0
-      ? vscode.ConfigurationTarget.Workspace
-      : vscode.ConfigurationTarget.Global;
-  await vscode.workspace.getConfiguration('gittree').update('commit.groupBy', value, target);
+  // POST-QA: not into the repository's .vscode/settings.json (`writeSetting`).
+  await writeSetting('gittree', 'commit.groupBy', value);
 }

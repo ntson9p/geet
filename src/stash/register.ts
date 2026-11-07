@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { writeSetting } from '../ui/writeSetting';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { splitPatchFiles } from '../core/patch/patchParser';
@@ -797,11 +798,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
 
   register('gittree.shelf.showUnshelved', async () => {
     const config = vscode.workspace.getConfiguration('gittree.shelf');
-    await config.update(
-      'showUnshelved',
-      !config.get<boolean>('showUnshelved', false),
-      vscode.ConfigurationTarget.Workspace,
-    );
+    await writeSetting('gittree.shelf', 'showUnshelved', !config.get<boolean>('showUnshelved', false));
   });
   // P14-T2: no listener here any more — ShelfBridge carries its own
   // `gittree.shelf.showUnshelved` config listener for the Shelf tab.

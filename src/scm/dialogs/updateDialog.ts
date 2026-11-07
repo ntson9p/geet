@@ -23,6 +23,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { writeSetting } from '../../ui/writeSetting';
 import type { Core, RepoHandle } from '../../core/core';
 import { describeGitFailure, GitError } from '../../core/git/errors';
 import { parseStatusV2 } from '../../core/git/parsers/statusV2';
@@ -1347,9 +1348,7 @@ export function currentUpdateStrategy(): UpdateStrategySetting {
  * the result's `Don't Ask Again`) drive the same code path the picker does.
  */
 export async function setUpdateStrategy(value: UpdateStrategySetting): Promise<void> {
-  await vscode.workspace
-    .getConfiguration('gittree')
-    .update('update.strategy', value, vscode.ConfigurationTarget.Workspace);
+  await writeSetting('gittree', 'update.strategy', value);
 }
 
 /**
