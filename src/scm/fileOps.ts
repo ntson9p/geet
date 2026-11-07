@@ -12,6 +12,7 @@ import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
+import { folderOf } from '../ui/rowContext';
 import { appendPatterns, planIgnoreEdits } from './gitignoreRules';
 
 interface Selection {
@@ -88,6 +89,25 @@ function normalize(core: Core, args: unknown[]): Selection | undefined {
 
 function absPaths(repo: RepoHandle, entries: readonly StatusEntry[]): string[] {
   return entries.map((e) => path.join(repo.root, e.path));
+}
+
+/** Whether git tracks no file in `folder` (repository-relative); false when it cannot tell. */
+async function tracksNothingIn(repo: RepoHandle, folder: string): Promise<boolean> {
+  try {
+    const result = await repo.queue.enqueue({
+      label: vscode.l10n.t('Look for tracked files in {0}', folder),
+      kind: 'read',
+      run: (git, token) =>
+        git.exec(repo.root, ['ls-files', '-z', '--', folder], {
+          noOptionalLocks: true,
+          allowNonZeroExit: true,
+          token,
+        }),
+    });
+    return result.exitCode === 0 && result.stdout.length === 0;
+  } catch {
+    return false;
+  }
 }
 
 async function runGit(
@@ -233,9 +253,25 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       return;
     }
 
-    // Every directory on the way up from each file, asked once.
+    // POST-P14bf: a folder row of new files is one rule for the folder, as
+    // IntelliJ writes it, rather than a line per file. Only when git tracks
+    // nothing in it: `/src/` would also hide every file added to src later.
+    let rules = relPaths;
+    let folders = new Set<string>();
+    const folder = folderOf(args);
+    if (
+      folder !== undefined &&
+      relPaths.length === sel.entries.length &&
+      relPaths.every((p) => p.startsWith(`${folder}/`)) &&
+      (await tracksNothingIn(repo, folder))
+    ) {
+      rules = [folder];
+      folders = new Set(rules);
+    }
+
+    // Every directory on the way up from each path, asked once.
     const candidates = new Set<string>();
-    for (const rel of relPaths) {
+    for (const rel of rules) {
       const parts = rel.split('/');
       for (let depth = 1; depth < parts.length; depth++) {
         candidates.add(parts.slice(0, depth).join('/'));
@@ -254,7 +290,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     );
 
     const written: string[] = [];
-    for (const edit of planIgnoreEdits(relPaths, ignoreDirs)) {
+    for (const edit of planIgnoreEdits(rules, ignoreDirs, folders)) {
       const file = path.join(repo.root, edit.dir, '.gitignore');
       let existing = '';
       try {

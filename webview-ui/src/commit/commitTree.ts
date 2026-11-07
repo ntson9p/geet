@@ -42,6 +42,7 @@ import {
   collectFiles,
   countFiles,
   diffWalk,
+  selectedFiles,
   type ToggleDelta,
   type TreeNode,
 } from '../lib/treeModel';
@@ -98,6 +99,8 @@ export interface CommitGroupRef {
   readonly head?: CommitRepoHeadDto;
   /** A `repository` row: whether any of its changes is tracked, which Rollback needs. */
   readonly hasTracked?: boolean;
+  /** A `repository` row: whether any of its files is unversioned, which Add to VCS needs. */
+  readonly hasUnversioned?: boolean;
 }
 
 /** A folder row's identity whatever the grouping: a folder of one repository's list. */
@@ -334,6 +337,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
         colorIdx: repo.colorIdx ?? 0,
         ...(repo.head !== undefined ? { head: repo.head } : {}),
         hasTracked: lists.some((g) => g.changes.some((c) => c.kind !== 'untracked')),
+        hasUnversioned: lists.some((g) => g.changes.some((c) => c.kind === 'untracked')),
       });
       if (!checkable) checkboxless.add(rKey);
       annotate(node);
@@ -574,6 +578,7 @@ export function groupRowContext(model: CommitTreeModel, nodePath: string): Recor
       webviewSection: 'commitRepository',
       ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
       repoHasTracked: group.hasTracked === true,
+      repoHasUnversioned: group.hasUnversioned === true,
     };
   }
   return {
@@ -585,6 +590,44 @@ export function groupRowContext(model: CommitTreeModel, nodePath: string): Recor
     listIsDefault: group.isDefault,
     listCheckable: group.checkable,
     listSpansRepos: group.targets.length > 1,
+    // POST-P14bf: Unversioned Files is no changelist. It offers Add to VCS and
+    // Move to Another Changelist…, never a list's Rename, Delete or Set Active.
+    listIsUnversioned: group.targets.length > 0 && group.targets.every((t) => t.listId === UNVERSIONED_GROUP_ID),
+  };
+}
+
+/**
+ * POST-P14bf: the native context payload for a folder row: the files under it,
+ * which IntelliJ's actions act on when a folder node is selected (until
+ * P14-T2a folder rows carried nothing, and VS Code showed its own Cut, Copy and
+ * Paste). Within a multi-selection it carries every selected file of the
+ * folder's repository, as a file row does; `relPath` is the first, where Show
+ * Diff starts. `folder` is the folder itself, which lets Add to .gitignore
+ * write one rule for it.
+ */
+export function folderRowContext(
+  model: CommitTreeModel,
+  node: TreeNode,
+  selection: ReadonlySet<string>,
+): Record<string, unknown> | undefined {
+  const folder = model.folders.get(node.path);
+  if (folder === undefined || node.kind !== 'dir') return undefined;
+  const paths = selection.has(node.path) ? selectedFiles(model.nodes, selection) : collectFiles(node);
+  const refs = paths
+    .map((p) => model.files.get(p))
+    .filter((ref): ref is CommitFileRef => ref !== undefined && ref.repoRoot === folder.repoRoot);
+  const first = refs[0];
+  if (first === undefined) return undefined;
+  return {
+    preventDefaultContextMenuItems: true,
+    webviewSection: 'commitFolder',
+    repoRoot: folder.repoRoot,
+    relPath: first.relPath,
+    relPaths: refs.map((r) => r.relPath),
+    folder: folder.rel,
+    // Add to .gitignore wants every file new; Add to VCS, any.
+    fileUnversioned: refs.every((r) => r.change.kind === 'untracked'),
+    folderHasUnversioned: refs.some((r) => r.change.kind === 'untracked'),
   };
 }
 

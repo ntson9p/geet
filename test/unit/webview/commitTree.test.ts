@@ -7,6 +7,7 @@ import {
   commitDiffWalk,
   fileCountLabel,
   fileRowContext,
+  folderRowContext,
   groupByOf,
   groupRowContext,
   headLabel,
@@ -897,7 +898,39 @@ describe('the menu a changelist or repository row opens', () => {
       webviewSection: 'commitRepository',
       repoRoot: 'D:/repos/web',
       repoHasTracked: true,
+      // todo.txt is new: Add to VCS is on offer.
+      repoHasUnversioned: true,
     });
+  });
+
+  it('says when a repository has no new files to add', () => {
+    const model = assembleCommitTree(
+      state({
+        groupBy: 'repository',
+        repos: [
+          repo('D:/repos/a', 'a', [defaultList([change('x.ts')])]),
+          repo('D:/repos/b', 'b', [defaultList([]), unversionedList([change('n.txt', false, 'untracked')])]),
+        ],
+      }),
+    );
+    expect(groupRowContext(model, '@r:D:/repos/a')?.['repoHasUnversioned']).toBe(false);
+    expect(groupRowContext(model, '@r:D:/repos/b')?.['repoHasUnversioned']).toBe(true);
+  });
+
+  it('tells Unversioned Files from a changelist, in every row it is drawn as (POST-P14bf)', () => {
+    const byList = assembleCommitTree(byRepository({ groupBy: 'changelist' }));
+    const byRepo = assembleCommitTree(byRepository());
+    const lone = assembleCommitTree(state());
+    // The merged row, a repository's share under it, a repository's own row
+    // of it, and the one row of a single repository.
+    expect(groupRowContext(byList, '@g:@unversioned')?.['listIsUnversioned']).toBe(true);
+    expect(groupRowContext(byList, '@g:@unversioned@r:D:/repos/web')?.['listIsUnversioned']).toBe(true);
+    expect(groupRowContext(byRepo, '@r:D:/repos/web@g:@unversioned')?.['listIsUnversioned']).toBe(true);
+    expect(groupRowContext(lone, '@g:@unversioned')?.['listIsUnversioned']).toBe(true);
+    // Changelists, merged or not.
+    expect(groupRowContext(byList, '@g:@default')?.['listIsUnversioned']).toBe(false);
+    expect(groupRowContext(byRepo, '@r:D:/repos/web@g:name:Login fix')?.['listIsUnversioned']).toBe(false);
+    expect(groupRowContext(lone, '@g:@default')?.['listIsUnversioned']).toBe(false);
   });
 
   it("gives a list under a repository the scoped list actions, as the repository row under a list has", () => {
@@ -926,5 +959,79 @@ describe('the menu a changelist or repository row opens', () => {
     const model = assembleCommitTree(byRepository());
     expect(groupRowContext(model, '@r:D:/repos/api@g:@default/src')).toBeUndefined();
     expect(groupRowContext(model, '@r:D:/repos/api@g:@default/src/a.ts')).toBeUndefined();
+  });
+});
+
+describe('the menu a folder row opens (POST-P14bf)', () => {
+  /** Two folders of new files and a modified one, in one repository. */
+  const folders = (): CommitStateDto =>
+    state({
+      repos: [
+        repo('D:/repos/demo', 'demo', [
+          defaultList([change('lib/mod.ts', true), change('lib/new.ts', false, 'untracked')]),
+          unversionedList([
+            change('.idea/a.xml', false, 'untracked'),
+            change('.idea/b.xml', false, 'untracked'),
+            change('src/experimental/x.ts', false, 'untracked'),
+          ]),
+        ]),
+      ],
+    });
+  const node = (model: ReturnType<typeof assembleCommitTree>, path: string): TreeNode => findNode(model.nodes, path)!;
+
+  it('carries the files under it, the folder, and whether they are new', () => {
+    const model = assembleCommitTree(folders());
+    const idea = '@g:@unversioned/.idea';
+    expect(folderRowContext(model, node(model, idea), new Set())).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitFolder',
+      repoRoot: 'D:/repos/demo',
+      // The first file, where Show Diff starts; then all of them, in tree order.
+      relPath: '.idea/a.xml',
+      relPaths: ['.idea/a.xml', '.idea/b.xml'],
+      folder: '.idea',
+      fileUnversioned: true,
+      folderHasUnversioned: true,
+    });
+  });
+
+  it('names a collapsed chain of folders by its whole path', () => {
+    const model = assembleCommitTree(folders());
+    const ctx = folderRowContext(model, node(model, '@g:@unversioned/src/experimental'), new Set());
+    expect(ctx?.['folder']).toBe('src/experimental');
+    expect(ctx?.['relPaths']).toEqual(['src/experimental/x.ts']);
+  });
+
+  it('says a folder of mixed files is not all new, but has new files', () => {
+    const model = assembleCommitTree(folders());
+    const ctx = folderRowContext(model, node(model, '@g:@default/lib'), new Set());
+    expect(ctx).toMatchObject({ fileUnversioned: false, folderHasUnversioned: true, relPaths: ['lib/mod.ts', 'lib/new.ts'] });
+  });
+
+  it('carries the whole selection when the folder is part of it, the clicked repository only', () => {
+    const model = assembleCommitTree(twoRepos());
+    const api = '@g:@default@r:D:/repos/demo/api';
+    const other = [...model.files.keys()].find((p) => model.files.get(p)?.repoRoot === 'D:/repos/other')!;
+    const docs = [...model.files.keys()].find((p) => p.endsWith('/docs/x.md'))!;
+    const ctx = folderRowContext(model, node(model, api), new Set([api, docs, other]));
+    expect(ctx?.['repoRoot']).toBe('D:/repos/demo');
+    expect(ctx?.['relPaths']).toEqual(['api/a.ts', 'api/b.ts', 'docs/x.md']);
+    // Outside the selection, the folder alone.
+    expect(folderRowContext(model, node(model, api), new Set([docs]))?.['relPaths']).toEqual(['api/a.ts', 'api/b.ts']);
+  });
+
+  it('is the same payload under either grouping', () => {
+    const byList = assembleCommitTree(byRepository({ groupBy: 'changelist' }));
+    const byRepo = assembleCommitTree(byRepository());
+    expect(folderRowContext(byRepo, node(byRepo, '@r:D:/repos/api@g:@default/src'), new Set())).toEqual(
+      folderRowContext(byList, node(byList, '@g:@default@r:D:/repos/api/src'), new Set()),
+    );
+  });
+
+  it('has nothing to say about a changelist, repository or file row', () => {
+    const model = assembleCommitTree(byRepository());
+    expect(folderRowContext(model, node(model, '@r:D:/repos/api'), new Set())).toBeUndefined();
+    expect(folderRowContext(model, node(model, '@r:D:/repos/api@g:@default'), new Set())).toBeUndefined();
+    expect(folderRowContext(model, node(model, '@r:D:/repos/api@g:@default/src/a.ts'), new Set())).toBeUndefined();
   });
 });

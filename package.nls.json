@@ -79,7 +79,7 @@
   "gittree.command.changelist.delete.title": "Delete Changelist…",
   "gittree.command.changelist.setActive.title": "Set as Active Changelist",
   "gittree.command.changelist.commitList.title": "Commit Changelist…",
-  "gittree.command.changelist.moveTo.title": "Move to Changelist…",
+  "gittree.command.changelist.moveTo.title": "Move to Another Changelist…",
   "gittree.command.stage.selectedRanges.title": "Stage Selected Ranges",
   "gittree.command.unstage.selectedRanges.title": "Unstage Selected Ranges",
   "gittree.command.revert.selectedRanges.title": "Revert Selected Ranges",

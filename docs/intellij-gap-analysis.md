@@ -631,8 +631,9 @@ row in the branches tree.
 | --- | --- | --- |
 | Clone Repository dialog | P13-T4 `gittree.clone.dialog` | ✅ |
 | Create Git Repository / Enable Version Control Integration | `git init` exists only in the playground generator | ❌ |
-| Add to VCS (`Ctrl+Alt+A`) | `gittree.add` | ✅ |
-| **Add to .gitignore** / **Add to .git/info/exclude** | — | ❌ |
+| Add to VCS (`Ctrl+Alt+A`) | POST-P14v `gittree.addToVcs` (intent-to-add, into the default list) on file rows; POST-P14bf on folder rows, the Unversioned Files rows and a repository row too. No `Ctrl+Alt+A` | 🟡 |
+| Move to Another Changelist… on unversioned files: added to VCS in the list picked | POST-P14bf `gittree.changelist.moveTo`, on files, folders, the Unversioned Files rows and a repository row, merged across repositories | ✅ |
+| **Add to .gitignore** / **Add to .git/info/exclude** | POST-P14w Add to .gitignore on unversioned file rows, the nearest ignore file; POST-P14bf on folder rows, one `/folder/` rule when git tracks nothing in it. No `.git/info/exclude` | 🟡 |
 | **Show Ignored Files** toggle | — | ❌ |
 | Manage Remotes | P13-T4 `gittree.remotes.manage` | ✅ |
 | **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | POST-P14k Worktrees **tab in the Git tool window** (JetBrains: "Alt+9, then select Worktrees") + P13-T6 New Worktree dialog + the T5 submenu row | ✅ |

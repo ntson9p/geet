@@ -512,4 +512,184 @@ suite('Multi-root commit', () => {
       }
     });
   });
+
+  /**
+   * POST-P14bf: the Unversioned Files rows, a repository's share of them and a
+   * folder row act on every file beneath them, as IntelliJ's actions act on a
+   * node's files. Every file made here is taken back out of the index and off
+   * the disk, and every list made is removed, so the suites after this one find
+   * the repositories as the runner made them.
+   */
+  suite('Unversioned Files and folder rows', () => {
+    const made: Array<[RepoHandle, string]> = [];
+    const listsOf = (r: RepoHandle) => reg.changelistsFor(r).getLists();
+    const status = (r: RepoHandle): string => gitWithRetry(r.root, ['status', '--porcelain', '-uall']);
+
+    function newFile(r: RepoHandle, rel: string): void {
+      const abs = path.join(r.root, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, `export const made = '${rel}';\n`);
+      made.push([r, rel]);
+    }
+
+    async function refreshed(r: RepoHandle, until: () => boolean): Promise<void> {
+      await r.refresher.refreshNow();
+      await waitFor(until, 20_000);
+    }
+
+    teardown(async function () {
+      this.timeout(60_000);
+      for (const [r, rel] of made) {
+        gitWithRetry(r.root, ['rm', '--cached', '-q', '--ignore-unmatch', '--', rel]);
+        fs.rmSync(path.join(r.root, rel), { force: true });
+      }
+      for (const [r, rel] of made) {
+        const top = rel.split('/')[0]!;
+        if (top !== rel) fs.rmSync(path.join(r.root, top), { recursive: true, force: true });
+      }
+      made.length = 0;
+      for (const r of core.repos) {
+        for (const l of listsOf(r)) if (!l.isDefault) reg.changelistsFor(r).remove(l.id);
+      }
+      await Promise.all([repoD.refresher.refreshNow(), repoE.refresher.refreshNow()]);
+    });
+
+    test("Add to VCS on Unversioned Files adds each repository's new files, into its default list", async function () {
+      this.timeout(60_000);
+      newFile(repoD, 'pending/one.ts');
+      newFile(repoD, 'pending/two.ts');
+      newFile(repoE, 'pending-e.ts');
+      await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('pending/two.ts'));
+      await refreshed(repoE, () => reg.changelistsFor(repoE).unversioned().includes('pending-e.ts'));
+
+      // The merged Unversioned Files row's payload: one target per repository.
+      await vscode.commands.executeCommand('gittree.addToVcs', {
+        webviewSection: 'commitGroup',
+        listIsUnversioned: true,
+        targets: [
+          { repoRoot: repoD.root, listId: '__unversioned__' },
+          { repoRoot: repoE.root, listId: '__unversioned__' },
+        ],
+      });
+
+      // Intent to add: tracked now, its content not in the index.
+      assert.match(status(repoD), /^ A pending\/one\.ts$/mu);
+      assert.match(status(repoD), /^ A pending\/two\.ts$/mu);
+      assert.match(status(repoE), /^ A pending-e\.ts$/mu);
+      await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().length === 0);
+      const defaultD = listsOf(repoD).find((l) => l.isDefault)!;
+      assert.ok(defaultD.files.includes('pending/one.ts') && defaultD.files.includes('pending/two.ts'), 'in the default list');
+      await refreshed(repoE, () => listsOf(repoE).find((l) => l.isDefault)!.files.includes('pending-e.ts'));
+    });
+
+    test('Move to Another Changelist… adds new files to VCS in the list picked, made where missing', async function () {
+      this.timeout(60_000);
+      reg.changelistsFor(repoD).create('Incoming', undefined, false);
+      newFile(repoD, 'moved/d.ts');
+      newFile(repoE, 'moved/e.ts');
+      await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('moved/d.ts'));
+      await refreshed(repoE, () => reg.changelistsFor(repoE).unversioned().includes('moved/e.ts'));
+
+      const saved = process.env['GITTREE_TEST_CHANGELIST_PICK'];
+      process.env['GITTREE_TEST_CHANGELIST_PICK'] = 'Incoming';
+      try {
+        await vscode.commands.executeCommand('gittree.changelist.moveTo', {
+          webviewSection: 'commitGroup',
+          listIsUnversioned: true,
+          targets: [
+            { repoRoot: repoD.root, listId: '__unversioned__' },
+            { repoRoot: repoE.root, listId: '__unversioned__' },
+          ],
+        });
+      } finally {
+        if (saved === undefined) delete process.env['GITTREE_TEST_CHANGELIST_PICK'];
+        else process.env['GITTREE_TEST_CHANGELIST_PICK'] = saved;
+      }
+
+      for (const [r, rel] of [
+        [repoD, 'moved/d.ts'],
+        [repoE, 'moved/e.ts'],
+      ] as const) {
+        const incoming = listsOf(r).find((l) => l.name === 'Incoming');
+        assert.ok(incoming, `${labelOf(r)} has an Incoming list, made there if it had none`);
+        assert.ok(incoming.files.includes(rel), `${rel} moved into ${labelOf(r)}'s Incoming`);
+        // IntelliJ's Move adds unversioned files to VCS in the list it moves them to.
+        assert.match(status(r), new RegExp(`^ A ${rel.replace('.', '\\.')}$`, 'mu'));
+      }
+      await refreshed(repoD, () => listsOf(repoD).find((l) => l.name === 'Incoming')!.files.includes('moved/d.ts'));
+    });
+
+    test('Add to VCS leaves a new file already moved into a list in that list', async function () {
+      this.timeout(60_000);
+      const keep = reg.changelistsFor(repoD).create('Keep', undefined, false);
+      newFile(repoD, 'kept.ts');
+      await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('kept.ts'));
+      reg.changelistsFor(repoD).moveFiles(['kept.ts'], keep.id);
+
+      await vscode.commands.executeCommand('gittree.addToVcs', {
+        webviewSection: 'commitFile',
+        repoRoot: repoD.root,
+        relPath: 'kept.ts',
+        relPaths: ['kept.ts'],
+      });
+
+      assert.match(status(repoD), /^ A kept\.ts$/mu);
+      await repoD.refresher.refreshNow();
+      assert.ok(listsOf(repoD).find((l) => l.id === keep.id)?.files.includes('kept.ts'), 'still in Keep');
+    });
+
+    test('Add to .gitignore on a folder of new files writes one rule for the folder', async function () {
+      this.timeout(60_000);
+      const ignoreFile = path.join(repoD.root, '.gitignore');
+      const before = fs.existsSync(ignoreFile) ? fs.readFileSync(ignoreFile, 'utf8') : undefined;
+      try {
+        newFile(repoD, 'scratch-dir/a.txt');
+        newFile(repoD, 'scratch-dir/b.txt');
+        await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('scratch-dir/b.txt'));
+
+        await vscode.commands.executeCommand('gittree.gitignore.add', {
+          webviewSection: 'commitFolder',
+          repoRoot: repoD.root,
+          relPath: 'scratch-dir/a.txt',
+          relPaths: ['scratch-dir/a.txt', 'scratch-dir/b.txt'],
+          folder: 'scratch-dir',
+        });
+
+        const lines = fs.readFileSync(ignoreFile, 'utf8').split(/\r?\n/u);
+        assert.ok(lines.includes('/scratch-dir/'), 'the folder, as IntelliJ writes it');
+        assert.ok(!lines.includes('/scratch-dir/a.txt'), 'not a line per file');
+      } finally {
+        if (before === undefined) fs.rmSync(ignoreFile, { force: true });
+        else fs.writeFileSync(ignoreFile, before);
+      }
+    });
+
+    test('Add to .gitignore on a folder git tracks something in writes a rule per new file', async function () {
+      this.timeout(60_000);
+      const ignoreFile = path.join(repoD.root, '.gitignore');
+      const before = fs.existsSync(ignoreFile) ? fs.readFileSync(ignoreFile, 'utf8') : undefined;
+      try {
+        newFile(repoD, 'mixed/keep.ts');
+        gitWithRetry(repoD.root, ['add', '-N', '--', 'mixed/keep.ts']);
+        newFile(repoD, 'mixed/new.txt');
+        await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('mixed/new.txt'));
+
+        await vscode.commands.executeCommand('gittree.gitignore.add', {
+          webviewSection: 'commitFolder',
+          repoRoot: repoD.root,
+          relPath: 'mixed/new.txt',
+          relPaths: ['mixed/new.txt'],
+          folder: 'mixed',
+        });
+
+        const lines = fs.readFileSync(ignoreFile, 'utf8').split(/\r?\n/u);
+        // `/mixed/` would also hide every file added to mixed/ later.
+        assert.ok(lines.includes('/mixed/new.txt'), 'the new file');
+        assert.ok(!lines.includes('/mixed/'), 'never the folder git tracks a file in');
+      } finally {
+        if (before === undefined) fs.rmSync(ignoreFile, { force: true });
+        else fs.writeFileSync(ignoreFile, before);
+      }
+    });
+  });
 });

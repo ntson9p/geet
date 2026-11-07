@@ -2874,12 +2874,12 @@
       "webview/context": [
         {
           "command": "gittree.changelist.commitList",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsUnversioned",
           "group": "1_commit@1"
         },
         {
           "command": "gittree.changelist.setActive",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsUnversioned",
           "group": "2_list@1"
         },
         {
@@ -2889,27 +2889,37 @@
         },
         {
           "command": "gittree.changelist.rename",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsUnversioned",
           "group": "2_list@3"
         },
         {
           "command": "gittree.changelist.delete",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsDefault",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsDefault && !listIsUnversioned",
           "group": "2_list@4"
         },
         {
           "command": "gittree.shelf.shelve",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listCheckable && !listSpansRepos",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listCheckable && !listSpansRepos && !listIsUnversioned",
           "group": "3_shelf@1"
+        },
+        {
+          "command": "gittree.addToVcs",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listIsUnversioned",
+          "group": "0_add@1"
+        },
+        {
+          "command": "gittree.changelist.moveTo",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && listIsUnversioned && gittree.paradigm == changelists",
+          "group": "0_add@2"
         },
         {
           "command": "gittree.changelist.commitList",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists && !listIsUnversioned",
           "group": "1_commit@1"
         },
         {
           "command": "gittree.changelist.setActive",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists && !listIsUnversioned",
           "group": "2_list@1"
         },
         {
@@ -2919,18 +2929,28 @@
         },
         {
           "command": "gittree.changelist.rename",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists && !listIsUnversioned",
           "group": "2_list@3"
         },
         {
           "command": "gittree.changelist.delete",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists && !listIsDefault",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == changelists && !listIsDefault && !listIsUnversioned",
           "group": "2_list@4"
         },
         {
           "command": "gittree.shelf.shelve",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && listCheckable",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && listCheckable && !listIsUnversioned",
           "group": "3_shelf@1"
+        },
+        {
+          "command": "gittree.addToVcs",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && listIsUnversioned",
+          "group": "0_add@1"
+        },
+        {
+          "command": "gittree.changelist.moveTo",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && listIsUnversioned && gittree.paradigm == changelists",
+          "group": "0_add@2"
         },
         {
           "command": "gittree.changelist.new",
@@ -2946,6 +2966,16 @@
           "command": "gittree.rollback.dialog",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && repoHasTracked",
           "group": "2_changes@2"
+        },
+        {
+          "command": "gittree.addToVcs",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && repoHasUnversioned",
+          "group": "0_add@1"
+        },
+        {
+          "command": "gittree.changelist.moveTo",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && gittree.paradigm == changelists",
+          "group": "0_add@2"
         },
         {
           "command": "gittree.addToVcs",
@@ -2975,6 +3005,31 @@
         {
           "command": "gittree.gitignore.add",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && fileUnversioned",
+          "group": "3_ignore@1"
+        },
+        {
+          "command": "gittree.addToVcs",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && folderHasUnversioned",
+          "group": "0_add@1"
+        },
+        {
+          "command": "gittree.commit.openChanges",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder'",
+          "group": "1_open@1"
+        },
+        {
+          "command": "gittree.changelist.moveTo",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && gittree.paradigm == changelists",
+          "group": "2_file@1"
+        },
+        {
+          "command": "gittree.rollbackFile",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder'",
+          "group": "2_file@2"
+        },
+        {
+          "command": "gittree.gitignore.add",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && fileUnversioned",
           "group": "3_ignore@1"
         },
         {

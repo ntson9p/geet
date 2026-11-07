@@ -64,6 +64,9 @@ test.describe('P11-T2 commit window layout', () => {
     const unversioned = await ctxOf('Unversioned Files, 1 file');
     expect(unversioned['listId']).toBe('__unversioned__');
     expect(unversioned['listIsDefault']).toBe(false);
+    // POST-P14bf: no changelist, so Add to VCS and Move rather than a list's actions.
+    expect(unversioned['listIsUnversioned']).toBe(true);
+    expect(group['listIsUnversioned']).toBe(false);
 
     const file = await ctxOf('ArticleDataController.java, src/main/java/api');
     expect(file['webviewSection']).toBe('commitFile');
@@ -72,8 +75,47 @@ test.describe('P11-T2 commit window layout', () => {
     // A file row must not offer changelist-level actions.
     expect(file['listId']).toBeUndefined();
 
-    // Folder rows stand for no changelist and no file, so they carry nothing.
-    expect(await row(page, 'api, 2 files').getAttribute('data-vscode-context')).toBeNull();
+    // POST-P14bf: a folder row stands for its files, as IntelliJ's folder node
+    // does; until then it carried nothing and VS Code offered Cut, Copy, Paste.
+    expect(await ctxOf('api, 2 files')).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitFolder',
+      repoRoot: 'D:/repos/demo-git',
+      relPath: 'src/main/java/api/ArticleDataController.java',
+      relPaths: ['src/main/java/api/ArticleDataController.java', 'src/main/java/api/CommentController.java'],
+      folder: 'src/main/java/api',
+      fileUnversioned: false,
+      folderHasUnversioned: false,
+    });
+  });
+
+  test("POST-P14bf: a folder row's menu acts on the files under it", async ({ page }) => {
+    await openCommit(page);
+    const ctxOf = async (name: string): Promise<Record<string, unknown>> =>
+      JSON.parse((await row(page, name).getAttribute('data-vscode-context')) ?? '{}') as Record<
+        string,
+        unknown
+      >;
+    // A collapsed chain names its whole path, and covers every file beneath it.
+    const chain = await ctxOf('src/main/java, 3 files');
+    expect(chain['folder']).toBe('src/main/java');
+    expect(chain['relPaths']).toEqual([
+      'src/main/java/api/ArticleDataController.java',
+      'src/main/java/api/CommentController.java',
+      'src/main/java/util/Strings.java',
+    ]);
+    // A right-click selects the folder, as a click does, and the menu carries it.
+    await row(page, 'util, 1 file').click({ button: 'right' });
+    await expect(row(page, 'util, 1 file')).toHaveAttribute('aria-selected', 'true');
+    expect((await ctxOf('util, 1 file'))['relPaths']).toEqual(['src/main/java/util/Strings.java']);
+    // Inside a multi-selection it carries the whole selection, as a file row does.
+    await row(page, 'api, 2 files').click();
+    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    expect((await ctxOf('api, 2 files'))['relPaths']).toEqual([
+      'docs/guide.md',
+      'src/main/java/api/ArticleDataController.java',
+      'src/main/java/api/CommentController.java',
+    ]);
   });
 
   test('POST-P14v: a Ctrl-clicked selection travels in the file row context', async ({ page }) => {
@@ -952,6 +994,8 @@ test.describe('View Options › Group By (D37)', () => {
       webviewSection: 'commitRepository',
       repoRoot: 'D:/repos/demo-lib',
       repoHasTracked: true,
+      // lib/notes.txt is new: Add to VCS is on offer.
+      repoHasUnversioned: true,
     });
     // A list under it is that repository's copy of the list: a folder, and the
     // menu a repository row under a list has in the other grouping.

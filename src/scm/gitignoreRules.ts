@@ -20,9 +20,13 @@ const GLOB_META = /[\\*?[\]]/gu;
  * `a/b.txt` mean only `a/b.txt`. Glob metacharacters in the name are escaped:
  * a file genuinely called `notes[1].md` must not become a character class that
  * matches `notes1.md` and misses itself.
+ *
+ * A folder (POST-P14bf) gets git's trailing `/`, which matches only a
+ * directory: `/build/` ignores the folder and everything in it, as IntelliJ
+ * writes a folder's rule.
  */
-export function ignorePattern(relPath: string): string {
-  const normalized = relPath.replace(/\\/gu, '/').replace(/^\/+/u, '');
+export function ignorePattern(relPath: string, isDir = false): string {
+  const normalized = relPath.replace(/\\/gu, '/').replace(/^\/+/u, '').replace(/\/+$/u, '');
   const escaped = normalized
     .split('/')
     .map((segment) => segment.replace(GLOB_META, (c) => `\\${c}`))
@@ -31,7 +35,7 @@ export function ignorePattern(relPath: string): string {
   // starts — but the `/` prefix already displaces them, so nothing more is
   // needed. A trailing space *would* be stripped by git, so escape that.
   const guarded = escaped.replace(/ $/u, '\\ ');
-  return `/${guarded}`;
+  return isDir ? `/${guarded}/` : `/${guarded}`;
 }
 
 /**
@@ -78,17 +82,21 @@ export interface IgnoreEdit {
 /**
  * Groups a selection into one edit per ignore file. A selection spanning two
  * subtrees that each own a `.gitignore` writes to both, which is what makes
- * the nearest-file rule usable on a multi-select at all.
+ * the nearest-file rule usable on a multi-select at all. The paths in
+ * `folders` are folders, and get a folder's rule; an ignore file inside a
+ * folder cannot ignore the folder itself, so theirs is the nearest above it,
+ * which is what `ignoreFileDirFor` finds for any path.
  */
 export function planIgnoreEdits(
   relPaths: readonly string[],
   ignoreDirs: ReadonlySet<string>,
+  folders: ReadonlySet<string> = new Set(),
 ): IgnoreEdit[] {
   const byDir = new Map<string, string[]>();
   for (const relPath of relPaths) {
     const dir = ignoreFileDirFor(relPath, ignoreDirs);
     const within = dir === '' ? relPath : relPath.slice(dir.length + 1);
-    const pattern = ignorePattern(within);
+    const pattern = ignorePattern(within, folders.has(relPath));
     const list = byDir.get(dir);
     if (list) {
       if (!list.includes(pattern)) list.push(pattern);

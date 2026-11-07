@@ -64,6 +64,7 @@ import {
   commitDiffWalk,
   fileCountLabel,
   fileRowContext,
+  folderRowContext,
   groupByOf,
   groupRowContext,
   headLabel,
@@ -88,7 +89,7 @@ interface Persisted {
   expanded?: string[];
   /** The groupings that have opened every row once, as the window opens the first time. */
   seeded?: CommitGroupBy[];
-  /** Changelist and repository rows seen before; a new one opens as it appears. */
+  /** Rows with rows beneath them seen before; a new one opens as it appears. */
   known?: string[];
   message?: string;
   preview?: boolean;
@@ -250,12 +251,13 @@ export function App() {
   }, [ready, state]);
 
   // Expand every row the first time a grouping shows rows of its own, the way
-  // the IntelliJ commit window opens; and a changelist or repository row the
-  // first time it appears, so a repository that changes later is not found
-  // shut. Before paint, and before the regroup below reads what is open.
+  // the IntelliJ commit window opens; and any row the first time it appears,
+  // so a repository that changes later, or files moved to another list, are
+  // not found shut. A row the user shut stays shut. Before paint, and before
+  // the regroup below reads what is open.
   useLayoutEffect(() => {
     if (!ready || model.nodes.length === 0) return;
-    const rows = [...model.groups.keys()];
+    const rows = allDirPaths(model.nodes);
     const migrating = migrateKnown.current;
     migrateKnown.current = false;
     const fresh = migrating ? [] : rows.filter((path) => !known.has(path));
@@ -500,9 +502,9 @@ export function App() {
    * other file verbs act on a Ctrl-clicked set rather than on one row.
    */
   const rowContext = useCallback(
-    (node: TreeNode): Record<string, unknown> | undefined => {
-      return groupRowContext(model, node.path) ?? fileRowContext(model, node.path, selection);
-    },
+    (node: TreeNode): Record<string, unknown> | undefined =>
+      groupRowContext(model, node.path) ??
+      (node.kind === 'dir' ? folderRowContext(model, node, selection) : fileRowContext(model, node.path, selection)),
     [model, selection],
   );
 

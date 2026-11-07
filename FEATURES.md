@@ -404,8 +404,23 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 * **Toolbar** (icon buttons with tooltips): Refresh · Rollback · Show Diff · Shelve Changes ·
   Preview Diff toggle · View Options (with several repositories) · Expand all · Collapse all.
 * **Context menus:** right-click a changelist row for Commit / Set Active / New / Rename /
-  Delete / Shelve, or a file row for Show Diff / Open File / Move to Changelist / Roll Back
-  (P14-T2a). These were the changelists tree view's menus; they moved here with it.
+  Delete / Shelve, or a file row for Add to VCS / Open Changes / Open File / Move to Another
+  Changelist / Roll Back / Add to .gitignore (P14-T2a). These were the changelists tree view's
+  menus; they moved here with it. As in IntelliJ, an action on a row acts on every file
+  beneath it:
+  - **Unversioned Files** (the row, a repository's share of it, or its row under a repository)
+    has **Add to VCS**, into the default list, and **Move to Another Changelist…**, and none of
+    a changelist's own actions: it is not one.
+  - **A folder row** has Add to VCS (with new files in it) · Open Changes (walking its files) ·
+    Move to Another Changelist… · Roll Back… · Add to .gitignore (all of it new). For a folder
+    git tracks nothing in, Add to .gitignore writes the folder's rule, `/.idea/`, not a line per
+    file.
+  - **A repository row** (Repository › Changelist) adds Add to VCS (with new files) and Move to
+    Another Changelist… for all of its changes.
+  - **Move to Another Changelist…** offers each list once across repositories (the one every
+    file is already in left out), and New changelist…; a repository without the list gets one
+    under the same name. New files it moves are added to VCS in that list, as IntelliJ's Move
+    does. **Add to VCS** leaves a file already moved into a list in that list.
 
 ### The change tree (shape + behaviour)
 

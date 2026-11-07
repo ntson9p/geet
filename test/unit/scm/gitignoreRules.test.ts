@@ -92,3 +92,29 @@ describe('planIgnoreEdits (POST-P14w)', () => {
     ]);
   });
 });
+
+describe('a folder of new files (POST-P14bf)', () => {
+  it("gets git's trailing slash, which matches only a directory", () => {
+    expect(ignorePattern('.idea', true)).toBe('/.idea/');
+    expect(ignorePattern('src/experimental', true)).toBe('/src/experimental/');
+    // However the path arrives.
+    expect(ignorePattern('src\\experimental\\', true)).toBe('/src/experimental/');
+  });
+
+  it('escapes a folder name as it escapes a file name', () => {
+    expect(ignorePattern('out[1]', true)).toBe('/out\\[1\\]/');
+  });
+
+  it("goes in the nearest ignore file above the folder, never one inside it", () => {
+    expect(
+      planIgnoreEdits(['packages/api/build'], new Set(['', 'packages/api', 'packages/api/build']), new Set(['packages/api/build'])),
+    ).toEqual([{ dir: 'packages/api', patterns: ['/build/'] }]);
+    expect(planIgnoreEdits(['.idea'], new Set(), new Set(['.idea']))).toEqual([{ dir: '', patterns: ['/.idea/'] }]);
+  });
+
+  it('writes a file rule for the paths that are not folders', () => {
+    expect(planIgnoreEdits(['.idea', 'notes.txt'], new Set(), new Set(['.idea']))).toEqual([
+      { dir: '', patterns: ['/.idea/', '/notes.txt'] },
+    ]);
+  });
+});

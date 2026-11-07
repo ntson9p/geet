@@ -7,7 +7,15 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { confirmModal } from '../ui/confirm';
-import { ChangelistService, DEFAULT_LIST_ID } from './changelists/changelistService';
+import { ChangelistService, DEFAULT_LIST_ID, UNVERSIONED_ID } from './changelists/changelistService';
+import {
+  chunked,
+  listIdFor,
+  listKeyOf,
+  moveChoices,
+  UNVERSIONED_KEY,
+  type MoveChoice,
+} from './changelists/moveChoices';
 import { analyzeCheck } from './checks/analyze';
 import { cleanupCheck } from './checks/cleanup';
 import { optimizeImportsCheck } from './checks/optimizeImports';
@@ -24,6 +32,7 @@ import { CommitWindowViewProvider } from './window/commitWindowView';
 import { writeCommitGroupBy } from './window/groupBy';
 import { InclusionModel } from './window/inclusion';
 import { CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
+import { repoRootOf } from '../ui/rowContext';
 
 export interface Phase03Registry {
   paradigm: ParadigmManager;
@@ -353,64 +362,156 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const lists = new Map(targets.map((t) => [canonicalKey(t.repo.root), t.listId]));
     await runCommitAcross(flowDeps, pickRepo(undefined) ?? first.repo, { lists });
   });
-  register('gittree.changelist.moveTo', async (...args) => {
-    const ctx = args.map(fileCtxArg).find((c) => c !== undefined);
-    if (!ctx) return;
-    const { repo, relPaths } = ctx;
-    const service = changelistsFor(repo);
-    const newListLabel = vscode.l10n.t('$(add) New changelist…');
-    const options = [
-      ...service.getLists().map((l) => ({ label: l.name, id: l.id })),
-      { label: newListLabel, id: '__new__' },
-    ];
-    const picked = await vscode.window.showQuickPick(options, {
-      placeHolder: vscode.l10n.t('Move {0} file(s) to…', relPaths.length),
-    });
-    if (!picked) return;
-    let targetId = picked.id;
-    if (targetId === '__new__') {
-      const name = await vscode.window.showInputBox({
-        prompt: vscode.l10n.t('New changelist name'),
-        ignoreFocusOut: true,
-      });
-      if (name === undefined || name.trim().length === 0) return;
-      targetId = service.create(name.trim()).id;
+  /**
+   * POST-P14bf: the files a change-tree row's menu acts on, per repository,
+   * as IntelliJ's actions act on every file under the node they are invoked on.
+   * A file or folder row names its files; a list row names lists, whose files
+   * are read here, where they are current (Unversioned Files' being the
+   * repository's unversioned files); a repository row names the repository,
+   * every change of it.
+   */
+  const rowFiles = (args: readonly unknown[]): Array<{ repo: RepoHandle; relPaths: string[] }> => {
+    for (const arg of args) {
+      const files = fileCtxArg(arg);
+      if (files) return [{ repo: files.repo, relPaths: files.relPaths }];
     }
-    service.moveFiles(relPaths, targetId);
-  });
+    for (const arg of args) {
+      if (typeof arg !== 'object' || arg === null) continue;
+      const c = arg as { targets?: unknown; listId?: unknown };
+      if (Array.isArray(c.targets) || typeof c.listId === 'string') {
+        const byRepo = new Map<RepoHandle, string[]>();
+        for (const { repo, listId } of listTargets(arg)) {
+          const service = changelistsFor(repo);
+          const files = listId === UNVERSIONED_ID ? service.unversioned() : (service.getList(listId)?.files ?? []);
+          byRepo.set(repo, [...(byRepo.get(repo) ?? []), ...files]);
+        }
+        if (byRepo.size > 0) return [...byRepo].map(([repo, relPaths]) => ({ repo, relPaths }));
+        continue;
+      }
+      const root = repoRootOf(arg);
+      const repo = root !== undefined ? core.getRepo(root) : undefined;
+      if (repo) {
+        const service = changelistsFor(repo);
+        return [{ repo, relPaths: [...service.getLists().flatMap((l) => l.files), ...service.unversioned()] }];
+      }
+    }
+    return [];
+  };
 
   /**
-   * POST-P14v — IntelliJ's `Add to VCS` on the Unversioned Files rows: the
-   * files become versioned and land in the **default** changelist, ticked.
-   *
    * `add -N` rather than a plain `add`: intent-to-add makes git track the
    * path without copying its content into the index, which is the invariant
    * the changelists paradigm and per-change inclusion both rest on (the commit
    * path assembles its own tree — see `commitChangelistPartial`). The file
    * still reads as `A` in status, so it shows up green exactly as IntelliJ
-   * draws it.
+   * draws it. In slices, so a repository's every new file fits a command line.
    */
-  register('gittree.addToVcs', async (...args) => {
-    const ctx = args.map(fileCtxArg).find((c) => c !== undefined);
-    if (!ctx) return;
-    const { repo, relPaths } = ctx;
-    const service = changelistsFor(repo);
-    // The menu is gated on the selection being unversioned, but a status
-    // refresh can land while the menu is open. Re-adding a tracked file would
-    // stage content nobody asked to stage.
-    const targets = relPaths.filter((p) => service.isUntrackedPath(p));
-    if (targets.length === 0) return;
+  const intentToAdd = async (repo: RepoHandle, relPaths: readonly string[]): Promise<void> => {
+    if (relPaths.length === 0) return;
     await repo.queue.enqueue({
-      label: vscode.l10n.t('Add {0} file(s) to VCS', targets.length),
+      label: vscode.l10n.t('Add {0} file(s) to VCS', relPaths.length),
       kind: 'mutate',
       run: async (git, token) => {
-        await git.exec(repo.root, ['add', '-N', '--', ...targets], { token });
+        for (const slice of chunked(relPaths)) {
+          await git.exec(repo.root, ['add', '-N', '--', ...slice], { token });
+        }
       },
     });
-    // IntelliJ puts newly added files in the default list, not in whichever
-    // list happens to be active — and reconcile's adoption rule is the latter,
-    // so saying so explicitly is the only way to get it.
-    service.moveFiles(targets, DEFAULT_LIST_ID);
+  };
+
+  /**
+   * IntelliJ's chooser for Move to Another Changelist…: a list's key, or the
+   * name of a new one. One choice per merged row of the tree, so files of
+   * several repositories go to each one's copy of the list.
+   */
+  const pickMoveTarget = async (
+    choices: readonly MoveChoice[],
+    count: number,
+  ): Promise<{ readonly key: string } | { readonly name: string } | undefined> => {
+    const seeded = process.env['GITTREE_TEST_CHANGELIST_PICK'];
+    if (seeded !== undefined) {
+      const hit = choices.find((c) => c.label === seeded);
+      return hit !== undefined ? { key: hit.key } : { name: seeded };
+    }
+    const newListLabel = vscode.l10n.t('$(add) New changelist…');
+    const picked = await vscode.window.showQuickPick(
+      [...choices.map((c) => ({ label: c.label, key: c.key })), { label: newListLabel, key: '__new__' }],
+      { placeHolder: vscode.l10n.t('Move {0} file(s) to…', count) },
+    );
+    if (!picked) return undefined;
+    if (picked.key !== '__new__') return { key: picked.key };
+    const name = await vscode.window.showInputBox({
+      prompt: vscode.l10n.t('New changelist name'),
+      ignoreFocusOut: true,
+    });
+    if (name === undefined || name.trim().length === 0) return undefined;
+    return { name: name.trim() };
+  };
+
+  /**
+   * IntelliJ's Move to Another Changelist…, on files, folders, the Unversioned
+   * Files rows and a repository row. Unversioned files are added to VCS in the
+   * list they move to, as IntelliJ's `MoveChangesToAnotherListAction` does
+   * (`addUnversionedFilesToVcsInBackground(project, targetList, …)`).
+   */
+  register('gittree.changelist.moveTo', async (...args) => {
+    const rows = rowFiles(args).filter((r) => r.relPaths.length > 0);
+    const count = rows.reduce((n, r) => n + r.relPaths.length, 0);
+    if (count === 0) return;
+    const choices = moveChoices(
+      rows.map(({ repo, relPaths }) => {
+        const service = changelistsFor(repo);
+        return {
+          lists: service.getLists(),
+          fromKeys: new Set(
+            relPaths.map((p) => {
+              const list = service.listOf(p);
+              return list !== undefined ? listKeyOf(list) : UNVERSIONED_KEY;
+            }),
+          ),
+        };
+      }),
+    );
+    const target = await pickMoveTarget(choices, count);
+    if (!target) return;
+    for (const { repo, relPaths } of rows) {
+      const service = changelistsFor(repo);
+      const lists = service.getLists();
+      // A repository with no copy of the list gets one under the same name, as
+      // New Changelist… makes one in every repository.
+      const id =
+        'key' in target
+          ? (listIdFor(lists, target.key) ??
+            service.create(choices.find((c) => c.key === target.key)?.label ?? target.key).id)
+          : (lists.find((l) => !l.isDefault && l.name === target.name)?.id ?? service.create(target.name).id);
+      const unversioned = relPaths.filter((p) => service.isUntrackedPath(p));
+      service.moveFiles(relPaths, id);
+      await intentToAdd(repo, unversioned);
+    }
+  });
+
+  /**
+   * POST-P14v — IntelliJ's `Add to VCS`: unversioned files become versioned
+   * and land in the **default** changelist, ticked. POST-P14bf: on folders, the
+   * Unversioned Files rows and a repository row too; a file already moved into
+   * a list stays in it.
+   */
+  register('gittree.addToVcs', async (...args) => {
+    for (const { repo, relPaths } of rowFiles(args)) {
+      const service = changelistsFor(repo);
+      // The menu is gated on the rows holding unversioned files, but a status
+      // refresh can land while the menu is open. Re-adding a tracked file would
+      // stage content nobody asked to stage.
+      const targets = relPaths.filter((p) => service.isUntrackedPath(p));
+      if (targets.length === 0) continue;
+      // Asked before git hears of them: once tracked, reconcile adopts them
+      // into the active list, and they would no longer read as loose.
+      const loose = targets.filter((p) => service.listOf(p) === undefined);
+      await intentToAdd(repo, targets);
+      // The default list, not whichever list happens to be active: reconcile's
+      // adoption rule is the latter, so saying so explicitly is the only way.
+      if (loose.length > 0) service.moveFiles(loose, DEFAULT_LIST_ID);
+    }
   });
 
   // Template prefill per repo (P14-T2 dropped acceptInputCommand with the box).

@@ -6,6 +6,32 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — Add to VCS and Move to Another Changelist… for a repository's or a folder's new files
+
+In the Commit window, right-clicking **Unversioned Files**, a repository's row under it, or the
+Unversioned Files row under a repository now offers:
+
+- **Add to VCS**: every new file there becomes versioned and moves to the default list.
+- **Move to Another Changelist…**: the same, into the list you pick, or a new one. As in
+  IntelliJ, the files are added to VCS in that list.
+
+Those rows used to offer a changelist's actions, Rename, Delete and Set Active among them, which
+make no sense on Unversioned Files; they are gone from there.
+
+**Folder rows have a menu**, IntelliJ's, acting on every file in the folder: Add to VCS, Open
+Changes, Move to Another Changelist…, Roll Back… and Add to .gitignore. They used to show VS
+Code's Cut, Copy and Paste. For a folder git tracks nothing in, Add to .gitignore writes one rule
+for the folder, `/.idea/`, rather than a line per file. A repository row (Repository ›
+Changelist) also has Add to VCS and Move to Another Changelist….
+
+- **Move to Changelist…** is now called **Move to Another Changelist…**, as in IntelliJ. With
+  files of several repositories it offers each list once and makes it where it is missing, and it
+  leaves out the list every file is already in.
+- **Add to VCS** on a file already moved into a list leaves it in that list; it used to move it to
+  the default one.
+- A folder that appears in the Commit window, files moved to another list for one, now appears
+  open, as new changelist and repository rows already did. One you closed stays closed.
+
 ### Added — the Commit window can put repositories first
 
 With several repositories open, the Commit window's toolbar has **View Options**, IntelliJ's eye
