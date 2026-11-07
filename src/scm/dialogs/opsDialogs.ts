@@ -34,7 +34,7 @@ import { statusColorOverrides } from '../../ui/statusColors';
 import { buildMergeArgs, validateMergeOptions } from './mergeArgs';
 import { buildRebaseArgs, validateRebaseOptions } from './rebaseArgs';
 import { defaultRef, dialogRefs } from './refs';
-import { buildResetArgs, resetNeedsConfirm, resetNeedsSnapshot } from './resetArgs';
+import { buildResetArgs, RESET_DEFAULT_REF, resetNeedsConfirm, resetNeedsSnapshot } from './resetArgs';
 import {
   isEmptyRollbackPlan,
   planRollback,
@@ -241,7 +241,7 @@ export function buildResetParams(repo: RepoHandle, seedRef?: string): ResetDialo
   return {
     ...base(repo),
     refs,
-    defaultRef: seedRef ?? 'HEAD~1',
+    defaultRef: seedRef ?? RESET_DEFAULT_REF,
     dirtyCount: entries.filter((e) => isDirty(e) && e.kind !== 'ignored').length,
     stagedCount: entries.filter((e) => isStaged(e)).length,
   };

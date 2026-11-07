@@ -949,7 +949,9 @@ URL and does not enumerate a provider's repositories. Registered as D11.
   dirty tree, reset, rebase, merge, cherry-pick, revert, stash pop/apply/drop/clear, unshelve,
   rollback, clean, force branch delete, smart checkout), plus optional save- and task-end
   snapshots. Restores are byte-exact, including CRLF and missing final newlines, and take a
-  paranoia snapshot first so a restore is itself undoable.
+  paranoia snapshot first so a restore is itself undoable. A file of the dirty set that was
+  deleted is recorded as deleted (its row says so), and restoring the snapshot deletes it
+  again: the state before a `reset --hard` comes back whole, not just its edits.
 * **Recovery:** dangling-commit recovery from the reflog for the cases a snapshot cannot cover
   (a bad `reset --hard` of committed work).
 * **Deviation:** a bespoke store rather than VS Code's Timeline — `TimelineProvider` is a

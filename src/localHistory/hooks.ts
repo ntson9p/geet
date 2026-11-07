@@ -117,7 +117,9 @@ export class LocalHistoryHooks implements Disposable {
       if (files.length > LARGE_SNAPSHOT_THRESHOLD) {
         this.deps.onLargeSnapshot?.(files.length);
       }
-      await this.deps.store.snapshot(label, 'operation', files);
+      // Missing means deleted here: the files are the dirty set, and a
+      // deletion is work an operation can undo as surely as an edit.
+      await this.deps.store.snapshot(label, 'operation', files, { recordMissing: true });
     } catch (err) {
       // Never block the git operation on a broken store — warn once.
       this.trace(`local history snapshot failed: ${String(err)}`);
@@ -134,7 +136,9 @@ export class LocalHistoryHooks implements Disposable {
     if (!(this.deps.taskLabelsEnabled?.() ?? true)) return;
     if (!isTestOrBuild) return;
     try {
-      await this.deps.store.snapshot(`After task: ${taskName}`, 'task', this.collectFiles());
+      await this.deps.store.snapshot(`After task: ${taskName}`, 'task', this.collectFiles(), {
+        recordMissing: true,
+      });
     } catch (err) {
       this.trace(`task snapshot failed: ${String(err)}`);
     }

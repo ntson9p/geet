@@ -22,11 +22,25 @@ export type SnapshotTrigger = 'operation' | 'task' | 'save' | 'manual';
 
 export interface SnapshotFileEntry {
   relPath: string;
-  /** Empty string for metadata-only stubs (file exceeded maxFileSizeKb). */
+  /** Empty string for metadata-only stubs (file exceeded maxFileSizeKb) and deletions. */
   blobSha: string;
   mode: number;
   size: number;
   tooLarge?: boolean;
+  /**
+   * The path did not exist when the snapshot was taken — a deleted file of
+   * the dirty set. Restoring the snapshot deletes it again (POST-QA: a
+   * restore of "Before: reset" brought back what had been deleted before).
+   */
+  deleted?: boolean;
+}
+
+export interface SnapshotOptions {
+  /**
+   * A missing path is a deletion to remember, not a delete in flight to
+   * skip: the caller asked for the dirty set, where missing means deleted.
+   */
+  recordMissing?: boolean;
 }
 
 export interface SnapshotManifest {
@@ -95,11 +109,17 @@ export class SnapshotStore {
 
   /**
    * Records the current on-disk bytes of `files` (absolute paths or Uris).
-   * Missing files are skipped (a delete in flight is not an error); oversized
-   * files become metadata-only stubs. Returns the manifest id, or undefined
-   * when nothing was recordable.
+   * Missing files are skipped (a delete in flight is not an error) unless
+   * `recordMissing` asks for them as deletions; oversized files become
+   * metadata-only stubs. Returns the manifest id, or undefined when nothing
+   * was recordable.
    */
-  snapshot(label: string, trigger: SnapshotTrigger, files: readonly PathLike[]): Promise<string | undefined> {
+  snapshot(
+    label: string,
+    trigger: SnapshotTrigger,
+    files: readonly PathLike[],
+    options: SnapshotOptions = {},
+  ): Promise<string | undefined> {
     return this.locked(async () => {
       const capBytes = this.maxFileSizeKb * 1024;
       // Bounded-concurrency async capture (P10-T1): the previous fully-sync
@@ -115,7 +135,7 @@ export class SnapshotStore {
           const i = cursor++;
           const item = files[i];
           if (item === undefined) return;
-          slots[i] = await this.captureOne(item, capBytes);
+          slots[i] = await this.captureOne(item, capBytes, options.recordMissing === true);
         }
       };
       await Promise.all(
@@ -142,18 +162,26 @@ export class SnapshotStore {
   }
 
   /** One file of the capture: stat → read → sha → gzip blob. All async. */
-  private async captureOne(f: PathLike, capBytes: number): Promise<SnapshotFileEntry | undefined> {
+  private async captureOne(
+    f: PathLike,
+    capBytes: number,
+    recordMissing: boolean,
+  ): Promise<SnapshotFileEntry | undefined> {
     const abs = typeof f === 'string' ? f : f.fsPath;
     const rel = path.relative(this.options.repoRoot, abs);
     if (rel.startsWith('..') || path.isAbsolute(rel)) return undefined; // outside repo
+    const relPath = rel.replace(/\\/g, '/');
     let stat: fs.Stats;
     try {
       stat = await fs.promises.stat(longPath(abs));
-    } catch {
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (recordMissing && (code === 'ENOENT' || code === 'ENOTDIR')) {
+        return { relPath, blobSha: '', mode: 0, size: 0, deleted: true };
+      }
       return undefined; // vanished — fine
     }
     if (!stat.isFile()) return undefined;
-    const relPath = rel.replace(/\\/g, '/');
     if (stat.size > capBytes) {
       return { relPath, blobSha: '', mode: stat.mode, size: stat.size, tooLarge: true };
     }

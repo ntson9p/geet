@@ -98,6 +98,32 @@ describe('SnapshotStore basics', () => {
     expect(store.list()).toHaveLength(0);
   });
 
+  it('records a missing path as a deletion when asked — the dirty set, where missing means deleted', async () => {
+    const { store, repoRoot, storeDir } = makeStore();
+    const kept = write(repoRoot, 'kept.txt', 'kept\n');
+    const id = await store.snapshot('Before: reset', 'operation', [kept, path.join(repoRoot, 'src/gone.ts')], {
+      recordMissing: true,
+    });
+    const gone = store.get(id!)?.files.find((f) => f.relPath === 'src/gone.ts');
+    expect(gone).toEqual({ relPath: 'src/gone.ts', blobSha: '', mode: 0, size: 0, deleted: true });
+    expect(store.read(id!, 'src/gone.ts')).toBeUndefined();
+    expect(store.read(id!, 'kept.txt')?.toString()).toBe('kept\n');
+    // A deletion owns no blob: deleting the snapshot sweeps only kept.txt's.
+    expect(blobCount(storeDir)).toBe(1);
+    await store.delete(id!);
+    expect(blobCount(storeDir)).toBe(0);
+  });
+
+  it('keeps a snapshot whose only change is a deletion', async () => {
+    const { store, repoRoot } = makeStore();
+    const id = await store.snapshot('Before: reset', 'operation', [path.join(repoRoot, 'only-deleted.md')], {
+      recordMissing: true,
+    });
+    expect(id).toBeDefined();
+    expect(store.get(id!)?.files.map((f) => [f.relPath, f.deleted])).toEqual([['only-deleted.md', true]]);
+    expect(store.list({ pathPrefix: 'only-deleted.md' })).toHaveLength(1);
+  });
+
   it('records oversized files as metadata-only stubs', async () => {
     const { store, repoRoot } = makeStore({ maxFileSizeKb: 1 });
     const big = write(repoRoot, 'big.bin', Buffer.alloc(4096, 7));

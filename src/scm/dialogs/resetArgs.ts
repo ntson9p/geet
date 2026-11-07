@@ -11,6 +11,14 @@ export type ResetMode = 'soft' | 'mixed' | 'hard' | 'keep';
 
 export const RESET_MODES: ResetMode[] = ['soft', 'mixed', 'hard', 'keep'];
 
+/**
+ * Where the dialog opens: HEAD, as IntelliJ's Reset HEAD dialog does
+ * (GitResetDialog). HEAD~1 made the commonest reset — Hard, to throw away
+ * what is uncommitted — throw away the last commit too, for anyone who kept
+ * the default (POST-QA).
+ */
+export const RESET_DEFAULT_REF = 'HEAD';
+
 export interface ResetOptions {
   /** Ref or sha to reset the current branch to. */
   readonly ref: string;

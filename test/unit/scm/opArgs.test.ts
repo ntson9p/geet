@@ -15,6 +15,7 @@ import {
 import {
   buildResetArgs,
   describeResetImpact,
+  RESET_DEFAULT_REF,
   resetNeedsConfirm,
   resetNeedsSnapshot,
   RESET_MODES,
@@ -258,6 +259,11 @@ describe('buildResetArgs', () => {
   it('requires a revision', () => {
     expect(validateResetOptions({ ref: '', mode: 'hard' })).toHaveLength(1);
     expect(validateResetOptions({ ref: 'HEAD~1', mode: 'hard' })).toEqual([]);
+  });
+
+  it("opens on HEAD, as IntelliJ's Reset HEAD does, so a kept default costs no commit (POST-QA)", () => {
+    expect(RESET_DEFAULT_REF).toBe('HEAD');
+    expect(buildResetArgs({ ref: RESET_DEFAULT_REF, mode: 'hard' })).toEqual(['reset', '--hard', 'HEAD']);
   });
 });
 

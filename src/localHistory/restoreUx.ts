@@ -4,6 +4,7 @@
  * one undoable WorkspaceEdit behind a paranoia snapshot, purge controls, and
  * the native-Timeline bridge for per-save granularity.
  */
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
@@ -162,7 +163,16 @@ export class LocalHistoryViewProvider implements vscode.TreeDataProvider<History
           path.posix.basename(node.relPath),
           vscode.TreeItemCollapsibleState.None,
         );
-        item.description = path.posix.dirname(node.relPath);
+        const dir = path.posix.dirname(node.relPath);
+        const deleted = node.manifest.files.some((f) => f.relPath === node.relPath && f.deleted === true);
+        // A file at the root has no folder to name: "." said nothing.
+        item.description = deleted
+          ? dir === '.'
+            ? vscode.l10n.t('deleted')
+            : vscode.l10n.t('{0} · deleted', dir)
+          : dir === '.'
+            ? ''
+            : dir;
         item.resourceUri = vscode.Uri.file(path.join(node.repo.root, node.relPath));
         item.iconPath = new vscode.ThemeIcon('file');
         item.contextValue = 'lh:file';
@@ -188,13 +198,18 @@ export class RestoreUx {
   async compareSnapshot(node: HistoryNode): Promise<void> {
     if (node.kind !== 'snapshot') return;
     const { repo, manifest } = node;
-    const changes: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = manifest.files
-      .filter((f) => f.blobSha.length > 0)
-      .map((f) => {
-        const current = vscode.Uri.file(path.join(repo.root, f.relPath));
-        const snap = makeSnapUri(repo.root, manifest.id, f.relPath);
-        return [current, snap, current];
-      });
+    const changes: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = [];
+    for (const f of manifest.files) {
+      if (f.blobSha.length === 0 && f.deleted !== true) continue; // an oversized stub
+      const current = vscode.Uri.file(path.join(repo.root, f.relPath));
+      const exists = fs.existsSync(current.fsPath);
+      // Deleted then: added since, if it is back; nothing to compare if not.
+      if (f.deleted === true) {
+        if (exists) changes.push([current, undefined, current]);
+        continue;
+      }
+      changes.push([current, makeSnapUri(repo.root, manifest.id, f.relPath), exists ? current : undefined]);
+    }
     await vscode.commands.executeCommand(
       'vscode.changes',
       vscode.l10n.t('Local History: {0}', manifest.label),
@@ -224,7 +239,8 @@ export class RestoreUx {
     const store = this.storeFor(repo);
     if (!store) return;
 
-    let targets = manifest.files.filter((f) => f.blobSha.length > 0);
+    // A deletion is restored by deleting; an oversized stub has nothing to restore.
+    let targets = manifest.files.filter((f) => f.blobSha.length > 0 || f.deleted === true);
     if (subset) {
       const testPaths = process.env['GITTREE_TEST_RESTORE_PATHS'];
       if (testPaths !== undefined) {
@@ -232,7 +248,12 @@ export class RestoreUx {
         targets = targets.filter((f) => wanted.has(f.relPath));
       } else {
         const picked = await vscode.window.showQuickPick(
-          targets.map((f) => ({ label: f.relPath, picked: true, entry: f })),
+          targets.map((f) => ({
+            label: f.relPath,
+            ...(f.deleted === true ? { description: vscode.l10n.t('deleted') } : {}),
+            picked: true,
+            entry: f,
+          })),
           { canPickMany: true, placeHolder: vscode.l10n.t('Files to restore from "{0}"', manifest.label) },
         );
         if (!picked || picked.length === 0) return;
@@ -241,26 +262,38 @@ export class RestoreUx {
     }
     if (targets.length === 0) return;
 
+    const deletions = targets.filter((f) => f.deleted === true).length;
     const ok = await confirmModal(
       vscode.l10n.t('Restore {0} file(s) from "{1}"?', targets.length, manifest.label),
-      vscode.l10n.t('Current contents are snapshotted first, and the restore is undoable.'),
+      [
+        ...(deletions > 0
+          ? [vscode.l10n.t('{0} of them did not exist then and will be deleted.', deletions)]
+          : []),
+        vscode.l10n.t('Current contents are snapshotted first, and the restore is undoable.'),
+      ].join(' '),
       vscode.l10n.t('Restore'),
     );
     if (!ok) return;
 
-    // Paranoia snapshot of the files about to be overwritten.
+    // Paranoia snapshot of the files about to be overwritten — a file the
+    // restore creates is recorded as missing, so Undo deletes it again.
     const absPaths = targets.map((f) => path.join(repo.root, f.relPath));
     const paranoiaId = await store.snapshot(
       vscode.l10n.t('Before restore of "{0}"', manifest.label),
       'manual',
       absPaths,
+      { recordMissing: true },
     );
 
     const edit = new vscode.WorkspaceEdit();
     for (const f of targets) {
+      const uri = vscode.Uri.file(path.join(repo.root, f.relPath));
+      if (f.deleted === true) {
+        edit.deleteFile(uri, { ignoreIfNotExists: true });
+        continue;
+      }
       const bytes = store.read(manifest.id, f.relPath);
       if (!bytes) continue;
-      const uri = vscode.Uri.file(path.join(repo.root, f.relPath));
       edit.createFile(uri, { overwrite: true, contents: bytes });
     }
     const applied = await vscode.workspace.applyEdit(edit);

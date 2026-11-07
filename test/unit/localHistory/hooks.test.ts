@@ -139,6 +139,37 @@ describe('LocalHistoryHooks — destructive op coverage matrix', () => {
     expect(m.files.map((f) => f.relPath).sort()).toEqual(['clean-but-target.txt', 'dirty.txt']);
   });
 
+  it('records a deleted file of the dirty set as deleted, and a rename\'s old path too (POST-QA)', async () => {
+    const r = rig();
+    dirtyFile(r, 'kept.txt', 'edited\n');
+    const deleted: StatusEntry = { kind: 'ordinary', path: 'docs/old.md', x: '.', y: 'D', submodule: 'N...' };
+    const renamed = {
+      kind: 'renamed',
+      path: 'src/new.ts',
+      origPath: 'src/old.ts',
+      x: 'R',
+      y: '.',
+      submodule: 'N...',
+    } as StatusEntry;
+    fs.mkdirSync(path.join(r.repoRoot, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(r.repoRoot, 'src/new.ts'), 'moved\n');
+    r.model.update({ statusEntries: [...r.model.snapshot.statusEntries, deleted, renamed] });
+    await r.queue.enqueue({
+      label: 'reset',
+      kind: 'mutate',
+      isDestructive: true,
+      snapshotLabel: SNAPSHOT_LABELS.reset,
+      run: () => Promise.resolve(),
+    });
+    const m = r.store.list()[0]!;
+    const byPath = new Map(m.files.map((f) => [f.relPath, f]));
+    expect([...byPath.keys()].sort()).toEqual(['docs/old.md', 'kept.txt', 'src/new.ts', 'src/old.ts']);
+    expect(byPath.get('docs/old.md')?.deleted).toBe(true);
+    expect(byPath.get('src/old.ts')?.deleted).toBe(true);
+    expect(byPath.get('src/new.ts')?.deleted).toBeUndefined();
+    expect(r.store.read(m.id, 'kept.txt')?.toString()).toBe('edited\n');
+  });
+
   it('takes a paired After snapshot only for snapshotAfter ops that succeed', async () => {
     const r = rig();
     dirtyFile(r, 'w.txt', 'v1\n');

@@ -6,6 +6,19 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — Local History brings deletions back; Reset… opens on HEAD
+
+- **Restoring a snapshot deletes again what was deleted then.** A snapshot recorded the files
+  there were, and skipped a deleted one as gone. So restoring *Before: reset* after a `reset
+  --hard` brought back every edit, while the files deleted before the reset stayed: the
+  reset had restored them. The snapshot now records a deleted file of the dirty set (a
+  rename's old path too) as deleted. Its row says *deleted*, and **Restore** deletes it,
+  after saying how many it will delete. **Undo restore** works both ways: a file the
+  restore brought back is deleted again.
+- **Reset… opens on HEAD,** as IntelliJ's Reset HEAD dialog does. It opened on `HEAD~1`, so
+  the commonest reset, *Hard* to throw away what is uncommitted, threw away the last commit
+  as well for anyone who kept the default.
+
 ### Fixed — a merge commits from the Commit window, and a conflict says so once
 
 - **A merge whose conflicts are resolved commits from the Commit window.** With changelists,
