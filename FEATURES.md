@@ -488,6 +488,14 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 
 * Mirrors native `git add`: Staged/Unstaged groups, hunk/line staging from the diff editor.
   Switchable via `gittree.commit.paradigm` / `gittree.commit.switchParadigm`.
+* The Commit window draws IntelliJ's staging-area nodes instead of changelists: **Merge
+  Conflicts**, **Staged**, **Unstaged** and **Unversioned Files**, without checkboxes. A file
+  staged in part is in both Staged and Unstaged. Rows, folders and nodes carry **+** (Stage)
+  or **−** (Unstage) on hover and in their menu; unstaging a staged rename takes its old path
+  back too, and a new file becomes untracked again. A Staged row's diff is HEAD against the
+  index; an Unstaged row's is the index against the file, where the *Stage hunk* lenses are.
+  The preview pane shows the row's half with nothing to tick. The counter reads
+  *N of M files staged*, and **Commit** commits the index: nothing staged, nothing to commit.
 
 ### The message editor (shape + behaviour)
 

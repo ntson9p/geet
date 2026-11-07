@@ -83,6 +83,17 @@ export interface FileTreeHandle {
   viewState(): FileTreeViewState;
 }
 
+/**
+ * A button at the end of a row, shown while the row is hovered, selected or
+ * focused — VS Code's inline tree actions (POST-QA F5: Stage and Unstage).
+ */
+export interface FileTreeAction {
+  readonly id: string;
+  readonly codicon: string;
+  readonly title: string;
+  readonly run: () => void;
+}
+
 export interface FileTreeProps {
   nodes: readonly TreeNode[];
   expanded: ReadonlySet<string>;
@@ -105,6 +116,8 @@ export interface FileTreeProps {
   /** P11-T8: status color for the row label (IntelliJ colors names, not icons). */
   nameColor?: (node: TreeNode) => string | undefined;
   rowContext?: (node: TreeNode) => Record<string, unknown> | undefined;
+  /** Inline buttons for a row; none when absent or empty. */
+  actions?: (node: TreeNode) => readonly FileTreeAction[] | undefined;
   rowHeight?: number;
   onFocusPath?: (path: string) => void;
   className?: string;
@@ -144,6 +157,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     icon,
     nameColor,
     rowContext,
+    actions,
     rowHeight = DEFAULT_ROW_HEIGHT,
     onFocusPath,
     className,
@@ -385,6 +399,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       const label = badge?.(node);
       const ico = icon?.(node);
       const labelColor = nameColor?.(node);
+      const acts = actions?.(node);
       return (
         <span
           className={`gt-tree-row-inner${node.path === current ? ' gt-tree-current' : ''}${
@@ -441,10 +456,30 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
               {label.text}
             </span>
           ) : null}
+          {acts !== undefined && acts.length > 0 ? (
+            <span className="gt-tree-actions">
+              {acts.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className={`gt-tree-action codicon codicon-${a.codicon}`}
+                  title={a.title}
+                  aria-label={a.title}
+                  data-testid={`tree-action-${a.id}`}
+                  onClick={(e) => {
+                    // An action is not a click on the row: keep the selection.
+                    e.stopPropagation();
+                    a.run();
+                  }}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                />
+              ))}
+            </span>
+          ) : null}
         </span>
       );
     },
-    [applyToggle, badge, current, description, icon, nameColor, rows, setExpanded, stateOf],
+    [actions, applyToggle, badge, current, description, icon, nameColor, rows, setExpanded, stateOf],
   );
 
   const rowAria = useCallback(

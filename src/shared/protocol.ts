@@ -109,6 +109,32 @@ export interface CommitChangeDto {
  */
 export const UNVERSIONED_GROUP_ID = '__unversioned__';
 
+/**
+ * POST-QA F5: the staging paradigm's groups — IntelliJ's staging-area nodes.
+ * A file staged in part is in both Staged and Unstaged; nothing is ticked, a
+ * file is in the commit by being staged.
+ */
+export const STAGED_GROUP_ID = '__staged__';
+export const UNSTAGED_GROUP_ID = '__unstaged__';
+export const CONFLICTS_GROUP_ID = '__conflicts__';
+
+/** Which half of the index a staging-mode row stands for. */
+export type StagingSide = 'staged' | 'unstaged' | 'unversioned' | 'conflicted';
+
+export const STAGING_SIDES: readonly StagingSide[] = ['staged', 'unstaged', 'unversioned', 'conflicted'];
+
+const SIDE_BY_GROUP: ReadonlyMap<string, StagingSide> = new Map<string, StagingSide>([
+  [STAGED_GROUP_ID, 'staged'],
+  [UNSTAGED_GROUP_ID, 'unstaged'],
+  [UNVERSIONED_GROUP_ID, 'unversioned'],
+  [CONFLICTS_GROUP_ID, 'conflicted'],
+]);
+
+/** The half a staging-mode group stands for; undefined for a changelist. */
+export function stagingSideOf(groupId: string | undefined): StagingSide | undefined {
+  return groupId !== undefined ? SIDE_BY_GROUP.get(groupId) : undefined;
+}
+
 export interface CommitGroupDto {
   /** Changelist id, or the sentinel for the Unversioned Files group. */
   id: string;
@@ -164,6 +190,12 @@ export interface CommitRepoDto {
 export interface CommitDiffFileDto {
   repoRoot: string;
   path: string;
+  /**
+   * POST-QA F5, staging paradigm: the row's node. A staged row compares HEAD
+   * with the index, an unstaged one the index with the file — one file can be
+   * both rows, each with its own diff.
+   */
+  side?: StagingSide;
 }
 
 export interface CommitOpenDiffParamsDto extends CommitDiffFileDto {
@@ -279,6 +311,10 @@ export const COMMIT_METHODS = {
   stashAction: 'commit/stashAction',
   /** View Options › Group By: `CommitSetGroupByParamsDto`, saved for the workspace. */
   setGroupBy: 'commit/setGroupBy',
+  /** POST-QA F5, staging paradigm: `CommitStageParamsDto` — stage these files. */
+  stage: 'commit/stage',
+  /** POST-QA F5, staging paradigm: `CommitStageParamsDto` — unstage these files. */
+  unstage: 'commit/unstage',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
@@ -296,6 +332,12 @@ export const COMMIT_METHODS = {
    */
   evtMessage: 'commit/message',
 } as const;
+
+/** Files of one repository to stage or unstage (POST-QA F5). */
+export interface CommitStageParamsDto {
+  repoRoot: string;
+  paths: string[];
+}
 
 export interface CommitSetCheckedParamsDto {
   repoRoot: string;

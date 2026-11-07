@@ -387,5 +387,7 @@
   "gittree.view.branchesLegacy.name": "Branches (All Repositories)",
   "gittree.command.repositories.select.title": "Show This Repository in Branches (Tree)",
   "gittree.view.branchesTree.name": "Branches (Tree)",
-  "gittree.config.protectedBranches.description": "Protected branches, as in IntelliJ's Settings | Version Control | Git: the Push dialog does not offer Force Push to a branch whose name matches one of these. Each entry is a regular expression matched against the whole branch name, so main protects main and not main-copy."
+  "gittree.config.protectedBranches.description": "Protected branches, as in IntelliJ's Settings | Version Control | Git: the Push dialog does not offer Force Push to a branch whose name matches one of these. Each entry is a regular expression matched against the whole branch name, so main protects main and not main-copy.",
+  "gittree.command.commit.stage.title": "Stage",
+  "gittree.command.commit.unstage.title": "Unstage"
 }

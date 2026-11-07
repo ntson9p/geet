@@ -58,6 +58,22 @@ async function readHead(repo: RepoHandle, relPath: string): Promise<string | und
   return result.exitCode === 0 ? result.stdout : undefined;
 }
 
+/** Any `git show`-able object spec (`HEAD:a.txt`, `:0:a.txt`), or undefined when absent. */
+async function readSpec(repo: RepoHandle, spec: string): Promise<string | undefined> {
+  const result = await repo.queue.enqueue({
+    label: `show ${spec}`,
+    kind: 'read',
+    run: (git, token) =>
+      git.exec(repo.root, ['show', spec], {
+        structured: true,
+        noOptionalLocks: true,
+        allowNonZeroExit: true,
+        token,
+      }),
+  });
+  return result.exitCode === 0 ? result.stdout : undefined;
+}
+
 async function readWorktree(repo: RepoHandle, relPath: string): Promise<string | undefined> {
   try {
     return await fs.readFile(path.join(repo.root, relPath), 'utf8');
@@ -94,6 +110,44 @@ export async function computeFileDiff(repo: RepoHandle, raw: string): Promise<Fi
     originalText,
     modifiedText,
     worktreeCrlf: crlf,
+    changes: computeLineChanges(originalText, modifiedText),
+    wholeFileOnly: false,
+  };
+}
+
+/**
+ * POST-QA F5: the preview of one staging-mode row — HEAD against the index for
+ * a Staged row (from the old path of a staged rename), the index against the
+ * file for an Unstaged one, nothing against the file for a new one. Never
+ * throws; binary content previews as a whole file.
+ */
+export async function computeStagingDiff(
+  repo: RepoHandle,
+  raw: string,
+  side: 'staged' | 'unstaged' | 'unversioned' | 'conflicted',
+  origPath?: string,
+): Promise<FileDiff> {
+  const relPath = raw.replace(/\\/g, '/');
+  let originalText = '';
+  let modifiedText = '';
+  let worktreeCrlf = false;
+  if (side === 'staged') {
+    originalText = (await readSpec(repo, `HEAD:${(origPath ?? relPath).replace(/\\/g, '/')}`)) ?? '';
+    modifiedText = (await readSpec(repo, `:0:${relPath}`)) ?? '';
+  } else {
+    originalText = side === 'unstaged' ? ((await readSpec(repo, `:0:${relPath}`)) ?? '') : '';
+    const worktree = toBlobEol(originalText, (await readWorktree(repo, relPath)) ?? '');
+    modifiedText = worktree.text;
+    worktreeCrlf = worktree.crlf;
+  }
+  if (isBinary(originalText) || isBinary(modifiedText)) {
+    return { relPath, originalText, modifiedText, worktreeCrlf, changes: [], wholeFileOnly: true };
+  }
+  return {
+    relPath,
+    originalText,
+    modifiedText,
+    worktreeCrlf,
     changes: computeLineChanges(originalText, modifiedText),
     wholeFileOnly: false,
   };

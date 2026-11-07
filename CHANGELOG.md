@@ -27,6 +27,21 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — the staging paradigm has its own Commit window
+
+- **With *Git Staging Area* chosen, the Commit window shows what will be committed.** The
+  setting changed what **Commit** did, which was to commit the index, but not what the
+  window showed. Changelists and their ticks stayed, so *7 of 10 files* were ticked while
+  **Commit** committed the one file staged. The window now has IntelliJ's staging-area
+  nodes: **Merge Conflicts**, **Staged**, **Unstaged** and **Unversioned Files**, without
+  ticks.
+  - A file staged in part appears under both Staged and Unstaged.
+  - **+** and **−** on a row, folder or node stage or unstage it, from hover or from the
+    row's menu.
+  - Each row opens its own half as a diff: HEAD against the index for Staged, the index
+    against the file for Unstaged. The preview pane does the same.
+  - The counter says how many files are staged, and **Commit** needs something staged.
+
 ### Fixed — ticks show in light themes
 
 - **A ticked checkbox is visible in every theme.** Ticked boxes used the colour VS Code

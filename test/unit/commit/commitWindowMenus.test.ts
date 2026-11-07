@@ -43,6 +43,8 @@ function shown(section: string, keys: Record<string, string | boolean>): string[
   const holds = (term: string): boolean => {
     const t = term.trim();
     if (t.startsWith('!')) return !holds(t.slice(1));
+    const re = /^(\S+)\s*=~\s*\/(.*)\/$/u.exec(t);
+    if (re) return new RegExp(re[2]!, 'u').test(String(keys[re[1]!] ?? ''));
     const eq = /^(\S+)\s*==\s*'?([^']*)'?$/u.exec(t);
     if (eq) return String(keys[eq[1]!] ?? '') === eq[2];
     return keys[t] === true;
@@ -126,5 +128,20 @@ describe('the Commit window menus (POST-P14bf)', () => {
     expect(
       shown('commitGroup', { ...staging, webviewSection: 'commitGroup', listIsUnversioned: true }),
     ).toEqual(['Add to VCS']);
+  });
+
+  it('offers Stage on what is not staged and Unstage on what is, with staging only (POST-QA F5)', () => {
+    const staging = { ...base, 'gittree.paradigm': 'staging' };
+    for (const section of ['commitFile', 'commitFolder', 'commitGroup', 'commitRepo']) {
+      const row = { ...staging, webviewSection: section };
+      expect(shown(section, { ...row, stagingSide: 'unstaged' })).toContain('Stage');
+      expect(shown(section, { ...row, stagingSide: 'unstaged' })).not.toContain('Unstage');
+      expect(shown(section, { ...row, stagingSide: 'unversioned' })).toContain('Stage');
+      expect(shown(section, { ...row, stagingSide: 'staged' })).toContain('Unstage');
+      expect(shown(section, { ...row, stagingSide: 'staged' })).not.toContain('Stage');
+      expect(shown(section, { ...row, stagingSide: 'conflicted' })).not.toContain('Stage');
+      // With changelists, rows carry no side and there is no staging menu.
+      expect(shown(section, { ...base, webviewSection: section })).not.toContain('Stage');
+    }
   });
 });

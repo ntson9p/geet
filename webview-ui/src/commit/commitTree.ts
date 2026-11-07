@@ -27,6 +27,7 @@
  */
 import {
   commitGroupByOf,
+  stagingSideOf,
   UNVERSIONED_GROUP_ID,
   type CommitChangeDto,
   type CommitDiffFileDto,
@@ -35,6 +36,7 @@ import {
   type CommitRepoDto,
   type CommitRepoHeadDto,
   type CommitStateDto,
+  type StagingSide,
 } from '../../../src/shared/protocol';
 import { statusColor, statusIcon, type StatusColorOverrides, type StatusKind } from '../lib/status';
 import {
@@ -51,6 +53,22 @@ export interface CommitFileRef {
   readonly repoRoot: string;
   readonly relPath: string;
   readonly change: CommitChangeDto;
+  /**
+   * With staging only (POST-QA F5): the node the row is in — Staged, Unstaged,
+   * Unversioned or Merge Conflicts — which decides its diff and Stage/Unstage.
+   */
+  readonly side?: StagingSide;
+}
+
+/** A row's half of the index with staging (POST-QA F5): what its diff compares, what Stage does. */
+export function fileSide(ref: CommitFileRef): StagingSide | undefined {
+  return ref.side;
+}
+
+/** A diff request for a row: the file, and with staging, which of its rows. */
+function diffFileOf(ref: CommitFileRef): CommitDiffFileDto {
+  const side = fileSide(ref);
+  return { repoRoot: ref.repoRoot, path: ref.relPath, ...(side !== undefined ? { side } : {}) };
 }
 
 /** One repository's copy of a changelist — what a scoped action acts on. */
@@ -135,6 +153,8 @@ export interface CommitTreeModel {
    * colors the folder with it; mixed folders read as plain modified (IntelliJ).
    */
   readonly dirKinds: Map<string, ReadonlySet<StatusKind>>;
+  /** The staging paradigm (POST-QA F5): rows stand for Staged/Unstaged halves, not changelists. */
+  readonly staging: boolean;
 }
 
 /**
@@ -198,6 +218,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   const dirKinds = new Map<string, ReadonlySet<StatusKind>>();
   const multiRepo = state.repos.length > 1;
   const groupBy = groupByOf(state);
+  const staging = state.paradigm === 'staging';
 
   /** Bottom-up status rollup for the directory highlighting (P11-T8). */
   const annotate = (node: TreeNode): ReadonlySet<StatusKind> => {
@@ -265,7 +286,8 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     for (const leaf of collectFiles(root)) {
       const change = byPath.get(leaf.slice(parent.length + 1));
       if (!change) continue;
-      files.set(leaf, { repoRoot: repo.root, relPath: change.path, change });
+      const side = staging ? stagingSideOf(group.id) : undefined;
+      files.set(leaf, { repoRoot: repo.root, relPath: change.path, change, ...(side !== undefined ? { side } : {}) });
       if (change.checked) checked.add(leaf);
       if (!checkable) checkboxless.add(leaf);
     }
@@ -275,6 +297,9 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       if (node.kind !== 'dir') return;
       for (const child of node.children) {
         if (child.kind !== 'dir') continue;
+        // A list that cannot be ticked has no box on its folders either: with
+        // staging (POST-QA F5) no row of the tree has one.
+        if (!checkable) checkboxless.add(child.path);
         folders.set(child.path, {
           repoRoot: repo.root,
           listId: group.id,
@@ -343,7 +368,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       annotate(node);
     }
     if (nodes.length > 0) {
-      return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds };
+      return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging };
     }
     // Nothing changed anywhere: the one empty Changes row both groupings show.
   }
@@ -419,7 +444,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     annotate(node);
   }
 
-  return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds };
+  return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging };
 }
 
 /**
@@ -446,22 +471,29 @@ export function commitDiffWalk(
   const files: CommitDiffFileDto[] = [];
   for (const path of walk.files) {
     const ref = model.files.get(path);
-    if (ref) files.push({ repoRoot: ref.repoRoot, path: ref.relPath });
+    if (ref) files.push(diffFileOf(ref));
   }
   return { files, explicit: walk.explicit };
 }
 
 /** Every file in the list, in tree order. `model.files` is populated in that order. */
 export function allDiffFiles(model: CommitTreeModel): CommitDiffFileDto[] {
-  return [...model.files.values()].map((f) => ({ repoRoot: f.repoRoot, path: f.relPath }));
+  return [...model.files.values()].map(diffFileOf);
 }
 
-/** The row showing a file. A file sits in one changelist, so there is one. */
+/**
+ * The row showing a file. A file sits in one changelist, so there is one —
+ * except with staging, where a file staged in part has a Staged and an
+ * Unstaged row, and `file.side` says which.
+ */
 export function treePathOf(model: CommitTreeModel, file: CommitDiffFileDto): string | undefined {
+  let any: string | undefined;
   for (const [treePath, ref] of model.files) {
-    if (ref.repoRoot === file.repoRoot && ref.relPath === file.path) return treePath;
+    if (ref.repoRoot !== file.repoRoot || ref.relPath !== file.path) continue;
+    if (file.side === undefined || fileSide(ref) === file.side) return treePath;
+    any ??= treePath;
   }
-  return undefined;
+  return any;
 }
 
 /**
@@ -593,7 +625,13 @@ export function groupRowContext(model: CommitTreeModel, nodePath: string): Recor
     // POST-P14bf: Unversioned Files is no changelist. It offers Add to VCS and
     // Move to Another Changelist…, never a list's Rename, Delete or Set Active.
     listIsUnversioned: group.targets.length > 0 && group.targets.every((t) => t.listId === UNVERSIONED_GROUP_ID),
+    // POST-QA F5: with staging, Stage or Unstage, by the node the row stands for.
+    ...sideContext(model.staging ? stagingSideOf(group.listId ?? group.targets[0]?.listId) : undefined),
   };
+}
+
+function sideContext(side: StagingSide | undefined): Record<string, unknown> {
+  return side !== undefined ? { stagingSide: side } : {};
 }
 
 /**
@@ -628,6 +666,7 @@ export function folderRowContext(
     // Add to .gitignore wants every file new; Add to VCS, any.
     fileUnversioned: refs.every((r) => r.change.kind === 'untracked'),
     folderHasUnversioned: refs.some((r) => r.change.kind === 'untracked'),
+    ...sideContext(model.staging ? stagingSideOf(folder.listId) : undefined),
   };
 }
 
@@ -703,6 +742,7 @@ export function fileRowContext(
     // Gates `Add to VCS` and `Add to .gitignore`: both are meaningless on a
     // file git already tracks, and a mixed selection would half-apply.
     fileUnversioned: paths.every((f) => f.change.kind === 'untracked'),
+    ...sideContext(fileSide(ref)),
   };
 }
 

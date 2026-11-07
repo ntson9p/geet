@@ -38,7 +38,9 @@ import {
   type CommitSetGroupByParamsDto,
   type CommitSetIncludedParamsDto,
   type CommitSetOptionParamsDto,
+  type CommitStageParamsDto,
   type CommitStateDto,
+  type StagingSide,
 } from '../../shared/protocol';
 import { statusColorOverrides } from '../../ui/statusColors';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
@@ -48,7 +50,9 @@ import type { CommitService } from '../commitService';
 import type { CommitMessageBox } from '../messageBox';
 import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
-import { computeFileDiff } from './fileDiff';
+import { stageFiles, unstageFiles } from '../staging/stageFiles';
+import { computeFileDiff, computeStagingDiff } from './fileDiff';
+import { stagingGroups } from './stagingGroups';
 import { readCommitGroupBy, writeCommitGroupBy } from './groupBy';
 import { signChanges, type InclusionModel } from './inclusion';
 import { localDiffSides } from './localDiffSides';
@@ -193,6 +197,15 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   }
 
   private groupsFor(repo: RepoHandle): CommitGroupDto[] {
+    // POST-QA F5: with staging, IntelliJ's staging-area nodes, not changelists.
+    if (this.deps.paradigm.paradigm === 'staging') {
+      return stagingGroups(repo.model.snapshot.statusEntries, {
+        conflicts: vscode.l10n.t('Merge Conflicts'),
+        staged: vscode.l10n.t('Staged'),
+        unstaged: vscode.l10n.t('Unstaged'),
+        unversioned: vscode.l10n.t('Unversioned Files'),
+      });
+    }
     const service = this.deps.changelistsFor(repo);
     // Per-change selections are keyed by canonical root, and only a handful of
     // files ever have one — a lookup table beats a diff per row.
@@ -285,7 +298,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       amend: active ? this.deps.commitService.isAmend(active) : false,
       signing: false,
       busy: this.busy > 0,
-      modifiedCount: changes.length,
+      // Files, not rows: with staging a file staged in part is two rows.
+      modifiedCount: new Set(repos.flatMap((r) => r.groups.flatMap((g) => g.changes.map((c) => `${r.root}\n${c.path}`)))).size,
       checkedCount: changes.filter((c) => c.checked).length,
       paradigm: this.deps.paradigm.paradigm,
       ...(this.lastError !== undefined ? { error: this.lastError } : {}),
@@ -305,7 +319,23 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
    * carried to commit time, so the pane never shows ticks that would not be
    * honoured.
    */
-  private async fileDiff(repo: RepoHandle, relPath: string): Promise<CommitFileDiffDto> {
+  private async fileDiff(repo: RepoHandle, relPath: string, side?: StagingSide): Promise<CommitFileDiffDto> {
+    if (this.deps.paradigm.paradigm === 'staging' && side !== undefined) {
+      // POST-QA F5: the row's half, read-only — nothing is ticked with staging.
+      const entry = repo.model.snapshot.statusEntries.find((e) => e.path === relPath.replace(/\\/g, '/'));
+      const diff = await computeStagingDiff(repo, relPath, side, entry?.origPath);
+      return {
+        repoRoot: repo.root,
+        path: relPath,
+        originalText: diff.originalText,
+        modifiedText: diff.modifiedText,
+        changes: diff.changes,
+        included: null,
+        checked: side === 'staged',
+        wholeFileOnly: diff.wholeFileOnly,
+        signature: signChanges(diff.changes),
+      };
+    }
     const key = canonicalKey(repo.root);
     const diff = await computeFileDiff(repo, relPath);
     const signature = signChanges(diff.changes);
@@ -343,6 +373,32 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     }
   }
 
+  /**
+   * POST-QA F5: Stage or Unstage whole files from the staging-mode tree. A
+   * staged rename is one row: unstaging it takes its old path back too.
+   */
+  async stagePaths(repo: RepoHandle, paths: readonly string[], how: 'stage' | 'unstage'): Promise<void> {
+    const entries = repo.model.snapshot.statusEntries;
+    const all = new Set(paths);
+    if (how === 'unstage') {
+      for (const p of paths) {
+        const e = entries.find((x) => x.path === p);
+        if (e?.origPath !== undefined && e.x === 'R') all.add(e.origPath);
+      }
+    }
+    await this.guard(how, () =>
+      repo.queue.enqueue({
+        label:
+          how === 'stage'
+            ? vscode.l10n.t('Stage {0} file(s)', paths.length)
+            : vscode.l10n.t('Unstage {0} file(s)', paths.length),
+        kind: 'mutate',
+        run: (git, token) =>
+          how === 'stage' ? stageFiles(git, repo.root, [...all], token) : unstageFiles(git, repo.root, [...all], token),
+      }),
+    );
+  }
+
   // ---- diffs (POST-P14au) ----------------------------------------------------
 
   /** A row's diff, walkable through `files`, the way the tree shows them. */
@@ -378,28 +434,32 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     const out: DiffEntry[] = [];
     for (const file of files) {
       const repo = this.repoFor(file.repoRoot);
-      if (repo) out.push(this.diffEntry(repo, file.path, multiRepo));
+      if (repo) out.push(this.diffEntry(repo, file.path, multiRepo, file.side));
     }
     return out;
   }
 
-  private diffEntry(repo: RepoHandle, relPath: string, multiRepo: boolean): DiffEntry {
+  private diffEntry(repo: RepoHandle, relPath: string, multiRepo: boolean, side?: StagingSide): DiffEntry {
     const sides = localDiffSides(
       relPath,
       this.deps.changelistsFor(repo).statusEntry(relPath),
       this.deps.paradigm.paradigm,
+      side,
     );
     const worktree = vscode.Uri.file(path.join(repo.root, relPath));
+    // With staging one file can be two stops of a walk, its staged and its
+    // unstaged half: the side keeps them apart (POST-QA F5).
+    const file: CommitDiffFileDto = { repoRoot: repo.root, path: relPath, ...(side !== undefined ? { side } : {}) };
     const entry: DiffEntry = {
-      key: `${repo.root}\n${relPath}`,
+      key: `${repo.root}\n${relPath}${side !== undefined ? `\n${side}` : ''}`,
       original: makeRevUri(repo.root, sides.left.relPath, sides.left.ref),
       modified: sides.right === 'worktree' ? worktree : makeRevUri(repo.root, relPath, ':0'),
       title: diffTitle(relPath, sides.titleKind),
       label: multiRepo ? `${path.basename(repo.root)}/${relPath}` : relPath,
       onShown: () => {
-        this.rpc?.notify(COMMIT_METHODS.evtDiffFile, { repoRoot: repo.root, path: relPath });
+        this.rpc?.notify(COMMIT_METHODS.evtDiffFile, file);
       },
-      onScreen: (showing) => this.markDiffOnScreen({ repoRoot: repo.root, path: relPath }, showing),
+      onScreen: (showing) => this.markDiffOnScreen(file, showing),
       ...(sides.right === 'worktree' ? { settle: () => settleWorktreeSide(entry, repo.root, relPath) } : {}),
     };
     return entry;
@@ -575,10 +635,21 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     });
 
     rpc.on(COMMIT_METHODS.fileDiff, async (raw) => {
-      const p = raw as { repoRoot: string; path: string };
+      const p = raw as { repoRoot: string; path: string; side?: StagingSide };
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return undefined;
-      return this.fileDiff(repo, p.path);
+      return this.fileDiff(repo, p.path, p.side);
+    });
+
+    rpc.on(COMMIT_METHODS.stage, async (raw) => {
+      const p = raw as CommitStageParamsDto;
+      const repo = this.repoFor(p.repoRoot);
+      if (repo && p.paths.length > 0) await this.stagePaths(repo, p.paths, 'stage');
+    });
+    rpc.on(COMMIT_METHODS.unstage, async (raw) => {
+      const p = raw as CommitStageParamsDto;
+      const repo = this.repoFor(p.repoRoot);
+      if (repo && p.paths.length > 0) await this.stagePaths(repo, p.paths, 'unstage');
     });
 
     rpc.on(COMMIT_METHODS.setIncluded, async (raw) => {

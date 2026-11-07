@@ -12,6 +12,7 @@
  * diff carries the `Stage hunk` lenses, or else what is staged.
  */
 import type { StatusEntry } from '../../core/model/statusEntry';
+import type { StagingSide } from '../../shared/protocol';
 
 export interface LocalDiffSides {
   readonly left: { readonly relPath: string; readonly ref: string };
@@ -24,8 +25,16 @@ export function localDiffSides(
   relPath: string,
   entry: StatusEntry | undefined,
   paradigm: 'changelists' | 'staging',
+  side?: StagingSide,
 ): LocalDiffSides {
   const head = { relPath: entry?.origPath ?? relPath, ref: 'HEAD' };
+  // POST-QA F5: a staging row names its half — the Staged row of a file staged
+  // in part opens HEAD against the index, its Unstaged row the index against
+  // the file, as IntelliJ's two nodes do.
+  if (paradigm === 'staging' && side === 'staged') return { left: head, right: 'index', titleKind: 'index' };
+  if (paradigm === 'staging' && side === 'unstaged') {
+    return { left: { relPath, ref: ':0' }, right: 'worktree', titleKind: 'working-tree' };
+  }
   // An untracked or a conflicted file has nothing in the index to compare with.
   const usesIndex =
     paradigm === 'staging' &&

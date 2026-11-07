@@ -798,6 +798,18 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.commit.stage",
+        "title": "%gittree.command.commit.stage.title%",
+        "category": "GitTree",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gittree.commit.unstage",
+        "title": "%gittree.command.commit.unstage.title%",
+        "category": "GitTree",
+        "icon": "$(remove)"
+      },
+      {
         "command": "gittree.openDiffHead",
         "title": "%gittree.command.openDiffHead.title%",
         "category": "GitTree"
@@ -2409,6 +2421,14 @@
         {
           "command": "gittree.pushForceWithLease",
           "when": "false"
+        },
+        {
+          "command": "gittree.commit.stage",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.unstage",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -2903,6 +2923,46 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "gittree.commit.stage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && gittree.paradigm == staging && stagingSide =~ /^(unstaged|unversioned)$/",
+          "group": "0_stage@1"
+        },
+        {
+          "command": "gittree.commit.unstage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && gittree.paradigm == staging && stagingSide == staged",
+          "group": "0_stage@2"
+        },
+        {
+          "command": "gittree.commit.stage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && gittree.paradigm == staging && stagingSide =~ /^(unstaged|unversioned)$/",
+          "group": "0_stage@1"
+        },
+        {
+          "command": "gittree.commit.unstage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && gittree.paradigm == staging && stagingSide == staged",
+          "group": "0_stage@2"
+        },
+        {
+          "command": "gittree.commit.stage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == staging && stagingSide =~ /^(unstaged|unversioned)$/",
+          "group": "0_stage@1"
+        },
+        {
+          "command": "gittree.commit.unstage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == staging && stagingSide == staged",
+          "group": "0_stage@2"
+        },
+        {
+          "command": "gittree.commit.stage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == staging && stagingSide =~ /^(unstaged|unversioned)$/",
+          "group": "0_stage@1"
+        },
+        {
+          "command": "gittree.commit.unstage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepo' && gittree.paradigm == staging && stagingSide == staged",
+          "group": "0_stage@2"
+        },
         {
           "command": "gittree.changelist.commitList",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitGroup' && gittree.paradigm == changelists && !listIsUnversioned",

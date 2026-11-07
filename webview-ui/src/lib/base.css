@@ -443,6 +443,44 @@ button {
   flex-shrink: 100;
 }
 
+/* Inline row actions (Stage / Unstage), VS Code's: at the row's end, shown
+   while the row is hovered, selected or has the keyboard. */
+.gt-tree-actions {
+  display: none;
+  margin-left: auto;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.gt-tree .gt-virtual-row:hover .gt-tree-actions,
+.gt-tree .gt-virtual-row[aria-selected='true'] .gt-tree-actions,
+.gt-tree .gt-virtual-row.gt-focused .gt-tree-actions {
+  display: inline-flex;
+}
+
+.gt-tree-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.gt-tree-action:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.gt-tree-action:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 /* Too narrow for a branch to be read: no empty pill either. */
 @container gt-tree (max-width: 15em) {
   .gt-tree-badge {

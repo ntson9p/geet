@@ -27,9 +27,11 @@ import {
   type CommitStashStateDto,
   type CommitStateDto,
   type CommitSetCheckedParamsDto,
+  type CommitStageParamsDto,
 } from '../../../src/shared/protocol';
 import {
   FileTree,
+  type FileTreeAction,
   type FileTreeBadge,
   type FileTreeHandle,
   type FileTreeRestore,
@@ -46,6 +48,7 @@ import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStr
 import {
   allDirPaths,
   ancestorDirs,
+  collectFiles,
   countFiles,
   selectedFiles,
   selectionFollowing,
@@ -64,6 +67,7 @@ import {
   commitDiffWalk,
   fileCountLabel,
   fileRowContext,
+  fileSide,
   folderRowContext,
   groupByOf,
   groupRowContext,
@@ -357,9 +361,12 @@ export function App() {
       if (!ref) return;
       const walk = commitDiffWalk(modelRef.current, selectionRef.current, treePath);
       walksWholeList.current = !walk.explicit;
+      const side = fileSide(ref);
       send(COMMIT_METHODS.openDiff, {
         repoRoot: ref.repoRoot,
         path: ref.relPath,
+        // With staging, which row of the file: its staged or its unstaged half.
+        ...(side !== undefined ? { side } : {}),
         files: walk.files,
       } satisfies CommitOpenDiffParamsDto);
     },
@@ -369,7 +376,7 @@ export function App() {
   const listKey = useMemo(
     () =>
       allDiffFiles(model)
-        .map((f) => `${f.repoRoot}\n${f.path}`)
+        .map((f) => `${f.repoRoot}\n${f.path}\n${f.side ?? ''}`)
         .join('\n'),
     [model],
   );
@@ -434,6 +441,32 @@ export function App() {
       return next;
     });
   }, []);
+
+  /**
+   * POST-QA F5: with staging, rows carry IntelliJ's + and − — Stage on what is
+   * not staged yet, Unstage on what is. A folder or a group acts on the files
+   * under it, one request per repository.
+   */
+  const stagingActions = useCallback(
+    (node: TreeNode): FileTreeAction[] | undefined => {
+      const leaves = node.kind === 'file' ? [node.path] : collectFiles(node);
+      const refs = leaves.flatMap((p) => {
+        const ref = model.files.get(p);
+        return ref !== undefined ? [ref] : [];
+      });
+      const side = refs[0] !== undefined ? fileSide(refs[0]) : undefined;
+      if (side === undefined || side === 'conflicted' || refs.some((r) => fileSide(r) !== side)) return undefined;
+      const byRepo = new Map<string, string[]>();
+      for (const r of refs) byRepo.set(r.repoRoot, [...(byRepo.get(r.repoRoot) ?? []), r.relPath]);
+      const run = (method: string): void => {
+        for (const [repoRoot, paths] of byRepo) send(method, { repoRoot, paths } satisfies CommitStageParamsDto);
+      };
+      return side === 'staged'
+        ? [{ id: 'unstage', codicon: 'remove', title: 'Unstage', run: () => run(COMMIT_METHODS.unstage) }]
+        : [{ id: 'stage', codicon: 'add', title: 'Stage', run: () => run(COMMIT_METHODS.stage) }];
+    },
+    [model, send],
+  );
 
   const description = useCallback(
     (node: TreeNode): string | undefined => {
@@ -531,6 +564,8 @@ export function App() {
 
   const diffRepo = selectedFile?.repoRoot;
   const diffPath = selectedFile?.relPath;
+  // With staging a file can be two rows; the preview shows the one selected.
+  const diffSide = selectedFile !== undefined ? fileSide(selectedFile) : undefined;
 
   useEffect(() => {
     if (!preview || diffRepo === undefined || diffPath === undefined) {
@@ -542,6 +577,7 @@ export function App() {
       .request<CommitFileDiffDto | undefined>(COMMIT_METHODS.fileDiff, {
         repoRoot: diffRepo,
         path: diffPath,
+        ...(diffSide !== undefined ? { side: diffSide } : {}),
       })
       .then(
         (next) => {
@@ -673,7 +709,9 @@ export function App() {
     !state.busy &&
     activeRepo !== undefined &&
     (state.amend || message.trim().length > 0) &&
-    (state.amend || state.checkedCount > 0 || state.paradigm === 'staging');
+    // With staging, what is staged is what commits (POST-QA F5): nothing
+    // staged, nothing to commit — the counter says the same.
+    (state.amend || state.checkedCount > 0);
 
   // The tree spans every repository, so in a multi-root workspace a bare
   // `Commit` leaves the scope invisible — which is how a commit lands in the
@@ -724,6 +762,7 @@ export function App() {
       icon={icon}
       nameColor={nameColor}
       rowContext={rowContext}
+      actions={state.paradigm === 'staging' ? stagingActions : undefined}
       {...(reveal !== undefined ? { reveal } : {})}
       {...(restore !== undefined ? { restore } : {})}
       {...(onScreenPath !== undefined ? { current: onScreenPath } : {})}
@@ -755,11 +794,12 @@ export function App() {
         originalText={diff.originalText}
         modifiedText={diff.modifiedText}
         changes={diff.changes}
-        leftLabel="HEAD"
-        rightLabel={selectedFile.relPath}
+        leftLabel={diffSide === 'unstaged' ? 'Staged' : 'HEAD'}
+        rightLabel={diffSide === 'staged' ? `${selectedFile.relPath} (staged)` : selectedFile.relPath}
         height={Math.max(0, diffSize.height)}
-        included={includedSet}
-        onToggleInclude={onToggleInclude}
+        // With staging there is nothing to tick: a change is in the commit by
+        // being staged (the diff editor's Stage hunk lens), not by a checkbox.
+        {...(state.paradigm === 'staging' ? {} : { included: includedSet, onToggleInclude })}
       />
     );
   })();
@@ -908,6 +948,7 @@ export function App() {
             />
             <span className="gt-commit-counter" data-testid="commit-counter">
               {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
+              {state.paradigm === 'staging' ? ' staged' : ''}
             </span>
           </div>
 

@@ -5,6 +5,7 @@
  */
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
+import { isStaged, isUnstaged, isUntracked } from '../core/model/statusEntry';
 import { canonicalKey } from '../core/repoDiscovery';
 import { confirmModal } from '../ui/confirm';
 import { ChangelistService, DEFAULT_LIST_ID, UNVERSIONED_ID } from './changelists/changelistService';
@@ -33,6 +34,7 @@ import { writeCommitGroupBy } from './window/groupBy';
 import { InclusionModel } from './window/inclusion';
 import { CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
 import { repoRootOf } from '../ui/rowContext';
+import { STAGING_SIDES, stagingSideOf } from '../shared/protocol';
 
 export interface Phase03Registry {
   paradigm: ParadigmManager;
@@ -199,11 +201,47 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   });
   // A row's menu: what walking from it means depends on the tree the webview shows.
   register('gittree.commit.openChanges', (arg) => {
-    const { repoRoot, relPath } = (arg ?? {}) as { repoRoot?: unknown; relPath?: unknown };
+    const { repoRoot, relPath, stagingSide } = (arg ?? {}) as {
+      repoRoot?: unknown;
+      relPath?: unknown;
+      stagingSide?: unknown;
+    };
     if (typeof repoRoot === 'string' && typeof relPath === 'string') {
-      commitWindow.openDiffAt({ repoRoot, path: relPath });
+      // With staging, the half of the file the row stands for (POST-QA F5).
+      const side = STAGING_SIDES.find((x) => x === stagingSide);
+      commitWindow.openDiffAt({ repoRoot, path: relPath, ...(side !== undefined ? { side } : {}) });
     }
   });
+
+  /**
+   * POST-QA F5: Stage / Unstage from a staging-mode row's menu. A file or a
+   * folder row names its files; a node row (Staged, Unstaged, Unversioned
+   * Files) stands for every file in it, in each repository it spans.
+   */
+  const stageFromRow = async (arg: unknown, how: 'stage' | 'unstage'): Promise<void> => {
+    const ctx = (arg ?? {}) as { repoRoot?: unknown; relPaths?: unknown; targets?: unknown };
+    if (typeof ctx.repoRoot === 'string' && Array.isArray(ctx.relPaths)) {
+      const repo = core.getRepo(ctx.repoRoot);
+      const paths = ctx.relPaths.filter((p): p is string => typeof p === 'string');
+      if (repo && paths.length > 0) await commitWindow.stagePaths(repo, paths, how);
+      return;
+    }
+    if (!Array.isArray(ctx.targets)) return;
+    for (const target of ctx.targets as Array<{ repoRoot?: unknown; listId?: unknown }>) {
+      if (typeof target.repoRoot !== 'string' || typeof target.listId !== 'string') continue;
+      const repo = core.getRepo(target.repoRoot);
+      const side = stagingSideOf(target.listId);
+      if (!repo || side === undefined) continue;
+      const paths = repo.model.snapshot.statusEntries
+        .filter((e) =>
+          side === 'staged' ? isStaged(e) : side === 'unstaged' ? isUnstaged(e) : side === 'unversioned' && isUntracked(e),
+        )
+        .map((e) => e.path);
+      if (paths.length > 0) await commitWindow.stagePaths(repo, paths, how);
+    }
+  };
+  register('gittree.commit.stage', (arg) => stageFromRow(arg, 'stage'));
+  register('gittree.commit.unstage', (arg) => stageFromRow(arg, 'unstage'));
   register('gittree.commit.switchParadigm', () => paradigm.switch());
   // The Commit window's View Options › Group By, from the palette or a key.
   register('gittree.commit.groupByRepository', () => writeCommitGroupBy('repository'));
