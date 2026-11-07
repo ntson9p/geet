@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the log's Branches pane reads its branch names
+
+- **The Branches pane opens wide enough for its names,** 28% of the log's left part where it
+  was 22%. At the panel's default size that left `bu…` and `HEA…`. A layout you have set
+  stays as it is.
+- **One scrollbar, not two.** In a short panel the pane's icon rail outgrew it, and the pane
+  scrolled beside the branch list's own scrollbar. The rail now scrolls by itself, with no
+  bar of its own.
+
 ### Fixed — the Commit window shows the conflicts
 
 - **A merge's unresolved files are in the Commit window, under Merge Conflicts, first.** With

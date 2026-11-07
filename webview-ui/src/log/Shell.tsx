@@ -27,7 +27,9 @@ export interface ShellLayout {
 
 export const DEFAULT_LAYOUT: ShellLayout = {
   outer: 0.68,
-  left: 0.22,
+  // POST-QA: at 0.22 the Branches pane was ~150px, the icon rail and two
+  // scrollbars left its names three letters (`bu…`, `HEA…`).
+  left: 0.28,
   right: 0.55,
   collapsed: {},
 };

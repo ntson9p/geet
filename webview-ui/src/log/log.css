@@ -461,6 +461,13 @@
   padding: 2px;
   border-right: 1px solid var(--vscode-panel-border, transparent);
   flex: 0 0 auto;
+  /* POST-QA: in a short panel the rail's buttons outgrew the pane, and the
+     pane scrolled beside the tree's own scrollbar — two side by side. The
+     rail scrolls itself, by wheel, without a bar of its own. */
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .gt-branches-body {
