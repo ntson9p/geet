@@ -145,6 +145,17 @@ describe('the Commit window menus (POST-P14bf)', () => {
     }
   });
 
+  it('gives a stash row the Stash tab toolbar’s actions, as the Shelf rows have theirs (POST-QA)', () => {
+    expect(menu('stashEntry').map((m) => titleOf(m.command))).toEqual([
+      'Apply Stash',
+      'Pop Stash',
+      'Branch from Stash…',
+      'Compare All vs Working Tree',
+      'Copy Stash Message',
+      'Drop Stash…',
+    ]);
+  });
+
   it('gives the Merge Conflicts row Resolve Conflicts… alone, in either paradigm (POST-QA)', () => {
     for (const paradigm of ['changelists', 'staging']) {
       const row = { ...base, 'gittree.paradigm': paradigm, webviewSection: 'commitConflicts' };

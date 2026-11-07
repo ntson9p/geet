@@ -3385,6 +3385,36 @@
           "command": "gittree.conflicts.resolve",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitConflicts'",
           "group": "1_resolve@1"
+        },
+        {
+          "command": "gittree.stash.apply",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'stashEntry'",
+          "group": "1_apply@1"
+        },
+        {
+          "command": "gittree.stash.pop",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'stashEntry'",
+          "group": "1_apply@2"
+        },
+        {
+          "command": "gittree.stash.branch",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'stashEntry'",
+          "group": "1_apply@3"
+        },
+        {
+          "command": "gittree.stash.diffAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'stashEntry'",
+          "group": "2_inspect@1"
+        },
+        {
+          "command": "gittree.stash.copyMessage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'stashEntry'",
+          "group": "2_inspect@2"
+        },
+        {
+          "command": "gittree.stash.drop",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'stashEntry'",
+          "group": "3_manage@1"
         }
       ],
       "editor/lineNumber/context": [

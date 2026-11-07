@@ -30,6 +30,7 @@ import {
 import { UnshelveEngine } from '../shelf/unshelve';
 import { StashService, type StashPushOptions } from './stashService';
 import { relativeTime, stashDiffSides, StashViewProvider, type StashNode } from './stashView';
+import { stashRowOf } from './stashRow';
 
 /**
  * P7-T3: shelf root — `gittree.shelf.path` when set AND write-probe passes,
@@ -131,6 +132,17 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
         index: node.info.index,
         message: node.info.message,
       };
+    }
+    // POST-QA: a Stash tab row's own menu — its context names the stash by
+    // sha, re-resolved here as the tab's toolbar does, so a row right-clicked
+    // after the list moved cannot act on whichever stash took its index.
+    const row = stashRowOf(arg);
+    if (row !== undefined) {
+      const service = services.get(canonicalKey(row.repoRoot));
+      const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(row.repoRoot));
+      const info = service?.list().find((s) => s.sha === row.sha);
+      if (repo === undefined || service === undefined || info === undefined) return undefined;
+      return { repo, service, index: info.index, message: info.message };
     }
     interface Choice extends vscode.QuickPickItem {
       repo: RepoHandle;

@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a stash has a right-click menu
+
+- **Right-clicking a stash in the Stash tab offers its actions:** Apply Stash, Pop Stash,
+  Branch from Stash…, Compare All vs Working Tree, Copy Stash Message, Drop Stash…. Before,
+  only the toolbar had them, as a Shelf row's menu has its own. The menu acts on the stash
+  clicked, found by its commit, even if the list has moved since.
+
 ### Fixed — the log's Branches pane reads its branch names
 
 - **The Branches pane opens wide enough for its names,** 28% of the log's left part where it
