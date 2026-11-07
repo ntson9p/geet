@@ -232,8 +232,11 @@ export class MergeComputer {
   /**
    * Compute the merge model for a conflicted path (repo-relative, posix).
    * Classifies binary / too-large inputs instead of merging them.
+   *
+   * `ours` is the user's side: stage 2, or stage 3 when `reversed` — mid-rebase,
+   * where git's stage 2 is the branch being rebased onto (POST-QA F7).
    */
-  async compute(rel: string): Promise<MergeInput> {
+  async compute(rel: string, options: { reversed?: boolean } = {}): Promise<MergeInput> {
     // Size guard first — never pull an oversized blob into memory.
     let maxBytes = 0;
     for (const stage of [1, 2, 3] as const) {
@@ -245,9 +248,8 @@ export class MergeComputer {
     }
     if (maxBytes > this.sizeCap) return { kind: 'too-large', bytes: maxBytes };
 
-    const [base, ours, theirs] = await Promise.all(
-      ([1, 2, 3] as const).map((stage) => this.readStage(rel, stage)),
-    );
+    const order = options.reversed === true ? ([1, 3, 2] as const) : ([1, 2, 3] as const);
+    const [base, ours, theirs] = await Promise.all(order.map((stage) => this.readStage(rel, stage)));
     if (base === undefined && ours === undefined && theirs === undefined) {
       throw new Error(`${rel}: no index stages — not a conflicted path`);
     }

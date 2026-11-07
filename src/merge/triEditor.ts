@@ -12,6 +12,7 @@ import type { RepoHandle } from '../core/core';
 import { makeMergeUri, MERGE_SCHEME, type MergeFsProvider } from '../core/vdocs/mergeFs';
 import { makeRevUri, REV_SCHEME } from '../core/vdocs/revContentProvider';
 import { countMerge, mergeStatusText, type ApplySide } from './applyNonConflicting';
+import { sideRef } from './conflictKinds';
 import type { ConflictSession } from './conflictSession';
 import { splitKeepEol, type ConflictBlock, type MergeComputation } from './mergeCompute';
 
@@ -111,9 +112,13 @@ export class TriMergeEditor {
    * hash, author and date, which the pane title alone cannot carry.
    */
   async sideDetails(side: 'left' | 'right'): Promise<string> {
-    // `ours` is HEAD during a merge; `theirs` is MERGE_HEAD (REBASE_HEAD while
-    // rebasing, where the sides are swapped by git's own convention).
-    const ref = side === 'left' ? 'HEAD' : 'MERGE_HEAD';
+    const label = side === 'left' ? vscode.l10n.t('Yours') : vscode.l10n.t('Theirs');
+    const ref = sideRef(side, this.session.reversed, this.repo.model.snapshot.inProgressOp?.kind);
+    if (ref === undefined) {
+      return side === 'left'
+        ? vscode.l10n.t('{0}: your working copy.', label)
+        : vscode.l10n.t('{0}: the changes being applied (stash or shelf), which have no commit of their own.', label);
+    }
     const res = await this.repo.queue.enqueue({
       label: 'merge side details',
       kind: 'read',
@@ -124,7 +129,6 @@ export class TriMergeEditor {
           { allowNonZeroExit: true, structured: true, noOptionalLocks: true, token },
         ),
     });
-    const label = side === 'left' ? vscode.l10n.t('Yours') : vscode.l10n.t('Theirs');
     if (res.exitCode !== 0) {
       return vscode.l10n.t('{0}: revision unavailable ({1} not found).', label, ref);
     }
@@ -158,13 +162,15 @@ export class TriMergeEditor {
       groups: [{ size: 0.29 }, { size: 0.42 }, { size: 0.29 }],
     });
 
-    this.leftUri = makeRevUri(this.repo.root, labeledRel(this.rel, 'Yours'), ':2');
+    // Yours on the left is the user's side: git's stage 3 mid-rebase (POST-QA F7).
+    const [yoursStage, theirsStage] = this.session.reversed ? [':3', ':2'] : [':2', ':3'];
+    this.leftUri = makeRevUri(this.repo.root, labeledRel(this.rel, 'Yours'), yoursStage);
     // The provider reads only the query — repoint rel at the real path.
     this.leftUri = this.leftUri.with({
-      query: JSON.stringify({ repo: this.repo.root, rel: this.rel, ref: ':2' }),
+      query: JSON.stringify({ repo: this.repo.root, rel: this.rel, ref: yoursStage }),
     });
-    this.rightUri = makeRevUri(this.repo.root, labeledRel(this.rel, 'Theirs'), ':3').with({
-      query: JSON.stringify({ repo: this.repo.root, rel: this.rel, ref: ':3' }),
+    this.rightUri = makeRevUri(this.repo.root, labeledRel(this.rel, 'Theirs'), theirsStage).with({
+      query: JSON.stringify({ repo: this.repo.root, rel: this.rel, ref: theirsStage }),
     });
 
     const mode = vscode.workspace

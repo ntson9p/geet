@@ -81,6 +81,18 @@ export function detectInProgressOp(gitDir: string): InProgressOp | undefined {
   return undefined;
 }
 
+/**
+ * True while a rebase is replaying commits (POST-QA F7) — not `git am`, which
+ * shares `rebase-apply` but applies onto the user's own branch. During a
+ * rebase git's sides are the other way round from the user's: "ours" (stage
+ * 2, `--ours`) is the branch being rebased onto, "theirs" (stage 3) the
+ * user's own commit. IntelliJ swaps them back for exactly this state
+ * (`GitMergeUtil.isReverseRoot`: the repository is REBASING).
+ */
+export function isRebasing(gitDir: string): boolean {
+  return isDir(path.join(gitDir, 'rebase-merge')) || isFile(path.join(gitDir, 'rebase-apply', 'rebasing'));
+}
+
 function countSequencerTodo(gitDir: string): number | undefined {
   const todo = readTextFile(path.join(gitDir, 'sequencer', 'todo'));
   if (todo === undefined) return undefined;

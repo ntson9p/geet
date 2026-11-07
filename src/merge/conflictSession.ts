@@ -7,63 +7,26 @@
 import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
 import type { RepoHandle } from '../core/core';
-import type { StatusEntry } from '../core/git/parsers/statusV2';
+import { isRebasing } from '../core/model/inProgressOp';
+import {
+  classifyConflict,
+  gitSideFlag,
+  userConflictKind,
+  type ConflictFile,
+  type ConflictSource,
+} from './conflictKinds';
+
+export {
+  classifyConflict,
+  gitSideFlag,
+  isSpecialConflict,
+  userConflictKind,
+  type ConflictFile,
+  type ConflictKind,
+  type ConflictSource,
+} from './conflictKinds';
 import { Emitter, type Event } from '../core/util/events';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
-
-export type ConflictSource =
-  | 'merge'
-  | 'rebase'
-  | 'cherry-pick'
-  | 'revert'
-  | 'stash-pop'
-  | 'unshelve'
-  | 'checkout-merge';
-
-export type ConflictKind =
-  | 'both-modified'
-  | 'added-by-both'
-  | 'deleted-by-us'
-  | 'deleted-by-them'
-  | 'both-deleted'
-  | 'mode';
-
-export interface ConflictFile {
-  path: string;
-  kind: ConflictKind;
-}
-
-/** Pure classification from the porcelain-v2 conflict chars + stages. */
-export function classifyConflict(entry: StatusEntry): ConflictKind {
-  const xy = `${entry.x}${entry.y}`;
-  switch (xy) {
-    case 'DD':
-      return 'both-deleted';
-    case 'AA':
-      return 'added-by-both';
-    case 'DU':
-      return 'deleted-by-us';
-    case 'UD':
-      return 'deleted-by-them';
-    case 'AU':
-      // Added by us, absent on their side (rename/delete divergence).
-      return 'deleted-by-them';
-    case 'UA':
-      return 'deleted-by-us';
-    default: {
-      // UU: both modified — or a pure mode conflict when the contents agree
-      // but the modes differ (e.g. 100644 vs 100755).
-      const s = entry.stages;
-      if (s && s.sha2 === s.sha3 && s.sha2 !== '' && s.mode2 !== s.mode3) return 'mode';
-      return 'both-modified';
-    }
-  }
-}
-
-/** Kinds resolved via QuickPick instead of the tri-editor. */
-export function isSpecialConflict(kind: ConflictKind): boolean {
-  return kind !== 'both-modified' && kind !== 'added-by-both';
-}
 
 export class ConflictSession {
   private readonly _onDidChange = new Emitter<void>();
@@ -91,11 +54,21 @@ export class ConflictSession {
     });
   }
 
-  /** Live unmerged files with classification. */
+  /**
+   * Yours and Theirs follow the user (POST-QA F7): mid-rebase they are git's
+   * stages 3 and 2, the other way round from a merge, cherry-pick or unstash.
+   * Read from the git dir each time — a session outlives the step it began in.
+   */
+  get reversed(): boolean {
+    return isRebasing(this.repo.dirs.gitDir);
+  }
+
+  /** Live unmerged files with classification, from the user's side. */
   files(): ConflictFile[] {
+    const reversed = this.reversed;
     return this.repo.model.snapshot.statusEntries
       .filter((e) => e.kind === 'unmerged')
-      .map((e) => ({ path: e.path, kind: classifyConflict(e) }));
+      .map((e) => ({ path: e.path, kind: userConflictKind(classifyConflict(e), reversed) }));
   }
 
   get remaining(): number {
@@ -138,7 +111,7 @@ export class ConflictSession {
       snapshotLabel: SNAPSHOT_LABELS.rollback,
       snapshotPaths: paths.map((p) => vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), p).fsPath),
       run: async (git, token) => {
-        await git.exec(this.repo.root, ['checkout', side === 'ours' ? '--ours' : '--theirs', '--', ...paths], {
+        await git.exec(this.repo.root, ['checkout', gitSideFlag(side, this.reversed), '--', ...paths], {
           token,
         });
         await git.exec(this.repo.root, ['add', '--', ...paths], { token });
@@ -161,7 +134,7 @@ export class ConflictSession {
           await git.exec(this.repo.root, ['rm', '--', path], { token });
         } else {
           if (side !== undefined) {
-            await git.exec(this.repo.root, ['checkout', side === 'ours' ? '--ours' : '--theirs', '--', path], {
+            await git.exec(this.repo.root, ['checkout', gitSideFlag(side, this.reversed), '--', path], {
               token,
             });
           }

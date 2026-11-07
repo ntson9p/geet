@@ -137,7 +137,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
       return;
     }
     const computer = new MergeComputer(mergeExecFor(node.session.repo));
-    const input = await computer.compute(node.path);
+    const input = await computer.compute(node.path, { reversed: node.session.reversed });
     if (input.kind === 'binary' || input.kind === 'too-large') {
       await resolveBinary(node, input.kind);
       return;
@@ -209,7 +209,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     let blocksTotal = 0;
     for (const file of session.files()) {
       if (isSpecialConflict(file.kind)) continue;
-      const input = await computer.compute(file.path);
+      const input = await computer.compute(file.path, { reversed: session.reversed });
       if (input.kind !== 'text') continue;
       const blocks = input.merge.blocks;
       blocksTotal += blocks.length;

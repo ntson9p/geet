@@ -27,6 +27,17 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — a rebase conflict shows your side as Yours
+
+- **During a rebase, Yours is your own commit again.** git replays your commits onto the
+  other branch, so its "ours" is that branch and its "theirs" is your commit. GitTree
+  showed them as git names them: the merge editor's **Yours** pane held the other branch's
+  code, **Theirs** held your own change, and **Accept Yours** threw your change away. As in
+  IntelliJ, the sides now follow you while a rebase is in progress. This applies to the
+  panes, Accept Yours and Accept Theirs for a file, all files or a block, and the deleted-by
+  labels. **Show Details** names the right commit: your commit being replayed for Yours,
+  and for Theirs the cherry-picked or reverted commit rather than "revision unavailable".
+
 ### Fixed — a force push is offered only when one is needed
 
 - **Rewording or dropping commits nobody has seen no longer asks for a force push.** After any
