@@ -1,6 +1,6 @@
 /**
  * Reword from log (P5-T5): "Edit Commit Message…" opens the original message
- * in an untitled git-commit editor with Accept/Cancel CodeLenses (IntelliJ
+ * in an untitled commit-message editor with Accept/Cancel CodeLenses (IntelliJ
  * dialog parity without proposed APIs). HEAD rewords via
  * `commit --amend --only -F` (staged changes are NOT swept into the commit);
  * non-HEAD rewords run a full-range T1 plan with a single reword entry.
@@ -14,6 +14,7 @@ import { isPublished } from './publishedGuard';
 import type { RebasePlan, RebasePlanEntry } from './rebase/planSerializer';
 import type { RebaseEngine } from './rebase/rebaseEngine';
 import { undoHistoryEdit } from './undoEdit';
+import { COMMIT_MESSAGE_LANGUAGE } from './commitMessageLanguage';
 
 export type RewordResult = 'done' | 'cancelled' | 'refused' | 'failed';
 
@@ -177,7 +178,7 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
     return outcome.status === 'completed' ? 'done' : 'failed';
   }
 
-  /** Untitled git-commit editor; resolves on Accept/Cancel/close. */
+  /** Untitled commit-message editor; resolves on Accept/Cancel/close. */
   private async editMessage(original: string, shortSha: string): Promise<string | undefined> {
     return this.promptMessage(
       original,
@@ -195,9 +196,12 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
     const seeded = process.env['GITTREE_TEST_REWORD_MESSAGE'];
     if (seeded !== undefined) return seeded.length > 0 ? seeded : undefined;
 
+    // GitTree's own language, built-in Git's grammar: `git-commit` brought
+    // built-in Git's floating Commit and Discard along, which act on its own
+    // commit editor, not this one (POST-QA).
     const doc = await vscode.workspace.openTextDocument({
       content: original,
-      language: 'git-commit',
+      language: COMMIT_MESSAGE_LANGUAGE,
     });
     await vscode.window.showTextDocument(doc, { preview: false });
     void vscode.window.setStatusBarMessage(

@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the message editor of Edit Commit Message… is GitTree's alone
+
+- **Built-in Git's Commit and Discard buttons no longer float in GitTree's message editor**
+  (Edit Commit Message…, Squash Commits…). They belong to built-in Git's own commit editor,
+  and they appeared beside GitTree's **Accept** because the editor was a `git-commit`
+  document. It is now GitTree's *Commit Message* language, with the same highlighting.
+
 ### Fixed — the Commit button keeps its label on one line
 
 - **`Commit to 3 repositories` no longer breaks over two lines inside its button.** Short of

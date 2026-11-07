@@ -1,0 +1,6 @@
+{
+  "name": "Commit Message (GitTree)",
+  "scopeName": "text.gittree-commit-message",
+  "comment": "GitTree's reword and squash editors. Built-in Git's own grammar, by inclusion: its language id would bring built-in Git's Commit and Discard buttons along, which act on its own commit editor, not this one.",
+  "patterns": [{ "include": "text.git-commit" }]
+}

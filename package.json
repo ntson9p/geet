@@ -37,6 +37,22 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "gittree-commit-message",
+        "aliases": [
+          "Commit Message (GitTree)"
+        ],
+        "configuration": "./media/syntaxes/commit-message.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "gittree-commit-message",
+        "scopeName": "text.gittree-commit-message",
+        "path": "./media/syntaxes/commit-message.tmLanguage.json"
+      }
+    ],
     "configuration": [
       {
         "title": "%gittree.config.title%",
