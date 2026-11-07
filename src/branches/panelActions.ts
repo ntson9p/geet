@@ -519,6 +519,7 @@ export const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   'gittree.merge.continueOp',
   'gittree.merge.abortOp',
   'gittree.conflicts.focus',
+  'gittree.conflicts.resolve',
 ]);
 
 export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): Promise<void> {

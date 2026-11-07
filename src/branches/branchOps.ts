@@ -397,13 +397,9 @@ export class BranchOps {
       notifySuccess(vscode.l10n.t('Checked out {0} and rebased it on {1}', branch, current));
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
-        // P6 conflicts session takes over once shipped; guide until then.
-        void vscode.window.showWarningMessage(
-          vscode.l10n.t(
-            'Rebase of "{0}" stopped on conflicts. Resolve the conflicted files, then continue or abort the rebase.',
-            branch,
-          ),
-        );
+        // The conflicts dialog (or, with it off, the session's notice) says
+        // so, and the Repositories panel's banner offers Continue and Abort
+        // (POST-QA: one notice per conflict, not two).
         return;
       }
       throw err;
@@ -433,9 +429,8 @@ export class BranchOps {
       );
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
-        void vscode.window.showWarningMessage(
-          vscode.l10n.t('Merge of "{0}" produced conflicts — resolve them, then commit.', branch),
-        );
+        // The conflicts dialog (or, with it off, the session's notice) says
+        // so; a toast here as well was one notice too many (POST-QA).
         return;
       }
       throw err;
@@ -467,12 +462,9 @@ export class BranchOps {
       notifySuccess(vscode.l10n.t('Rebased {0} on {1}', current, branch));
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
-        void vscode.window.showWarningMessage(
-          vscode.l10n.t(
-            'Rebase of "{0}" stopped on conflicts. Resolve the conflicted files, then continue or abort the rebase.',
-            current,
-          ),
-        );
+        // The conflicts dialog (or, with it off, the session's notice) says
+        // so, and the Repositories panel's banner offers Continue and Abort
+        // (POST-QA: one notice per conflict, not two).
         return;
       }
       throw err;
@@ -523,14 +515,9 @@ export class BranchOps {
       notifySuccess(pullResultMessage(counted.commits, counted.files, remoteBranch));
     } catch (err) {
       if (err instanceof GitError && err.kind === 'merge-conflict') {
-        void vscode.window.showWarningMessage(
-          strategy === 'rebase'
-            ? vscode.l10n.t(
-                'Pull of "{0}" stopped on conflicts. Resolve the conflicted files, then continue or abort the rebase.',
-                remoteBranch,
-              )
-            : vscode.l10n.t('Pull of "{0}" produced conflicts — resolve them, then commit.', remoteBranch),
-        );
+        // The conflicts dialog (or, with it off, the session's notice) says
+        // so, and the Repositories panel's banner offers Continue and Abort
+        // (POST-QA: one notice per conflict, not two).
         return;
       }
       throw err;

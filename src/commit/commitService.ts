@@ -4,15 +4,24 @@
  * staged commits run plain `git commit`; amend and GPG-sign toggles with a
  * pushed-HEAD guard. Replaces the P1-T7 MVP internals; command ids stable.
  */
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { Emitter, type Event } from '../core/util/events';
 import { confirmModal } from '../ui/confirm';
 import { buildCommitArgs, type CommitOptions } from './commitArgs';
+import { commitSelection, type SelectionPatch } from './selectionCommit';
 export { buildCommitArgs, type CommitOptions } from './commitArgs';
+
+/**
+ * POST-QA: a commit runs through a conflict pause's hold on the mutation lane
+ * (P6-T7). It is how a merge — or a cherry-pick, the Commit window's way —
+ * ends, and the hold lifts only when the operation does, so a held commit
+ * waited for itself forever. Nothing unresolved can slip through: the commit
+ * flow refuses while a conflict is left, and git refuses to commit unmerged
+ * files besides.
+ */
+const COMMIT_ENDS_A_PAUSE = true;
 
 export interface CommitResult {
   repo: RepoHandle;
@@ -118,6 +127,7 @@ export class CommitService {
     await repo.queue.enqueue({
       label: options.amend ? vscode.l10n.t('Commit changelist (amend)') : vscode.l10n.t('Commit changelist'),
       kind: 'mutate',
+      bypassHold: COMMIT_ENDS_A_PAUSE,
       run: async (git, token) => {
         if (untrackedRelPaths.length > 0) {
           // Intent-to-add so --only can see brand-new files.
@@ -145,73 +155,25 @@ export class CommitService {
   }
 
   /**
-   * Changelist commit where at least one file contributes only some of its
-   * changes (P11-T3).
-   *
-   * `git commit --only` cannot do this: it takes the **working tree** contents
-   * of the named paths and disregards the index, so staging a partial patch
-   * first has no effect — verified, not assumed. Instead the target tree is
-   * assembled in a scratch index (`GIT_INDEX_FILE`): seed it from HEAD, add the
-   * whole files, then `git apply --cached` each partial patch. `git commit`
-   * against that index writes exactly the intended tree while the working tree
-   * is never touched, so an interrupted commit can never leave the user's file
-   * truncated to the ticked hunks.
-   *
-   * The scratch index then has to be reconciled with the real one: the real
-   * index still holds pre-commit entries for the committed paths, which would
-   * read as staged reversals against the new HEAD. `git reset -- <paths>` puts
-   * exactly those entries back on HEAD and leaves the working tree alone —
-   * which is the state `--only` would have produced.
-   *
-   * The scratch index lives in the git dir. GitDirWatcher ignores unknown names
-   * there, so building it does not trigger a refresh storm.
+   * Changelist commit of HEAD plus a selection — a file contributing only some
+   * of its changes (P11-T3), or any selection during a merge, where git
+   * refuses `commit --only` (POST-QA). See `commitSelection`.
    */
   async commitChangelistPartial(
     repo: RepoHandle,
     wholeRelPaths: readonly string[],
-    partials: ReadonlyArray<{ relPath: string; patch: string }>,
+    partials: readonly SelectionPatch[],
     message: string,
     options: CommitOptions,
   ): Promise<void> {
-    const indexFile = path.join(repo.dirs.gitDir, 'gittree-partial-index');
-    const committed = [...wholeRelPaths, ...partials.map((p) => p.relPath)];
     await repo.queue.enqueue({
       label: options.amend
         ? vscode.l10n.t('Commit selected changes (amend)')
         : vscode.l10n.t('Commit selected changes'),
       kind: 'mutate',
-      run: async (git, token) => {
-        const env = { GIT_INDEX_FILE: indexFile };
-        await fs.rm(indexFile, { force: true });
-        try {
-          // HEAD, not the current index: the commit must contain HEAD plus the
-          // ticked changes and nothing else that happens to be staged.
-          await git.exec(repo.root, ['read-tree', 'HEAD'], { env, token });
-          if (wholeRelPaths.length > 0) {
-            // `git add <path>` also records deletions, so a ticked deleted file
-            // needs no separate branch here.
-            await git.exec(repo.root, ['add', '--', ...wholeRelPaths], { env, token });
-          }
-          for (const partial of partials) {
-            await git.exec(repo.root, ['apply', '--cached', '--unidiff-zero', '-'], {
-              env,
-              stdin: partial.patch,
-              token,
-            });
-          }
-          await git.exec(repo.root, buildCommitArgs('staged', message, options), { env, token });
-        } finally {
-          await fs.rm(indexFile, { force: true });
-          await fs.rm(`${indexFile}.lock`, { force: true });
-        }
-        if (committed.length > 0) {
-          // Real index ← new HEAD for exactly the paths we committed.
-          await git.exec(repo.root, ['reset', '-q', '--', ...committed], {
-            token,
-            allowNonZeroExit: true,
-          });
-        }
-      },
+      bypassHold: COMMIT_ENDS_A_PAUSE,
+      run: (git, token) =>
+        commitSelection(git, repo.root, repo.dirs.gitDir, wholeRelPaths, partials, message, options, token),
     });
     await this.afterCommit(repo, message);
   }
@@ -220,6 +182,7 @@ export class CommitService {
     await repo.queue.enqueue({
       label: options.amend ? vscode.l10n.t('Commit (amend)') : vscode.l10n.t('Commit'),
       kind: 'mutate',
+      bypassHold: COMMIT_ENDS_A_PAUSE,
       run: async (git, token) => {
         await git.exec(repo.root, buildCommitArgs(all ? 'all' : 'staged', message, options), { token });
       },

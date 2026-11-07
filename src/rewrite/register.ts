@@ -52,31 +52,11 @@ export function registerPhase05HistoryRewriting(
       },
     });
 
-    // Interim guidance toast until the P6 conflicts view takes over.
-    repo.disposables.add(
-      monitor.onDidPause((e) => {
-        updateContextKey();
-        const cont = vscode.l10n.t('Continue');
-        const skip = vscode.l10n.t('Skip Commit');
-        const abort = vscode.l10n.t('Abort');
-        void vscode.window
-          .showWarningMessage(
-            vscode.l10n.t(
-              'Rebase paused: {0} conflicted file(s). Resolve and stage them, then continue.',
-              e.conflictedPaths.length,
-            ),
-            cont,
-            skip,
-            abort,
-          )
-          .then((choice) => {
-            if (choice === cont) return vscode.commands.executeCommand('gittree.rebase.continue', repo.root);
-            if (choice === skip) return vscode.commands.executeCommand('gittree.rebase.skip', repo.root);
-            if (choice === abort) return vscode.commands.executeCommand('gittree.rebase.abort', repo.root);
-            return undefined;
-          });
-      }),
-    );
+    // A stop on conflicts (the only stop the monitor reports) is the
+    // conflicts dialog's to tell, and the Repositories panel's banner offers
+    // Continue, Skip and Abort. The interim toast this was made one notice
+    // too many — three toasts and a dialog for one stop (POST-QA).
+    repo.disposables.add(monitor.onDidPause(() => updateContextKey()));
     repo.disposables.add(monitor.onDidChangeProgress(() => updateContextKey()));
     repo.disposables.add(monitor.onDidEnd(() => updateContextKey()));
   };

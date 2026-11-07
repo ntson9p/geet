@@ -452,6 +452,10 @@ export function OperationRow({
   const conflicts =
     op.conflicts > 0 ? ` · ${op.conflicts} conflict${op.conflicts === 1 ? '' : 's'}` : '';
   const isRebase = op.kind === 'rebase';
+  // IntelliJ's toolbar names a merge's button for what it does: Commit Merge
+  // commits at once, with git's prepared message (POST-QA: "Continue" did the
+  // same unannounced).
+  const isMerge = op.kind === 'merge';
   return (
     <div className="gtp-operation" role="status">
       <Codicon name="warning" className="gtp-operation-icon" />
@@ -470,7 +474,7 @@ export function OperationRow({
           className="gt-button gtp-small"
           tabIndex={-1}
           title="Resolve the conflicts"
-          onClick={() => onRun('gittree.conflicts.focus')}
+          onClick={() => onRun('gittree.conflicts.resolve')}
         >
           <Codicon name="git-merge" />
           <span className="gtp-button-label">Resolve…</span>
@@ -480,12 +484,30 @@ export function OperationRow({
         type="button"
         className="gt-button gt-primary gtp-small"
         tabIndex={-1}
-        title={`Continue the ${verb.toLowerCase().replace(/ing$/u, 'e')}`}
+        title={
+          isMerge
+            ? "Commit the merge with Git's prepared message. To write your own, commit from the Commit window."
+            : `Continue the ${verb.toLowerCase().replace(/ing$/u, 'e')}`
+        }
         onClick={() => onRun(isRebase ? 'gittree.rebase.continue' : 'gittree.merge.continueOp')}
       >
         <Codicon name="debug-continue" />
-        <span className="gtp-button-label">Continue</span>
+        <span className="gtp-button-label">{isMerge ? 'Commit Merge' : 'Continue'}</span>
       </button>
+      {isRebase ? (
+        // IntelliJ's rebase toolbar keeps Skip Commit beside Continue; the
+        // pause toast that offered it here is gone (POST-QA).
+        <button
+          type="button"
+          className="gt-button gtp-small"
+          tabIndex={-1}
+          title="Skip this commit and go on with the rebase"
+          onClick={() => onRun('gittree.rebase.skip')}
+        >
+          <Codicon name="debug-step-over" />
+          <span className="gtp-button-label">Skip</span>
+        </button>
+      ) : null}
       <button
         type="button"
         className="gt-button gtp-small"

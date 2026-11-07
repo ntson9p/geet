@@ -93,6 +93,28 @@ export function isRebasing(gitDir: string): boolean {
   return isDir(path.join(gitDir, 'rebase-merge')) || isFile(path.join(gitDir, 'rebase-apply', 'rebasing'));
 }
 
+/** The files that say which stop an operation is at. */
+const STOP_MARKERS = [
+  'MERGE_HEAD',
+  'REBASE_HEAD',
+  'CHERRY_PICK_HEAD',
+  'REVERT_HEAD',
+  path.join('rebase-merge', 'msgnum'),
+  path.join('rebase-apply', 'next'),
+];
+
+/**
+ * Which stop an operation is at — the commit it stopped on, the step — read
+ * from the git dir itself, not a model that may not have caught up. A
+ * notification about one stop compares it before acting, so a click from the
+ * notification centre after the operation went on never acts on the next
+ * stop, nor on one that is over (POST-QA). Empty when nothing is in progress.
+ */
+export function stopIdentity(gitDir: string): string {
+  const parts = STOP_MARKERS.map((name) => readTextFile(path.join(gitDir, name)) ?? '');
+  return parts.some((p) => p.length > 0) ? parts.join('|') : '';
+}
+
 function countSequencerTodo(gitDir: string): number | undefined {
   const todo = readTextFile(path.join(gitDir, 'sequencer', 'todo'));
   if (todo === undefined) return undefined;

@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { detectInProgressOp } from '../../../../src/core/model/inProgressOp';
+import { detectInProgressOp, stopIdentity } from '../../../../src/core/model/inProgressOp';
 
 const roots: string[] = [];
 
@@ -108,5 +108,32 @@ describe('detectInProgressOp', () => {
     expect(pick).toEqual({ kind: 'cherry-pick', todoRemaining: 1 });
     const revert = detectInProgressOp(gitDir({ 'sequencer/todo': 'revert 2222222 undo\n' }));
     expect(revert).toEqual({ kind: 'revert', todoRemaining: 1 });
+  });
+});
+
+describe('stopIdentity (POST-QA)', () => {
+  const a = 'a'.repeat(40);
+  const b = 'b'.repeat(40);
+
+  it('is empty with nothing in progress', () => {
+    expect(stopIdentity(gitDir({ HEAD: 'ref: refs/heads/main\n' }))).toBe('');
+  });
+
+  it('tells one cherry-pick stop from the next, though neither has a step', () => {
+    const first = stopIdentity(gitDir({ CHERRY_PICK_HEAD: `${a}\n`, 'sequencer/todo': 'pick 2222222 next\n' }));
+    const second = stopIdentity(gitDir({ CHERRY_PICK_HEAD: `${b}\n` }));
+    expect(first).not.toBe('');
+    expect(second).not.toBe(first);
+  });
+
+  it('tells rebase steps apart, and is the same for the same stop', () => {
+    const at = (msgnum: string, head: string): string =>
+      stopIdentity(gitDir({ 'rebase-merge/msgnum': `${msgnum}\n`, 'rebase-merge/end': '3\n', REBASE_HEAD: `${head}\n` }));
+    expect(at('1', a)).toBe(at('1', a));
+    expect(at('2', b)).not.toBe(at('1', a));
+  });
+
+  it('sees a merge, and its end', () => {
+    expect(stopIdentity(gitDir({ MERGE_HEAD: `${a}\n` }))).toContain(a);
   });
 });

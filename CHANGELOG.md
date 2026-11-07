@@ -6,6 +6,36 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a merge commits from the Commit window, and a conflict says so once
+
+- **A merge whose conflicts are resolved commits from the Commit window.** With changelists,
+  git refused the window's `commit --only` mid-merge (*cannot do a partial commit during a
+  merge*). In either paradigm the commit then waited behind the conflict pause for good: the
+  pause lifts when the merge ends, and only that commit could end it. The window now commits
+  HEAD plus what is ticked as the merge commit, as IntelliJ does. Unticked changes of the
+  merging repository are asked about first (*Are you sure you want to exclude these changed
+  files from merge commit?*). While a conflict is left nothing commits (*Cannot commit
+  changes due to unresolved conflicts.*, with **Resolve Conflicts…**). Once none is, Stage
+  and Unstage no longer wait for the merge to end either.
+- **The banner's button for a merge says Commit Merge.** It read *Continue* and committed at
+  once with git's prepared message. That is what IntelliJ's **Commit Merge** does, and the
+  button now says so. To write your own message, commit from the Commit window: **All
+  conflicts resolved → Commit Merge…** opens it, expanded, with the merge message in it.
+- **Resolve… brings the Files Merged with Conflicts dialog back.** It only focused the
+  Conflicts view, so once the dialog was closed it could not be had again.
+- **One notice per conflict.** A merge, rebase or pull that stopped on conflicts raised the
+  dialog and two or three toasts saying the same. A cherry-pick, merge, rebase or unstash
+  started from GitTree's dialogs also showed git's *could not apply …* as an error. The
+  dialog is the notice now, or one toast with the dialog turned off.
+- **Every conflicted stop gets the dialog.** When a rebase's next step or a cherry-pick's
+  next commit stopped on conflicts of its own, only the Conflicts view changed. Continuing
+  a cherry-pick into such a stop also reported git's *could not apply* as a failure.
+- **A notification's button no longer acts after the fact.** *Commit Merge…* clicked after
+  the merge was committed, or *Continue* clicked from a stop the operation has since left,
+  says *That has already been done.* in the status bar. Before, it acted on the next stop.
+- **The rebase banner offers Skip,** as IntelliJ's rebase toolbar does. The toast that
+  offered it is gone with the others.
+
 ### Fixed — a part of a file is committed and staged where it belongs
 
 - **Committing some of a file's changes no longer moves the lines it commits.** A change

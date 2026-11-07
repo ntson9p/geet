@@ -16,7 +16,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
-import { isUntracked, shortCode, type StatusEntry } from '../../core/model/statusEntry';
+import { isUntracked, noConflictsLeft, shortCode, type StatusEntry } from '../../core/model/statusEntry';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { repoLabels, sortRootsByLabel } from '../../core/util/repoLabels';
 import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
@@ -394,6 +394,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
             ? vscode.l10n.t('Stage {0} file(s)', paths.length)
             : vscode.l10n.t('Unstage {0} file(s)', paths.length),
         kind: 'mutate',
+        bypassHold: noConflictsLeft(entries),
         run: (git, token) =>
           how === 'stage' ? stageFiles(git, repo.root, [...all], token) : unstageFiles(git, repo.root, [...all], token),
       }),

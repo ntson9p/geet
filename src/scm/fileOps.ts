@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
-import type { StatusEntry } from '../core/model/statusEntry';
+import { noConflictsLeft, type StatusEntry } from '../core/model/statusEntry';
 import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
@@ -115,10 +115,12 @@ async function runGit(
   label: string,
   args: string[],
   destructive?: { snapshotLabel: string; snapshotPaths?: string[] },
+  bypassHold = false,
 ): Promise<void> {
   await repo.queue.enqueue({
     label,
     kind: 'mutate',
+    bypassHold,
     ...(destructive ? { isDestructive: true, ...destructive } : {}),
     run: async (git, token) => {
       await git.exec(repo.root, args, { token });
@@ -201,12 +203,13 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
   register('gittree.add', async (...args) => {
     const sel = normalize(core, args);
     if (!sel || sel.entries.length === 0) return;
-    await runGit(sel.repo, vscode.l10n.t('Stage {0} file(s)', sel.entries.length), [
-      'add',
-      '-A',
-      '--',
-      ...sel.entries.map((e) => e.path),
-    ]);
+    await runGit(
+      sel.repo,
+      vscode.l10n.t('Stage {0} file(s)', sel.entries.length),
+      ['add', '-A', '--', ...sel.entries.map((e) => e.path)],
+      undefined,
+      noConflictsLeft(sel.repo.model.snapshot.statusEntries),
+    );
   });
 
   register('gittree.unstage', async (...args) => {
@@ -216,6 +219,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     await sel.repo.queue.enqueue({
       label: vscode.l10n.t('Unstage {0} file(s)', paths.length),
       kind: 'mutate',
+      bypassHold: noConflictsLeft(sel.repo.model.snapshot.statusEntries),
       run: async (git, token) => {
         const r = await git.exec(sel.repo.root, ['restore', '--staged', '--', ...paths], {
           token,

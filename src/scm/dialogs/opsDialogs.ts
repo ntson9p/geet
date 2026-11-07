@@ -51,6 +51,12 @@ export interface OpDialogDeps {
 /** What an operation did — returned so integration tests can assert on it. */
 export interface OpOutcome {
   ok: boolean;
+  /**
+   * It stopped on conflicts: no failure to report, as the conflicts dialog —
+   * or, with it off, the conflict session's notice — takes it from here
+   * (POST-QA: git's first line came as an error toast besides).
+   */
+  conflicts?: boolean;
   message: string;
   /** The argv actually run, for the tests and the trace. */
   commands: string[][];
@@ -74,6 +80,7 @@ function base(repo: RepoHandle): {
 
 function failed(err: unknown, commands: string[][]): OpOutcome {
   const message = err instanceof Error ? err.message : String(err);
+  if (err instanceof GitError && err.kind === 'merge-conflict') return { ok: false, conflicts: true, message, commands };
   return { ok: false, message, commands };
 }
 
@@ -480,6 +487,7 @@ export async function showRollbackDialog(
 
 /** Not awaited: a notification's promise stays pending until it is dismissed. */
 function reportOp(outcome: OpOutcome): void {
+  if (outcome.conflicts === true) return;
   if (outcome.ok) {
     void vscode.window.showInformationMessage(outcome.message);
     return;

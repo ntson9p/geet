@@ -508,6 +508,23 @@ export function registerPhase13Dialogs(
       }),
     );
   }
+  // POST-QA: the operation banner's Resolve… — IntelliJ's Resolve link brings
+  // the Files Merged with Conflicts dialog back; it used to only focus the
+  // Conflicts view, and the dialog, once dismissed, had no way back.
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gittree.conflicts.resolve', async (arg?: unknown) => {
+      const phase06 = core.debugRegistry.get('phase06') as
+        | { getSession?: (repoRoot: string) => ConflictSession | undefined }
+        | undefined;
+      const repo = implicitRepo(core, arg) ?? core.repos.find((r) => phase06?.getSession?.(r.root) !== undefined);
+      const session = repo !== undefined ? phase06?.getSession?.(repo.root) : undefined;
+      if (session !== undefined && session.remaining > 0) {
+        await showConflictsDialog(deps, session);
+        return;
+      }
+      await vscode.commands.executeCommand('gittree.conflicts.focus');
+    }),
+  );
 
   // P13-T7: the VCS Operations Popup, enumerated from `dialogRegistry.ts` so it
   // stays complete by construction rather than by a hand-kept list.

@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { reportStageOutcome } from '../commit/staging/stageMessages';
 import { stageWorktreeLines } from '../commit/staging/stageLines';
 import type { Core, RepoHandle } from '../core/core';
+import { noConflictsLeft } from '../core/model/statusEntry';
 import { toBlobEol } from '../core/patch/eol';
 import {
   applyLineChanges,
@@ -100,6 +101,7 @@ export function registerHunkActions(context: vscode.ExtensionContext, core: Core
       const outcome = await parsed.repo.queue.enqueue({
         label: vscode.l10n.t('Stage hunk in {0}', path.basename(parsed.rel)),
         kind: 'mutate',
+        bypassHold: noConflictsLeft(parsed.repo.model.snapshot.statusEntries),
         run: (git, token) =>
           stageWorktreeLines(
             git,

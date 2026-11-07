@@ -155,3 +155,12 @@ export const notificationsRegistry: NotificationsRegistry = {
   recent: recentNotifications,
   clear: clearRecentNotifications,
 };
+
+/**
+ * A notification's button clicked after what it offered has happened — from
+ * the notification centre, say, once the operation it was about went on
+ * without it (POST-QA): said in the status bar, not acted on.
+ */
+export function staleNotice(): void {
+  void vscode.window.setStatusBarMessage(vscode.l10n.t('That has already been done.'), 4000);
+}

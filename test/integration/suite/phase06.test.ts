@@ -2,6 +2,7 @@ import * as assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import type { Phase03Registry } from '../../../src/commit/register';
 import type { RepoHandle } from '../../../src/core/core';
 import { makeMergeUri } from '../../../src/core/vdocs/mergeFs';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
@@ -639,6 +640,91 @@ suite('P6 merge engine — conflict sessions & view', () => {
     await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
     assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p6 cp side change');
     assert.strictEqual(fs.readFileSync(abs('p6cp.txt'), 'utf8'), 'picked\n');
+  });
+
+  test('POST-QA: a resolved merge commits from the Commit window while its session holds the lane', async function () {
+    this.timeout(120_000);
+    const p3 = (await activateGitTree()).debugRegistry.get('phase03') as Phase03Registry;
+    if (p3.paradigm.paradigm !== 'changelists') this.skip();
+    const session = await buildTwoBlockConflict('cwmerge', 'p6cw.txt');
+    const ours = git('rev-parse', 'HEAD').trim();
+    const theirs = git('rev-parse', 'p6/cwmerge-side').trim();
+    await session.acceptSide(['p6cw.txt'], 'theirs');
+    await waitFor(() => session.remaining === 0, 10_000);
+    const lists = p3.changelistsFor(repo);
+    await waitFor(() => lists.getLists().some((l) => l.checked.includes('p6cw.txt')), 15_000);
+    p3.messageBoxFor(repo).value = 'p6 merge from the commit window';
+
+    // Before: `commit --only` was refused mid-merge, and the commit queued
+    // behind the session's hold on the lane — which only that commit lifts.
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        vscode.commands.executeCommand('gittree.commit', repoRoot),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('the merge commit hung behind the hold')), 30_000);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+    assert.ok(!fs.existsSync(path.join(repo.dirs.gitDir, 'MERGE_HEAD')), 'the merge must be committed');
+    assert.deepStrictEqual(git('rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ').slice(1), [ours, theirs]);
+    assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p6 merge from the commit window');
+    assert.strictEqual(git('show', 'HEAD:p6cw.txt'), 'a\nB2\nc\nD2\ne\n');
+    await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+  });
+
+  test('POST-QA: a sequence that stops again is announced again, and continuing into it is no failure', async function () {
+    this.timeout(120_000);
+    const lifecycle = (reg as unknown as { lifecycle: { onDidStartSession: vscode.Event<ConflictSession> } })
+      .lifecycle;
+    git('checkout', '-f', 'main');
+    git('checkout', '-b', 'p6/seq');
+    write('p6seq1.txt', 'base one\n');
+    write('p6seq2.txt', 'base two\n');
+    commitAll('p6 seq base');
+    git('checkout', '-b', 'p6/seq-side');
+    write('p6seq1.txt', 'side one\n');
+    const first = commitAll('p6 seq side one');
+    write('p6seq2.txt', 'side two\n');
+    const second = commitAll('p6 seq side two');
+    git('checkout', 'p6/seq');
+    write('p6seq1.txt', 'ours one\n');
+    write('p6seq2.txt', 'ours two\n');
+    commitAll('p6 seq ours');
+
+    const starts: ConflictSession[] = [];
+    const sub = lifecycle.onDidStartSession((s) => starts.push(s));
+    try {
+      try {
+        git('cherry-pick', first, second);
+        assert.fail('the first pick should conflict');
+      } catch {
+        // expected
+      }
+      await repo.refresher.refreshNow();
+      await waitFor(() => reg.getSession(repoRoot) !== undefined && starts.length === 1, 15_000);
+      const session = reg.getSession(repoRoot)!;
+      await session.acceptSide(['p6seq1.txt'], 'theirs');
+      await waitFor(() => session.remaining === 0, 10_000);
+
+      // The second pick stops on conflicts of its own: once a GitError
+      // ("could not apply"), now a new stop of the same session.
+      assert.strictEqual(await session.continueOp(), true);
+      await repo.refresher.refreshNow();
+      await waitFor(() => session.remaining === 1 && starts.length === 2, 15_000);
+      assert.strictEqual(starts[1], session, 'the same session, announced for its new stop');
+
+      await session.acceptSide(['p6seq2.txt'], 'theirs');
+      await waitFor(() => session.remaining === 0, 10_000);
+      assert.strictEqual(await session.continueOp(), true);
+      await waitFor(() => reg.getSession(repoRoot) === undefined, 15_000);
+      assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p6 seq side two');
+      assert.strictEqual(starts.length, 2);
+    } finally {
+      sub.dispose();
+    }
   });
 
   test('T1: abort restores the pre-merge state and closes the session', async function () {

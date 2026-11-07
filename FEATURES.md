@@ -195,7 +195,10 @@ design, not the popup standing open (D34). It answers three questions, top to bo
   whose menu has the rest (a Fetch still turning stays); below about 190px the changed-file
   count and what the branch tracks go, and the card says the latter in full.
 * **An operation in progress** gets a banner under its repository: *Rebasing 2/5 · 2
-  conflicts* with **Resolve…**, **Continue** and **Abort**.
+  conflicts* with **Resolve…** (the *Files Merged with Conflicts* dialog), **Continue**
+  (**Skip** too for a rebase) and **Abort**. For a merge the button is IntelliJ's **Commit
+  Merge**: it commits at once with git's prepared message. A message of your own is
+  written in the Commit window.
 
 **Where can I go?**
 
@@ -850,8 +853,15 @@ greys Revert, Drop and Squash Commits.
 * A conflicted operation opens **`Files Merged with Conflicts`** — a dialog listing every
   conflicted file with its kind, and the actions `Accept Yours` · `Accept Theirs` ·
   `Resolve Simple Conflicts` · `Merge…` (which opens the first file that *has* a line-level
-  merge). It fires **once per session** and can be switched off
-  (`gittree.merge.conflictsDialog`).
+  merge). It fires **once per conflicted stop**, as IntelliJ's does: the operation's first,
+  and each later one (a rebase's next step, a cherry-pick's next commit). It is the one
+  notice: no toast repeats it. It can be switched off (`gittree.merge.conflictsDialog`);
+  a toast then takes its place. **Resolve…** on the operation banner brings it back.
+* **A merge commits from the Commit window** once nothing is left unresolved: HEAD plus what
+  is ticked, as IntelliJ commits a merge. Unticked changes of the merging repository are
+  asked about first (*Are you sure you want to exclude these changed files from merge
+  commit?* · **Commit Anyway**). While a conflict is left nothing commits: *Cannot commit
+  changes due to unresolved conflicts.*
 * The **`gittree.conflicts` tree view remains** the persistent surface for ongoing work —
   IntelliJ gates on the modal and keeps a view; so does GitTree.
 

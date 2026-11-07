@@ -7,6 +7,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
+import { noConflictsLeft } from '../../core/model/statusEntry';
 import { toBlobEol } from '../../core/patch/eol';
 import { computeLineChanges } from '../../core/patch/lineDiff';
 import {
@@ -66,6 +67,7 @@ async function stageSelected(core: Core): Promise<void> {
   const outcome = await repo.queue.enqueue({
     label: vscode.l10n.t('Stage selected ranges in {0}', path.basename(rel)),
     kind: 'mutate',
+    bypassHold: noConflictsLeft(repo.model.snapshot.statusEntries),
     run: (git, token) =>
       stageWorktreeLines(git, repo.root, rel, doc.getText(), (fresh) => selectChanges(fresh, selections), token),
   });
@@ -102,6 +104,7 @@ async function unstageSelected(core: Core): Promise<void> {
   const outcome = await repo.queue.enqueue({
     label: vscode.l10n.t('Unstage selected ranges in {0}', path.basename(rel)),
     kind: 'mutate',
+    bypassHold: noConflictsLeft(repo.model.snapshot.statusEntries),
     run: (git, token) =>
       unstageIndexLines(git, repo.root, rel, (fresh) => selectChanges(fresh, selections), token),
   });
@@ -230,6 +233,7 @@ export function registerStagingOps(context: vscode.ExtensionContext, core: Core)
     await repo.queue.enqueue({
       label: vscode.l10n.t('Stage all changes'),
       kind: 'mutate',
+      bypassHold: noConflictsLeft(repo.model.snapshot.statusEntries),
       run: async (git, token) => {
         await git.exec(repo.root, ['add', '-A'], { token });
       },
@@ -260,6 +264,7 @@ export function registerStagingOps(context: vscode.ExtensionContext, core: Core)
     const outcome = await repo.queue.enqueue({
       label: vscode.l10n.t('Stage hunk in {0}', path.basename(rel)),
       kind: 'mutate',
+      bypassHold: noConflictsLeft(repo.model.snapshot.statusEntries),
       run: (git, token) =>
         stageWorktreeLines(
           git,

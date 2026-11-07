@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../core/core';
+import { GitError } from '../../core/git/errors';
 import { isStaged } from '../../core/model/statusEntry';
 import { computeLineChanges } from '../../core/patch/lineDiff';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
@@ -67,10 +68,13 @@ function base(repo: RepoHandle): {
 }
 
 function failed(err: unknown, commands: string[][]): OpOutcome {
-  return { ok: false, message: err instanceof Error ? err.message : String(err), commands };
+  const message = err instanceof Error ? err.message : String(err);
+  if (err instanceof GitError && err.kind === 'merge-conflict') return { ok: false, conflicts: true, message, commands };
+  return { ok: false, message, commands };
 }
 
 function report(outcome: OpOutcome): void {
+  if (outcome.conflicts === true) return;
   if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
   else void vscode.window.showErrorMessage(outcome.message.split('\n', 1)[0] ?? outcome.message);
 }
@@ -365,9 +369,11 @@ export async function applyUnstashResult(
     await repo.refresher.refreshNow();
     if (exec.exitCode !== 0) {
       const text = exec.stdout + exec.stderr;
+      const conflicts = /conflict/iu.test(text);
       return {
         ok: false,
-        message: /conflict/iu.test(text)
+        ...(conflicts ? { conflicts } : {}),
+        message: conflicts
           ? vscode.l10n.t('Unstashed with conflicts — resolve them in the Conflicts view.')
           : (exec.stderr.split('\n')[0] ?? vscode.l10n.t('Unstash failed.')),
         commands: [args],

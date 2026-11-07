@@ -9,8 +9,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { notifySuccess } from '../ui/notify';
+import { notifySuccess, staleNotice } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
+import { stopIdentity } from '../core/model/inProgressOp';
 import { canonicalKey } from '../core/repoDiscovery';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
@@ -232,12 +233,20 @@ export class RevertCherryPickService {
         ? ` (${prog.step}/${prog.total})`
         : '';
     const verb = kind === 'revert' ? vscode.l10n.t('Revert') : vscode.l10n.t('Cherry-pick');
+    const pausedAt = stopIdentity(repo.dirs.gitDir);
     const choice = await vscode.window.showWarningMessage(
       vscode.l10n.t('{0} paused on conflicts{1}. Resolve and stage them, then continue.', verb, at),
       cont,
       skip,
       abort,
     );
+    // Clicked once the pause it was about is over — continued from the
+    // banner, say, and maybe stopped again on the next commit, whose
+    // conflicts this notification never saw (POST-QA).
+    if (choice !== undefined && stopIdentity(repo.dirs.gitDir) !== pausedAt) {
+      staleNotice();
+      return;
+    }
     if (choice === cont) {
       const outcome = await this.continueSequence(repo, kind);
       if (outcome.status === 'paused') void this.pauseToast(repo, kind, await this.progress(repo));

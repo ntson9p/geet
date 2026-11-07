@@ -11,6 +11,7 @@ import { isStaged } from '../core/model/statusEntry';
 import { CancellationSource } from '../core/util/cancellation';
 import { committedMessage } from '../scm/resultMessages';
 import { confirmModal } from '../ui/confirm';
+import { excludedFromMergeCommit, hasUnresolvedConflicts, pathListDetail } from './mergeCommitChecks';
 import { notifySuccess } from '../ui/notify';
 import { UNVERSIONED_ID, type ChangelistService } from './changelists/changelistService';
 import type { CheckPipeline } from './checks/pipeline';
@@ -101,6 +102,55 @@ export function hasCommittableChanges(
   return resolveTarget(deps, repo, listId) !== undefined;
 }
 
+/** A merge waiting for its commit (MERGE_HEAD). */
+function mergeInProgress(repo: RepoHandle): boolean {
+  return repo.model.snapshot.inProgressOp?.kind === 'merge';
+}
+
+/**
+ * IntelliJ's `GitUnresolvedMergeCheckProvider`, before anything is committed
+ * (POST-QA): unresolved conflicts stop the commit — with changelists they are
+ * in no list, so nothing else would — and a merge commit that leaves some of
+ * the merging repository's changes out asks first.
+ */
+async function mergeCommitChecks(
+  deps: CommitFlowDeps,
+  plans: ReadonlyArray<{ repo: RepoHandle; target: CommitTarget }>,
+): Promise<boolean> {
+  const nameOf = (r: RepoHandle): string => path.basename(r.root);
+  const conflicted = plans.filter(({ repo }) => hasUnresolvedConflicts(repo.model.snapshot.statusEntries));
+  const first = conflicted[0];
+  if (first !== undefined) {
+    const resolve = vscode.l10n.t('Resolve Conflicts…');
+    const message =
+      plans.length > 1
+        ? vscode.l10n.t(
+            'Cannot commit changes due to unresolved conflicts in {0}.',
+            conflicted.map((p) => nameOf(p.repo)).join(', '),
+          )
+        : vscode.l10n.t('Cannot commit changes due to unresolved conflicts.');
+    void vscode.window.showWarningMessage(message, resolve).then((choice) => {
+      if (choice === resolve) void vscode.commands.executeCommand('gittree.conflicts.resolve', first.repo.root);
+    });
+    return false;
+  }
+  const excluded: string[] = [];
+  for (const { repo, target } of plans) {
+    if (target.mode !== 'changelists' || !mergeInProgress(repo)) continue;
+    const service = deps.changelistsFor(repo);
+    const listed = service.getLists().flatMap((l) => l.files);
+    for (const p of excludedFromMergeCommit(listed, target.relPaths, (q) => service.isUntrackedPath(q))) {
+      excluded.push(plans.length > 1 ? `${nameOf(repo)}: ${p}` : p);
+    }
+  }
+  if (excluded.length === 0) return true;
+  return confirmModal(
+    vscode.l10n.t('Are you sure you want to exclude these changed files from merge commit?'),
+    pathListDetail(excluded, (n) => vscode.l10n.t('… and {0} more', n)),
+    vscode.l10n.t('Commit Anyway'),
+  );
+}
+
 /**
  * Splits the ticked paths into whole-file and partial commits. With no live
  * per-change selection this is a pure copy and costs no git calls, so the
@@ -158,6 +208,8 @@ export async function runCommitFlow(
     notify?: boolean;
     /** The commit landed: the files it holds and its subject. */
     onCommitted?: (files: number, subject: string) => void;
+    /** The multi-root commit asked the merge checks for every repository at once. */
+    mergeChecked?: boolean;
   } = {},
 ): Promise<boolean> {
   const inputBox = deps.inputBoxFor(repo);
@@ -203,6 +255,7 @@ export async function runCommitFlow(
       mode: 'staged',
     };
   }
+  if (options.mergeChecked !== true && !(await mergeCommitChecks(deps, [{ repo, target }]))) return false;
 
   const sign = await deps.commitService.isSignEnabled(repo);
   // P11-T5: gear-popup options. Advanced checks (Analyze/TODO) move to a
@@ -255,7 +308,12 @@ export async function runCommitFlow(
               );
             }
             const untracked = target.untrackedRelPaths.filter((p) => plan.wholePaths.includes(p));
-            if (plan.partials.length > 0) {
+            // POST-QA: git refuses `commit --only <paths>` during a merge
+            // ("cannot do a partial commit during a merge"), so the window
+            // could not finish one. HEAD plus the ticked changes, committed
+            // without a pathspec, is the merge commit — MERGE_HEAD its second
+            // parent — as IntelliJ commits a merge's included changes.
+            if (plan.partials.length > 0 || mergeInProgress(repo)) {
               await deps.commitService.commitChangelistPartial(
                 repo,
                 plan.wholePaths,
@@ -410,6 +468,15 @@ export async function runCommitAcross(
     ? [messageRepo, ...participants.filter((r) => r !== messageRepo)]
     : participants;
 
+  // Asked once for every repository, before any of them commits: a conflict
+  // in the third must not leave the first two committed (IntelliJ runs its
+  // checks over the whole commit).
+  const plans = ordered.flatMap((repo) => {
+    const target = resolveTarget(deps, repo, listOf(repo));
+    return target !== undefined ? [{ repo, target }] : [];
+  });
+  if (!(await mergeCommitChecks(deps, plans))) return false;
+
   // POST-P14ah: the push waits for every commit, so that it is one step —
   // IntelliJ's push-after-commit is one Push dialog for all the repositories
   // committed, not a dialog (or a push) per repository as each one lands.
@@ -424,6 +491,7 @@ export async function runCommitAcross(
       ...(listId !== undefined ? { listId } : {}),
       message,
       notify: false,
+      mergeChecked: true,
       onCommitted: (files) => {
         filesCommitted += files;
       },

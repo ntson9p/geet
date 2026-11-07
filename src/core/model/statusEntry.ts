@@ -24,6 +24,19 @@ export function isConflicted(e: StatusEntry): boolean {
   return e.kind === 'unmerged';
 }
 
+/**
+ * POST-QA: whether a path-limited index edit — stage, unstage — may run
+ * through a conflict pause's hold on the mutation lane (P6-T7). While a
+ * conflict is left it waits: staging it would mark it resolved, markers and
+ * all. Once none is, the edits are how the commit that ends the pause gets
+ * built, and the hold lifts only when that commit lands: waiting for it left
+ * them queued behind themselves. (`git reset` with no paths stays held — it
+ * ends a merge.)
+ */
+export function noConflictsLeft(entries: readonly StatusEntry[]): boolean {
+  return !entries.some(isConflicted);
+}
+
 /** Working-tree "dirty" test used by checkout guards: anything but ignored. */
 export function isDirty(e: StatusEntry): boolean {
   return e.kind !== 'ignored';

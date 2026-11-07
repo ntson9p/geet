@@ -799,7 +799,7 @@ export function App() {
           <OperationRow
             repo={row.repo}
             onRun={(command) =>
-              runCommand(command, command === 'gittree.conflicts.focus' ? undefined : row.repo.root)
+              runCommand(command, row.repo.root)
             }
           />
         );

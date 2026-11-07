@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { notifySuccess } from '../ui/notify';
 import type { RepoHandle } from '../core/core';
+import { GitError } from '../core/git/errors';
 import { isRebasing } from '../core/model/inProgressOp';
 import {
   classifyConflict,
@@ -35,6 +36,8 @@ export class ConflictSession {
   readonly onDidResolveAll: Event<void> = this._onDidResolveAll.event;
   /** Paths seen unmerged in this session that have since left that state. */
   readonly resolved = new Set<string>();
+  /** Ended: a notification's button from back then has nothing left to act on. */
+  ended = false;
   /** T6: native merge UI was requested but unavailable — the tri-editor
    *  served instead. Surfaced in the trace log only, never in UI. */
   usedTriEditorFallback = false;
@@ -178,18 +181,31 @@ export class ConflictSession {
       case 'merge':
       case 'cherry-pick':
       case 'revert': {
+        // A merge finishes with git's prepared message, as IntelliJ's Commit
+        // Merge does; a message of one's own is the Commit window's to write.
         const op = this.source === 'merge' ? 'merge' : this.source;
-        await this.repo.queue.enqueue({
-          label: vscode.l10n.t('Continue {0}', op),
-          kind: 'mutate',
-          bypassHold: true,
-          run: async (git, token) => {
-            await git.exec(this.repo.root, [op, '--continue'], {
-              env: { GIT_EDITOR: 'true' },
-              token,
-            });
-          },
-        });
+        try {
+          await this.repo.queue.enqueue({
+            label: vscode.l10n.t('Continue {0}', op),
+            kind: 'mutate',
+            bypassHold: true,
+            run: async (git, token) => {
+              await git.exec(this.repo.root, [op, '--continue'], {
+                env: { GIT_EDITOR: 'true' },
+                token,
+              });
+            },
+          });
+        } catch (err) {
+          // The sequence went on, and its next commit stopped on conflicts
+          // of its own: a new stop, which the conflicts dialog takes — not a
+          // failure (POST-QA: git's "could not apply" surfaced as an error).
+          if (err instanceof GitError && err.kind === 'merge-conflict') {
+            await this.repo.refresher.refreshNow();
+            return true;
+          }
+          throw err;
+        }
         await this.repo.refresher.refreshNow();
         // IntelliJ's `cherry.pick.continue.successful`, said for each of the three.
         notifySuccess(
