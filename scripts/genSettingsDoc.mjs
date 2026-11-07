@@ -41,6 +41,9 @@ export function generateSettingsDoc(pkg, strings) {
       const type = Array.isArray(def.type) ? def.type.join(' \\| ') : def.type;
       lines.push(`### \`${id}\``, '');
       lines.push(`${nls(strings, def.description)}`, '');
+      // POST-QA: a deprecated setting says so here as the Settings editor does.
+      const deprecated = def.markdownDeprecationMessage ?? def.deprecationMessage;
+      if (deprecated !== undefined) lines.push(`**Deprecated:** ${nls(strings, deprecated)}`, '');
       lines.push(`- Type: \`${type}\` · Default: ${fmtDefault(def.default)}`);
       if (def.minimum !== undefined) lines.push(`- Minimum: \`${def.minimum}\``);
       if (def.scope !== undefined) lines.push(`- Scope: \`${def.scope}\``);

@@ -115,6 +115,7 @@
   "gittree.command.branches.filterPanel.title": "Filter Branches",
   "gittree.config.log.title": "GitTree Log & Blame",
   "gittree.config.log.sort.description": "Default sort for the Git log tool window.",
+  "gittree.config.log.sort.deprecated": "Has no effect: each Log tab keeps its own sort, chosen under the tab's Graph Options (**By Commit Date** or **Topologically**), and a new tab starts by commit date.",
   "gittree.config.log.graphPalette.description": "Color palette for the commit graph lanes.",
   "gittree.config.log.graphPalette.default": "Hue-cycled palette matching the editor theme.",
   "gittree.config.log.graphPalette.colorBlind": "Okabe–Ito color-blind-safe palette (distinct under deutan, protan and tritan vision).",

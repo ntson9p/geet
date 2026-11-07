@@ -90,6 +90,8 @@ Shape of the GitTree status-bar widget. VS Code’s built-in Git extension alrea
 
 What the editor gutter bars compare against: the index (IntelliJ behavior — bars show unstaged edits) or HEAD (bars show all uncommitted edits).
 
+**Deprecated:** Renamed to `#gittree.changeBars.base#`. The old key is still honoured.
+
 - Type: `string` · Default: `"index"`
 - Values:
   - `index`
@@ -366,7 +368,9 @@ Run the advanced checks (Analyze code, TODO) after the commit and report via not
 
 Default sort for the Git log tool window.
 
-- Type: `string` · Default: `"topo"`
+**Deprecated:** Has no effect: each Log tab keeps its own sort, chosen under the tab's Graph Options (**By Commit Date** or **Topologically**), and a new tab starts by commit date.
+
+- Type: `string` · Default: `"date"`
 - Values:
   - `date`
   - `topo`

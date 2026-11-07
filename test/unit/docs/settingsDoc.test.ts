@@ -10,6 +10,13 @@ import { generateSettingsDoc, loadInputs } from '../../../scripts/genSettingsDoc
 const root = path.resolve(__dirname, '../../..');
 
 describe('docs/settings.md generation', () => {
+  it('says a deprecated setting is deprecated, and why (POST-QA)', () => {
+    const { pkg, strings } = loadInputs(root);
+    const doc = generateSettingsDoc(pkg, strings);
+    const section = doc.slice(doc.indexOf('### `gittree.log.sort`'));
+    expect(section.slice(0, section.indexOf('\n### ', 4))).toMatch(/\*\*Deprecated:\*\* Has no effect/u);
+  });
+
   it('committed settings.md matches the generator output (run npm run docs:settings)', () => {
     const { pkg, strings } = loadInputs(root);
     const expected = generateSettingsDoc(pkg, strings);
@@ -26,6 +33,8 @@ describe('docs/settings.md generation', () => {
         expect(id).toMatch(/^gittree\./);
         expect(def.description).toMatch(/^%.+%$/);
         expect(strings[(def.description as string).slice(1, -1)]).toBeTypeOf('string');
+        const deprecated = (def as { markdownDeprecationMessage?: string }).markdownDeprecationMessage;
+        if (deprecated !== undefined) expect(strings[deprecated.slice(1, -1)]).toBeTypeOf('string');
       }
     }
   });

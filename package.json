@@ -403,8 +403,9 @@
               "topo",
               "intelli"
             ],
-            "default": "topo",
-            "description": "%gittree.config.log.sort.description%"
+            "default": "date",
+            "description": "%gittree.config.log.sort.description%",
+            "markdownDeprecationMessage": "%gittree.config.log.sort.deprecated%"
           },
           "gittree.log.graphPalette": {
             "type": "string",

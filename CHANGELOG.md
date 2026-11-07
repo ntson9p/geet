@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — `gittree.log.sort` is deprecated
+
+- **`gittree.log.sort` had no effect, and now says so.** Each Log tab keeps its own sort,
+  chosen under its Graph Options, and a new one starts by commit date. The setting's default
+  read `topo`, the opposite of what the log did. The settings reference now marks deprecated
+  settings, `gittree.quickDiff.base` among them.
+
 ### Fixed — the Commit window's file rows
 
 - **A file's row no longer repeats the folder it sits under.** Every file named its folder
