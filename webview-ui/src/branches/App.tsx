@@ -416,6 +416,7 @@ export function App() {
     (at: { x: number; y: number }) => {
       if (!state || !model) return;
       const single = model.scopeRepos.length === 1 ? model.scopeRepos[0]?.root : undefined;
+      const keymap = state.intellijKeymap === true;
       const runs = new Map<string, () => void>();
       const item = (
         id: string,
@@ -427,17 +428,18 @@ export function App() {
         return { kind: 'item', id, label, ...extra };
       };
       const items: MenuItem[] = [
+        // IntelliJ's keys, named only when its keymap binds them (POST-QA).
         item('update', 'Update Project…', () => runCommand('gittree.update.dialog', single), {
           icon: 'arrow-down',
-          accelerator: 'Ctrl+T',
+          ...(keymap ? { accelerator: 'Ctrl+T' } : {}),
         }),
         item('commit', 'Commit…', () => runCommand('gittree.commit', single), {
           icon: 'git-commit',
-          accelerator: 'Ctrl+K',
+          ...(keymap ? { accelerator: 'Ctrl+K' } : {}),
         }),
         item('push', 'Push…', () => runCommand('gittree.push.dialog', single), {
           icon: 'arrow-up',
-          accelerator: 'Ctrl+Shift+K',
+          ...(keymap ? { accelerator: 'Ctrl+Shift+K' } : {}),
         }),
         { kind: 'separator', id: 's1' },
         item('new', 'New Branch…', () => openForm({ from: 'HEAD' }), { icon: 'add' }),

@@ -10,6 +10,7 @@
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { isDirty } from '../core/model/statusEntry';
+import { INTELLIJ_KEYMAP_SETTING, shownAccelerator } from './accelerators';
 import {
   buildOperationsItems,
   OPS_GROUP_LABEL,
@@ -77,7 +78,7 @@ export function readOpsContext(deps: OperationsPopupDeps, repo: RepoHandle | und
 }
 
 /** Assembles the QuickPick rows, with a separator per non-empty group. */
-export function toQuickPickItems(items: readonly OpsItem[]): OpsQuickPickItem[] {
+export function toQuickPickItems(items: readonly OpsItem[], intellijKeymap = false): OpsQuickPickItem[] {
   const out: OpsQuickPickItem[] = [];
   for (const group of OPS_GROUP_ORDER) {
     const inGroup = items.filter((i) => i.group === group);
@@ -87,9 +88,10 @@ export function toQuickPickItems(items: readonly OpsItem[]): OpsQuickPickItem[] 
       kind: vscode.QuickPickItemKind.Separator,
     });
     for (const item of inGroup) {
+      const accelerator = shownAccelerator(item.accelerator, intellijKeymap);
       out.push({
         label: item.icon !== undefined ? `$(${item.icon}) ${item.label}` : item.label,
-        ...(item.accelerator !== undefined ? { description: item.accelerator } : {}),
+        ...(accelerator !== undefined ? { description: accelerator } : {}),
         item,
       });
     }
@@ -132,7 +134,8 @@ export function registerOperationsPopup(
         );
         return;
       }
-      const picked = await vscode.window.showQuickPick(toQuickPickItems(items), {
+      const keymap = vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false);
+      const picked = await vscode.window.showQuickPick(toQuickPickItems(items, keymap), {
         placeHolder: vscode.l10n.t('VCS Operations'),
         matchOnDescription: true,
       });

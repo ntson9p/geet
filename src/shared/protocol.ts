@@ -1703,6 +1703,8 @@ export interface BranchPanelStateDto {
   readonly now: number;
   /** The log's lane palette, so a repository's colour here is its colour there. */
   readonly palette: 'default' | 'colorBlind';
+  /** `gittree.keymap.intellij`: Ctrl+T, Ctrl+K and Ctrl+Shift+K are bound, so the menu names them. */
+  readonly intellijKeymap?: boolean;
 }
 
 export type BranchPanelRefKind = 'local' | 'remote' | 'tag';

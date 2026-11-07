@@ -110,3 +110,13 @@ describe('applyShowTags (gittree.branches.showTags)', () => {
     expect(tagRows(flattenTree(applyShowTags(ctx, false), new Set(), 'v1').rows)).toHaveLength(0);
   });
 });
+
+describe('verb rows and their keys (POST-QA)', () => {
+  it('keep the accelerator on the verb, out of the description, for the surface to show when bound', () => {
+    const verbs = rootRows(ctxOf([repo('/r', 'r')])).filter((r) => r.kind === 'verb');
+    const update = verbs.find((r) => r.verb?.command === 'gittree.update.dialog');
+    expect(update?.verb?.accelerator).toBe('Ctrl+T');
+    expect(update?.description).toBeUndefined();
+    expect(verbs.every((r) => r.description === undefined)).toBe(true);
+  });
+});

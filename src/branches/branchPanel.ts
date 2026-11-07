@@ -49,6 +49,7 @@ import {
 import { buildRepoDto, mainBranchOf, mergedArgs, mergedBranches } from './panelState';
 import type { RefService } from './refService';
 import { showTagsSetting } from './showTags';
+import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
 
 export interface BranchPanelDeps {
   readonly core: Core;
@@ -121,7 +122,8 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (
           e.affectsConfiguration('gittree.branches') ||
-          e.affectsConfiguration('gittree.log.graphPalette')
+          e.affectsConfiguration('gittree.log.graphPalette') ||
+          e.affectsConfiguration(`gittree.${INTELLIJ_KEYMAP_SETTING}`)
         ) {
           this.schedulePush();
         }
@@ -251,6 +253,7 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
         vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette') === 'colorBlind'
           ? 'colorBlind'
           : 'default',
+      intellijKeymap: vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
     };
     this.last = state;
     return state;

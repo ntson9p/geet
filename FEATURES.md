@@ -149,7 +149,9 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
   **and actions**"*.
 * **Top-level verbs first, before any branch:** `Update Project… Ctrl+T` · `Commit… Ctrl+K` ·
   `Push… Ctrl+Shift+K` · `New Branch… Ctrl+Alt+N` · `Checkout Tag or Revision…`. They carry
-  search keywords, so typing `merge` finds an action and not only branches.
+  search keywords, so typing `merge` finds an action and not only branches. The keys are
+  named only with the IntelliJ keymap on (`gittree.keymap.intellij`), the one that binds
+  them. Every menu that names IntelliJ's keys follows the same rule.
 * **Sections:** `Current` · `Favorites` · `Recent` · `Local` · `Remote: <name>` per remote ·
   `Tags`, favorites first, with `↑/↓` counts, short sha and subject as the dim description.
 * **Folder rows:** `feature  12 branches` folds a prefix; picking it drills into a scoped popup
@@ -574,7 +576,7 @@ docked bottom, tabs `Log | Console`").
 * **One bottom-docked tool window**: webview view `gittree.log` in the `gittree-panel`
   panel container, holding tabs **`Log | Console | Worktrees`** (active tab persisted),
   simultaneously visible with the left-docked Commit window and the editor.
-  `gittree.log.focus` (`alt+9`) focuses it on the last active tab.
+  `gittree.log.focus` (`alt+9` with the IntelliJ keymap on) focuses it on the last active tab.
 * **More than one Log tab, as IntelliJ's `Open Another Log Tab`.** A **`+`** right after the
   last tab opens a new Log tab matching the current tab's filters, appended after the others.
   Each tab has its own filters, repository, selection, scroll and pane layout (a new tab
@@ -1057,7 +1059,8 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   (checkbox tree + inline diff + `Delete local copies of added files`) · `Cherry-Pick` ·
   `Stash` · `Unstash` · `Apply Patch` (pre-apply summary with missing-file warnings) ·
   `Clone` · `Manage Remotes` · `New Worktree` · `Files Merged with Conflicts`.
-* **VCS Operations Popup:** `` Alt+` `` opens every action applicable *right now*, enumerated
+* **VCS Operations Popup:** `` Alt+` `` (with the IntelliJ keymap on; the palette's *VCS
+  Operations Popup* otherwise) opens every action applicable *right now*, enumerated
   from the dialog and branch-action registries rather than a hand-kept list, with an
   in-progress group first (continue / skip / abort), diff and commit groups when their context
   is present, and recently used actions floated to the top.

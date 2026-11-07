@@ -24,6 +24,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { INTELLIJ_KEYMAP_SETTING, shownAccelerator } from '../ui/accelerators';
 import { writeSetting } from '../ui/writeSetting';
 import { collectNotifications, showCollected } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
@@ -168,6 +169,8 @@ export interface PopupInput {
   /** Hide the verbs and folder rows: the flat search across every level. */
   filtering: boolean;
   showInOut: boolean;
+  /** `gittree.keymap.intellij`: the verbs' accelerators are bound, so shown. */
+  intellijKeymap?: boolean;
   /**
    * POST-P14p: show `‹ Back` even at prefix `''`. In a multi-root workspace a
    * repository's own popup sits one level below the project popup, so there is
@@ -200,9 +203,10 @@ export function buildPopupItems(input: PopupInput): BranchItem[] {
   if (!input.filtering && input.prefix.length === 0) {
     items.push(sep(vscode.l10n.t('Actions')));
     for (const v of HUB_VERBS) {
+      const accelerator = shownAccelerator(v.accelerator, input.intellijKeymap === true);
       items.push({
         label: `$(${v.icon}) ${v.label}`,
-        ...(v.accelerator !== undefined ? { description: v.accelerator } : {}),
+        ...(accelerator !== undefined ? { description: accelerator } : {}),
         command: v.command,
         searchText: `${v.label} ${v.keywords ?? ''}`,
       });
@@ -309,6 +313,8 @@ export interface ProjectPopupInput {
   readonly commonTags: readonly string[];
   readonly filtering: boolean;
   readonly showInOut: boolean;
+  /** `gittree.keymap.intellij`: the verbs' accelerators are bound, so shown. */
+  readonly intellijKeymap?: boolean;
 }
 
 /** `develop · ↑2 ↓1` — the dim half of a repository row. */
@@ -347,9 +353,10 @@ export function buildProjectPopupItems(input: ProjectPopupInput): BranchItem[] {
   if (!input.filtering) {
     items.push(sep(vscode.l10n.t('Actions')));
     for (const v of HUB_VERBS) {
+      const accelerator = shownAccelerator(v.accelerator, input.intellijKeymap === true);
       items.push({
         label: `$(${v.icon}) ${v.label}`,
-        ...(v.accelerator !== undefined ? { description: v.accelerator } : {}),
+        ...(accelerator !== undefined ? { description: accelerator } : {}),
         command: v.command,
         searchText: `${v.label} ${v.keywords ?? ''}`,
       });
@@ -518,6 +525,7 @@ interface TreeItem extends vscode.QuickPickItem {
 export function toQuickPickItems(
   rows: readonly TreeRow[],
   open: ReadonlySet<string>,
+  intellijKeymap = false,
 ): TreeItem[] {
   const items: TreeItem[] = [];
   for (const row of rows) {
@@ -534,9 +542,10 @@ export function toQuickPickItems(
       buttons.push(row.favorite === true ? STAR_ON : STAR_OFF);
     }
     if (row.actions) buttons.push(ACTIONS);
+    const description = row.description ?? shownAccelerator(row.verb?.accelerator, intellijKeymap);
     items.push({
       label: `${INDENT.repeat(row.depth)}${disclosure}$(${row.icon}) ${row.label}`,
-      ...(row.description !== undefined ? { description: row.description } : {}),
+      ...(description !== undefined ? { description } : {}),
       alwaysShow: true,
       ...(buttons.length > 0 ? { buttons } : {}),
       row,
@@ -671,7 +680,11 @@ export async function showBranchesPopup(
       ...(scopeRoot !== undefined ? { scope: scopeRoot } : {}),
       searchCollapsed,
     });
-    qp.items = toQuickPickItems(flat.rows, flat.open);
+    qp.items = toQuickPickItems(
+      flat.rows,
+      flat.open,
+      vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
+    );
     if (keepId !== undefined) {
       const found = qp.items.find((i) => i.row?.id === keepId);
       if (found) qp.activeItems = [found];
@@ -863,11 +876,10 @@ export function buildBranchActionItems(
       items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
     }
     lastGroup = group;
-    items.push({
-      label: action.label(ctx, currentBranch),
-      ...(action.accelerator !== undefined ? { description: action.accelerator } : {}),
-      action,
-    });
+    // No accelerator here: an action's (F2, Delete) is the Repositories
+    // panel's own key, and a QuickPick, its input focused, never sees it
+    // (POST-QA: Rename… said F2, and F2 did nothing).
+    items.push({ label: action.label(ctx, currentBranch), action });
   }
   return items;
 }

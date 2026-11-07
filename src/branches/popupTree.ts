@@ -339,7 +339,8 @@ function verbRow(verb: HubVerb, separator: boolean, repoRoot?: string, depth = 0
     depth,
     icon: verb.icon,
     label: verb.label,
-    ...(verb.accelerator !== undefined ? { description: verb.accelerator } : {}),
+    // The accelerator stays on `verb`: the surface shows it only when the
+    // key is bound (`shownAccelerator`, POST-QA).
     expandable: false,
     actions: false,
     searchText: `${verb.label} ${verb.keywords ?? ''}`,

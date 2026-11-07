@@ -187,8 +187,9 @@ suite('P13 branches hub', () => {
       items.some((i) => i.kind === vscode.QuickPickItemKind.Separator),
       'the submenu needs group separators',
     );
-    // Rename advertises its shortcut.
-    assert.strictEqual(items.find((i) => i.label === 'Rename…')?.description, 'F2');
+    // POST-QA: no F2 beside Rename… here — F2 is the Repositories panel's
+    // own key, and this QuickPick, its input focused, never sees it.
+    assert.strictEqual(items.find((i) => i.label === 'Rename…')?.description, undefined);
   });
 
   test('T5: irrelevant items are hidden, not disabled — per ref type', () => {

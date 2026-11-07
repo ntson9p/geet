@@ -34,6 +34,7 @@ import {
 import type { RefService } from './refService';
 import type { RepoScope } from './repoScope';
 import { showTagsSetting } from './showTags';
+import { INTELLIJ_KEYMAP_SETTING, shownAccelerator } from '../ui/accelerators';
 
 const DND_MIME = 'application/vnd.code.tree.gittree.branches';
 
@@ -140,7 +141,13 @@ export class BranchHubViewProvider
     const item = new vscode.TreeItem(row.label, this.collapsibleState(row));
     item.id = row.id;
     item.iconPath = new vscode.ThemeIcon(row.icon);
-    if (row.description !== undefined) item.description = row.description;
+    const description =
+      row.description ??
+      shownAccelerator(
+        row.verb?.accelerator,
+        vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
+      );
+    if (description !== undefined) item.description = description;
     item.contextValue = this.contextValue(row);
     item.tooltip = this.tooltip(row);
     if (row.verb !== undefined) {

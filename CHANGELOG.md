@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — menus name IntelliJ's keys only when they are bound
+
+- **The Branches popup, the VCS Operations Popup and the Repositories panel's ⋯ menu name
+  Ctrl+T, Ctrl+K, Ctrl+Shift+K, Ctrl+Alt+N and Ctrl+Alt+Z only with the IntelliJ keymap
+  on** (`gittree.keymap.intellij`, off by default). With it off they named keys that did
+  nothing, or did VS Code's own thing: Ctrl+Shift+K deletes a line. **Rename…** in the
+  Branches popup no longer says F2. F2 renames in the Repositories panel, where it still
+  says so, and not in a popup.
+
 ### Fixed — Enter on Show Change Actions no longer rolls the change back
 
 - **Show Change Actions lists Stage first and Rollback last,** set apart. Rollback was the
