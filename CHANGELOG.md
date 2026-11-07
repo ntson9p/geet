@@ -6,6 +6,11 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — Enter on Show Change Actions no longer rolls the change back
+
+- **Show Change Actions lists Stage first and Rollback last,** set apart. Rollback was the
+  first item, so Enter, the quick way to take the first, threw the change away.
+
 ### Fixed — Undo Commit is offered for the last commit only
 
 - **The log greys out Undo Commit on any commit but HEAD,** as IntelliJ does. It was offered

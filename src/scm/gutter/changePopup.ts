@@ -18,6 +18,7 @@
  */
 import * as vscode from 'vscode';
 import type { Core } from '../../core/core';
+import { CHANGE_ACTIONS } from './changeActionOrder';
 import type { ChangeBarsController } from './changeBars';
 import { changeAt, nextChange, originalLinesOf, prevChange, type Change } from './changeModel';
 
@@ -138,15 +139,22 @@ export function registerChangePopup(
         return;
       }
       const index = doc.changes.indexOf(change);
-      const picked = await vscode.window.showQuickPick(
-        [
-          { label: vscode.l10n.t('$(discard) Rollback'), command: 'gittree.hunk.rollback' },
-          { label: vscode.l10n.t('$(add) Stage'), command: 'gittree.hunk.stage' },
-          { label: vscode.l10n.t('$(git-commit) Open in Commit View'), command: 'gittree.hunk.openCommitView' },
-        ],
-        { placeHolder: label(change), title: vscode.l10n.t('Change actions') },
+      // Rollback last, set apart: Enter takes the first (CHANGE_ACTIONS).
+      const titles = {
+        stage: vscode.l10n.t('$(add) Stage'),
+        commitView: vscode.l10n.t('$(git-commit) Open in Commit View'),
+        rollback: vscode.l10n.t('$(discard) Rollback'),
+      };
+      const items: Array<vscode.QuickPickItem & { command?: string }> = CHANGE_ACTIONS.map((a) =>
+        a.kind === 'separator'
+          ? { label: '', kind: vscode.QuickPickItemKind.Separator }
+          : { label: titles[a.id], command: a.command },
       );
-      if (!picked) return;
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: label(change),
+        title: vscode.l10n.t('Change actions'),
+      });
+      if (picked?.command === undefined) return;
       await vscode.commands.executeCommand(
         picked.command,
         editor.document.uri,
