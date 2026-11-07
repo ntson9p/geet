@@ -35,6 +35,8 @@ import {
   type PrunedRefs,
 } from './fetchAll';
 import { pullResultMessage } from './resultMessages';
+import { chooseRepo } from '../ui/chooseRepo';
+import { pullStrategyArgs } from './pullArgs';
 
 type BranchesOpenHandler = (repoRoot?: string) => Promise<void>;
 let branchesOpenHandler: BranchesOpenHandler | undefined;
@@ -44,10 +46,14 @@ export function setBranchesOpenHandler(handler: BranchesOpenHandler): void {
   branchesOpenHandler = handler;
 }
 
-function pickRepo(core: Core, repoRoot: unknown): RepoHandle | undefined {
-  if (typeof repoRoot === 'string') return core.getRepo(repoRoot);
-  const active = vscode.window.activeTextEditor?.document.uri;
-  return (active && core.repoForUri(active)) ?? core.repos[0];
+/**
+ * The repository a sync command acts on: the one it names, the active
+ * editor's, the only one — else the user picks (POST-QA F6). It used to fall
+ * back to the first repository, so in a multi-root workspace GitTree: Push
+ * could push one the user was not looking at.
+ */
+function pickRepo(core: Core, repoRoot: unknown): Promise<RepoHandle | undefined> {
+  return chooseRepo(core, repoRoot);
 }
 
 async function mutate(repo: RepoHandle, label: string, args: string[]): Promise<void> {
@@ -345,12 +351,37 @@ export function registerSyncOps(
     await fetchAll();
   });
 
-  /** `git pull`, then what it brought in — or that there was nothing to bring. */
-  async function pullAndReport(repo: RepoHandle): Promise<void> {
+  /**
+   * `git pull`, then what it brought in — or that there was nothing to bring.
+   * False when the pull did not happen, so Sync does not push after it.
+   */
+  async function pullAndReport(repo: RepoHandle): Promise<boolean> {
     const before = await headOf(repo);
-    await mutate(repo, vscode.l10n.t('Pull'), ['pull']);
+    try {
+      const strategy = await pullStrategyArgs(core.git, repo.root, repo.model.snapshot.headRef);
+      await mutate(repo, vscode.l10n.t('Pull'), ['pull', ...strategy]);
+    } catch (err) {
+      if (err instanceof GitError && /divergent branches|Not possible to fast-forward/iu.test(err.stderr)) {
+        // POST-QA F6: pull.ff=only (or a git that will not guess) on a
+        // diverged branch. Said plainly, with the way forward, instead of
+        // "A git operation failed".
+        const update = vscode.l10n.t('Update Project…');
+        const choice = await vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            '"{0}" and {1} have diverged, and your git settings allow a pull only to fast-forward. Update Project can merge or rebase them.',
+            repo.model.snapshot.headRef ?? 'HEAD',
+            repo.model.snapshot.upstream ?? vscode.l10n.t('its upstream'),
+          ),
+          update,
+        );
+        if (choice === update) await vscode.commands.executeCommand('gittree.update.dialog', repo.root);
+        return false;
+      }
+      throw err;
+    }
     const counted = await countPulled(core, repo, before, '@{upstream}');
     notifySuccess(pullResultMessage(counted.commits, counted.files, repo.model.snapshot.upstream));
+    return true;
   }
 
   async function headOf(repo: RepoHandle): Promise<string> {
@@ -362,17 +393,17 @@ export function registerSyncOps(
   }
 
   register('gittree.pull', async (repoRoot) => {
-    const repo = pickRepo(core, repoRoot);
+    const repo = await pickRepo(core, repoRoot);
     if (repo) await pullAndReport(repo);
   });
 
   register('gittree.push', async (repoRoot) => {
-    const repo = pickRepo(core, repoRoot);
+    const repo = await pickRepo(core, repoRoot);
     if (repo) await push(repo);
   });
 
   register('gittree.pushForceWithLease', async (repoRoot) => {
-    const repo = pickRepo(core, repoRoot);
+    const repo = await pickRepo(core, repoRoot);
     if (!repo) return;
     const branch = repo.model.snapshot.headRef ?? 'HEAD';
     const upstream = await upstreamOf(repo);
@@ -424,9 +455,9 @@ export function registerSyncOps(
   }
 
   register('gittree.sync', async (repoRoot) => {
-    const repo = pickRepo(core, repoRoot);
+    const repo = await pickRepo(core, repoRoot);
     if (!repo) return;
-    await pullAndReport(repo);
+    if (!(await pullAndReport(repo))) return;
     if ((repo.model.snapshot.ahead ?? 0) > 0 || repo.model.snapshot.upstream === undefined) {
       await push(repo);
     }
@@ -434,7 +465,7 @@ export function registerSyncOps(
 
   // Branches popup — stub QuickPick until P2 replaces the handler.
   register('gittree.branches.open', async (repoRoot) => {
-    const repo = pickRepo(core, repoRoot);
+    const repo = await pickRepo(core, repoRoot);
     if (!repo) return;
     if (branchesOpenHandler) {
       await branchesOpenHandler(typeof repoRoot === 'string' ? repoRoot : repo.root);

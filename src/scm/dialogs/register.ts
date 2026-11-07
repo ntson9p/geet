@@ -8,6 +8,7 @@
  * misfile it. `extension.ts` stays append-only per master §0.6.
  */
 import * as vscode from 'vscode';
+import { chooseRepo, implicitRepo } from '../../ui/chooseRepo';
 import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { registerWorktrees, type WorktreeRegistry } from '../../branches/worktrees';
@@ -216,20 +217,7 @@ export function namedRepo(core: Core, arg?: unknown): RepoHandle | undefined {
 
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
 export function resolveRepo(core: Core, arg?: unknown): RepoHandle | undefined {
-  if (typeof arg === 'string' && arg.length > 0) {
-    const byArg = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(arg));
-    if (byArg) return byArg;
-  }
-  if (arg instanceof vscode.Uri) {
-    const byUri = core.repoForPath(arg.fsPath);
-    if (byUri) return byUri;
-  }
-  const doc = vscode.window.activeTextEditor?.document;
-  if (doc && doc.uri.scheme === 'file') {
-    const byEditor = core.repoForPath(doc.uri.fsPath);
-    if (byEditor) return byEditor;
-  }
-  return core.repos.length === 1 ? core.repos[0] : undefined;
+  return implicitRepo(core, arg);
 }
 
 export function registerPhase13Dialogs(
@@ -420,24 +408,20 @@ export function registerPhase13Dialogs(
   // P13-T3: the four "Modify options" dialogs. The P1/P2/P5 no-questions
   // commands stay; these are the surfaces that expose the flags behind them.
   const opDeps: OpDialogDeps = deps;
-  const needRepo = (arg?: unknown): RepoHandle | undefined => {
-    const repo = resolveRepo(core, arg);
-    if (!repo) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('Open a repository first.'));
-    }
-    return repo;
-  };
+  // POST-QA F6: with several repositories and nothing to say which, ask —
+  // these dialogs have no Git Root chooser of their own, as IntelliJ's do.
+  const needRepo = (arg?: unknown): Promise<RepoHandle | undefined> => chooseRepo(core, arg);
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.merge.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (repo) await showMergeDialog(opDeps, repo);
     }),
     vscode.commands.registerCommand('gittree.rebase.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (repo) await showRebaseDialog(opDeps, repo);
     }),
     vscode.commands.registerCommand('gittree.reset.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (!repo) return;
       // Invoked from a log row, the clicked commit seeds the revision field.
       const seed =
@@ -447,7 +431,7 @@ export function registerPhase13Dialogs(
     vscode.commands.registerCommand('gittree.rollback.dialog', async (arg?: unknown) => {
       // A Commit-window repository row passes `{ repoRoot }`: that repository,
       // every change listed and ticked, for the dialog to untick.
-      const repo = needRepo(repoRootOf(arg) ?? arg);
+      const repo = await needRepo(repoRootOf(arg) ?? arg);
       if (!repo) return;
       const preselected =
         Array.isArray(arg) && arg.every((a) => typeof a === 'string') ? arg : undefined;
@@ -476,22 +460,22 @@ export function registerPhase13Dialogs(
   };
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.cherryPick.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (!repo) return;
       const seed =
         arg !== null && typeof arg === 'object' && 'sha' in arg ? [String(arg.sha)] : undefined;
       await showCherryPickDialog(opDeps, repo, seed);
     }),
     vscode.commands.registerCommand('gittree.stash.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (repo) await showStashDialog(opDeps, repo);
     }),
     vscode.commands.registerCommand('gittree.unstash.dialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (repo) await showUnstashDialog(unstashDeps, repo);
     }),
     vscode.commands.registerCommand('gittree.patch.applyDialog', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (!repo) return;
       const seed = arg instanceof vscode.Uri ? arg.fsPath : undefined;
       await showApplyPatchDialog(opDeps, repo, seed);
@@ -501,7 +485,7 @@ export function registerPhase13Dialogs(
       await showCloneDialog(opDeps);
     }),
     vscode.commands.registerCommand('gittree.remotes.manage', async (arg?: unknown) => {
-      const repo = needRepo(arg);
+      const repo = await needRepo(arg);
       if (repo) await showRemotesDialog(opDeps, repo);
     }),
   );

@@ -27,6 +27,24 @@ pre-release convention (odd minor = pre-release).
   staged or committed part is stored the way `git add` would store it. Shelving part of
   a file leaves the rest with its own line endings.
 
+### Fixed — several repositories: the palette asks which one
+
+- **Merge…, Rebase…, Reset…, Stash Changes…, Unstash…, Rollback…, Cherry-Pick…, Apply Patch…
+  and Manage Remotes… work from the palette in a multi-root workspace.** With no file open
+  they said *Open a repository first.* although three were open. They now ask which
+  repository, as IntelliJ's dialogs do with their *Git Root* field. The repository named by
+  the command, or the one of the file in front of you, is still taken without asking.
+- **Pull, Push, Sync and New Worktree… no longer pick the first repository on their own.**
+  With nothing to say which one was meant, they acted on the first repository in the
+  workspace, so *GitTree: Push* could push a repository you were not looking at. They now
+  ask too.
+- **GitTree: Pull works on a branch that has diverged from its upstream.** With neither
+  `pull.rebase` nor `pull.ff` set, git refuses to guess, and Pull failed with *A git
+  operation failed*. It now merges, as IntelliJ's Pull does and as git did by default. Your
+  own `pull.rebase`, `pull.ff` or `branch.<name>.rebase` still decides. When those allow
+  only a fast-forward, it says so and offers **Update Project…**, and Sync stops instead of
+  pushing.
+
 ### Fixed — a rebase conflict shows your side as Yours
 
 - **During a rebase, Yours is your own commit again.** git replays your commits onto the

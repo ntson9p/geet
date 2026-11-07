@@ -10,6 +10,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { chooseRepo, implicitRepo } from '../ui/chooseRepo';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
 import { parseWorktreeList, type WorktreeInfo } from '../core/git/parsers/worktreeList';
@@ -353,8 +354,11 @@ export function registerWorktrees(
       const match = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot));
       if (match) return match;
     }
-    return core.repos[0];
+    return implicitRepo(core);
   };
+  /** As `repoOf`, asking when several repositories leave it open (POST-QA F6). */
+  const chosenRepo = async (arg: unknown, repoRoot?: unknown): Promise<RepoHandle | undefined> =>
+    repoOf(arg, repoRoot) ?? (await chooseRepo(core));
   const infoOf = (arg: unknown): WorktreeInfo | undefined =>
     arg !== null && typeof arg === 'object' && 'info' in arg
       ? (arg as WorktreeNode).info
@@ -368,7 +372,7 @@ export function registerWorktrees(
 
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.worktree.add', async (arg?: unknown, repoRoot?: unknown) => {
-      const repo = repoOf(arg, repoRoot);
+      const repo = await chosenRepo(arg, repoRoot);
       if (!repo) return;
       const branch = typeof arg === 'string' ? arg : undefined;
       await showNewWorktreeDialog(deps, repo, branch);
@@ -417,7 +421,7 @@ export function registerWorktrees(
       report(await serviceFor(repo).unlock(info.path));
     }),
     vscode.commands.registerCommand('gittree.worktree.prune', async (arg?: unknown) => {
-      const repo = repoOf(arg);
+      const repo = await chosenRepo(arg);
       if (!repo) return;
       report(await serviceFor(repo).prune());
     }),
