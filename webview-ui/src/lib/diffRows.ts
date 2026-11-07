@@ -93,6 +93,59 @@ export function buildDiffRows(
   return rows;
 }
 
+export interface UnifiedRow {
+  /** Index into the change list, or -1 for an unchanged context row. */
+  readonly changeIndex: number;
+  readonly kind: 'context' | 'removed' | 'added';
+  readonly oldLine?: number;
+  readonly newLine?: number;
+  readonly text: string;
+  /** First row of its change — where the include checkbox anchors. */
+  readonly first: boolean;
+}
+
+/**
+ * The same rows in one column — each change's removed lines, then its added
+ * ones — as IntelliJ's unified viewer shows them, for a pane too narrow for
+ * two sides: a 350px sidebar cut both to `import {...` (POST-QA).
+ */
+export function unifiedRows(rows: readonly DiffRow[]): UnifiedRow[] {
+  const out: UnifiedRow[] = [];
+  let i = 0;
+  while (i < rows.length) {
+    const row = rows[i] as DiffRow;
+    if (row.changeIndex < 0) {
+      out.push({
+        changeIndex: -1,
+        kind: 'context',
+        ...(row.left !== undefined ? { oldLine: row.left.lineNumber } : {}),
+        ...(row.right !== undefined ? { newLine: row.right.lineNumber } : {}),
+        text: row.right?.text ?? row.left?.text ?? '',
+        first: false,
+      });
+      i++;
+      continue;
+    }
+    // A change's rows are contiguous: take them all, removed sides first.
+    let end = i;
+    while (end < rows.length && (rows[end] as DiffRow).changeIndex === row.changeIndex) end++;
+    const span = rows.slice(i, end);
+    let first = true;
+    for (const r of span) {
+      if (r.left === undefined) continue;
+      out.push({ changeIndex: row.changeIndex, kind: 'removed', oldLine: r.left.lineNumber, text: r.left.text, first });
+      first = false;
+    }
+    for (const r of span) {
+      if (r.right === undefined) continue;
+      out.push({ changeIndex: row.changeIndex, kind: 'added', newLine: r.right.lineNumber, text: r.right.text, first });
+      first = false;
+    }
+    i = end;
+  }
+  return out;
+}
+
 /** `N differences, M included` — the counter IntelliJ shows in the diff header. */
 export function includedLabel(total: number, included: number, showIncluded: boolean): string {
   const diffs = `${total} ${total === 1 ? 'difference' : 'differences'}`;

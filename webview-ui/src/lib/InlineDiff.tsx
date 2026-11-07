@@ -11,7 +11,7 @@
  */
 import { useMemo } from 'react';
 import type { LineChangeDto } from '../../../src/shared/protocol';
-import { buildDiffRows, includedLabel, type DiffRow } from './diffRows';
+import { buildDiffRows, includedLabel, unifiedRows, type DiffRow, type UnifiedRow } from './diffRows';
 import { TriCheckbox } from './TriCheckbox';
 import { VirtualList } from './VirtualList';
 
@@ -26,9 +26,19 @@ export interface InlineDiffProps {
   included?: ReadonlySet<number>;
   onToggleInclude?: (changeIndex: number, next: boolean) => void;
   rowHeight?: number;
+  /**
+   * `unified`: one column, a change's removed lines above its added ones —
+   * for a pane too narrow for two sides (the Commit window in the sidebar).
+   */
+  layout?: 'split' | 'unified';
 }
 
 const DEFAULT_ROW_HEIGHT = 18;
+
+function unifiedClass(row: UnifiedRow): string {
+  if (row.kind === 'context') return 'gt-diff-context';
+  return row.kind === 'removed' ? 'gt-diff-u-removed' : 'gt-diff-u-added';
+}
 
 function sideClass(row: DiffRow): string {
   if (row.changeIndex < 0) return 'gt-diff-context';
@@ -47,11 +57,13 @@ export function InlineDiff({
   included,
   onToggleInclude,
   rowHeight = DEFAULT_ROW_HEIGHT,
+  layout = 'split',
 }: InlineDiffProps) {
   const rows = useMemo(
     () => buildDiffRows(originalText, modifiedText, changes),
     [originalText, modifiedText, changes],
   );
+  const unified = useMemo(() => (layout === 'unified' ? unifiedRows(rows) : undefined), [layout, rows]);
   const counter = includedLabel(changes.length, included?.size ?? 0, included !== undefined);
   const headerHeight = 22;
   const listHeight = Math.max(rowHeight, height - headerHeight);
@@ -67,6 +79,53 @@ export function InlineDiff({
           {counter}
         </span>
       </div>
+      {unified !== undefined ? (
+        <VirtualList
+          rowCount={unified.length}
+          rowHeight={rowHeight}
+          height={listHeight}
+          ariaLabel={`Diff of ${rightLabel}, ${counter}`}
+          className="gt-diff-rows"
+          rowAriaLabel={(i) => {
+            const row = unified[i];
+            if (!row) return undefined;
+            if (row.changeIndex < 0) return `Unchanged line ${row.newLine ?? ''}`;
+            const state = included?.has(row.changeIndex) === true ? 'included' : 'not included';
+            const what = row.kind === 'removed' ? 'removed' : 'added';
+            return `Change ${row.changeIndex + 1}, ${what}${included !== undefined ? `, ${state}` : ''}`;
+          }}
+          renderRow={(i) => {
+            const row = unified[i];
+            if (!row) return null;
+            const showCheck = included !== undefined && row.first && row.changeIndex >= 0;
+            return (
+              <span className={`gt-diff-row gt-diff-unified ${unifiedClass(row)}`}>
+                <span
+                  className="gt-diff-gutter"
+                  onClick={
+                    showCheck
+                      ? (e) => {
+                          e.stopPropagation();
+                          onToggleInclude?.(row.changeIndex, included?.has(row.changeIndex) !== true);
+                        }
+                      : undefined
+                  }
+                  data-testid={showCheck ? `diff-include-${row.changeIndex}` : undefined}
+                >
+                  {showCheck ? (
+                    <TriCheckbox
+                      state={included?.has(row.changeIndex) === true ? 'checked' : 'unchecked'}
+                    />
+                  ) : null}
+                </span>
+                <span className="gt-diff-num">{row.oldLine ?? ''}</span>
+                <span className="gt-diff-num">{row.newLine ?? ''}</span>
+                <span className="gt-diff-text">{row.text}</span>
+              </span>
+            );
+          }}
+        />
+      ) : (
       <VirtualList
         rowCount={rows.length}
         rowHeight={rowHeight}
@@ -113,6 +172,7 @@ export function InlineDiff({
           );
         }}
       />
+      )}
     </div>
   );
 }

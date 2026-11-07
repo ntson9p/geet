@@ -3640,7 +3640,8 @@
           "type": "webview",
           "name": "%gittree.view.commit.name%",
           "contextualTitle": "GitTree",
-          "icon": "$(check-all)"
+          "icon": "$(check-all)",
+          "initialSize": 3
         },
         {
           "id": "gittree.repositories",
@@ -3655,7 +3656,8 @@
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
           "icon": "$(repo)",
-          "type": "webview"
+          "type": "webview",
+          "initialSize": 2
         },
         {
           "id": "gittree.branchesTree",

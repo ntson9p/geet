@@ -113,6 +113,9 @@ interface PendingRegroup {
  */
 const INTENT_TIMEOUT_MS = 10 * 60_000;
 
+/** Below this width the preview diff is one column: two sides would each get a few characters. */
+const UNIFIED_BELOW_PX = 640;
+
 const EMPTY: CommitStateDto = {
   repos: [],
   targets: [],
@@ -797,6 +800,9 @@ export function App() {
         leftLabel={diffSide === 'unstaged' ? 'Staged' : 'HEAD'}
         rightLabel={diffSide === 'staged' ? `${selectedFile.relPath} (staged)` : selectedFile.relPath}
         height={Math.max(0, diffSize.height)}
+        // Two sides in a sidebar cut both to a few characters (POST-QA): below
+        // this width the preview is one column, as IntelliJ's unified viewer.
+        layout={diffSize.width > 0 && diffSize.width < UNIFIED_BELOW_PX ? 'unified' : 'split'}
         // With staging there is nothing to tick: a change is in the commit by
         // being staged (the diff editor's Stage hunk lens), not by a checkbox.
         {...(state.paradigm === 'staging' ? {} : { included: includedSet, onToggleInclude })}

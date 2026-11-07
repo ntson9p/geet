@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyLineChanges } from '../../../src/core/patch/patchBuilder';
 import type { LineChangeDto } from '../../../src/shared/protocol';
-import { buildDiffRows, includedLabel, type DiffRow } from '../../../webview-ui/src/lib/diffRows';
+import { buildDiffRows, includedLabel, unifiedRows, type DiffRow } from '../../../webview-ui/src/lib/diffRows';
 
 /** `left|right` per row, `.` for an absent side — readable alignment assertions. */
 function render(rows: readonly DiffRow[]): string[] {
@@ -106,5 +106,51 @@ describe('includedLabel', () => {
     expect(includedLabel(2, 0, true)).toBe('2 differences, 0 included');
     expect(includedLabel(1, 1, true)).toBe('1 difference, 1 included');
     expect(includedLabel(2, 0, false)).toBe('2 differences');
+  });
+});
+
+describe('unifiedRows (POST-QA: the preview in a narrow sidebar)', () => {
+  /** `kind old new text`, `#i*` on a change's first row. */
+  const flat = (rows: ReturnType<typeof unifiedRows>): string[] =>
+    rows.map(
+      (r) =>
+        `${r.kind[0]} ${r.oldLine ?? '.'} ${r.newLine ?? '.'} ${r.text}${r.changeIndex >= 0 ? ` #${r.changeIndex}${r.first ? '*' : ''}` : ''}`,
+    );
+
+  it('puts a modification’s removed lines above its added ones, one checkbox for both', () => {
+    const changes: LineChangeDto[] = [
+      { originalStartLineNumber: 2, originalEndLineNumber: 3, modifiedStartLineNumber: 2, modifiedEndLineNumber: 3 },
+    ];
+    expect(flat(unifiedRows(buildDiffRows('a\nb\nc\nd\n', 'a\nB\nC\nd\n', changes)))).toEqual([
+      'c 1 1 a',
+      'r 2 . b #0*',
+      'r 3 . c #0',
+      'a . 2 B #0',
+      'a . 3 C #0',
+      'c 4 4 d',
+    ]);
+  });
+
+  it('keeps insertions and deletions in place, each change its own', () => {
+    const changes: LineChangeDto[] = [
+      { originalStartLineNumber: 1, originalEndLineNumber: 0, modifiedStartLineNumber: 2, modifiedEndLineNumber: 2 },
+      { originalStartLineNumber: 3, originalEndLineNumber: 3, modifiedStartLineNumber: 3, modifiedEndLineNumber: 0 },
+    ];
+    expect(flat(unifiedRows(buildDiffRows('a\nb\nc\n', 'a\nNEW\nb\n', changes)))).toEqual([
+      'c 1 1 a',
+      'a . 2 NEW #0*',
+      'c 2 3 b',
+      'r 3 . c #1*',
+    ]);
+  });
+
+  it('holds every line of both sides, no more', () => {
+    const changes: LineChangeDto[] = [
+      { originalStartLineNumber: 2, originalEndLineNumber: 2, modifiedStartLineNumber: 2, modifiedEndLineNumber: 4 },
+    ];
+    const rows = unifiedRows(buildDiffRows('a\nb\nc\n', 'a\nB1\nB2\nB3\nc\n', changes));
+    expect(rows.filter((r) => r.kind !== 'added').map((r) => r.oldLine)).toEqual([1, 2, 3]);
+    expect(rows.filter((r) => r.kind !== 'removed').map((r) => r.newLine)).toEqual([1, 2, 3, 4, 5]);
+    expect(rows.filter((r) => r.first)).toHaveLength(1);
   });
 });

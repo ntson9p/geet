@@ -920,6 +920,19 @@ button {
   background: var(--vscode-diffEditor-insertedTextBackground, transparent);
 }
 
+/* Unified: one text column after both line numbers (POST-QA). */
+.gt-diff-unified .gt-diff-num {
+  flex-basis: 34px;
+}
+
+.gt-diff-u-removed .gt-diff-text {
+  background: var(--vscode-diffEditor-removedTextBackground, transparent);
+}
+
+.gt-diff-u-added .gt-diff-text {
+  background: var(--vscode-diffEditor-insertedTextBackground, transparent);
+}
+
 /* ---- Forced colors: state must survive the system palette ---- */
 @media (forced-colors: active) {
   .gt-tricheck-checked,

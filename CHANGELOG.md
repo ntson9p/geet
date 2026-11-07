@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Commit window has room for its changes
+
+- **The preview diff is one column in a narrow sidebar,** a change's removed lines above its
+  added ones, as IntelliJ's unified viewer shows them. Side by side, a 350px sidebar cut both
+  sides to `import {…`. Wider than 640px, it is still side by side.
+- **The Commit view starts with more of the sidebar than the Repositories view,** three
+  parts to two. Shared half and half, at 1444×818 the change tree showed three rows under
+  the message box. A layout you have already set is kept.
+
 ### Fixed — the Console: its filter box shows, and each command says where it ran
 
 - **The Console's filter box is whole again.** At the panel's default height its row was
