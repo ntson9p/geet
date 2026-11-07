@@ -133,7 +133,8 @@ export const mockCommitHostScript = `
     author: '',
     authorSuggestions: ['Ada Lovelace <ada@example.com>', 'Đặng Trần Côn <dtc@example.jp>'],
     signoff: false,
-    checks: { reformat: false, optimizeImports: false, cleanup: false, analyze: true, todo: true },
+    // Every check starts unticked (D38), as package.json says.
+    checks: { reformat: false, optimizeImports: false, cleanup: false, analyze: false, todo: false },
     analyzeSeverity: 'error',
     todoPattern: '\\\\b(TODO|FIXME)\\\\b',
     cleanupKind: 'source.fixAll',

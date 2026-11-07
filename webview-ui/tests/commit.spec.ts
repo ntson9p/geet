@@ -733,12 +733,42 @@ test.describe('P11-T5 commit options gear popup', () => {
       .toBe(true);
   });
 
+  test('every check starts unticked, and the fields beside them greyed', async ({ page }) => {
+    // POST-P14bg (D38): IntelliJ ticks Analyze code and Check TODO; GitTree ticks none.
+    await openOptions(page);
+    for (const id of ['reformat', 'optimizeImports', 'cleanup', 'analyze', 'todo']) {
+      await expect(page.getByTestId(`opt-${id}`), id).not.toBeChecked();
+    }
+    await expect(page.getByTestId('opt-cleanup-kind')).toBeDisabled();
+    await expect(page.getByTestId('opt-analyze-severity')).toBeDisabled();
+    await expect(page.getByTestId('opt-todo-pattern')).toBeDisabled();
+    // Whether ticked checks run before or after the commit is not a check.
+    await expect(page.getByTestId('opt-defer')).toBeChecked();
+  });
+
+  test('ticking Check TODO posts it and frees its pattern', async ({ page }) => {
+    await openOptions(page);
+    await page.getByTestId('opt-todo').click();
+    await expect(page.getByTestId('opt-todo')).toBeChecked();
+    await expect(page.getByTestId('opt-todo-pattern')).toBeEnabled();
+    await expect
+      .poll(async () =>
+        (await setOptions(page)).some((m) => {
+          const o = m.params?.['option'] as { kind?: string; id?: string; value?: boolean } | undefined;
+          return o?.kind === 'check' && o.id === 'todo' && o.value === true;
+        }),
+      )
+      .toBe(true);
+  });
+
   test('severity and profile controls follow their check toggles', async ({ page }) => {
     await openOptions(page);
-    // Analyze is on by default → severity enabled; cleanup off → profile disabled.
-    await expect(page.getByTestId('opt-analyze-severity')).toBeEnabled();
+    // Analyze and cleanup start off → severity and profile disabled.
+    await expect(page.getByTestId('opt-analyze-severity')).toBeDisabled();
     await expect(page.getByTestId('opt-cleanup-kind')).toBeDisabled();
 
+    await page.getByTestId('opt-analyze').click();
+    await expect(page.getByTestId('opt-analyze-severity')).toBeEnabled();
     await page.getByTestId('opt-analyze-severity').selectOption('warning');
     await expect
       .poll(async () =>

@@ -453,8 +453,8 @@ row in the branches tree.
 | Reformat code (changed lines only) | `checks.reformat` | ✅ |
 | Optimize imports | `checks.optimizeImports` | ✅ |
 | Cleanup (plus **Choose profile**) | `checks.cleanup` | 🟡 no profiles |
-| Analyze code (plus **Choose profile**) | `checks.analyze` | 🟡 no profiles |
-| Check TODO (plus **Configure** filter) | `checks.todo` plus pattern | ✅ |
+| Analyze code (plus **Choose profile**) | `checks.analyze`, unticked by default (**D38**) | 🟡 no profiles |
+| Check TODO (plus **Configure** filter) | `checks.todo` plus pattern, unticked by default (**D38**) | ✅ |
 | **Rearrange code** | — | ❌ |
 | **Update copyright** | — | ❌ |
 | **Check malicious dependencies** | — | ❌ |

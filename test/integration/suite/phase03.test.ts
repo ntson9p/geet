@@ -202,6 +202,10 @@ suite('P3 commit lifecycle', () => {
     await vscode.workspace
       .getConfiguration('gittree.commit.checks')
       .update('deferAdvanced', false, vscode.ConfigurationTarget.Workspace);
+    // POST-P14bg: Analyze code starts unticked (D38); this test ticks it.
+    await vscode.workspace
+      .getConfiguration('gittree.commit.checks')
+      .update('analyze', true, vscode.ConfigurationTarget.Workspace);
     // Seed a diagnostic OURSELVES — deterministic, no language server needed.
     const uri = vscode.Uri.file(path.join(fsRoot, 'src', 'code.ts'));
     write('src/code.ts', 'export const one = 1; // diagnostic target\n');
@@ -248,6 +252,9 @@ suite('P3 commit lifecycle', () => {
     await vscode.workspace
       .getConfiguration('gittree.commit.checks')
       .update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
+    await vscode.workspace
+      .getConfiguration('gittree.commit.checks')
+      .update('analyze', undefined, vscode.ConfigurationTarget.Workspace);
   });
 
   test('T7: TODO check flags only newly added markers', async function () {

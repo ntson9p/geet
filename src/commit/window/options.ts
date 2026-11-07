@@ -16,6 +16,7 @@ import {
   type CommitOptionChangeDto,
   type CommitOptionsDto,
 } from '../../shared/protocol';
+import { CHECK_DEFAULTS } from '../checks/checkDefaults';
 import type { CheckPipeline } from '../checks/pipeline';
 
 const AUTHOR_KEY_PREFIX = 'gittree.commit.author.';
@@ -84,11 +85,11 @@ export async function readOptions(
     authorSuggestions: await authorSuggestions(repo),
     signoff: store.isSignoffEnabled(),
     checks: {
-      reformat: checks.get<boolean>('reformat', false),
-      optimizeImports: checks.get<boolean>('optimizeImports', false),
-      cleanup: checks.get<boolean>('cleanup', false),
-      analyze: checks.get<boolean>('analyze', true),
-      todo: checks.get<boolean>('todo', true),
+      reformat: checks.get<boolean>('reformat', CHECK_DEFAULTS.reformat),
+      optimizeImports: checks.get<boolean>('optimizeImports', CHECK_DEFAULTS.optimizeImports),
+      cleanup: checks.get<boolean>('cleanup', CHECK_DEFAULTS.cleanup),
+      analyze: checks.get<boolean>('analyze', CHECK_DEFAULTS.analyze),
+      todo: checks.get<boolean>('todo', CHECK_DEFAULTS.todo),
     },
     analyzeSeverity: checks.get<string>('analyzeSeverity', 'error') === 'warning' ? 'warning' : 'error',
     todoPattern: checks.get<string>('todoPattern', '\\b(TODO|FIXME)\\b'),

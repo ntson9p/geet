@@ -52,6 +52,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 | [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
+| [D38](#d38--every-commit-check-starts-unticked) | Every commit check starts unticked; IntelliJ ticks Analyze code and Check TODO | Deliberate (owner's request) |
 
 ---
 
@@ -1014,3 +1015,22 @@ under a list has; the repository row's own menu has New Changelist…, Shelve Ch
 Rollback… for that repository.
 
 **Revisitable:** yes — the default is IntelliJ's shape, and the other is one setting away.
+
+## D38 · Every commit check starts unticked
+
+**IntelliJ:** the commit options' **Analyze code** and **Check TODO** start ticked
+(`VcsConfiguration.CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT`, on except in PyCharm, RubyMine and
+CLion, and `CHECK_NEW_TODO = true`). Reformat code, Rearrange code, Optimize imports and Cleanup
+start unticked.
+**GitTree:** all five of its checks start unticked: `gittree.commit.checks.analyze` and
+`gittree.commit.checks.todo` default to `false`, as `reformat`, `optimizeImports` and `cleanup`
+already did. A commit runs no check until the user ticks one in the gear popup or Settings.
+
+**Run advanced checks after a commit is done** stays ticked, as in IntelliJ
+(`NON_MODAL_COMMIT_POSTPONE_SLOW_CHECKS = true`): it says when a ticked Analyze or TODO runs, and
+is no check itself.
+
+Why: the owner's request. Analyze code waits for the language servers' diagnostics to settle
+before it reports, and a check nobody asked for should not run on every commit.
+
+**Revisitable:** yes — two defaults in package.json and `src/commit/checks/checkDefaults.ts`.

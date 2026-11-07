@@ -325,7 +325,7 @@ Pre-commit: run source.fixAll code actions on committed files.
 
 Pre-commit: wait for diagnostics and warn when committed files have problems.
 
-- Type: `boolean` · Default: `true`
+- Type: `boolean` · Default: `false`
 
 ### `gittree.commit.checks.analyzeSeverity`
 
@@ -340,7 +340,7 @@ Diagnostic severity that triggers the analyze warning.
 
 Pre-commit: warn about TODO-like markers on newly added lines.
 
-- Type: `boolean` · Default: `true`
+- Type: `boolean` · Default: `false`
 
 ### `gittree.commit.checks.todoPattern`
 

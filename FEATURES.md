@@ -512,6 +512,9 @@ The `⚙` beside the action buttons opens the §2A popup inside the window:
   `[x] Run advanced checks after a commit is done` with the caption *"Failed checks will not
   prevent a commit"* — the IntelliJ default: Analyze/TODO run **after** the commit and report
   via notification; untick to restore pre-commit gating.
+* Every check starts **unticked**, Analyze code and Check TODO included, which IntelliJ ticks
+  ([D38](docs/deviations.md#d38--every-commit-check-starts-unticked)): a commit runs no check
+  until you tick one.
 
 ### Shelf (shape + behaviour)
 

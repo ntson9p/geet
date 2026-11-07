@@ -359,7 +359,7 @@
           },
           "gittree.commit.checks.analyze": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%gittree.config.commit.checks.analyze.description%"
           },
           "gittree.commit.checks.analyzeSeverity": {
@@ -373,7 +373,7 @@
           },
           "gittree.commit.checks.todo": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%gittree.config.commit.checks.todo.description%"
           },
           "gittree.commit.checks.todoPattern": {

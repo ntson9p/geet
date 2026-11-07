@@ -6,6 +6,14 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — no commit check is ticked until you tick it
+
+**Analyze code** and **Check TODO**, in the Commit window's options (the gear beside Commit),
+now start unticked, like Reformat code, Optimize imports and Cleanup. IntelliJ ticks those two;
+GitTree no longer does, so a commit runs no check you did not ask for. A check you ticked
+yourself, here or in Settings, stays ticked. *Run advanced checks after a commit is done* is
+still ticked.
+
 ### Added — Add to VCS and Move to Another Changelist… for a repository's or a folder's new files
 
 In the Commit window, right-clicking **Unversioned Files**, a repository's row under it, or the
