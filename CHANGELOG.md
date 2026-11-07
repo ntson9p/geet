@@ -6,6 +6,12 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — Undo Commit is offered for the last commit only
+
+- **The log greys out Undo Commit on any commit but HEAD,** as IntelliJ does. It was offered
+  on every commit and then refused with *only applies to the latest commit*. The palette's
+  Undo Commit still undoes HEAD.
+
 ### Fixed — Local History brings deletions back; Reset… opens on HEAD
 
 - **Restoring a snapshot deletes again what was deleted then.** A snapshot recorded the files

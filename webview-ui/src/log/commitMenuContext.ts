@@ -13,6 +13,10 @@
  *   Commits` and `Squash Commits…` take the plural places.
  * - `gittree.mergeSelected`: one of them is a merge, which IntelliJ will not
  *   revert, drop or squash.
+ * - `gittree.notHead`: the one commit is not HEAD. IntelliJ's `Undo Commit…`
+ *   stays in the menu, greyed out, for any commit but the branch's last
+ *   (POST-QA: it was offered, then refused). Negated in `enablement`, so the
+ *   palette, where no row says anything, keeps it.
  *
  * Built from the selection as it stood before the right-click, because VS Code
  * reads this attribute in the same event. Pure.
@@ -20,6 +24,14 @@
 export interface MenuRow {
   readonly sha: string;
   readonly parents: readonly string[];
+  /** The row's ref chips: HEAD is a bare `head` chip, or the branch it points at. */
+  readonly refs?: readonly { readonly type: string; readonly isHeadTarget?: boolean }[];
+}
+
+/** Whether the row is HEAD; unknown without its refs. */
+function isHeadRow(row: MenuRow): boolean | undefined {
+  if (row.refs === undefined) return undefined;
+  return row.refs.some((r) => r.type === 'head' || r.isHeadTarget === true);
 }
 
 export function commitMenuContext(
@@ -37,6 +49,7 @@ export function commitMenuContext(
     'gittree.commitCount': shas.length,
     ...(shas.length > 1 ? { 'gittree.multiCommit': true } : {}),
     ...(merge ? { 'gittree.mergeSelected': true } : {}),
+    ...(shas.length === 1 && isHeadRow(row) === false ? { 'gittree.notHead': true } : {}),
     preventDefaultContextMenuItems: true,
   };
 }

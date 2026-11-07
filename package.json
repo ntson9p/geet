@@ -1307,7 +1307,8 @@
       {
         "command": "gittree.commit.undo",
         "title": "%gittree.command.commit.undo.title%",
-        "category": "GitTree"
+        "category": "GitTree",
+        "enablement": "!gittree.notHead"
       },
       {
         "command": "gittree.commit.drop",

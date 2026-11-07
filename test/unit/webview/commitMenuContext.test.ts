@@ -44,4 +44,20 @@ describe("commitMenuContext (what VS Code's menu reads off a commit row)", () =>
   it('counts two for Compare Versions', () => {
     expect(commitMenuContext(ROWS.get('a')!, ['a', 'c'], rowOf)['gittree.commitCount']).toBe(2);
   });
+
+  it('says when the one commit is not HEAD, for Undo Commit greyed out (POST-QA)', () => {
+    const at = (refs: MenuRow['refs']): MenuRow => ({ sha: 'h', parents: ['p'], refs });
+    const notHead = (r: MenuRow, sel: string[] = [r.sha]): unknown =>
+      commitMenuContext(r, sel, rowOf)['gittree.notHead'];
+    // HEAD on a branch, and a detached HEAD.
+    expect(notHead(at([{ type: 'branch', isHeadTarget: true }]))).toBeUndefined();
+    expect(notHead(at([{ type: 'head' }, { type: 'tag' }]))).toBeUndefined();
+    // Any other commit, refs or none.
+    expect(notHead(at([{ type: 'branch' }, { type: 'remote-branch' }]))).toBe(true);
+    expect(notHead(at([]))).toBe(true);
+    // Several commits: Undo Commit is not in that menu at all.
+    expect(notHead(at([]), ['h', 'a'])).toBeUndefined();
+    // A row that does not say: left enabled, the command checks HEAD itself.
+    expect(notHead(ROWS.get('a')!)).toBeUndefined();
+  });
 });

@@ -99,6 +99,13 @@ describe('the log commit menu (IntelliJ’s Vcs.Log.ContextMenu)', () => {
     expect(menuFor({ 'gittree.commitCount': 1 })).not.toContain('Compare Versions');
   });
 
+  it('greys Undo Commit on a commit that is not HEAD, as IntelliJ does (POST-QA)', () => {
+    expect(menuFor({ 'gittree.commitCount': 1, 'gittree.notHead': true })).toContain('Undo Commit (off)');
+    expect(menuFor({ 'gittree.commitCount': 1 })).toContain('Undo Commit');
+    // The palette, where no row says anything, keeps it.
+    expect(holds(enablementOf('gittree.commit.undo'), {})).toBe(true);
+  });
+
   it('greys Revert, Drop and Squash Commits when a merge is selected, as IntelliJ does', () => {
     const rows = menuFor({ 'gittree.commitCount': 2, 'gittree.multiCommit': true, 'gittree.mergeSelected': true });
     expect(rows).toContain('Revert Commits (off)');
