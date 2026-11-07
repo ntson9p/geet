@@ -75,7 +75,9 @@ export function ConsolePane({ rpc, onCopy }: ConsolePaneProps) {
   const visible = entries.filter(
     (e) =>
       filter.trim().length === 0 ||
-      `git ${e.argv.join(' ')} ${e.output}`.toLowerCase().includes(filter.trim().toLowerCase()),
+      `${e.repo !== undefined ? `[${e.repo}] ` : ''}git ${e.argv.join(' ')} ${e.output}`
+        .toLowerCase()
+        .includes(filter.trim().toLowerCase()),
   );
 
   return (
@@ -135,12 +137,17 @@ export function ConsolePane({ rpc, onCopy }: ConsolePaneProps) {
                       aria-hidden="true"
                     />
                   </button>
-                  <span className="gt-muted">{timeOf(e.ts)}</span>
+                  <span className="gt-muted gt-console-time">{timeOf(e.ts)}</span>
+                  {e.repo !== undefined ? (
+                    <span className="gt-muted gt-console-repo" title={`Ran in ${e.repo}`}>
+                      [{e.repo}]
+                    </span>
+                  ) : null}
                   <code className="gt-console-cmd">git {e.argv.join(' ')}</code>
                   <span className={`gt-console-exit${failed ? ' gt-console-exit-bad' : ''}`}>
                     → {e.exitCode}
                   </span>
-                  <span className="gt-muted">{e.durationMs}ms</span>
+                  <span className="gt-muted gt-console-time">{e.durationMs}ms</span>
                   <ToolbarButton
                     icon="copy"
                     label="Copy command"

@@ -696,6 +696,10 @@ button {
   flex-wrap: nowrap;
   min-width: 0;
   overflow: hidden;
+  /* overflow: hidden drops a flex item's automatic minimum size, so in a
+     column a strip shrank under its content — the Console's filter box ended
+     half under the tab strip (POST-QA). Its own height is the floor. */
+  min-height: min-content;
 }
 
 .gt-dropdown {

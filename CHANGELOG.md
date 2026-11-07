@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Console: its filter box shows, and each command says where it ran
+
+- **The Console's filter box is whole again.** At the panel's default height its row was
+  squeezed to a third of its height, and the box sat half under the tab strip. No toolbar row
+  is squeezed under its content any more.
+- **With several repositories open, each command names its repository,** `[app] git status`,
+  as IntelliJ's console does. The filter finds it by that name too. Times and durations no
+  longer wrap in a narrow panel.
+
 ### Fixed — menus name IntelliJ's keys only when they are bound
 
 - **The Branches popup, the VCS Operations Popup and the Repositories panel's ⋯ menu name

@@ -9,6 +9,7 @@ import {
   type CommandRun,
   redactArgv,
   redactText,
+  withRepoNames,
 } from '../../../src/core/git/commandLog';
 
 function run(partial: Partial<CommandRun>): CommandRun {
@@ -127,6 +128,34 @@ describe('commandLog (P12-T8)', () => {
       expect(log.entriesAfter(0)).toHaveLength(0);
       expect(fired).toBe(6); // 5 pushes + 1 clear
       sub.dispose();
+      log.dispose();
+    });
+  });
+
+  describe('the repository a command ran for (POST-QA)', () => {
+    it('is kept with the entry', () => {
+      const log = new CommandLog();
+      log.push(run({ repo: 'C:/work/app' }));
+      log.push(run({}));
+      expect(log.entries().map((e) => e.repo)).toEqual(['C:/work/app', undefined]);
+      log.dispose();
+    });
+
+    it('is named as the Console names it, and dropped where there is no name', () => {
+      const log = new CommandLog();
+      log.push(run({ repo: 'C:/work/app', argv: ['status'] }));
+      log.push(run({ repo: 'C:/elsewhere', argv: ['rev-parse', '--show-toplevel'] }));
+      log.push(run({ argv: ['--version'] }));
+      const names = new Map([['C:/work/app', 'app']]);
+      const named = withRepoNames(log.entries(), (root) => names.get(root));
+      expect(named.map((e) => [e.argv[0], e.repo])).toEqual([
+        ['status', 'app'],
+        ['rev-parse', undefined],
+        ['--version', undefined],
+      ]);
+      expect('repo' in named[1]!).toBe(false);
+      // One repository open: nothing to tell apart, nothing named.
+      expect(withRepoNames(log.entries(), () => undefined).every((e) => e.repo === undefined)).toBe(true);
       log.dispose();
     });
   });

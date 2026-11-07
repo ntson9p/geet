@@ -17,6 +17,8 @@ export interface CommandRun {
   durationMs: number;
   stdout: string;
   stderr: string;
+  /** The repository root it ran for. */
+  repo?: string;
 }
 
 export interface CommandLogEntry {
@@ -27,6 +29,8 @@ export interface CommandLogEntry {
   durationMs: number;
   /** Redacted stderr+stdout head. */
   output: string;
+  /** The repository root it ran for (POST-QA: the Console names it, as IntelliJ's `[root]`). */
+  repo?: string;
 }
 
 const OUTPUT_HEAD = 2000;
@@ -53,6 +57,23 @@ export function redactArgv(argv: readonly string[]): string[] {
   });
 }
 
+/**
+ * Entries as the Console shows them: each one's repository by name, as
+ * IntelliJ's console says `[root] git …` (POST-QA), where `nameOf` knows it —
+ * with one repository open it names none, there being nothing to tell apart.
+ */
+export function withRepoNames(
+  entries: readonly CommandLogEntry[],
+  nameOf: (root: string) => string | undefined,
+): CommandLogEntry[] {
+  return entries.map((e) => {
+    if (e.repo === undefined) return e;
+    const { repo, ...rest } = e;
+    const name = nameOf(repo);
+    return name !== undefined ? { ...rest, repo: name } : rest;
+  });
+}
+
 export class CommandLog {
   private readonly buffer: CommandLogEntry[] = [];
   private seq = 0;
@@ -70,6 +91,7 @@ export class CommandLog {
       exitCode: run.exitCode,
       durationMs: run.durationMs,
       output: redactText(head.slice(0, OUTPUT_HEAD)),
+      ...(run.repo !== undefined ? { repo: run.repo } : {}),
     };
     this.buffer.push(entry);
     if (this.buffer.length > this.limit) {

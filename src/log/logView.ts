@@ -13,6 +13,7 @@ import { parseDecorations } from '../core/git/parsers/logFormat';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoRelative } from '../core/util/paths';
 import { repoLabels } from '../core/util/repoLabels';
+import { withRepoNames } from '../core/git/commandLog';
 import {
   DEFAULT_LOG_PRESENTATION,
   LOG_METHODS,
@@ -540,11 +541,18 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     // gits) cost one repaint, not one per command.
     rpc.on(LOG_METHODS.consoleEntries, (params) => {
       const { afterSeq } = params as { afterSeq?: number };
+      const roots = this.core.repos.map((r) => r.root);
+      const labels = repoLabels(roots);
+      const names = new Map(roots.map((r) => [canonicalKey(r), labels.get(r) ?? path.basename(r)]));
+      const nameOf = (root: string): string | undefined =>
+        roots.length > 1 ? names.get(canonicalKey(root)) : undefined;
       return {
-        entries:
+        entries: withRepoNames(
           afterSeq !== undefined
             ? this.core.commandLog.entriesAfter(afterSeq)
-            : [...this.core.commandLog.entries()],
+            : this.core.commandLog.entries(),
+          nameOf,
+        ),
       };
     });
     rpc.on(LOG_METHODS.consoleClear, () => {

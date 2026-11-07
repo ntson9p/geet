@@ -278,6 +278,20 @@
   white-space: nowrap;
 }
 
+/* POST-QA: the time, the duration and the repository stay on one line — the
+   time wrapped to two in a narrow panel. */
+.gt-console-time,
+.gt-console-repo {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.gt-console-repo {
+  max-width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .gt-console-exit-bad {
   color: var(--vscode-errorForeground);
   font-weight: 600;

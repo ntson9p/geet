@@ -1347,6 +1347,8 @@ export interface LogConsoleEntryDto {
   exitCode: number;
   durationMs: number;
   output: string;
+  /** The repository's name, with several open — IntelliJ's console says `[root] git …`. */
+  repo?: string;
 }
 
 // ---------------------------------------------------------------------------

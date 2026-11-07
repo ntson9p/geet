@@ -76,6 +76,8 @@ export interface ExecutorInit {
     durationMs: number;
     stdout: string;
     stderr: string;
+    /** The repository it ran for — the Console names it when there are several. */
+    repo: RepoId;
   }) => void;
   /** Extra env merged into every spawn — askpass bridge vars (P0-T8). */
   baseEnv?: () => Record<string, string>;
@@ -127,6 +129,7 @@ export class GitExecutorImpl implements GitExecutor {
   }
 
   private traceRun(
+    repo: RepoId,
     args: string[],
     startedAt: number,
     exitCode: number,
@@ -145,6 +148,7 @@ export class GitExecutorImpl implements GitExecutor {
       durationMs: ms,
       stdout: output.stdout,
       stderr: output.stderr,
+      repo,
     });
   }
 
@@ -184,7 +188,7 @@ export class GitExecutorImpl implements GitExecutor {
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
         exitCode,
       };
-      this.traceRun(args, startedAt, exitCode, cancelled ? 'cancelled' : '', {
+      this.traceRun(repo, args, startedAt, exitCode, cancelled ? 'cancelled' : '', {
         stdout: result.stdout,
         stderr: result.stderr,
       });
@@ -239,7 +243,7 @@ export class GitExecutorImpl implements GitExecutor {
       }
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
       const code = exitCode ?? -1;
-      this.traceRun(args, startedAt, code, cancelled ? 'cancelled (stream)' : 'stream', {
+      this.traceRun(repo, args, startedAt, code, cancelled ? 'cancelled (stream)' : 'stream', {
         stdout: '',
         stderr,
       });
