@@ -1195,6 +1195,7 @@ export function LogTab({
             selectedCount={selected.length}
             loading={detailsLoading}
             issue={init.issue}
+            dateFormat={presentation.dateFormat}
             onCopy={(text: string) => void rpc.request(LOG_METHODS.copy, { text })}
             onGoTo={(sha: string) => void send(LOG_METHODS.goTo, { sha })}
             fetchContained={async (sha: string) => {

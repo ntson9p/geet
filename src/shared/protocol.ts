@@ -239,6 +239,8 @@ export interface CommitStateDto {
   colors?: Record<string, string>;
   /** `gittree.log.graphPalette`, which the repositories' colours follow, as the log's do. */
   palette?: 'default' | 'colorBlind';
+  /** `gittree.log.dateFormat`: stash, shelf and message-history dates past a day are written as the log writes them. */
+  dateFormat?: LogDateFormat;
   /** `gittree.commit.groupBy`: what the tree puts at the top when there are several repositories. */
   groupBy?: CommitGroupBy;
   /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */

@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — one way of writing dates
+
+- **Commit Details writes the date the way the Date column does.** It read
+  `11/7/2026 at 09:27 PM` under a column reading `2026/11/07 21:27`. It now follows
+  `gittree.log.dateFormat` like the column: *on 2026/11/07 at 21:27*, or the locale's own
+  with `locale`.
+- **Stashes, shelves and the message history give dates the same way.** Past a day they showed
+  the locale's `11/5/2026`. They now write `2026/11/05`, or follow the locale as the log does.
+
 ### Changed — `gittree.log.sort` is deprecated
 
 - **`gittree.log.sort` had no effect, and now says so.** Each Log tab keeps its own sort,

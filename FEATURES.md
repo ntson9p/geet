@@ -904,7 +904,8 @@ greys Revert, Drop and Squash Commits.
 ### Git stash (shape + behaviour)
 
 * **Shape:** the **`Stash` tab of the Commit tool window** (`Commit | Shelf | Stash`), where
-  IntelliJ keeps it — one row per entry (`stash@{N} · message`, relative time, origin branch),
+  IntelliJ keeps it — one row per entry (`stash@{N} · message`, its age within the day and
+  its date after it, written as the log writes dates, origin branch),
   expanding to its files, each opening a real diff against the working tree. Files are read on
   expand, because `git stash show` costs a run per stash. Actions carry the stash **sha**, not
   `stash@{N}`, so a row acted on after the list shifted cannot hit a different stash.

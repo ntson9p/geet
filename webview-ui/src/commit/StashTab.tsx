@@ -21,6 +21,7 @@ import {
   type CommitStashEntryDto,
   type CommitStashFileDto,
   type CommitStashStateDto,
+  type LogDateFormat,
 } from '../../../src/shared/protocol';
 import { FileTree } from '../lib/FileTree';
 import type { RpcClient } from '../lib/rpc';
@@ -49,11 +50,13 @@ export interface StashTabProps {
   colors?: StatusColorOverrides;
   /** Rendered inside the Shelf tab when `combineWithShelf` is on. */
   embedded?: boolean;
+  /** `gittree.log.dateFormat`: an entry older than a day gives its date as the log does. */
+  dateFormat?: LogDateFormat | undefined;
 }
 
 export const EMPTY_STASH: CommitStashStateDto = { repos: [], combined: false };
 
-export function StashTab({ rpc, send, colors, embedded }: StashTabProps) {
+export function StashTab({ rpc, send, colors, embedded, dateFormat }: StashTabProps) {
   const [stash, setStash] = useState<CommitStashStateDto>(EMPTY_STASH);
   const [ready, setReady] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -162,7 +165,7 @@ export function StashTab({ rpc, send, colors, embedded }: StashTabProps) {
           ? ` · ${stash.repos.find((r) => r.root === ref.repoRoot)?.label ?? ''}`
           : '';
         const from = e.branch !== undefined ? ` · from ${e.branch}` : '';
-        return `${relativeTime(e.createdAt, Date.now())}${from}${repo}`;
+        return `${relativeTime(e.createdAt, Date.now(), dateFormat)}${from}${repo}`;
       }
       const file = files.get(`${ref.repoRoot}${SEP}${ref.entry.sha}`)?.find(
         (f) => f.relPath === ref.relPath,

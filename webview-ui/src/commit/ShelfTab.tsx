@@ -18,6 +18,7 @@ import {
   type CommitShelfActionParamsDto,
   type CommitShelfEntryDto,
   type CommitShelfStateDto,
+  type LogDateFormat,
 } from '../../../src/shared/protocol';
 import { FileTree } from '../lib/FileTree';
 import type { RpcClient } from '../lib/rpc';
@@ -42,11 +43,13 @@ export interface ShelfTabProps {
   send: (method: string, params?: unknown) => void;
   /** P11-T8: status color overrides from the commit state. */
   colors?: StatusColorOverrides;
+  /** `gittree.log.dateFormat`: an entry older than a day gives its date as the log does. */
+  dateFormat?: LogDateFormat | undefined;
 }
 
 const EMPTY: CommitShelfStateDto = { repos: [], showUnshelved: false };
 
-export function ShelfTab({ rpc, send, colors }: ShelfTabProps) {
+export function ShelfTab({ rpc, send, colors, dateFormat }: ShelfTabProps) {
   const [shelf, setShelf] = useState<CommitShelfStateDto>(EMPTY);
   const [ready, setReady] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -127,7 +130,7 @@ export function ShelfTab({ rpc, send, colors }: ShelfTabProps) {
           : '';
         const flags = `${e.unshelved ? ' · unshelved' : ''}${e.valid ? '' : ' · damaged'}`;
         const files = `${e.files.length} file${e.files.length === 1 ? '' : 's'}`;
-        return `${relativeTime(e.createdAt, Date.now())} · ${files} · from ${e.branch}${repo}${flags}`;
+        return `${relativeTime(e.createdAt, Date.now(), dateFormat)} · ${files} · from ${e.branch}${repo}${flags}`;
       }
       const file = ref.entry.files.find((f) => f.relPath === ref.relPath);
       if (!file) return undefined;

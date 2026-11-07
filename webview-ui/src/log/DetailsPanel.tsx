@@ -15,7 +15,8 @@
  * only the log can act on: copying, parents to go to, the branches holding it.
  */
 import { useEffect, useMemo, useState } from 'react';
-import type { CommitDetailsDto } from '../../../src/shared/protocol';
+import type { CommitDetailsDto, LogDateFormat } from '../../../src/shared/protocol';
+import { createDetailsDate, createLogDateFormat } from './dateFormat';
 import { ToolbarButton } from '../lib/Toolbar';
 import { linkifyBody, signatureLabel } from './linkify';
 
@@ -32,6 +33,8 @@ export interface DetailsPanelProps {
   onGoTo?: (sha: string) => void;
   /** Omitted: no `Contained in branches`. */
   fetchContained?: (sha: string) => Promise<string[]>;
+  /** The Date column's format, so the two agree; the Push dialog's own is `locale`. */
+  dateFormat?: LogDateFormat;
 }
 
 function chipType(ref: string): 'tag' | 'head' | 'branch' {
@@ -48,6 +51,7 @@ export function DetailsPanel({
   onCopy,
   onGoTo,
   fetchContained,
+  dateFormat = 'locale',
 }: DetailsPanelProps) {
   if (loading && details.length === 0) {
     return <div className="gt-pane-empty gt-muted">Loading…</div>;
@@ -63,6 +67,7 @@ export function DetailsPanel({
         onCopy={onCopy}
         onGoTo={onGoTo}
         fetchContained={fetchContained}
+        dateFormat={dateFormat}
       />
     );
   }
@@ -77,6 +82,7 @@ export function DetailsPanel({
             onCopy={onCopy}
             onGoTo={onGoTo}
             fetchContained={fetchContained}
+            dateFormat={dateFormat}
           />
         </div>
       ))}
@@ -98,10 +104,18 @@ interface CommitDetailsBlockProps {
   onCopy?: ((text: string) => void) | undefined;
   onGoTo?: ((sha: string) => void) | undefined;
   fetchContained?: ((sha: string) => Promise<string[]>) | undefined;
+  dateFormat: LogDateFormat;
 }
 
 /** One commit's details. */
-function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: CommitDetailsBlockProps) {
+function CommitDetailsBlock({
+  details,
+  issue,
+  onCopy,
+  onGoTo,
+  fetchContained,
+  dateFormat,
+}: CommitDetailsBlockProps) {
   const [contained, setContained] = useState<string[] | undefined>(undefined);
   const [containedLoading, setContainedLoading] = useState(false);
 
@@ -114,7 +128,11 @@ function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: 
   const segments = useMemo(() => linkifyBody(details.body, issue), [details, issue]);
 
   const subject = details.body.split('\n', 1)[0] ?? '';
-  const date = new Date(details.authorTime * 1000);
+  const authored = useMemo(() => createDetailsDate(dateFormat)(details.authorTime), [dateFormat, details.authorTime]);
+  const committedAt = useMemo(
+    () => createLogDateFormat(dateFormat)(details.committerTime),
+    [dateFormat, details.committerTime],
+  );
   const signature = signatureLabel(details.signature);
 
   return (
@@ -136,13 +154,11 @@ function CommitDetailsBlock({ details, issue, onCopy, onGoTo, fetchContained }: 
       </div>
       <div className="gt-details-meta">
         <div className="gt-muted">
-          {details.authorEmail} on {date.toLocaleDateString()} at{' '}
-          {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {details.authorEmail} on {authored.date} at {authored.time}
         </div>
         {details.committerName !== details.authorName ? (
           <div className="gt-muted" data-testid="details-committer">
-            committed by {details.committerName} ·{' '}
-            {new Date(details.committerTime * 1000).toLocaleString()}
+            committed by {details.committerName} · {committedAt}
           </div>
         ) : null}
         {signature !== undefined ? (

@@ -142,6 +142,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
         if (
           e.affectsConfiguration('gittree.colors') ||
           e.affectsConfiguration('gittree.log.graphPalette') ||
+          e.affectsConfiguration('gittree.log.dateFormat') ||
           e.affectsConfiguration('gittree.commit.groupBy')
         ) {
           this.push();
@@ -310,6 +311,10 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
           ? 'colorBlind'
           : 'default',
       groupBy: readCommitGroupBy(),
+      dateFormat:
+        vscode.workspace.getConfiguration('gittree.log').get<string>('dateFormat') === 'locale'
+          ? 'locale'
+          : 'YYYY/MM/DD HH:mm',
       ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
     };
   }

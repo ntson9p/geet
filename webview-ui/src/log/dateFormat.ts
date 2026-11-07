@@ -87,6 +87,41 @@ export function createLogDateFormat(
 }
 
 /**
+ * The Commit Details line's `on <date> at <time>`, in the Date column's format
+ * (POST-QA): it read `11/7/2026 at 09:27 PM` beside a column reading
+ * `2026/11/07 21:27`. IntelliJ writes both with the one date format.
+ */
+export function createDetailsDate(
+  format: LogDateFormat,
+  locale?: string,
+  timeZone?: string,
+): (unixSeconds: number) => { date: string; time: string } {
+  const zone = timeZone !== undefined ? { timeZone } : {};
+  const ymd = format !== 'locale';
+  const date = new Intl.DateTimeFormat(ymd ? 'en-US' : locale, {
+    year: 'numeric',
+    month: ymd ? '2-digit' : 'numeric',
+    day: ymd ? '2-digit' : 'numeric',
+    ...zone,
+  });
+  const time = new Intl.DateTimeFormat(ymd ? 'en-US' : locale, {
+    hour: ymd ? '2-digit' : 'numeric',
+    minute: '2-digit',
+    ...(ymd ? { hourCycle: 'h23' as const } : {}),
+    ...zone,
+  });
+  return (unixSeconds: number) => {
+    const at = new Date(unixSeconds * 1000);
+    if (!ymd) return { date: date.format(at), time: time.format(at) };
+    const d: Partial<Record<Intl.DateTimeFormatPartTypes, string>> = {};
+    for (const part of date.formatToParts(at)) d[part.type] = part.value;
+    const t: Partial<Record<Intl.DateTimeFormatPartTypes, string>> = {};
+    for (const part of time.formatToParts(at)) t[part.type] = part.value;
+    return { date: `${d.year}/${d.month}/${d.day}`, time: `${t.hour}:${t.minute}` };
+  };
+}
+
+/**
  * A `Date ▾` filter bound (`2026-10-31`, a calendar day with no time or zone)
  * written the way the Date column writes dates.
  */

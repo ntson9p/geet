@@ -658,7 +658,7 @@ export function App() {
                     kind: 'item' as const,
                     id: String(i),
                     label: firstLine(e.message),
-                    accelerator: relativeTime(e.ts, Date.now()),
+                    accelerator: relativeTime(e.ts, Date.now(), state.dateFormat),
                   })),
             messages: entries.map((e) => e.message),
           });
@@ -1021,15 +1021,17 @@ export function App() {
       </TabPanel>
 
       <TabPanel id="shelf" active={tab} className="gt-commit-panel">
-        <ShelfTab rpc={rpc} send={send} colors={state.colors} />
+        <ShelfTab rpc={rpc} send={send} colors={state.colors} dateFormat={state.dateFormat} />
         {/* `Combine stashes and shelves in one tab`: the stashes render under
             the shelves rather than in a tab of their own. */}
-        {combined ? <StashTab rpc={rpc} send={send} colors={state.colors} embedded /> : null}
+        {combined ? (
+          <StashTab rpc={rpc} send={send} colors={state.colors} dateFormat={state.dateFormat} embedded />
+        ) : null}
       </TabPanel>
 
       {combined ? null : (
         <TabPanel id="stash" active={tab} className="gt-commit-panel">
-          <StashTab rpc={rpc} send={send} colors={state.colors} />
+          <StashTab rpc={rpc} send={send} colors={state.colors} dateFormat={state.dateFormat} />
         </TabPanel>
       )}
 

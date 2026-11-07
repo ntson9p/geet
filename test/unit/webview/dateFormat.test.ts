@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createCommitDateFormat,
+  createDetailsDate,
   createLogDateFormat,
   formatFilterDay,
 } from '../../../webview-ui/src/log/dateFormat';
@@ -92,5 +93,25 @@ describe('formatFilterDay (the Date ▾ chip)', () => {
 
   it('leaves a day it cannot read as it is', () => {
     expect(formatFilterDay('last week', 'YYYY/MM/DD HH:mm')).toBe('last week');
+  });
+});
+
+describe('createDetailsDate — Commit Details agrees with the Date column (POST-QA)', () => {
+  it('splits the column’s YYYY/MM/DD HH:mm into “on <date> at <time>”', () => {
+    expect(createDetailsDate('YYYY/MM/DD HH:mm', undefined, 'UTC')(T)).toEqual({ date: '2026/09/21', time: '13:45' });
+    expect(createLogDateFormat('YYYY/MM/DD HH:mm', undefined, 'UTC')(T)).toBe('2026/09/21 13:45');
+  });
+
+  it('keeps the 24-hour clock past midnight, as the column does', () => {
+    const late = Math.floor(Date.parse('2026-01-02T00:05:00Z') / 1000);
+    expect(createDetailsDate('YYYY/MM/DD HH:mm', undefined, 'UTC')(late)).toEqual({ date: '2026/01/02', time: '00:05' });
+  });
+
+  it('follows the locale’s parts with `locale`, the same parts as the column', () => {
+    const early = Math.floor(Date.parse('2026-09-05T15:07:00Z') / 1000);
+    const parts = createDetailsDate('locale', 'en-US', 'UTC')(early);
+    expect(parts.date).toBe('9/5/2026');
+    expect(parts.time).toMatch(/^3:07\sPM$/u);
+    expect(createLogDateFormat('locale', 'en-US', 'UTC')(early)).toBe(`${parts.date} ${parts.time}`);
   });
 });
