@@ -121,6 +121,10 @@ current branch. *Where can I go:* the branches, under **Recent**, **Local**, **R
 **Tags** tabs, one list at a time. *What can I do:* a click opens a branch's card, with the
 actions its state calls for; right-click has the rest. See FEATURES and D34.
 
+With several repositories the first two are panes, **REPOSITORIES** and **BRANCHES**: each
+folds at its header and scrolls on its own, and the line between them is dragged to share the
+height. The REPOSITORIES header names the repositories you picked, even folded.
+
 Why it exists, when IntelliJ puts branches in the branch widget and the Git tool window:
 the status bar cannot be the way in. **Cursor has no status bar at all**, so the GitTree
 button does not exist there — and a VS Code user who has just installed the extension looks

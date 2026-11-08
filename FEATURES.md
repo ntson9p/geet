@@ -186,9 +186,24 @@ design, not the popup standing open (D34). It answers three questions, top to bo
 
 * **One repository:** the first row is the current branch — name, what it tracks, `↓ ↑`
   counts, changed files — and a click opens its card.
-* **Several repositories:** a **Repositories** section, one row per repository in the order
-  the user reads them, each with a coloured dot (its colour in the log's `Roots`), what it has
-  checked out, `↓ ↑` and changed files.
+* **Several repositories:** a **REPOSITORIES** pane, one row per repository in the order the
+  user reads them, each with a coloured dot (its colour in the log's `Roots`), what it has
+  checked out, `↓ ↑` and changed files. The branches are a **BRANCHES** pane under it (below).
+* **Two panes, as VS Code's own views are** (several repositories; one repository is one list).
+  - **Each pane folds at its header** (a click, `Enter` or `Space`; `←` folds, `→` opens) and
+    **scrolls on its own**, so twenty repositories no longer push the branches out of sight.
+    An open pane fills what the other leaves; a folded BRANCHES sits at the foot of the panel.
+  - **The divider between them is dragged** to share the height, and double-clicked to go back
+    to the automatic share: every repository while they take up to 40% of the panel, else 40%.
+    It stops at the last repository, at one repository's row, and at BRANCHES' tabs and two
+    rows. A press that never moves resizes nothing.
+  - **The REPOSITORIES header names the repositories picked**, each with its dot, folded or
+    not: folded is when the list cannot say it. In a narrow sidebar its *Show all* gives way
+    so the names keep their room.
+  - Folds and the dragged size are kept, the panel starting again as it was left. A search
+    opens a folded BRANCHES, where its matches are.
+  - The keyboard goes through the headers: `↓` from the last repository reaches the BRANCHES
+    header, `↓` again its tabs, `↑` goes back the same way; typing on a header filters.
 * Every repository row (and the current-branch row) has **Update Project…**, **Push…**,
   **Fetch** (that repository alone; it spins while it runs) and **`⋯`** on hover. Right-click
   or `⋯` gives the repository's menu.
@@ -235,7 +250,8 @@ picked; at first, on Recent while anything is recent, else Local.
   stands for and say so: *Checkout in 2 repositories*.
 * **Scope.** Clicking a repository shows only its branches; Ctrl+click adds or removes one. A
   pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
-  in the section header. The scope narrows what is shown *and* what the rows act on.
+  in the REPOSITORIES header, which names the repositories picked. The scope narrows what is
+  shown *and* what the rows act on.
 
 **What can I do with it?**
 

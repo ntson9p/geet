@@ -6,6 +6,27 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Repositories panel: REPOSITORIES and BRANCHES are panes
+
+- **The branches are a pane of their own.** With several repositories, the Repositories panel
+  was one list: the repositories, then the tabs and the branches, so twenty repositories pushed
+  the branches to the foot of the sidebar. They are now two panes, **REPOSITORIES** over
+  **BRANCHES**, headed as VS Code heads its views. Each folds at its header and scrolls on its
+  own. BRANCHES is what was there: Recent, Local, Remote and Tags, and the branches under them.
+- **The line between them is dragged** to share the height, and double-clicked to go back to
+  the automatic share: every repository while they take up to 40% of the panel, else 40%. It
+  stops at the last repository, at one repository's row, and at BRANCHES' tabs and two rows.
+- **The REPOSITORIES header names the repositories picked,** each with its dot, and keeps
+  naming them while the pane is folded. Nothing is named while every repository is shown. In a
+  narrow sidebar, *Show all* gives way to the names; the filter's pill still widens the panel.
+- Folds and the dragged size are kept across reloads. A search opens a folded BRANCHES, where
+  its matches are. On a header, `Enter`/`Space` fold and open, `←` folds, `→` opens, and the
+  arrows go on between a pane's header and its rows.
+- One repository is one list, as before: its current branch, then the tabs.
+- **Fixed on the way:** `Escape` in the panel's empty filter did not go back to the row it
+  had come from: asked for the row the list already kept, the list changed nothing and so never
+  moved the focus. It now focuses a row it has drawn at once.
+
 ### Fixed — the merge editor's toolbar has one magic wand
 
 - **Two magic wands stood in the merge editor's toolbar.** One resolves simple conflicts. The

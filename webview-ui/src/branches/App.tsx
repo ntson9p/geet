@@ -2,11 +2,15 @@
  * The Repositories panel (new-way-4; once titled Branches).
  *
  * Top to bottom: a toolbar (the filter, Fetch, New Branch, more); the New
- * Branch form while it is open; then one list — every repository with what it
- * has checked out (or, with one repository, its current branch), then tabs
- * over the branches: Recent (the starred and recently used), Local, Remote and
- * Tags, one kind at a time. The tabs stay at the top once the list scrolls
- * past them, and step aside while the filter searches every kind.
+ * Branch form while it is open; then, with several repositories, two panes
+ * (new-way-6): REPOSITORIES, every repository with what it has checked out,
+ * and BRANCHES, tabs over the branches — Recent (the starred and recently
+ * used), Local, Remote and Tags, one kind at a time. Each pane folds at its
+ * header and scrolls on its own, and the divider between them is dragged to
+ * share the height; the REPOSITORIES header names the repositories picked,
+ * folded or not. With one repository there is one list: its current branch,
+ * then the tabs. The tabs stay at the top once the list scrolls past them,
+ * and step aside while the filter searches every kind.
  *
  * **A click never changes anything.** Clicking a branch opens its card — the
  * last commit, where it stands against what it tracks and against what is
@@ -25,6 +29,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -63,6 +68,16 @@ import {
 } from './model';
 import { NewBranchForm, type NewBranchRequest } from './NewBranchForm';
 import { PanelList, type PanelListHandle } from './PanelList';
+import { PaneHeader, Sash } from './Panes';
+import {
+  PANE_HEADER,
+  paneLayout,
+  paneOpen,
+  selectedRepos,
+  selectionTitle,
+  withPane,
+  type PaneId,
+} from './paneLayout';
 import {
   BranchCard,
   BranchRow,
@@ -90,7 +105,12 @@ interface Persisted {
   readonly toggled?: readonly string[];
   /** The branch tab picked, kept until another is. */
   readonly tab?: BranchTab;
+  /** The REPOSITORIES pane's height the divider was dragged to; none: the automatic one. */
+  readonly reposSize?: number;
 }
+
+/** The two lists of the panes; with one repository, `branches` is the one list. */
+type ListId = 'repos' | 'branches';
 
 const TAB_ORDER: readonly BranchTab[] = ['recent', 'local', 'remote', 'tags'];
 
@@ -129,7 +149,17 @@ export function App() {
     saved.tab !== undefined && TAB_ORDER.includes(saved.tab) ? saved.tab : undefined,
   );
   const [openCard, setOpenCard] = useState<string | undefined>(undefined);
-  const [focusedId, setFocusedId] = useState<string | undefined>(undefined);
+  /** Each list's keyboard row, kept while the other list has the focus. */
+  const [repoFocusId, setRepoFocusId] = useState<string | undefined>(undefined);
+  const [branchFocusId, setBranchFocusId] = useState<string | undefined>(undefined);
+  /** The list the keyboard was in last: where Escape in the filter goes back to. */
+  const [lastList, setLastList] = useState<ListId | undefined>(undefined);
+  const [reposSize, setReposSize] = useState<number | undefined>(() =>
+    typeof saved.reposSize === 'number' && Number.isFinite(saved.reposSize) ? saved.reposSize : undefined,
+  );
+  /** The REPOSITORIES list's height while the divider is dragged; kept once it is let go. */
+  const [dragSize, setDragSize] = useState<number | undefined>(undefined);
+  const dragBase = useRef(0);
   const [details, setDetails] = useState<ReadonlyMap<string, BranchPanelDetailsDto>>(new Map());
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [form, setForm] = useState<NewBranchRequest | null>(null);
@@ -139,8 +169,13 @@ export function App() {
   const [fetching, trackFetch] = useBusy();
 
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const listRef = useRef<PanelListHandle | null>(null);
+  const reposListRef = useRef<PanelListHandle | null>(null);
+  /** The BRANCHES pane's list, or with one repository the one list. */
+  const branchesListRef = useRef<PanelListHandle | null>(null);
+  const reposHeaderRef = useRef<HTMLDivElement | null>(null);
+  const branchesHeaderRef = useRef<HTMLDivElement | null>(null);
   const [listHost, listSize] = useElementSize<HTMLDivElement>();
+  const [splitHost, splitSize] = useElementSize<HTMLDivElement>();
   const theme = useVsCodeTheme();
   const dark = theme === 'dark' || theme === 'high-contrast';
 
@@ -149,8 +184,9 @@ export function App() {
       scope: [...scope],
       toggled: [...toggled],
       ...(tab !== undefined ? { tab } : {}),
+      ...(reposSize !== undefined ? { reposSize } : {}),
     } satisfies Persisted);
-  }, [api, scope, tab, toggled]);
+  }, [api, reposSize, scope, tab, toggled]);
 
   const ui: PanelUiState = useMemo(
     () => ({
@@ -164,6 +200,17 @@ export function App() {
   );
   const model = useMemo(() => (state ? buildPanel(state, ui) : undefined), [state, ui]);
   const searching = query.trim().length > 0;
+  const reposOpen = paneOpen(toggled, 'repos');
+  const branchesOpen = paneOpen(toggled, 'branches');
+
+  const setPane = useCallback((pane: PaneId, open: boolean) => {
+    setToggled((prev) => withPane(prev, pane, open));
+  }, []);
+
+  // A search's matches are in BRANCHES: a folded one opens to show them.
+  useEffect(() => {
+    if (searching) setPane('branches', true);
+  }, [searching, setPane]);
 
   // The latest model, for handlers registered once.
   const modelRef = useRef(model);
@@ -508,7 +555,7 @@ export function App() {
    */
   const selectTab = useCallback((next: BranchTab) => {
     setTab(next);
-    listRef.current?.focusRow(TABS_ID);
+    branchesListRef.current?.focusRow(TABS_ID);
   }, []);
 
   const onQuick = useCallback(
@@ -536,9 +583,6 @@ export function App() {
   const activate = useCallback(
     (row: PanelRow, e?: { ctrlKey: boolean; metaKey: boolean; detail?: number }) => {
       switch (row.kind) {
-        case 'section':
-          if (!searching) toggle(row.id);
-          return;
         case 'remote':
         case 'folder':
           toggle(row.id);
@@ -555,12 +599,14 @@ export function App() {
         case 'hint':
           if (row.create !== undefined) openForm({ from: 'HEAD', name: row.create });
           return;
+        // A heading over a search's matches, which never folds.
+        case 'section':
         case 'operation':
         case 'tabs':
           return;
       }
     },
-    [openForm, searching, toggle, toggleCard, toggleScope],
+    [openForm, toggle, toggleCard, toggleScope],
   );
 
   const openRowMenu = useCallback(
@@ -584,7 +630,7 @@ export function App() {
         return true;
       }
       const open =
-        row.kind === 'section' || row.kind === 'folder' || row.kind === 'remote'
+        row.kind === 'folder' || row.kind === 'remote'
           ? row.open
           : row.kind === 'branch' || row.kind === 'head'
             ? row.card
@@ -599,7 +645,7 @@ export function App() {
         activate(row);
         return true;
       }
-      if (e.key === 'ArrowLeft' && open === true && !(row.kind === 'section' && searching)) {
+      if (e.key === 'ArrowLeft' && open === true) {
         e.preventDefault();
         activate(row);
         return true;
@@ -633,7 +679,7 @@ export function App() {
       }
       return false;
     },
-    [activate, focusSearch, openRowMenu, run, searching, selectTab],
+    [activate, focusSearch, openRowMenu, run, selectTab],
   );
 
   // ---- rendering ----------------------------------------------------------------------
@@ -659,6 +705,74 @@ export function App() {
       : `Filter branches in ${state.repos.length} repositories`;
   const fetchBusy = fetching || state.fetchingAll;
   const firstBranchId = model.rows.find((r) => r.kind === 'branch')?.id;
+
+  // ---- the panes: two lists with several repositories, one with one -----------
+  const split = model.multi;
+  const listRows = (list: ListId): readonly PanelRow[] =>
+    !split ? model.rows : list === 'repos' ? model.repoRows : model.branchRows;
+  /**
+   * Puts the keyboard on a row of `list`: its first or last, else the one it
+   * had, else its first. False when the list is not there to take it: folded,
+   * empty, or (with one repository) the repositories' list that does not exist.
+   */
+  const focusList = (list: ListId, which?: 'first' | 'last'): boolean => {
+    if (!split && list === 'repos') return false;
+    if (split && !(list === 'repos' ? reposOpen : branchesOpen)) return false;
+    const rows = listRows(list);
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+    if (first === undefined || last === undefined) return false;
+    const kept = list === 'repos' ? repoFocusId : branchFocusId;
+    const id =
+      which === 'first'
+        ? first.id
+        : which === 'last'
+          ? last.id
+          : kept !== undefined && rows.some((r) => r.id === kept)
+            ? kept
+            : first.id;
+    (list === 'repos' ? reposListRef : branchesListRef).current?.focusRow(id);
+    return true;
+  };
+  /** Down or Enter in the filter: back to the list the keyboard was in, else the first one open. */
+  const enterLists = (): void => {
+    if (lastList !== undefined && focusList(lastList)) return;
+    if (focusList('repos') || focusList('branches')) return;
+    reposHeaderRef.current?.focus();
+  };
+  /**
+   * A pane header's keys, as VS Code's: Enter and Space fold or open it, Left
+   * shuts it, Right opens it. Down goes into its list (or, past a folded
+   * REPOSITORIES, on to the BRANCHES header), Up from BRANCHES back to the last
+   * repository; typing filters, as it does in the lists.
+   */
+  const onHeaderKeyDown = (pane: PaneId, e: ReactKeyboardEvent<HTMLDivElement>): void => {
+    // Keys pressed on the header's own buttons are theirs.
+    if (e.target !== e.currentTarget) return;
+    const open = pane === 'repos' ? reposOpen : branchesOpen;
+    if (e.key === 'Enter' || e.key === ' ') setPane(pane, !open);
+    else if (e.key === 'ArrowLeft') setPane(pane, false);
+    else if (e.key === 'ArrowRight') setPane(pane, true);
+    else if (e.key === 'ArrowDown') {
+      if (!focusList(pane, 'first') && pane === 'repos') branchesHeaderRef.current?.focus();
+    } else if (e.key === 'ArrowUp') {
+      if (pane === 'branches' && !focusList('repos', 'last')) reposHeaderRef.current?.focus();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') focusSearch();
+    else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) focusSearch(e.key);
+    else return;
+    e.preventDefault();
+  };
+
+  const reposContent = model.repoRows.reduce((sum, r) => sum + r.height, 0);
+  const wantedRepos = dragSize ?? reposSize;
+  const layout = paneLayout({
+    total: splitSize.height,
+    reposOpen,
+    branchesOpen,
+    reposContent,
+    ...(wantedRepos !== undefined ? { reposSize: wantedRepos } : {}),
+  });
+  const selected = selectedRepos(state.repos, model.scopeRepos);
 
   const repoButtons = (repo: BranchPanelRepoDto) => ({
     onUpdate: () => runCommand('gittree.update.dialog', repo.root),
@@ -750,19 +864,7 @@ export function App() {
     switch (row.kind) {
       case 'section': {
         const actions =
-          row.section === 'repos' && narrowed ? (
-            <button
-              type="button"
-              className="gtp-link"
-              tabIndex={-1}
-              onClick={(e) => {
-                e.stopPropagation();
-                setScope([]);
-              }}
-            >
-              Show all
-            </button>
-          ) : row.section === 'local' ? (
+          row.section === 'local' ? (
             <RowButton icon="add" title="New Branch…" onClick={() => openForm({ from: 'HEAD' })} />
           ) : row.section === 'remote' ? (
             <RowButton icon="sync" title="Fetch" spin={fetchBusy} onClick={fetchAll} />
@@ -857,6 +959,66 @@ export function App() {
     }
   };
 
+  const rowAttributes = (row: PanelRow) => {
+    const level = row.kind === 'branch' || row.kind === 'folder' || row.kind === 'remote' ? row.depth + 2 : 1;
+    // A search's headings never fold, so they say nothing of being open.
+    const expanded =
+      row.kind === 'folder' || row.kind === 'remote'
+        ? row.open
+        : row.kind === 'branch' || row.kind === 'head'
+          ? row.card
+          : undefined;
+    const label =
+      row.kind === 'branch'
+        ? `${row.entry.name}${row.entry.currentIn.length > 0 ? ', checked out' : ''}${
+            row.entry.tracksElsewhere !== undefined ? `, tracks ${row.entry.tracksElsewhere}` : ''
+          }`
+        : row.kind === 'repo'
+          ? `${row.repo.label}, on ${row.repo.head ?? 'a detached HEAD'}${row.repo.fetching ? ', fetching' : ''}`
+          : row.kind === 'head'
+            ? `Current branch ${row.repo.head ?? 'detached HEAD'}`
+            : row.kind === 'section'
+              ? `${row.label}, ${row.count}`
+              : row.kind === 'tabs'
+                ? tabsLabel(row)
+                : undefined;
+    return {
+      'aria-level': level,
+      ...(expanded !== undefined ? { 'aria-expanded': expanded } : {}),
+      ...(row.kind === 'repo' ? { 'aria-selected': row.inScope && narrowed } : {}),
+      ...(label !== undefined ? { 'aria-label': label } : {}),
+    };
+  };
+
+  /** What both lists share: the rows' drawing, words and gestures, and which row each keeps. */
+  const listProps = (list: ListId) => {
+    const onFocusId = (id: string): void => {
+      if (list === 'repos') setRepoFocusId(id);
+      else setBranchFocusId(id);
+      setLastList(list);
+    };
+    return {
+      focusedId: list === 'repos' ? repoFocusId : branchFocusId,
+      onFocusId,
+      renderRow,
+      rowClassName: (row: PanelRow) => `gtp-kind-${row.kind}`,
+      rowAttributes,
+      onRowKeyDown,
+      onRowClick: (row: PanelRow, e: ReactMouseEvent<HTMLDivElement>) =>
+        activate(row, { ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail }),
+      onRowContextMenu: (row: PanelRow, e: ReactMouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        onFocusId(row.id);
+        const keyboard = e.button === -1 || (e.clientX === 0 && e.clientY === 0);
+        const r = rowRect(row.id);
+        openRowMenu(
+          row,
+          keyboard ? { x: (r?.left ?? 0) + 24, y: (r?.top ?? 0) + 22 } : { x: e.clientX, y: e.clientY },
+        );
+      },
+    };
+  };
+
   return (
     <div className="gtp-root">
       <div className="gtp-toolbar">
@@ -887,13 +1049,18 @@ export function App() {
               if (e.key === 'Escape') {
                 e.preventDefault();
                 if (query.length > 0) setQuery('');
-                else if (focusedId !== undefined) listRef.current?.focusRow(focusedId);
+                else if (lastList !== undefined) focusList(lastList);
               } else if (e.key === 'ArrowDown' || e.key === 'Enter') {
-                const id = searching ? firstBranchId : (focusedId ?? model.rows[0]?.id);
-                if (id === undefined) return;
+                if (!searching) {
+                  e.preventDefault();
+                  enterLists();
+                  return;
+                }
+                // The matches are in BRANCHES, which the search has opened.
+                if (firstBranchId === undefined) return;
                 e.preventDefault();
-                listRef.current?.focusRow(id);
-                if (e.key === 'Enter' && searching) setOpenCard(id);
+                branchesListRef.current?.focusRow(firstBranchId);
+                if (e.key === 'Enter') setOpenCard(firstBranchId);
               }
             }}
           />
@@ -954,65 +1121,114 @@ export function App() {
           onClose={() => setForm(null)}
         />
       ) : null}
-      <div className="gtp-list-host" ref={listHost}>
-        {listSize.height > 0 ? (
-          <PanelList
-            ref={listRef}
-            rows={model.rows}
-            height={listSize.height}
-            ariaLabel="Repositories"
-            focusedId={focusedId}
-            onFocusId={setFocusedId}
-            renderRow={renderRow}
-            rowClassName={(row) => `gtp-kind-${row.kind}`}
-            stickyId={TABS_ID}
-            rowAttributes={(row) => {
-              const level =
-                row.kind === 'branch' || row.kind === 'folder' || row.kind === 'remote' ? row.depth + 2 : 1;
-              const expanded =
-                row.kind === 'section' || row.kind === 'folder' || row.kind === 'remote'
-                  ? row.open
-                  : row.kind === 'branch' || row.kind === 'head'
-                    ? row.card
-                    : undefined;
-              const label =
-                row.kind === 'branch'
-                  ? `${row.entry.name}${row.entry.currentIn.length > 0 ? ', checked out' : ''}${
-                      row.entry.tracksElsewhere !== undefined ? `, tracks ${row.entry.tracksElsewhere}` : ''
-                    }`
-                  : row.kind === 'repo'
-                    ? `${row.repo.label}, on ${row.repo.head ?? 'a detached HEAD'}${row.repo.fetching ? ', fetching' : ''}`
-                    : row.kind === 'head'
-                      ? `Current branch ${row.repo.head ?? 'detached HEAD'}`
-                      : row.kind === 'section'
-                        ? `${row.label}, ${row.count}`
-                        : row.kind === 'tabs'
-                          ? tabsLabel(row)
-                          : undefined;
-              return {
-                'aria-level': level,
-                ...(expanded !== undefined ? { 'aria-expanded': expanded } : {}),
-                ...(row.kind === 'repo' ? { 'aria-selected': row.inScope && narrowed } : {}),
-                ...(label !== undefined ? { 'aria-label': label } : {}),
-              };
-            }}
-            onRowKeyDown={onRowKeyDown}
-            onRowClick={(row, e) =>
-              activate(row, { ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail })
+      {split ? (
+        <div className={`gtp-split${dragSize !== undefined ? ' gtp-resizing' : ''}`} ref={splitHost}>
+          <PaneHeader
+            ref={reposHeaderRef}
+            pane="repos"
+            title="Repositories"
+            open={reposOpen}
+            count={state.repos.length}
+            controls="gtp-repos-list"
+            ariaLabel={`Repositories, ${state.repos.length}${selected.length > 0 ? `. ${selectionTitle(selected)}` : ''}`}
+            label={
+              selected.length > 0 ? (
+                <span className="gtp-pane-label" title={selectionTitle(selected)}>
+                  {selected.map((repo) => (
+                    <span key={repo.root} className="gtp-pane-repo">
+                      <span
+                        className="gtp-dot gtp-dot-on"
+                        style={{ '--gtp-repo': colorOf(repo) } as CSSProperties}
+                        aria-hidden="true"
+                      />
+                      {repo.label}
+                    </span>
+                  ))}
+                </span>
+              ) : undefined
             }
-            onRowContextMenu={(row, e) => {
-              e.preventDefault();
-              setFocusedId(row.id);
-              const keyboard = e.button === -1 || (e.clientX === 0 && e.clientY === 0);
-              const r = rowRect(row.id);
-              openRowMenu(
-                row,
-                keyboard ? { x: (r?.left ?? 0) + 24, y: (r?.top ?? 0) + 22 } : { x: e.clientX, y: e.clientY },
-              );
-            }}
+            actions={
+              selected.length > 0 ? (
+                <button type="button" className="gtp-link" title="Show every repository" onClick={() => setScope([])}>
+                  Show all
+                </button>
+              ) : undefined
+            }
+            onToggle={() => setPane('repos', !reposOpen)}
+            onKeyDown={(e) => onHeaderKeyDown('repos', e)}
           />
-        ) : null}
-      </div>
+          <div className={`gtp-pane-body${reposOpen ? '' : ' gtp-folded'}`} style={{ height: layout.reposBody }}>
+            {splitSize.height > 0 ? (
+              <PanelList
+                ref={reposListRef}
+                id="gtp-repos-list"
+                rows={model.repoRows}
+                height={layout.reposBody}
+                ariaLabel="Repositories"
+                onEdge={(direction) => (direction < 0 ? reposHeaderRef : branchesHeaderRef).current?.focus()}
+                {...listProps('repos')}
+              />
+            ) : null}
+          </div>
+          <PaneHeader
+            ref={branchesHeaderRef}
+            pane="branches"
+            title="Branches"
+            open={branchesOpen}
+            controls="gtp-branches-list"
+            ariaLabel="Branches"
+            onToggle={() => setPane('branches', !branchesOpen)}
+            onKeyDown={(e) => onHeaderKeyDown('branches', e)}
+          />
+          <div className={`gtp-pane-body${branchesOpen ? '' : ' gtp-folded'}`} style={{ height: layout.branchesBody }}>
+            {splitSize.height > 0 ? (
+              <PanelList
+                ref={branchesListRef}
+                id="gtp-branches-list"
+                rows={model.branchRows}
+                height={layout.branchesBody}
+                ariaLabel="Branches"
+                stickyId={TABS_ID}
+                onEdge={(direction) => {
+                  if (direction < 0) branchesHeaderRef.current?.focus();
+                }}
+                {...listProps('branches')}
+              />
+            ) : null}
+          </div>
+          {layout.sash ? (
+            <Sash
+              top={PANE_HEADER + layout.reposBody}
+              onStart={() => {
+                dragBase.current = layout.reposBody;
+              }}
+              onMove={(delta) => setDragSize(Math.max(0, dragBase.current + delta))}
+              onEnd={(moved) => {
+                // The size the divider came to rest at, within the panes' limits.
+                if (moved) setReposSize(layout.reposBody);
+                setDragSize(undefined);
+              }}
+              onReset={() => {
+                setDragSize(undefined);
+                setReposSize(undefined);
+              }}
+            />
+          ) : null}
+        </div>
+      ) : (
+        <div className="gtp-list-host" ref={listHost}>
+          {listSize.height > 0 ? (
+            <PanelList
+              ref={branchesListRef}
+              rows={model.rows}
+              height={listSize.height}
+              ariaLabel="Repositories"
+              stickyId={TABS_ID}
+              {...listProps('branches')}
+            />
+          ) : null}
+        </div>
+      )}
       {menu ? (
         <Menu
           items={menu.items}

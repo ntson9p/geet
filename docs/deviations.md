@@ -917,6 +917,17 @@ search does.
 own Source Control uses for the same list. The opt-in tree it replaced (D29) is *Repositories
 (Tree)*, so no two views share a title.
 
+**Two panes inside the view, not two views** (new-way-6). With several repositories, the
+repositories and the branches were one list, and twenty repositories pushed the branches to the
+foot of the panel. The owner asked for BRANCHES as a pane of its own, folding and resizing like
+REPOSITORIES, with the repositories picked named in the REPOSITORIES header. A second VS Code view
+was offered and the owner chose panes, for the label: VS Code hides a view's header description
+while the view is collapsed, and a webview view has no header to write on until it has been
+opened since the window loaded, so the name would be missing exactly when the list is folded
+away. The panes are drawn as VS Code draws views (22px headers, the side bar's section header
+colours, a sash between them), keep their folds and size, and with one repository there is
+nothing to split: its current branch heads the one list, as before.
+
 **Why:** the owner's request. The earlier panel copied the popup into a standing view (D29), and
 what made the popup good made the panel poor:
 * verb rows took the top of the list for good;

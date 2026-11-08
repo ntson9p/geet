@@ -3,6 +3,11 @@
  * state and the panel's own view state (new-way-4). Pure: no React, no DOM, so
  * every rule is unit-tested.
  *
+ * **Two lists, with several repositories** (new-way-6): the repositories' rows
+ * and the branches' rows, each the list of a pane of its own (`paneLayout.ts`), so
+ * twenty repositories no longer push the branches out of sight. With one
+ * repository there is nothing to split: its current branch heads the one list.
+ *
  * **One list for every repository.** A branch name is one row however many
  * repositories have it; the row carries a marker per repository in view, and
  * whatever the row does, it does in the repositories it stands for. Narrowing
@@ -46,7 +51,8 @@ export const CARD_PAD = 12;
 /** The tabs over the branch list. */
 export const TABS = 30;
 
-export type SectionId = 'repos' | 'recent' | 'local' | 'remote' | 'tags';
+/** A heading over a kind's matches, while the filter searches every kind. */
+export type SectionId = 'recent' | 'local' | 'remote' | 'tags';
 
 /** The kinds of branch the list shows, one at a time. */
 export type BranchTab = 'recent' | 'local' | 'remote' | 'tags';
@@ -374,6 +380,15 @@ export interface PanelUiState {
 }
 
 export interface PanelModel {
+  /**
+   * Where you are: with several repositories, a row for each (and a banner
+   * under one mid-operation), the REPOSITORIES pane's list; with one, its
+   * current branch, the first rows of the one list.
+   */
+  readonly repoRows: readonly PanelRow[];
+  /** Where you can go: the tabs and the branches under them, or a search's matches. */
+  readonly branchRows: readonly PanelRow[];
+  /** Both, in order: the one list of a single repository, and what a lookup by id searches. */
   readonly rows: readonly PanelRow[];
   /** Repositories whose branches are listed and acted on. */
   readonly scopeRepos: readonly BranchPanelRepoDto[];
@@ -388,7 +403,6 @@ export interface PanelModel {
 }
 
 const SECTION_LABEL: Record<SectionId, string> = {
-  repos: 'Repositories',
   recent: 'Recent',
   local: 'Local',
   remote: 'Remote',
@@ -499,7 +513,8 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
   const narrowed = multi && scopeRepos.length < state.repos.length;
   const tokens = queryTokens(ui.query);
   const searching = tokens.length > 0;
-  const rows: PanelRow[] = [];
+  const repoRows: PanelRow[] = [];
+  const branchRows: PanelRow[] = [];
 
   const locals = buildEntries(scopeRepos, 'local');
   const localByKey = new Map(locals.map((e) => [e.key, e]));
@@ -532,31 +547,20 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
   };
 
   // ---- Repositories, or the one repository's current branch ---------------
+  // Every repository's row, whether or not its pane is folded: the pane's
+  // header counts them and folds them; the rows are the list it shows.
   if (multi) {
-    const id = 'sec:repos';
-    const open = isOpen(id, true, ui);
-    rows.push({
-      kind: 'section',
-      id,
-      section: 'repos',
-      label: SECTION_LABEL.repos,
-      count: state.repos.length,
-      open,
-      height: SECTION,
-    });
-    if (open) {
-      for (const repo of state.repos) {
-        rows.push({
-          kind: 'repo',
-          id: `repo:${repo.root}`,
-          repo,
-          inScope: scopeRepos.includes(repo),
-          narrowed,
-          height: REPO,
-        });
-        if (repo.operation !== undefined) {
-          rows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });
-        }
+    for (const repo of state.repos) {
+      repoRows.push({
+        kind: 'repo',
+        id: `repo:${repo.root}`,
+        repo,
+        inScope: scopeRepos.includes(repo),
+        narrowed,
+        height: REPO,
+      });
+      if (repo.operation !== undefined) {
+        repoRows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });
       }
     }
   } else {
@@ -565,7 +569,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
       const entry = repo.head !== undefined ? localByKey.get(entryKey('local', repo.head)) : undefined;
       const id = `head:${repo.root}`;
       const card = ui.openCard === id;
-      rows.push({
+      repoRows.push({
         kind: 'head',
         id,
         repo,
@@ -574,7 +578,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         height: REPO + (card ? cardHeight(entry, false) : 0),
       });
       if (repo.operation !== undefined) {
-        rows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });
+        repoRows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });
       }
     }
   }
@@ -599,7 +603,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
       if (hits.length === 0) return;
       matches += hits.length;
       const id = `sec:${section}`;
-      rows.push({
+      branchRows.push({
         kind: 'section',
         id,
         section,
@@ -608,12 +612,12 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         open: true,
         height: SECTION,
       });
-      for (const entry of hits) rows.push(branchRow(entry, section, 0, true, entry.name));
+      for (const entry of hits) branchRows.push(branchRow(entry, section, 0, true, entry.name));
       return;
     }
     if (!fold) {
       for (const entry of [...entries].sort(order)) {
-        rows.push(branchRow(entry, section, depth, true, relative(entry)));
+        branchRows.push(branchRow(entry, section, depth, true, relative(entry)));
       }
       return;
     }
@@ -625,7 +629,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
           (e) => e.currentIn.length > 0 && relative(e).startsWith(folder.prefix),
         );
         const open = isOpen(id, holdsCurrent, ui);
-        rows.push({
+        branchRows.push({
           kind: 'folder',
           id,
           label: folder.name,
@@ -637,7 +641,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         if (open) walk(folder.prefix, level + 1);
       }
       for (const entry of direct.sort(order)) {
-        rows.push(branchRow(entry, section, level, false, relative(entry).slice(prefix.length)));
+        branchRows.push(branchRow(entry, section, level, false, relative(entry).slice(prefix.length)));
       }
     };
     walk('', depth);
@@ -648,6 +652,18 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
   const tags = state.showTags ? buildEntries(scopeRepos, 'tag') : [];
   const tab = shownTab(ui.tab, recent.length, state.showTags);
 
+  /** What the model hands back: the two lists, and both in order. */
+  const done = (): PanelModel => ({
+    repoRows,
+    branchRows,
+    rows: [...repoRows, ...branchRows],
+    scopeRepos,
+    multi,
+    markers,
+    matches,
+    tab,
+  });
+
   // ---- Searching: every kind at once, each under its heading --------------
   if (searching) {
     pushSection('local', locals, compareEntries, false);
@@ -655,7 +671,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
     if (state.showTags) pushSection('tags', tags, compareTags, false);
     if (matches === 0) {
       const name = ui.query.trim();
-      rows.push({
+      branchRows.push({
         kind: 'hint',
         id: 'hint:nomatch',
         text: `No branch matches “${name}”.`,
@@ -663,7 +679,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         height: HINT,
       });
     }
-    return { rows, scopeRepos, multi, markers, matches, tab };
+    return done();
   }
 
   // ---- The tabs, then the one kind they show ------------------------------
@@ -673,15 +689,15 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
     { id: 'remote', label: SECTION_LABEL.remote, count: remotes.length },
     ...(state.showTags ? [{ id: 'tags' as const, label: SECTION_LABEL.tags, count: tags.length }] : []),
   ];
-  rows.push({ kind: 'tabs', id: TABS_ID, tabs: counts, active: tab, height: TABS });
+  branchRows.push({ kind: 'tabs', id: TABS_ID, tabs: counts, active: tab, height: TABS });
   const hint = (id: string, text: string): void => {
-    rows.push({ kind: 'hint', id: `hint:${id}`, text, height: HINT });
+    branchRows.push({ kind: 'hint', id: `hint:${id}`, text, height: HINT });
   };
 
   switch (tab) {
     case 'recent':
       if (recent.length === 0) hint('recent', 'No recent branches yet. The ones you check out or star appear here.');
-      for (const entry of recent) rows.push(branchRow(entry, 'recent', 0, true, entry.name));
+      for (const entry of recent) branchRows.push(branchRow(entry, 'recent', 0, true, entry.name));
       break;
     case 'local':
       if (locals.length === 0) {
@@ -700,7 +716,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         const mine = remotes.filter((e) => remoteOf(e) === remote);
         const id = `rem:${remote}`;
         const open = isOpen(id, true, ui);
-        rows.push({ kind: 'remote', id, remote, count: mine.length, open, depth: 0, height: ROW });
+        branchRows.push({ kind: 'remote', id, remote, count: mine.length, open, depth: 0, height: ROW });
         if (!open) continue;
         pushSection(
           'remote',
@@ -720,7 +736,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
       break;
   }
 
-  return { rows, scopeRepos, multi, markers, matches, tab };
+  return done();
 }
 
 /** The remote a remote-branch entry belongs to: `origin` of `origin/x`. */

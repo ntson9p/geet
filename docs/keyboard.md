@@ -111,15 +111,18 @@ arrows move within):
 
 | Key | Action |
 | --- | --- |
-| `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through the rows |
+| `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through the rows of a pane |
+| `↑` / `↓` (at a pane's first or last row) | on to the pane's header, or past the last repository to the BRANCHES header (several repositories) |
+| `Enter` / `Space` / `←` / `→` (on a pane header) | fold or open the REPOSITORIES or BRANCHES pane; `←` folds, `→` opens; `↓` goes into its list |
 | `←` / `→` (on the tabs) | switch between Recent, Local, Remote and Tags, round the ends |
-| `→` / `←` | open / close the Repositories section, a remote or a folder; on a branch, open / close its card |
-| `Enter` / `Space` | the same as a click: open or close a section, folder or a branch's card; on a repository, show only its branches (`Ctrl+Enter`: add it to what is shown) |
+| `→` / `←` | open / close a remote or a folder; on a branch, open / close its card |
+| `Enter` / `Space` | the same as a click: open or close a folder or a branch's card; on a repository, show only its branches (`Ctrl+Enter`: add it to what is shown) |
+| Drag / double-click (the line between the panes) | share the height between REPOSITORIES and BRANCHES / go back to the automatic share. Pointer-only, as VS Code's own dividers are; the headers fold and open from the keyboard |
 | `Tab` (card open) | into the card's buttons |
 | `Shift+F10` / context-menu key | the focused row's menu |
 | `F2` / `Delete` | rename / delete the focused local branch (one repository) |
-| any letter, `Ctrl+F` | start filtering |
-| `↓` / `Enter` / `Escape` (filter) | into the list / open the first match / clear the filter |
+| any letter, `Ctrl+F` | start filtering (on a pane header too) |
+| `↓` / `Enter` / `Escape` (filter) | into the list / open the first match / clear the filter, then back to the row left |
 | `Enter` / `Escape` (New Branch form) | create / cancel |
 
 **Push dialog**

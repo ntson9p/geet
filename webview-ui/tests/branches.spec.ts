@@ -744,12 +744,240 @@ test.describe('the tabs over the branches', () => {
     await expect(tabButton(page, 'Recent')).toHaveAttribute('title', '0 recent branches');
   });
 
-  test('with several repositories, the tabs sit under them', async ({ page }) => {
+  test('with several repositories, the tabs head the BRANCHES pane, under REPOSITORIES', async ({ page }) => {
     await openPanel(page);
     const order = await page.locator('[data-row-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
     expect(order.indexOf('tabs')).toBeGreaterThan(order.indexOf(`repo:${WEB}`));
     expect(order.indexOf('tabs')).toBeGreaterThan(order.indexOf(`op:${SHARED}`));
-    await expect(row(page, 'sec:repos')).toBeVisible();
+    await expect(reposList(page).locator(`[data-row-id="repo:${WEB}"]`)).toBeVisible();
+    await expect(branchesList(page).locator('[data-row-id="tabs"]')).toBeVisible();
+  });
+});
+
+/** The panes of a panel with several repositories (new-way-6). */
+const paneHeader = (page: Page, pane: 'repos' | 'branches'): Locator =>
+  page.locator(`.gtp-pane-header[data-pane="${pane}"]`);
+const reposList = (page: Page): Locator => page.locator('#gtp-repos-list');
+const branchesList = (page: Page): Locator => page.locator('#gtp-branches-list');
+async function vsState(page: Page): Promise<Record<string, unknown>> {
+  return page.evaluate(
+    () => ((window as unknown as { __mockVsState?: Record<string, unknown> }).__mockVsState ?? {}),
+  );
+}
+/** Drags the divider between the panes `by` pixels, down for more REPOSITORIES. */
+async function dragDivider(page: Page, by: number): Promise<void> {
+  const box = (await page.locator('.gtp-sash').boundingBox())!;
+  const x = box.x + 40;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + by, { steps: 6 });
+  await page.mouse.up();
+}
+const heightOf = async (l: Locator): Promise<number> => Math.round((await l.boundingBox())?.height ?? 0);
+
+test.describe('the REPOSITORIES and BRANCHES panes (new-way-6)', () => {
+  test('each pane has its header and a list that scrolls on its own', async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 420 });
+    await openPanel(page);
+    await expect(paneHeader(page, 'repos')).toContainText('Repositories');
+    await expect(paneHeader(page, 'repos').locator('.gtp-count')).toHaveText('3');
+    await expect(paneHeader(page, 'branches')).toContainText('Branches');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
+    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-controls', 'gtp-branches-list');
+    // No REPOSITORIES heading in a list any more: the pane's header is it.
+    await expect(row(page, 'sec:repos')).toHaveCount(0);
+
+    // Thirty more local branches: the branches scroll, the repositories stay put.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<{ locals: Array<Record<string, unknown>> }> };
+        __pushState: () => void;
+      };
+      for (let i = 1; i <= 30; i++) {
+        const name = `topic-${String(i).padStart(2, '0')}`;
+        w.__mockState.repos[2]!.locals.push({ name, sha: 'f'.repeat(40), date: 1_800_000_000 - i * 3600 });
+      }
+      w.__pushState();
+    });
+    await showTab(page, 'Local');
+    await branchesList(page).evaluate((el) => {
+      el.scrollTop = 300;
+    });
+    await expect(page.locator('.gtp-pinned')).toBeVisible();
+    expect(await reposList(page).evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(row(page, `repo:${API}`)).toBeVisible();
+  });
+
+  test('a header folds its pane, the other takes the room, and the fold is kept', async ({ page }) => {
+    await openPanel(page);
+    const before = await heightOf(branchesList(page));
+    await paneHeader(page, 'repos').click();
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, `repo:${WEB}`)).toBeHidden();
+    expect(await heightOf(branchesList(page))).toBeGreaterThan(before);
+    expect((await vsState(page))['toggled']).toEqual(['sec:repos']);
+    await paneHeader(page, 'repos').click();
+    await expect(row(page, `repo:${WEB}`)).toBeVisible();
+
+    // Folded, BRANCHES is its header at the foot of the panel, as a folded view is.
+    await paneHeader(page, 'branches').click();
+    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, 'tabs')).toBeHidden();
+    const header = (await paneHeader(page, 'branches').boundingBox())!;
+    expect(Math.round(header.y + header.height)).toBe(page.viewportSize()!.height);
+    await expect(page.locator('.gtp-sash')).toHaveCount(0);
+  });
+
+  test('the panel starts again with the panes folded as they were left', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __mockVsState: unknown }).__mockVsState = { toggled: ['sec:repos'] };
+    });
+    await openPanel(page);
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
+    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('the divider shares the height, stops at the last repository, and a double-click undoes it', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    // Three repositories and a banner: 3 × 24 + 26, all of it, by default.
+    await expect.poll(() => heightOf(reposList(page))).toBe(98);
+    await dragDivider(page, -50);
+    await expect.poll(() => heightOf(reposList(page))).toBe(48);
+    await expect.poll(async () => (await vsState(page))['reposSize']).toBe(48);
+    // Past the last repository it goes no further.
+    await dragDivider(page, 500);
+    await expect.poll(() => heightOf(reposList(page))).toBe(98);
+    await expect.poll(async () => (await vsState(page))['reposSize']).toBe(98);
+    // A press that never moves is no resize.
+    const box = (await page.locator('.gtp-sash').boundingBox())!;
+    await page.mouse.click(box.x + 40, box.y + 2);
+    expect((await vsState(page))['reposSize']).toBe(98);
+    await page.mouse.dblclick(box.x + 40, box.y + 2);
+    await expect.poll(async () => (await vsState(page))['reposSize']).toBeUndefined();
+    await expect.poll(() => heightOf(reposList(page))).toBe(98);
+  });
+
+  test('twenty repositories take a share of the panel, and the branches keep the rest', async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 600 });
+    await openPanel(page);
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<Record<string, unknown>> };
+        __pushState: () => void;
+      };
+      const base = w.__mockState.repos[0]!;
+      for (let i = 1; i <= 17; i++) {
+        w.__mockState.repos.push({ ...base, root: `/work/extra-${i}`, label: `extra-${i}` });
+      }
+      w.__pushState();
+    });
+    await expect(paneHeader(page, 'repos').locator('.gtp-count')).toHaveText('20');
+    const repos = await heightOf(reposList(page));
+    const branches = await heightOf(branchesList(page));
+    // 40% of what the two lists share; the repositories scroll for the rest.
+    expect(repos).toBe(Math.round((repos + branches) * 0.4));
+    expect(await reposList(page).evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await expect(row(page, 'tabs')).toBeVisible();
+  });
+
+  test('the REPOSITORIES header names the repositories picked, folded or not, and Show all widens again', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    const label = paneHeader(page, 'repos').locator('.gtp-pane-label');
+    await expect(label).toHaveCount(0);
+
+    await row(page, `repo:${WEB}`).click();
+    await expect(label).toHaveText('web');
+    await expect(label).toHaveAttribute('title', 'Showing the branches of web');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute(
+      'aria-label',
+      'Repositories, 3. Showing the branches of web',
+    );
+
+    // Ctrl+click adds one: each picked, in the panel's order.
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await expect(label.locator('.gtp-pane-repo')).toHaveText(['api', 'web']);
+
+    // Folded, the header still says which.
+    await paneHeader(page, 'repos').click();
+    await expect(row(page, `repo:${WEB}`)).toBeHidden();
+    await expect(label).toBeVisible();
+    await expect(label.locator('.gtp-pane-repo')).toHaveText(['api', 'web']);
+
+    // Show all widens the panel, and leaves the pane folded.
+    await paneHeader(page, 'repos').getByRole('button', { name: 'Show all' }).click();
+    await expect(label).toHaveCount(0);
+    await expect(page.getByLabel('Filter branches')).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('a narrow sidebar keeps the repository picked and lets Show all go', async ({ page }) => {
+    await page.setViewportSize({ width: 230, height: 500 });
+    await openPanel(page);
+    await row(page, `repo:${SHARED}`).click();
+    const header = paneHeader(page, 'repos');
+    await expect(header.locator('.gtp-pane-label')).toBeVisible();
+    await expect(header.getByRole('button', { name: 'Show all' })).toBeHidden();
+    // The filter's pill still widens it.
+    await expect(page.getByRole('button', { name: /^Narrowed to shared/u })).toBeVisible();
+  });
+
+  test('the keyboard goes from pane to pane through the headers', async ({ page }) => {
+    await openPanel(page);
+    await page.getByLabel('Filter branches').press('ArrowDown');
+    await expect(row(page, `repo:${API}`)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(paneHeader(page, 'repos')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(row(page, `repo:${API}`)).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(paneHeader(page, 'branches')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(row(page, 'tabs')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(paneHeader(page, 'branches')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+
+    // On a header: Left folds, Right opens, Enter and Space toggle; past a folded pane, the next header.
+    await paneHeader(page, 'repos').focus();
+    await page.keyboard.press('ArrowLeft');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press('ArrowDown');
+    await expect(paneHeader(page, 'branches')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(paneHeader(page, 'repos')).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Enter');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press(' ');
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
+
+    // Typing on a header filters, as in the lists; Escape twice comes back to the row left.
+    await page.keyboard.press('m');
+    await expect(page.getByLabel('Filter branches')).toBeFocused();
+    await expect(page.getByLabel('Filter branches')).toHaveValue('m');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+  });
+
+  test('a search opens a folded BRANCHES pane, for its matches are there', async ({ page }) => {
+    await openPanel(page);
+    await paneHeader(page, 'branches').click();
+    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'false');
+    await page.getByLabel('Filter branches').fill('log');
+    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'true');
+    await expect(row(page, 'br:local:local:feature/login')).toBeVisible();
+    // The repositories are not searched: their rows stay as they were.
+    await expect(row(page, `repo:${WEB}`)).toBeVisible();
   });
 });
 

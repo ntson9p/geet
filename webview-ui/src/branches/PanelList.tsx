@@ -1,7 +1,8 @@
 /**
- * The Repositories panel's list: windowed like `VirtualList`, but with rows of
- * their own heights — a branch with its card open is taller than one without,
- * a section header taller than a row — and with focus held by a row's **id**,
+ * A list of the Repositories panel — the REPOSITORIES or BRANCHES pane's, or
+ * with one repository the panel's only one: windowed like `VirtualList`, but
+ * with rows of their own heights — a branch with its card open is taller than
+ * one without, a section header taller than a row — and with focus held by a row's **id**,
  * not its position. The panel's rows move under the cursor all the time (a
  * fetch adds branches, a checkout moves the tick, a card opens above); a
  * focus kept by index would land on whatever row slid into that slot.
@@ -38,6 +39,8 @@ export interface PanelListHandle {
 }
 
 export interface PanelListProps<R extends ListRow> {
+  /** The tree's element id, for a header that says it controls the list. */
+  readonly id?: string;
   readonly rows: readonly R[];
   readonly height: number;
   readonly ariaLabel: string;
@@ -58,6 +61,12 @@ export interface PanelListProps<R extends ListRow> {
    * pointer; the keyboard reaches the row itself, which comes back into view.
    */
   readonly stickyId?: string;
+  /**
+   * Up on the first row, or Down on the last: the keyboard leaving the list,
+   * for what sits above or below it (a pane's header). Without it the arrows
+   * stop at the ends.
+   */
+  readonly onEdge?: (direction: -1 | 1) => void;
 }
 
 /** First index whose row reaches below `y`, by binary search over the offsets. */
@@ -82,6 +91,7 @@ function isControl(el: EventTarget | null, row: HTMLElement): boolean {
 
 function PanelListInner<R extends ListRow>(
   {
+    id,
     rows,
     height,
     ariaLabel,
@@ -95,6 +105,7 @@ function PanelListInner<R extends ListRow>(
     rowClassName,
     overscan = 200,
     stickyId,
+    onEdge,
   }: PanelListProps<R>,
   ref: ForwardedRef<PanelListHandle>,
 ) {
@@ -149,11 +160,20 @@ function PanelListInner<R extends ListRow>(
       if (i === undefined) return;
       onFocusId(id);
       scrollToIndex(i);
-      pendingFocus.current = id;
       const host = hostRef.current;
-      // The row may not be rendered until the scroll re-windows the list; hold
-      // focus on the container meanwhile so keys keep arriving here.
-      if (host && !host.querySelector(`[data-row-id="${CSS.escape(id)}"]`)) host.focus();
+      const drawn = host?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
+      if (drawn) {
+        // Drawn already: focus it now. Coming back to the row the list already
+        // keeps (from a pane's header, or Escape in the filter) changes no
+        // state, so no render would come along to do it.
+        pendingFocus.current = undefined;
+        drawn.focus({ preventScroll: true });
+        return;
+      }
+      // The row is drawn once the scroll re-windows the list; hold focus on
+      // the container meanwhile so keys keep arriving here.
+      pendingFocus.current = id;
+      host?.focus();
     },
     [indexOf, onFocusId, scrollToIndex],
   );
@@ -197,10 +217,12 @@ function PanelListInner<R extends ListRow>(
     const page = Math.max(1, Math.floor(height / 22) - 1);
     switch (e.key) {
       case 'ArrowDown':
-        move(index, 1);
+        if (index === rows.length - 1 && onEdge) onEdge(1);
+        else move(index, 1);
         break;
       case 'ArrowUp':
-        move(index, -1);
+        if (index === 0 && onEdge) onEdge(-1);
+        else move(index, -1);
         break;
       case 'PageDown':
         move(index, page);
@@ -260,6 +282,7 @@ function PanelListInner<R extends ListRow>(
     <div className="gtp-list-frame" style={{ height }}>
       <div
         ref={hostRef}
+        id={id}
         className="gtp-list"
         role="tree"
         aria-label={ariaLabel}

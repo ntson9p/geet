@@ -293,6 +293,12 @@ describe('buildPanel: one repository', () => {
     expect(model.rows.some((r) => r.kind === 'section')).toBe(false);
   });
 
+  it('is one list, the current branch at its head: there is nothing to split with one repository', () => {
+    expect(kinds(model.repoRows)).toEqual(['head']);
+    expect(model.branchRows[0]).toMatchObject({ kind: 'tabs', id: TABS_ID });
+    expect(model.rows).toEqual([...model.repoRows, ...model.branchRows]);
+  });
+
   it('counts each kind on its tab', () => {
     const tabs = model.rows[1]!;
     expect(tabs.kind === 'tabs' && tabs.tabs.map((t) => [t.id, t.label, t.count])).toEqual([
@@ -427,10 +433,11 @@ describe('the tabs over the branch list', () => {
     expect(tabs?.kind === 'tabs' && tabsLabel(tabs)).toBe('Local tab, 2 of 4. Left and Right switch.');
   });
 
-  it('sit under the repositories when there are several', () => {
+  it('head the branches’ own list when there are several repositories, under theirs', () => {
     const multi = buildPanel(state([api, web]), ui());
-    const at = multi.rows.findIndex((r) => r.kind === 'tabs');
-    expect(kinds(multi.rows.slice(0, at))).toEqual(['section', 'repo', 'repo']);
+    expect(kinds(multi.repoRows)).toEqual(['repo', 'repo']);
+    expect(multi.branchRows[0]).toMatchObject({ kind: 'tabs', id: TABS_ID });
+    expect(multi.rows).toEqual([...multi.repoRows, ...multi.branchRows]);
   });
 
   it('step aside while the filter searches every kind, whatever tab is picked', () => {
@@ -465,12 +472,28 @@ describe('Collapse All', () => {
 describe('buildPanel: several repositories', () => {
   const model = buildPanel(state([api, web]), ui());
 
-  it('lists the repositories first, with a banner under one in the middle of something', () => {
+  it('lists the repositories in a list of their own, with a banner under one in the middle of something', () => {
     const busy = repo('/busy', { operation: { kind: 'rebase', conflicts: 1 } });
     const withOp = buildPanel(state([api, busy, web]), ui());
-    expect(kinds(withOp.rows).slice(0, 5)).toEqual(['section', 'repo', 'repo', 'operation', 'repo']);
+    expect(kinds(withOp.repoRows)).toEqual(['repo', 'repo', 'operation', 'repo']);
     expect(model.multi).toBe(true);
     expect(model.markers).toBe(true);
+  });
+
+  it('heads them with the REPOSITORIES pane, not a row: no heading in either list', () => {
+    expect(model.rows.some((r) => r.kind === 'section')).toBe(false);
+  });
+
+  it('keeps every repository’s row while the pane is folded: the pane hides them, the model does not', () => {
+    const folded = buildPanel(state([api, web]), ui({ toggled: new Set(['sec:repos', 'sec:branches']) }));
+    expect(kinds(folded.repoRows)).toEqual(['repo', 'repo']);
+    expect(folded.branchRows[0]).toMatchObject({ kind: 'tabs' });
+  });
+
+  it('searches the branches alone: the repositories stay as they are', () => {
+    const searching = buildPanel(state([api, web]), ui({ query: 'main' }));
+    expect(ids(searching.repoRows)).toEqual(ids(model.repoRows));
+    expect(searching.branchRows[0]).toMatchObject({ kind: 'section', section: 'local' });
   });
 
   it('draws a name once, however many repositories have it', () => {
