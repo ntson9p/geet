@@ -16,6 +16,7 @@ import {
 } from './applyNonConflicting';
 import { resolveBlock, type WandOptions } from './resolver/autoResolver';
 import type { TriEditorManager, TriMergeEditor } from './triEditor';
+import { showInfo } from '../ui/notices';
 
 export function wandOptions(): WandOptions {
   return {
@@ -197,7 +198,7 @@ export function registerResolutionActions(
       if (outcome.resolved) await editor.applyAutoResolution(t.block.id, outcome.lines);
     }
     const resolved = before - editor.unresolvedCount;
-    void vscode.window.showInformationMessage(
+    showInfo(
       before === 1
         ? vscode.l10n.t('Resolved {0} of 1 conflict automatically.', resolved)
         : vscode.l10n.t('Resolved {0} of {1} conflicts automatically.', resolved, before),
@@ -236,7 +237,7 @@ export function registerResolutionActions(
         : outcome.applied === 1
           ? vscode.l10n.t('Applied 1 non-conflicting change. {0}', mergeStatusText(counts))
           : vscode.l10n.t('Applied {0} non-conflicting changes. {1}', outcome.applied, mergeStatusText(counts));
-    void vscode.window.showInformationMessage(message);
+    showInfo(message);
     return message;
   };
 

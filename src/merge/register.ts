@@ -15,6 +15,7 @@ import { MergeComputer, serializeResult, type MergeExec } from './mergeCompute';
 import { registerResolutionActions, wandOptions } from './resolutionActions';
 import { resolveAllBlocks } from './resolver/autoResolver';
 import { TriEditorManager } from './triEditor';
+import { showInfo } from '../ui/notices';
 
 export function registerPhase06MergeEngine(context: vscode.ExtensionContext, core: Core): void {
   const viewProvider = new ConflictsViewProvider();
@@ -229,7 +230,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
         blocksResolved += resolved;
       }
     }
-    void vscode.window.showInformationMessage(
+    showInfo(
       blocksTotal === 1
         ? vscode.l10n.t(
             'Resolved {0} of 1 conflict automatically ({1} completed).',

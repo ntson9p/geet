@@ -19,6 +19,7 @@ import {
   type OpsContext,
   type OpsItem,
 } from './operationsModel';
+import { showInfo } from './notices';
 
 const RECENT_KEY = 'gittree.operationsPopup.recent';
 
@@ -129,7 +130,7 @@ export function registerOperationsPopup(
       const repo = repoOf(arg);
       const items = buildItems(arg);
       if (items.length === 0) {
-        void vscode.window.showInformationMessage(
+        showInfo(
           vscode.l10n.t('No VCS operations apply right now.'),
         );
         return;

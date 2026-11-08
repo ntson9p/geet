@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { Emitter, type Event } from '../core/util/events';
 import { classifyReflogSubject, parseReflogLine, type DestructionKind } from './reflogParse';
+import { showInfo } from '../ui/notices';
 
 export interface DestructionEvent {
   repo: RepoHandle;
@@ -205,7 +206,7 @@ export class RecoveryWatch implements vscode.Disposable {
         await git.exec(repo.root, ['branch', '-f', '--', branch, sha], { token });
       },
     });
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('Created branch {0} at {1}.', branch, sha.slice(0, 7)),
     );
     return branch;

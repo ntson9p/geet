@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
+import { showInfo } from './notices';
 
 /** The repository an argument names: a root path, a Uri, or an object carrying either. */
 export function repoNamedBy(core: Core, arg: unknown): RepoHandle | undefined {
@@ -56,7 +57,7 @@ export async function chooseRepo(core: Core, arg?: unknown, placeHolder?: string
   const known = implicitRepo(core, arg);
   if (known) return known;
   if (core.repos.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('Open a repository first.'));
+    showInfo(vscode.l10n.t('Open a repository first.'));
     return undefined;
   }
   const items = core.repos.map((repo) => {

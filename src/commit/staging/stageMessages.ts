@@ -5,6 +5,7 @@
  */
 import * as vscode from 'vscode';
 import type { StageLinesOutcome } from './stageLines';
+import { showInfo } from '../../ui/notices';
 
 export function reportStageOutcome(outcome: StageLinesOutcome, direction: 'stage' | 'unstage' = 'stage'): void {
   if (outcome === 'notInIndex') {
@@ -14,7 +15,7 @@ export function reportStageOutcome(outcome: StageLinesOutcome, direction: 'stage
         : vscode.l10n.t('This file has nothing staged to unstage.'),
     );
   } else if (outcome === 'nothing') {
-    void vscode.window.showInformationMessage(
+    showInfo(
       direction === 'stage'
         ? vscode.l10n.t('Nothing to stage here: these lines already match the index.')
         : vscode.l10n.t('Nothing to unstage here: these lines are not staged.'),

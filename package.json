@@ -134,6 +134,13 @@
               "%gittree.config.statusBar.full%",
               "%gittree.config.statusBar.off%"
             ]
+          },
+          "gittree.notifications.durationSeconds": {
+            "type": "number",
+            "default": 5,
+            "minimum": 0,
+            "maximum": 60,
+            "description": "%gittree.config.notifications.durationSeconds.description%"
           }
         }
       },

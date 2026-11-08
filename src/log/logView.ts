@@ -73,6 +73,7 @@ import {
   writeScope,
   type PresentationKey,
 } from './presentation';
+import { showInfo } from '../ui/notices';
 
 const LANE_WIDTH = 12;
 /** IntelliJ's cap on the commits a selection acts on (`VcsLogUtil.MAX_SELECTED_COMMITS`). */
@@ -1637,7 +1638,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     }
     const tree = buildPathTree(listed.stdout.split('\0').filter((p) => p.length > 0));
     if (tree.items.length === 0) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('{0} has no tracked files yet.', path.basename(session.repo.root)),
       );
       return { ok: false };

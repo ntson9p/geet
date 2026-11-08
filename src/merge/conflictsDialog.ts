@@ -20,6 +20,7 @@ import type {
 import { openDialog } from '../ui/dialogHost';
 import { statusColorOverrides } from '../ui/statusColors';
 import { isSpecialConflict, type ConflictSession } from './conflictSession';
+import { showInfo } from '../ui/notices';
 
 export interface ConflictsDialogDeps {
   core: Core;
@@ -111,6 +112,6 @@ export async function showConflictsDialog(
   });
   if (!result) return undefined;
   const message = await applyConflictsResult(session, result);
-  void vscode.window.showInformationMessage(message);
+  showInfo(message);
   return message;
 }

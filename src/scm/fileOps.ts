@@ -17,6 +17,7 @@ import { confirmModal } from '../ui/confirm';
 import { pathListDetail } from '../ui/pathList';
 import { folderOf } from '../ui/rowContext';
 import { appendPatterns, planIgnoreEdits } from './gitignoreRules';
+import { showInfo } from '../ui/notices';
 
 interface Selection {
   repo: RepoHandle;
@@ -254,7 +255,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     // (the index wins) and would leave a rule that quietly does nothing.
     const relPaths = sel.entries.filter((e) => e.kind === 'untracked').map((e) => e.path);
     if (relPaths.length === 0) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('Only unversioned files can be added to .gitignore.'),
       );
       return;
@@ -370,7 +371,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (!repo) return;
     const untracked = repo.model.snapshot.statusEntries.filter((e) => e.kind === 'untracked');
     if (untracked.length === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('No untracked files to clean.'));
+      showInfo(vscode.l10n.t('No untracked files to clean.'));
       return;
     }
     const ok = await confirmModal(

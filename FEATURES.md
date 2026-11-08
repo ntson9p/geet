@@ -127,11 +127,29 @@ When an operation you started finishes, a notification says what it did, in Inte
   shelved successfully*, *Successfully created patch …*.
 * **Several repositories at once:** a branch action run "in all N repositories" says it once
   (*Checked out develop*) rather than once per repository.
-* **Files:** `Roll Back…` says *Rolled back 2 file(s).*, as the Rollback dialog does, and
+* **Files:** `Roll Back…` says *Rolled back 2 files.*, as the Rollback dialog does, and
   `Delete Untracked Files…` says how many it deleted.
 * **Already reporting before:** push, Update Project, revert, drop, squash, the option dialogs
   and worktrees. They keep their own reports. The Merge, Rebase and Reset dialogs now use the
   same wording as above.
+
+**How long they stay** (new-way-6). A notice with nothing to click leaves after 5 seconds
+(`gittree.notifications.durationSeconds`), and so do GitTree's other plain information
+messages: *Nothing to stash.*, *No changes to commit.*. A long one gets a second for every
+four words past ten, up to twice the setting.
+
+* The time counts only while VS Code is in front: away in another application, the notice
+  waits for you, and finishes what is left of its time when you are back, as IntelliJ's
+  balloons do. VS Code's own toasts stay 10 seconds, more while the pointer rests on them.
+* VS Code cannot hide a notification on a timer and still keep it in the Notifications list
+  (the bell), so these leave no entry there. The **GitTree** output keeps a copy:
+  `[notice] 13:27:54 Checked out develop`.
+* Such a notice has no `×`: VS Code draws none while a timed notification runs. `Escape` hides
+  it, and VS Code then shows its words in the status bar until the time is up.
+* `0` makes them ordinary notifications again, kept in the Notifications list.
+* A notice with buttons (**Restore**, **Undo**), a warning or an error is always an ordinary
+  notification: it asks for a decision, or says something went wrong. So is the one-time
+  notice at startup, and the merge editor's **Show Details**.
 
 Staging, unstaging, rolling back one change from the gutter, `Add to .gitignore` and
 changelist edits stay quiet,

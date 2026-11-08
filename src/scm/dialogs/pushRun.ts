@@ -45,6 +45,7 @@ import {
   type UpdateDialogDeps,
   type UpdateOutcome,
 } from './updateDialog';
+import { showInfo } from '../../ui/notices';
 
 /** One push to run: a local branch to a branch on a remote, and the argv that does it. */
 export interface PushTarget {
@@ -723,7 +724,7 @@ export interface PushReportOptions {
 async function rememberAutoUpdate(strategy: UpdateStrategy): Promise<void> {
   await setAutoUpdateIfRejected(true);
   // Say how to undo it: the question will not be there to remind anyone.
-  void vscode.window.showInformationMessage(
+  showInfo(
     strategy === 'rebase'
       ? vscode.l10n.t(
           'A rejected push will now rebase and push again without asking. Turn this off with the setting gittree.push.autoUpdateIfRejected.',

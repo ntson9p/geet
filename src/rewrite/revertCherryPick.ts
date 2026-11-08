@@ -16,6 +16,7 @@ import { stopIdentity } from '../core/model/inProgressOp';
 import { canonicalKey } from '../core/repoDiscovery';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
+import { showInfo } from '../ui/notices';
 
 export type SequenceKind = 'revert' | 'cherry-pick';
 
@@ -197,7 +198,7 @@ export class RevertCherryPickService {
       newShas = raw.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
     }
     const shortList = newShas.map((s) => s.slice(0, 7)).join(', ');
-    void vscode.window.showInformationMessage(
+    showInfo(
       kind === 'revert'
         ? newShas.length === 1
           ? vscode.l10n.t('Reverted — new commit: {0}', shortList)

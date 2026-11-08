@@ -37,6 +37,7 @@ import {
 import { checkoutAcross, pickAndCheckoutAcross, refStateOf } from './checkoutAcross';
 import { acrossOffer, branchOfRemote, type CheckoutTarget } from './checkoutAcrossModel';
 import { REPOSITORY_MENU } from './repositoryMenu';
+import { showInfo } from '../ui/notices';
 
 export interface PanelActionDeps {
   readonly core: Core;
@@ -534,7 +535,7 @@ export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): P
       if (repos.length === 1) {
         const ctx = contextIn(first, run.target);
         if (!ctx) {
-          void vscode.window.showInformationMessage(
+          showInfo(
             vscode.l10n.t('{0} is no longer in {1}.', run.target.name, deps.labelOf(first.root)),
           );
           return;

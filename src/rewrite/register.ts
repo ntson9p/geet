@@ -15,6 +15,7 @@ import { RebaseStateMonitor } from './rebase/stateMonitor';
 import { RevertCherryPickService } from './revertCherryPick';
 import { RewordService } from './reword';
 import { UndoDropService } from './undoDrop';
+import { showInfo } from '../ui/notices';
 
 export function registerPhase05HistoryRewriting(
   context: vscode.ExtensionContext,
@@ -194,7 +195,7 @@ export function registerPhase05HistoryRewriting(
     const sha = shaOf(arg);
     const head = repo.model.snapshot.headSha;
     if (sha !== undefined && head !== undefined && !head.startsWith(sha)) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('Undo Commit only applies to the latest commit (HEAD). Use Drop Commit for older ones.'),
       );
       return;
@@ -312,7 +313,7 @@ export function registerPhase05HistoryRewriting(
     const result = await applyPatchFile(repo, picked[0]!.fsPath);
     await repo.refresher.refreshNow();
     if (result.status === 'applied') {
-      void vscode.window.showInformationMessage(
+      showInfo(
         result.appliedAsCommits
           ? vscode.l10n.t('Patch applied as commits (git am).')
           : vscode.l10n.t('Patch applied to the working tree.'),

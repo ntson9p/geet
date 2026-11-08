@@ -62,6 +62,7 @@ import {
   summarizeProjectUpdate,
   type RepoUpdateResult,
 } from './updateReport';
+import { showInfo } from '../../ui/notices';
 
 export interface UpdateDialogDeps {
   core: Core;
@@ -978,7 +979,7 @@ export async function showUpdateDialog(
 ): Promise<UpdateOutcome | undefined> {
   const snap = repo.model.snapshot;
   if (snap.upstream === undefined) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('"{0}" has no upstream branch to update from.', snap.headRef ?? ''),
     );
     return undefined;
@@ -1123,7 +1124,7 @@ export async function showProjectUpdate(
   const scope = updateScope(repos);
   const label = labelsFor(deps.core);
   if (scope.targets.length === 0) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       scope.skipped.length === 1 && scope.skipped[0] !== undefined
         ? vscode.l10n.t(
             'Nothing to update: {0} — {1}.',
@@ -1152,7 +1153,7 @@ export async function showProjectUpdate(
       fetching.done();
     }
     if (fetching.token.isCancellationRequested) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('Update Project cancelled: nothing was merged or rebased.'),
       );
       return undefined;
@@ -1305,7 +1306,7 @@ export async function showRangeInLog(outcome: UpdateOutcome, root: string): Prom
 async function rememberDontAskAgain(strategy: UpdateStrategy): Promise<void> {
   await setUpdateStrategy(strategy);
   // Say how to undo it: the question will not be there to remind anyone.
-  void vscode.window.showInformationMessage(
+  showInfo(
     strategy === 'rebase'
       ? vscode.l10n.t(
           'Update Project will rebase without asking. Change this with "GitTree: Update Project Strategy…".',
@@ -1328,7 +1329,7 @@ export async function runRememberedUpdate(
 ): Promise<UpdateOutcome | undefined> {
   const snap = repo.model.snapshot;
   if (snap.upstream === undefined) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('"{0}" has no upstream branch to update from.', snap.headRef ?? ''),
     );
     return undefined;

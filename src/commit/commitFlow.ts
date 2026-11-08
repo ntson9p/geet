@@ -25,6 +25,7 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { computeFileDiff, planPartialCommit, type PartialPlan } from './window/fileDiff';
 import type { InclusionModel } from './window/inclusion';
 import { runDeferredChecks, type CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
+import { showInfo } from '../ui/notices';
 
 export interface CommitFlowDeps {
   core: Core;
@@ -228,7 +229,7 @@ export async function runCommitFlow(
   let commitAll = false;
   if (!target) {
     if (deps.paradigm.paradigm === 'changelists') {
-      void vscode.window.showInformationMessage(vscode.l10n.t('No checked files to commit.'));
+      showInfo(vscode.l10n.t('No checked files to commit.'));
       return false;
     }
     // Staging paradigm with an empty index: offer commit-all (P1 behavior).
@@ -236,7 +237,7 @@ export async function runCommitFlow(
       (e) => e.kind !== 'untracked' && e.kind !== 'ignored',
     );
     if (trackedDirty.length === 0 && !amend) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('No changes to commit.'));
+      showInfo(vscode.l10n.t('No changes to commit.'));
       return false;
     }
     if (trackedDirty.length > 0) {
@@ -295,7 +296,7 @@ export async function runCommitFlow(
             // lines that have since moved.
             const plan = await planCommit(deps, repo, target);
             if (plan.wholePaths.length === 0 && plan.partials.length === 0) {
-              void vscode.window.showInformationMessage(
+              showInfo(
                 vscode.l10n.t('Every change in the ticked files was excluded — nothing to commit.'),
               );
               return false;

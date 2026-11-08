@@ -6,6 +6,23 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — a GitTree message with nothing to click leaves after 5 seconds
+
+- **GitTree's plain messages go after 5 seconds:** *Fetch successful*, *Checked out main*,
+  *Nothing to stash.* VS Code kept them 10 seconds (15 before 1.105), stopped counting while
+  you were in another application, and never hid one under the pointer, so they could look
+  endless. A long one gets a second for every four words past ten, up to twice the setting.
+- **The time counts while VS Code is in front.** Away in another application, a message waits
+  for you, and finishes what is left of its time when you are back, as IntelliJ's balloons do.
+- **`gittree.notifications.durationSeconds`** sets it, from 0 to 60. At `0` they are ordinary
+  notifications again.
+- **They are not kept in the Notifications list (the bell):** VS Code cannot hide a
+  notification on a timer and keep it there. The **GitTree** output keeps a copy, as
+  `[notice] 13:27:54 Checked out develop`. Nor do they have a `×` while they show; `Escape`
+  hides one, and VS Code then shows its words in the status bar until its time is up.
+- Messages with buttons (*Deleted branch x* with **Restore**), warnings and errors are ordinary
+  notifications as before: they ask for a decision, or say something went wrong.
+
 ### Changed — the Repositories panel: REPOSITORIES and BRANCHES are panes
 
 - **The branches are a pane of their own.** With several repositories, the Repositories panel

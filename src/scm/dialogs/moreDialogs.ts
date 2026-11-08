@@ -51,6 +51,7 @@ import {
   type RemoteEdit,
 } from './remoteArgs';
 import { buildStashApplyArgs, buildStashPushArgs, validateStashPushOptions } from './stashArgs';
+import { showInfo } from '../../ui/notices';
 
 function base(repo: RepoHandle): {
   repoRoot: string;
@@ -76,7 +77,7 @@ function failed(err: unknown, commands: string[][]): OpOutcome {
 
 function report(outcome: OpOutcome): void {
   if (outcome.conflicts === true) return;
-  if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
+  if (outcome.ok) showInfo(outcome.message);
   else void vscode.window.showErrorMessage(outcome.message.split('\n', 1)[0] ?? outcome.message);
 }
 
@@ -176,7 +177,7 @@ export async function showCherryPickDialog(
 ): Promise<OpOutcome | undefined> {
   const params = await buildCherryPickParams(deps.core, repo, seedShas);
   if (params.commits.length === 0) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('No commits outside this branch to cherry-pick.'),
     );
     return undefined;
@@ -251,7 +252,7 @@ export async function showStashDialog(
 ): Promise<OpOutcome | undefined> {
   const params = buildStashParams(deps.core, repo);
   if (params.dirtyCount === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('Nothing to stash.'));
+    showInfo(vscode.l10n.t('Nothing to stash.'));
     return undefined;
   }
   const result = await openDialog<StashDialogParamsDto, StashDialogResultDto>({
@@ -420,7 +421,7 @@ export async function showUnstashDialog(
 ): Promise<OpOutcome | undefined> {
   const params = buildUnstashParams(deps, repo);
   if (params.entries.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('There are no stashes.'));
+    showInfo(vscode.l10n.t('There are no stashes.'));
     return undefined;
   }
   const result = await openDialog<UnstashDialogParamsDto, UnstashDialogResultDto>({

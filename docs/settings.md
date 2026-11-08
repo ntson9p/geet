@@ -84,6 +84,13 @@ Shape of the GitTree status-bar widget. VS Code’s built-in Git extension alrea
   - `full` — Always the full widget: branch name plus ahead/behind counts, capped at 99+ the way IntelliJ caps its own. Duplicates the built-in Git widget if that one is also shown.
   - `off` — No GitTree status-bar widget at all.
 
+### `gittree.notifications.durationSeconds`
+
+How many seconds GitTree's messages with nothing to click ("Fetch successful", "Checked out main") stay on screen, counted while VS Code is in front; a long one gets a little longer, up to twice this. VS Code cannot hide a notification on a timer and still keep it in the Notifications list (the bell in the status bar), so these leave no entry there: the "GitTree" output keeps a copy. 0 shows them as ordinary notifications instead, which VS Code hides after about 10 seconds and keeps in that list. Messages with buttons, warnings and errors are always ordinary notifications.
+
+- Type: `number` · Default: `5`
+- Minimum: `0`
+
 ## GitTree Source Control
 
 ### `gittree.quickDiff.base`

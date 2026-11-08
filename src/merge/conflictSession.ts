@@ -29,6 +29,7 @@ export {
 } from './conflictKinds';
 import { Emitter, type Event } from '../core/util/events';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
+import { showInfo } from '../ui/notices';
 
 export class ConflictSession {
   private readonly _onDidChange = new Emitter<void>();
@@ -232,7 +233,7 @@ export class ConflictSession {
       case 'stash-pop':
       case 'unshelve':
       case 'checkout-merge':
-        void vscode.window.showInformationMessage(
+        showInfo(
           vscode.l10n.t(
             'There is no git abort for this operation — use Local History or re-apply the stash after cleaning up.',
           ),

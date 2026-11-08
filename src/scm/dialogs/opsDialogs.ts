@@ -42,6 +42,7 @@ import {
   rollbackKindOf,
   type RollbackFile,
 } from './rollbackPlan';
+import { showInfo } from '../../ui/notices';
 
 export interface OpDialogDeps {
   core: Core;
@@ -136,7 +137,7 @@ export async function showMergeDialog(
 ): Promise<OpOutcome | undefined> {
   const params = buildMergeParams(repo);
   if (params.refs.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('No other branch to merge.'));
+    showInfo(vscode.l10n.t('No other branch to merge.'));
     return undefined;
   }
   const result = await openDialog<MergeDialogParamsDto, MergeDialogResultDto>({
@@ -215,7 +216,7 @@ export async function showRebaseDialog(
 ): Promise<OpOutcome | undefined> {
   const params = buildRebaseParams(repo);
   if (params.refs.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('No other branch to rebase onto.'));
+    showInfo(vscode.l10n.t('No other branch to rebase onto.'));
     return undefined;
   }
   const result = await openDialog<RebaseDialogParamsDto, RebaseDialogResultDto>({
@@ -466,7 +467,7 @@ export async function showRollbackDialog(
 ): Promise<OpOutcome | undefined> {
   const params = buildRollbackParams(repo, preselected);
   if (params.files.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('Nothing to roll back.'));
+    showInfo(vscode.l10n.t('Nothing to roll back.'));
     return undefined;
   }
   const result = await openDialog<RollbackDialogParamsDto, RollbackDialogResultDto>({
@@ -490,7 +491,7 @@ export async function showRollbackDialog(
 function reportOp(outcome: OpOutcome): void {
   if (outcome.conflicts === true) return;
   if (outcome.ok) {
-    void vscode.window.showInformationMessage(outcome.message);
+    showInfo(outcome.message);
     return;
   }
   void vscode.window.showErrorMessage(

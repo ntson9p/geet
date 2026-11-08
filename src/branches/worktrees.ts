@@ -30,6 +30,7 @@ import {
   type NewWorktreeOptions,
 } from './worktreeArgs';
 import { remoteNamesOf } from './newBranchArgs';
+import { showInfo } from '../ui/notices';
 
 export interface WorktreeOutcome {
   ok: boolean;
@@ -310,7 +311,7 @@ export async function showNewWorktreeDialog(
   });
   if (!result) return undefined;
   const outcome = await applyNewWorktreeResult(deps, repo, result);
-  if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
+  if (outcome.ok) showInfo(outcome.message);
   else void vscode.window.showErrorMessage(outcome.message);
   return outcome;
 }
@@ -366,7 +367,7 @@ export function registerWorktrees(
 
   const report = (outcome: WorktreeOutcome): void => {
     provider.refresh();
-    if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
+    if (outcome.ok) showInfo(outcome.message);
     else void vscode.window.showErrorMessage(outcome.message);
   };
 

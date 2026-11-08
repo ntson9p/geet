@@ -16,6 +16,7 @@ import { confirmModal } from '../ui/confirm';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import { parseNameStatusZ } from '../branches/parsing';
 import type { LogViewProvider } from './logView';
+import { showInfo } from '../ui/notices';
 
 interface CommitContext {
   sha?: string;
@@ -240,7 +241,7 @@ export function registerCommitActions(
     });
     const entries = parseNameStatusZ(result.stdout);
     if (entries.length === 0) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('{0} and {1} have the same content.', lower.slice(0, 7), upper.slice(0, 7)),
       );
       return;
@@ -273,12 +274,12 @@ export function registerCommitActions(
         }),
     });
     if (remote.exitCode !== 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('No origin remote configured.'));
+      showInfo(vscode.l10n.t('No origin remote configured.'));
       return;
     }
     const url = commitWebUrl(remote.stdout.trim(), sha);
     if (url === undefined) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('Unrecognized remote host — cannot build a commit URL.'),
       );
       return;
@@ -475,7 +476,7 @@ export function registerCommitActions(
       ...tags.map((t): RefItem => ({ label: `$(tag) ${t}`, ref: t, type: 'tag' })),
     ];
     if (items.length === 0) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('No branch or tag contains {0} yet.', sha.slice(0, 7)),
       );
       return;
@@ -526,7 +527,7 @@ export function registerCommitActions(
     });
     const list = parents.stdout.trim().split(/\s+/u).slice(1);
     if (list.length === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('{0} is a root commit.', sha.slice(0, 7)));
+      showInfo(vscode.l10n.t('{0} is a root commit.', sha.slice(0, 7)));
       return;
     }
     const target =
@@ -543,7 +544,7 @@ export function registerCommitActions(
     if (sha === undefined) return;
     const child = logView.findLoadedChild(sha);
     if (child === undefined) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('No loaded commit lists {0} as a parent (children load top-down).', sha.slice(0, 7)),
       );
       return;
@@ -568,7 +569,7 @@ export function registerCommitActions(
           });
     if (!target) return;
     await createPatchToFile(repo, { kind: 'commits', shas }, target.fsPath);
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('Patch with {0} written to {1}.', commitsCount(shas.length), target.fsPath),
     );
   });

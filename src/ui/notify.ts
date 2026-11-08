@@ -18,10 +18,15 @@
  * An operation run in several repositories at once says it once, as IntelliJ's
  * multi-root operations do: `collectNotifications` gathers what each
  * repository's run would have said, and `showCollected` says it together.
+ *
+ * One with nothing to click leaves after a few seconds (`notices.ts`), as
+ * IntelliJ's Git success balloon goes at the next click; one with buttons, or
+ * a warning, is an ordinary notification, which waits for the decision.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as vscode from 'vscode';
 import { joinMessages } from '../scm/resultMessages';
+import { showInfo } from './notices';
 
 /** A button on the notification, and what it does. */
 export interface NotificationAction {
@@ -110,6 +115,11 @@ function show(
   const picked = seeded !== undefined ? actions.find((a) => a.title === seeded) : undefined;
   if (picked) {
     void runAction(picked);
+    return;
+  }
+  // Nothing to click: a notice that leaves on GitTree's clock (new-way-6).
+  if (kind === 'info' && actions.length === 0) {
+    showInfo(message);
     return;
   }
   const titles = actions.map((a) => a.title);

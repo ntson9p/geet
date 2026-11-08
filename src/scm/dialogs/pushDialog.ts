@@ -69,6 +69,7 @@ import {
   type TargetContext,
 } from './pushModel';
 import { pushAndReport, pushOutcomeLine, type PushTarget } from './pushRun';
+import { showInfo } from '../../ui/notices';
 
 export interface PushDialogDeps {
   core: Core;
@@ -733,7 +734,7 @@ export async function showPushDialog(
   const sources: PushSources = new Map();
   const params = await buildPushParams(deps, request, sources);
   if (params.repos.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('There is no repository to push.'));
+    showInfo(vscode.l10n.t('There is no repository to push.'));
     return false;
   }
   if (cancelledByTest) return false;

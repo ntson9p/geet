@@ -31,6 +31,7 @@ import { UnshelveEngine } from '../shelf/unshelve';
 import { StashService, type StashPushOptions } from './stashService';
 import { relativeTime, stashDiffSides, StashViewProvider, type StashNode } from './stashView';
 import { stashRowOf } from './stashRow';
+import { showInfo } from '../ui/notices';
 
 /**
  * P7-T3: shelf root — `gittree.shelf.path` when set AND write-probe passes,
@@ -165,7 +166,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       }
     }
     if (choices.length === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('There are no stashes.'));
+      showInfo(vscode.l10n.t('There are no stashes.'));
       return undefined;
     }
     const seeded = process.env['GITTREE_TEST_STASH_PICK'];
@@ -179,7 +180,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
         ? core.repos[0]
         : core.repoForUri(vscode.window.activeTextEditor?.document.uri ?? vscode.Uri.file('')) ??
           core.repos[0];
-    if (!repo) void vscode.window.showInformationMessage(vscode.l10n.t('No git repository.'));
+    if (!repo) showInfo(vscode.l10n.t('No git repository.'));
     return repo;
   };
 
@@ -288,7 +289,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const service = services.get(canonicalKey(repo.root))!;
     const n = service.list().length;
     if (n === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('There are no stashes.'));
+      showInfo(vscode.l10n.t('There are no stashes.'));
       return;
     }
     const ok = await typedConfirm(
@@ -371,7 +372,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       }
     }
     if (choices.length === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('There are no shelved changes.'));
+      showInfo(vscode.l10n.t('There are no shelved changes.'));
       return undefined;
     }
     const seeded = process.env['GITTREE_TEST_SHELF_PICK'];
@@ -699,7 +700,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       // unshelved" state — mark full unshelves so the Shelf surfaces can hide
       // them behind the Show-already-unshelved toggle.
       if (!deleteAfter && indexes === undefined) t.store.markUnshelved(t.meta.id);
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('Unshelved "{0}" ({1}).', t.meta.name, filesCount(res.relPaths.length)),
       );
       return;
@@ -707,7 +708,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     // conflicts: the P6 session toast has already fired.
     if (deleteAfter) {
       finalizeAfterSession(t, indexes);
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t(
           'Unshelve of "{0}" produced conflicts — the shelf entry is kept until they are resolved.',
           t.meta.name,
@@ -781,7 +782,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const t = await pickShelfFile(arg);
     if (!t) return;
     if (t.file.isBinary) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('"{0}" is binary — no text comparison available.', t.file.relPath),
       );
       return;

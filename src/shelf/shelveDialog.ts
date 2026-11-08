@@ -30,6 +30,7 @@ import {
 import { openDialog } from '../ui/dialogHost';
 import { statusColorOverrides } from '../ui/statusColors';
 import type { ShelfStore } from './shelfStore';
+import { showInfo } from '../ui/notices';
 
 export interface ShelveDialogDeps {
   core: Core;
@@ -111,7 +112,7 @@ export async function showShelveDialog(
 ): Promise<boolean> {
   const params = buildShelveParams(deps, repo, listId);
   if (!params) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('There are no changes to shelve.'));
+    showInfo(vscode.l10n.t('There are no changes to shelve.'));
     return false;
   }
   const store = deps.storeFor(repo.root);

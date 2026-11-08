@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { repoIdentityHash } from '../core/util/repoIdentity';
 import type { CommitMessageBox } from './messageBox';
+import { showInfo } from '../ui/notices';
 
 const RING_SIZE = 50;
 
@@ -44,7 +45,7 @@ export class MessageHistory {
   async showPicker(repo: RepoHandle, inputBox: CommitMessageBox): Promise<void> {
     const entries = await this.entries(repo);
     if (entries.length === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('No commit message history yet.'));
+      showInfo(vscode.l10n.t('No commit message history yet.'));
       return;
     }
     const picked = await vscode.window.showQuickPick(

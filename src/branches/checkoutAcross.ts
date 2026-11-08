@@ -33,6 +33,7 @@ import {
 } from './checkoutAcrossModel';
 import { parseBlockingFiles } from './parsing';
 import { RestoreFailedError, setAsideAround, smartCheckoutBehavior } from './smartCheckout';
+import { showInfo } from '../ui/notices';
 
 /** What the model needs of a repository, read from its snapshot. */
 export function refStateOf(repo: RepoHandle, label: string): RepoRefState {
@@ -310,13 +311,13 @@ export async function pickAndCheckoutAcross(
   repos: readonly RepoHandle[],
 ): Promise<CheckoutAcrossOutcome | undefined> {
   if (repos.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('No repository is open.'));
+    showInfo(vscode.l10n.t('No repository is open.'));
     return undefined;
   }
   const label = labelsOf(core);
   const choices = branchChoices(repos.map((repo) => refStateOf(repo, label(repo))));
   if (choices.length === 0) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('There is no branch to check out.'));
+    showInfo(vscode.l10n.t('There is no branch to check out.'));
     return undefined;
   }
   const seeded = process.env['GITTREE_TEST_CHECKOUT_BRANCH'];

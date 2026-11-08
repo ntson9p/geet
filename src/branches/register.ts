@@ -28,6 +28,7 @@ import { RefService, type FavoritesStorage } from './refService';
 import { RepoScope } from './repoScope';
 import { RepositoriesViewProvider } from './repositoriesView';
 import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
+import { showInfo } from '../ui/notices';
 
 const SCOPE_MEMENTO_KEY = 'gittree.sidebar.focusedRepo';
 
@@ -389,7 +390,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       isCurrent: repo.model.snapshot.headRef === name,
     };
     if (!action.applies(ctx)) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('"{0}" does not apply to {1}.', action.label(ctx, ctx.repo.model.snapshot.headRef), name),
       );
       return;

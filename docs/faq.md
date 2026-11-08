@@ -142,6 +142,15 @@ never a question which one it means.
 The trees the panel replaced are still available under `gittree.sidebar.extraViews`:
 **Repositories (Tree)**, **Branches (Tree)** and **Branches (All Repositories)**.
 
+### A GitTree message went away before I read it. Where is it?
+
+In the **GitTree** output (View › Output, then *GitTree*), as `[notice] 13:27:54 Checked out
+develop`. A message with nothing to click, such as *Fetch successful* or *Nothing to stash.*,
+stays 5 seconds while VS Code is in front, and VS Code cannot keep a notification it hides on a
+timer in its Notifications list. Set `gittree.notifications.durationSeconds` to keep them up
+longer, or to `0` for ordinary notifications, which VS Code keeps in that list. Messages with
+buttons, warnings and errors are always ordinary notifications.
+
 ### Where does Local History store its data? Does it leave my machine?
 
 Snapshots are content-addressed, gzip-compressed blobs under VS Code's

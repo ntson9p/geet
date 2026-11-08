@@ -115,6 +115,7 @@ import type {
   StashDialogResultDto,
   UnstashDialogResultDto,
 } from '../../shared/protocol';
+import { showInfo } from '../../ui/notices';
 
 export interface Phase13Registry {
   /** Test seam: the params the dialog would open with. */
@@ -384,7 +385,7 @@ export function registerPhase13Dialogs(
         return;
       }
       if (core.repos.length === 0) {
-        void vscode.window.showInformationMessage(
+        showInfo(
           vscode.l10n.t('Open a repository to update.'),
         );
         return;

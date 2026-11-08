@@ -50,6 +50,7 @@ import {
 } from './popupTree';
 import type { RefService } from './refService';
 import { showTagsSetting } from './showTags';
+import { showInfo } from '../ui/notices';
 
 interface BranchItem extends vscode.QuickPickItem {
   branch?: RefInfo;
@@ -900,7 +901,7 @@ export async function showBranchActions(
   };
   const items = buildBranchActionItems(actions, ctx, repo.model.snapshot.headRef);
   if (items.length === 0) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('No actions available for {0}.', branch.name),
     );
     return;
@@ -956,7 +957,7 @@ export async function runCommonAction(
   if (targets.length === 0) {
     // Every root is already there (or none can) — say so rather than appear
     // to do nothing, which is what an empty loop would have looked like.
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('Nothing to do: "{0}" already applies in every repository.', common.name),
     );
     return;
@@ -1036,7 +1037,7 @@ export async function showCommonBranchActions(
   const contexts = commonContexts(core.repos, common);
   const offerable = applicableCommonActions(COMMON_ACTIONS, actions, common, contexts);
   if (offerable.length === 0) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t(
         'No operation applies to "{0}" in all {1} repositories. Open a repository to act on it there.',
         common.name,

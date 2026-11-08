@@ -24,6 +24,7 @@ import {
   preTicked,
   type CleanupCandidate,
 } from './panelState';
+import { showInfo } from '../ui/notices';
 
 interface Pick extends vscode.QuickPickItem {
   readonly repo?: RepoHandle;
@@ -78,7 +79,7 @@ export async function cleanUpBranches(core: Core, roots?: readonly string[]): Pr
     if (candidates.length > 0) groups.push({ repo, ...(main !== undefined ? { main } : {}), candidates });
   }
   if (groups.length === 0) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('Nothing to clean up: no branch is merged into the main branch or has lost its remote branch.'),
     );
     return;

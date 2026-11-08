@@ -22,6 +22,7 @@ import { DisposableStore } from '../core/util/events';
 import { staleNotice } from '../ui/notify';
 import { conflictsDialogEnabled } from './conflictsDialog';
 import { ConflictSession, type ConflictSource } from './conflictSession';
+import { showInfo } from '../ui/notices';
 
 /** P14-T4 — the commit window's message box, via the phase03 registry. */
 interface Phase03MessageBox {
@@ -246,7 +247,7 @@ export class MergeLifecycle implements vscode.Disposable {
         return;
       case 'stash-pop':
       case 'unshelve':
-        void vscode.window.showInformationMessage(
+        showInfo(
           vscode.l10n.t('All conflicts resolved — the applied changes are ready to commit.'),
         );
         return;

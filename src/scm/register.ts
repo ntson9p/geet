@@ -27,6 +27,7 @@ import { registerChangePopup } from './gutter/changePopup';
 import { registerHunkActions } from './hunkActions';
 import { registerSyncOps } from './syncOps';
 import { notificationsRegistry } from '../ui/notify';
+import { setNoticeLog } from '../ui/notices';
 
 export interface Phase01Registry {
   statusBars: Map<string, StatusBarController>;
@@ -243,5 +244,9 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   core.debugRegistry.set('phase01', registry);
   // POST-P14ap: what the completion notifications said, for the integration tests.
   core.debugRegistry.set('notifications', notificationsRegistry);
+  // new-way-6: a notice that leaves on a timer has no entry in the notification
+  // centre; GitTree's output keeps it.
+  setNoticeLog((line) => core.output.appendLine(line));
+  context.subscriptions.push({ dispose: () => setNoticeLog(undefined) });
   return registry;
 }

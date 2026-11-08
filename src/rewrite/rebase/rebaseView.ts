@@ -19,6 +19,7 @@ import { isPublished } from '../publishedGuard';
 import { validatePlan, type RebasePlan } from './planSerializer';
 import type { RebaseEngine } from './rebaseEngine';
 import type { RebaseStateMonitor } from './stateMonitor';
+import { showInfo } from '../../ui/notices';
 
 interface ActiveSession {
   repo: RepoHandle;
@@ -75,7 +76,7 @@ export class RebaseViewController implements vscode.Disposable {
     }
     const rows = await this.loadRows(repo, base);
     if (rows.length === 0) {
-      void vscode.window.showInformationMessage(vscode.l10n.t('Nothing to rebase.'));
+      showInfo(vscode.l10n.t('Nothing to rebase.'));
       return false;
     }
     const oldest = rows[0];

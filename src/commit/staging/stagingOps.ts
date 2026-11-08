@@ -21,6 +21,7 @@ import { revObjectSpec, REV_SCHEME, parseRevUri } from '../../core/vdocs/revCont
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
 import { reportStageOutcome } from './stageMessages';
 import { selectChanges, stageWorktreeLines, unstageIndexLines } from './stageLines';
+import { showInfo } from '../../ui/notices';
 
 async function readRev(repo: RepoHandle, rel: string, ref: string): Promise<string | undefined> {
   const result = await repo.queue.enqueue({
@@ -94,7 +95,7 @@ async function unstageSelected(core: Core): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   const target = indexDocOf(core, editor);
   if (!editor || !target) {
-    void vscode.window.showInformationMessage(
+    showInfo(
       vscode.l10n.t('Select the lines in the staged diff (HEAD ↔ Index) to unstage them.'),
     );
     return;
@@ -151,7 +152,7 @@ async function revertSelected(core: Core): Promise<void> {
     },
   });
   if (!applied) {
-    void vscode.window.showInformationMessage(vscode.l10n.t('The file changed while waiting. Select the lines again.'));
+    showInfo(vscode.l10n.t('The file changed while waiting. Select the lines again.'));
   }
 }
 

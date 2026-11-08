@@ -37,6 +37,7 @@ import {
 import { pullResultMessage } from './resultMessages';
 import { chooseRepo } from '../ui/chooseRepo';
 import { pullStrategyArgs } from './pullArgs';
+import { showInfo } from '../ui/notices';
 
 type BranchesOpenHandler = (repoRoot?: string) => Promise<void>;
 let branchesOpenHandler: BranchesOpenHandler | undefined;
@@ -177,7 +178,7 @@ export function registerSyncOps(
     const { ok, cancelled, failures, total } = summarizeFetch(outcomes);
     if (failures.length === 0) {
       if (cancelled > 0) {
-        void vscode.window.showInformationMessage(
+        showInfo(
           vscode.l10n.t('Fetched {0} of {1} repositories — cancelled.', ok, total),
         );
         return;
@@ -205,7 +206,7 @@ export function registerSyncOps(
   async function fetchAll(): Promise<void> {
     const targets = await fetchTargets();
     if (targets.length === 0) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         core.repos.length === 0
           ? vscode.l10n.t('No repository is open.')
           : vscode.l10n.t('No repository has a remote configured.'),
@@ -336,7 +337,7 @@ export function registerSyncOps(
       // Said plainly, rather than as git's "No remote repository specified":
       // a repository's own Fetch is offered whether or not it has a remote.
       if (!(await hasRemote(repo))) {
-        void vscode.window.showInformationMessage(
+        showInfo(
           vscode.l10n.t('{0} has no remote to fetch from.', path.basename(repo.root)),
         );
         return;
@@ -417,7 +418,7 @@ export function registerSyncOps(
     // The offer may be old: the branch may have been pushed, pulled or put
     // back since. Only a branch the upstream is not part of needs force.
     if (upstream !== undefined && (await isAncestorOf(repo, upstream, 'HEAD'))) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('"{0}" no longer needs a force push: {1} is already part of it. Use Push.', branch, upstream),
       );
       return;
