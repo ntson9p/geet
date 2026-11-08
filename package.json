@@ -1474,7 +1474,7 @@
       {
         "command": "gittree.merge.applyNonConflicting.all",
         "title": "%gittree.command.merge.applyNonConflicting.all.title%",
-        "icon": "$(wand)"
+        "icon": "$(arrow-both)"
       },
       {
         "command": "gittree.merge.applyNonConflicting.right",
@@ -2468,22 +2468,22 @@
         {
           "command": "gittree.merge.magicWand",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@2"
+          "group": "navigation@5"
         },
         {
           "command": "gittree.merge.applyNonConflicting.left",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@3"
+          "group": "navigation@2"
         },
         {
           "command": "gittree.merge.applyNonConflicting.all",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@4"
+          "group": "navigation@3"
         },
         {
           "command": "gittree.merge.applyNonConflicting.right",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@5"
+          "group": "navigation@4"
         },
         {
           "command": "gittree.merge.showDetails",
@@ -2493,27 +2493,27 @@
         {
           "command": "gittree.merge.acceptAllYours",
           "when": "resourceScheme == gittree-merge",
-          "group": "2_accept@1"
+          "group": "2_accept@3"
         },
         {
           "command": "gittree.merge.acceptAllTheirs",
           "when": "resourceScheme == gittree-merge",
-          "group": "2_accept@2"
+          "group": "2_accept@4"
         },
         {
           "command": "gittree.merge.acceptFileYours",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@3"
+          "group": "2_accept@1"
         },
         {
           "command": "gittree.merge.acceptFileTheirs",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@4"
+          "group": "2_accept@2"
         },
         {
           "command": "gittree.merge.abortFile",
           "when": "resourceScheme == gittree-merge",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "gittree.diff.prevFile",

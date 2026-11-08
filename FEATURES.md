@@ -880,13 +880,17 @@ greys Revert, Drop and Squash Commits.
 
 ### Toolbar (shape)
 
-* **`Apply non-conflicting changes:` Left · All · Right** — three actions, not one.
+* **`Apply non-conflicting changes:` Left · All · Right** — three actions, not one. On the
+  Result pane's toolbar, in IntelliJ's order: **Apply** ✓, the three applies (→ from the
+  left, ⟷ from both, ← from the right), the one magic wand, **Abort** ↺. Every icon is used
+  once.
 * **Live counter** in IntelliJ's wording: `No changes. 2 conflicts.` / `3 changes, 1 conflict.`
   / `All changes applied.`, shown in the status bar beside the resolved/total and file position.
 * **Per-side `Show Details`** — the revision behind each pane: short sha · author · date ·
   subject.
 * **`Accept Yours` / `Accept Theirs`** as explicit whole-file verbs, distinct from the
-  non-conflicting applies.
+  non-conflicting applies. They are in the toolbar's `…` menu, beside their all-files
+  forms. IntelliJ has them as Accept Left and Accept Right buttons, not toolbar icons.
 * **Magic Wand** (per file and per session) — the rule cascade: identical → one-side-is-base →
   disjoint interleave → whitespace-only divergence.
 * **Deviation:** git applies every non-overlapping change itself before the tri-editor opens,

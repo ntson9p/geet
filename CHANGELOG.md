@@ -6,6 +6,18 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the merge editor's toolbar has one magic wand
+
+- **Two magic wands stood in the merge editor's toolbar.** One resolves simple conflicts. The
+  other was *Apply Non-Conflicting Changes: All*, which wore the wand too. It now wears ⟷,
+  between → (from the left) and ← (from the right), in IntelliJ's order: ✓ → ⟷ ← wand ↺. The
+  three applies are all on the toolbar now: *Right* had been pushed into the `…` menu.
+- **The arrows mean one thing each.** *Accept All Yours (File)* and *Accept All Theirs
+  (File)* wore the same arrows as the applies, pointing the other way. They are now in the
+  `…` menu, as IntelliJ's Accept Left and Accept Right are buttons of their own. The
+  all-files accepts there say *(All Files)*.
+- The wand says *Resolved 0 of 1 conflict*, not *of 1 conflicts*.
+
 ### Fixed — a stash has a right-click menu
 
 - **Right-clicking a stash in the Stash tab offers its actions:** Apply Stash, Pop Stash,

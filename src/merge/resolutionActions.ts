@@ -198,7 +198,9 @@ export function registerResolutionActions(
     }
     const resolved = before - editor.unresolvedCount;
     void vscode.window.showInformationMessage(
-      vscode.l10n.t('Resolved {0} of {1} conflicts automatically.', resolved, before),
+      before === 1
+        ? vscode.l10n.t('Resolved {0} of 1 conflict automatically.', resolved)
+        : vscode.l10n.t('Resolved {0} of {1} conflicts automatically.', resolved, before),
     );
   });
 

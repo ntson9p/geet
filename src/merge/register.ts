@@ -230,12 +230,18 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
       }
     }
     void vscode.window.showInformationMessage(
-      vscode.l10n.t(
-        'Resolved {0} of {1} conflicts automatically ({2} completed).',
-        blocksResolved,
-        blocksTotal,
-        filesCount(filesResolved),
-      ),
+      blocksTotal === 1
+        ? vscode.l10n.t(
+            'Resolved {0} of 1 conflict automatically ({1} completed).',
+            blocksResolved,
+            filesCount(filesResolved),
+          )
+        : vscode.l10n.t(
+            'Resolved {0} of {1} conflicts automatically ({2} completed).',
+            blocksResolved,
+            blocksTotal,
+            filesCount(filesResolved),
+          ),
     );
   });
 
