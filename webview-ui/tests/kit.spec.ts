@@ -168,6 +168,81 @@ test.describe('P11-T1 menu', () => {
   });
 });
 
+/**
+ * new-way-6: a menu is drawn inside its webview and cannot leave it. A branch's
+ * menu across twenty repositories ran off the foot of the sidebar, its last
+ * rows out of the pointer's reach; past the webview's edges a menu scrolls,
+ * and its labels end in `…`.
+ */
+test.describe('a menu bigger than its webview', () => {
+  test('scrolls inside it, and the arrows bring the row they reach into view', async ({ page }) => {
+    // 120px: room for five of the menu's rows, so its last ones are below the fold.
+    await page.setViewportSize({ width: 360, height: 120 });
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    const menu = page.getByRole('menu', { name: 'Branch actions' });
+    await expect(menu).toBeVisible();
+    const box = (await menu.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(4 - 0.5);
+    expect(box.y + box.height).toBeLessThanOrEqual(120 - 4 + 0.5);
+    expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+    // End: the last row that can be picked (Delete is disabled), scrolled into view.
+    await page.keyboard.press('End');
+    await expect.poll(() => menu.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    const rename = menu.getByRole('menuitem', { name: /^Rename/u });
+    await expect(rename).toHaveClass(/gt-active/u);
+    const row = (await rename.boundingBox())!;
+    const shown = (await menu.boundingBox())!;
+    expect(row.y).toBeGreaterThanOrEqual(shown.y - 0.5);
+    expect(row.y + row.height).toBeLessThanOrEqual(shown.y + shown.height + 0.5);
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('menu-picked')).toHaveText('rename');
+  });
+
+  test('Home goes back to the top of it', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 120 });
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    const menu = page.getByRole('menu', { name: 'Branch actions' });
+    await page.keyboard.press('End');
+    await expect.poll(() => menu.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await page.keyboard.press('Home');
+    await expect.poll(() => menu.evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(menu.getByRole('menuitem', { name: 'Checkout' })).toHaveClass(/gt-active/u);
+  });
+
+  test('a submenu whose row scrolls away closes', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 160 });
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    const menu = page.getByRole('menu', { name: 'Branch actions' });
+    await menu.getByRole('menuitem', { name: 'Compare' }).hover();
+    await expect(page.getByRole('menu', { name: 'Compare' })).toBeVisible();
+    await menu.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(page.getByRole('menu', { name: 'Compare' })).toHaveCount(0);
+    await expect(menu).toBeVisible();
+  });
+
+  test('a narrow one ends long labels in … rather than running off its side', async ({ page }) => {
+    // The kit's own tabs need the room; the menu is opened once the page is narrow.
+    await openKit(page, 'Menu');
+    await page.setViewportSize({ width: 200, height: 400 });
+    await page.getByTestId('open-menu').click();
+    const menu = page.getByRole('menu', { name: 'Branch actions' });
+    const box = (await menu.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(4 - 0.5);
+    expect(box.x + box.width).toBeLessThanOrEqual(200 - 4 + 0.5);
+    const merge = menu.getByRole('menuitem', { name: "Merge 'feature/f1-1' into 'master'" });
+    expect(await merge.locator('.gt-menu-label').evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    // The accelerator at the row's end is still on show.
+    const rename = (await menu.getByRole('menuitem', { name: /^Rename/u }).locator('.gt-menu-accel').boundingBox())!;
+    expect(rename.x + rename.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+  });
+});
+
 test.describe('P11-T1 splitter', () => {
   test('resizes from the keyboard and resets on double-click', async ({ page }) => {
     await openKit(page);

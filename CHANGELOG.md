@@ -6,6 +6,21 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a branch's menu across many repositories fits the panel
+
+- **Twenty repositories made a branch's menu about thirty rows long,** twenty of them
+  repository names, taller than the sidebar. Past five repositories, they are now one row,
+  **In One Repository ›**, holding each repository's own menu; up to five, they are listed
+  under *In one repository* as before.
+- **A menu taller than its panel ran off the bottom,** its last rows out of the pointer's
+  reach. Every GitTree menu now scrolls inside the panel it opens in, and the arrow keys bring
+  the row they reach into view. A menu wider than the panel was cut off at the side; its
+  labels now end in `…`, its shortcuts and `›` still showing.
+- **Fixed on the way:** keyboard navigation in a scrolled menu no longer loses its row to the
+  pointer. A menu opens under the pointer, and Chrome reported the row that scrolled beneath
+  the resting pointer as entered, which took the selection from the keyboard. A row is now
+  taken only when the pointer actually moves onto it. A submenu whose row scrolls away closes.
+
 ### Changed — a GitTree message with nothing to click leaves after 5 seconds
 
 - **GitTree's plain messages go after 5 seconds:** *Fetch successful*, *Checked out main*,

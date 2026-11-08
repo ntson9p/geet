@@ -712,7 +712,16 @@ button {
   position: fixed;
   z-index: 100;
   min-width: 180px;
-  max-width: 460px;
+  /* Never wider or taller than the webview it is drawn in, less Menu.tsx's
+     4px MARGIN each side: past that, the labels end in `…` and the rows
+     scroll, so none is out of reach (new-way-6). Border-box, so the padding
+     and border are inside those limits, not 10px past them. */
+  box-sizing: border-box;
+  max-width: min(460px, calc(100vw - 8px));
+  max-height: calc(100vh - 8px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px 0;
   border: 1px solid var(--vscode-menu-border, var(--vscode-contrastBorder, transparent));
   border-radius: 4px;
@@ -778,6 +787,8 @@ button {
   color: var(--vscode-descriptionForeground);
   cursor: default;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Dialog (D2: focus-trapped panel, not an OS-modal window) ---- */

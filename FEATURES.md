@@ -299,7 +299,16 @@ picked; at first, on Recent while anything is recent, else Local.
   - **Tracked Branch `'origin/x'`** holds the upstream's own actions, and **Stop Tracking
     `'origin/x'`** follows it;
   - with several repositories, the all-repositories operations come first (*Checkout in all 3
-    repositories*), then one submenu per repository with its own full menu.
+    repositories*), then one submenu per repository with its own full menu: listed under *In
+    one repository* while the branch is in five repositories or fewer, else held in one **In
+    One Repository ›** row, so twenty repositories do not bury the actions (new-way-6).
+    IntelliJ's own menu has no such list: its actions run in every repository, and one
+    repository's are in that repository's part of the popup;
+  - **a menu never runs off the panel.** A GitTree menu is drawn inside its webview, so past the
+    webview's height it scrolls, the arrow keys bringing the row they reach into view, and past
+    its width the labels end in `…`. A row the pointer has not moved onto, because the menu
+    opened beneath it or scrolled under it, does not take the keyboard's place. This holds for
+    every GitTree menu: the log's, the Commit window's and the dialogs' too.
   - **Checkout reaches every repository in view that has the branch, on a remote too.**
     `release/2.0` may be a local branch in one repository and only `origin/release/2.0` in
     three more: its row offers **Checkout in 4 of 5 repositories**, the local branch where

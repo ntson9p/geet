@@ -36,6 +36,7 @@ import {
 } from './branchesPopup';
 import { checkoutAcross, pickAndCheckoutAcross, refStateOf } from './checkoutAcross';
 import { acrossOffer, branchOfRemote, type CheckoutTarget } from './checkoutAcrossModel';
+import { oneRepositoryItems } from './oneRepository';
 import { REPOSITORY_MENU } from './repositoryMenu';
 import { showInfo } from '../ui/notices';
 
@@ -255,7 +256,9 @@ function acrossRun(
  * A branch row's menu. In one repository, that repository's menu. Across
  * several, the operations that run in all of them first — labelled with how
  * many they will touch — then `Show in New Log Tab` naming each repository,
- * then one submenu per repository holding its own.
+ * then one submenu per repository holding its own: listed under `In one
+ * repository` while they are five or fewer, else held in one `In One
+ * Repository` row (`oneRepository.ts`).
  *
  * `scope` is every repository in view: a Checkout across them reaches the ones
  * where only a remote has the branch (POST-P14ax).
@@ -319,15 +322,18 @@ export function branchMenu(
     })),
   });
   items.push({ kind: 'separator' });
-  items.push({ kind: 'header', label: vscode.l10n.t('In one repository') });
-  for (const { repo, ctx } of pairs) {
-    items.push({
-      kind: 'submenu',
-      label: deps.labelOf(repo.root),
-      icon: 'repo',
-      items: repoRefMenu(deps, repo, ctx, target, true),
-    });
-  }
+  // Each repository's own menu: listed while they are few, one row past that.
+  items.push(
+    ...oneRepositoryItems(
+      pairs.map(({ repo, ctx }) => ({
+        kind: 'submenu',
+        label: deps.labelOf(repo.root),
+        icon: 'repo',
+        items: repoRefMenu(deps, repo, ctx, target, true),
+      })),
+      { header: vscode.l10n.t('In one repository'), folded: vscode.l10n.t('In One Repository') },
+    ),
+  );
   return items;
 }
 

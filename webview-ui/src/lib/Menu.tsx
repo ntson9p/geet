@@ -8,6 +8,12 @@
  * `data-vscode-context` only works for menus contributed to `webview/context`,
  * which cannot carry dynamic, per-row labels like
  * `Merge 'feature/f1-1' into 'master'`.
+ *
+ * A menu is drawn inside its webview and cannot leave it, so it is never
+ * taller or wider than the webview: past that it scrolls, and its labels end
+ * in `…` (new-way-6). A branch's menu across twenty repositories ran off the
+ * foot of the sidebar, its last rows out of the pointer's reach. The arrows
+ * bring the row they reach into view; a submenu whose row scrolls away closes.
  */
 import {
   useCallback,
@@ -82,6 +88,12 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
     return wanted >= 0 ? wanted : items.findIndex(isEnabled);
   });
   const [openSub, setOpenSub] = useState<{ index: number; x: number; y: number } | null>(null);
+  /**
+   * The keyboard (or the opening, on `activeId`) moved the active row: bring
+   * it into view. The pointer's row is in view already, and scrolling under
+   * it would close the submenu it has just opened.
+   */
+  const reveal = useRef(true);
 
   // Focus restoration is the top-level menu's job; a submenu returns focus to
   // its parent menu simply by unmounting.
@@ -102,6 +114,19 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
       y: Math.max(MARGIN, Math.min(at.y, Math.max(MARGIN, maxY))),
     });
   }, [at.x, at.y, items]);
+
+  useLayoutEffect(() => {
+    if (!reveal.current) return;
+    reveal.current = false;
+    const host = hostRef.current;
+    const row = host?.querySelector<HTMLElement>(`[data-menu-index="${active}"]`);
+    if (!host || !row || host.scrollHeight <= host.clientHeight) return;
+    // The first row shows the menu from its top, a heading above it included.
+    const top = active === items.findIndex(isEnabled) ? 0 : row.offsetTop;
+    const bottom = row.offsetTop + row.offsetHeight;
+    if (top < host.scrollTop) host.scrollTop = top;
+    else if (bottom > host.scrollTop + host.clientHeight) host.scrollTop = bottom - host.clientHeight;
+  }, [active, items]);
 
   useEffect(() => {
     hostRef.current?.focus();
@@ -166,6 +191,7 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
   );
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') reveal.current = true;
     switch (e.key) {
       case 'ArrowDown':
         step(1);
@@ -218,6 +244,8 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
         className="gt-menu"
         style={{ left: pos.x, top: pos.y }}
         onKeyDown={onKeyDown}
+        // A submenu stands beside its row; scrolled, the row moves on without it.
+        onScroll={() => setOpenSub(null)}
       >
         {items.map((item, index) => {
           if (item.kind === 'separator') {
@@ -244,11 +272,17 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
               data-menu-index={index}
               title={item.kind === 'item' ? item.title : undefined}
               className={`gt-menu-item${isActive ? ' gt-active' : ''}${item.disabled === true ? ' gt-disabled' : ''}`}
-              onMouseEnter={() => {
+              onMouseMove={(e) => {
+                // The row the pointer moved onto, not one that came under a
+                // pointer standing still: the menu opened beneath it, or the
+                // keyboard scrolled it. Chrome then sends a move of no distance,
+                // and taking it stole the keyboard's row (new-way-6).
+                if (e.movementX === 0 && e.movementY === 0) return;
                 if (!isEnabled(item)) return;
-                setActive(index);
-                if (item.kind === 'submenu') openSubmenuAt(index);
-                else setOpenSub(null);
+                if (index !== active) setActive(index);
+                if (item.kind === 'submenu') {
+                  if (openSub?.index !== index) openSubmenuAt(index);
+                } else if (openSub !== null) setOpenSub(null);
               }}
               onClick={() => activate(index)}
             >
