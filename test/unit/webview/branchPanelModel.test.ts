@@ -80,6 +80,7 @@ function state(repos: BranchPanelRepoDto[], extra: Partial<BranchPanelStateDto> 
     showTags: true,
     showInOut: true,
     groupByFolder: true,
+    showRepositoryDots: false,
     fetchingAll: false,
     now: NOW,
     palette: 'default',

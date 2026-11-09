@@ -67,6 +67,7 @@ const SETTING_KEYS: Record<BranchPanelSettingKey, string> = {
   showTags: 'showTags',
   showIncomingOutgoing: 'showIncomingOutgoing',
   groupByFolder: 'groupByFolder',
+  showRepositoryDots: 'showRepositoryDots',
 };
 
 function isTarget(value: unknown): value is BranchPanelTargetDto {
@@ -247,6 +248,7 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       showTags: showTagsSetting(),
       showInOut: cfg.get<boolean>('showIncomingOutgoing', true),
       groupByFolder: cfg.get<boolean>('groupByFolder', true),
+      showRepositoryDots: cfg.get<boolean>('showRepositoryDots', false),
       fetchingAll: this.fetchingAll,
       now: Math.floor(Date.now() / 1000),
       palette:

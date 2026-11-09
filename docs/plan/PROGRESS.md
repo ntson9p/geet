@@ -1231,3 +1231,29 @@ Verified on the final build in VS Code 1.144.0 (all seven scenarios) and 1.96.0 
 Tests (written, not run): unit — new `scrollAnchor.test.ts` (on top, partly scrolled, selection on and off screen, bottom edge, past the last row, empty), `listWindow.test.ts`, `pageReads.test.ts` (join, replay, stale, read, a failed read joined and retried); `statusRefresher.test.ts` (a stream of events every 20 ms with a commit made in it; an outside commit inside the window after the post-op read; our own late events still one refresh). Playwright — the mock host can put new commits on top (`__mockNewCommits`): on top the new commit is row 0 at `scrollTop` 0; on top with a selection, the selection moves down with its row; scrolled, the top row keeps its offset to the pixel; a selected row on screen keeps its place; after a replay with `next: 5` the list asks for page 5, not 1. Integration — phase04: a page asked for twice while read is laid out once (row count equals `rev-list --count`); a commit from outside 400 ms after a GitTree operation reaches the model and the log (skips if the machine cannot land it inside the window).
 
 Docs: CHANGELOG (Fixed), FEATURES, gap analysis.
+
+POST-P14bj ✅ 2026-11-09 (branch `new-way-6`): **Repository Dots: a switch, off by default, that no longer moves on hover.** The owner, with a screenshot of the Repositories panel over 20 repositories: the dots (one per repository on each branch row) are useful, but on hover they jumped left, and they need not show all the time. Three designs for the hover shown (buttons before the status columns; buttons floating over the row's end; a fixed lane for the buttons) and three for the switch. The owner chose the first (VS Code's own layout: in Source Control a row's actions sit before its decoration letter), a one-click toolbar toggle mirrored in the `⋯` menu, the dots off by default, and the name *Repository Dots*.
+
+**Why they moved.** A branch row ran `name · counts · dots · age`, all pushed right; on hover or selection the 1–4 buttons (22 px each) replaced the age (26 px), so everything left of them shifted by about 40 px (60 on the current branch, a few pixels right on a tag).
+
+**Hover.** `BranchRow` now renders `.gtp-row-buttons` after the spacer and before the counts, dots and age, and the CSS rule that hid `.gtp-age` while buttons showed is gone. The buttons take the spacer's room, then the name's (it ends in `…`); counts, dots and age never move, hovered or selected, and the age stays visible. Checked by screenshot at 620 and 300 px: the dots' and age's x identical before and during hover.
+
+**Switch.** New setting `gittree.branches.showRepositoryDots` (default `false`) in `BranchPanelStateDto` and `BranchPanelSettingKey`. Rows draw dots only when `model.markers` (several repositories in view) and the setting are both true; the card keeps its per-repository lines on `model.markers` alone, so hiding them loses nothing. Toggled from:
+- a toolbar button between Fetch and New Branch, only with several repositories in view: a 2×2 glyph of filled and ringed dots (a row of three read as the `⋯` beside it in a screenshot), `aria-pressed`, *Show/Hide Repository Dots* on hover;
+- `⋯` › *Show* › **Repository Dots**, between Incoming / Outgoing Counts and Group by Folder, also only with several repositories;
+- command `gittree.branches.toggleRepositoryDots`, *GitTree: Toggle Repository Dots*, in the palette when `gittree.multiRepo`.
+
+Docs: FEATURES (Repositories panel), CHANGELOG (Changed), settings.md regenerated.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Playwright** (`branches.spec.ts`; the mock starts with the dots off, `__mockDots` opts in):
+  - off by default, the toolbar button shows and hides them and tells the host;
+  - the `⋯` row is the same switch;
+  - the hover buttons sit before the counts, dots and age, whose positions do not change on hover or selection;
+  - no button or menu row with one repository in view, or narrowed to one;
+  - with the dots off, a card still lists the repositories.
+- The existing per-repository marker test opts in to the dots.
+- **Integration** `branchPanel.test.ts` T25: the setting ships off, and the command flips what `buildState` reports, then puts the setting back.
+- The unit model helper gains the new state field.
+
+Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.

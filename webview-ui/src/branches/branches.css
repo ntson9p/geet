@@ -487,12 +487,6 @@
   visibility: visible;
 }
 
-/* The buttons take the age column's place while they show. */
-.gtp-row:hover .gtp-age,
-.gtp-row.gtp-focused .gtp-age {
-  display: none;
-}
-
 .gtp-star-on .codicon,
 .gtp-star-icon {
   color: var(--vscode-charts-yellow, #d7ba7d);

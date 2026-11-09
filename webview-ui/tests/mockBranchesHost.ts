@@ -8,7 +8,8 @@
  * - `window.__mockSingleRepo` — just `web`;
  * - `window.__mockHoldFetch` — Fetch All answers only on `window.__releaseFetch()`;
  * - `window.__mockNoOperation` — no rebase in progress;
- * - `window.__mockHoldRun` — `branches/run` answers only on `window.__releaseRun()`.
+ * - `window.__mockHoldRun` — `branches/run` answers only on `window.__releaseRun()`;
+ * - `window.__mockDots` — the Repository Dots start on.
  * Every message the page posts is in `window.__postedMessages`.
  */
 export const mockBranchesHostScript = `
@@ -76,6 +77,8 @@ export const mockBranchesHostScript = `
   const state = {
     repos: window.__mockSingleRepo === true ? [web] : [api, shared, web],
     showTags: true, showInOut: true, groupByFolder: true, fetchingAll: false, now: NOW, palette: 'default',
+    // Off, as gittree.branches.showRepositoryDots is by default; opt in with window.__mockDots.
+    showRepositoryDots: window.__mockDots === true,
   };
   if (window.__mockNoOperation === true) delete shared.operation;
   window.__mockState = state;

@@ -801,6 +801,35 @@ suite('new-way-4 Branches panel', () => {
     assert.strictEqual(log.logTabs.active, inFront);
   });
 
+  test('T25 Repository Dots are off by default, and the command switches what the state says', async function () {
+    this.timeout(30_000);
+    const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree.branches');
+    const inspected = config().inspect<boolean>('showRepositoryDots');
+    assert.strictEqual(inspected?.defaultValue, false, 'the setting ships off');
+    try {
+      assert.strictEqual((await panel.buildState()).showRepositoryDots, config().get('showRepositoryDots'));
+      const was = config().get<boolean>('showRepositoryDots', false);
+      await vscode.commands.executeCommand('gittree.branches.toggleRepositoryDots');
+      await waitFor(() => config().get('showRepositoryDots') === !was, 5_000);
+      assert.strictEqual((await panel.buildState()).showRepositoryDots, !was);
+      await vscode.commands.executeCommand('gittree.branches.toggleRepositoryDots');
+      await waitFor(() => config().get('showRepositoryDots') === was, 5_000);
+      assert.strictEqual((await panel.buildState()).showRepositoryDots, was);
+    } finally {
+      // Back to where it was found, in whichever scope the toggle wrote.
+      if (config().inspect('showRepositoryDots')?.globalValue !== inspected?.globalValue) {
+        await config().update('showRepositoryDots', inspected?.globalValue, vscode.ConfigurationTarget.Global);
+      }
+      if (config().inspect('showRepositoryDots')?.workspaceValue !== inspected?.workspaceValue) {
+        await config().update(
+          'showRepositoryDots',
+          inspected?.workspaceValue,
+          vscode.ConfigurationTarget.Workspace,
+        );
+      }
+    }
+  });
+
   test('T17 a right-click on the opt-in Branches tree reaches the branch', async function () {
     this.timeout(60_000);
     await tracking('gtp/tree-row', `${REMOTE}/gtp/develop`);

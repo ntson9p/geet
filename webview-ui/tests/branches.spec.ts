@@ -16,13 +16,15 @@ interface PostedMsg {
 
 async function openPanel(
   page: Page,
-  opts: { single?: boolean; holdFetch?: boolean; holdRun?: boolean } = {},
+  opts: { single?: boolean; holdFetch?: boolean; holdRun?: boolean; dots?: boolean } = {},
 ): Promise<void> {
   await page.addInitScript((o) => {
     const w = window as unknown as Record<string, unknown>;
     if (o.single === true) w['__mockSingleRepo'] = true;
     if (o.holdFetch === true) w['__mockHoldFetch'] = true;
     if (o.holdRun === true) w['__mockHoldRun'] = true;
+    // Repository Dots start on (they are off by default).
+    if (o.dots === true) w['__mockDots'] = true;
   }, opts);
   await page.addInitScript(mockBranchesHostScript);
   await page.goto('/branches.html');
@@ -70,7 +72,7 @@ test.describe('several repositories', () => {
   });
 
   test('a branch several repositories have is one row, with a marker for each', async ({ page }) => {
-    await openPanel(page);
+    await openPanel(page, { dots: true });
     await showTab(page, 'Local');
     await expect(row(page, 'br:local:local:main')).toHaveCount(1);
     const markers = row(page, 'br:local:local:main').locator('.gtp-markers .gtp-marker');
@@ -91,6 +93,66 @@ test.describe('several repositories', () => {
     ]);
   });
 
+  test('Repository Dots are off by default; the toolbar button shows them and tells the host', async ({ page }) => {
+    await openPanel(page);
+    await showTab(page, 'Local');
+    await expect(page.locator('.gtp-markers')).toHaveCount(0);
+    const toggle = page.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(toggle).toHaveAttribute('title', 'Show Repository Dots');
+
+    await toggle.click();
+    expect((await requests(page, 'branches/setting')).at(-1)).toEqual({ key: 'showRepositoryDots', value: true });
+    await expect(row(page, 'br:local:local:main').locator('.gtp-markers .gtp-marker')).toHaveCount(3);
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggle).toHaveAttribute('title', 'Hide Repository Dots');
+
+    await toggle.click();
+    expect((await requests(page, 'branches/setting')).at(-1)).toEqual({ key: 'showRepositoryDots', value: false });
+    await expect(page.locator('.gtp-markers')).toHaveCount(0);
+  });
+
+  test('More Actions › Show › Repository Dots is the same switch', async ({ page }) => {
+    await openPanel(page);
+    await showTab(page, 'Local');
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    const item = page.getByRole('menuitemcheckbox', { name: 'Repository Dots' });
+    await expect(item).toHaveAttribute('aria-checked', 'false');
+    await item.click();
+    expect((await requests(page, 'branches/setting')).at(-1)).toEqual({ key: 'showRepositoryDots', value: true });
+    await expect(row(page, 'br:local:local:main').locator('.gtp-markers')).toHaveCount(1);
+    await expect(
+      page.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Repository Dots' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  test("a row's hover buttons come before its counts, dots and age, so none of them moves", async ({ page }) => {
+    await openPanel(page, { dots: true });
+    await showTab(page, 'Local');
+    const main = row(page, 'br:local:local:main');
+    const x = async (selector: string): Promise<number> => (await main.locator(selector).boundingBox())!.x;
+    const at = { sync: await x('.gtp-sync'), dots: await x('.gtp-markers'), age: await x('.gtp-age') };
+
+    await main.hover();
+    await expect(main.getByRole('button', { name: 'Checkout in 3 repositories' })).toBeVisible();
+    expect({ sync: await x('.gtp-sync'), dots: await x('.gtp-markers'), age: await x('.gtp-age') }).toEqual(at);
+    // The age stays in view: the buttons no longer take its place.
+    await expect(main.locator('.gtp-age')).toBeVisible();
+    const buttons = (await main.locator('.gtp-row-buttons').boundingBox())!;
+    expect(buttons.x + buttons.width).toBeLessThanOrEqual(at.sync + 0.5);
+
+    // Selected rather than hovered: the same.
+    await page.mouse.move(0, 0);
+    await main.click();
+    expect({ sync: await x('.gtp-sync'), dots: await x('.gtp-markers'), age: await x('.gtp-age') }).toEqual(at);
+  });
+
   test('clicking a repository narrows the list to it; the pill widens it again', async ({ page }) => {
     await openPanel(page);
     await showTab(page, 'Local');
@@ -101,8 +163,9 @@ test.describe('several repositories', () => {
     await expect(page.getByLabel('Filter branches')).toHaveAttribute('placeholder', 'Filter branches in web');
     await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
     await expect(row(page, 'br:local:local:refactor/types')).toHaveCount(0);
-    // One repository in view: no markers.
+    // One repository in view: no markers, and no switch for them.
     await expect(page.locator('.gtp-markers')).toHaveCount(0);
+    await expect(page.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' })).toHaveCount(0);
 
     // Ctrl+click adds another.
     await row(page, `repo:${SHARED}`).click({ modifiers: ['Control'] });
@@ -128,6 +191,8 @@ test.describe('several repositories', () => {
     await expect(card).toBeVisible();
     await expect(develop).toHaveAttribute('aria-expanded', 'true');
     await expect(card.locator('.gtp-card-repo')).toHaveText(['api', 'web']);
+    // With the Repository Dots off (the default) the card still says which repositories.
+    await expect(develop.locator('.gtp-markers')).toHaveCount(0);
     expect((await requests(page, 'branches/details')).at(-1)).toEqual({
       target: { kind: 'local', name: 'develop', roots: [API, WEB] },
     });
@@ -579,6 +644,14 @@ test.describe('one repository', () => {
     await showTab(page, 'Remote');
     await expect(row(page, 'rem:origin')).toHaveAttribute('aria-expanded', 'true');
     await expect(row(page, 'dir:local:feature/')).toHaveCount(0);
+  });
+
+  test('one repository has no Repository Dots to show: no button, no menu row', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await expect(page.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' })).toHaveCount(0);
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Tags' })).toBeVisible();
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Repository Dots' })).toHaveCount(0);
   });
 
   test('More Actions changes a setting on the host', async ({ page }) => {

@@ -263,9 +263,13 @@ picked; at first, on Recent while anything is recent, else Local.
   - **`→ origin/x`**, in the warning colour: it tracks a remote branch of another name, so a
     push goes there. The current-branch row says the same in place of its upstream.
 * **Several repositories are one list.** A branch name is one row however many repositories
-  have it. A row carries a marker per repository in view: filled where it is checked out,
-  ringed where it exists, a dot where it does not. Its actions run in every repository it
-  stands for and say so: *Checkout in 2 repositories*.
+  have it. Its actions run in every repository it stands for and say so: *Checkout in 2
+  repositories*. **Repository Dots** (off by default, `gittree.branches.showRepositoryDots`)
+  put a dot per repository in view on each row: filled where the branch is checked out,
+  ringed where it exists, small where it does not. They are switched by the toolbar's dots
+  button (shown pressed while they are on), by `⋯` › *Show* › **Repository Dots**, and by
+  **GitTree: Toggle Repository Dots**. Off, nothing is lost: a branch's card still has a
+  line per repository.
 * **Scope.** Clicking a repository shows only its branches; Ctrl+click adds or removes one. A
   pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
   in the REPOSITORIES header, which names the repositories picked. The scope narrows what is
@@ -292,8 +296,10 @@ picked; at first, on Recent while anything is recent, else Local.
     letter: the first keeps its own longest, then they are icons, each named on its hover,
     down to VS Code's narrowest sidebar. A narrow card leaves out who made the last commit
     and keeps when.
-* **Hovering a row** shows **Checkout** (or **Update** and **Push…** on the checked-out
-  branch), the **star** and **`⋯`**. The age column makes way for them.
+* **Hovering a row** (or selecting it) shows **Checkout** (or **Update** and **Push…** on the
+  checked-out branch), the **star** and **`⋯`**. They come *before* the counts, the dots and
+  the age, as VS Code puts a row's actions before its decorations: they take the free space,
+  or the end of a long name, and nothing to their right moves.
 * **Right-click or `⋯`** shows every action, from the same registry as the popup and the log's
   Branches pane (below), with real submenus:
   - **Tracked Branch `'origin/x'`** holds the upstream's own actions, and **Stop Tracking
@@ -322,14 +328,16 @@ picked; at first, on Recent while anything is recent, else Local.
     branch or a tag has it too. The log draws one repository at a time (**D24**), so a branch
     several repositories have offers **Show in New Log Tab ›** naming each of them.
 * **Drag** a local branch onto another to merge or rebase (the branch trees' own prompt).
-* **The toolbar:** the filter, **Fetch** (every repository; spins until done), **New Branch**,
-  and **`⋯`**:
+* **The toolbar:** the filter, **Fetch** (every repository; spins until done), **Repository
+  Dots** (with several repositories in view; a two-by-two grid of dots, pressed while on),
+  **New Branch**, and **`⋯`**:
   - Update Project…, Commit…, Push…;
   - New Branch…, Checkout Tag or Revision…, **Checkout Branch in All Repositories…** (with
     several repositories in view: every branch any of them has, local or remote, most widely
     held first, *4 of 5 repositories · local in api · from origin in web, docs and tools · not
     in infra*), **Clean Up Branches…**;
-  - *Show*: Tags, Incoming / Outgoing Counts, Group by Folder;
+  - *Show*: Tags, Incoming / Outgoing Counts, Repository Dots (with several repositories in
+    view), Group by Folder;
   - Collapse All: every folder and remote of the tab on show, the ones opened by hand too.
 * **The filter** searches every kind at once, whatever tab is picked: the tabs step aside, and
   each kind's matches sit under a heading (*Local*, *Remote*, *Tags*) as whole names, Recent

@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Repositories panel's Repository Dots are a switch, and stay put
+
+- **The dots that show which repositories have a branch are now off by default.** Turn them
+  on and off with the new dots button in the panel's toolbar, with **⋯ › Show › Repository
+  Dots**, or with **GitTree: Toggle Repository Dots** from the Command Palette. The setting is
+  `gittree.branches.showRepositoryDots`. A branch's card still lists every repository.
+- **Hovering or selecting a branch row no longer moves its dots.** The row's buttons used to
+  replace the age at the end of the row, and being wider, they pushed the counts and dots
+  left. They now come before the counts, the dots and the age, which stay where they are.
+  The age stays visible too.
+
 ### Fixed — a branch's menu across many repositories fits the panel
 
 - **Twenty repositories made a branch's menu about thirty rows long,** twenty of them

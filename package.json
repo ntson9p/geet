@@ -214,6 +214,11 @@
             "default": true,
             "description": "%gittree.config.branches.groupByFolder.description%"
           },
+          "gittree.branches.showRepositoryDots": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.branches.showRepositoryDots.description%"
+          },
           "gittree.smartCheckout.behavior": {
             "type": "string",
             "enum": [
@@ -1242,6 +1247,11 @@
         "icon": "$(search)"
       },
       {
+        "command": "gittree.branches.toggleRepositoryDots",
+        "title": "%gittree.command.branches.toggleRepositoryDots.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.history.show",
         "title": "%gittree.command.history.show.title%",
         "category": "GitTree",
@@ -2039,6 +2049,10 @@
       "commandPalette": [
         {
           "command": "gittree.branches.checkoutEverywhere",
+          "when": "gittree.multiRepo"
+        },
+        {
+          "command": "gittree.branches.toggleRepositoryDots",
           "when": "gittree.multiRepo"
         },
         {

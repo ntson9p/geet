@@ -570,6 +570,7 @@ export interface BranchRowProps {
   readonly row: Extract<PanelRow, { kind: 'branch' }>;
   readonly now: number;
   readonly showInOut: boolean;
+  /** Draw the Repository Dots: several repositories in view, and the toggle on. */
   readonly markers: boolean;
   readonly scopeRepos: readonly BranchPanelRepoDto[];
   readonly colorOf: (repo: BranchPanelRepoDto) => string;
@@ -659,11 +660,10 @@ Click for details · right-click for every action${
           </span>
         ) : null}
         <span className="gtp-spacer" />
-        {showInOut && entry.kind === 'local' ? <SyncCounts ahead={entry.ahead} behind={entry.behind} /> : null}
-        {markers ? <Markers entry={entry} repos={scopeRepos} colorOf={colorOf} /> : null}
-        <span className="gtp-age" title={entry.date !== undefined ? longAge(now, entry.date) : undefined}>
-          {age}
-        </span>
+        {/* The hover buttons come before the counts, the dots and the age, as
+            VS Code puts a row's actions before its decorations: they take the
+            free space (or the end of a long name), and nothing to their right
+            moves, on any row, hovered or selected. */}
         <span className="gtp-row-buttons">
           {quickActions(entry).map((action) => (
             <RowButton
@@ -675,6 +675,11 @@ Click for details · right-click for every action${
               onClick={(e) => onQuick(action, e)}
             />
           ))}
+        </span>
+        {showInOut && entry.kind === 'local' ? <SyncCounts ahead={entry.ahead} behind={entry.behind} /> : null}
+        {markers ? <Markers entry={entry} repos={scopeRepos} colorOf={colorOf} /> : null}
+        <span className="gtp-age" title={entry.date !== undefined ? longAge(now, entry.date) : undefined}>
+          {age}
         </span>
       </div>
       {card}

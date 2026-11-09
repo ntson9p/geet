@@ -170,6 +170,12 @@ Group branches into folders on `/` in the Repositories panel (`feature/login` un
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.branches.showRepositoryDots`
+
+With several repositories in view, show a dot per repository on each branch row of the Repositories panel: filled where the branch is checked out, ringed where it exists, small where it does not. A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command GitTree: Toggle Repository Dots.
+
+- Type: `boolean` · Default: `false`
+
 ### `gittree.smartCheckout.behavior`
 
 When a checkout is blocked by local changes: ask (IntelliJ-style dialog), auto (always smart-checkout via stash), or never (just report).

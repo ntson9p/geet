@@ -114,6 +114,22 @@ type ListId = 'repos' | 'branches';
 
 const TAB_ORDER: readonly BranchTab[] = ['recent', 'local', 'remote', 'tags'];
 
+/**
+ * The Repository Dots button's icon: the rows' filled and ringed dots, two by
+ * two — the branches-by-repositories grid they make. A row of three would read
+ * as `⋯`, the More Actions button beside it.
+ */
+function RepositoryDotsGlyph() {
+  return (
+    <svg className="gtp-dots-glyph" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <circle cx="4.5" cy="4.5" r="2.2" fill="currentColor" />
+      <circle cx="11.5" cy="4.5" r="1.9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="4.5" cy="11.5" r="1.9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="11.5" cy="11.5" r="2.2" fill="currentColor" />
+    </svg>
+  );
+}
+
 interface OpenMenu {
   readonly items: MenuItem[];
   readonly at: { readonly x: number; readonly y: number };
@@ -515,6 +531,14 @@ export function App() {
         item('inout', 'Incoming / Outgoing Counts', () => setSetting('showIncomingOutgoing', !state.showInOut), {
           checked: state.showInOut,
         }),
+        // The toolbar's dots button, here too; only while several repositories are in view.
+        ...(model.markers
+          ? [
+              item('dots', 'Repository Dots', () => setSetting('showRepositoryDots', !state.showRepositoryDots), {
+                checked: state.showRepositoryDots,
+              }),
+            ]
+          : []),
         item('folders', 'Group by Folder', () => setSetting('groupByFolder', !state.groupByFolder), {
           checked: state.groupByFolder,
         }),
@@ -684,6 +708,11 @@ export function App() {
 
   // ---- rendering ----------------------------------------------------------------------
   if (!state || !model) return <div className="gtp-empty">Loading…</div>;
+
+  // Repository Dots: a dot per repository on each branch row, with several in
+  // view and the toolbar's switch on. A branch's card lists the repositories
+  // either way (`model.markers`), so turning them off hides nothing for good.
+  const dotsShown = model.markers && state.showRepositoryDots;
   if (state.repos.length === 0) {
     return (
       <div className="gtp-empty">
@@ -920,7 +949,7 @@ export function App() {
               row={row}
               now={state.now}
               showInOut={state.showInOut}
-              markers={model.markers}
+              markers={dotsShown}
               scopeRepos={model.scopeRepos}
               colorOf={colorOf}
               onQuick={(action, e) => onQuick(row.entry, action, e)}
@@ -1089,6 +1118,18 @@ export function App() {
         >
           <Codicon name="sync" spin={fetchBusy} />
         </button>
+        {model.markers ? (
+          <button
+            type="button"
+            className={`gt-toolbar-button${state.showRepositoryDots ? ' gt-toggled' : ''}`}
+            title={state.showRepositoryDots ? 'Hide Repository Dots' : 'Show Repository Dots'}
+            aria-label="Repository Dots"
+            aria-pressed={state.showRepositoryDots}
+            onClick={() => setSetting('showRepositoryDots', !state.showRepositoryDots)}
+          >
+            <RepositoryDotsGlyph />
+          </button>
+        ) : null}
         <button
           type="button"
           className="gt-toolbar-button"

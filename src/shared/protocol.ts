@@ -1703,6 +1703,11 @@ export interface BranchPanelStateDto {
   readonly showTags: boolean;
   readonly showInOut: boolean;
   readonly groupByFolder: boolean;
+  /**
+   * `gittree.branches.showRepositoryDots`: a branch row carries a dot per
+   * repository in view. Off by default; a card lists the repositories anyway.
+   */
+  readonly showRepositoryDots: boolean;
   /** A fetch of every repository is running. */
   readonly fetchingAll: boolean;
   /** The host's clock when this was built, unix seconds: ages are measured from it. */
@@ -1830,7 +1835,7 @@ export interface BranchPanelCreateResultDto {
 }
 
 /** Panel settings the webview can change; each is a `gittree.branches.*` setting. */
-export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder';
+export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder' | 'showRepositoryDots';
 
 export const BRANCHES_METHODS = {
   /** webview → host: the first paint; answers a `BranchPanelStateDto`. */
