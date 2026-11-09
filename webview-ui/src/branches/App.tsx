@@ -57,11 +57,13 @@ import { laneColor } from '../log/GraphCanvas';
 import {
   buildPanel,
   collapsedAll,
+  scopeReposOf,
   TABS_ID,
   tabsLabel,
   targetOf,
   type BranchEntry,
   type BranchTab,
+  type CardLine,
   type PanelRow,
   type PanelUiState,
   type QuickAction,
@@ -149,6 +151,9 @@ function detailsKey(entry: BranchEntry, scope: readonly string[]): string {
     .join(',')}`;
 }
 
+/** No group opened: one set, so the model is not rebuilt for a new empty one. */
+const NO_GROUPS: ReadonlySet<string> = new Set();
+
 function rowRect(id: string): DOMRect | undefined {
   return document.querySelector(`[data-row-id="${CSS.escape(id)}"]`)?.getBoundingClientRect();
 }
@@ -165,6 +170,18 @@ export function App() {
     saved.tab !== undefined && TAB_ORDER.includes(saved.tab) ? saved.tab : undefined,
   );
   const [openCard, setOpenCard] = useState<string | undefined>(undefined);
+  /**
+   * Groups opened to list their repositories, and the card they belong to. A
+   * card however it opens (the filter's Enter included) starts with none: the
+   * keys are what a group's repositories say, which another card can share.
+   */
+  const [groupsOpen, setGroupsOpen] = useState<
+    { readonly card: string; readonly keys: ReadonlySet<string> } | undefined
+  >(undefined);
+  const openGroups = useMemo(
+    () => (groupsOpen !== undefined && groupsOpen.card === openCard ? groupsOpen.keys : NO_GROUPS),
+    [groupsOpen, openCard],
+  );
   /** Each list's keyboard row, kept while the other list has the focus. */
   const [repoFocusId, setRepoFocusId] = useState<string | undefined>(undefined);
   const [branchFocusId, setBranchFocusId] = useState<string | undefined>(undefined);
@@ -204,6 +221,16 @@ export function App() {
     } satisfies Persisted);
   }, [api, reposSize, scope, tab, toggled]);
 
+  // The repositories in view, as the model works them out: what a card's facts are asked for in.
+  const scopeRoots = useMemo(
+    () => (state ? scopeReposOf(state.repos, scope).map((r) => r.root) : []),
+    [state, scope],
+  );
+  // A card's facts decide how its repositories group, so the model sizes the card with them.
+  const detailsOf = useCallback(
+    (entry: BranchEntry) => details.get(detailsKey(entry, scopeRoots)),
+    [details, scopeRoots],
+  );
   const ui: PanelUiState = useMemo(
     () => ({
       query,
@@ -211,8 +238,10 @@ export function App() {
       toggled,
       ...(openCard !== undefined ? { openCard } : {}),
       ...(tab !== undefined ? { tab } : {}),
+      detailsOf,
+      openGroups,
     }),
-    [openCard, query, scope, tab, toggled],
+    [detailsOf, openCard, openGroups, query, scope, tab, toggled],
   );
   const model = useMemo(() => (state ? buildPanel(state, ui) : undefined), [state, ui]);
   const searching = query.trim().length > 0;
@@ -314,7 +343,6 @@ export function App() {
   const openRow = model?.rows.find((r) => r.id === openCard);
   const openEntry =
     openRow?.kind === 'branch' ? openRow.entry : openRow?.kind === 'head' ? openRow.entry : undefined;
-  const scopeRoots = useMemo(() => (model?.scopeRepos ?? []).map((r) => r.root), [model?.scopeRepos]);
   const scopeRef = useRef(scopeRoots);
   scopeRef.current = scopeRoots;
   const openKey = openEntry !== undefined ? detailsKey(openEntry, scopeRoots) : undefined;
@@ -571,7 +599,22 @@ export function App() {
 
   const toggleCard = useCallback((id: string) => {
     setOpenCard((prev) => (prev === id ? undefined : id));
+    // Opened again, a card starts with its groups shut.
+    setGroupsOpen(undefined);
   }, []);
+
+  const toggleGroup = useCallback(
+    (key: string) => {
+      if (openCard === undefined) return;
+      setGroupsOpen((prev) => {
+        const keys = new Set(prev?.card === openCard ? prev.keys : []);
+        if (keys.has(key)) keys.delete(key);
+        else keys.add(key);
+        return { card: openCard, keys };
+      });
+    },
+    [openCard],
+  );
 
   /**
    * A tab picked, by the pointer or the arrows. The keyboard goes on from the
@@ -604,8 +647,13 @@ export function App() {
     [openBranchMenu, run],
   );
 
+  /**
+   * A row's gesture. `detail` is the click count of a pointer's click, and
+   * absent for a key (Enter, Space, Right, Left, Escape); `twisty` says the
+   * click landed on the row's chevron.
+   */
   const activate = useCallback(
-    (row: PanelRow, e?: { ctrlKey: boolean; metaKey: boolean; detail?: number }) => {
+    (row: PanelRow, e?: { ctrlKey: boolean; metaKey: boolean; detail?: number; twisty?: boolean }) => {
       switch (row.kind) {
         case 'remote':
         case 'folder':
@@ -615,11 +663,17 @@ export function App() {
           toggleScope(row.repo.root, e?.ctrlKey === true || e?.metaKey === true);
           return;
         case 'head':
-        case 'branch':
-          // The second click of a double-click would shut what the first opened.
-          if ((e?.detail ?? 1) > 1) return;
-          toggleCard(row.id);
+        case 'branch': {
+          // A click selects, which the list has done; the card is asked for:
+          // the chevron, a double-click, or Enter, Space or Right.
+          const clicks = e?.detail;
+          if (clicks === undefined) toggleCard(row.id);
+          // The chevron once: its second click of a double-click would shut it again.
+          else if (e?.twisty === true) {
+            if (clicks <= 1) toggleCard(row.id);
+          } else if (clicks === 2) toggleCard(row.id);
           return;
+        }
         case 'hint':
           if (row.create !== undefined) openForm({ from: 'HEAD', name: row.create });
           return;
@@ -669,7 +723,7 @@ export function App() {
         activate(row);
         return true;
       }
-      if (e.key === 'ArrowLeft' && open === true) {
+      if ((e.key === 'ArrowLeft' || e.key === 'Escape') && open === true) {
         e.preventDefault();
         activate(row);
         return true;
@@ -816,14 +870,17 @@ export function App() {
   const card = (
     rowId: string,
     entry: BranchEntry | undefined,
+    lines: readonly CardLine[],
     indent: number,
     menuFor: (at: { x: number; y: number }) => void,
     detachedAt?: string,
   ) => (
     <BranchCard
       entry={entry}
+      lines={lines}
       details={entry !== undefined ? details.get(detailsKey(entry, scopeRoots)) : { repos: [], buttons: [] }}
       markers={model.markers}
+      onToggleGroup={toggleGroup}
       now={state.now}
       indent={indent}
       colorOf={colorOf}
@@ -847,14 +904,14 @@ export function App() {
         const r = e.currentTarget.getBoundingClientRect();
         menuFor({ x: r.right, y: r.bottom });
       }}
-      onStopTracking={(root) => {
+      onStopTracking={(roots) => {
         if (entry === undefined) return;
-        run({
-          type: 'action',
-          target: targetOf(entry),
-          action: 'stopTracking',
-          ...(root !== undefined ? { root } : {}),
-        });
+        const target = targetOf(entry);
+        // A group's repositories: the action in them alone. One is named as
+        // the per-repository line always named it; several narrow the target.
+        if (roots === undefined) run({ type: 'action', target, action: 'stopTracking' });
+        else if (roots.length === 1) run({ type: 'action', target, action: 'stopTracking', root: roots[0]! });
+        else run({ type: 'action', target: { ...target, roots: [...roots] }, action: 'stopTracking' });
       }}
       {...(detachedAt !== undefined ? { detachedAt } : {})}
     />
@@ -923,7 +980,11 @@ export function App() {
                 headMenu({ x: r.right, y: r.bottom });
               },
             }}
-            card={row.card ? card(row.id, row.entry, 8, headMenu, row.repo.headSha?.slice(0, 8)) : null}
+            card={
+              row.card
+                ? card(row.id, row.entry, row.cardLines ?? [], 8, headMenu, row.repo.headSha?.slice(0, 8))
+                : null
+            }
           />
         );
       }
@@ -955,7 +1016,9 @@ export function App() {
               onQuick={(action, e) => onQuick(row.entry, action, e)}
               card={
                 row.card
-                  ? card(row.id, row.entry, 8 + row.depth * INDENT + 20, (at) => openBranchMenu(row.entry, at))
+                  ? card(row.id, row.entry, row.cardLines ?? [], 8 + row.depth * INDENT + 20, (at) =>
+                      openBranchMenu(row.entry, at),
+                    )
                   : null
               }
               draggable={row.entry.kind === 'local'}
@@ -1034,7 +1097,12 @@ export function App() {
       rowAttributes,
       onRowKeyDown,
       onRowClick: (row: PanelRow, e: ReactMouseEvent<HTMLDivElement>) =>
-        activate(row, { ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail }),
+        activate(row, {
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          detail: e.detail,
+          twisty: e.target instanceof Element && e.target.closest('.gtp-twisty') !== null,
+        }),
       onRowContextMenu: (row: PanelRow, e: ReactMouseEvent<HTMLDivElement>) => {
         e.preventDefault();
         onFocusId(row.id);

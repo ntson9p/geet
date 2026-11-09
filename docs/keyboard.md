@@ -116,7 +116,8 @@ arrows move within):
 | `Enter` / `Space` / `←` / `→` (on a pane header) | fold or open the REPOSITORIES or BRANCHES pane; `←` folds, `→` opens; `↓` goes into its list |
 | `←` / `→` (on the tabs) | switch between Recent, Local, Remote and Tags, round the ends |
 | `→` / `←` | open / close a remote or a folder; on a branch, open / close its card |
-| `Enter` / `Space` | the same as a click: open or close a folder or a branch's card; on a repository, show only its branches (`Ctrl+Enter`: add it to what is shown) |
+| `Enter` / `Space` | open or close a folder, or a branch's card (a click only selects a branch; a double-click or its chevron opens the card); on a repository, show only its branches (`Ctrl+Enter`: add it to what is shown) |
+| `Escape` (card open) | close the branch's card, the row keeping the focus |
 | Drag / double-click (the line between the panes) | share the height between REPOSITORIES and BRANCHES / go back to the automatic share. Pointer-only, as VS Code's own dividers are; the headers fold and open from the keyboard |
 | `Tab` (card open) | into the card's buttons |
 | `Shift+F10` / context-menu key | the focused row's menu |

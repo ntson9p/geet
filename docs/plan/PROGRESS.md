@@ -1257,3 +1257,41 @@ Testing (written, **not run**, by the owner's standing instruction):
 - The unit model helper gains the new state field.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14bk ✅ 2026-11-09 (branch `new-way-6`): **A branch's card opens when asked, and stays short with many repositories.** The owner, with a screenshot of a card over 20 repositories (one line each, all twenty saying *up to date · 2 ahead, 4 behind current*, about 550 px pushing the list down), named two problems: a click should be able to select a branch without the card, and the card takes too much room with many repositories. Five ways to open the details and five ways to shorten them were offered, ranked; the owner chose: click selects, the card opens on demand inline (1); repositories grouped by what they say (a); the ones without the branch named too (b); a double-click opens the details. The cap of option (c) — *+N more states* when nearly every repository differs — was not chosen and is not built.
+
+**Gestures** (`App.tsx`). `activate` tells a pointer's click (`detail`) from a key (no `detail`) and the chevron (`twisty`, from the click's target): a click on a branch or the head row only selects it (the list focuses it); the chevron toggles the card on its first click (the second click of a double-click on it is ignored, so it does not shut what it opened); a double-click (`detail === 2`) on the row toggles it; Enter, Space and → toggle as before; Escape now shuts an open card as ← does. The chevron stays a span, as VS Code's twistie is not a focusable control. The row's hover text says *Double-click or Enter for details*.
+
+**Lines** (`model.ts`, pure). `cardLines(entry, ctx)` builds the card line by line, and `buildPanel` sizes the row from them (`cardHeight(lines)`) and hands them to the row (`cardLines`), so the drawing and the windowed list's height cannot disagree. The model now takes the card's facts (`PanelUiState.detailsOf`) and its opened groups (`openGroups`), because how repositories group depends on each one's relation to its checked-out branch. `cardGroups` keys each repository by *checked out*, *tracks elsewhere*, `trackingShort` and `relationShort`, largest group first, then a `missing` group of the repositories in view without the branch. `groupLabel` names up to three (`NAMED_REPOS`), counts more (`13 repositories`, `All 20` when one group holds every repository in view and none lacks it), and writes `not in shared` / `not in 4 repositories`. A counted group is expandable: opened, it lists its repositories a line each (`member`). With one repository in view the card is as before. With several and the branch in one, the full tracking and relation lines stay, the tracking line naming the repository, then the missing line. Facts not yet arrived group by what is known; their arrival can split a group (one growth, once).
+
+**Drawing** (`Rows.tsx`). `BranchCard` draws the model's lines: a group line has its repositories' dots (`flex-shrink` 1000, so they give way first, down to one dot; the line's hover names every repository), its label (a button with a chevron when expandable, `aria-expanded`), and what the group shares, with *Stop tracking* on a group that tracks elsewhere (one repository: the old `root` form; several: the target narrowed to them). The opened groups belong to the card they were opened in (`groupsOpen.card`), so a card opened any other way, the filter's Enter included, starts with them shut.
+
+Checked by screenshot on the mock with 20 repositories, at 620 and 300 px: a click selects and opens nothing; a double-click opens *17 repositories › · up to date · 3 ahead, 1 behind current*, *extra-4, extra-9 · ↓2 · …*, *not in shared* (4 lines where there were 20); the count lists its 17; at 300 px the labels stay whole and the dots give way; the chevron and Escape shut the card.
+
+Docs: FEATURES (Repositories panel), CHANGELOG (Changed), keyboard.md.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit** (`branchPanelModel.test.ts`):
+  - twenty repositories in step are one *All 20* line, not expandable;
+  - the ones that differ get their own line after the largest group;
+  - named versus counted groups, and an opened group's members listed in place;
+  - the missing line, named and counted;
+  - one repository of several keeps its full lines, then the missing line;
+  - with one repository in view, nothing is said of others;
+  - facts arriving split a group;
+  - the checked-out repositories are a group of their own;
+  - every `groupLabel` form;
+  - a detached HEAD's two lines;
+  - `buildPanel` sizes an open card by its facts and opened groups, and a row whose card is shut carries no lines;
+  - the existing size test moved to the new API.
+- **Playwright** (`branches.spec.ts`):
+  - a click selects and asks for nothing, a double-click opens the card and closes it again;
+  - the chevron opens and closes, and Escape closes;
+  - twenty repositories make two lines, the count lists 19 and closes again, and a reopened card starts with its groups closed;
+  - a branch in one of three repositories names it and the two without it;
+  - the head row opens on a double-click, not a click;
+  - the keyboard test gains Enter and Escape;
+  - every test that opened a card with a click now double-clicks;
+  - the tracking-elsewhere test checks its two lines.
+
+Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.

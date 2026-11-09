@@ -6,6 +6,18 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — a branch's card opens when you ask, and stays short however many repositories
+
+- **A click on a branch in the Repositories panel now only selects it.** Its card opens with
+  the chevron at the row's left, a double-click, or Enter, Space or →. ←, Escape, the chevron
+  or another double-click close it. A double-click never checks out.
+- **Repositories that say the same about a branch are now one line on its card.** For example:
+  *All 20 · up to date · 2 ahead, 4 behind current*, instead of twenty identical lines. The
+  ones that differ get a line each, named (*api, web*) or counted (*13 repositories ›*). Click
+  a count to list them.
+- **The card also names the repositories in view that don't have the branch:** *not in
+  shared*, *not in 4 repositories ›*.
+
 ### Changed — the Repositories panel's Repository Dots are a switch, and stay put
 
 - **The dots that show which repositories have a branch are now off by default.** Turn them

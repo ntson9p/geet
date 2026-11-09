@@ -203,7 +203,7 @@ design, not the popup standing open (D34). It answers three questions, top to bo
 **Where am I?**
 
 * **One repository:** the first row is the current branch — name, what it tracks, `↓ ↑`
-  counts, changed files — and a click opens its card.
+  counts, changed files — and a double-click (or its chevron, or Enter) opens its card.
 * **Several repositories:** a **REPOSITORIES** pane, one row per repository in the order the
   user reads them, each with a coloured dot (its colour in the log's `Roots`), what it has
   checked out, `↓ ↑` and changed files. The branches are a **BRANCHES** pane under it (below).
@@ -268,8 +268,8 @@ picked; at first, on Recent while anything is recent, else Local.
   put a dot per repository in view on each row: filled where the branch is checked out,
   ringed where it exists, small where it does not. They are switched by the toolbar's dots
   button (shown pressed while they are on), by `⋯` › *Show* › **Repository Dots**, and by
-  **GitTree: Toggle Repository Dots**. Off, nothing is lost: a branch's card still has a
-  line per repository.
+  **GitTree: Toggle Repository Dots**. Off, nothing is lost: a branch's card still says which
+  repositories have it.
 * **Scope.** Clicking a repository shows only its branches; Ctrl+click adds or removes one. A
   pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
   in the REPOSITORIES header, which names the repositories picked. The scope narrows what is
@@ -277,7 +277,11 @@ picked; at first, on Recent while anything is recent, else Local.
 
 **What can I do with it?**
 
-* **A click never changes anything.** It opens the branch's **card** under its row:
+* **A click selects a branch, and nothing more:** its hover buttons stay on it, ready to act.
+  Its **card** opens under the row on demand: the **chevron** at the row's left (it shows on
+  hover, on the selected row and while the card is open), a **double-click**, or **Enter**,
+  **Space** or **→**; the same, **←** or **Escape** shut it. A double-click never checks out:
+  with many repositories in view, that would be a costly accident. The card holds:
   - the last commit, its author and age;
   - where the branch stands against what it tracks (*2 to push, 1 to pull · origin/x*,
     *Not published*, *Not tracking origin/x*, *origin/x was deleted on the remote*), with a
@@ -290,8 +294,18 @@ picked; at first, on Recent while anything is recent, else Local.
     - **Checkout** and **Delete** for one that is merged or whose remote branch is gone;
     - **Update** and **Push…** (and **New Branch…**) for the checked-out one;
     - **Checkout** and **New Branch…** for a tag.
-  - With several repositories the card has a line per repository, and its buttons are the
-    all-repositories operations (*Checkout in 2*).
+  - With several repositories in view, **repositories that say the same about the branch are
+    one line**: the group's dots, then its repositories named (up to three: *api, web*) or
+    counted (*13 repositories ›*, *All 20* when every one in view is in step), then what they
+    share (*checked out*, *→ origin/x* with its **Stop tracking**, *up to date*, *↓2*, *2 ahead, 4
+    behind current*). The largest group comes first, then the exceptions. A counted group lists
+    its repositories, a line each, when its count is clicked. Twenty repositories in step are
+    one line, not twenty. A repository whose facts are still on their way is grouped by what is
+    known, and joins its own line if they set it apart.
+  - With several repositories in view, the ones that **lack the branch** are a line too: *not in
+    shared*, *not in 4 repositories ›*. A branch only one of them has keeps the full tracking and
+    relation lines, naming that repository.
+  - Its buttons are then the all-repositories operations (*Checkout in 2*).
   - When they do not all fit, the buttons drop their words rather than shrink each to a
     letter: the first keeps its own longest, then they are icons, each named on its hover,
     down to VS Code's narrowest sidebar. A narrow card leaves out who made the last commit

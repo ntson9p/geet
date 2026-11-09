@@ -22,16 +22,16 @@ import {
   isCurrentEverywhere,
   longAge,
   quickActions,
-  relationShort,
   relationText,
   remoteTwin,
   shortAge,
   tabTitle,
-  trackingShort,
   trackingText,
   upstreamElsewhere,
   type BranchEntry,
   type BranchTab,
+  type CardGroup,
+  type CardLine,
   type PanelRow,
   type QuickAction,
 } from './model';
@@ -627,7 +627,7 @@ export function BranchRow({
         style={{ paddingLeft: 8 + row.depth * INDENT }}
         title={`${entry.name}${entry.subject !== undefined ? `
 ${entry.subject}` : ''}
-Click for details · right-click for every action${
+Double-click or Enter for details · right-click for every action${
           draggable ? ' · drag onto another branch to merge or rebase' : ''
         }`}
         draggable={draggable}
@@ -693,15 +693,20 @@ Click for details · right-click for every action${
 
 export interface CardProps {
   readonly entry: BranchEntry | undefined;
+  /** What the card says, line by line: the model built them, and sized the card by them. */
+  readonly lines: readonly CardLine[];
   readonly details: BranchPanelDetailsDto | undefined;
+  /** More than one repository in view: a line that speaks of one repository names it. */
   readonly markers: boolean;
   readonly now: number;
   readonly indent: number;
   readonly colorOf: (repo: BranchPanelRepoDto) => string;
   readonly onButton: (button: BranchPanelButtonDto) => void;
   readonly onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => void;
-  /** Stops the branch tracking its upstream, in `root` alone when it names one. */
-  readonly onStopTracking: (root?: string) => void;
+  /** Stops the branch tracking its upstream, in `roots` alone when it names some. */
+  readonly onStopTracking: (roots?: readonly string[]) => void;
+  /** Opens or shuts a group's list of its repositories. */
+  readonly onToggleGroup: (key: string) => void;
   /** Detached HEAD: there is no branch to describe. */
   readonly detachedAt?: string;
   /** The button whose action is running: it spins until the host is done. */
@@ -721,13 +726,58 @@ function StopTracking({ upstream, onClick }: { upstream: string; onClick: () => 
   );
 }
 
+function RepoDot({ repo, state, colorOf }: { repo: BranchPanelRepoDto; state: 'current' | 'has' | 'none'; colorOf: (repo: BranchPanelRepoDto) => string }) {
+  return (
+    <span
+      className="gtp-marker"
+      data-state={state}
+      style={{ '--gtp-repo': colorOf(repo) } as CSSProperties}
+    />
+  );
+}
+
+/** What a group's repositories share, after its label: `checked out · up to date · 2 ahead of current`. */
+function GroupFacts({
+  group,
+  onStopTracking,
+}: {
+  group: CardGroup;
+  onStopTracking: (roots: readonly string[]) => void;
+}) {
+  if (group.missing) return null;
+  const rest = [group.tracking, ...(group.relation !== undefined ? [group.relation] : [])].join(' · ');
+  return (
+    <>
+      <span className="gtp-ellipsis gtp-dim">
+        {group.current ? 'checked out · ' : ''}
+        {group.elsewhere !== undefined ? (
+          <span className="gtp-elsewhere" title={elsewhereTitle(group.elsewhere)}>
+            → {group.elsewhere} ·{' '}
+          </span>
+        ) : null}
+        {rest}
+      </span>
+      {group.elsewhere !== undefined ? (
+        <StopTracking
+          upstream={group.elsewhere}
+          onClick={() => onStopTracking(group.repos.map((r) => r.root))}
+        />
+      ) : null}
+    </>
+  );
+}
+
 /**
  * What a branch is, under its row: its last commit, where it stands against
  * what it tracks and against what is checked out, and the few actions that
- * fit — the model sizes it (`cardLineCount`), so its lines are fixed.
+ * fit. The model decides the lines (`cardLines`) and sizes the card by them;
+ * this draws them. With several repositories in view, repositories that say
+ * the same are one line, the ones lacking the branch another, and a group too
+ * large to name lists its repositories when its count is clicked.
  */
 export function BranchCard({
   entry,
+  lines,
   details,
   markers,
   now,
@@ -736,6 +786,7 @@ export function BranchCard({
   onButton,
   onMenu,
   onStopTracking,
+  onToggleGroup,
   detachedAt,
   running,
 }: CardProps) {
@@ -745,97 +796,126 @@ export function BranchCard({
     CARD_FITS,
     `${(details?.buttons ?? []).map((b) => b.label).join('|')}|${details === undefined ? 'loading' : ''}`,
   );
-  const lines: ReactNode[] = [];
-  if (entry === undefined) {
-    lines.push(
-      <div key="detached" className="gtp-card-line">
-        <Codicon name="git-commit" />
-        <span className="gtp-ellipsis">HEAD is detached at {detachedAt ?? 'a commit'}</span>
-      </div>,
-      <div key="hint" className="gtp-card-line gtp-dim">
-        <span className="gtp-ellipsis">Check out a branch, or start one here.</span>
-      </div>,
-    );
-  } else {
-    const newest = details?.repos.find((r) => r.date !== undefined && r.author !== undefined) ?? details?.repos[0];
-    const age = longAge(now, newest?.date ?? entry.date);
-    lines.push(
-      <div key="commit" className="gtp-card-line">
-        <Codicon name="git-commit" />
-        <span className="gtp-ellipsis gtp-subject" title={entry.subject}>
-          {entry.subject ?? '…'}
-        </span>
-        <span className="gtp-card-meta" title={newest?.author !== undefined ? `${newest.author} · ${age}` : age}>
-          {newest?.author !== undefined ? <span className="gtp-card-author">{newest.author} · </span> : null}
-          {age}
-        </span>
-      </div>,
-    );
-    const many = markers && entry.presence.length > 1;
-    if (many) {
-      for (const p of entry.presence) {
-        const d = details?.repos.find((r) => r.root === p.repo.root);
-        const relation = p.ref.current === true ? undefined : relationShort(d);
-        const elsewhere = upstreamElsewhere(p.repo, entry.name, p.ref.upstream, p.ref.gone);
-        const twin = entry.kind === 'local' ? remoteTwin(p.repo, entry.name) : undefined;
-        lines.push(
-          <div key={p.repo.root} className="gtp-card-line">
-            <span
-              className="gtp-marker"
-              data-state={p.ref.current === true ? 'current' : 'has'}
-              style={{ '--gtp-repo': colorOf(p.repo) } as CSSProperties}
-            />
-            <span className="gtp-card-repo">{p.repo.label}</span>
-            <span className="gtp-ellipsis gtp-dim">
-              {p.ref.current === true ? 'checked out · ' : ''}
-              {elsewhere !== undefined ? (
-                <span className="gtp-elsewhere" title={elsewhereTitle(elsewhere)}>
-                  → {elsewhere} ·{' '}
-                </span>
-              ) : null}
-              {trackingShort(p.ref, entry.kind, d?.trackedBy, twin)}
-              {relation !== undefined ? ` · ${relation}` : ''}
+  const presence = entry?.presence[0];
+  const repoDetails = details?.repos[0];
+  const drawn = lines.map((line, i) => {
+    switch (line.kind) {
+      case 'detached':
+        return (
+          <div key={i} className="gtp-card-line">
+            <Codicon name="git-commit" />
+            <span className="gtp-ellipsis">HEAD is detached at {detachedAt ?? 'a commit'}</span>
+          </div>
+        );
+      case 'detachedHint':
+        return (
+          <div key={i} className="gtp-card-line gtp-dim">
+            <span className="gtp-ellipsis">Check out a branch, or start one here.</span>
+          </div>
+        );
+      case 'commit': {
+        const newest =
+          details?.repos.find((r) => r.date !== undefined && r.author !== undefined) ?? details?.repos[0];
+        const age = longAge(now, newest?.date ?? entry?.date);
+        return (
+          <div key={i} className="gtp-card-line">
+            <Codicon name="git-commit" />
+            <span className="gtp-ellipsis gtp-subject" title={entry?.subject}>
+              {entry?.subject ?? '…'}
             </span>
-            {elsewhere !== undefined ? (
-              <StopTracking upstream={elsewhere} onClick={() => onStopTracking(p.repo.root)} />
-            ) : null}
-          </div>,
+            <span className="gtp-card-meta" title={newest?.author !== undefined ? `${newest.author} · ${age}` : age}>
+              {newest?.author !== undefined ? <span className="gtp-card-author">{newest.author} · </span> : null}
+              {age}
+            </span>
+          </div>
         );
       }
-    } else {
-      const p = entry.presence[0];
-      const d = details?.repos[0];
-      const merged = entry.merged ? ` · merged into ${p?.repo.mainBranch ?? 'the main branch'}` : '';
-      const elsewhere = entry.tracksElsewhere;
-      const twin = p !== undefined && entry.kind === 'local' ? remoteTwin(p.repo, entry.name) : undefined;
-      lines.push(
-        <div key="tracking" className="gtp-card-line">
-          <Codicon name={entry.kind === 'tag' ? 'tag' : 'cloud'} />
-          <span
-            className={`gtp-ellipsis${elsewhere !== undefined ? ' gtp-elsewhere' : ''}`}
-            title={elsewhere !== undefined ? elsewhereTitle(elsewhere) : undefined}
-          >
-            {p !== undefined ? trackingText(p.ref, entry.kind, d?.trackedBy, twin) : ''}
-            {merged}
-          </span>
-          {p?.ref.upstream !== undefined ? (
-            <StopTracking upstream={p.ref.upstream} onClick={() => onStopTracking()} />
-          ) : null}
-        </div>,
-      );
-      if (!isCurrentEverywhere(entry)) {
-        lines.push(
-          <div key="relation" className="gtp-card-line">
+      case 'tracking': {
+        if (entry === undefined || presence === undefined) return <div key={i} className="gtp-card-line" />;
+        const merged = entry.merged ? ` · merged into ${presence.repo.mainBranch ?? 'the main branch'}` : '';
+        const elsewhere = entry.tracksElsewhere;
+        const twin = entry.kind === 'local' ? remoteTwin(presence.repo, entry.name) : undefined;
+        return (
+          <div key={i} className="gtp-card-line">
+            {markers ? (
+              // Several repositories in view and one with the branch: say which.
+              <>
+                <RepoDot
+                  repo={presence.repo}
+                  state={presence.ref.current === true ? 'current' : 'has'}
+                  colorOf={colorOf}
+                />
+                <span className="gtp-card-repo">{presence.repo.label}</span>
+              </>
+            ) : (
+              <Codicon name={entry.kind === 'tag' ? 'tag' : 'cloud'} />
+            )}
+            <span
+              className={`gtp-ellipsis${elsewhere !== undefined ? ' gtp-elsewhere' : ''}`}
+              title={elsewhere !== undefined ? elsewhereTitle(elsewhere) : undefined}
+            >
+              {trackingText(presence.ref, entry.kind, repoDetails?.trackedBy, twin)}
+              {merged}
+            </span>
+            {presence.ref.upstream !== undefined ? (
+              <StopTracking upstream={presence.ref.upstream} onClick={() => onStopTracking()} />
+            ) : null}
+          </div>
+        );
+      }
+      case 'relation':
+        return (
+          <div key={i} className="gtp-card-line">
             <Codicon name="git-compare" />
-            <span className="gtp-ellipsis gtp-dim">{relationText(d) ?? (details ? '' : '…')}</span>
-          </div>,
+            <span className="gtp-ellipsis gtp-dim">{relationText(repoDetails) ?? (details ? '' : '…')}</span>
+          </div>
+        );
+      case 'group': {
+        const { group } = line;
+        const state = group.missing ? 'none' : group.current ? 'current' : 'has';
+        return (
+          <div
+            key={i}
+            className={`gtp-card-line gtp-card-group${group.missing ? ' gtp-card-missing' : ''}`}
+            title={group.repos.map((r) => r.label).join('\n')}
+          >
+            <span className="gtp-card-dots">
+              {group.repos.map((repo) => (
+                <RepoDot key={repo.root} repo={repo} state={state} colorOf={colorOf} />
+              ))}
+            </span>
+            {line.expandable ? (
+              <button
+                type="button"
+                className="gtp-card-repo gtp-group-toggle"
+                aria-expanded={line.open}
+                title={`${line.open ? 'Hide' : 'List'} the ${group.repos.length} repositories`}
+                onClick={() => onToggleGroup(group.key)}
+              >
+                <span className="gtp-ellipsis">{line.label}</span>
+                <Codicon name={line.open ? 'chevron-down' : 'chevron-right'} />
+              </button>
+            ) : (
+              <span className="gtp-card-repo">{line.label}</span>
+            )}
+            <GroupFacts group={group} onStopTracking={(roots) => onStopTracking(roots)} />
+          </div>
+        );
+      }
+      case 'member': {
+        const state = line.group.missing ? 'none' : line.group.current ? 'current' : 'has';
+        return (
+          <div key={i} className="gtp-card-line gtp-card-member">
+            <RepoDot repo={line.repo} state={state} colorOf={colorOf} />
+            <span className="gtp-ellipsis">{line.repo.label}</span>
+          </div>
         );
       }
     }
-  }
+  });
   return (
     <div className="gtp-card" style={{ marginLeft: indent }} onClick={(e) => e.stopPropagation()}>
-      {lines}
+      {drawn}
       <div ref={buttonsRef} className="gtp-card-buttons" data-fit={buttonsFit}>
         {(details?.buttons ?? []).map((button, i) => {
           const busy = running === button.label;

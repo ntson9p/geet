@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  BranchPanelDetailsDto,
   BranchPanelRefDto,
   BranchPanelRepoDto,
   BranchPanelStateDto,
@@ -10,11 +11,13 @@ import {
   CARD_BUTTONS,
   CARD_LINE,
   CARD_PAD,
+  cardGroups,
   cardHeight,
-  cardLineCount,
+  cardLines,
   collapsedAll,
   compareTags,
   entryKey,
+  groupLabel,
   isPlausibleBranchName,
   longAge,
   matchRanges,
@@ -36,7 +39,9 @@ import {
   trackingShort,
   trackingText,
   upstreamElsewhere,
+  type BranchEntry,
   type BranchTab,
+  type CardLine,
   type PanelRow,
   type PanelUiState,
 } from '../../../webview-ui/src/branches/model';
@@ -521,10 +526,12 @@ describe('buildPanel: several repositories', () => {
     expect(scopeReposOf([api, web], ['/gone']).map((r) => r.root)).toEqual(['/api', '/web']);
   });
 
-  it('sizes a card by the repositories that have the branch', () => {
+  it('sizes a card by what its repositories say', () => {
     const main = buildEntries([api, web], 'local').find((e) => e.name === 'main')!;
-    expect(cardLineCount(main, true)).toBe(3);
-    expect(cardHeight(main, true)).toBe(CARD_PAD + 3 * CARD_LINE + CARD_BUTTONS);
+    // api has main checked out and one to push; web is four behind: two lines.
+    const lines = cardLines(main, { markers: true, scopeRepos: [api, web] });
+    expect(lines.map((l) => l.kind)).toEqual(['commit', 'group', 'group']);
+    expect(cardHeight(lines)).toBe(CARD_PAD + 3 * CARD_LINE + CARD_BUTTONS);
   });
 });
 
@@ -700,5 +707,174 @@ describe('the New Branch form', () => {
     expect(fromText('origin/main', [web])).toBe('origin/main');
     expect(fromText('HEAD', [web])).toBe('feature/login');
     expect(fromText('HEAD', [api, web])).toBe('each repository’s current branch');
+  });
+});
+
+describe("a branch's card: repositories that say the same are one line", () => {
+  /** Twenty repositories on main, each with `develop` up to date with its own remote branch. */
+  const many: BranchPanelRepoDto[] = Array.from({ length: 20 }, (_, i) =>
+    repo(`/r${i + 1}`, {
+      head: 'main',
+      colorIdx: i % 8,
+      locals: [
+        ref('main', { current: true, upstream: 'origin/main' }),
+        ref('develop', { upstream: 'origin/develop' }),
+      ],
+      remotes: [ref('origin/develop', { remote: 'origin' })],
+    }),
+  );
+  const developIn = (repos: readonly BranchPanelRepoDto[]): BranchEntry =>
+    buildEntries(repos, 'local').find((e) => e.name === 'develop')!;
+  /** The host's facts: each repository's develop `ahead` and `behind` its checked-out main. */
+  const facts = (repos: readonly BranchPanelRepoDto[], ahead: number, behind: number): BranchPanelDetailsDto => ({
+    repos: repos.map((r) => ({ root: r.root, vsHead: { head: 'main', ahead, behind } })),
+    buttons: [],
+  });
+  /** `develop` a step behind its upstream in the repositories at `indices`. */
+  const behindIn = (indices: readonly number[]): BranchPanelRepoDto[] =>
+    many.map((r, i) =>
+      indices.includes(i)
+        ? { ...r, locals: r.locals.map((l) => (l.name === 'develop' ? { ...l, behind: 2 } : l)) }
+        : r,
+    );
+  const groupsOf = (lines: readonly CardLine[]) =>
+    lines.flatMap((l) => (l.kind === 'group' ? [l] : []));
+
+  it('twenty repositories in step are one line, "All 20", which needs no list', () => {
+    const lines = cardLines(developIn(many), { markers: true, scopeRepos: many, details: facts(many, 2, 4) });
+    expect(lines.map((l) => l.kind)).toEqual(['commit', 'group']);
+    const [all] = groupsOf(lines);
+    expect(all!.label).toBe('All 20');
+    expect(all!.expandable).toBe(false);
+    expect(all!.group.tracking).toBe('up to date');
+    expect(all!.group.relation).toBe('2 ahead, 4 behind current');
+    expect(cardHeight(lines)).toBe(CARD_PAD + 2 * CARD_LINE + CARD_BUTTONS);
+  });
+
+  it('the repositories that differ get a line of their own, after the largest group', () => {
+    const repos = behindIn([2, 6]);
+    const groups = groupsOf(cardLines(developIn(repos), { markers: true, scopeRepos: repos, details: facts(repos, 2, 4) }));
+    expect(groups.map((g) => g.label)).toEqual(['18 repositories', 'r3, r7']);
+    expect(groups.map((g) => g.group.tracking)).toEqual(['up to date', '↓2']);
+  });
+
+  it('names a group of up to three, and counts a larger one, which opens to list them', () => {
+    const repos = behindIn([2, 6]);
+    const entry = developIn(repos);
+    const shut = groupsOf(cardLines(entry, { markers: true, scopeRepos: repos }));
+    expect(shut.map((g) => [g.label, g.expandable, g.open])).toEqual([
+      ['18 repositories', true, false],
+      ['r3, r7', false, false],
+    ]);
+    const key = shut[0]!.group.key;
+    const lines = cardLines(entry, { markers: true, scopeRepos: repos, open: new Set([key]) });
+    const members = lines.flatMap((l) => (l.kind === 'member' ? [l.repo.label] : []));
+    expect(members).toHaveLength(18);
+    expect(members.slice(0, 3)).toEqual(['r1', 'r2', 'r4']);
+    // Listed right under their group, before the next group.
+    expect(lines.map((l) => l.kind).slice(0, 3)).toEqual(['commit', 'group', 'member']);
+    expect(lines[2 + 18]?.kind).toBe('group');
+  });
+
+  it('says which repositories in view lack the branch, named or counted', () => {
+    const without = (indices: readonly number[]): BranchPanelRepoDto[] =>
+      many.map((r, i) => (indices.includes(i) ? { ...r, locals: r.locals.filter((l) => l.name !== 'develop') } : r));
+    const four = without([16, 17, 18, 19]);
+    const lines = cardLines(developIn(four), { markers: true, scopeRepos: four, details: facts(four, 0, 0) });
+    expect(groupsOf(lines).map((g) => [g.label, g.group.missing, g.expandable])).toEqual([
+      ['16 repositories', false, true],
+      ['not in 4 repositories', true, true],
+    ]);
+    const two = without([18, 19]);
+    expect(groupsOf(cardLines(developIn(two), { markers: true, scopeRepos: two })).at(-1)?.label).toBe(
+      'not in r19, r20',
+    );
+  });
+
+  it('the branch in one repository of several: its full lines, then the ones without it', () => {
+    const only = many.map((r, i) => (i === 0 ? r : { ...r, locals: r.locals.filter((l) => l.name !== 'develop') }));
+    const lines = cardLines(developIn(only), { markers: true, scopeRepos: only });
+    expect(lines.map((l) => l.kind)).toEqual(['commit', 'tracking', 'relation', 'group']);
+    expect(groupsOf(lines)[0]!.label).toBe('not in 19 repositories');
+  });
+
+  it('one repository in view: the full tracking and relation, and nothing said of others', () => {
+    const one = [many[0]!];
+    expect(cardLines(developIn(one), { markers: false, scopeRepos: one }).map((l) => l.kind)).toEqual([
+      'commit',
+      'tracking',
+      'relation',
+    ]);
+    // Checked out where it is: nothing to relate it to.
+    const main = buildEntries(one, 'local').find((e) => e.name === 'main')!;
+    expect(cardLines(main, { markers: false, scopeRepos: one }).map((l) => l.kind)).toEqual(['commit', 'tracking']);
+  });
+
+  it('groups by what is known until the facts come, which can split a group', () => {
+    const entry = developIn(many);
+    expect(groupsOf(cardLines(entry, { markers: true, scopeRepos: many })).map((g) => g.label)).toEqual(['All 20']);
+    const split: BranchPanelDetailsDto = {
+      repos: many.map((r, i) => ({ root: r.root, vsHead: { head: 'main', ahead: i === 4 ? 5 : 2, behind: 0 } })),
+      buttons: [],
+    };
+    const groups = groupsOf(cardLines(entry, { markers: true, scopeRepos: many, details: split }));
+    expect(groups.map((g) => [g.label, g.group.relation])).toEqual([
+      ['19 repositories', '2 ahead of current'],
+      ['r5', '5 ahead of current'],
+    ]);
+  });
+
+  it('keeps the repositories where it is checked out apart, and says so', () => {
+    const repos = many.map((r, i) =>
+      i === 0 ? { ...r, head: 'develop', locals: r.locals.map((l) => ({ ...l, current: l.name === 'develop' })) } : r,
+    );
+    const groups = cardGroups(developIn(repos), repos, facts(repos, 0, 3));
+    expect(groups.map((g) => [g.repos.length, g.current])).toEqual([
+      [19, false],
+      [1, true],
+    ]);
+    // Checked out, it has no relation to what is checked out.
+    expect(groups[1]!.relation).toBeUndefined();
+  });
+
+  it("a group's label", () => {
+    const g = (n: number, missing = false) => ({
+      key: 'k',
+      missing,
+      repos: many.slice(0, n),
+      current: false,
+      tracking: 'up to date',
+    });
+    expect(groupLabel(g(1), false)).toBe('r1');
+    expect(groupLabel(g(3), true)).toBe('r1, r2, r3');
+    expect(groupLabel(g(4), false)).toBe('4 repositories');
+    expect(groupLabel(g(20), true)).toBe('All 20');
+    expect(groupLabel(g(2, true), false)).toBe('not in r1, r2');
+    expect(groupLabel(g(5, true), false)).toBe('not in 5 repositories');
+  });
+
+  it('a detached HEAD has no branch to describe: its two lines', () => {
+    expect(cardLines(undefined, { markers: false, scopeRepos: [] }).map((l) => l.kind)).toEqual([
+      'detached',
+      'detachedHint',
+    ]);
+  });
+
+  it('the panel sizes an open card by its facts and its opened groups, and hands the row its lines', () => {
+    const repos = behindIn([2, 6]);
+    const id = 'br:local:local:develop';
+    const shut = buildPanel(state(repos), ui({ tab: 'local', openCard: id, detailsOf: () => facts(repos, 2, 4) }));
+    const row = shut.rows.find((r) => r.id === id);
+    expect(row?.kind === 'branch' && row.cardLines?.map((l) => l.kind)).toEqual(['commit', 'group', 'group']);
+    expect(row?.height).toBe(ROW + CARD_PAD + 3 * CARD_LINE + CARD_BUTTONS);
+
+    const key = row?.kind === 'branch' ? (row.cardLines?.[1] as Extract<CardLine, { kind: 'group' }>).group.key : '';
+    const open = buildPanel(
+      state(repos),
+      ui({ tab: 'local', openCard: id, detailsOf: () => facts(repos, 2, 4), openGroups: new Set([key]) }),
+    );
+    expect(open.rows.find((r) => r.id === id)?.height).toBe(ROW + CARD_PAD + (3 + 18) * CARD_LINE + CARD_BUTTONS);
+    // A row whose card is shut carries no lines.
+    expect(open.rows.find((r) => r.id === 'br:local:local:main')).not.toHaveProperty('cardLines');
   });
 });

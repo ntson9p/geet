@@ -725,10 +725,17 @@
   font-weight: 600;
 }
 
-/* The disclosure is a hint, not a control: it shows where it can do something. */
+/* The chevron opens and shuts the card; a click elsewhere on the row only
+   selects it. It shows where it can be clicked: on the row under the pointer,
+   the selected one, and the one whose card is open. */
 .gtp-branch .gtp-disclosure {
   visibility: hidden;
   opacity: 0.7;
+}
+
+.gtp-branch .gtp-twisty:hover .gtp-disclosure,
+.gtp-head .gtp-twisty:hover .codicon {
+  opacity: 1;
 }
 
 .gtp-row:hover .gtp-branch .gtp-disclosure,
@@ -839,6 +846,66 @@
 .gtp-stop-tracking {
   flex: 0 0 auto;
   margin-left: auto;
+}
+
+/* ---- a card's repositories, grouped by what they say (`cardLines`) ---------------------- */
+
+/* The group's repositories as the rows' dots. Many dots give way before the
+   words do (down to one dot's width): the label counts them and the line's
+   hover names them. */
+.gtp-card-dots {
+  flex: 0 1000 auto;
+  min-width: 8px;
+  max-width: 40%;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+}
+
+/* A group's label keeps its words ahead of what the group shares. */
+.gtp-card-group .gtp-card-repo {
+  max-width: 60%;
+}
+
+/* `13 repositories ›`: lists them, a line each, under the group. */
+.gtp-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gtp-group-toggle:hover .gtp-ellipsis {
+  text-decoration: underline;
+}
+
+.gtp-group-toggle .codicon {
+  flex: 0 0 auto;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.gtp-group-toggle:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+/* The repositories that lack the branch: said, not shouted. */
+.gtp-card-missing .gtp-card-repo {
+  font-weight: normal;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* A repository of an opened group, under its group's dots. */
+.gtp-card-member {
+  padding-left: 14px;
 }
 
 .gtp-card-buttons {

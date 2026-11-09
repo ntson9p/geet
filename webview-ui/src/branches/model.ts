@@ -26,6 +26,7 @@
  * match twice.
  */
 import type {
+  BranchPanelDetailsDto,
   BranchPanelRefDto,
   BranchPanelRefKind,
   BranchPanelRepoDetailsDto,
@@ -300,6 +301,8 @@ export type PanelRow =
       /** The current branch's entry, when HEAD is on a branch. */
       readonly entry?: BranchEntry;
       readonly card: boolean;
+      /** What its open card says, line by line: what its height was sized from. */
+      readonly cardLines?: readonly CardLine[];
       readonly height: number;
     }
   | {
@@ -341,6 +344,8 @@ export type PanelRow =
       readonly highlights: ReadonlyArray<readonly [number, number]>;
       /** Its card is open beneath it. */
       readonly card: boolean;
+      /** What its open card says, line by line: what its height was sized from. */
+      readonly cardLines?: readonly CardLine[];
       readonly height: number;
     }
   | {
@@ -375,6 +380,14 @@ export interface PanelUiState {
   readonly toggled: ReadonlySet<string>;
   /** The row whose card is open. */
   readonly openCard?: string;
+  /**
+   * A card's facts, once the host has sent them: they say how far each
+   * repository's branch is from what that repository has checked out, which
+   * decides how its repositories group, and so how tall the card is.
+   */
+  readonly detailsOf?: (entry: BranchEntry) => BranchPanelDetailsDto | undefined;
+  /** The open card's groups opened to list their repositories, by `CardGroup.key`. */
+  readonly openGroups?: ReadonlySet<string>;
   /** The tab picked. None: Recent, unless nothing is recent. */
   readonly tab?: BranchTab;
 }
@@ -463,15 +476,167 @@ export function scopeReposOf(
   return kept.length > 0 ? kept : [...repos];
 }
 
-/** Lines in a branch's card: what `cardHeight` sizes and the card draws. */
-export function cardLineCount(entry: BranchEntry | undefined, markers: boolean): number {
-  if (entry === undefined) return 2;
-  if (markers && entry.presence.length > 1) return 1 + entry.presence.length;
-  return isCurrentEverywhere(entry) ? 2 : 3;
+// ---------------------------------------------------------------------------
+// A branch's card: what it says, line by line
+// ---------------------------------------------------------------------------
+
+/**
+ * Repositories in view that say the same about a branch: one line of its
+ * card, however many there are. Twenty repositories in step are one line, not
+ * twenty; the ones that differ get a line each. `missing` is the repositories
+ * in view that lack the branch.
+ */
+export interface CardGroup {
+  /** Tells the group from the card's others: what its repositories share, or `missing`. */
+  readonly key: string;
+  readonly missing: boolean;
+  /** In the panel's order. */
+  readonly repos: readonly BranchPanelRepoDto[];
+  /** The branch is checked out in each of them. */
+  readonly current: boolean;
+  /** They track a remote branch of another name, `origin/x`: a push goes there. */
+  readonly elsewhere?: string;
+  /** Where the branch stands against what it tracks: `up to date`, `↑2`, `not published`. */
+  readonly tracking: string;
+  /** Against each repository's checked-out branch, once the card's facts arrive. */
+  readonly relation?: string;
 }
 
-export function cardHeight(entry: BranchEntry | undefined, markers: boolean): number {
-  return CARD_PAD + cardLineCount(entry, markers) * CARD_LINE + CARD_BUTTONS;
+/** A card's line. Every kind is one `CARD_LINE` tall: the model sizes the card by counting them. */
+export type CardLine =
+  /** HEAD is detached: there is no branch to describe. */
+  | { readonly kind: 'detached' }
+  | { readonly kind: 'detachedHint' }
+  /** The branch's last commit. */
+  | { readonly kind: 'commit' }
+  /** Where it stands against what it tracks, in full: one repository has it. */
+  | { readonly kind: 'tracking' }
+  /** Where it stands against what is checked out, in full. */
+  | { readonly kind: 'relation' }
+  /** A group of repositories, one line. */
+  | {
+      readonly kind: 'group';
+      readonly group: CardGroup;
+      /** `All 20`, `api, web`, `13 repositories`, `not in 4 repositories`. */
+      readonly label: string;
+      /** Large enough to list its repositories on demand. */
+      readonly expandable: boolean;
+      readonly open: boolean;
+    }
+  /** One repository of a group opened to list them. */
+  | { readonly kind: 'member'; readonly group: CardGroup; readonly repo: BranchPanelRepoDto };
+
+/** What a card's lines depend on besides its branch. */
+export interface CardContext {
+  /** More than one repository in view: the card speaks of repositories. */
+  readonly markers: boolean;
+  /** The repositories in view, the ones that lack the branch included. */
+  readonly scopeRepos: readonly BranchPanelRepoDto[];
+  readonly details?: BranchPanelDetailsDto;
+  /** Groups opened to list their repositories, by key. */
+  readonly open?: ReadonlySet<string>;
+}
+
+/** A group names up to this many repositories; past it, it counts them and lists them on demand. */
+export const NAMED_REPOS = 3;
+
+function names(repos: readonly BranchPanelRepoDto[]): string {
+  return repos.map((r) => r.label).join(', ');
+}
+
+/**
+ * The branch's repositories grouped by what they say about it, largest group
+ * first (the panel's order among equals), then the repositories in view that
+ * lack it. A repository's facts that have not arrived yet group it by what
+ * the panel already knows; they can split a group when they come.
+ */
+export function cardGroups(
+  entry: BranchEntry,
+  scopeRepos: readonly BranchPanelRepoDto[],
+  details: BranchPanelDetailsDto | undefined,
+): CardGroup[] {
+  const groups: CardGroup[] = [];
+  const byKey = new Map<string, { group: CardGroup; repos: BranchPanelRepoDto[] }>();
+  for (const p of entry.presence) {
+    const d = details?.repos.find((r) => r.root === p.repo.root);
+    const current = p.ref.current === true;
+    const elsewhere = upstreamElsewhere(p.repo, entry.name, p.ref.upstream, p.ref.gone);
+    const twin = entry.kind === 'local' ? remoteTwin(p.repo, entry.name) : undefined;
+    const tracking = trackingShort(p.ref, entry.kind, d?.trackedBy, twin);
+    const relation = current ? undefined : relationShort(d);
+    const key = JSON.stringify([current, elsewhere ?? '', tracking, relation ?? '']);
+    const known = byKey.get(key);
+    if (known) {
+      known.repos.push(p.repo);
+      continue;
+    }
+    const repos: BranchPanelRepoDto[] = [p.repo];
+    const group: CardGroup = {
+      key,
+      missing: false,
+      repos,
+      current,
+      ...(elsewhere !== undefined ? { elsewhere } : {}),
+      tracking,
+      ...(relation !== undefined ? { relation } : {}),
+    };
+    byKey.set(key, { group, repos });
+    groups.push(group);
+  }
+  // Largest first: the state most repositories share, then the exceptions.
+  const ordered = groups
+    .map((group, i) => ({ group, i }))
+    .sort((a, b) => b.group.repos.length - a.group.repos.length || a.i - b.i)
+    .map(({ group }) => group);
+  const has = new Set(entry.presence.map((p) => p.repo.root));
+  const lacking = scopeRepos.filter((r) => !has.has(r.root));
+  if (scopeRepos.length > 1 && lacking.length > 0) {
+    ordered.push({ key: 'missing', missing: true, repos: lacking, current: false, tracking: '' });
+  }
+  return ordered;
+}
+
+/** A group's label: its repositories named while few, else counted. */
+export function groupLabel(group: CardGroup, all: boolean): string {
+  const n = group.repos.length;
+  if (group.missing) return n <= NAMED_REPOS ? `not in ${names(group.repos)}` : `not in ${n} repositories`;
+  if (n <= NAMED_REPOS) return names(group.repos);
+  return all ? `All ${n}` : `${n} repositories`;
+}
+
+/**
+ * Everything a card says, a line each: its commit; then, with one repository
+ * in view (or the branch in one only), where it stands in full; with several,
+ * a line per group of repositories that say the same; then the repositories
+ * that lack it. A group too large to name lists its repositories, a line
+ * each, once opened.
+ */
+export function cardLines(entry: BranchEntry | undefined, ctx: CardContext): CardLine[] {
+  if (entry === undefined) return [{ kind: 'detached' }, { kind: 'detachedHint' }];
+  const lines: CardLine[] = [{ kind: 'commit' }];
+  const groups = ctx.markers ? cardGroups(entry, ctx.scopeRepos, ctx.details) : [];
+  const pushGroup = (group: CardGroup, all: boolean): void => {
+    const expandable = !all && group.repos.length > NAMED_REPOS;
+    const open = expandable && ctx.open?.has(group.key) === true;
+    lines.push({ kind: 'group', group, label: groupLabel(group, all), expandable, open });
+    if (open) for (const repo of group.repos) lines.push({ kind: 'member', group, repo });
+  };
+  if (ctx.markers && entry.presence.length > 1) {
+    const found = groups.filter((g) => !g.missing);
+    const all = found.length === 1 && groups.length === 1;
+    for (const group of found) pushGroup(group, all);
+  } else {
+    lines.push({ kind: 'tracking' });
+    if (!isCurrentEverywhere(entry)) lines.push({ kind: 'relation' });
+  }
+  const missing = groups.find((g) => g.missing);
+  if (missing !== undefined) pushGroup(missing, false);
+  return lines;
+}
+
+/** A card's height, from its lines: the frame, a `CARD_LINE` each, and the row of buttons. */
+export function cardHeight(lines: readonly CardLine[]): number {
+  return CARD_PAD + lines.length * CARD_LINE + CARD_BUTTONS;
 }
 
 interface Level {
@@ -528,6 +693,9 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
   ): PanelRow => {
     const id = `br:${section}:${entry.key}`;
     const card = ui.openCard === id;
+    const lines = card
+      ? cardLines(entry, { markers, scopeRepos, details: ui.detailsOf?.(entry), open: ui.openGroups })
+      : undefined;
     const cut = whole ? shownName.lastIndexOf('/') + 1 : 0;
     const prefix = whole ? shownName.slice(0, cut) : '';
     const label = whole ? shownName.slice(cut) : shownName;
@@ -542,7 +710,8 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
       label,
       highlights,
       card,
-      height: ROW + (card ? cardHeight(entry, markers) : 0),
+      ...(lines !== undefined ? { cardLines: lines } : {}),
+      height: ROW + (lines !== undefined ? cardHeight(lines) : 0),
     };
   };
 
@@ -569,13 +738,22 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
       const entry = repo.head !== undefined ? localByKey.get(entryKey('local', repo.head)) : undefined;
       const id = `head:${repo.root}`;
       const card = ui.openCard === id;
+      const lines = card
+        ? cardLines(entry, {
+            markers: false,
+            scopeRepos,
+            ...(entry !== undefined ? { details: ui.detailsOf?.(entry) } : {}),
+            open: ui.openGroups,
+          })
+        : undefined;
       repoRows.push({
         kind: 'head',
         id,
         repo,
         ...(entry !== undefined ? { entry } : {}),
         card,
-        height: REPO + (card ? cardHeight(entry, false) : 0),
+        ...(lines !== undefined ? { cardLines: lines } : {}),
+        height: REPO + (lines !== undefined ? cardHeight(lines) : 0),
       });
       if (repo.operation !== undefined) {
         repoRows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });

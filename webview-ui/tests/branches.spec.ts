@@ -182,15 +182,26 @@ test.describe('several repositories', () => {
     );
   });
 
-  test("a branch's card shows each repository's side, and its button acts in all of them", async ({ page }) => {
+  test("a click selects a branch; a double-click opens its card, whose button acts in all of them", async ({
+    page,
+  }) => {
     await openPanel(page);
     await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
     await develop.click();
+    // Selected, and nothing opened or asked for.
+    await expect(develop).toBeFocused();
+    await expect(develop).toHaveClass(/gtp-focused/u);
+    await expect(develop).toHaveAttribute('aria-expanded', 'false');
+    await expect(develop.locator('.gtp-card')).toHaveCount(0);
+    expect(await requests(page, 'branches/details')).toHaveLength(0);
+
+    await develop.dblclick();
     const card = develop.locator('.gtp-card');
     await expect(card).toBeVisible();
     await expect(develop).toHaveAttribute('aria-expanded', 'true');
-    await expect(card.locator('.gtp-card-repo')).toHaveText(['api', 'web']);
+    // api and web say the same about develop: one line. shared lacks it: another.
+    await expect(card.locator('.gtp-card-repo')).toHaveText(['api, web', 'not in shared']);
     // With the Repository Dots off (the default) the card still says which repositories.
     await expect(develop.locator('.gtp-markers')).toHaveCount(0);
     expect((await requests(page, 'branches/details')).at(-1)).toEqual({
@@ -204,16 +215,97 @@ test.describe('several repositories', () => {
       run: { type: 'action', target: { kind: 'local', name: 'develop', roots: [API, WEB] }, action: 'checkout' },
     });
 
-    // A second click on the row shuts the card.
+    // A single click on the row leaves it open; a double-click shuts it.
     await develop.locator('.gtp-branch').click();
+    await expect(card).toBeVisible();
+    await develop.locator('.gtp-branch').dblclick();
     await expect(card).toHaveCount(0);
+  });
+
+  test("the chevron opens and shuts a branch's card; Escape shuts it too", async ({ page }) => {
+    await openPanel(page);
+    await showTab(page, 'Local');
+    const develop = row(page, 'br:local:local:develop');
+    await develop.hover();
+    await develop.locator('.gtp-twisty').click();
+    await expect(develop.locator('.gtp-card')).toBeVisible();
+    await expect(develop).toBeFocused();
+    await develop.locator('.gtp-twisty').click();
+    await expect(develop.locator('.gtp-card')).toHaveCount(0);
+
+    await develop.locator('.gtp-twisty').click();
+    await expect(develop.locator('.gtp-card')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(develop.locator('.gtp-card')).toHaveCount(0);
+    await expect(develop).toBeFocused();
+  });
+
+  test('a card puts twenty repositories that say the same on one line, and lists them on demand', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<Record<string, unknown>> };
+        __pushState: () => void;
+      };
+      // Seventeen more like api: develop up to date in each.
+      const base = w.__mockState.repos[0]!;
+      for (let i = 1; i <= 17; i++) {
+        w.__mockState.repos.push({ ...base, root: `/work/extra-${i}`, label: `extra-${i}` });
+      }
+      w.__pushState();
+    });
+    await showTab(page, 'Local');
+    const develop = row(page, 'br:local:local:develop');
+    await develop.dblclick();
+    const card = develop.locator('.gtp-card');
+    // Nineteen repositories in step, then the one without it: two lines, not twenty.
+    await expect(card.locator('.gtp-card-group')).toHaveCount(2);
+    await expect(card.locator('.gtp-card-repo')).toHaveText(['19 repositories', 'not in shared']);
+    await expect(card.locator('.gtp-card-group').first()).toContainText('up to date · 3 ahead, 1 behind current');
+    await expect(card.locator('.gtp-card-group').first().locator('.gtp-marker')).toHaveCount(19);
+    await expect(card.locator('.gtp-card-member')).toHaveCount(0);
+
+    const toggle = card.getByRole('button', { name: '19 repositories' });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(card.locator('.gtp-card-member')).toHaveCount(19);
+    await expect(card.locator('.gtp-card-member').first()).toHaveText('api');
+    // The list is part of the card: shutting it gives the room back.
+    const listed = (await develop.boundingBox())!.height;
+    await toggle.click();
+    await expect(card.locator('.gtp-card-member')).toHaveCount(0);
+    expect((await develop.boundingBox())!.height).toBeLessThan(listed);
+
+    // A card opened again starts with its groups shut. (With the card open, the
+    // row's middle is in the card, so the double-clicks go to the branch's line.)
+    await toggle.click();
+    await develop.locator('.gtp-branch').dblclick();
+    await expect(card).toHaveCount(0);
+    await develop.locator('.gtp-branch').dblclick();
+    await expect(card).toBeVisible();
+    await expect(develop.locator('.gtp-card-member')).toHaveCount(0);
+  });
+
+  test('a branch in one repository of several: its card names that one, and the ones without it', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await showTab(page, 'Local');
+    await row(page, 'dir:local:refactor/').click();
+    const types = row(page, 'br:local:local:refactor/types');
+    await types.dblclick();
+    const card = types.locator('.gtp-card');
+    await expect(card.locator('.gtp-card-repo')).toHaveText(['shared', 'not in api, web']);
   });
 
   test("a card's button turns until the host has done its action", async ({ page }) => {
     await openPanel(page, { holdRun: true });
     await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
-    await develop.click();
+    await develop.dblclick();
     const button = develop.locator('.gtp-card').getByRole('button', { name: 'Checkout in 2' });
     await button.click();
     await expect(button).toHaveAttribute('aria-busy', 'true');
@@ -315,7 +407,7 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
     await expect(page.getByRole('menu', { name: 'Actions for develop' })).toBeVisible();
     expect((await requests(page, 'branches/menu')).at(-1)?.['scope']).toEqual([API, SHARED, WEB]);
     await page.keyboard.press('Escape');
-    await row(page, 'br:local:local:develop').click();
+    await row(page, 'br:local:local:develop').dblclick();
     await expect.poll(async () => (await requests(page, 'branches/details')).at(-1)?.['scope']).toEqual([API, SHARED, WEB]);
   });
 });
@@ -424,7 +516,7 @@ test.describe('what a branch tracks', () => {
     await openPanel(page, { single: true });
     await showTab(page, 'Local');
     const mistracked = row(page, MISTRACKED);
-    await mistracked.click();
+    await mistracked.dblclick();
     const card = mistracked.locator('.gtp-card');
     await expect(card.locator('.gtp-elsewhere')).toContainText('origin/develop');
     await card.getByRole('button', { name: 'Stop tracking' }).click();
@@ -442,7 +534,7 @@ test.describe('what a branch tracks', () => {
     await openPanel(page, { single: true });
     await showTab(page, 'Local');
     const mistracked = row(page, MISTRACKED);
-    await mistracked.click();
+    await mistracked.dblclick();
     await expect(mistracked.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' })).toBeVisible();
     const asked = (await requests(page, 'branches/details')).length;
     await page.evaluate(() => {
@@ -465,7 +557,7 @@ test.describe('what a branch tracks', () => {
   test('a branch tracking its own name still offers Stop tracking on its card', async ({ page }) => {
     await openPanel(page, { single: true });
     const develop = row(page, 'br:recent:local:develop');
-    await develop.click();
+    await develop.dblclick();
     await develop.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
       run: { type: 'action', target: { kind: 'local', name: 'develop', roots: [WEB] }, action: 'stopTracking' },
@@ -477,7 +569,7 @@ test.describe('what a branch tracks', () => {
     await showTab(page, 'Local');
     await row(page, 'dir:local:bugfix/').click();
     const header = row(page, 'br:local:local:bugfix/header');
-    await header.click();
+    await header.dblclick();
     await expect(header.locator('.gtp-card')).toContainText('Not published');
     await expect(header.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' })).toHaveCount(0);
   });
@@ -496,7 +588,9 @@ test.describe('what a branch tracks', () => {
     await showTab(page, 'Local');
     const develop = row(page, 'br:local:local:develop');
     await expect(develop.locator('.gtp-chip.gtp-elsewhere')).toHaveText('→ origin/main');
-    await develop.click();
+    await develop.dblclick();
+    // api tracks elsewhere and web does not: two lines, and only api's has the link.
+    await expect(develop.locator('.gtp-card .gtp-card-repo')).toHaveText(['api', 'web', 'not in shared']);
     const links = develop.locator('.gtp-card').getByRole('button', { name: 'Stop tracking' });
     await expect(links).toHaveCount(1);
     await links.click();
@@ -613,6 +707,8 @@ test.describe('one repository', () => {
     await expect(head).toHaveAttribute('aria-label', 'Current branch feature/login');
     await expect(page.locator('[data-row-id^="repo:"]')).toHaveCount(0);
     await head.click();
+    await expect(head.locator('.gtp-card')).toHaveCount(0);
+    await head.dblclick();
     await expect(head.locator('.gtp-card')).toContainText('2 to push · origin/feature/login');
   });
 
@@ -628,6 +724,11 @@ test.describe('one repository', () => {
     await page.keyboard.press('ArrowRight');
     await expect(develop).toHaveAttribute('aria-expanded', 'true');
     await page.keyboard.press('ArrowLeft');
+    await expect(develop).toHaveAttribute('aria-expanded', 'false');
+    // Enter opens it too, and Escape shuts it.
+    await page.keyboard.press('Enter');
+    await expect(develop).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
     await expect(develop).toHaveAttribute('aria-expanded', 'false');
     await page.keyboard.press('m');
     await expect(page.getByLabel('Filter branches')).toBeFocused();
@@ -1109,7 +1210,7 @@ test.describe('a narrow sidebar', () => {
     await openPanel(page, { single: true });
     await page.addStyleTag({ content: VS_CODE_FONT });
     const head = row(page, `head:${WEB}`);
-    await head.click();
+    await head.dblclick();
     const buttons = head.locator('.gtp-card-buttons');
     await expect(buttons).toHaveAttribute('data-fit', 'full');
     await expect(buttons.getByRole('button', { name: 'Checkout' }).locator('.gtp-button-label')).toBeVisible();
@@ -1142,7 +1243,7 @@ test.describe('a narrow sidebar', () => {
     await openPanel(page, { single: true });
     await page.addStyleTag({ content: VS_CODE_FONT });
     const head = row(page, `head:${WEB}`);
-    await head.click();
+    await head.dblclick();
     const meta = head.locator('.gtp-card-meta');
     await expect(head.locator('.gtp-card-author')).toBeVisible();
     await expect(meta).toContainText('Alice · ');
