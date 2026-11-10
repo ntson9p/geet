@@ -270,6 +270,13 @@ picked; at first, on Recent while anything is recent, else Local.
   button (shown pressed while they are on), by `⋯` › *Show* › **Repository Dots**, and by
   **GitTree: Toggle Repository Dots**. Off, nothing is lost: a branch's card still says which
   repositories have it.
+* **A repository's menu** (right-click, or its `⋯`) opens with the ways of looking at it:
+  **Show Only This Repository** and **Show in New Log Tab**, its history at HEAD in a Log tab of
+  its own (titled with the repository's name wherever another tab would read the same). It is a
+  new tab even when the first Log tab shows exactly that; an extra tab already showing it comes
+  forward instead of a second. The Repositories section of the sidebar has it too, first in its
+  menu. With one repository it is left out of the current branch's menu, whose own **Show in
+  New Log Tab** stands above it, unless HEAD is detached.
 * **Scope.** Clicking a repository shows only its branches; Ctrl+click adds or removes one. A
   pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
   in the REPOSITORIES header, which names the repositories picked. The scope narrows what is
@@ -335,7 +342,7 @@ picked; at first, on Recent while anything is recent, else Local.
     there is one and a new one tracking the remote branch where not. A remote row does the
     same. A repository with no such branch stays where it is, and one in the middle of a merge
     or with conflicts to resolve is skipped; the result says which.
-  - **Show in New Log Tab** opens the branch's graph in a Log tab of its own in the Git panel
+  - **Show in New Log Tab** opens the branch's graph in a Log tab of its own in the GitTree panel
     (`Log: release/2.0`), so the tabs already open keep their filters; a tab already showing it
     comes forward instead. It leads the group that looks at a branch, after the checkout group
     and beside **Compare with `'main'`** and **Show Diff with Working Tree**, and a remote
@@ -642,8 +649,9 @@ docked bottom, tabs `Log | Console`").
 
 ### The window itself (shape)
 
-* **One bottom-docked tool window**: webview view `gittree.log` in the `gittree-panel`
-  panel container, holding tabs **`Log | Console | Worktrees`** (active tab persisted),
+* **One bottom-docked tool window**, IntelliJ's Git tool window, titled **GitTree** after the
+  extension: webview view `gittree.log` in the `gittree-panel` panel container, holding tabs
+  **`Log | Console | Worktrees`** (active tab persisted),
   simultaneously visible with the left-docked Commit window and the editor.
   `gittree.log.focus` (`alt+9` with the IntelliJ keymap on) focuses it on the last active tab.
 * **More than one Log tab, as IntelliJ's `Open Another Log Tab`.** A **`+`** right after the

@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — a repository's Show in New Log Tab
+
+- **Right-click a repository in the Repositories panel → Show in New Log Tab.** This opens that
+  repository's history at HEAD in a Log tab of its own. Running it again brings that tab back
+  rather than opening a second one. The sidebar's Repositories section has the same item.
+
+### Changed — the bottom panel is titled GitTree
+
+- **The bottom panel that holds the Log, Console and Worktrees is now titled GitTree,** after
+  the extension, instead of Git.
+
 ### Changed — a branch's card opens when you ask, and stays short however many repositories
 
 - **A click on a branch in the Repositories panel now only selects it.** Its card opens with

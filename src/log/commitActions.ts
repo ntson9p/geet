@@ -15,6 +15,7 @@ import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import { parseNameStatusZ } from '../branches/parsing';
+import { DEFAULT_FILTER } from './logFilter';
 import type { LogViewProvider } from './logView';
 import { showInfo } from '../ui/notices';
 
@@ -324,6 +325,16 @@ export function registerCommitActions(
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
     if (!repo || typeof ref !== 'string' || ref.length === 0) return;
     await logView.openTab({ sort: 'topo', refs: [ref] }, repo.root);
+  });
+
+  // A repository's `Show in New Log Tab` (the Repositories panel and section):
+  // its history at HEAD, the Log's own default, in a Log tab of its own. Not
+  // the main tab, even when it shows exactly that: it was asked for as new.
+  // An extra tab already showing it comes forward instead of a second.
+  register('gittree.repositories.showInLog', async (repoRoot) => {
+    const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
+    if (!repo) return;
+    await logView.openTab({ ...DEFAULT_FILTER }, repo.root, { newTab: true });
   });
 
   // ---- P12-T7: the reference menu's missing items --------------------------

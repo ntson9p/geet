@@ -70,6 +70,15 @@ describe("REPOSITORY_MENU (a repository's right-click menu in the Branches secti
     );
   });
 
+  it('opens with Show in New Log Tab, its own group: a way of looking, before the ways of acting', () => {
+    expect(REPOSITORY_MENU[0]).toEqual({
+      command: 'gittree.repositories.showInLog',
+      label: 'Show in New Log Tab',
+      group: 'view',
+    });
+    expect(REPOSITORY_MENU[1]?.group).not.toBe('view');
+  });
+
   it('offers Fetch, which with a root fetches that repository only', () => {
     expect(repositoryMenuEntry('gittree.fetch')?.label).toBe('Fetch');
     expect(REPOSITORY_MENU.map((e) => e.command)).not.toContain('gittree.fetch.all');
@@ -82,6 +91,7 @@ describe('repositoryMenuDto', () => {
     expect(dto.map((d) => d.id)).toEqual(REPOSITORY_MENU.map((e) => e.command));
     expect(dto[0]?.separator).toBeUndefined();
     expect(dto.filter((d) => d.separator === true).map((d) => d.label)).toEqual([
+      'Update Project…',
       'Commit',
       'New Branch…',
       'Stash Changes…',

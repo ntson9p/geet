@@ -1235,6 +1235,12 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.repositories.showInLog",
+        "title": "%gittree.command.repositories.showInLog.title%",
+        "category": "GitTree",
+        "icon": "$(git-commit)"
+      },
+      {
         "command": "gittree.branches.newBranchInPanel",
         "title": "%gittree.command.branches.newBranchInPanel.title%",
         "category": "GitTree",
@@ -2108,6 +2114,10 @@
           "when": "false"
         },
         {
+          "command": "gittree.repositories.showInLog",
+          "when": "false"
+        },
+        {
           "command": "gittree.log.createPatch",
           "when": "false"
         },
@@ -2919,6 +2929,11 @@
           "command": "gittree.merge.open",
           "when": "view == gittree.conflicts && viewItem =~ /^conflict:/",
           "group": "1_resolve@3"
+        },
+        {
+          "command": "gittree.repositories.showInLog",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "0_view@1"
         },
         {
           "command": "gittree.update.dialog",

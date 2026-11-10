@@ -801,6 +801,49 @@ suite('new-way-4 Branches panel', () => {
     assert.strictEqual(log.logTabs.active, inFront);
   });
 
+  test("T26 a repository's menu leads with Show in New Log Tab, in a group of its own", async () => {
+    const menu = await panel.menu({ root: repoD.root });
+    const first = menu[0];
+    assert.ok(first?.kind === 'item', labelsIn(menu).join(' | '));
+    assert.strictEqual(first.label, 'Show in New Log Tab');
+    assert.deepStrictEqual(first.run, { type: 'command', command: 'gittree.repositories.showInLog', root: repoD.root });
+    assert.strictEqual(menu[1]?.kind, 'separator');
+    // The panel runs it: the command is one a panel row may run.
+    assert.ok(PANEL_COMMANDS.has('gittree.repositories.showInLog'));
+  });
+
+  test('T27 Show in New Log Tab opens the repository at HEAD in a new Log tab, once', async function () {
+    this.timeout(120_000);
+    const log = (core.debugRegistry.get('phase04') as Phase04Registry).logView;
+    await vscode.commands.executeCommand('gittree.log.focus');
+    await waitFor(() => log.currentSession !== undefined, 30_000);
+    const before = log.logTabs.tabs;
+    const inFront = log.logTabs.active;
+    const opened: string[] = [];
+    try {
+      // The main tab may well show this repository at HEAD already: still a new tab.
+      const mainRoot = log.currentSession!.repoRoot;
+      const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(mainRoot)) ?? repoD;
+      await panel.run({ type: 'command', command: 'gittree.repositories.showInLog', root: repo.root });
+      const tab = log.logTabs.active;
+      assert.ok(!before.includes(tab), 'a tab of its own, not the main one brought forward');
+      opened.push(tab);
+      await waitFor(() => log.currentSession?.logTab === tab, 30_000);
+      assert.strictEqual(canonicalKey(log.currentSession!.repoRoot), canonicalKey(repo.root));
+      assert.strictEqual(log.currentSession!.filter.refs, 'HEAD');
+      await waitFor(() => (log.currentSession?.rowCount ?? 0) > 0, 30_000);
+
+      // Asked again, that tab comes forward: no second one.
+      await panel.run({ type: 'command', command: 'gittree.repositories.showInLog', root: repo.root });
+      assert.strictEqual(log.logTabs.active, tab);
+      assert.strictEqual(log.logTabs.tabs.length, before.length + 1);
+    } finally {
+      log.closeLogTabs(opened);
+      log.showLogTab(inFront);
+    }
+    assert.deepStrictEqual(log.logTabs.tabs, before, 'the Log is left as it was found');
+  });
+
   test('T25 Repository Dots are off by default, and the command switches what the state says', async function () {
     this.timeout(30_000);
     const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree.branches');

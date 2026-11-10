@@ -16,10 +16,12 @@ export interface RepositoryMenuEntry {
   /** The command's title, as the Repositories section shows it. */
   readonly label: string;
   /** Entries of one group sit together; a rule separates the groups. */
-  readonly group: 'update' | 'commit' | 'branch' | 'stash' | 'manage';
+  readonly group: 'view' | 'update' | 'commit' | 'branch' | 'stash' | 'manage';
 }
 
 export const REPOSITORY_MENU: readonly RepositoryMenuEntry[] = [
+  // The repository's history at HEAD, in a Log tab of its own.
+  { command: 'gittree.repositories.showInLog', label: 'Show in New Log Tab', group: 'view' },
   { command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' },
   { command: 'gittree.push.dialog', label: 'Push…', group: 'update' },
   { command: 'gittree.fetch', label: 'Fetch', group: 'update' },

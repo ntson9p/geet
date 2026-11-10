@@ -1268,8 +1268,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * twice lands on the same tab.
    *
    * @param repoRoot as for `setFilter`: the repository `filter` is written for.
+   * @param opts.newTab asked for as a new tab: the main tab is never the one
+   * brought forward, even when it shows exactly that (an extra tab still is).
    */
-  async openTab(filter: LogFilter, repoRoot?: string): Promise<void> {
+  async openTab(filter: LogFilter, repoRoot?: string, opts: { readonly newTab?: boolean } = {}): Promise<void> {
     await vscode.commands.executeCommand('gittree.log.focus');
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
@@ -1283,6 +1285,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       root,
       (tab) => this.rootOfTab(tab),
       (a, b) => canonicalKey(a) === canonicalKey(b),
+      { skipMain: opts.newTab === true },
     );
     if (existing !== undefined) {
       this.debugTrail.push(`tab reused ${existing}`);

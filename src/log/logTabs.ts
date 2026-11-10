@@ -78,8 +78,12 @@ export function findTab(
   root: string | undefined,
   rootOf: (tab: LogTabRecord) => string | undefined,
   sameRoot: (a: string, b: string) => boolean,
+  opts: { readonly skipMain?: boolean } = {},
 ): string | undefined {
   return state.tabs.find((tab) => {
+    // Asked for as a new tab: the main tab is the log itself, whose view
+    // moves with whatever is done there, so it is never the one reused.
+    if (opts.skipMain === true && tab.id === MAIN_LOG_TAB) return false;
     if (!sameView(tab.filter, filter)) return false;
     const here = rootOf(tab);
     if (root === undefined || here === undefined) return root === here;

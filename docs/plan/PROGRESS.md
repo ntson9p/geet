@@ -1295,3 +1295,24 @@ Testing (written, **not run**, by the owner's standing instruction):
   - the tracking-elsewhere test checks its two lines.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14bl ✅ 2026-11-10 (branch `new-way-6`): **A repository's Show in New Log Tab; the bottom panel is titled GitTree.** The owner, with a screenshot of a repository's right-click menu in the Repositories panel: an item that opens a new tab in the Log, filtered to that repository with the branch filter at HEAD. Then: rename the panel from "Git" to "GitTree".
+
+**The item.** New command `gittree.repositories.showInLog` (`REPOSITORY_LOG_TAB_COMMAND` in the protocol), *Show in New Log Tab* as the branch menu's item is called, hidden from the palette. It calls `logView.openTab({ ...DEFAULT_FILTER }, root, { newTab: true })`. `DEFAULT_FILTER` is the Log's own default (`refs: 'HEAD'`, date order). `newTab` makes `findTab` skip the main tab (`skipMain`): the owner asked for a new tab, and the main tab with that repository at HEAD would otherwise be what came forward. An extra tab already showing it still does, as the branch item's does. Its title is `Log`, given the repository's name by `stripTitles` whenever another tab would read the same.
+
+**Both menus.** `REPOSITORY_MENU` gains a first group, `view`, with the entry. The sidebar's Repositories section gets the same command first (`0_view@1`), so the unit test that holds the two menus to each other still passes. The panel's webview puts it in one group with its own *Show Only This Repository*: `showMenu`'s new `joinLead` drops the rule between them. The one repository's head menu leaves it out (`withoutRepositoryLogTab`) when the current branch's menu, with its own *Show in New Log Tab*, stands above. When HEAD is detached there is no branch menu, and it stays.
+
+**The panel.** `gittree.panel.title`: `Git` → `GitTree`, the `gittree-panel` container's title in VS Code's panel bar. The ids are unchanged, so layouts and keybindings carry over. Prose that names the panel follows (FEATURES, README, CHANGELOG); "Git tool window", IntelliJ's name for what it stands for, stays where it means that.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `repositoryMenu.test.ts` passes unchanged (both menus gained the entry), plus an assertion that the menu now opens with *Show in New Log Tab*;
+  - `logTabs.test.ts`: `findTab` with `skipMain` passes over the main tab and still finds an extra one.
+- **Integration** `branchPanel.test.ts`:
+  - T26: the repository menu leads with the item and its run;
+  - T27: run, it opens a new tab showing that repository at HEAD even while the main tab shows it, and run again it brings the same tab back.
+- **Playwright** `branches.spec.ts`:
+  - the repository menu puts *Show Only This Repository* and *Show in New Log Tab* together and runs the command with the repository's root;
+  - the single-repository head menu has *Show in New Log Tab* once.
+
+Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.

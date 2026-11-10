@@ -153,6 +153,27 @@ test.describe('several repositories', () => {
     expect({ sync: await x('.gtp-sync'), dots: await x('.gtp-markers'), age: await x('.gtp-age') }).toEqual(at);
   });
 
+  test("a repository's menu opens with the ways of looking at it, Show in New Log Tab among them", async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await row(page, `repo:${WEB}`).click({ button: 'right' });
+    const menu = page.getByRole('menu', { name: 'Actions for web' });
+    await expect(menu).toBeVisible();
+    // The first two rows together, with no rule between them; the rule comes after.
+    const firstRows = await menu.evaluate((el) =>
+      [...el.querySelectorAll('[role="menuitem"], [role="separator"]')]
+        .slice(0, 4)
+        .map((e) => (e.getAttribute('role') === 'separator' ? '—' : (e.textContent ?? '').trim())),
+    );
+    expect(firstRows).toEqual(['Show Only This Repository', 'Show in New Log Tab', '—', 'Update Project…']);
+
+    await menu.getByRole('menuitem', { name: 'Show in New Log Tab' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.repositories.showInLog', root: WEB },
+    });
+  });
+
   test('clicking a repository narrows the list to it; the pill widens it again', async ({ page }) => {
     await openPanel(page);
     await showTab(page, 'Local');
@@ -701,6 +722,26 @@ test.describe('searching', () => {
 });
 
 test.describe('one repository', () => {
+  test("the current branch's menu leaves out the repository's Show in New Log Tab", async ({
+    page,
+  }) => {
+    await openPanel(page, { single: true });
+    await row(page, `head:${WEB}`).click({ button: 'right' });
+    const menu = page.getByRole('menu', { name: 'Actions for web' });
+    await expect(menu).toBeVisible();
+    // The branch's own stands in its part of the menu (the mock's branch menu has
+    // none); the repository's, its history at HEAD, would say the same again.
+    await expect(menu.getByRole('menuitem', { name: 'Show in New Log Tab' })).toHaveCount(0);
+    await expect(menu.getByRole('menuitem', { name: 'Update Project…' })).toBeVisible();
+    // No rule left dangling under the Repository heading.
+    const afterHeading = await menu.evaluate((el) => {
+      const all = [...el.querySelectorAll('[role="menuitem"], [role="separator"], .gt-menu-header')];
+      const at = all.findIndex((e) => (e.textContent ?? '').trim() === 'Repository');
+      return all[at + 1]?.getAttribute('role');
+    });
+    expect(afterHeading).toBe('menuitem');
+  });
+
   test('starts with the current branch, whose card says where it stands', async ({ page }) => {
     await openPanel(page, { single: true });
     const head = row(page, `head:${WEB}`);

@@ -112,6 +112,8 @@ export const mockBranchesHostScript = `
     { kind: 'submenu', label: 'More', items: [{ kind: 'item', label: 'Rename…', run: { type: 'action', target, action: 'rename' } }] },
   ];
   const repoMenu = (root) => [
+    { kind: 'item', label: 'Show in New Log Tab', run: { type: 'command', command: 'gittree.repositories.showInLog', root } },
+    { kind: 'separator' },
     { kind: 'item', label: 'Update Project…', run: { type: 'command', command: 'gittree.update.dialog', root } },
     { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'gittree.fetch', root } },
   ];

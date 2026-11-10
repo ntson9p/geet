@@ -126,6 +126,16 @@ describe('findTab (running File History twice lands on one tab)', () => {
     expect(findTab(opened, HEAD, '/main-repo', rootOf, sameRoot)).toBe(MAIN_LOG_TAB);
   });
 
+  it('asked for a new tab, passes over the main tab but still finds an extra one', () => {
+    const atHead: LogFilter = { sort: 'date', refs: 'HEAD' };
+    const mainOnly = initialTabsState(atHead);
+    const rootOfMain = (tab: LogTabRecord): string | undefined => (tab.id === MAIN_LOG_TAB ? '/repo' : tab.root);
+    expect(findTab(mainOnly, atHead, '/repo', rootOfMain, sameRoot)).toBe(MAIN_LOG_TAB);
+    expect(findTab(mainOnly, atHead, '/repo', rootOfMain, sameRoot, { skipMain: true })).toBeUndefined();
+    const withExtra = openTab(mainOnly, atHead, '/repo').state;
+    expect(findTab(withExtra, atHead, '/repo', rootOfMain, sameRoot, { skipMain: true })).toBe('log-1');
+  });
+
   it('finds nothing for a view no tab shows', () => {
     expect(findTab(opened, COMPARE, '/repo', rootOf, sameRoot)).toBeUndefined();
   });

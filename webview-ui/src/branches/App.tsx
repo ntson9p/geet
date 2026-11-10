@@ -36,6 +36,7 @@ import {
 } from 'react';
 import {
   BRANCHES_METHODS,
+  REPOSITORY_LOG_TAB_COMMAND,
   type BranchPanelButtonDto,
   type BranchPanelCreateDto,
   type BranchPanelCreateResultDto,
@@ -149,6 +150,15 @@ function detailsKey(entry: BranchEntry, scope: readonly string[]): string {
         }:${p.ref.gone === true ? 1 : 0}:${p.ref.upstream ?? ''}`,
     )
     .join(',')}`;
+}
+
+/** A repository's menu less its `Show in New Log Tab`, and the rule that followed it. */
+function withoutRepositoryLogTab(items: readonly BranchPanelMenuItemDto[]): BranchPanelMenuItemDto[] {
+  const kept = items.filter(
+    (i) => !(i.kind === 'item' && i.run.type === 'command' && i.run.command === REPOSITORY_LOG_TAB_COMMAND),
+  );
+  while (kept[0]?.kind === 'separator') kept.shift();
+  return kept;
 }
 
 /** No group opened: one set, so the model is not rebuilt for a new empty one. */
@@ -382,6 +392,8 @@ export function App() {
       at: { x: number; y: number },
       label: string,
       lead: ReadonlyArray<{ label: string; icon?: string; run: () => void }> = [],
+      /** The lead items belong to the host's first group: no rule between them. */
+      joinLead = false,
     ) => {
       const runs = new Map<string, () => void>();
       let n = 0;
@@ -425,7 +437,7 @@ export function App() {
         });
       }
       const rest = convert(dto);
-      if (items.length > 0 && rest.length > 0) items.push({ kind: 'separator', id: `s${n++}` });
+      if (items.length > 0 && rest.length > 0 && !joinLead) items.push({ kind: 'separator', id: `s${n++}` });
       items.push(...rest);
       if (items.length > 0) setMenu({ items, at, label, runs });
     },
@@ -470,7 +482,9 @@ export function App() {
             ]
           : [];
       void rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { root: repo.root }).then(
-        (items) => showMenu(items ?? [], at, `Actions for ${repo.label}`, lead),
+        // The host's menu starts with the ways of looking at the repository
+        // (Show in New Log Tab); Show Only This Repository is one too.
+        (items) => showMenu(items ?? [], at, `Actions for ${repo.label}`, lead, true),
         () => undefined,
       );
     },
@@ -491,10 +505,13 @@ export function App() {
       void Promise.all([branch, repo]).then(
         ([a, b]) => {
           const items: BranchPanelMenuItemDto[] = [...(a ?? [])];
-          if (items.length > 0 && (b ?? []).length > 0) {
+          // The current branch's own Show in New Log Tab stands above: the
+          // repository's, its history at HEAD, would say the same twice.
+          const own = items.length > 0 ? withoutRepositoryLogTab(b ?? []) : (b ?? []);
+          if (items.length > 0 && own.length > 0) {
             items.push({ kind: 'separator' }, { kind: 'header', label: 'Repository' });
           }
-          items.push(...(b ?? []));
+          items.push(...own);
           showMenu(items, at, `Actions for ${row.repo.label}`);
         },
         () => undefined,

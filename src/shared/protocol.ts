@@ -1834,6 +1834,13 @@ export interface BranchPanelCreateResultDto {
   readonly error?: string;
 }
 
+/**
+ * A repository's `Show in New Log Tab`: its history at HEAD in a Log tab of
+ * its own. The webview leaves it out of the one repository's head menu, where
+ * the current branch's own `Show in New Log Tab` already stands.
+ */
+export const REPOSITORY_LOG_TAB_COMMAND = 'gittree.repositories.showInLog';
+
 /** Panel settings the webview can change; each is a `gittree.branches.*` setting. */
 export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder' | 'showRepositoryDots';
 

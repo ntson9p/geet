@@ -67,7 +67,7 @@ checks). Both paradigms — **changelists** and **staging** — switchable at an
 
 ### 4 · Log & history ✅
 
-A bottom **Git tool window** with `Log | Console` tabs and **four panes** — Branches (with its
+A bottom **GitTree** panel, IntelliJ's Git tool window, with `Log | Console` tabs and **four panes** — Branches (with its
 own icon rail), Commits, Changed Files, Commit Details — in persisted splitters. Graph proven
 at 100k commits, Graph Options (By Commit Date, **Topologically**/IntelliSort, First Parent, No Merges), intersecting filters, regex search, go-to-hash, and
 the full commit context menu (interactive rebase, fixup/squash, push-all-up-to-here, reset
