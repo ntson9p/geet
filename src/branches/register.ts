@@ -28,6 +28,7 @@ import { RefService, type FavoritesStorage } from './refService';
 import { RepoScope } from './repoScope';
 import { RepositoriesViewProvider } from './repositoriesView';
 import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
+import { askRepo } from '../ui/chooseRepo';
 import { showInfo } from '../ui/notices';
 import { writeSetting } from '../ui/writeSetting';
 
@@ -506,7 +507,13 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     if (repo) await ops.newBranchFrom(repo, 'HEAD');
   });
   register('gittree.branches.checkoutRevision', async (repoRoot) => {
-    const repo = pickRepo(repoRoot);
+    // POST-P14bp: with several repositories and none named — the Command
+    // Palette — it asks which, rather than take the editor's, or the first.
+    const repo = await askRepo(
+      core,
+      repoRoot,
+      vscode.l10n.t('Check out a tag or revision in which repository?'),
+    );
     if (!repo) return;
     const seeded = process.env['GITTREE_TEST_CHECKOUT_REVISION'];
     const value =

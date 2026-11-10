@@ -17,6 +17,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { showInfo } from './notices';
+import { repoPickOrder } from './repoPickOrder';
 
 /** The repository an argument names: a root path, a Uri, or an object carrying either. */
 export function repoNamedBy(core: Core, arg: unknown): RepoHandle | undefined {
@@ -60,10 +61,47 @@ export async function chooseRepo(core: Core, arg?: unknown, placeHolder?: string
     showInfo(vscode.l10n.t('Open a repository first.'));
     return undefined;
   }
-  const items = core.repos.map((repo) => {
+  return pickRepo(core.repos, undefined, placeHolder);
+}
+
+/**
+ * The repository a command acts on, **always asked** when several are open
+ * and the argument names none (POST-P14bp). For a command easy to aim at the
+ * wrong repository — Checkout Tag or Revision — where `chooseRepo`'s silent
+ * use of the editor's repository is the very problem. That repository comes
+ * first, marked, so Enter still takes it, but with its name on screen.
+ *
+ * `GITTREE_TEST_REPO_PICK` answers it in tests: a repository's root, or
+ * anything else (`cancel`) for Escape.
+ */
+export async function askRepo(core: Core, arg?: unknown, placeHolder?: string): Promise<RepoHandle | undefined> {
+  const named = repoNamedBy(core, arg);
+  if (named) return named;
+  if (core.repos.length === 0) {
+    showInfo(vscode.l10n.t('Open a repository first.'));
+    return undefined;
+  }
+  if (core.repos.length === 1) return core.repos[0];
+  const editor = implicitRepo(core);
+  const ordered = repoPickOrder(core.repos, editor?.root, canonicalKey);
+  const seeded = process.env['GITTREE_TEST_REPO_PICK'];
+  if (seeded !== undefined) {
+    return ordered.find((r) => canonicalKey(r.root) === canonicalKey(seeded));
+  }
+  return pickRepo(ordered, editor, placeHolder);
+}
+
+/** The quick pick itself: name, branch, path; `marked` says it has the open file. */
+async function pickRepo(
+  repos: readonly RepoHandle[],
+  marked: RepoHandle | undefined,
+  placeHolder: string | undefined,
+): Promise<RepoHandle | undefined> {
+  const items = repos.map((repo) => {
     const snap = repo.model.snapshot;
     const branch = snap.detached ? vscode.l10n.t('detached HEAD') : snap.headRef ?? '';
-    return { label: path.basename(repo.root), description: branch, detail: repo.root, repo };
+    const description = repo === marked ? vscode.l10n.t('{0} · has the open file', branch) : branch;
+    return { label: path.basename(repo.root), description, detail: repo.root, repo };
   });
   const picked = await vscode.window.showQuickPick(items, {
     placeHolder: placeHolder ?? vscode.l10n.t('Select a repository'),

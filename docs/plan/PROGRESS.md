@@ -1370,3 +1370,13 @@ Testing (written, **not run**): `popupTree.test.ts`:
 - a single repository's search finds it.
 
 Gates: typecheck + lint clean; extension bundle built. No suite run.
+
+POST-P14bp ✅ 2026-11-10 (branch `new-way-6`): **From the Command Palette, Checkout Tag or Revision asks which repository.** The open point left by POST-P14bo; the owner said yes to it. With no root, `gittree.branches.checkoutRevision` used `pickRepo`: the active editor's repository, else the first, without saying which.
+
+`chooseRepo.ts` gains `askRepo(core, arg, placeHolder)`. A repository the argument names is used as before, so the panel's `⋯` and every repository menu are unchanged. With one repository there is nothing to ask. With several it **always** asks, unlike `chooseRepo`, which still takes the editor's repository silently for the commands that use it. The editor's repository is listed first, marked *· has the open file*, so `Enter` takes what used to be taken unseen. The order comes from the new vscode-free `repoPickOrder` (`src/ui/repoPickOrder.ts`), matching roots with `canonicalKey`. `GITTREE_TEST_REPO_PICK` answers the pick in tests: a root, or anything else for Escape. `chooseRepo`'s own quick pick moved into the shared `pickRepo` helper, unchanged. Only Checkout Tag or Revision uses `askRepo`: other palette commands keep `chooseRepo`'s rule.
+
+Testing (written, **not run**):
+- **Unit** `repoPickOrder.test.ts`: the editor's repository first and the rest in order; no editor, or one outside every repository; roots matched through the given key; a new list with the same members.
+- **Integration** `phase13branches.test.ts`: in the multi-root test workspace, with no root, Escape checks out nothing anywhere; picking repoB checks out there and nowhere else; named by its root, no question is asked (`cancel` would have stopped it).
+
+Gates: typecheck + lint clean; extension bundle built. No suite run.

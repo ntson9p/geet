@@ -16,6 +16,9 @@ pre-release convention (odd minor = pre-release).
   repositories, where **Checkout Branch in All Repositories…** is offered instead. Open a
   repository in the popup, or search within one, to find its own **Checkout Tag or
   Revision…**.
+- **From the Command Palette, GitTree: Checkout Tag or Revision… asks which repository** when
+  there are several, instead of taking the open file's repository, or the first. The open
+  file's repository is listed first, so `Enter` still picks it.
 
 ### Added — Update Project Without Fetching
 

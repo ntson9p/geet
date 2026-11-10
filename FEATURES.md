@@ -170,7 +170,9 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
   `Checkout Tag or Revision…`. With several repositories, `Checkout Tag or Revision…` gives
   way to `Checkout Branch in All Repositories…`: it checks out in one repository, and the top
   level could not say which. Each repository's own verbs keep it, and so does a search
-  confined to one repository. They carry
+  confined to one repository. From the Command Palette with several repositories, **GitTree:
+  Checkout Tag or Revision…** asks which repository first, the one with the open file listed
+  first and marked, so `Enter` takes it. They carry
   search keywords, so typing `merge` finds an action and not only branches. The keys are
   named only with the IntelliJ keymap on (`gittree.keymap.intellij`), the one that binds
   them. Every menu that names IntelliJ's keys follows the same rule.

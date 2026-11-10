@@ -237,6 +237,51 @@ suite('P13 branches hub', () => {
     }
   });
 
+  test('POST-P14bp: from the palette, with several repositories, Checkout Tag or Revision asks which', async function () {
+    this.timeout(90_000);
+    assert.ok(core.repos.length > 1, 'needs several repositories in the workspace');
+    const NAME = 'p14bp-revision';
+    git('branch', '-f', NAME, 'HEAD');
+    const headsOf = (): string[] =>
+      core.repos.map((r) => gitWithRetry(r.root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim());
+    const before = headsOf();
+    const saved = {
+      pick: process.env['GITTREE_TEST_REPO_PICK'],
+      revision: process.env['GITTREE_TEST_CHECKOUT_REVISION'],
+    };
+    process.env['GITTREE_TEST_CHECKOUT_REVISION'] = NAME;
+    try {
+      // Escape: nothing checked out anywhere — not the editor's repository, not the first.
+      process.env['GITTREE_TEST_REPO_PICK'] = 'cancel';
+      await vscode.commands.executeCommand('gittree.branches.checkoutRevision');
+      assert.deepStrictEqual(headsOf(), before);
+
+      // This repository picked: checked out here, and only here.
+      process.env['GITTREE_TEST_REPO_PICK'] = repoRoot;
+      await vscode.commands.executeCommand('gittree.branches.checkoutRevision');
+      await waitFor(() => git('rev-parse', '--abbrev-ref', 'HEAD').trim() === NAME, 30_000);
+      const after = headsOf();
+      core.repos.forEach((r, i) => {
+        if (r !== repo) assert.strictEqual(after[i], before[i], `${r.root} was checked out too`);
+      });
+
+      // Named, as a repository's own menu names it: no question — `cancel` would stop it.
+      git('checkout', '-q', branch);
+      await repo.refresher.refreshNow();
+      process.env['GITTREE_TEST_REPO_PICK'] = 'cancel';
+      await vscode.commands.executeCommand('gittree.branches.checkoutRevision', repoRoot);
+      await waitFor(() => git('rev-parse', '--abbrev-ref', 'HEAD').trim() === NAME, 30_000);
+    } finally {
+      if (saved.pick === undefined) delete process.env['GITTREE_TEST_REPO_PICK'];
+      else process.env['GITTREE_TEST_REPO_PICK'] = saved.pick;
+      if (saved.revision === undefined) delete process.env['GITTREE_TEST_CHECKOUT_REVISION'];
+      else process.env['GITTREE_TEST_CHECKOUT_REVISION'] = saved.revision;
+      git('checkout', '-q', branch);
+      git('branch', '-D', NAME);
+      await repo.refresher.refreshNow();
+    }
+  });
+
   test('T5: merge-into-current works from a command, with no drag-and-drop', async function () {
     this.timeout(90_000);
     // The defect this task fixes: before P13-T5 `mergeIntoCurrent` had exactly
