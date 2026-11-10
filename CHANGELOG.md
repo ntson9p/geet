@@ -6,12 +6,16 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
-### Changed — the Branches panel's `⋯` leaves out Checkout Tag or Revision with several repositories
+### Changed — Checkout Tag or Revision is offered only where it can say which repository
 
 - **With several repositories in view, the `⋯` menu no longer offers Checkout Tag or
   Revision…** It checks out in one repository, and the menu could not say which: it used the
   editor's repository, or the first one. Right-click a repository to check out a tag or a
   revision there. With one repository in view it is still in the `⋯` menu, for that one.
+- **The Branches popup and the Branches view do the same at their top level** with several
+  repositories, where **Checkout Branch in All Repositories…** is offered instead. Open a
+  repository in the popup, or search within one, to find its own **Checkout Tag or
+  Revision…**.
 
 ### Added — Update Project Without Fetching
 

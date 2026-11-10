@@ -101,6 +101,18 @@ export const PROJECT_CHECKOUT_VERB: HubVerb = {
 };
 
 /**
+ * The verbs at the project level. With several repositories (POST-P14bo),
+ * `Checkout Tag or Revision…` is left out: it checks out in one repository and
+ * from here could not say which, so it ran in the editor's, or the first.
+ * Each repository's own verbs keep it, acting there; `Checkout Branch in All
+ * Repositories…` stands in its place. One repository keeps the hub's verbs.
+ */
+export function projectVerbs(repoCount: number): readonly HubVerb[] {
+  if (repoCount <= 1) return HUB_VERBS;
+  return [...HUB_VERBS.filter((v) => v.command !== 'gittree.branches.checkoutRevision'), PROJECT_CHECKOUT_VERB];
+}
+
+/**
  * A ref name every root carries, which is what makes it actionable across all
  * of them. IntelliJ calls these `Common Local Branches` / `Common Remote
  * Branches` / `Common Tags`.
@@ -496,7 +508,7 @@ function commonRefRow(
 export function rootRows(ctx: TreeContext): TreeRow[] {
   const rows: TreeRow[] = [];
   let lastGroup: string | undefined;
-  for (const verb of ctx.repos.length > 1 ? [...HUB_VERBS, PROJECT_CHECKOUT_VERB] : HUB_VERBS) {
+  for (const verb of projectVerbs(ctx.repos.length)) {
     rows.push(verbRow(verb, lastGroup !== undefined && lastGroup !== verb.group));
     lastGroup = verb.group;
   }
@@ -735,7 +747,9 @@ function flatSearch(ctx: TreeContext, query: string): TreeRow[] {
   const rows: TreeRow[] = [];
   const hit = (text: string): boolean => matchesQuery(text, query);
 
-  for (const verb of HUB_VERBS) {
+  // The same verbs as the unfiltered level: typing `revision` with several
+  // repositories finds no checkout that could not say where it would run.
+  for (const verb of projectVerbs(ctx.repos.length)) {
     if (hit(`${verb.label} ${verb.keywords ?? ''}`)) rows.push(verbRow(verb, false));
   }
 

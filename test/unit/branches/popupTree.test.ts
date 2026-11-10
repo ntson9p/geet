@@ -4,6 +4,8 @@ import {
   applyShowTags,
   childRows,
   flattenTree,
+  HUB_VERBS,
+  projectVerbs,
   rootRows,
   type RepoRefs,
   type TreeContext,
@@ -131,6 +133,51 @@ describe('Update Project Without Fetching among the verbs (POST-P14bm)', () => {
     // It does have verbs of its own — just not this one.
     expect(inRepo.length).toBeGreaterThan(0);
     expect(inRepo.map((r) => r.verb?.command)).not.toContain('gittree.update.withoutFetch');
+  });
+});
+
+describe('Checkout Tag or Revision at the project level (POST-P14bo)', () => {
+  const REVISION = 'gittree.branches.checkoutRevision';
+  const EVERYWHERE = 'gittree.branches.checkoutEverywhere';
+  const verbCommands = (rows: ReturnType<typeof rootRows>) =>
+    rows.filter((r) => r.kind === 'verb').map((r) => r.verb?.command);
+
+  it('with several repositories, is left out of the top: it could not say which one', () => {
+    const ctx = ctxOf([repo('/a', 'a'), repo('/b', 'b')]);
+    const top = verbCommands(rootRows(ctx));
+    expect(top).not.toContain(REVISION);
+    expect(top).toContain(EVERYWHERE);
+    expect(projectVerbs(2).map((v) => v.command)).toEqual(top);
+  });
+
+  it("stays in each repository's own verbs, which run there", () => {
+    const ctx = ctxOf([repo('/a', 'a'), repo('/b', 'b')]);
+    const repoRow = rootRows(ctx).find((r) => r.kind === 'repo' && r.repoRoot === '/b');
+    expect(repoRow).toBeDefined();
+    const own = childRows(ctx, repoRow!).find((r) => r.verb?.command === REVISION);
+    expect(own?.repoRoot).toBe('/b');
+  });
+
+  it('with one repository, stays at the top, and there is nothing to check out across', () => {
+    const top = verbCommands(rootRows(ctxOf([repo('/r', 'r')])));
+    expect(top).toContain(REVISION);
+    expect(top).not.toContain(EVERYWHERE);
+    expect(projectVerbs(1)).toBe(HUB_VERBS);
+  });
+
+  it('a search across every repository does not find it; one confined to a repository does', () => {
+    const ctx = ctxOf([repo('/a', 'a'), repo('/b', 'b')]);
+    const everywhere = flattenTree(ctx, new Set(), 'revision').rows;
+    expect(verbCommands(everywhere)).not.toContain(REVISION);
+    // The checkout that does span them is found instead.
+    expect(verbCommands(flattenTree(ctx, new Set(), 'checkout').rows)).toContain(EVERYWHERE);
+    const scoped = flattenTree(ctx, new Set(), 'revision', { scope: '/a' }).rows;
+    expect(scoped.find((r) => r.verb?.command === REVISION)?.repoRoot).toBe('/a');
+  });
+
+  it('a search in a single repository finds it', () => {
+    const rows = flattenTree(ctxOf([repo('/r', 'r')]), new Set(), 'revision').rows;
+    expect(verbCommands(rows)).toContain(REVISION);
   });
 });
 

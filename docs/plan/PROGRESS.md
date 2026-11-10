@@ -1355,3 +1355,18 @@ Testing (written, **not run**): Playwright `branches.spec.ts`:
 - narrowed to one repository, or a single-repository workspace: present, and it runs `gittree.branches.checkoutRevision` with that repository's root.
 
 Gates: webview typecheck + lint clean; webviews built. No suite run.
+
+POST-P14bo ✅ 2026-11-10 (branch `new-way-6`): **The Branches popup's top level leaves out Checkout Tag or Revision with several repositories too.** After POST-P14bn the owner was told the popup's project-level verb had the same blind spot (it runs with no root, so `pickRepo` takes the editor's repository or the first) and answered: hide it there too.
+
+`popupTree.ts` gains `projectVerbs(repoCount)`: one repository, `HUB_VERBS` as they are; several, `HUB_VERBS` without `gittree.branches.checkoutRevision`, then `PROJECT_CHECKOUT_VERB`. `rootRows` uses it (so the popup and the Branches view, which renders the same rows), and so does `flatSearch`, the search across every repository: typing `revision` there no longer finds it, and typing `checkout` now finds *Checkout Branch in All Repositories…*, which it did not before. A repository's own verbs (`REPO_VERBS`, its children and a search confined to it) keep it, with that repository's root. The legacy `buildPopupItems` / `buildProjectPopupItems`, used only by tests, are unchanged.
+
+Still open, reported to the owner: the Command Palette's **GitTree: Checkout Tag or Revision…** with several repositories also takes the editor's repository, or the first, without asking.
+
+Testing (written, **not run**): `popupTree.test.ts`:
+- several repositories: not at the top, *Checkout Branch in All Repositories…* there, and `projectVerbs(2)` is exactly the top's verbs;
+- a repository's own verb runs with its root;
+- one repository: at the top, no checkout across, and `projectVerbs(1)` is `HUB_VERBS`;
+- searching every repository for `revision` does not find it and `checkout` finds the one across, while a search confined to one repository finds it with that root;
+- a single repository's search finds it.
+
+Gates: typecheck + lint clean; extension bundle built. No suite run.

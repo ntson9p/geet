@@ -167,7 +167,10 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
   **and actions**"*.
 * **Top-level verbs first, before any branch:** `Update Project… Ctrl+T` · `Update Project
   Without Fetching…` · `Commit… Ctrl+K` · `Push… Ctrl+Shift+K` · `New Branch… Ctrl+Alt+N` ·
-  `Checkout Tag or Revision…`. They carry
+  `Checkout Tag or Revision…`. With several repositories, `Checkout Tag or Revision…` gives
+  way to `Checkout Branch in All Repositories…`: it checks out in one repository, and the top
+  level could not say which. Each repository's own verbs keep it, and so does a search
+  confined to one repository. They carry
   search keywords, so typing `merge` finds an action and not only branches. The keys are
   named only with the IntelliJ keymap on (`gittree.keymap.intellij`), the one that binds
   them. Every menu that names IntelliJ's keys follows the same rule.
