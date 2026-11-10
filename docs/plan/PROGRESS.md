@@ -1345,3 +1345,13 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Playwright** `branches.spec.ts`: the `⋯` item sits under Update Project and runs with the one repository's root; with several repositories it runs with none.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14bn ✅ 2026-11-10 (branch `new-way-6`): **The Branches panel's `⋯` leaves out Checkout Tag or Revision with several repositories in view.** The owner found *Checkout Tag or Revision…* and *Checkout Branch in All Repositories…* hard to tell apart in that menu. The answer: the first checks out what you type in **one** repository, the second a branch you pick in **every** repository in view. With several repositories, the first had a worse problem: the `⋯` ran it with no root, so it acted on the editor's repository, or the first, without saying which. Of the three fixes offered, the owner chose the first: remove it from the `⋯` while several repositories are in view.
+
+`openMoreMenu` (`App.tsx`) adds the `revision` item only when `single` is set: one repository in view, whether the workspace has one or the scope is narrowed to one. It runs with that root, as before. Each repository's own menu (`REPOSITORY_MENU`, panel and sidebar) keeps it, acting on that repository. The Branches popup is unchanged. Inside a repository its verb runs there; its project-level *Checkout Tag or Revision…* still runs with no root, the same blind spot, left as it was because the owner's choice named the `⋯`.
+
+Testing (written, **not run**): Playwright `branches.spec.ts`:
+- several repositories in view, or the scope narrowed to two: no *Checkout Tag or Revision…*, *Checkout Branch in …* still there;
+- narrowed to one repository, or a single-repository workspace: present, and it runs `gittree.branches.checkoutRevision` with that repository's root.
+
+Gates: webview typecheck + lint clean; webviews built. No suite run.

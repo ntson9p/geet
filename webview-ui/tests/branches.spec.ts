@@ -421,6 +421,43 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
     await expect(page.getByRole('menuitem', { name: /Checkout Branch in/u })).toHaveCount(0);
   });
 
+  test("with several repositories in view, More Actions has no Checkout Tag or Revision: it could not say which", async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Checkout Branch in All Repositories…' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' })).toHaveCount(0);
+  });
+
+  test('narrowed to some repositories, it is still left out', async ({ page }) => {
+    await openPanel(page);
+    await row(page, `repo:${WEB}`).click();
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Checkout Branch in 2 Repositories…' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' })).toHaveCount(0);
+  });
+
+  test('narrowed to one repository, More Actions has Checkout Tag or Revision, for that one', async ({ page }) => {
+    await openPanel(page);
+    await row(page, `repo:${API}`).click();
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.branches.checkoutRevision', root: API },
+    });
+  });
+
+  test('with one repository, More Actions has Checkout Tag or Revision, for it', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.branches.checkoutRevision', root: WEB },
+    });
+  });
+
   test("a branch's menu and card are asked for with every repository in view", async ({ page }) => {
     await openPanel(page);
     await showTab(page, 'Local');

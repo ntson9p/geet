@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Branches panel's `⋯` leaves out Checkout Tag or Revision with several repositories
+
+- **With several repositories in view, the `⋯` menu no longer offers Checkout Tag or
+  Revision…** It checks out in one repository, and the menu could not say which: it used the
+  editor's repository, or the first one. Right-click a repository to check out a tag or a
+  revision there. With one repository in view it is still in the `⋯` menu, for that one.
+
 ### Added — Update Project Without Fetching
 
 - **Update Project Without Fetching…** runs Update Project's merge or rebase without the

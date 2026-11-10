@@ -354,7 +354,9 @@ picked; at first, on Recent while anything is recent, else Local.
   Dots** (with several repositories in view; a two-by-two grid of dots, pressed while on),
   **New Branch**, and **`⋯`**:
   - Update Project…, **Update Project Without Fetching…**, Commit…, Push…;
-  - New Branch…, Checkout Tag or Revision…, **Checkout Branch in All Repositories…** (with
+  - New Branch…, Checkout Tag or Revision… (only with one repository in view: with several,
+    the `⋯` could not say which it would act on, and each repository's own menu has it),
+    **Checkout Branch in All Repositories…** (with
     several repositories in view: every branch any of them has, local or remote, most widely
     held first, *4 of 5 repositories · local in api · from origin in web, docs and tools · not
     in infra*), **Clean Up Branches…**;

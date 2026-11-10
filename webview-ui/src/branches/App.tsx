@@ -555,9 +555,12 @@ export function App() {
         }),
         { kind: 'separator', id: 's1' },
         item('new', 'New Branch…', () => openForm({ from: 'HEAD' }), { icon: 'add' }),
-        item('revision', 'Checkout Tag or Revision…', () =>
-          runCommand('gittree.branches.checkoutRevision', single),
-        ),
+        // One repository's checkout: offered here only while one is in view. With
+        // several, this menu could not say which it would act on; each
+        // repository's own menu has it, and acts on that one.
+        ...(single !== undefined
+          ? [item('revision', 'Checkout Tag or Revision…', () => runCommand('gittree.branches.checkoutRevision', single))]
+          : []),
         // POST-P14ax: one branch in every repository in view, from a picker of them all.
         ...(model.scopeRepos.length > 1
           ? [
