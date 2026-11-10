@@ -79,7 +79,7 @@ suite('POST-P14p project-level branches popup', () => {
     assert.ok(firstVerb >= 0 && firstRepo >= 0 && firstCommon >= 0, 'a whole section is missing');
     assert.ok(firstVerb < firstRepo, 'the verbs must precede the repository rows');
     assert.ok(firstRepo < firstCommon, 'the repository rows must precede the common refs');
-    // The same five verbs as the repository level — one hub, two scopes.
+    // The same verbs as the repository level — one hub, two scopes.
     assert.deepStrictEqual(
       items.filter((i) => i.command !== undefined).map((i) => i.command),
       HUB_VERBS.map((v) => v.command),

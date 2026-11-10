@@ -261,7 +261,9 @@ describe('the Repositories row context menu', () => {
         .sort((a, b) => String(a.group).localeCompare(String(b.group)))
         .map((e) => titles.get(e.command!)),
     ).toEqual([
+      'Show in New Log Tab',
       'Update Project…',
+      'Update Project Without Fetching…',
       'Push…',
       'Fetch',
       'Commit',
@@ -279,7 +281,9 @@ describe('the Repositories row context menu', () => {
     // the repository the row stands for. A command that ignored its first
     // argument would silently act on whichever repository the editor is in.
     const repoScoped = new Set([
+      'gittree.repositories.showInLog',
       'gittree.update.dialog',
+      'gittree.update.withoutFetch',
       'gittree.push.dialog',
       'gittree.fetch',
       'gittree.commit',

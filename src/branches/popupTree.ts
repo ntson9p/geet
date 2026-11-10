@@ -47,6 +47,14 @@ export const HUB_VERBS: readonly HubVerb[] = [
     group: 'project',
   },
   {
+    // POST-P14bm: from each remote branch as it was last fetched.
+    command: 'gittree.update.withoutFetch',
+    label: 'Update Project Without Fetching…',
+    icon: 'arrow-down',
+    keywords: 'pull merge rebase update offline last fetched',
+    group: 'project',
+  },
+  {
     command: 'gittree.commit',
     label: 'Commit…',
     accelerator: 'Ctrl+K',

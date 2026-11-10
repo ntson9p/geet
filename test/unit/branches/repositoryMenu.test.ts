@@ -79,6 +79,17 @@ describe("REPOSITORY_MENU (a repository's right-click menu in the Branches secti
     expect(REPOSITORY_MENU[1]?.group).not.toBe('view');
   });
 
+  it('offers Update Project Without Fetching right under Update Project, in its group', () => {
+    const commands = REPOSITORY_MENU.map((e) => e.command);
+    const at = commands.indexOf('gittree.update.dialog');
+    expect(commands[at + 1]).toBe('gittree.update.withoutFetch');
+    expect(repositoryMenuEntry('gittree.update.withoutFetch')).toEqual({
+      command: 'gittree.update.withoutFetch',
+      label: 'Update Project Without Fetching…',
+      group: 'update',
+    });
+  });
+
   it('offers Fetch, which with a root fetches that repository only', () => {
     expect(repositoryMenuEntry('gittree.fetch')?.label).toBe('Fetch');
     expect(REPOSITORY_MENU.map((e) => e.command)).not.toContain('gittree.fetch.all');

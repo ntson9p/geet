@@ -366,6 +366,20 @@ describe('DIALOG_REGISTRY', () => {
     expect(wired.map((d) => d.command)).toContain('gittree.update.dialog');
   });
 
+  it('POST-P14bm: offers Update Project Without Fetching where Update Project is, right after it', () => {
+    const bare = applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true, hasRemote: true });
+    expect(bare.map((d) => d.command)).not.toContain('gittree.update.withoutFetch');
+    const wired = applicableDialogs({
+      ...EMPTY_DIALOG_CONTEXT,
+      hasRepo: true,
+      hasRemote: true,
+      hasUpstream: true,
+    }).map((d) => d.command);
+    expect(wired.indexOf('gittree.update.withoutFetch')).toBe(wired.indexOf('gittree.update.dialog') + 1);
+    // The project, as Update Project is: never scoped down to the popup's repository.
+    expect(DIALOG_REGISTRY.find((d) => d.command === 'gittree.update.withoutFetch')?.args).toEqual([]);
+  });
+
   it('offers Unstash only when a stash exists', () => {
     expect(
       applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true }).map((d) => d.command),

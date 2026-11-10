@@ -115,6 +115,7 @@ export const mockBranchesHostScript = `
     { kind: 'item', label: 'Show in New Log Tab', run: { type: 'command', command: 'gittree.repositories.showInLog', root } },
     { kind: 'separator' },
     { kind: 'item', label: 'Update Project…', run: { type: 'command', command: 'gittree.update.dialog', root } },
+    { kind: 'item', label: 'Update Project Without Fetching…', run: { type: 'command', command: 'gittree.update.withoutFetch', root } },
     { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'gittree.fetch', root } },
   ];
 

@@ -294,6 +294,7 @@
   "gittree.config.shelf.path.description": "Custom directory for shelved patches (must be writable). Empty = the extension's global storage. Shelves always live outside the repository, so they survive deleting or re-initializing it.",
   "gittree.command.push.dialog.title": "Push…",
   "gittree.command.update.dialog.title": "Update Project…",
+  "gittree.command.update.withoutFetch.title": "Update Project Without Fetching…",
   "gittree.command.update.configure.title": "Update Project Strategy…",
   "gittree.command.merge.dialog.title": "Merge…",
   "gittree.command.rebase.dialog.title": "Rebase…",

@@ -77,6 +77,15 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
     applies: (ctx) => ctx.hasRepo && ctx.hasUpstream,
   },
   {
+    // POST-P14bm: the same, from each remote branch as it was last fetched.
+    command: 'gittree.update.withoutFetch',
+    label: 'Update Project Without Fetching…',
+    group: 'sync',
+    icon: 'sync',
+    args: [],
+    applies: (ctx) => ctx.hasRepo && ctx.hasUpstream,
+  },
+  {
     command: 'gittree.push.dialog',
     label: 'Push…',
     group: 'sync',

@@ -138,6 +138,14 @@ describe('preconditions', () => {
     expect(update?.args).toEqual([]);
   });
 
+  it('POST-P14bm: dispatches Update Project Without Fetching for the project too', () => {
+    const items = buildOperationsItems(ctx({ hasRemote: true, hasUpstream: true }));
+    const withoutFetch = items.find((i) => i.command === 'gittree.update.withoutFetch');
+    expect(withoutFetch?.label).toBe('Update Project Without Fetching…');
+    expect(withoutFetch?.args).toEqual([]);
+    expect(commandsOf(ctx())).not.toContain('gittree.update.withoutFetch');
+  });
+
   it('never offers Unstash with no stash', () => {
     expect(commandsOf(ctx())).not.toContain('gittree.unstash.dialog');
     expect(commandsOf(ctx({ hasStash: true }))).toContain('gittree.unstash.dialog');

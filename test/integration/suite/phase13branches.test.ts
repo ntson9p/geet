@@ -100,6 +100,8 @@ suite('P13 branches hub', () => {
     // §2A's exact list, in order.
     assert.deepStrictEqual(HUB_VERBS.map((v) => v.label), [
       'Update Project…',
+      // POST-P14bm: GitTree's own, right under the one it varies.
+      'Update Project Without Fetching…',
       'Commit…',
       'Push…',
       'New Branch…',

@@ -165,8 +165,9 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
 * **Native `QuickPick`**, not a webview — chosen for real focus, type-ahead and keyboard
   parity (master §6), and vindicated by the reference, whose field reads *"Search for branches
   **and actions**"*.
-* **Top-level verbs first, before any branch:** `Update Project… Ctrl+T` · `Commit… Ctrl+K` ·
-  `Push… Ctrl+Shift+K` · `New Branch… Ctrl+Alt+N` · `Checkout Tag or Revision…`. They carry
+* **Top-level verbs first, before any branch:** `Update Project… Ctrl+T` · `Update Project
+  Without Fetching…` · `Commit… Ctrl+K` · `Push… Ctrl+Shift+K` · `New Branch… Ctrl+Alt+N` ·
+  `Checkout Tag or Revision…`. They carry
   search keywords, so typing `merge` finds an action and not only branches. The keys are
   named only with the IntelliJ keymap on (`gittree.keymap.intellij`), the one that binds
   them. Every menu that names IntelliJ's keys follows the same rule.
@@ -352,7 +353,7 @@ picked; at first, on Recent while anything is recent, else Local.
 * **The toolbar:** the filter, **Fetch** (every repository; spins until done), **Repository
   Dots** (with several repositories in view; a two-by-two grid of dots, pressed while on),
   **New Branch**, and **`⋯`**:
-  - Update Project…, Commit…, Push…;
+  - Update Project…, **Update Project Without Fetching…**, Commit…, Push…;
   - New Branch…, Checkout Tag or Revision…, **Checkout Branch in All Repositories…** (with
     several repositories in view: every branch any of them has, local or remote, most widely
     held first, *4 of 5 repositories · local in api · from origin in web, docs and tools · not
@@ -1076,6 +1077,20 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   failed. A repository it cannot update (detached, no upstream, a merge or rebase in progress)
   is skipped and named, and `Reset` is offered only when a single repository is in play. A
   Repositories row's own `Update Project…` updates just that one, fetched first the same way.
+* **Update Project Without Fetching…** (GitTree's own, no IntelliJ counterpart) is the same
+  update without the fetch: each repository is merged or rebased onto its remote branch as it
+  was **last fetched** — instant, and it works offline. It sits right under every `Update
+  Project…`: the Branches panel's `⋯`, each repository's menu (panel and sidebar), the Branches
+  popup, the VCS Operations popup and the Command Palette; it has no key, but one can be bound
+  to `gittree.update.withoutFetch`. The question is titled *Update Project Without Fetching*,
+  opens with *Nothing is fetched first…*, and each line says how old its data is — `api: main ←
+  origin/main · 3 to pull · fetched 2 hours ago`, the age read from `FETCH_HEAD`, which every
+  `git fetch` rewrites, whoever ran it. A repository whose upstream was never fetched is
+  skipped (*origin/x not fetched yet*). The summary never claims plain *up to date*: *web is
+  already up to date with what was last fetched*, and one repository says *Already up to date
+  with origin/main, as fetched 2 hours ago.* **When Update Project's fetch fails** — offline, a
+  VPN down — the failure offers **Update Without Fetching** for the repositories it could not
+  fetch, when they have fetched their upstream before.
 * **A rejected push asks, updates, and pushes again** (IntelliJ's *Push Rejected*, D32). When
   the remote has commits the branch does not, the push is not left as an error: a warning box —
   *Push of the current branch "X" was rejected. Remote changes need to be merged before

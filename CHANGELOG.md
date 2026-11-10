@@ -6,6 +6,18 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — Update Project Without Fetching
+
+- **Update Project Without Fetching…** runs Update Project's merge or rebase without the
+  fetch, from each remote branch as it was last fetched. It is instant and works offline. It
+  sits right under every **Update Project…**: the Branches panel's `⋯`, each repository's
+  menu, the Branches popup, the VCS Operations popup and the Command Palette.
+- Its question says how old each repository's data is (*· fetched 2 hours ago*). A repository
+  whose upstream was never fetched is skipped and named. The summary says *up to date with
+  what was last fetched* rather than plain *up to date*.
+- **When Update Project can't fetch** (offline, VPN down, remote unreachable), the failure
+  message offers **Update Without Fetching**.
+
 ### Added — a repository's Show in New Log Tab
 
 - **Right-click a repository in the Repositories panel → Show in New Log Tab.** This opens that

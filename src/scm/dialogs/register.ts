@@ -56,8 +56,11 @@ import {
   runRememberedUpdate,
   setUpdateStrategy,
   scopeAsLastFetched,
+  scopeWithoutFetch,
   showProjectUpdate,
   showUpdateDialog,
+  unreachableWithUpstream,
+  UPDATE_WITHOUT_FETCH_COMMAND,
   type ProjectUpdateResult,
   type UpdateDialogDeps,
   type UpdateOutcome,
@@ -151,14 +154,24 @@ export interface Phase13Registry {
   buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
   /** POST-P14ae: the question and the run for a whole project. */
   buildProjectPrompt: (repos: readonly RepoHandle[]) => Promise<UpdatePrompt | undefined>;
-  showProjectUpdate: (repos: readonly RepoHandle[]) => Promise<ProjectUpdateResult | undefined>;
+  /** POST-P14bm: the question Update Project Without Fetching would put for `repos`. */
+  buildPromptWithoutFetch: (repos: readonly RepoHandle[]) => Promise<UpdatePrompt | undefined>;
+  showProjectUpdate: (
+    repos: readonly RepoHandle[],
+    options?: { readonly fetch?: boolean },
+  ) => Promise<ProjectUpdateResult | undefined>;
+  /** POST-P14bm: what a project run's `Update Without Fetching` would update. */
+  unreachableWithUpstream: typeof unreachableWithUpstream;
   /** The question most recently put to the user — what the modal showed. */
   lastUpdatePrompt: typeof lastUpdatePrompt;
   clearLastUpdatePrompt: typeof clearLastUpdatePrompt;
   /** The strategy an update that asks nothing would use right now. */
   rememberedUpdateStrategy: () => ReturnType<typeof rememberedUpdateStrategy>;
   applyUpdateResult: (repo: RepoHandle, result: UpdateRequest) => Promise<UpdateOutcome>;
-  showUpdateDialog: (repo: RepoHandle) => Promise<UpdateOutcome | undefined>;
+  showUpdateDialog: (
+    repo: RepoHandle,
+    options?: { readonly fetch?: boolean },
+  ) => Promise<UpdateOutcome | undefined>;
   reportUpdate: typeof reportUpdate;
   /** The gear's persistence half, and what Ctrl+T would do right now. */
   currentUpdateStrategy: typeof currentUpdateStrategy;
@@ -392,6 +405,21 @@ export function registerPhase13Dialogs(
       }
       await showProjectUpdate(updateDeps, core.repos);
     }),
+    // POST-P14bm: Update Project Without Fetching — the same update, from each
+    // remote branch as it was last fetched: instant, and offline. Named, that
+    // repository; with nothing named, the project, as Update Project is.
+    vscode.commands.registerCommand(UPDATE_WITHOUT_FETCH_COMMAND, async (arg?: unknown) => {
+      const repo = namedRepo(core, arg);
+      if (repo) {
+        await showUpdateDialog(updateDeps, repo, { fetch: false });
+        return;
+      }
+      if (core.repos.length === 0) {
+        showInfo(vscode.l10n.t('Open a repository to update.'));
+        return;
+      }
+      await showProjectUpdate(updateDeps, core.repos, { fetch: false });
+    }),
     // POST-P14ad: the half that does not ask — a branch row's `Update` on the
     // checked-out branch. Internal: not contributed, so not in the palette,
     // where `Update Project…` is the verb. Returns the outcome so the caller
@@ -558,12 +586,15 @@ export function registerPhase13Dialogs(
       buildUpdatePrompt(updateDeps, await scopeAsLastFetched(updateDeps, [repo])),
     buildProjectPrompt: async (repos) =>
       buildUpdatePrompt(updateDeps, await scopeAsLastFetched(updateDeps, repos)),
-    showProjectUpdate: (repos) => showProjectUpdate(updateDeps, repos),
+    buildPromptWithoutFetch: async (repos) =>
+      buildUpdatePrompt(updateDeps, await scopeWithoutFetch(updateDeps, repos)),
+    showProjectUpdate: (repos, options) => showProjectUpdate(updateDeps, repos, options),
+    unreachableWithUpstream,
     lastUpdatePrompt,
     clearLastUpdatePrompt,
     rememberedUpdateStrategy: () => rememberedUpdateStrategy(updateDeps.state),
     applyUpdateResult: (repo, result) => applyUpdateResult(updateDeps, repo, result),
-    showUpdateDialog: (repo) => showUpdateDialog(updateDeps, repo),
+    showUpdateDialog: (repo, options) => showUpdateDialog(updateDeps, repo, options),
     reportUpdate,
     currentUpdateStrategy,
     setUpdateStrategy,

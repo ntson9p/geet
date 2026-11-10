@@ -796,6 +796,33 @@ test.describe('one repository', () => {
     await expect(page.getByRole('menuitemcheckbox', { name: 'Repository Dots' })).toHaveCount(0);
   });
 
+  test('More Actions offers Update Project Without Fetching right under Update Project', async ({ page }) => {
+    await openPanel(page, { single: true });
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    const menu = page.getByRole('menu', { name: 'More actions' });
+    await expect(menu).toBeVisible();
+    const firstRows = await menu.evaluate((el) =>
+      [...el.querySelectorAll('[role="menuitem"]')].slice(0, 3).map((e) => e.getAttribute('aria-label') ?? (e.textContent ?? '').trim()),
+    );
+    expect(firstRows[0]).toContain('Update Project…');
+    expect(firstRows[1]).toContain('Update Project Without Fetching…');
+    expect(firstRows[2]).toContain('Commit…');
+    await menu.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
+    // The one repository in view, as Update Project's own row runs it.
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.update.withoutFetch', root: WEB },
+    });
+  });
+
+  test('with several repositories in view, Update Project Without Fetching is the project', async ({ page }) => {
+    await openPanel(page);
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.update.withoutFetch' },
+    });
+  });
+
   test('More Actions changes a setting on the host', async ({ page }) => {
     await openPanel(page, { single: true });
     await expect(tabButton(page, 'Tags')).toHaveCount(1);

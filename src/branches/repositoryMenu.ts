@@ -23,6 +23,8 @@ export const REPOSITORY_MENU: readonly RepositoryMenuEntry[] = [
   // The repository's history at HEAD, in a Log tab of its own.
   { command: 'gittree.repositories.showInLog', label: 'Show in New Log Tab', group: 'view' },
   { command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' },
+  // From each remote branch as last fetched: instant, and offline.
+  { command: 'gittree.update.withoutFetch', label: 'Update Project Without Fetching…', group: 'update' },
   { command: 'gittree.push.dialog', label: 'Push…', group: 'update' },
   { command: 'gittree.fetch', label: 'Fetch', group: 'update' },
   { command: 'gittree.commit', label: 'Commit', group: 'commit' },

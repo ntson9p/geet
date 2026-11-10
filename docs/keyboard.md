@@ -83,6 +83,8 @@ no-questions `gittree.pull` is still in the palette; the no-questions push is no
 since POST-P14ao — IntelliJ has no Push without its dialog — and
 `Ctrl+T` becomes a direct action once you choose *Don't Ask Again* on an update's
 result (restore the question with **GitTree: Update Project Strategy…**).
+**GitTree: Update Project Without Fetching…** (`gittree.update.withoutFetch`) has no
+default key; bind one if you use it often.
 
 ## Webview-internal keys
 

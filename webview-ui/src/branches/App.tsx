@@ -541,6 +541,10 @@ export function App() {
           icon: 'arrow-down',
           ...(keymap ? { accelerator: 'Ctrl+T' } : {}),
         }),
+        // From each remote branch as it was last fetched: instant, and offline.
+        item('updateWithoutFetch', 'Update Project Without Fetching…', () =>
+          runCommand('gittree.update.withoutFetch', single),
+        ),
         item('commit', 'Commit…', () => runCommand('gittree.commit', single), {
           icon: 'git-commit',
           ...(keymap ? { accelerator: 'Ctrl+K' } : {}),

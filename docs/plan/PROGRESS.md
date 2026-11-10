@@ -1316,3 +1316,32 @@ Testing (written, **not run**, by the owner's standing instruction):
   - the single-repository head menu has *Show in New Log Tab* once.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.
+
+POST-P14bm ✅ 2026-11-10 (branch `new-way-6`): **Update Project Without Fetching.** The owner asked for a way to run Update Project without the fetch, and chose from the design: its own item right under every *Update Project…* plus an offer on a failed fetch (options 1 + 2), the label *Update Project Without Fetching…*, in all the places Update Project is.
+
+**The flow** (`updateDialog.ts`). `showProjectUpdate(deps, repos, { fetch: false })` and `showUpdateDialog(deps, repo, { fetch: false })` replace the fetch step with `measureWithoutFetch`: each target measured against its upstream as it stands (`lastFetched`, the same `measureStanding` the fetch path uses), marked `notFetched`, with `fetchedAt` from `lastFetchTime`. That is the later of `FETCH_HEAD`'s mtime (in the git dir and, for a linked worktree, the common dir: every `git fetch`/`git pull` rewrites it, whoever ran it) and the model's own `lastFetchAt`. It is the repository's last fetch of any remote, near enough for "how stale". A target whose upstream does not resolve was never fetched: it moves to `skipped` (*origin/x not fetched yet*); on its own it is an info toast, *Nothing to update from: origin/x hasn't been fetched yet.* The question and integrate steps are unchanged: Merge/Rebase/Reset, remembered answer, autostash, one summary.
+
+**The words.** `FetchedScope.withoutFetch` makes `buildUpdatePrompt` title the box *Update Project Without Fetching* and open with *Nothing is fetched first: origin/main is used as it was last fetched.* (several: *each repository's remote branch*). Each line gets `standingAsFetched`'s age: `main ← origin/main · 3 to pull · fetched 2 hours ago` (`fetchedAgo`: just now / minutes / hours / days / months / years; left out when no fetch is known). `buildUpdateQuestion(…, fetched=true)` already leaves `git fetch` out of the shown commands. Nothing to pull says *Already up to date with origin/main, as fetched 2 hours ago.*; `summarizeProjectUpdate(rows, { withoutFetch: true })` says *… already up to date with what was last fetched.*
+
+**The offer.** `reportUpdate` gains `offerWithoutFetch`: a single repository whose fetch failed but whose upstream resolved before the fetch (`before !== ''`) gets *Update Without Fetching* beside *Show Details*, running `gittree.update.withoutFetch` with its root. `reportProjectUpdate` offers the same for `unreachableWithUpstream(result)`, the fetch-failed repositories with an upstream, running `showProjectUpdate(deps, those, { fetch: false })`.
+
+**Where.** Command `gittree.update.withoutFetch` (`UPDATE_WITHOUT_FETCH_COMMAND`), *Update Project Without Fetching…*, in the palette; a named repository updates that one, none the project. Added right after `gittree.update.dialog` in `REPOSITORY_MENU` (group `update`) and the sidebar's `view/item/context` (`1_update@2`, Push and Fetch renumbered), `DIALOG_REGISTRY` (`sync`, `args: []`, same precondition), `HUB_VERBS` (`project`, so not among a repository's own verbs) and the Branches panel's `⋯` (the repository in view, or the project). `PANEL_COMMANDS` takes it from `REPOSITORY_MENU`. Out of scope, as the design said: a branch row's own **Update** still fetches.
+
+Also fixed: `branchMenu.test.ts`'s sidebar list was missing *Show in New Log Tab* from POST-P14bl.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `updateReport.test.ts`: `fetchedAgo` across its units and a clock behind the fetch; `standingAsFetched` with and without a time; the summary's *with what was last fetched* (one, several, beside an update, many, a never-fetched skip) and the fetched wording unchanged;
+  - `repositoryMenu.test.ts`: the entry right under Update Project, in its group;
+  - `branchMenu.test.ts`: the sidebar list and the repository-scoped commands;
+  - `t4Args.test.ts` + `operationsModel.test.ts`: offered where Update Project is, right after it, dispatched project-wide;
+  - `popupTree.test.ts`: right under Update Project with no key; not a repository's own verb.
+- **Integration:**
+  - `phase13.test.ts`, single repository: a teammate's unfetched commit is not pulled (*Already up to date with origin/x, as …*, no question, the remote-tracking ref untouched); fetched by hand, it is pulled under the *Without Fetching* question with its age and no `git fetch` line;
+  - the same, an upstream never fetched: nothing runs, nothing is asked, and the project question has nothing left;
+  - the project: repoD's fetched commit is merged, repoC's unfetched one is not, and the summary reads *… was already up to date with what was last fetched*;
+  - the failed-fetch project test also checks for the *Update Without Fetching* action and `unreachableWithUpstream`;
+  - `phase13branches.test.ts` T5: the verb list.
+- **Playwright** `branches.spec.ts`: the `⋯` item sits under Update Project and runs with the one repository's root; with several repositories it runs with none.
+
+Gates: typecheck (both tsconfigs) + lint clean; webviews and the extension bundle built. No suite run.

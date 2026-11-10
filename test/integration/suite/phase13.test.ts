@@ -597,6 +597,75 @@ suite('P13 dialogs', () => {
       // `Show in Log` covers it: the range starts where the branch was.
       assert.notStrictEqual(outcome.from, outcome.to);
     });
+    test('POST-P14bm: Without Fetching updates from the last fetch, and leaves the remote unasked', async function () {
+      this.timeout(120_000);
+      await reg.setUpdateStrategy('ask');
+      // Level with the remote first, so what follows is the one commit below.
+      const synced = await reg.applyUpdateResult(repo, { action: 'update', strategy: 'merge' });
+      assert.ok(synced.ok, synced.message);
+      const tracked = git('rev-parse', `${REMOTE}/${branch}`).trim();
+      const head = git('rev-parse', 'HEAD').trim();
+      const theirs = teammate('p13/t2-without-fetch.txt', 'not fetched\n', 'P14bm teammate, not fetched');
+
+      // Not fetched: as far as the last fetch knows, there is nothing to pull.
+      reg.clearLastUpdatePrompt();
+      const first = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo, { fetch: false }));
+      assert.ok(first?.ok, first?.message ?? 'no outcome');
+      assert.strictEqual(first.commitsPulled, 0, first.message);
+      assert.ok(
+        first.message.startsWith(`Already up to date with ${REMOTE}/${branch}, as `),
+        `it says as of when: ${first.message}`,
+      );
+      assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'nothing to pull, so nothing to ask');
+      assert.strictEqual(git('rev-parse', `${REMOTE}/${branch}`).trim(), tracked, 'nothing was fetched');
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), head);
+
+      // Fetched by hand — the Fetch button, or auto-fetch — it is there to take.
+      git('fetch', REMOTE);
+      await repo.refresher.refreshNow();
+      const second = await withUpdateChoice('merge', () => reg.showUpdateDialog(repo, { fetch: false }));
+      assert.ok(second?.ok, second?.message ?? 'no outcome');
+      assert.strictEqual(second.commitsPulled, 1, second.message);
+      const prompt = reg.lastUpdatePrompt();
+      assert.ok(prompt, 'something to pull: asked');
+      assert.strictEqual(prompt.message, 'Update Project Without Fetching');
+      assert.ok(
+        prompt.detail.startsWith(`Nothing is fetched first: ${REMOTE}/${branch} is used as it was last fetched.`),
+        prompt.detail,
+      );
+      assert.match(prompt.detail, / · 1 to pull · fetched (just now|\d+ minutes? ago)/u, prompt.detail);
+      // The command lines leave the fetch out: there is none.
+      assert.doesNotMatch(prompt.detail, /git fetch/u, prompt.detail);
+      gitWithRetry(repoRoot, ['merge-base', '--is-ancestor', theirs, 'HEAD']);
+    });
+
+    test("POST-P14bm: Without Fetching, an upstream never fetched has nothing to update from", async function () {
+      this.timeout(60_000);
+      const NEVER = 'p14bm-never-fetched';
+      const key = `branch.${branch}.merge`;
+      const saved = git('config', key).trim();
+      git('config', key, `refs/heads/${NEVER}`);
+      try {
+        await repo.refresher.refreshNow();
+        await waitFor(() => repo.model.snapshot.upstream === `${REMOTE}/${NEVER}`, 15_000);
+        const head = git('rev-parse', 'HEAD').trim();
+        reg.clearLastUpdatePrompt();
+        const outcome = await withUpdateChoice('cancel', () => reg.showUpdateDialog(repo, { fetch: false }));
+        assert.ok(outcome, 'an outcome, though nothing ran');
+        assert.strictEqual(outcome.ok, false);
+        assert.strictEqual(outcome.message, `Nothing to update from: ${REMOTE}/${NEVER} hasn't been fetched yet.`);
+        assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'nothing to ask about');
+        assert.strictEqual(git('rev-parse', 'HEAD').trim(), head);
+        // And the project's question lists it as skipped, saying why.
+        const prompt = await reg.buildPromptWithoutFetch([repo]);
+        assert.strictEqual(prompt, undefined, 'nothing left to update: no question');
+      } finally {
+        git('config', key, saved);
+        await repo.refresher.refreshNow();
+        await waitFor(() => repo.model.snapshot.upstream === `${REMOTE}/${branch}`, 15_000);
+      }
+    });
+
     test('T2: the rebase strategy replays local commits on top of the incoming ones', async function () {
       this.timeout(90_000);
       const mine = localCommit('p13/t2-mine.txt', 'mine\n', 'P13-T2 local work');
@@ -1146,6 +1215,10 @@ suite('P13 dialogs', () => {
             assert.strictEqual(said.length, 1, `one summary, not one toast per repository: ${JSON.stringify(said)}`);
             assert.ok(said[0]!.startsWith(`Couldn't fetch ${label(repo)} from ${REMOTE}: `), said[0]);
             assert.ok(said[0]!.includes(`Updated ${label(repoD)}: 1 commit`), said[0]);
+            // POST-P14bm: repoC fetched its upstream before, so it can be updated from that.
+            const actions = notes().recent()[0]!.actions;
+            assert.ok(actions.includes('Update Without Fetching'), JSON.stringify(actions));
+            assert.deepStrictEqual(reg.unreachableWithUpstream(result).map((r) => r.root), [repo.root]);
           } finally {
             git('remote', 'set-url', REMOTE, url);
           }
@@ -1205,6 +1278,52 @@ suite('P13 dialogs', () => {
           assert.deepStrictEqual(said, [
             `All 2 repositories are already up to date. Skipped ${label(repoE)} (no upstream branch).`,
           ]);
+        });
+      });
+
+      test('POST-P14bm: the project Without Fetching takes what was fetched and nothing more', async function () {
+        this.timeout(120_000);
+        await withProject(async (dAhead) => {
+          // repoC level with its last fetch; then the remote moves on, unfetched.
+          git('fetch', REMOTE);
+          git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+          const tracked = git('rev-parse', `${REMOTE}/${branch}`).trim();
+          incoming('p13/project-without-fetch.txt', 'not fetched\n', 'P14bm project: incoming, not fetched');
+          await settle(repo, () => (repo.model.snapshot.behind ?? 0) === 0);
+          try {
+            reg.clearLastUpdatePrompt();
+            notes().clear();
+            const result = await withChoice('merge', () =>
+              reg.showProjectUpdate([repo, repoD, repoE], { fetch: false }),
+            );
+            assert.ok(result, 'no result');
+
+            const prompt = reg.lastUpdatePrompt();
+            assert.ok(prompt, 'repoD has a commit fetched and not merged: asked');
+            assert.strictEqual(prompt.message, 'Update Project Without Fetching');
+            assert.ok(
+              prompt.detail.startsWith(
+                "Nothing is fetched first: each repository's remote branch is used as it was last fetched.",
+              ),
+              prompt.detail,
+            );
+            assert.match(prompt.detail, new RegExp(`${label(repoD)}: .* · 1 to pull · fetched `, 'u'), prompt.detail);
+            assert.ok(prompt.detail.includes(`${label(repoE)}: skipped — no upstream branch`), prompt.detail);
+
+            // repoD took the commit it had fetched; repoC fetched nothing, so took nothing.
+            assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dAhead);
+            assert.strictEqual(git('rev-parse', `${REMOTE}/${branch}`).trim(), tracked, 'nothing was fetched');
+            assert.strictEqual(git('rev-parse', 'HEAD').trim(), tracked);
+
+            const said = notes().recent().map((n) => n.message);
+            assert.deepStrictEqual(said, [
+              `Updated ${label(repoD)}: 1 commit, 1 file changed. ${label(repo)} was already up to date with what was last fetched. Skipped ${label(repoE)} (no upstream branch).`,
+            ]);
+          } finally {
+            // Level again, so the next test's incoming commit is its only one.
+            git('fetch', REMOTE);
+            git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+          }
         });
       });
 

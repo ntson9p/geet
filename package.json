@@ -1738,6 +1738,12 @@
         "icon": "$(sync)"
       },
       {
+        "command": "gittree.update.withoutFetch",
+        "title": "%gittree.command.update.withoutFetch.title%",
+        "category": "GitTree",
+        "icon": "$(sync)"
+      },
+      {
         "command": "gittree.update.configure",
         "title": "%gittree.command.update.configure.title%",
         "category": "GitTree",
@@ -2941,14 +2947,19 @@
           "group": "1_update@1"
         },
         {
-          "command": "gittree.push.dialog",
+          "command": "gittree.update.withoutFetch",
           "when": "view == gittree.repositories && viewItem == repository",
           "group": "1_update@2"
         },
         {
-          "command": "gittree.fetch",
+          "command": "gittree.push.dialog",
           "when": "view == gittree.repositories && viewItem == repository",
           "group": "1_update@3"
+        },
+        {
+          "command": "gittree.fetch",
+          "when": "view == gittree.repositories && viewItem == repository",
+          "group": "1_update@4"
         },
         {
           "command": "gittree.commit",
