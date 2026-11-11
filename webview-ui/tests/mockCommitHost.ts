@@ -322,6 +322,10 @@ export const mockCommitHostScript = `
     },
     'commit/commit': () => undefined,
     'commit/openDiff': () => undefined,
+    // POST-P14bq: the host opens the file manager; receiving it is enough.
+    'commit/reveal': () => undefined,
+    // POST-P14bq: the host sets gittree.commitTreeFocus; receiving it is enough.
+    'commit/treeFocus': () => undefined,
     'commit/diffChain': () => undefined,
     'commit/rollback': () => undefined,
     'commit/shelve': () => undefined,

@@ -35,6 +35,7 @@ import { writeCommitGroupBy } from './window/groupBy';
 import { InclusionModel } from './window/inclusion';
 import { CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
 import { repoRootOf } from '../ui/rowContext';
+import { registerRevealInOS } from '../scm/revealInOS';
 import { STAGING_SIDES, stagingSideOf } from '../shared/protocol';
 
 export interface Phase03Registry {
@@ -141,6 +142,11 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
+
+  // POST-P14bq: Reveal in File Explorer / Reveal in Finder / Open Containing
+  // Folder on the window's file and folder rows. The key asks the window for
+  // the row the keyboard is on.
+  registerRevealInOS(context, core, () => commitWindow.revealKeyboardRow());
 
   const pickRepo = (arg?: unknown): RepoHandle | undefined => {
     if (typeof arg === 'string') return core.getRepo(arg);

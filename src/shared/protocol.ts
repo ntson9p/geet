@@ -323,6 +323,24 @@ export const COMMIT_METHODS = {
   unstage: 'commit/unstage',
   /** POST-QA: the Merge Conflicts row's Resolve — `{ repoRoot?: string }`. */
   resolveConflicts: 'commit/resolveConflicts',
+  /**
+   * POST-P14bq: show a row in the OS file manager — `CommitRevealParamsDto`,
+   * the keyboard's row, answering `evtRevealRow`.
+   */
+  reveal: 'commit/reveal',
+  /**
+   * host → webview, POST-P14bq: the reveal shortcut was pressed in the window;
+   * the webview answers with `reveal` for the keyboard's row, the only side
+   * that knows it. No params.
+   */
+  evtRevealRow: 'commit/revealRow',
+  /**
+   * POST-P14bq: `CommitTreeFocusParamsDto`, the change tree gained or lost the
+   * keyboard. It sets `gittree.commitTreeFocus`, the reveal key's `when`: VS
+   * Code clears `focusedView` once focus is inside a webview, whose iframe lives
+   * outside its view pane.
+   */
+  treeFocus: 'commit/treeFocus',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
@@ -340,6 +358,22 @@ export const COMMIT_METHODS = {
    */
   evtMessage: 'commit/message',
 } as const;
+
+/**
+ * POST-P14bq: the row to show in the OS file manager: a file row names its file,
+ * a folder row its folder, both repository-relative with `/`. The menu passes a
+ * row's whole context instead, which has the same keys.
+ */
+export interface CommitRevealParamsDto {
+  repoRoot: string;
+  relPath?: string;
+  folder?: string;
+}
+
+/** POST-P14bq: whether the Commit window's change tree has the keyboard. */
+export interface CommitTreeFocusParamsDto {
+  focused: boolean;
+}
 
 /** Files of one repository to stage or unstage (POST-QA F5). */
 export interface CommitStageParamsDto {

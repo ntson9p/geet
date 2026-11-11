@@ -8,11 +8,13 @@ import {
   fileCountLabel,
   fileRowContext,
   folderRowContext,
+  goneFromDisk,
   groupByOf,
   groupRowContext,
   headLabel,
   isConflictsRow,
   originText,
+  revealRequestOf,
   splitDelta,
   treePathOf,
   twinRow,
@@ -1078,6 +1080,103 @@ describe('the Merge Conflicts group with changelists (POST-QA)', () => {
     expect(fileRowContext(model, key, new Set())?.['fileConflicted']).toBe(true);
     const [plain] = [...model.files.entries()].find(([, f]) => f.relPath === 'api/a.ts')!;
     expect(fileRowContext(model, plain, new Set())?.['fileConflicted']).toBeUndefined();
+  });
+});
+
+describe('what Reveal in File Explorer is told about a row (POST-P14bq)', () => {
+  const at = (path: string, code: string, kind: CommitChangeDto['kind']): CommitChangeDto => ({
+    path,
+    code,
+    kind,
+    checked: false,
+  });
+  /** One list of deleted, half-deleted and present files, two folders deep. */
+  const withDeletions = (): CommitStateDto =>
+    state({
+      repos: [
+        repo('D:/repos/demo', 'demo', [
+          defaultList([
+            at('src/old/x.ts', '.D', 'deleted'),
+            at('src/old/y.ts', 'D.', 'deleted'),
+            at('src/live/gone.ts', '.D', 'deleted'),
+            at('src/live/kept.ts', '.M', 'modified'),
+            at('src/live/staged-then-deleted.ts', 'AD', 'added'),
+          ]),
+          unversionedList([at('notes.md', '??', 'untracked')]),
+        ]),
+      ],
+    });
+  const fileKey = (model: ReturnType<typeof assembleCommitTree>, relPath: string): string =>
+    [...model.files.entries()].find(([, f]) => f.relPath === relPath)![0];
+  const folderKey = (model: ReturnType<typeof assembleCommitTree>, rel: string): string =>
+    [...model.folders.entries()].find(([, f]) => f.rel === rel)![0];
+
+  it('knows a change leaves nothing on disk when its file is deleted from the working tree', () => {
+    expect(goneFromDisk(at('a.ts', '.D', 'deleted'))).toBe(true);
+    expect(goneFromDisk(at('a.ts', 'D.', 'deleted'))).toBe(true);
+    // Staged, then deleted: the row reads as its staged change.
+    expect(goneFromDisk(at('a.ts', 'AD', 'added'))).toBe(true);
+    expect(goneFromDisk(at('a.ts', 'MD', 'modified'))).toBe(true);
+    expect(goneFromDisk(at('a.ts', 'RD', 'renamed'))).toBe(true);
+    for (const [code, kind] of [
+      ['.M', 'modified'],
+      ['A.', 'added'],
+      ['R.', 'renamed'],
+      ['??', 'untracked'],
+      ['UU', 'conflicted'],
+      ['UD', 'conflicted'],
+    ] as const) {
+      expect(goneFromDisk(at('a.ts', code, kind))).toBe(false);
+    }
+  });
+
+  it('marks a deleted file row, by the row clicked and never by the rest of the selection', () => {
+    const model = assembleCommitTree(withDeletions());
+    const gone = fileKey(model, 'src/live/gone.ts');
+    const kept = fileKey(model, 'src/live/kept.ts');
+    expect(fileRowContext(model, gone, new Set())?.['fileDeleted']).toBe(true);
+    expect(fileRowContext(model, kept, new Set())?.['fileDeleted']).toBeUndefined();
+    // Reveal shows the row pointed at, so a deleted file selected beside it hides nothing.
+    expect(fileRowContext(model, kept, new Set([kept, gone]))?.['fileDeleted']).toBeUndefined();
+    expect(fileRowContext(model, gone, new Set([kept, gone]))?.['fileDeleted']).toBe(true);
+    expect(fileRowContext(model, fileKey(model, 'src/live/staged-then-deleted.ts'), new Set())?.['fileDeleted']).toBe(
+      true,
+    );
+    expect(fileRowContext(model, fileKey(model, 'notes.md'), new Set())?.['fileDeleted']).toBeUndefined();
+  });
+
+  it('marks a folder row whose every file is deleted, not one with a file left on disk', () => {
+    const model = assembleCommitTree(withDeletions());
+    const oldDir = folderKey(model, 'src/old');
+    const liveDir = folderKey(model, 'src/live');
+    const node = (key: string): TreeNode => findNode(model.nodes, key)!;
+    expect(folderRowContext(model, node(oldDir), new Set())?.['folderDeleted']).toBe(true);
+    expect(folderRowContext(model, node(liveDir), new Set())?.['folderDeleted']).toBeUndefined();
+    // Its own files decide, whatever else the selection holds.
+    const kept = fileKey(model, 'src/live/kept.ts');
+    expect(folderRowContext(model, node(oldDir), new Set([oldDir, kept]))?.['folderDeleted']).toBe(true);
+    expect(folderRowContext(model, node(folderKey(model, 'src')), new Set())?.['folderDeleted']).toBeUndefined();
+  });
+
+  it("asks to reveal the keyboard's row: a file, a folder, and nothing for a list or repository row", () => {
+    const model = assembleCommitTree(withDeletions());
+    expect(revealRequestOf(model, fileKey(model, 'src/live/kept.ts'))).toEqual({
+      repoRoot: 'D:/repos/demo',
+      relPath: 'src/live/kept.ts',
+    });
+    expect(revealRequestOf(model, folderKey(model, 'src/old'))).toEqual({ repoRoot: 'D:/repos/demo', folder: 'src/old' });
+    // A deleted file's row is asked about too: the host says it is no longer on disk.
+    expect(revealRequestOf(model, fileKey(model, 'src/live/gone.ts'))?.relPath).toBe('src/live/gone.ts');
+    expect(revealRequestOf(model, model.groupPaths[0]!)).toBeUndefined();
+    expect(revealRequestOf(model, 'no such row')).toBeUndefined();
+
+    const byRepo = assembleCommitTree(byRepository());
+    expect(revealRequestOf(byRepo, '@r:D:/repos/api')).toBeUndefined();
+    expect(revealRequestOf(byRepo, '@r:D:/repos/api@g:@default')).toBeUndefined();
+    expect(revealRequestOf(byRepo, '@r:D:/repos/api@g:@default/src')).toEqual({
+      repoRoot: 'D:/repos/api',
+      folder: 'src',
+    });
   });
 });
 

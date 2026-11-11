@@ -850,6 +850,21 @@
         "icon": "$(go-to-file)"
       },
       {
+        "command": "gittree.revealFileInOS.windows",
+        "title": "%gittree.command.revealFileInOS.windows.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.revealFileInOS.mac",
+        "title": "%gittree.command.revealFileInOS.mac.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.revealFileInOS.linux",
+        "title": "%gittree.command.revealFileInOS.linux.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.add",
         "title": "%gittree.command.add.title%",
         "category": "GitTree",
@@ -2116,6 +2131,18 @@
           "when": "false"
         },
         {
+          "command": "gittree.revealFileInOS.windows",
+          "when": "false"
+        },
+        {
+          "command": "gittree.revealFileInOS.mac",
+          "when": "false"
+        },
+        {
+          "command": "gittree.revealFileInOS.linux",
+          "when": "false"
+        },
+        {
           "command": "gittree.branches.showInLog",
           "when": "false"
         },
@@ -3159,6 +3186,21 @@
           "group": "1_open@2"
         },
         {
+          "command": "gittree.revealFileInOS.windows",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && !fileDeleted && gittree.canRevealInOS && isWindows",
+          "group": "1_open@3"
+        },
+        {
+          "command": "gittree.revealFileInOS.mac",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && !fileDeleted && gittree.canRevealInOS && isMac",
+          "group": "1_open@3"
+        },
+        {
+          "command": "gittree.revealFileInOS.linux",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && !fileDeleted && gittree.canRevealInOS && isLinux",
+          "group": "1_open@3"
+        },
+        {
           "command": "gittree.changelist.moveTo",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFile' && gittree.paradigm == changelists && !fileConflicted",
           "group": "2_file@1"
@@ -3182,6 +3224,21 @@
           "command": "gittree.commit.openChanges",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder'",
           "group": "1_open@1"
+        },
+        {
+          "command": "gittree.revealFileInOS.windows",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && !folderDeleted && gittree.canRevealInOS && isWindows",
+          "group": "1_open@2"
+        },
+        {
+          "command": "gittree.revealFileInOS.mac",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && !folderDeleted && gittree.canRevealInOS && isMac",
+          "group": "1_open@2"
+        },
+        {
+          "command": "gittree.revealFileInOS.linux",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitFolder' && !folderDeleted && gittree.canRevealInOS && isLinux",
+          "group": "1_open@2"
         },
         {
           "command": "gittree.changelist.moveTo",
@@ -3617,6 +3674,21 @@
         "key": "ctrl+enter",
         "mac": "cmd+enter",
         "when": "focusedView == 'gittree.commit'"
+      },
+      {
+        "command": "gittree.revealFileInOS.windows",
+        "key": "shift+alt+r",
+        "when": "isWindows && gittree.canRevealInOS && gittree.commitTreeFocus"
+      },
+      {
+        "command": "gittree.revealFileInOS.mac",
+        "key": "alt+cmd+r",
+        "when": "isMac && gittree.canRevealInOS && gittree.commitTreeFocus"
+      },
+      {
+        "command": "gittree.revealFileInOS.linux",
+        "key": "ctrl+alt+r",
+        "when": "isLinux && gittree.canRevealInOS && gittree.commitTreeFocus"
       },
       {
         "command": "gittree.diff.nextChange",

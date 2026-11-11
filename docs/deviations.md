@@ -55,6 +55,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D38](#d38--every-commit-check-starts-unticked) | Every commit check starts unticked; IntelliJ ticks Analyze code and Check TODO | Deliberate (owner's request) |
 | [D39](#d39--the-filter-dropdowns-are-compact) | The log's filter dropdowns are small chips naming their value by IntelliJ's rules, a date in the Date column's format; `full` writes every value out | Deliberate (owner's request); `gittree.log.filterChips` |
 | [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `gittree.log.dateFormat` |
+| [D41](#d41--the-commit-windows-rows-open-the-file-manager) | The Commit window's file and folder rows open the system's file manager, under VS Code's names and key | Deliberate (owner's request) |
 
 ---
 
@@ -1079,3 +1080,28 @@ Why: the owner's request. Every row's date is the same width and lines up, and d
 eye.
 
 **Revisitable:** yes — one setting.
+
+## D41 · The Commit window's rows open the file manager
+
+**IntelliJ:** the Commit tool window's tree has no such item. Its `ChangesViewPopupMenu`
+(`VcsActions.xml`) holds Commit File…, Rollback, Move, Show Diff, Jump to Source, the changelist
+actions, Shelve and the patch actions, but not `RevealIn`. IntelliJ's reveal (`RevealFileAction`:
+*Reveal in Finder* on macOS, *Show in Explorer* on Windows, *Show in* the file manager's name on
+Linux, or *Open In ▸ Explorer*) lives in the Project view, the editor and its tabs; from a change
+you go through Jump to Source first.
+**GitTree:** file and folder rows in every list have it, at the owner's request, named and keyed
+as VS Code names and keys it everywhere else:
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Not in the Commit tree | After Open File on a file row, after Open Changes on a folder row | The owner's request |
+| *Show in Explorer* · *Reveal in Finder* · *Show in Files* | *Reveal in File Explorer* · *Reveal in Finder* · *Open Containing Folder* | VS Code's names for the same item in its Explorer, editor tabs and Git view: one name for one thing in one window |
+| No key in the default keymap | `Shift+Alt+R` · `⌥⌘R` · `Ctrl+Alt+R`, VS Code's own, in the Commit window's change tree | The key VS Code users already press for it; IntelliJ's own VS Code keymap binds `RevealIn` to `Shift+Alt+R` too |
+| The lead selection | The row the menu was opened on, alone | One row, one window: a selection over twenty folders must not open twenty. VS Code's Git view reveals the clicked file alone too |
+| Offered on what exists | Left out on a deleted file, and in a remote window (from VS Code 1.113 a WSL window has it) | Nothing on disk to select; a remote window's files are on another machine |
+
+It runs VS Code's own `revealFileInOS`, so the file manager is the one VS Code opens: Explorer,
+Finder, or on Linux whichever answers the file-manager portal or `org.freedesktop.FileManager1`
+(with `xdg-open` on the folder when neither does).
+
+**Revisitable:** yes — six menu entries and three keybindings in package.json.

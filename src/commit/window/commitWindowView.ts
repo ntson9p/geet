@@ -22,6 +22,7 @@ import { canonicalKey } from '../../core/repoDiscovery';
 import { repoLabels, sortRootsByLabel } from '../../core/util/repoLabels';
 import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
 import { rootColorIndices } from '../../log/graphLayout/colors';
+import { revealRow, setTreeFocus } from '../../scm/revealInOS';
 import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
 import { nextMark } from '../../diff/onScreen';
 import { settleWorktreeSide } from '../../diff/worktreeSide';
@@ -42,6 +43,7 @@ import {
   type CommitSetOptionParamsDto,
   type CommitStageParamsDto,
   type CommitStateDto,
+  type CommitTreeFocusParamsDto,
   type StagingSide,
 } from '../../shared/protocol';
 import { statusColorOverrides } from '../../ui/statusColors';
@@ -475,6 +477,14 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     this.rpc?.notify(COMMIT_METHODS.evtOpenDiff, file);
   }
 
+  /**
+   * POST-P14bq: the reveal shortcut, pressed in this window. Only the webview
+   * knows which row the keyboard is on; it answers with `reveal`.
+   */
+  revealKeyboardRow(): void {
+    this.rpc?.notify(COMMIT_METHODS.evtRevealRow, {});
+  }
+
   private diffSessions(): DiffSessionRegistry | undefined {
     return (this.deps.core.debugRegistry.get('phase14') as { sessions: DiffSessionRegistry } | undefined)?.sessions;
   }
@@ -659,12 +669,17 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       rpc.dispose();
       this.rpc = undefined;
       this.view = undefined;
+      setTreeFocus(false);
     });
     view.onDidChangeVisibility(() => {
       if (view.visible) {
         rpc.rehydrate();
         this.push();
         this.pushShelf();
+      } else {
+        // A hidden tree has no keyboard, whatever its last word was: the
+        // reveal key must not keep VS Code's own from the next view.
+        setTreeFocus(false);
       }
     });
   }
@@ -721,6 +736,14 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     rpc.on(COMMIT_METHODS.resolveConflicts, async (raw) => {
       const p = (raw ?? {}) as { repoRoot?: string };
       await vscode.commands.executeCommand('gittree.conflicts.resolve', p.repoRoot);
+    });
+    // POST-P14bq: the keyboard's row, in the file manager (`revealKeyboardRow`).
+    rpc.on(COMMIT_METHODS.reveal, async (raw) => {
+      await revealRow(this.deps.core, [raw]);
+    });
+    // POST-P14bq: the reveal key's `when`, from the only side that knows.
+    rpc.on(COMMIT_METHODS.treeFocus, (raw) => {
+      setTreeFocus((raw as Partial<CommitTreeFocusParamsDto> | undefined)?.focused === true);
     });
 
     rpc.on(COMMIT_METHODS.setIncluded, async (raw) => {

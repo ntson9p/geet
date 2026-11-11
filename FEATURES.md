@@ -489,10 +489,21 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 * **Toolbar** (icon buttons with tooltips): Refresh · Rollback · Show Diff · Shelve Changes ·
   Preview Diff toggle · View Options (with several repositories) · Expand all · Collapse all.
 * **Context menus:** right-click a changelist row for Commit / Set Active / New / Rename /
-  Delete / Shelve, or a file row for Add to VCS / Open Changes / Open File / Move to Another
-  Changelist / Roll Back / Add to .gitignore (P14-T2a). These were the changelists tree view's
-  menus; they moved here with it. As in IntelliJ, an action on a row acts on every file
-  beneath it:
+  Delete / Shelve, or a file row for Add to VCS / Open Changes / Open File / Reveal in File
+  Explorer / Move to Another Changelist / Roll Back / Add to .gitignore (P14-T2a). These were the
+  changelists tree view's menus; they moved here with it. As in IntelliJ, an action on a row acts
+  on every file beneath it:
+  - **Reveal in File Explorer** (**Reveal in Finder** on macOS, **Open Containing Folder** on
+    Linux, VS Code's own names for it) opens the system's file manager on a file row's folder
+    with the file selected, or on a folder row's parent with the folder selected. It is in every
+    list: your changelists, Unversioned Files, Merge Conflicts, and Staged and Unstaged with the
+    staging area. It shows the row clicked, not the rest of a selection. VS Code's own key for
+    it, `Shift+Alt+R` (`⌥⌘R` on macOS, `Ctrl+Alt+R` on Linux), shows the keyboard's row while
+    the change tree has focus. It is left out on a deleted file, which has nothing on disk to
+    select, and in a remote window, whose files are on another machine; a WSL window has it
+    from VS Code 1.113. A file deleted since the tree was drawn, or a deleted row reached by the
+    key, says *… is no longer on disk.*
+    ([D41](docs/deviations.md#d41--the-commit-windows-rows-open-the-file-manager))
   - **Unversioned Files** (the row, a repository's share of it, or its row under a repository)
     has **Add to VCS**, into the default list, and **Move to Another Changelist…**, and none of
     a changelist's own actions: it is not one.

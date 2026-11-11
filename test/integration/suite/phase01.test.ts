@@ -291,6 +291,61 @@ suite('P1 core SCM', () => {
     }
   });
 
+  test('POST-P14bq: Reveal in File Explorer shows the row it was opened on', async function () {
+    this.timeout(60_000);
+    const core = await activateGitTree();
+    const reveals = core.debugRegistry.get('revealInOS') as
+      | {
+          supported: boolean;
+          recent(): Array<{ outcome: string; path?: string }>;
+          clear(): void;
+        }
+      | undefined;
+    assert.ok(reveals, 'revealInOS registry missing — registerRevealInOS not run?');
+    // The test window is a local desktop one, where the item is offered.
+    assert.strictEqual(reveals.supported, true);
+    // Under GITTREE_TEST nothing opens: the registry is what the user would have seen.
+    const root = core.repoForPath(repoRoot)!.root;
+    const dir = path.join(repoRoot, 'reveal-me');
+    fs.mkdirSync(path.join(dir, 'deep'), { recursive: true });
+    write('reveal-me/deep/here.txt', 'x\n');
+    reveals.clear();
+    try {
+      // A file row inside a selection of two: the row clicked, alone. Any of
+      // the three commands does it; each platform's menu shows its own.
+      await vscode.commands.executeCommand('gittree.revealFileInOS.windows', {
+        webviewSection: 'commitFile',
+        repoRoot,
+        relPath: 'reveal-me/deep/here.txt',
+        relPaths: ['reveal-me/deep/here.txt', 'README.md'],
+      });
+      // A folder row: its folder, not the first file it also carries.
+      await vscode.commands.executeCommand('gittree.revealFileInOS.linux', {
+        webviewSection: 'commitFolder',
+        repoRoot,
+        relPath: 'reveal-me/deep/here.txt',
+        relPaths: ['reveal-me/deep/here.txt'],
+        folder: 'reveal-me/deep',
+      });
+      // Gone since the tree was drawn: said, not attempted.
+      await vscode.commands.executeCommand('gittree.revealFileInOS.mac', {
+        repoRoot,
+        relPath: 'reveal-me/not-there.txt',
+      });
+      // Out of the repository: refused before anything is looked at.
+      await vscode.commands.executeCommand('gittree.revealFileInOS.windows', { repoRoot, relPath: '../outside.txt' });
+      assert.deepStrictEqual(reveals.recent(), [
+        { outcome: 'revealed', path: path.join(root, 'reveal-me', 'deep', 'here.txt') },
+        { outcome: 'revealed', path: path.join(root, 'reveal-me', 'deep') },
+        { outcome: 'missing', path: path.join(root, 'reveal-me', 'not-there.txt') },
+      ]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+      reveals.clear();
+      await refresh();
+    }
+  });
+
   test('T7: commit from the commit window message box (staged + amend)', async function () {
     this.timeout(60_000);
     // P14-T2: the SCM input box is gone; the commit window's message box is the

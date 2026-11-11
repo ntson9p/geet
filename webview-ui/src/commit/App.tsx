@@ -11,7 +11,16 @@
  * The host owns every piece of state. This component renders what it is given
  * and posts intents, so a status refresh or a rehydrate can never desync it.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import {
   COMMIT_METHODS,
   type CommitDiffFileDto,
@@ -28,6 +37,7 @@ import {
   type CommitStateDto,
   type CommitSetCheckedParamsDto,
   type CommitStageParamsDto,
+  type CommitTreeFocusParamsDto,
 } from '../../../src/shared/protocol';
 import {
   FileTree,
@@ -76,6 +86,7 @@ import {
   isConflictsRow,
   originText,
   partialLabel,
+  revealRequestOf,
   splitDelta,
   treePathOf,
   twinRow,
@@ -85,6 +96,7 @@ import {
 import { firstLine, relativeTime } from './format';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
+import { answersRevealAsk, isWindowsRevealChord, onWindows } from './revealKey';
 import { ShelfTab } from './ShelfTab';
 import { StashTab } from './StashTab';
 import { applyViewOption, viewOptionsChanged, viewOptionsItems } from './viewOptions';
@@ -114,6 +126,9 @@ interface PendingRegroup {
  * unanswered far longer than the client's 30 s default.
  */
 const INTENT_TIMEOUT_MS = 10 * 60_000;
+
+/** POST-P14bq: the reveal key's Windows chord is answered in the tree (see revealKey.ts). */
+const ON_WINDOWS = onWindows(navigator.userAgent);
 
 /** Below this width the preview diff is one column: two sides would each get a few characters. */
 const UNIFIED_BELOW_PX = 640;
@@ -148,6 +163,9 @@ export function App() {
   const [state, setState] = useState<CommitStateDto>(EMPTY);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState(saved.tab ?? 'commit');
+  // Read by the host's events, which outlive a render.
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
   // POST-P14l: IntelliJ's `Combine stashes and shelves in one tab`. Off by
   // default, so the strip is `Commit | Shelf | Stash`; on, the Stash tab folds
   // into the Shelf tab and the third tab disappears.
@@ -353,6 +371,58 @@ export function App() {
     },
     [request],
   );
+
+  /**
+   * POST-P14bq: says when the change tree gains or loses the keyboard, which the
+   * reveal key's `when` (`gittree.commitTreeFocus`) reads: VS Code clears its own
+   * `focusedView` once focus is inside a webview. Not `send`: a focus change is
+   * no intent, and must not clear a failure's banner.
+   */
+  const treeFocused = useRef(false);
+  const reportTreeFocus = useCallback(
+    (focused: boolean) => {
+      if (treeFocused.current === focused) return;
+      treeFocused.current = focused;
+      void rpc
+        .request(COMMIT_METHODS.treeFocus, { focused } satisfies CommitTreeFocusParamsDto, INTENT_TIMEOUT_MS)
+        .catch(() => undefined);
+    },
+    [rpc],
+  );
+  // Another tab unmounts the tree, which says nothing as it goes; leaving the
+  // window takes the keyboard from it too.
+  useEffect(() => {
+    if (tab !== 'commit') reportTreeFocus(false);
+  }, [reportTreeFocus, tab]);
+  useEffect(() => {
+    const away = (): void => reportTreeFocus(false);
+    window.addEventListener('blur', away);
+    return () => window.removeEventListener('blur', away);
+  }, [reportTreeFocus]);
+  /** When a key was last pressed in the tree: the host's ask is that key's for a moment after. */
+  const lastTreeKeyAt = useRef(Number.NEGATIVE_INFINITY);
+  /** POST-P14bq: the keyboard's row in the file manager, as Enter opens it; nothing for a list or repository row. */
+  const revealLeadRow = useCallback(() => {
+    const lead = treeHandle.current?.viewState().lead;
+    const ask = lead !== undefined ? revealRequestOf(modelRef.current, lead) : undefined;
+    if (ask !== undefined) send(COMMIT_METHODS.reveal, ask);
+  }, [send]);
+  const treeFocusProps = {
+    onFocus: () => reportTreeFocus(true),
+    onBlur: (e: ReactFocusEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) reportTreeFocus(false);
+    },
+    onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      lastTreeKeyAt.current = performance.now();
+      // Windows' Shift+Alt+R is answered here, never passed on: VS Code would
+      // also open its Run menu (see revealKey.ts).
+      if (ON_WINDOWS && isWindowsRevealChord(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (tabRef.current === 'commit') revealLeadRow();
+      }
+    },
+  };
   /**
    * A walk over the whole list goes on following it, as IntelliJ's does: this list
    * changes while you read it, unlike a commit's. One over a selection is what was
@@ -408,12 +478,24 @@ export function App() {
     const offOnScreen = rpc.onEvent(COMMIT_METHODS.evtDiffOnScreen, (p) => {
       setDiffOnScreen((p as CommitDiffOnScreenDto).file);
     });
+    // POST-P14bq: the reveal shortcut, pressed in this window. The keyboard's
+    // row, as Enter opens it; nothing from another tab, where the tree is not
+    // on screen, or on a changelist or repository row.
+    const offReveal = rpc.onEvent(COMMIT_METHODS.evtRevealRow, () => {
+      // The key is bound only while the tree has the keyboard. An ask that
+      // finds it gone is still that key's if one was pressed in the tree just
+      // now (Alt may hand focus to the menu bar); otherwise nobody is looking.
+      if (tabRef.current !== 'commit') return;
+      if (!answersRevealAsk(treeFocused.current, lastTreeKeyAt.current, performance.now())) return;
+      revealLeadRow();
+    });
     return () => {
       offMoved();
       offOpen();
       offOnScreen();
+      offReveal();
     };
-  }, [openDiffAt, rpc]);
+  }, [openDiffAt, revealLeadRow, rpc]);
 
   // Looked up in each new tree, so a file moved to another changelist keeps its mark.
   const onScreenPath = useMemo(
@@ -950,7 +1032,7 @@ export function App() {
               minFirst={80}
               minSecond={80}
               first={
-                <div className="gt-commit-pane" ref={treeRef}>
+                <div className="gt-commit-pane" ref={treeRef} {...treeFocusProps}>
                   {treePane}
                 </div>
               }
@@ -961,7 +1043,7 @@ export function App() {
               }
             />
           ) : (
-            <div className="gt-commit-pane" ref={treeRef}>
+            <div className="gt-commit-pane" ref={treeRef} {...treeFocusProps}>
               {treePane}
             </div>
           )}

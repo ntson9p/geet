@@ -14,6 +14,7 @@ any of them in Keyboard Shortcuts):
 | --- | --- | --- |
 | `Ctrl+Up` (`Cmd+Up`) | `gittree.commit.showMessageHistory` | commit tool window message editor |
 | `Ctrl+Enter` (`Cmd+Enter`) | `gittree.commit` | commit tool window — replaces the SCM input box's accept action (P14-T4) |
+| `Shift+Alt+R` (`⌥⌘R` on macOS, `Ctrl+Alt+R` on Linux) | `gittree.revealFileInOS.windows` / `.mac` / `.linux` | commit tool window's change tree (`gittree.commitTreeFocus`) — the keyboard's file or folder row in the system's file manager (VS Code's own key for Reveal in File Explorer; POST-P14bq). On Windows the tree answers `Shift+Alt+R` itself: passed on to VS Code from a webview, Alt+R also opens the Run menu |
 | `Ctrl+Alt+Enter` | `gittree.stage.selectedRanges` | diff editor — stages the selected lines/hunk |
 | `F7` / `Shift+F7` | `gittree.merge.nextConflict` / `prevConflict` | merge tri-editor |
 | `Alt+F5` / `Shift+Alt+F5` | VS Code's own Next / Previous Change | any diff. On a diff from a list of files they carry on into the next or previous file (see below) |

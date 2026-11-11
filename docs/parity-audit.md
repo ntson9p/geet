@@ -92,7 +92,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Folder rows with single-child chains collapsed | ✅ | `treeModel.buildTree` |
 | Tri-state checkboxes on group, folder and file rows | ✅ | P11-T2/T3 — impossible in `TreeView` |
 | Unversioned files tickable | ✅ | P11-T3 |
-| The changes tree's one context menu (`ChangesViewPopupMenu`), acting on every file under the node | 🟡 | POST-P14bf: Unversioned Files rows offer Add to VCS and Move to Another Changelist… (adding to VCS in the list picked, as `MoveChangesToAnotherListAction` does) and no changelist actions; folder rows offer Add to VCS · Open Changes · Move · Roll Back… · Add to .gitignore; a repository row Add to VCS and Move. Not offered: Delete, Create Patch, Copy as Patch, Commit… on a selection |
+| The changes tree's one context menu (`ChangesViewPopupMenu`), acting on every file under the node | 🟡 | POST-P14bf: Unversioned Files rows offer Add to VCS and Move to Another Changelist… (adding to VCS in the list picked, as `MoveChangesToAnotherListAction` does) and no changelist actions; folder rows offer Add to VCS · Open Changes · Move · Roll Back… · Add to .gitignore; a repository row Add to VCS and Move. POST-P14bq: file and folder rows also have Reveal in File Explorer (Reveal in Finder, Open Containing Folder), which IntelliJ's tree lacks (**D41**). Not offered: Delete, Create Patch, Copy as Patch, Commit… on a selection |
 | Per-change inclusion with `N differences, M included` | ✅ | P11-T3 `InlineDiff`; stale selections fall back loudly |
 | Message editor with history, template, amend | ✅ | P11-T4 |
 | Options gear: author, sign-off, deferred checks | ✅ | P11-T5 |

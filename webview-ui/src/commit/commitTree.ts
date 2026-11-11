@@ -36,6 +36,7 @@ import {
   type CommitGroupDto,
   type CommitRepoDto,
   type CommitRepoHeadDto,
+  type CommitRevealParamsDto,
   type CommitStateDto,
   type StagingSide,
 } from '../../../src/shared/protocol';
@@ -712,8 +713,47 @@ export function folderRowContext(
     // Add to .gitignore wants every file new; Add to VCS, any.
     fileUnversioned: refs.every((r) => r.change.kind === 'untracked'),
     folderHasUnversioned: refs.some((r) => r.change.kind === 'untracked'),
+    // POST-P14bq: Reveal shows the folder itself, whatever is selected. With
+    // every file under it gone, so most likely is the folder.
+    ...(folderGoneFromDisk(model, node) ? { folderDeleted: true } : {}),
     ...sideContext(model.staging ? stagingSideOf(folder.listId) : undefined),
   };
+}
+
+/**
+ * POST-P14bq: whether a change leaves nothing on disk at its path, by its
+ * status: a deletion, or a file deleted from the working tree after its other
+ * change was staged (`AD`, `MD`). What Reveal in File Explorer is hidden on: the
+ * OS would open nothing. A staging-mode Staged row knows only the index's
+ * letter, so its `MD` reads `M.`; the host finds the file missing and says so.
+ */
+export function goneFromDisk(change: CommitChangeDto): boolean {
+  if (change.kind === 'deleted') return true;
+  if (change.kind === 'untracked' || change.kind === 'conflicted') return false;
+  return change.code.charAt(1) === 'D';
+}
+
+/** Every file under a folder row gone from disk: its folder most likely is too. */
+function folderGoneFromDisk(model: CommitTreeModel, node: TreeNode): boolean {
+  const refs = collectFiles(node).flatMap((p) => {
+    const ref = model.files.get(p);
+    return ref !== undefined ? [ref] : [];
+  });
+  return refs.length > 0 && refs.every((r) => goneFromDisk(r.change));
+}
+
+/**
+ * POST-P14bq: what the reveal shortcut shows for the row the keyboard is on: a
+ * file row's file, a folder row's folder; nothing for a changelist or
+ * repository row. A deleted file's row is sent anyway, and the host says it is
+ * no longer on disk: a key that does nothing at all would look broken.
+ */
+export function revealRequestOf(model: CommitTreeModel, treePath: string): CommitRevealParamsDto | undefined {
+  const file = model.files.get(treePath);
+  if (file !== undefined) return { repoRoot: file.repoRoot, relPath: file.relPath };
+  const folder = model.folders.get(treePath);
+  if (folder !== undefined) return { repoRoot: folder.repoRoot, folder: folder.rel };
+  return undefined;
 }
 
 export interface RepoCheckDelta {
@@ -791,6 +831,9 @@ export function fileRowContext(
     // POST-QA: an unmerged file is in no changelist to move it from, and its
     // Rollback would throw the merge's side of it away unseen.
     ...(paths.some((f) => f.change.kind === 'conflicted') ? { fileConflicted: true } : {}),
+    // POST-P14bq: the clicked row only, which is what Reveal in File Explorer
+    // shows; the selection's other rows play no part in it.
+    ...(goneFromDisk(ref.change) ? { fileDeleted: true } : {}),
     ...sideContext(fileSide(ref)),
   };
 }

@@ -172,3 +172,102 @@ describe('the Commit window menus (POST-P14bf)', () => {
     expect(conflicted).toContain('Open File');
   });
 });
+
+/**
+ * POST-P14bq: a row shown in the OS file manager, named as VS Code names it on
+ * each system — in its Explorer, its editor tabs and its Git view alike.
+ */
+describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)', () => {
+  const SYSTEMS = [
+    { os: 'isWindows', label: 'Reveal in File Explorer', key: 'shift+alt+r', command: 'gittree.revealFileInOS.windows' },
+    { os: 'isMac', label: 'Reveal in Finder', key: 'alt+cmd+r', command: 'gittree.revealFileInOS.mac' },
+    { os: 'isLinux', label: 'Open Containing Folder', key: 'ctrl+alt+r', command: 'gittree.revealFileInOS.linux' },
+  ] as const;
+  const LABELS: readonly string[] = SYSTEMS.map((s) => s.label);
+  const reveals = (titles: string[]): string[] => titles.filter((t) => LABELS.includes(t));
+  /** A window whose files are on this computer, on one system. */
+  const on = (os: string): Record<string, string | boolean> => ({ ...base, [os]: true, 'gittree.canRevealInOS': true });
+
+  it('names the item as VS Code does on each system, and offers that one only', () => {
+    for (const { os, label } of SYSTEMS) {
+      expect(reveals(shown('commitFile', { ...on(os), webviewSection: 'commitFile' }))).toEqual([label]);
+      expect(reveals(shown('commitFolder', { ...on(os), webviewSection: 'commitFolder' }))).toEqual([label]);
+    }
+  });
+
+  it('comes right after Open File on a file row, and after Open Changes on a folder row', () => {
+    expect(shown('commitFile', { ...on('isWindows'), webviewSection: 'commitFile' })).toEqual([
+      'Open Changes',
+      'Open File',
+      'Reveal in File Explorer',
+      'Move to Another Changelist…',
+      'Roll Back…',
+    ]);
+    expect(shown('commitFolder', { ...on('isMac'), webviewSection: 'commitFolder' })).toEqual([
+      'Open Changes',
+      'Reveal in Finder',
+      'Move to Another Changelist…',
+      'Roll Back…',
+    ]);
+  });
+
+  it('is on new, conflicted and staging-mode rows too: each is a file on disk', () => {
+    for (const { os, label } of SYSTEMS) {
+      const file = { ...on(os), webviewSection: 'commitFile' };
+      expect(shown('commitFile', { ...file, fileUnversioned: true })).toContain(label);
+      expect(shown('commitFile', { ...file, fileConflicted: true })).toContain(label);
+      expect(shown('commitFile', { ...file, 'gittree.paradigm': 'staging', stagingSide: 'staged' })).toContain(label);
+      expect(shown('commitFolder', { ...on(os), webviewSection: 'commitFolder', fileUnversioned: true })).toContain(
+        label,
+      );
+    }
+  });
+
+  it('is left out on a deleted file, or a folder of deleted files: there is nothing on disk to select', () => {
+    for (const { os } of SYSTEMS) {
+      expect(reveals(shown('commitFile', { ...on(os), webviewSection: 'commitFile', fileDeleted: true }))).toEqual([]);
+      expect(
+        reveals(shown('commitFolder', { ...on(os), webviewSection: 'commitFolder', folderDeleted: true })),
+      ).toEqual([]);
+      // The rest of a deleted row's menu stays.
+      expect(shown('commitFile', { ...on(os), webviewSection: 'commitFile', fileDeleted: true })).toContain('Roll Back…');
+    }
+  });
+
+  it("is left out where this window's files are not on this computer", () => {
+    for (const { os } of SYSTEMS) {
+      const away = { ...base, [os]: true };
+      expect(reveals(shown('commitFile', { ...away, webviewSection: 'commitFile' }))).toEqual([]);
+      expect(reveals(shown('commitFolder', { ...away, webviewSection: 'commitFolder' }))).toEqual([]);
+    }
+  });
+
+  it('is not on a changelist, repository or Merge Conflicts row', () => {
+    for (const section of ['commitGroup', 'commitRepo', 'commitRepository', 'commitConflicts']) {
+      const row = { ...on('isWindows'), webviewSection: section, listCheckable: true, repoHasTracked: true };
+      expect(reveals(shown(section, row))).toEqual([]);
+    }
+  });
+
+  it('keeps its commands out of the Command Palette: they need a row', () => {
+    const palette = manifest.contributes.menus['commandPalette'] ?? [];
+    for (const { command } of SYSTEMS) {
+      expect(palette.find((e) => e.command === command)?.when).toBe('false');
+    }
+  });
+
+  it("binds VS Code's own reveal key on each system, while the Commit window's tree has the keyboard", () => {
+    const keys = (manifest.contributes as unknown as { keybindings: Array<{ command: string; key: string; when?: string }> })
+      .keybindings;
+    for (const { os, key, command } of SYSTEMS) {
+      const binding = keys.filter((k) => k.command === command);
+      expect(binding).toHaveLength(1);
+      expect(binding[0]!.key).toBe(key);
+      const terms = (binding[0]!.when ?? '').split('&&').map((t) => t.trim());
+      expect(terms).toEqual(expect.arrayContaining([os, 'gittree.canRevealInOS', 'gittree.commitTreeFocus']));
+      // Not `focusedView`: VS Code clears it once focus is inside a webview, so
+      // VS Code's own reveal took the key in the real window (POST-P14bq).
+      expect(binding[0]!.when).not.toContain('focusedView');
+    }
+  });
+});

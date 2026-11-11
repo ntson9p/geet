@@ -6,6 +6,21 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — Reveal in File Explorer from the Commit window
+
+- **Right-click a file in any changelist → Reveal in File Explorer** (*Reveal in Finder* on
+  macOS, *Open Containing Folder* on Linux). The system's file manager opens on the file's
+  folder with the file selected. On a folder row it opens the folder's parent with the folder
+  selected. Every list has it: your changelists, Unversioned Files, Merge Conflicts, and Staged
+  and Unstaged with the staging area.
+- **VS Code's own key for it works there too:** `Shift+Alt+R` on Windows, `⌥⌘R` on macOS,
+  `Ctrl+Alt+R` on Linux, on the row the keyboard is on in the change tree. Until now that key in
+  the Commit window revealed the file open in the editor, or the workspace folder, and on
+  Windows it also opened VS Code's Run menu.
+- It is not offered on a deleted file, which has nothing on disk to show, nor in a remote window
+  (SSH, containers), whose files are on another machine. A WSL window has it from VS Code 1.113,
+  the first to reach WSL's files from Windows.
+
 ### Changed — Checkout Tag or Revision is offered only where it can say which repository
 
 - **With several repositories in view, the `⋯` menu no longer offers Checkout Tag or

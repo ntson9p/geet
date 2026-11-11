@@ -1380,3 +1380,60 @@ Testing (written, **not run**):
 - **Integration** `phase13branches.test.ts`: in the multi-root test workspace, with no root, Escape checks out nothing anywhere; picking repoB checks out there and nowhere else; named by its root, no question is asked (`cancel` would have stopped it).
 
 Gates: typecheck + lint clean; extension bundle built. No suite run.
+
+POST-P14bq ✅ 2026-11-11 (branch `new-way-6`): **Reveal in File Explorer from the Commit window.** The owner asked for a right-click item on a file in any changelist that opens the system's file manager on its folder with the file focused, working well on every OS. They also declined the two commit-grouping extras for now.
+
+Research:
+- **VS Code's own** `revealFileInOS` (workbench, `electron-browser/fileActions.contribution.ts`) runs Electron's `shell.showItemInFolder`. On Windows that is `SHOpenFolderAndSelectItems`; on macOS NSWorkspace `selectFile:`; on Linux the file-manager portal, then `org.freedesktop.FileManager1.ShowItems`, then `xdg-open` on the folder. On Windows and macOS a missing file opens nothing at all; on Linux, its folder.
+  - Names: *Reveal in File Explorer* / *Reveal in Finder* / *Open Containing Folder*.
+  - Keys: `Shift+Alt+R` on Windows, `⌥⌘R` on macOS, `Ctrl+Alt+R` on Linux.
+  - Since 1.113.0 (microsoft/vscode#299492) it reaches a WSL window's files through `\wsl$`; other remote files it leaves alone.
+  - `env.openExternal` on a folder was ruled out: it double-encodes `#` and `?` (`C# Notes`).
+- **VS Code's Git extension:** `git.revealFileInOS.linux|mac|windows` with those titles, `remoteName == ''` and the OS key in each menu `when`, and the clicked resource only.
+- **IntelliJ:** `RevealFileAction` (*Reveal in Finder* / *Show in Explorer* / *Show in <file manager>*) takes the lead file only and is hidden without a VirtualFile, so on a deleted change. It is in `RevealGroup`, not in `ChangesViewPopupMenu`. Its VS Code keymap binds `RevealIn` to `Shift+Alt+R`. Deviation **D41**.
+
+Design:
+- **Commands:** three, `gittree.revealFileInOS.windows|mac|linux`, titled as VS Code titles them, sharing one handler in `src/scm/revealInOS.ts`:
+  - `revealTargetOf` (`src/ui/revealTarget.ts`, vscode-free) takes the row the menu was opened on. A folder row's `folder` wins over its first file; `..` and drive paths are refused.
+  - `lstat` checks the target is there, then VS Code's `revealFileInOS` gets its `Uri`.
+  - A missing target gets *{0} is no longer on disk.* (a timed notice) rather than VS Code's silence.
+- **Menus** (`webview/context`), each with `gittree.canRevealInOS` and its OS key; hidden from the Palette:
+  - file rows: `1_open@3`, after Open File, `!fileDeleted`;
+  - folder rows: `1_open@2`, after Open Changes, `!folderDeleted`.
+- **`gittree.canRevealInOS`**, set once: desktop, and local or WSL ≥ 1.113.0 (`canRevealInOS`, `versionAtLeast`).
+- **Deleted flags**, present only when true, so the existing payload tests stand:
+  - `fileDeleted`: the clicked row, by `goneFromDisk`: kind `deleted`, or a worktree `D` behind a staged change (`AD`, `MD`, `RD`);
+  - `folderDeleted`: every file under the folder gone.
+- **Keys:** the three bindings `when` `gittree.commitTreeFocus`. With no row argument, the command asks the window (`revealKeyboardRow` → `commit/revealRow`). The webview answers `commit/reveal` with `revealRequestOf` for the keyboard's row (the lead, as Enter uses it), only on the Commit tab, for a file or folder row, and while the tree has focus or a key was pressed in it within 3 s (`answersRevealAsk`). A deleted row reached by the key gets the notice.
+- **Under `GITTREE_TEST`** nothing opens; outcomes are recorded in the `revealInOS` debug registry.
+
+Found in the real window (VS Code 1.144.0, scratch repository, Explorer windows read through `Shell.Application`):
+- **`focusedView` is never the Commit view while focus is in its webview.** The iframe lives in an overlay outside the view pane, whose focus tracker clears the key. The first binding (`focusedView == 'gittree.commit'`) never fired, and VS Code's own `revealFileInOS` revealed the workspace folder instead. Hence `gittree.commitTreeFocus`: the webview reports its tree's focus and blur (`commit/treeFocus`, a plain request, so it never clears a failure banner), and the host clears the key when the view hides or goes. The Ctrl+Enter binding for Commit has the same `when` and does not commit from the message box either; that is not changed here.
+- **Shift+Alt+R from a webview also opens VS Code's Run menu.** A forwarded key is a new event that cannot be cancelled, so the menu bar's mnemonic handler takes Alt+R, opens Run, and the menu takes the keyboard. So on Windows the tree answers Shift+Alt+R itself and stops it there (`revealKey.ts`). Its keybinding stays for the menu's label and for rebinding. ⌥⌘R (native menus) and Ctrl+Alt+R (the menu bar ignores Ctrl chords) go through VS Code.
+- **Verified:**
+  - The item reads *Reveal in File Explorer `Shift+Alt+R`* after Open File.
+  - Explorer opened `src` with `app.ts` selected and focused; opened `C# Notes` with `tài liệu, bản 1.md` selected (`#`, comma, spaces, Vietnamese letters); `src` with the folder row `util` selected; the repository with an unversioned file selected.
+  - Deleted file and folder rows have no item.
+  - Shift+Alt+R in the tree revealed the clicked row with either modifier let go last, opened no menu, and kept the keyboard in the tree; after an arrow key it revealed the row reached; on a deleted row it said *old.ts is no longer on disk.* and opened nothing.
+
+Testing (written, **not run**):
+- **Unit** `revealTarget.test.ts`: where it can work (local, web, remotes, WSL either side of 1.113.0, an insider suffix); version comparison; a file row's clicked file, a folder row's folder over its first file, the keyboard's payloads, cleaned paths, refused `..` and drive paths, a broken folder never falling back to its file; `revealPath`.
+- **Unit** `revealKey.test.ts`: the Windows user agent, the exact chord (no Ctrl, AltGr, Meta or repeats), and when the host's ask is answered.
+- **Unit** `commitWindowMenus.test.ts`:
+  - one label per system, after Open File / Open Changes;
+  - on new, conflicted and staging rows;
+  - not on deleted rows, nor without `gittree.canRevealInOS`, nor on list, repository or conflicts rows;
+  - hidden from the Palette;
+  - the three keys, their `when`, and no `focusedView`.
+- **Unit** `commitTree.test.ts`: `goneFromDisk` codes; `fileDeleted` from the clicked row only; `folderDeleted` from the folder's own files; `revealRequestOf` for files, folders, list and repository rows in both groupings.
+- **Playwright** `commit.spec.ts`:
+  - the flags on deleted rows;
+  - the tree's focus reports;
+  - the ask's round trip for a file, a folder and the arrows' row, and nothing for a list row, from the Shelf tab, or after focus left with no key;
+  - a key just before the ask still counts;
+  - with a Windows user agent, Shift+Alt+R answered in the tree once, and not from the message box;
+  - with a Linux one, left to VS Code.
+- **Also found:** since `1e61472` file rows no longer repeat their folder, but the older tests in `commit.spec.ts` still find them as `'guide.md, docs'` and the like, so they cannot match. The new tests use the current names.
+- **Integration** `phase01.test.ts`: a file row in a selection of two, a folder row, a file gone since the tree was drawn, a path out of the repository.
+
+Gates: typecheck + lint clean; extension and webviews built. No suite run.

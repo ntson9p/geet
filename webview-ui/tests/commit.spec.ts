@@ -1490,3 +1490,202 @@ test.describe('Refresh shows it is working', () => {
     await expect(refresh).not.toHaveAttribute('aria-busy', 'true');
   });
 });
+
+/**
+ * POST-P14bq: Reveal in File Explorer (Reveal in Finder, Open Containing
+ * Folder). The item itself is VS Code's native menu, so here: what a row tells
+ * that menu, and the round trip VS Code's reveal key makes through the webview.
+ */
+test.describe('POST-P14bq reveal in the file manager', () => {
+  const REPO = 'D:/repos/demo-git';
+
+  const postEvent = (page: Page, method: string, params: unknown) =>
+    page.evaluate(
+      ({ method, params }) => window.postMessage({ v: 1, id: `evt-${method}`, kind: 'evt', method, params }, '*'),
+      { method, params },
+    );
+
+  const ctxOf = async (page: Page, name: string): Promise<Record<string, unknown>> =>
+    JSON.parse((await row(page, name).getAttribute('data-vscode-context')) ?? '{}') as Record<string, unknown>;
+
+  const reveals = async (page: Page): Promise<unknown[]> =>
+    (await posted(page)).filter((m) => m.method === 'commit/reveal').map((m) => m.params);
+
+  test("a deleted file, and a folder of deleted files, tell the row's menu", async ({ page }) => {
+    await openCommit(page);
+    await postEvent(page, 'commit/state', {
+      repos: [
+        {
+          root: REPO,
+          label: 'demo-git',
+          groups: [
+            {
+              id: 'default',
+              name: 'Changes',
+              isActive: true,
+              isDefault: true,
+              checkable: true,
+              changes: [
+                { path: 'old/x.ts', code: '.D', kind: 'deleted', checked: true },
+                { path: 'old/y.ts', code: 'D.', kind: 'deleted', checked: true },
+                { path: 'live/gone.ts', code: '.D', kind: 'deleted', checked: true },
+                { path: 'live/kept.ts', code: '.M', kind: 'modified', checked: true },
+              ],
+            },
+          ],
+        },
+      ],
+      targets: [],
+      message: '',
+      amend: false,
+      signing: false,
+      busy: false,
+      modifiedCount: 4,
+      checkedCount: 4,
+      paradigm: 'changelists',
+    });
+    await expect(row(page, 'old, 2 files')).toBeVisible();
+    // The menu leaves Reveal out on these: there is nothing on disk to select.
+    expect((await ctxOf(page, 'gone.ts'))['fileDeleted']).toBe(true);
+    expect((await ctxOf(page, 'old, 2 files'))['folderDeleted']).toBe(true);
+    // One file left keeps the folder, and a present file is no deletion.
+    expect((await ctxOf(page, 'live, 2 files'))['folderDeleted']).toBeUndefined();
+    expect((await ctxOf(page, 'kept.ts'))['fileDeleted']).toBeUndefined();
+  });
+
+  test("a present file's row carries no deletion flag", async ({ page }) => {
+    await openCommit(page);
+    const ctx = await ctxOf(page, 'guide.md');
+    expect(ctx['webviewSection']).toBe('commitFile');
+    expect(ctx['fileDeleted']).toBeUndefined();
+    expect((await ctxOf(page, 'api, 2 files'))['folderDeleted']).toBeUndefined();
+  });
+
+  test("the reveal key shows the keyboard's row: a file, then a folder", async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md').click();
+    await postEvent(page, 'commit/revealRow', {});
+    await expect.poll(() => reveals(page)).toEqual([{ repoRoot: REPO, relPath: 'docs/guide.md' }]);
+
+    await row(page, 'api, 2 files').click();
+    await postEvent(page, 'commit/revealRow', {});
+    await expect
+      .poll(() => reveals(page))
+      .toEqual([
+        { repoRoot: REPO, relPath: 'docs/guide.md' },
+        { repoRoot: REPO, folder: 'src/main/java/api' },
+      ]);
+    // Answered without an error banner: the host knows the request.
+    await expect(page.getByTestId('commit-error')).toHaveCount(0);
+  });
+
+  test('the keyboard row is what counts, as for Enter: the arrows move it without selecting', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'ArticleDataController.java').click();
+    await page.keyboard.press('ArrowDown');
+    await expect(row(page, 'CommentController.java')).toHaveClass(/gt-focused/);
+    await postEvent(page, 'commit/revealRow', {});
+    await expect
+      .poll(() => reveals(page))
+      .toEqual([{ repoRoot: REPO, relPath: 'src/main/java/api/CommentController.java' }]);
+  });
+
+  test('the reveal key shows nothing for a changelist row', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'Changes, 4 files').click();
+    await postEvent(page, 'commit/revealRow', {});
+    await page.waitForTimeout(150);
+    expect(await reveals(page)).toEqual([]);
+  });
+
+  test('a late word from the host shows nothing once the tree has lost the keyboard', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md').click();
+    await page.getByTestId('commit-message').click();
+    await postEvent(page, 'commit/revealRow', {});
+    await page.waitForTimeout(150);
+    expect(await reveals(page)).toEqual([]);
+  });
+
+  test('the tree says when it has the keyboard, which the reveal key is bound to', async ({ page }) => {
+    await openCommit(page);
+    const focusReports = async (): Promise<unknown[]> =>
+      (await posted(page)).filter((m) => m.method === 'commit/treeFocus').map((m) => m.params);
+    await row(page, 'guide.md').click();
+    await expect.poll(focusReports).toEqual([{ focused: true }]);
+    // Moving between rows is still the tree: nothing more to say.
+    await page.keyboard.press('ArrowUp');
+    await row(page, '2.txt').click();
+    await page.getByTestId('commit-message').click();
+    await expect.poll(focusReports).toEqual([{ focused: true }, { focused: false }]);
+    await row(page, '2.txt').click();
+    await page.getByRole('tab', { name: 'Shelf' }).click();
+    await expect.poll(focusReports).toEqual([{ focused: true }, { focused: false }, { focused: true }, { focused: false }]);
+    // A focus change is no intent: it never raises the failure banner.
+    await expect(page.getByTestId('commit-error')).toHaveCount(0);
+  });
+
+  test('the reveal key shows nothing from the Shelf tab, where the tree is not on screen', async ({ page }) => {
+    await openCommit(page);
+    await row(page, 'guide.md').click();
+    await page.getByRole('tab', { name: 'Shelf' }).click();
+    await postEvent(page, 'commit/revealRow', {});
+    await page.waitForTimeout(150);
+    expect(await reveals(page)).toEqual([]);
+  });
+
+  test("a key pressed in the tree just before the host's ask still counts, though focus moved on", async ({
+    page,
+  }) => {
+    // In VS Code, Alt can hand focus to the menu bar between the key and the ask.
+    await openCommit(page);
+    await row(page, 'guide.md').click();
+    await page.keyboard.press('Shift');
+    await page.getByTestId('commit-message').click();
+    await postEvent(page, 'commit/revealRow', {});
+    await expect.poll(() => reveals(page)).toEqual([{ repoRoot: REPO, relPath: 'docs/guide.md' }]);
+  });
+
+  test.describe('on Windows', () => {
+    test.use({
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.144.0 Chrome/138.0.0.0 Electron/37.0.0 Safari/537.36',
+    });
+
+    test('Shift+Alt+R in the tree shows the keyboard’s row itself, once', async ({ page }) => {
+      // Passed on to VS Code, Alt+R would also open its Run menu.
+      await openCommit(page);
+      await row(page, 'guide.md').click();
+      await page.keyboard.press('Shift+Alt+R');
+      await expect.poll(() => reveals(page)).toEqual([{ repoRoot: REPO, relPath: 'docs/guide.md' }]);
+      await page.waitForTimeout(150);
+      expect(await reveals(page)).toHaveLength(1);
+      // The row keeps the keyboard.
+      await expect(row(page, 'guide.md')).toBeFocused();
+    });
+
+    test('Shift+Alt+R in the message box is not the tree’s', async ({ page }) => {
+      await openCommit(page);
+      await row(page, 'guide.md').click();
+      await page.getByTestId('commit-message').click();
+      await page.keyboard.press('Shift+Alt+R');
+      await page.waitForTimeout(150);
+      expect(await reveals(page)).toEqual([]);
+    });
+  });
+
+  test.describe('on macOS and Linux', () => {
+    test.use({
+      userAgent:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.144.0 Chrome/138.0.0.0 Electron/37.0.0 Safari/537.36',
+    });
+
+    test("Shift+Alt+R in the tree is left to VS Code, whose key there is another", async ({ page }) => {
+      await openCommit(page);
+      await row(page, 'guide.md').click();
+      await page.keyboard.press('Shift+Alt+R');
+      await page.waitForTimeout(150);
+      expect(await reveals(page)).toEqual([]);
+    });
+  });
+});
