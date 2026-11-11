@@ -21,6 +21,7 @@ import {
   type CommitOptionsDto,
 } from '../../../src/shared/protocol';
 import type { RpcClient } from '../lib/rpc';
+import { useDismiss } from '../lib/useDismiss';
 
 export interface OptionsPopupProps {
   rpc: RpcClient;
@@ -52,14 +53,16 @@ export function OptionsPopup({ rpc, repoRoot, onClose }: OptionsPopupProps) {
     };
   }, [repoRoot, rpc]);
 
+  // Once, when it opens, and only while the webview has focus. (Re-run whenever
+  // `onClose` changed, which is every render of the window, it took the
+  // keyboard from the Author field each time the window was redrawn.)
   useEffect(() => {
-    hostRef.current?.focus();
-    const onDown = (e: MouseEvent): void => {
-      if (!hostRef.current?.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', onDown, true);
-    return () => document.removeEventListener('mousedown', onDown, true);
-  }, [onClose]);
+    if (document.hasFocus()) hostRef.current?.focus();
+  }, []);
+
+  // A click elsewhere in this webview or anywhere in VS Code, or the webview
+  // losing focus, closes it as VS Code's own popups close (`useDismiss`).
+  useDismiss([hostRef], onClose);
 
   /** Optimistic apply; a host rejection reverts and shows why. */
   const apply = useCallback(

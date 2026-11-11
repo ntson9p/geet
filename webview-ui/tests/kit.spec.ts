@@ -166,6 +166,48 @@ test.describe('P11-T1 menu', () => {
     await expect(page.getByRole('menu', { name: 'Branch actions' })).toHaveCount(0);
     await expect(page.getByTestId('menu-picked')).toHaveText('');
   });
+
+  /**
+   * A click anywhere else in VS Code never reaches the webview's document, so
+   * a menu stayed open after it. What the webview sees is its window's blur,
+   * which every such click caused in VS Code 1.144; VS Code's own menus close
+   * on it too.
+   */
+  test("the webview losing focus closes a menu and its submenu, as VS Code's own menus close", async ({ page }) => {
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    await page.getByRole('menu', { name: 'Branch actions' }).getByRole('menuitem', { name: 'Compare' }).hover();
+    await expect(page.getByRole('menu', { name: 'Compare' })).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.getByRole('menu', { name: 'Branch actions' })).toHaveCount(0);
+    await expect(page.getByRole('menu', { name: 'Compare' })).toHaveCount(0);
+    await expect(page.getByTestId('menu-picked')).toHaveText('');
+  });
+
+  test('a menu opened once its webview has lost focus closes at once, and takes no focus', async ({ page }) => {
+    // Its items were on their way while the user clicked elsewhere in VS Code:
+    // taking the keyboard would take it from wherever they clicked.
+    await openKit(page, 'Menu');
+    await page.evaluate(() => {
+      document.hasFocus = () => false;
+    });
+    await page.getByTestId('open-menu').click();
+    await expect(page.getByRole('menu', { name: 'Branch actions' })).toHaveCount(0);
+    await expect(page.getByTestId('open-menu')).toBeFocused();
+  });
+
+  test('a menu reopened after a blur still works as before', async ({ page }) => {
+    await openKit(page, 'Menu');
+    await page.getByTestId('open-menu').click();
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.getByRole('menu', { name: 'Branch actions' })).toHaveCount(0);
+    await page.getByTestId('open-menu').click();
+    const menu = page.getByRole('menu', { name: 'Branch actions' });
+    await expect(menu).toBeFocused();
+    await menu.getByRole('menuitem', { name: 'Compare' }).click();
+    await page.getByRole('menu', { name: 'Compare' }).getByRole('menuitem', { name: 'Show Diff with Working Tree' }).click();
+    await expect(page.getByTestId('menu-picked')).toHaveText('diff-working');
+  });
 });
 
 /**

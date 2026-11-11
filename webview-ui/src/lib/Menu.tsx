@@ -14,6 +14,9 @@
  * in `…` (new-way-6). A branch's menu across twenty repositories ran off the
  * foot of the sidebar, its last rows out of the pointer's reach. The arrows
  * bring the row they reach into view; a submenu whose row scrolls away closes.
+ *
+ * It closes as VS Code's own menus do: on a click outside it, in its webview or
+ * anywhere else in VS Code, or when its webview loses focus (`useDismiss`).
  */
 import {
   useCallback,
@@ -23,6 +26,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { useDismiss } from './useDismiss';
 
 export type MenuItem =
   | {
@@ -67,7 +71,7 @@ export interface MenuProps {
   ariaLabel: string;
   /** The item the keyboard starts on, such as the choice that holds; the first enabled one otherwise. */
   activeId?: string;
-  /** Internal: submenus skip the outside-click and focus-restore handling. */
+  /** Internal: submenus skip the dismissal (`useDismiss`) and focus-restore handling. */
   nested?: boolean;
 }
 
@@ -96,11 +100,14 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
   const reveal = useRef(true);
 
   // Focus restoration is the top-level menu's job; a submenu returns focus to
-  // its parent menu simply by unmounting.
+  // its parent menu simply by unmounting. Not once focus has gone elsewhere in
+  // VS Code: taking it back would undo the click that closed the menu.
   useEffect(() => {
     if (nested === true) return undefined;
     restoreRef.current = document.activeElement as HTMLElement | null;
-    return () => restoreRef.current?.focus?.();
+    return () => {
+      if (document.hasFocus()) restoreRef.current?.focus?.();
+    };
   }, [nested]);
 
   useLayoutEffect(() => {
@@ -129,21 +136,16 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
   }, [active, items]);
 
   useEffect(() => {
-    hostRef.current?.focus();
+    // Only while the webview has focus: taking it from an unfocused webview
+    // could take it from the editor the user has just clicked.
+    if (document.hasFocus()) hostRef.current?.focus();
   }, []);
 
-  useEffect(() => {
-    if (nested === true) return undefined;
-    const onDown = (e: MouseEvent): void => {
-      // A press in a submenu is a press in the menu. Missing that, the menu
-      // closed under the press, and a click never picked a submenu's item.
-      const target = e.target as Node;
-      if (!hostRef.current?.contains(target) && !subRef.current?.contains(target)) onClose();
-    };
-    // `capture` so a click on a row underneath cannot act before we dismiss.
-    document.addEventListener('mousedown', onDown, true);
-    return () => document.removeEventListener('mousedown', onDown, true);
-  }, [nested, onClose]);
+  // A click elsewhere in this webview or anywhere in VS Code, or the webview
+  // losing focus, closes the menu and its submenu (`useDismiss`). A press in a
+  // submenu is a press in the menu: missing that, the menu closed under the
+  // press, and a click never picked a submenu's item.
+  useDismiss([hostRef, subRef], onClose, nested !== true);
 
   const step = useCallback(
     (delta: number): void => {

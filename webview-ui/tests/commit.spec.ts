@@ -655,6 +655,38 @@ test.describe('P11-T5 commit options gear popup', () => {
     return (await posted(page)).filter((m) => m.method === 'commit/setOption');
   }
 
+  test('closes when its webview loses focus, as after a click elsewhere in VS Code', async ({ page }) => {
+    // Such a click never reaches the webview's document; its window's blur does.
+    await openOptions(page);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.getByTestId('commit-options-popup')).toHaveCount(0);
+  });
+
+  test('leaves the keyboard in the Author field when the window is redrawn', async ({ page }) => {
+    // It took the keyboard back on every redraw of the window, mid-word.
+    await openOptions(page);
+    const input = page.getByTestId('opt-author');
+    await input.click();
+    await input.pressSequentially('Ada');
+    // Any change of the window's state redraws it: here, a diff coming on screen.
+    await page.evaluate(() =>
+      window.postMessage(
+        {
+          v: 1,
+          id: 'evt-redraw',
+          kind: 'evt',
+          method: 'commit/diffOnScreen',
+          params: { file: { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' } },
+        },
+        '*',
+      ),
+    );
+    await page.waitForTimeout(100);
+    await expect(input).toBeFocused();
+    await input.pressSequentially(' L');
+    await expect(input).toHaveValue('Ada L');
+  });
+
   test('opens with the three sections; omitted rows are omitted, not inert', async ({ page }) => {
     await openOptions(page);
     const popup = page.getByTestId('commit-options-popup');

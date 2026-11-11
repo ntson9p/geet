@@ -953,6 +953,20 @@ test.describe('P4-T3/T4 log webview', () => {
       .toBe(true);
   });
 
+  test('a filter panel closes when its webview loses focus, as after a click elsewhere in VS Code', async ({
+    page,
+  }) => {
+    // Such a click never reaches the webview's document; its window's blur does.
+    await openLog(page);
+    await page.getByTestId('filter-user').click();
+    await expect(page.getByTestId('filter-user-panel')).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.getByTestId('filter-user-panel')).toHaveCount(0);
+    // The chip opens it again as before.
+    await page.getByTestId('filter-user').click();
+    await expect(page.getByTestId('filter-user-panel')).toBeVisible();
+  });
+
   test('P12-T5: Date ▾ presets and Paths ▾ multi-entry compose the filter', async ({ page }) => {
     await openLog(page);
     await page.getByTestId('filter-date').click();

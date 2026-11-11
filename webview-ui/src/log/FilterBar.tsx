@@ -23,6 +23,7 @@ import type {
 } from '../../../src/shared/protocol';
 import { Menu, type MenuItem } from '../lib/Menu';
 import { ToolbarButton } from '../lib/Toolbar';
+import { useDismiss } from '../lib/useDismiss';
 import {
   branchChip,
   dateChip,
@@ -60,14 +61,10 @@ function Dropdown({ label, text, compact, onClear, testid, canClear, children }:
   const hostRef = useRef<HTMLSpanElement | null>(null);
   const { value, full } = text;
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (e: MouseEvent): void => {
-      if (!hostRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown, true);
-    return () => document.removeEventListener('mousedown', onDown, true);
-  }, [open]);
+  // A click elsewhere in this webview or anywhere in VS Code, or the webview
+  // losing focus, closes the panel as VS Code's own popups close
+  // (`useDismiss`). The chip is inside `hostRef`: its own click toggles.
+  useDismiss([hostRef], () => setOpen(false), open);
 
   return (
     <span className="gt-filter-anchor" ref={hostRef}>

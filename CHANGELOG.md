@@ -6,6 +6,23 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — GitTree's own menus and popups close when you click elsewhere
+
+- **A menu or popup GitTree draws itself now closes when you click anywhere outside it,
+  elsewhere in VS Code included.** Until now it closed only for a click inside its own panel and
+  stayed open after a click in the editor, a tab, the status bar, a toolbar or another view. This
+  covers:
+  - the Repositories panel's branch, repository and `⋯` menus;
+  - the Commit window's message history, Amend ▾ and View Options menus, and its options popup;
+  - the Log's filter panels, Graph Options and Presentation menus, its tab menu and its Branches
+    pane's menu;
+  - the menus in GitTree's dialogs.
+- They also close when you switch to another application, as VS Code's own menus do. The click
+  still does what it was for: a click in the editor puts the cursor there, and the keyboard stays
+  where you clicked. A `<select>`'s list or a date picker inside a popup keeps it open.
+- The Commit window's options popup no longer takes the keyboard back from its Author field
+  whenever the window redraws.
+
 ### Added — Reveal in File Explorer from the Commit window
 
 - **Right-click a file in any changelist → Reveal in File Explorer** (*Reveal in Finder* on

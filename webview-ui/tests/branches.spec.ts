@@ -132,6 +132,17 @@ test.describe('several repositories', () => {
     );
   });
 
+  test("More Actions' menu closes when the webview loses focus, as after a click elsewhere in VS Code", async ({
+    page,
+  }) => {
+    // Such a click never reaches the webview's document; its window's blur does.
+    await openPanel(page);
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
+    await expect(page.locator('.gt-menu')).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.locator('.gt-menu')).toHaveCount(0);
+  });
+
   test("a row's hover buttons come before its counts, dots and age, so none of them moves", async ({ page }) => {
     await openPanel(page, { dots: true });
     await showTab(page, 'Local');

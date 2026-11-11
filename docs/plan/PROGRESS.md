@@ -1437,3 +1437,33 @@ Testing (written, **not run**):
 - **Integration** `phase01.test.ts`: a file row in a selection of two, a folder row, a file gone since the tree was drawn, a path out of the repository.
 
 Gates: typecheck + lint clean; extension and webviews built. No suite run.
+
+POST-P14br ✅ 2026-11-12 (branch `new-way-6`): **GitTree's own menus and popups close on a click elsewhere in VS Code.** The owner found that a GitTree context menu stays open after a click outside GitTree's area, for every menu.
+
+Root cause:
+- **Which menus.** GitTree has two kinds. VS Code's native menus (`webview/context`: the Commit, Log, Shelf and Stash rows) are drawn in VS Code's own document. They lay an invisible full-window `context-view-block` under themselves and also close on their window's `blur` (`contextMenuHandler.ts`).
+- **GitTree's own popups** are drawn inside their webview's iframe: `Menu.tsx` (every in-webview menu), the Commit window's `OptionsPopup` and the Log's filter `Dropdown`. They closed only on `document.addEventListener('mousedown', …, true)`, so on a press inside the same webview. A click anywhere else is delivered to VS Code's document or to another iframe, never to this one, so they stayed open.
+- **Matrix in the real window** (VS Code 1.144, Playwright over CDP, real mouse input), for the Repositories `⋯` menu, the Commit options popup and the Log's User filter panel. Targets: editor text, an editor tab, the status bar's empty part, a view toolbar button, another GitTree webview. Every one stayed open on every target. A Commit row's native menu closed on every target.
+- **The signal that is left:** in every case the popup's webview had lost focus (`document.hasFocus()` false). That includes the toolbar button, whose mousedown VS Code keeps from moving focus within its own document.
+
+Fix: `webview-ui/src/lib/useDismiss.ts`, VS Code's own rule (a mousedown outside, or the window's `blur`), used by `Menu` (top level; a submenu counts as inside), `OptionsPopup` and the filter `Dropdown` (the chip counts as inside, so it still toggles).
+- **A popup that mounts after its webview lost focus** (a click elsewhere while the Repositories panel's items were on their way) closes at once.
+- **No focus stealing.** A menu takes focus on opening only while its webview has it. On closing it gives focus back to its opener only while the webview still has it. Taking it from an unfocused webview could take it from the editor the user had just clicked.
+- **Side fix:** `OptionsPopup`'s focus effect depended on `onClose`, a new arrow on every render of the window. So every redraw (a state push) took the keyboard from the Author field. It now focuses once, on opening.
+
+Verified in the real window after the fix:
+- all three popups closed on all five targets;
+- VS Code's focus stayed on what was clicked (the editor's `native-edit-context`, the status bar, the toolbar, the other webview's iframe);
+- the options popup stayed open while its `<select>` list was open and after it closed, and through Ctrl+A/C/V/Z and Ctrl+Shift+Z in the Author field (VS Code handles those keys for a webview);
+- the Date panel stayed open through its date picker (neither picker blurs the webview), and its chip still toggles it;
+- Escape still closes a menu and gives the keyboard back to `More Actions`.
+
+Testing (written, **not run**), Playwright with the mock hosts (Vitest has no DOM here, so webview components are tested this way):
+- `kit.spec.ts`: a window blur closes a menu and its open submenu without picking; a menu opened once the webview has lost focus closes at once and leaves the keyboard on its opener; a menu reopened after a blur takes the keyboard and picks a submenu item as before.
+- `commit.spec.ts`: the options popup closes on blur; a redraw leaves the keyboard in the Author field.
+- `log.spec.ts`: a filter panel closes on blur, and its chip opens it again.
+- `branches.spec.ts`: `More Actions`' menu closes on blur.
+
+Not changed: clicking the Commit window's gear while its options popup is open closes the popup on the press and opens it again on the click (seen in the real window). VS Code's own `…` toggles shut. The Repositories `⋯` menu covers its own button, and a filter chip counts as inside its panel, so neither does this.
+
+Gates: webview typecheck + lint clean; webviews built. No suite run.
