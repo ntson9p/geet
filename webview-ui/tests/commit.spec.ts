@@ -38,7 +38,7 @@ test.describe('P11-T2 commit window layout', () => {
     await expect(row(page, 'src/main/java, 3 files')).toBeVisible();
     await expect(row(page, 'api, 2 files')).toBeVisible();
     await expect(row(page, 'Unversioned Files, 1 file')).toBeVisible();
-    await expect(row(page, 'ArticleDataController.java, src/main/java/api')).toBeVisible();
+    await expect(row(page, 'ArticleDataController.java')).toBeVisible();
   });
 
   test('P14-T2: group and file rows carry the native context-menu identity', async ({ page }) => {
@@ -68,7 +68,7 @@ test.describe('P11-T2 commit window layout', () => {
     expect(unversioned['listIsUnversioned']).toBe(true);
     expect(group['listIsUnversioned']).toBe(false);
 
-    const file = await ctxOf('ArticleDataController.java, src/main/java/api');
+    const file = await ctxOf('ArticleDataController.java');
     expect(file['webviewSection']).toBe('commitFile');
     expect(file['repoRoot']).toBe('D:/repos/demo-git');
     expect(file['relPath']).toBe('src/main/java/api/ArticleDataController.java');
@@ -110,7 +110,7 @@ test.describe('P11-T2 commit window layout', () => {
     expect((await ctxOf('util, 1 file'))['relPaths']).toEqual(['src/main/java/util/Strings.java']);
     // Inside a multi-selection it carries the whole selection, as a file row does.
     await row(page, 'api, 2 files').click();
-    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await row(page, 'guide.md').click({ modifiers: ['Control'] });
     expect((await ctxOf('api, 2 files'))['relPaths']).toEqual([
       'docs/guide.md',
       'src/main/java/api/ArticleDataController.java',
@@ -125,8 +125,8 @@ test.describe('P11-T2 commit window layout', () => {
         string,
         unknown
       >;
-    const first = 'ArticleDataController.java, src/main/java/api';
-    const second = 'CommentController.java, src/main/java/api';
+    const first = 'ArticleDataController.java';
+    const second = 'CommentController.java';
 
     await row(page, first).click();
     await row(page, second).click({ modifiers: ['Control'] });
@@ -142,9 +142,9 @@ test.describe('P11-T2 commit window layout', () => {
 
     // A right-click outside the selection acts on the row under the cursor
     // only — and moves the selection there, as IntelliJ's tree does.
-    await row(page, 'guide.md, docs').click({ button: 'right' });
-    expect((await ctxOf('guide.md, docs'))['relPaths']).toEqual(['docs/guide.md']);
-    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'true');
+    await row(page, 'guide.md').click({ button: 'right' });
+    expect((await ctxOf('guide.md'))['relPaths']).toEqual(['docs/guide.md']);
+    await expect(row(page, 'guide.md')).toHaveAttribute('aria-selected', 'true');
     await expect(row(page, first)).toHaveAttribute('aria-selected', 'false');
 
     // The unversioned row is the one that may offer Add to VCS.
@@ -183,7 +183,7 @@ test.describe('P11-T2 inclusion round trip', () => {
     // 3 of 4 ticked in Changes, and only 2 of 2 inside api/.
     await expect(row(page, 'Changes, 4 files')).toHaveAttribute('aria-checked', 'mixed');
     await expect(row(page, 'api, 2 files')).toHaveAttribute('aria-checked', 'true');
-    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-checked', 'false');
+    await expect(row(page, 'guide.md')).toHaveAttribute('aria-checked', 'false');
   });
 
   test('ticking a folder posts repo-relative paths and the host state comes back', async ({ page }) => {
@@ -230,7 +230,7 @@ test.describe('P11-T2 inclusion round trip', () => {
 
   test('intents are posted as requests, which is what the host answers', async ({ page }) => {
     await openCommit(page);
-    await row(page, 'guide.md, docs').locator('.gt-tree-check').click();
+    await row(page, 'guide.md').locator('.gt-tree-check').click();
     await expect
       .poll(async () => (await posted(page)).filter((m) => m.method === 'commit/setChecked').length)
       .toBeGreaterThan(0);
@@ -295,7 +295,7 @@ test.describe('P11-T2 commit actions', () => {
     await expect(page.getByRole('button', { name: 'Rollback' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Show Diff' })).toBeDisabled();
 
-    await row(page, 'guide.md, docs').click();
+    await row(page, 'guide.md').click();
     await expect(page.getByRole('button', { name: 'Show Diff' })).toBeEnabled();
     await page.getByRole('button', { name: 'Show Diff' }).click();
     const msg = (await posted(page)).find((m) => m.method === 'commit/openDiff');
@@ -317,7 +317,7 @@ test.describe('P11-T2 commit actions', () => {
   test('with several files selected, Show Diff walks only those', async ({ page }) => {
     await openCommit(page);
     await row(page, '2.txt').click();
-    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await row(page, 'guide.md').click({ modifiers: ['Control'] });
     await page.getByRole('button', { name: 'Show Diff' }).click();
     await expect
       .poll(async () => {
@@ -355,31 +355,31 @@ test.describe('P11-T2 commit actions', () => {
 
   test('the row follows a diff that moved on, without opening it again', async ({ page }) => {
     await openCommit(page);
-    await row(page, 'guide.md, docs').dblclick();
+    await row(page, 'guide.md').dblclick();
     const opens = (await posted(page)).filter((m) => m.method === 'commit/openDiff').length;
 
     await postEvent(page, 'commit/diffFile', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
     await expect(row(page, '2.txt')).toHaveAttribute('aria-selected', 'true');
-    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'false');
+    await expect(row(page, 'guide.md')).toHaveAttribute('aria-selected', 'false');
     expect((await posted(page)).filter((m) => m.method === 'commit/openDiff').length).toBe(opens);
   });
 
   test('a walk over several selected rows leaves them selected', async ({ page }) => {
     await openCommit(page);
     await row(page, '2.txt').click();
-    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await row(page, 'guide.md').click({ modifiers: ['Control'] });
     await postEvent(page, 'commit/diffFile', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
     await page.waitForTimeout(100);
     await expect(row(page, '2.txt')).toHaveAttribute('aria-selected', 'true');
-    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, 'guide.md')).toHaveAttribute('aria-selected', 'true');
   });
 
   test("a walk takes the keyboard's row along", async ({ page }) => {
     await openCommit(page);
-    await row(page, 'guide.md, docs').dblclick();
+    await row(page, 'guide.md').dblclick();
     await postEvent(page, 'commit/diffFile', { repoRoot: 'D:/repos/demo-git', path: '2.txt' });
     await expect(row(page, '2.txt')).toHaveClass(/gt-focused/);
-    await expect(row(page, 'guide.md, docs')).not.toHaveClass(/gt-focused/);
+    await expect(row(page, 'guide.md')).not.toHaveClass(/gt-focused/);
   });
 
   test('the file a diff is showing is highlighted, and only while it is', async ({ page }) => {
@@ -396,7 +396,7 @@ test.describe('P11-T2 commit actions', () => {
     await expect(marked).toHaveCount(0);
 
     await postEvent(page, 'commit/diffOnScreen', { file: { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' } });
-    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-current', 'true');
+    await expect(row(page, 'guide.md')).toHaveAttribute('aria-current', 'true');
     await postEvent(page, 'commit/diffOnScreen', {});
     await expect(marked).toHaveCount(0);
   });
@@ -430,13 +430,13 @@ test.describe('P11-T2 commit actions', () => {
       paradigm: 'changelists',
       diffOnScreen: { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' },
     });
-    await expect(row(page, 'guide.md, docs')).toHaveAttribute('aria-current', 'true');
+    await expect(row(page, 'guide.md')).toHaveAttribute('aria-current', 'true');
   });
 
   test('Enter on the row the arrows reached selects it as the diff opens it', async ({ page }) => {
     await openCommit(page);
-    const first = row(page, 'ArticleDataController.java, src/main/java/api');
-    const next = row(page, 'CommentController.java, src/main/java/api');
+    const first = row(page, 'ArticleDataController.java');
+    const next = row(page, 'CommentController.java');
     await first.click();
     await page.keyboard.press('ArrowDown');
     await expect(next).toHaveClass(/gt-focused/);
@@ -497,7 +497,7 @@ test.describe('P11-T2 commit actions', () => {
 
   test('a walk over the whole list hears when the list changes', async ({ page }) => {
     await openCommit(page);
-    await row(page, 'guide.md, docs').dblclick();
+    await row(page, 'guide.md').dblclick();
     await listShrinks(page);
     await expect.poll(async () => (await chains(page)).at(-1)?.params).toEqual({
       files: [{ repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' }],
@@ -514,7 +514,7 @@ test.describe('P11-T2 commit actions', () => {
   test('a walk over a selection stays what was selected', async ({ page }) => {
     await openCommit(page);
     await row(page, '2.txt').click();
-    await row(page, 'guide.md, docs').click({ modifiers: ['Control'] });
+    await row(page, 'guide.md').click({ modifiers: ['Control'] });
     await page.getByRole('button', { name: 'Show Diff' }).click();
     await listShrinks(page);
     await expect(page.getByRole('treeitem', { name: 'Changes, 1 file' })).toBeVisible();
@@ -830,7 +830,7 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
   test('a gittree.colors override colors icon and name; theme rows keep their variable', async ({ page }) => {
     await openCommit(page);
     // The mock ships { modified: '#ff8800' } — the override must win…
-    await expect(row(page, 'guide.md, docs').locator('.gt-tree-name')).toHaveCSS(
+    await expect(row(page, 'guide.md').locator('.gt-tree-name')).toHaveCSS(
       'color',
       'rgb(255, 136, 0)',
     );
@@ -1101,7 +1101,7 @@ test.describe('View Options › Group By (D37)', () => {
 
   test('a switch keeps the same file selected, and the keyboard on it', async ({ page }) => {
     await openGrouped(page);
-    const strings = row(page, 'Strings.java, src/main/java/util');
+    const strings = row(page, 'Strings.java');
     await strings.click();
     await pick(page, 'Repository › Changelist');
     await expect(row(page, GIT)).toBeVisible();
@@ -1129,7 +1129,7 @@ test.describe('View Options › Group By (D37)', () => {
     await list.evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
-    const notes = row(page, 'notes.txt, lib');
+    const notes = row(page, 'notes.txt');
     await notes.click();
     const offset = () =>
       notes.evaluate((el) => {
@@ -1187,7 +1187,7 @@ test.describe('View Options › Group By (D37)', () => {
 test.describe('the keyboard row follows its row', () => {
   test('a folder folding above it leaves the keyboard where it was', async ({ page }) => {
     await openCommit(page);
-    const strings = row(page, 'Strings.java, src/main/java/util');
+    const strings = row(page, 'Strings.java');
     await strings.click();
     await expect(strings).toHaveAttribute('tabindex', '0');
     await row(page, 'api, 2 files').locator('.gt-twistie').click();
@@ -1197,7 +1197,7 @@ test.describe('the keyboard row follows its row', () => {
 
   test('folded away, its folder takes the keyboard', async ({ page }) => {
     await openCommit(page);
-    await row(page, 'Strings.java, src/main/java/util').click();
+    await row(page, 'Strings.java').click();
     await row(page, 'util, 1 file').locator('.gt-twistie').click();
     await expect(row(page, 'util, 1 file')).toHaveAttribute('tabindex', '0');
   });
@@ -1310,7 +1310,7 @@ test.describe('P11-T6 shelf tab', () => {
 });
 
 test.describe('P11-T3 per-change inclusion', () => {
-  const DIFF_ROW = 'Strings.java, src/main/java/util';
+  const DIFF_ROW = 'Strings.java';
 
   async function openPreview(page: Page): Promise<void> {
     await openCommit(page);
@@ -1378,7 +1378,7 @@ test.describe('P11-T3 per-change inclusion', () => {
 
   test('a file with no per-change granularity says so instead of faking it', async ({ page }) => {
     await openPreview(page);
-    await row(page, 'guide.md, docs').click();
+    await row(page, 'guide.md').click();
     await expect(page.getByTestId('preview-whole-file')).toContainText('docs/guide.md');
     await expect(page.getByTestId('diff-counter')).toHaveCount(0);
   });
