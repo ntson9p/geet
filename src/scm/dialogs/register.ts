@@ -316,6 +316,18 @@ export function registerPhase13Dialogs(
     });
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.push.dialog', async (arg?: unknown) => {
+      // POST-P14by: a list, the Repositories panel's `⋯` with some repositories
+      // in view: every repository listed still, as IntelliJ's dialog lists them,
+      // and those checked.
+      const several = namedRepos(core, arg);
+      if (several !== undefined) {
+        if (several.length === 0) {
+          showInfo(vscode.l10n.t('Nothing to push: those repositories are no longer open.'));
+          return;
+        }
+        await openPush({ repos: core.repos, preselected: several, current: several[0]! });
+        return;
+      }
       // IntelliJ's `Push…`: every repository listed; the one named — a
       // Repositories row — checked, else the one the user is in.
       const named = namedRepo(core, arg);

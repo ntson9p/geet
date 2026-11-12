@@ -41,7 +41,7 @@ import {
   trackingShort,
   trackingText,
   upstreamElsewhere,
-  viewUpdate,
+  viewActions,
   whereOf,
   type BranchEntry,
   type BranchTab,
@@ -554,34 +554,40 @@ describe('buildPanel: several repositories', () => {
     ]);
   });
 
-  it("the ⋯ menu's update follows what is in view (POST-P14bx)", () => {
+  it("the ⋯ menu's Update, Commit and Push follow what is in view (POST-P14bx, POST-P14by)", () => {
     const shared = repo('/shared', { head: 'main', locals: [ref('main', { current: true })] });
     const three = [api, shared, web];
     const scoped = (scope: readonly string[]) => buildPanel(state(three), ui({ scope })).scopeRepos;
 
-    // Every repository in view: the project, as Ctrl+T.
-    expect(viewUpdate(three, scoped([]))).toEqual({
-      label: 'Update Project…',
-      withoutFetchLabel: 'Update Project Without Fetching…',
+    // Every repository in view: the project's, as Ctrl+T, Ctrl+K and Ctrl+Shift+K are.
+    expect(viewActions(three, scoped([]))).toEqual({
       roots: [],
       project: true,
+      update: 'Update Project…',
+      updateWithoutFetch: 'Update Project Without Fetching…',
+      commit: 'Commit…',
+      push: 'Push…',
     });
-    // One picked: that one, under its own name (it was Update Project…).
-    expect(viewUpdate(three, scoped(['/web']))).toEqual({
-      label: 'Update Repository…',
-      withoutFetchLabel: 'Update Repository Without Fetching…',
+    // One picked: that one, and the words say so (it was the project's words).
+    expect(viewActions(three, scoped(['/web']))).toEqual({
       roots: ['/web'],
       project: false,
+      update: 'Update Repository…',
+      updateWithoutFetch: 'Update Repository Without Fetching…',
+      commit: 'Commit Repository…',
+      push: 'Push Repository…',
     });
-    // Two of three: those two, in the panel's order (it was every repository).
-    expect(viewUpdate(three, scoped(['/web', '/api']))).toEqual({
-      label: 'Update 2 Repositories…',
-      withoutFetchLabel: 'Update 2 Repositories Without Fetching…',
+    // Two of three: those two, in the panel's order (they were every repository).
+    expect(viewActions(three, scoped(['/web', '/api']))).toEqual({
       roots: ['/api', '/web'],
       project: false,
+      update: 'Update 2 Repositories…',
+      updateWithoutFetch: 'Update 2 Repositories Without Fetching…',
+      commit: 'Commit 2 Repositories…',
+      push: 'Push 2 Repositories…',
     });
     // The workspace's only repository is the project.
-    expect(viewUpdate([web], [web])).toMatchObject({ label: 'Update Project…', roots: [], project: true });
+    expect(viewActions([web], [web])).toMatchObject({ roots: [], project: true, commit: 'Commit…', push: 'Push…' });
   });
 
   it('a scope naming no open repository means every repository', () => {

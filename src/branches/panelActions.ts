@@ -16,6 +16,7 @@ import type { RefInfo } from '../core/model/refs';
 import { canonicalKey } from '../core/repoDiscovery';
 import type {
   BranchPanelButtonDto,
+  BranchPanelInViewVerb,
   BranchPanelMenuItemDto,
   BranchPanelRefKind,
   BranchPanelRunDto,
@@ -533,6 +534,18 @@ export const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   'gittree.conflicts.resolve',
 ]);
 
+/**
+ * What the `⋯` menu's actions run (POST-P14by). Each takes a list of roots for
+ * the repositories in view, and nothing for the project. A map, not an object:
+ * the verb comes from the webview, and `constructor` is no verb.
+ */
+export const IN_VIEW_COMMANDS: ReadonlyMap<string, string> = new Map<BranchPanelInViewVerb, string>([
+  ['update', 'gittree.update.dialog'],
+  ['updateWithoutFetch', 'gittree.update.withoutFetch'],
+  ['commit', 'gittree.commit'],
+  ['push', 'gittree.push.dialog'],
+]);
+
 export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): Promise<void> {
   switch (run.type) {
     case 'action': {
@@ -565,11 +578,13 @@ export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): P
       await vscode.commands.executeCommand(run.command, ...args);
       return;
     }
-    case 'update': {
-      // POST-P14bx: the `⋯` menu's update, of what is in view. No roots is the
-      // project; roots go as a list even when one, so a repository closed since
-      // is said to be gone rather than read as no repository, the project.
-      const command = run.fetch === false ? 'gittree.update.withoutFetch' : 'gittree.update.dialog';
+    case 'inView': {
+      // POST-P14bx, POST-P14by: the `⋯` menu's Update, Commit and Push, of what
+      // is in view. No roots is the project; roots go as a list even when one,
+      // so a repository closed since is said to be gone rather than read as no
+      // repository named, which is the project.
+      const command = IN_VIEW_COMMANDS.get(run.verb);
+      if (command === undefined) return;
       const roots = Array.isArray(run.roots) ? run.roots.filter((r): r is string => typeof r === 'string') : [];
       if (roots.length === 0) await vscode.commands.executeCommand(command);
       else await vscode.commands.executeCommand(command, roots);

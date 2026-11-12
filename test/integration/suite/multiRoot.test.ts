@@ -401,6 +401,62 @@ suite('Multi-root commit', () => {
     assert.deepStrictEqual(ourTargets(), [], 'suite leaves nothing ticked');
   });
 
+  test("POST-P14by: a list, the Repositories panel's ⋯, commits what is ticked in those alone, with the message typed", async function () {
+    this.timeout(90_000);
+    await tick(repoD, '# repoD out of view\n');
+    await tick(repoE, '# repoE in view\n');
+    // The message box is bound to repoD, which is not in the list: what the
+    // user typed there is still the message, as the Commit window shows it.
+    await focus(repoD);
+    const beforeD = headOf(repoD);
+    const beforeE = headOf(repoE);
+    const message = 'committed in view: repoE alone';
+    reg.commitWindow.messageBoxFor(repoD).value = message;
+
+    await commitWith(() => vscode.commands.executeCommand('gittree.commit', [repoE.root]));
+
+    await waitFor(() => headOf(repoE) !== beforeE, 60_000);
+    assert.strictEqual(subjectOf(repoE), message, 'repoE used the message the user could see');
+    assert.strictEqual(headOf(repoD), beforeD, 'repoD is out of the list and must not commit');
+    await waitFor(() => ourTargets().length === 1, 30_000);
+    assert.deepStrictEqual(ourTargets(), [labelOf(repoD)], 'repoD keeps its ticks');
+
+    // A list naming no repository still open commits nothing, rather than all that is ticked.
+    reg.commitWindow.messageBoxFor(repoD).value = 'must not be committed';
+    await commitWith(() =>
+      vscode.commands.executeCommand('gittree.commit', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
+    );
+    assert.strictEqual(headOf(repoD), beforeD, 'nothing open was named: nothing is committed');
+
+    // Hand repoD back clean.
+    reg.commitWindow.messageBoxFor(repoD).value = 'in-view cleanup of repoD';
+    await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+    await waitFor(() => headOf(repoD) !== beforeD, 60_000);
+    await waitFor(() => ourTargets().length === 0, 30_000);
+  });
+
+  test("POST-P14by: a list, the Repositories panel's ⋯, opens Push… with every repository listed and those checked", async function () {
+    this.timeout(60_000);
+    const p13 = core.debugRegistry.get('phase13') as Phase13Registry;
+    assert.ok(p13, 'phase13 registry missing');
+    p13.clearLastPushDialogRequest();
+    await withPushDialogCancelled(() =>
+      vscode.commands.executeCommand('gittree.push.dialog', [repoD.root, repoE.root]),
+    );
+    const opened = p13.lastPushDialogOpened();
+    assert.ok(opened, 'the Push dialog opens');
+    // Every repository listed, as IntelliJ's dialog lists them; those two checked.
+    assert.deepStrictEqual([...opened.repos].sort(), core.repos.map((r) => r.root).sort());
+    assert.deepStrictEqual([...opened.preselected].sort(), [repoD.root, repoE.root].sort());
+
+    // A list naming no repository still open opens nothing.
+    p13.clearLastPushDialogRequest();
+    await withPushDialogCancelled(() =>
+      vscode.commands.executeCommand('gittree.push.dialog', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
+    );
+    assert.strictEqual(p13.lastPushDialogOpened(), undefined, 'nothing open was named: no dialog');
+  });
+
   /**
    * The tree merges one changelist across repositories into a single row, so a
    * changelist action on that row has to reach every repository behind it —

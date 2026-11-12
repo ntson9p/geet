@@ -22,6 +22,7 @@ import type { MessageHistory } from './messageHistory';
 import type { ParadigmManager } from './paradigmManager';
 import { GitError } from '../core/git/errors';
 import { canonicalKey } from '../core/repoDiscovery';
+import { amendTarget, singleCommitRepo } from './commitScope';
 import { computeFileDiff, planPartialCommit, type PartialPlan } from './window/fileDiff';
 import type { InclusionModel } from './window/inclusion';
 import { runDeferredChecks, type CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
@@ -389,16 +390,24 @@ export async function runCommitFlow(
  * canonical root — what "Commit this changelist" means on a group row that
  * stands for the same list in several repositories. Without it every repo with
  * anything ticked takes part.
+ *
+ * `options.roots` (POST-P14by) narrows it to those repositories, by canonical
+ * root, whatever list is ticked: the Repositories panel's `⋯` with some of them
+ * in view. `messageRepo` may lie outside them; the message the user typed is
+ * still the one used, and its Amend is not, since it amends a repository that
+ * is not being committed.
  */
 export async function runCommitAcross(
   deps: CommitFlowDeps,
   messageRepo: RepoHandle,
-  options: { andPush?: boolean; lists?: ReadonlyMap<string, string> } = {},
+  options: { andPush?: boolean; lists?: ReadonlyMap<string, string>; roots?: ReadonlySet<string> } = {},
 ): Promise<boolean> {
   const nameOf = (r: RepoHandle): string => path.basename(r.root);
   const typedMessage = (): string => deps.inputBoxFor(messageRepo)?.value.trim() ?? '';
-  const { lists } = options;
+  const { lists, roots } = options;
   const listOf = (r: RepoHandle): string | undefined => lists?.get(canonicalKey(r.root));
+  /** In the repositories asked for: every one, unless `roots` names some. */
+  const inScope = (r: RepoHandle): boolean => roots === undefined || roots.has(canonicalKey(r.root));
   /** Per-repo flow options. Built explicitly so `lists` never leaks through. */
   const optionsFor = (r: RepoHandle): { andPush?: boolean; listId?: string } => {
     const listId = listOf(r);
@@ -424,15 +433,23 @@ export async function runCommitAcross(
     return ok;
   };
 
-  // Scoped to one changelist per repo, or every repo with anything ticked.
-  const candidates =
-    lists === undefined
-      ? deps.core.repos
-      : deps.core.repos.filter((r) => lists.has(canonicalKey(r.root)));
+  // Scoped to one changelist per repo, or every repo with anything ticked; and
+  // to the repositories asked for (POST-P14by).
+  const candidates = deps.core.repos.filter(
+    (r) => inScope(r) && (lists === undefined || lists.has(canonicalKey(r.root))),
+  );
+  if (roots !== undefined && candidates.length === 0) {
+    // Each of the repositories asked for has closed since.
+    showInfo(vscode.l10n.t('Nothing to commit: those repositories are no longer open.'));
+    return false;
+  }
   const participants = candidates.filter((r) => hasCommittableChanges(deps, r, listOf(r)));
   // With none, `messageRepo` reproduces today's diagnostics ("No checked files
-  // to commit", the staging commit-all offer, …).
-  if (participants.length <= 1) return commitOne(participants[0] ?? messageRepo);
+  // to commit", the staging commit-all offer, …): it, if it is one asked for,
+  // else the first that is, never a repository outside them (`singleCommitRepo`).
+  if (participants.length <= 1) {
+    return commitOne(singleCommitRepo(messageRepo, participants, candidates, inScope));
+  }
 
   // Amend stays single-repo. Amending N repositories from one checkbox rewrites
   // N histories on one gesture and has no IntelliJ equivalent — but scoping it
@@ -442,9 +459,8 @@ export async function runCommitAcross(
   // and `gittree.commit.toggleAmend <root>` can arm it on one the editor is not
   // bound to. Without this the spanning loop below would reach that repo with
   // amend still armed and rewrite its history as part of a plain commit.
-  const amending = deps.commitService.isAmend(messageRepo)
-    ? messageRepo
-    : participants.find((r) => deps.commitService.isAmend(r));
+  // POST-P14by: only a repository being committed can be amended (`amendTarget`).
+  const amending = amendTarget(messageRepo, participants, inScope, (r) => deps.commitService.isAmend(r));
   if (amending !== undefined) {
     const others = participants.filter((r) => r !== amending).map(nameOf);
     const ok = await confirmModal(

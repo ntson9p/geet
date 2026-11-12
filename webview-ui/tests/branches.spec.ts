@@ -217,7 +217,7 @@ test.describe('several repositories', () => {
     });
   });
 
-  test('the ⋯ menu updates what is in view: the project, the repository picked, or the repositories picked (POST-P14bx)', async ({
+  test('the ⋯ menu updates, commits and pushes what is in view: the project, the repository picked, or the repositories picked (POST-P14bx, POST-P14by)', async ({
     page,
   }) => {
     await openPanel(page);
@@ -229,49 +229,73 @@ test.describe('several repositories', () => {
     });
     const more = page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' });
     const menu = page.getByRole('menu', { name: 'More actions' });
-    /** The first two rows' words, and the key the first names. */
-    const updateRows = async (): Promise<{ rows: string[]; key: string | null }> => {
+    /** The first four rows (Update, Without Fetching, Commit, Push): their words, and a key where one is named. */
+    const firstRows = async (): Promise<string[]> => {
       await more.click();
       await expect(menu).toBeVisible();
       const items = menu.locator('[role="menuitem"]');
-      const rows = [
-        ((await items.nth(0).locator('.gt-menu-label').textContent()) ?? '').trim(),
-        ((await items.nth(1).locator('.gt-menu-label').textContent()) ?? '').trim(),
-      ];
-      const accel = items.nth(0).locator('.gt-menu-accel');
-      return { rows, key: (await accel.count()) > 0 ? await accel.textContent() : null };
+      const rows: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        const label = ((await items.nth(i).locator('.gt-menu-label').textContent()) ?? '').trim();
+        const accel = items.nth(i).locator('.gt-menu-accel');
+        rows.push((await accel.count()) > 0 ? `${label} [${await accel.textContent()}]` : label);
+      }
+      return rows;
     };
     const lastRun = async (): Promise<unknown> => (await requests(page, 'branches/run')).at(-1);
 
-    // Every repository in view: the project, which Ctrl+T updates too.
-    expect(await updateRows()).toEqual({
-      rows: ['Update Project…', 'Update Project Without Fetching…'],
-      key: 'Ctrl+T',
-    });
+    // Every repository in view: the project's, which Ctrl+T, Ctrl+K and Ctrl+Shift+K run too.
+    expect(await firstRows()).toEqual([
+      'Update Project… [Ctrl+T]',
+      'Update Project Without Fetching…',
+      'Commit… [Ctrl+K]',
+      'Push… [Ctrl+Shift+K]',
+    ]);
     await menu.getByRole('menuitem', { name: /^Update Project…/u }).click();
-    expect(await lastRun()).toEqual({ run: { type: 'update', roots: [], fetch: true } });
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'update', roots: [] } });
+    await more.click();
+    await menu.getByRole('menuitem', { name: /^Commit…/u }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'commit', roots: [] } });
 
-    // One picked: that one, under its own name, and not Ctrl+T's.
+    // One picked: that one, the words say so, and the keys, which run the project's, are gone.
     await row(page, `repo:${WEB}`).click();
-    expect(await updateRows()).toEqual({
-      rows: ['Update Repository…', 'Update Repository Without Fetching…'],
-      key: null,
-    });
+    expect(await firstRows()).toEqual([
+      'Update Repository…',
+      'Update Repository Without Fetching…',
+      'Commit Repository…',
+      'Push Repository…',
+    ]);
     await menu.getByRole('menuitem', { name: 'Update Repository…' }).click();
-    expect(await lastRun()).toEqual({ run: { type: 'update', roots: [WEB], fetch: true } });
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'update', roots: [WEB] } });
+    await more.click();
+    await menu.getByRole('menuitem', { name: 'Commit Repository…' }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'commit', roots: [WEB] } });
 
-    // Two of three: those two, which it used to leave for every repository.
+    // Two of three: those two, which they used to leave for every repository.
     await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
-    expect(await updateRows()).toEqual({
-      rows: ['Update 2 Repositories…', 'Update 2 Repositories Without Fetching…'],
-      key: null,
-    });
+    expect(await firstRows()).toEqual([
+      'Update 2 Repositories…',
+      'Update 2 Repositories Without Fetching…',
+      'Commit 2 Repositories…',
+      'Push 2 Repositories…',
+    ]);
     await menu.getByRole('menuitem', { name: 'Update 2 Repositories Without Fetching…' }).click();
-    expect(await lastRun()).toEqual({ run: { type: 'update', roots: [API, WEB], fetch: false } });
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'updateWithoutFetch', roots: [API, WEB] } });
+    await more.click();
+    await menu.getByRole('menuitem', { name: 'Commit 2 Repositories…' }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'commit', roots: [API, WEB] } });
+    await more.click();
+    await menu.getByRole('menuitem', { name: 'Push 2 Repositories…' }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'push', roots: [API, WEB] } });
 
-    // Every one shown again: the project again.
+    // Every one shown again: the project's again.
     await page.getByRole('button', { name: /^Narrowed to 2 repositories/u }).click();
-    expect((await updateRows()).rows).toEqual(['Update Project…', 'Update Project Without Fetching…']);
+    expect(await firstRows()).toEqual([
+      'Update Project… [Ctrl+T]',
+      'Update Project Without Fetching…',
+      'Commit… [Ctrl+K]',
+      'Push… [Ctrl+Shift+K]',
+    ]);
   });
 
   test('clicking a repository narrows the list to it; the pill widens it again', async ({ page }) => {
@@ -1184,7 +1208,7 @@ test.describe('one repository', () => {
     await menu.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
     // The workspace's only repository is the project: its update, as Ctrl+T's (POST-P14bx).
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'update', roots: [], fetch: false },
+      run: { type: 'inView', verb: 'updateWithoutFetch', roots: [] },
     });
   });
 
@@ -1213,7 +1237,7 @@ test.describe('one repository', () => {
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'update', roots: [], fetch: false },
+      run: { type: 'inView', verb: 'updateWithoutFetch', roots: [] },
     });
   });
 

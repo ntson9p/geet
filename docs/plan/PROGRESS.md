@@ -1724,3 +1724,45 @@ Testing (written, **not run**, by the owner's standing instruction):
   - a list naming nothing open asks nothing and updates nothing.
 
 Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14by ✅ 2026-11-12 (branch `new-way-6`): **The Repositories panel's `⋯` commits and pushes what is in view too.** After POST-P14bx, the owner agreed that Commit… and Push… in the same menu should follow what is in view, as its update now does.
+
+**What was there.** Both took the root of the one repository in view, else nothing:
+- `gittree.commit` with a root ran `runCommitFlow` for it. That flow reads the repository's own stored message, while the Commit window's one message box is bound to the open file's repository, so it could read an empty or old message.
+- With nothing named, Commit committed what was ticked everywhere, and Push… listed every repository with the open file's checked. With two of four picked, both acted on all four.
+
+**Design.**
+- **The words follow what is in view** (`viewActions`, replacing POST-P14bx's `viewUpdate`):
+  - every repository: *Commit…*, *Push…*;
+  - one picked: *Commit Repository…*, *Push Repository…*;
+  - two: *Commit 2 Repositories…*, *Push 2 Repositories…*.
+
+  Commit acts at once, so its words must say where. `Ctrl+K` and `Ctrl+Shift+K` show only on the project's items, which are what the keys run.
+- **One run message for the four**: `{ type: 'inView', verb, roots }`, replacing POST-P14bx's `update` message. The host maps the verb to its command through a `Map` (`IN_VIEW_COMMANDS`), so a verb from the webview cannot reach an inherited key. Roots go as a list, even one.
+- **Commit with a list** runs `runCommitAcross` with a new `roots` option, even for one repository:
+  - the message is the one typed in the Commit window, wherever it is bound;
+  - one commit per repository with something ticked; ticks in other repositories stay.
+  - What it amends, and which repository speaks when nothing is ticked, were each the message repository's even outside the scope. They are pure now (`commitScope.ts`: `amendTarget`, `singleCommitRepo`): its Amend only when it is among them, else the first of them that speaks.
+  - A list naming nothing still open: *Nothing to commit: those repositories are no longer open.*
+  - The `lists` path is unchanged.
+- **Push with a list** opens the dialog as IntelliJ's lists them: every repository, those ticked. With nothing open named: *Nothing to push: those repositories are no longer open.*
+- **Left as it was:** Clean Up Branches… still takes the one repository in view, else every repository; the owner is asked. New Branch… already followed the view: its form starts with the repositories in view.
+
+**Checked in the real window** (VS Code 1.144, `scratchpad/drive/inview.cjs`; README.md changed in api, docs and web, a message typed in the Commit window):
+- The `⋯` with api picked read *Update Repository…*, *Update Repository Without Fetching…*, *Commit Repository…*, *Push Repository…*; with api and web, *… 2 Repositories…* for all four.
+- *Commit 2 Repositories…* committed api and web with the typed message. docs, ticked too but out of view, was left changed and uncommitted.
+- *Push 2 Repositories…* opened Push Commits listing api, docs, shared and web, with api and web ticked and their new commits under them. It was cancelled, and nothing was pushed.
+
+Docs: FEATURES (the `⋯`), CHANGELOG (Changed).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `commitScope.test.ts`: the message repository amended when committed and ticked; else the first committed one ticked; out of scope, its Amend amends nothing. When at most one is ticked, that one speaks; with none, the message repository, or the first asked for when it is outside;
+  - `branchPanelModel.test.ts`: `viewActions`, all four words for none, one, two and the only repository.
+- **Playwright** (`branches.spec.ts`): the `⋯` through none, one and two picked and back, all four words, the keys only on the project's, and the `inView` message each item posts. The two Without Fetching tests now expect `inView`.
+- **Integration** (`multiRoot.test.ts`):
+  - a list of repoE commits it alone with the message typed against repoD, whose ticks stay;
+  - a list naming nothing open commits nothing;
+  - Push… with a list lists every repository with those two ticked, and with nothing open opens nothing.
+
+Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.

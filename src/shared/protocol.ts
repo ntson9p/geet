@@ -1817,6 +1817,12 @@ export interface BranchPanelDetailsDto {
   readonly buttons: readonly BranchPanelButtonDto[];
 }
 
+/**
+ * What the Repositories panel's `⋯` menu does to the repositories in view
+ * (POST-P14by): Update Project, its Without Fetching, Commit, Push.
+ */
+export type BranchPanelInViewVerb = 'update' | 'updateWithoutFetch' | 'commit' | 'push';
+
 /** Something to do, sent back to `branches/run`. */
 export type BranchPanelRunDto =
   | {
@@ -1837,13 +1843,13 @@ export type BranchPanelRunDto =
     }
   | {
       /**
-       * POST-P14bx: the `⋯` menu's update, of what the panel shows: `roots`, the
-       * repositories in view, or none for the project, every repository.
+       * The `⋯` menu's Update, Commit and Push (POST-P14bx, POST-P14by), of what
+       * the panel shows: `roots`, the repositories in view, or none for the
+       * project, every repository.
        */
-      readonly type: 'update';
+      readonly type: 'inView';
+      readonly verb: BranchPanelInViewVerb;
       readonly roots: readonly string[];
-      /** False: Without Fetching. */
-      readonly fetch: boolean;
     }
   | {
       /** Opens the panel's own New Branch form, starting at `from`. */

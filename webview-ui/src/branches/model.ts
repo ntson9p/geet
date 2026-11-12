@@ -661,38 +661,53 @@ export function repoHint(row: Pick<Extract<PanelRow, { kind: 'repo' }>, 'inScope
     : 'Click to show only its branches · Ctrl+click to add it';
 }
 
-/** What the panel's `⋯` menu updates, and what it calls it (`viewUpdate`). */
-export interface ViewUpdate {
-  /** `Update Project…`, `Update Repository…`, `Update 2 Repositories…`. */
-  readonly label: string;
-  /** The same, `… Without Fetching…`. */
-  readonly withoutFetchLabel: string;
-  /** The repositories it updates; none for the project. */
+/** What the panel's `⋯` menu's Update, Commit and Push act on, and what each is called (`viewActions`). */
+export interface ViewActions {
+  /** The repositories they act on; none for the project. */
   readonly roots: readonly string[];
-  /** The project's update, the one `Ctrl+T` runs, so the item may name that key. */
+  /** The project's, which `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K` run, so the items may name those keys. */
   readonly project: boolean;
+  /** `Update Project…`, `Update Repository…`, `Update 2 Repositories…`. */
+  readonly update: string;
+  /** The same, `… Without Fetching…`. */
+  readonly updateWithoutFetch: string;
+  /** `Commit…`, `Commit Repository…`, `Commit 2 Repositories…`. */
+  readonly commit: string;
+  /** `Push…`, `Push Repository…`, `Push 2 Repositories…`. */
+  readonly push: string;
 }
 
 /**
- * The `⋯` menu's update follows what is in view (POST-P14bx). Every repository in
- * view, the workspace's only one included, is the project: `Update Project…`, as
- * `Ctrl+T`. Some picked are those: `Update Repository…` for one, `Update 2
- * Repositories…` for two. Before, one picked updated that one under the project's
- * name, and two of four updated all four.
+ * The `⋯` menu's Update (POST-P14bx), Commit and Push (POST-P14by) act on what is
+ * in view. Every repository in view, the workspace's only one included, is the
+ * project, as `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K` are: `Update Project…`,
+ * `Commit…`, `Push…`. Some picked are those, and the items say so: `… Repository…`
+ * for one, `… 2 Repositories…` for two. Commit acts at once, so its words must say
+ * where; Push's dialog lists every repository, with those checked. Before, one
+ * picked was that one under the project's words, and two of four were all four.
  */
-export function viewUpdate(
+export function viewActions(
   repos: readonly BranchPanelRepoDto[],
   scopeRepos: readonly BranchPanelRepoDto[],
-): ViewUpdate {
+): ViewActions {
   if (scopeRepos.length === 0 || scopeRepos.length >= repos.length) {
-    return { label: 'Update Project…', withoutFetchLabel: 'Update Project Without Fetching…', roots: [], project: true };
+    return {
+      roots: [],
+      project: true,
+      update: 'Update Project…',
+      updateWithoutFetch: 'Update Project Without Fetching…',
+      commit: 'Commit…',
+      push: 'Push…',
+    };
   }
   const what = scopeRepos.length === 1 ? 'Repository' : `${scopeRepos.length} Repositories`;
   return {
-    label: `Update ${what}…`,
-    withoutFetchLabel: `Update ${what} Without Fetching…`,
     roots: scopeRepos.map((r) => r.root),
     project: false,
+    update: `Update ${what}…`,
+    updateWithoutFetch: `Update ${what} Without Fetching…`,
+    commit: `Commit ${what}…`,
+    push: `Push ${what}…`,
   };
 }
 

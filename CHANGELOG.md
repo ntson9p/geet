@@ -6,6 +6,19 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Repositories panel's `⋯` menu commits and pushes what is in view too
+
+- **With some repositories picked, *Commit…* and *Push…* in the `⋯` menu act on those, and
+  say so,** as its update already does:
+  - one picked: *Commit Repository…*, *Push Repository…*;
+  - two picked: *Commit 2 Repositories…*, *Push 2 Repositories…*;
+  - every repository shown: *Commit…* and *Push…*, unchanged.
+- **Commit** commits what is ticked in those repositories, with the message typed in the
+  Commit window, one commit each. Changes ticked in other repositories stay ticked. The Amend
+  box applies only when its repository is one of those.
+- **Push** opens the Push dialog with every repository listed, and those ticked.
+- Before, with two of four picked, they acted on every repository.
+
 ### Changed — a repository's own update is *Update Repository…*, and the `⋯` menu updates what is in view
 
 - **A repository's right-click menu and its row's ↓ button now say *Update Repository…* and

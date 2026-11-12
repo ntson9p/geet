@@ -41,6 +41,7 @@ import {
   type BranchPanelCreateDto,
   type BranchPanelCreateResultDto,
   type BranchPanelDetailsDto,
+  type BranchPanelInViewVerb,
   type BranchPanelMenuItemDto,
   type BranchPanelRepoDto,
   type BranchPanelRunDto,
@@ -62,7 +63,7 @@ import {
   TABS_ID,
   tabsLabel,
   targetOf,
-  viewUpdate,
+  viewActions,
   type BranchEntry,
   type BranchTab,
   type CardLine,
@@ -536,27 +537,19 @@ export function App() {
         runs.set(id, act);
         return { kind: 'item', id, label, ...extra };
       };
-      // POST-P14bx: what is in view, the project or the repositories picked.
-      const update = viewUpdate(state.repos, model.scopeRepos);
+      // POST-P14bx, POST-P14by: Update, Commit and Push act on what is in view,
+      // the project or the repositories picked.
+      const inView = viewActions(state.repos, model.scopeRepos);
+      const act = (verb: BranchPanelInViewVerb) => () => run({ type: 'inView', verb, roots: inView.roots });
+      // IntelliJ's keys, named only when its keymap binds them (POST-QA), and
+      // only on the project's actions, which are what the keys run.
+      const key = (accelerator: string) => (keymap && inView.project ? { accelerator } : {});
       const items: MenuItem[] = [
-        // IntelliJ's keys, named only when its keymap binds them (POST-QA), and
-        // Ctrl+T only on the project's update, which is what it runs.
-        item('update', update.label, () => run({ type: 'update', roots: update.roots, fetch: true }), {
-          icon: 'arrow-down',
-          ...(keymap && update.project ? { accelerator: 'Ctrl+T' } : {}),
-        }),
+        item('update', inView.update, act('update'), { icon: 'arrow-down', ...key('Ctrl+T') }),
         // From each remote branch as it was last fetched: instant, and offline.
-        item('updateWithoutFetch', update.withoutFetchLabel, () =>
-          run({ type: 'update', roots: update.roots, fetch: false }),
-        ),
-        item('commit', 'Commit…', () => runCommand('gittree.commit', single), {
-          icon: 'git-commit',
-          ...(keymap ? { accelerator: 'Ctrl+K' } : {}),
-        }),
-        item('push', 'Push…', () => runCommand('gittree.push.dialog', single), {
-          icon: 'arrow-up',
-          ...(keymap ? { accelerator: 'Ctrl+Shift+K' } : {}),
-        }),
+        item('updateWithoutFetch', inView.updateWithoutFetch, act('updateWithoutFetch')),
+        item('commit', inView.commit, act('commit'), { icon: 'git-commit', ...key('Ctrl+K') }),
+        item('push', inView.push, act('push'), { icon: 'arrow-up', ...key('Ctrl+Shift+K') }),
         { kind: 'separator', id: 's1' },
         item('new', 'New Branch…', () => openForm({ from: 'HEAD' }), { icon: 'add' }),
         // One repository's checkout: offered here only while one is in view. With

@@ -384,11 +384,20 @@ picked; at first, on Recent while anything is recent, else Local.
 * **The toolbar:** the filter, **Fetch** (every repository; spins until done), **Repository
   Dots** (with several repositories in view; a two-by-two grid of dots, pressed while on),
   **New Branch**, and **`⋯`**:
-  - the update of what is in view (POST-P14bx), and Without Fetching under it: **Update
-    Project…** with every repository shown (`Ctrl+T`'s, the key shown beside it under the
-    IntelliJ keymap), **Update Repository…** with one picked, **Update 2 Repositories…** with
-    two. It used to update the project with two of four picked, and the one picked under the
-    project's name. Then Commit…, Push…;
+  - **Update, Update Without Fetching, Commit and Push act on what is in view** (POST-P14bx,
+    POST-P14by), and say so:
+    - with every repository shown, the project's: **Update Project…**, **Commit…**,
+      **Push…**, as `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K` (the keys are shown beside them
+      under the IntelliJ keymap, and only then);
+    - with one picked: **Update Repository…**, **Commit Repository…**, **Push Repository…**;
+    - with two: **Update 2 Repositories…**, **Commit 2 Repositories…**, **Push 2
+      Repositories…**.
+
+    Commit commits what is ticked in those repositories, with the message typed in the Commit
+    window, one commit each; the Amend box applies only when its repository is among them.
+    Push opens the Push dialog with every repository listed and those ticked. They used to
+    act on the project with two of four picked, and on the one picked under the project's
+    words;
   - New Branch…, Checkout Tag or Revision… (only with one repository in view: with several,
     the `⋯` could not say which it would act on, and each repository's own menu has it),
     **Checkout Branch in All Repositories…** (with

@@ -164,6 +164,18 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // command (palette, Ctrl+K, the commit window's button) means "commit what
   // is ticked", which in a multi-root workspace may span repositories.
   register('gittree.commit', async (repoRoot) => {
+    // POST-P14by: a list, the Repositories panel's `⋯` with some repositories in
+    // view: what is ticked in those, with the message typed in the Commit window
+    // (whichever repository it is bound to), one commit per repository.
+    if (Array.isArray(repoRoot)) {
+      const messageRepo = pickRepo(undefined);
+      if (!messageRepo) return;
+      const roots = new Set(
+        repoRoot.filter((r): r is string => typeof r === 'string').map((r) => canonicalKey(r)),
+      );
+      await runCommitAcross(flowDeps, messageRepo, { roots });
+      return;
+    }
     const repo = pickRepo(repoRoot);
     if (!repo) return;
     if (repoRoot === undefined) await runCommitAcross(flowDeps, repo);
