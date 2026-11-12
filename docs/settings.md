@@ -371,9 +371,9 @@ Code-action kind the Cleanup check applies — the "profile": source.fixAll runs
 
 ### `gittree.commit.checks.deferAdvanced`
 
-Run the advanced checks (Analyze code, TODO) after the commit and report via notification instead of gating the commit — IntelliJ's default. Failed checks will not prevent a commit.
+Run the advanced checks (Analyze code, Check TODO) after the commit and report what they find in a notification: failed checks will not prevent a commit. Off by default, so a ticked advanced check runs before the commit, and a finding asks whether to commit anyway. IntelliJ has it on.
 
-- Type: `boolean` · Default: `true`
+- Type: `boolean` · Default: `false`
 
 ## GitTree Log & Blame
 

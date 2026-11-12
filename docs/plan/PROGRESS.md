@@ -1611,3 +1611,25 @@ Testing (written, **not run**, by the owner's standing instruction):
   - with either pane folded, the theme's border is back.
 
 Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14bv ✅ 2026-11-12 (branch `new-way-6`): ***Run advanced checks after a commit is done* starts unticked.** The owner: make it unchecked by default ("Yes, I know what I'm asking").
+
+**What it changes.** The box is no check itself; it says when a ticked Analyze code or Check TODO runs. Unticked, they run before the commit in the check pipeline, as Reformat, Optimize imports and Cleanup always did, and a finding asks *Review…*, *Commit Anyway* or *Cancel*. Ticked, they run after it and report in a notification. Every check still starts unticked (POST-P14bg, D38), so nothing changes for anyone until they tick Analyze code or Check TODO. A value the user set before is kept.
+
+**Built:**
+- `gittree.commit.checks.deferAdvanced` defaults to `false` in package.json.
+- `DEFER_ADVANCED_DEFAULT` (`checkDefaults.ts`), beside `CHECK_DEFAULTS`, is what `CommitOptionsStore` falls back to. It was a literal `true` there.
+- The setting's description no longer calls it the default, and says what off means. settings.md regenerated.
+- The Playwright mock host starts it unticked.
+
+Docs: FEATURES (the gear popup), D38 (the paragraph, the index row and where the defaults live), CHANGELOG (Changed).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit** (`checkDefaults.test.ts`): `DEFER_ADVANCED_DEFAULT` is `false`, and package.json's boolean default is the same. This replaced *leaves it ticked*.
+- **Playwright** (`commit.spec.ts`): the box starts unticked; ticking it posts `true` and unticking it again posts `false`.
+- **Integration**, updated for the default:
+  - the gear round trip ticks the box, which unticking no longer proves;
+  - the deferred-checks test asserts the new default, then ticks the box itself and resets it after;
+  - the Analyze gate test (phase03) still sets `false` itself, its comment saying why.
+
+Gates: typecheck (both tsconfigs) + lint clean; extension built.

@@ -647,12 +647,14 @@ The `⚙` beside the action buttons opens the §2A popup inside the window:
 * **Commit Checks** — `Reformat code` (modified lines only) · `Optimize imports` ·
   `Cleanup` + `Choose profile` (the code-action kind it applies).
 * **Advanced Commit Checks** — `Analyze code` + severity picker · `Check TODO` + pattern ·
-  `[x] Run advanced checks after a commit is done` with the caption *"Failed checks will not
-  prevent a commit"* — the IntelliJ default: Analyze/TODO run **after** the commit and report
-  via notification; untick to restore pre-commit gating.
-* Every check starts **unticked**, Analyze code and Check TODO included, which IntelliJ ticks
+  `[ ] Run advanced checks after a commit is done` with the caption *"Failed checks will not
+  prevent a commit"*. Ticked, Analyze/TODO run **after** the commit and report via
+  notification. Unticked, the default, they run **before** it, and a finding asks *Review…*,
+  *Commit Anyway* or *Cancel*.
+* Every check starts **unticked**, Analyze code and Check TODO included, which IntelliJ ticks,
+  and so does *Run advanced checks after a commit is done*, which IntelliJ ticks too
   ([D38](docs/deviations.md#d38--every-commit-check-starts-unticked)): a commit runs no check
-  until you tick one.
+  until you tick one, and a check you tick runs before the commit.
 
 ### Shelf (shape + behaviour)
 

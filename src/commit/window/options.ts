@@ -16,7 +16,7 @@ import {
   type CommitOptionChangeDto,
   type CommitOptionsDto,
 } from '../../shared/protocol';
-import { CHECK_DEFAULTS } from '../checks/checkDefaults';
+import { CHECK_DEFAULTS, DEFER_ADVANCED_DEFAULT } from '../checks/checkDefaults';
 import type { CheckPipeline } from '../checks/pipeline';
 import { writeSetting } from '../../ui/writeSetting';
 
@@ -46,7 +46,7 @@ export class CommitOptionsStore {
   }
 
   isDeferAdvancedEnabled(): boolean {
-    return config().get<boolean>('checks.deferAdvanced', true);
+    return config().get<boolean>('checks.deferAdvanced', DEFER_ADVANCED_DEFAULT);
   }
 }
 

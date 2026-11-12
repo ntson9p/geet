@@ -193,7 +193,7 @@
   "gittree.config.log.issueUrl.description": "URL template for matched issue keys; $0 is replaced with the match (e.g. https://tracker.example.com/browse/$0).",
   "gittree.config.log.filterPresets.description": "Saved log filter presets (managed by the Saved filters toolbar menu).",
   "gittree.config.commit.checks.cleanupKind.description": "Code-action kind the Cleanup check applies — the \"profile\": source.fixAll runs every provider, source.fixAll.eslint only ESLint.",
-  "gittree.config.commit.checks.deferAdvanced.description": "Run the advanced checks (Analyze code, TODO) after the commit and report via notification instead of gating the commit — IntelliJ's default. Failed checks will not prevent a commit.",
+  "gittree.config.commit.checks.deferAdvanced.description": "Run the advanced checks (Analyze code, Check TODO) after the commit and report what they find in a notification: failed checks will not prevent a commit. Off by default, so a ticked advanced check runs before the commit, and a finding asks whether to commit anyway. IntelliJ has it on.",
   "gittree.view.branches.name": "Repositories",
   "gittree.view.compare.name": "Compare",
   "gittree.config.branches.recentCount.description": "How many recent branches (by checkout frequency and recency) the Branches popup shows.",

@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CHECK_DEFAULTS } from '../../../src/commit/checks/checkDefaults';
+import { CHECK_DEFAULTS, DEFER_ADVANCED_DEFAULT } from '../../../src/commit/checks/checkDefaults';
 
 interface Setting {
   type?: string;
@@ -51,9 +51,12 @@ describe('commit check defaults', () => {
     expect(booleans).toEqual(Object.keys(CHECK_DEFAULTS).sort());
   });
 
-  it('leaves "Run advanced checks after a commit is done" ticked', () => {
-    // When the user does tick Analyze or TODO, they still run after the commit
-    // and never hold it up, as in IntelliJ.
-    expect(settings[`${PREFIX}deferAdvanced`]?.default).toBe(true);
+  it('starts "Run advanced checks after a commit is done" unticked too (POST-P14bv)', () => {
+    // The owner's request; IntelliJ ticks it. A ticked Analyze code or Check
+    // TODO then runs before the commit, and a finding can stop it.
+    expect(DEFER_ADVANCED_DEFAULT).toBe(false);
+    const setting = settings[`${PREFIX}deferAdvanced`];
+    expect(setting?.type).toBe('boolean');
+    expect(setting?.default).toBe(DEFER_ADVANCED_DEFAULT);
   });
 });

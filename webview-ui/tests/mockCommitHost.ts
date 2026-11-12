@@ -138,7 +138,8 @@ export const mockCommitHostScript = `
     analyzeSeverity: 'error',
     todoPattern: '\\\\b(TODO|FIXME)\\\\b',
     cleanupKind: 'source.fixAll',
-    deferAdvanced: true,
+    // Unticked until asked for (POST-P14bv), as package.json says.
+    deferAdvanced: false,
   };
 
   function decorate(c) {

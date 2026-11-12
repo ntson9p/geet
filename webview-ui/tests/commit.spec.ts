@@ -752,9 +752,21 @@ test.describe('P11-T5 commit options gear popup', () => {
       )
       .toBe(true);
 
-    // Defer defaults ON (the §2A reference shows it checked); unticking posts false.
-    await expect(page.getByTestId('opt-defer')).toBeChecked();
+    // Defer starts unticked (POST-P14bv; IntelliJ's §2A reference shows it ticked);
+    // ticking it posts true, and unticking it again posts false.
+    await expect(page.getByTestId('opt-defer')).not.toBeChecked();
     await page.getByTestId('opt-defer').click();
+    await expect(page.getByTestId('opt-defer')).toBeChecked();
+    await expect
+      .poll(async () =>
+        (await setOptions(page)).some((m) => {
+          const o = m.params?.['option'] as { kind?: string; value?: boolean } | undefined;
+          return o?.kind === 'deferAdvanced' && o.value === true;
+        }),
+      )
+      .toBe(true);
+    await page.getByTestId('opt-defer').click();
+    await expect(page.getByTestId('opt-defer')).not.toBeChecked();
     await expect
       .poll(async () =>
         (await setOptions(page)).some((m) => {
@@ -774,8 +786,9 @@ test.describe('P11-T5 commit options gear popup', () => {
     await expect(page.getByTestId('opt-cleanup-kind')).toBeDisabled();
     await expect(page.getByTestId('opt-analyze-severity')).toBeDisabled();
     await expect(page.getByTestId('opt-todo-pattern')).toBeDisabled();
-    // Whether ticked checks run before or after the commit is not a check.
-    await expect(page.getByTestId('opt-defer')).toBeChecked();
+    // Whether ticked checks run before or after the commit is not a check, and
+    // starts unticked too (POST-P14bv): a ticked check runs before the commit.
+    await expect(page.getByTestId('opt-defer')).not.toBeChecked();
   });
 
   test('ticking Check TODO posts it and frees its pattern', async ({ page }) => {

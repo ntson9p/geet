@@ -432,11 +432,12 @@ suite('P11 commit tool window', () => {
         vscode.workspace.getConfiguration('gittree.commit').get('signoff'),
         true,
       );
-      await applyOption(store, repo, { kind: 'deferAdvanced', value: false });
+      // Unticked by default (POST-P14bv), so the round trip ticks it.
+      await applyOption(store, repo, { kind: 'deferAdvanced', value: true });
       const dto = await readOptions(store, repo);
       assert.strictEqual(dto.author, 'Test Author <t@example.com>');
       assert.strictEqual(dto.signoff, true);
-      assert.strictEqual(dto.deferAdvanced, false);
+      assert.strictEqual(dto.deferAdvanced, true);
       assert.ok(dto.authorSuggestions.length > 0, 'history-derived completion list');
       assert.ok(
         dto.authorSuggestions.every((a) => /<.+@.+>$/.test(a)),
@@ -492,16 +493,18 @@ suite('P11 commit tool window', () => {
     const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
     process.env['GITTREE_TEST_DEFERRED_CHECKS'] = '1';
     try {
-      // Default assertion first: deferred-after is the IntelliJ-parity default.
-      assert.strictEqual((await readOptions(store, repo)).deferAdvanced, true);
-      // POST-P14bg: no check is ticked by default (D38), so nothing runs after a
-      // commit until one is.
+      // Default assertions first. POST-P14bv: deferred-after starts unticked
+      // (IntelliJ ticks it), and POST-P14bg: so does every check (D38). This
+      // test ticks both what it needs.
       const untouched = await readOptions(store, repo);
+      assert.strictEqual(untouched.deferAdvanced, false);
       assert.strictEqual(untouched.checks.analyze, false);
       assert.strictEqual(untouched.checks.todo, false);
+      await checks.update('deferAdvanced', true, vscode.ConfigurationTarget.Workspace);
       // TODO check only — Analyze would sit in a diagnostics quiesce for seconds.
       await checks.update('analyze', false, vscode.ConfigurationTarget.Workspace);
       await checks.update('todo', true, vscode.ConfigurationTarget.Workspace);
+      assert.strictEqual((await readOptions(store, repo)).deferAdvanced, true);
 
       const rel = 'p11/t5-todo.txt';
       write(rel, 'plain line\n');
@@ -533,6 +536,7 @@ suite('P11 commit tool window', () => {
       );
     } finally {
       delete process.env['GITTREE_TEST_DEFERRED_CHECKS'];
+      await checks.update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
       await checks.update('analyze', undefined, vscode.ConfigurationTarget.Workspace);
       await checks.update('todo', undefined, vscode.ConfigurationTarget.Workspace);
       restoreChecked();

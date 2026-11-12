@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — *Run advanced checks after a commit is done* starts unticked
+
+- In the Commit window's gear popup, **Run advanced checks after a commit is done** now starts
+  unticked: `gittree.commit.checks.deferAdvanced` defaults to `false`. IntelliJ ticks it.
+- What that changes: a ticked **Analyze code** or **Check TODO** now runs **before** the commit,
+  as the other checks do, and a finding asks *Review…*, *Commit Anyway* or *Cancel*. Until now
+  they ran after the commit and only reported in a notification.
+- Nothing changes until you tick one of those two: every check still starts unticked.
+- Tick the box (or set the setting to `true`) to have them run after the commit again. If you
+  set it yourself before, here or in Settings, it keeps your choice.
+
 ### Changed — the borders you drag to resize GitTree's side bar are drawn
 
 - **A line now runs along each border in GitTree's side bar that a drag resizes**, so you can

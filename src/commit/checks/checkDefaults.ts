@@ -15,3 +15,13 @@ export const CHECK_DEFAULTS: Readonly<CommitOptionsDto['checks']> = Object.freez
   analyze: false,
   todo: false,
 });
+
+/**
+ * *Run advanced checks after a commit is done* (`gittree.commit.checks.deferAdvanced`)
+ * before anyone has ticked it: unticked (POST-P14bv, the owner's request; IntelliJ
+ * ticks it). A ticked Analyze code or Check TODO then runs before the commit, as
+ * the other checks do, and a finding asks Review… / Commit Anyway / Cancel. It
+ * is no check itself, so it is not in `CHECK_DEFAULTS`. package.json's default
+ * must say the same.
+ */
+export const DEFER_ADVANCED_DEFAULT = false;

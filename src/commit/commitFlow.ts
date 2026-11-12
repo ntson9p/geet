@@ -261,7 +261,8 @@ export async function runCommitFlow(
 
   const sign = await deps.commitService.isSignEnabled(repo);
   // P11-T5: gear-popup options. Advanced checks (Analyze/TODO) move to a
-  // post-commit report when deferAdvanced is on — IntelliJ's default shape.
+  // post-commit report when deferAdvanced is on: IntelliJ's default, not
+  // GitTree's (POST-P14bv, D38).
   const author = deps.options?.getAuthor(repo);
   const signoff = deps.options?.isSignoffEnabled() ?? false;
   const deferAdvanced = deps.options?.isDeferAdvancedEnabled() ?? false;

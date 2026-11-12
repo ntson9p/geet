@@ -52,7 +52,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 | [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
-| [D38](#d38--every-commit-check-starts-unticked) | Every commit check starts unticked; IntelliJ ticks Analyze code and Check TODO | Deliberate (owner's request) |
+| [D38](#d38--every-commit-check-starts-unticked) | Every commit check starts unticked, and so does running the advanced ones after the commit; IntelliJ ticks Analyze code, Check TODO and that | Deliberate (owner's request) |
 | [D39](#d39--the-filter-dropdowns-are-compact) | The log's filter dropdowns are small chips naming their value by IntelliJ's rules, a date in the Date column's format; `full` writes every value out | Deliberate (owner's request); `gittree.log.filterChips` |
 | [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `gittree.log.dateFormat` |
 | [D41](#d41--the-commit-windows-rows-open-the-file-manager) | The Commit window's file and folder rows open the system's file manager, under VS Code's names and key | Deliberate (owner's request) |
@@ -1056,14 +1056,18 @@ start unticked.
 `gittree.commit.checks.todo` default to `false`, as `reformat`, `optimizeImports` and `cleanup`
 already did. A commit runs no check until the user ticks one in the gear popup or Settings.
 
-**Run advanced checks after a commit is done** stays ticked, as in IntelliJ
-(`NON_MODAL_COMMIT_POSTPONE_SLOW_CHECKS = true`): it says when a ticked Analyze or TODO runs, and
-is no check itself.
+**Run advanced checks after a commit is done** starts unticked too (POST-P14bv), where IntelliJ
+ticks it (`NON_MODAL_COMMIT_POSTPONE_SLOW_CHECKS = true`): `gittree.commit.checks.deferAdvanced`
+defaults to `false`. It is no check itself. It says when a ticked Analyze code or Check TODO runs:
+unticked, before the commit, where a finding asks *Review…*, *Commit Anyway* or *Cancel*, as the
+other checks' findings do. Ticked, after it, reported in a notification, and never stopping it.
 
-Why: the owner's request. Analyze code waits for the language servers' diagnostics to settle
-before it reports, and a check nobody asked for should not run on every commit.
+Why: the owner's requests, the checks' in POST-P14bg and the timing's in POST-P14bv. Analyze code
+waits for the language servers' diagnostics to settle before it reports, and a check nobody asked
+for should not run on every commit.
 
-**Revisitable:** yes — two defaults in package.json and `src/commit/checks/checkDefaults.ts`.
+**Revisitable:** yes — the defaults are in package.json and `src/commit/checks/checkDefaults.ts`
+(`CHECK_DEFAULTS`, `DEFER_ADVANCED_DEFAULT`).
 
 ## D39 · The filter dropdowns are compact
 

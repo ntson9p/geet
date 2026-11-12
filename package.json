@@ -416,7 +416,7 @@
           },
           "gittree.commit.checks.deferAdvanced": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%gittree.config.commit.checks.deferAdvanced.description%"
           }
         }

@@ -197,8 +197,9 @@ suite('P3 commit lifecycle', () => {
 
   test('T7: analyze check blocks on seeded diagnostics; Commit Anyway proceeds', async function () {
     this.timeout(90_000);
-    // P11-T5 made deferred advanced checks the default (IntelliJ parity), so
-    // the gating behaviour this test exists to prove is now behind the flag.
+    // The gate this test proves is the default again since POST-P14bv (P11-T5
+    // had made deferred advanced checks the default, for IntelliJ parity). Set
+    // anyway, so it never rests on what an earlier test left behind.
     await vscode.workspace
       .getConfiguration('gittree.commit.checks')
       .update('deferAdvanced', false, vscode.ConfigurationTarget.Workspace);
