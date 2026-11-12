@@ -802,6 +802,16 @@
           "highContrast": "#e2c08d4d",
           "highContrastLight": "#8955034d"
         }
+      },
+      {
+        "id": "gittree.sectionBorder",
+        "description": "%gittree.sectionBorder.description%",
+        "defaults": {
+          "light": "#00000033",
+          "dark": "#ffffff33",
+          "highContrast": "contrastBorder",
+          "highContrastLight": "contrastBorder"
+        }
       }
     ],
     "commands": [

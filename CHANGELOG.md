@@ -6,6 +6,25 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the borders you drag to resize GitTree's side bar are drawn
+
+- **A line now runs along each border in GitTree's side bar that a drag resizes**, so you can
+  see where to grab:
+  - under the Commit window, on VS Code's own divider between it and the Repositories panel;
+  - between the Repositories panel's REPOSITORIES and BRANCHES panes, while both are open;
+  - between the change tree and Preview Diff.
+- VS Code's modern look draws no line between its views, and its classic look only a faint
+  one, so until now nothing showed where those dividers were.
+- Pointing at a line shows the resize cursor and lights the divider, as before. The lines
+  take no clicks of their own.
+- The colour is the theme colour `gittree.sectionBorder`: see-through white in dark themes,
+  see-through black in light ones, and the theme's own border colour in high contrast. Set it
+  in `workbench.colorCustomizations`; transparent hides the lines:
+
+  ```json
+  "workbench.colorCustomizations": { "gittree.sectionBorder": "#00000000" }
+  ```
+
 ### Fixed — each branch in the Repositories panel says which repositories have it
 
 - **With several repositories in view, every branch row now names the ones that have the

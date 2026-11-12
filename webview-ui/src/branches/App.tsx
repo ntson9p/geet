@@ -1311,6 +1311,7 @@ export function App() {
             open={branchesOpen}
             controls="gtp-branches-list"
             ariaLabel="Branches"
+            sashAbove={layout.sash}
             onToggle={() => setPane('branches', !branchesOpen)}
             onKeyDown={(e) => onHeaderKeyDown('branches', e)}
           />

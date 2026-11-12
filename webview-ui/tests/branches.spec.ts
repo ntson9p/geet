@@ -1293,6 +1293,53 @@ test.describe('the REPOSITORIES and BRANCHES panes (new-way-6)', () => {
     await expect.poll(() => heightOf(reposList(page))).toBe(98);
   });
 
+  test('a line marks the divider while it can be dragged, on the line between the panes (POST-P14bu)', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await page.evaluate(() =>
+      document.documentElement.style.setProperty('--vscode-gittree-sectionBorder', 'rgb(1, 2, 3)'),
+    );
+    const sash = page.locator('.gtp-sash');
+    const topBorder = (pane: 'repos' | 'branches'): Promise<string> =>
+      paneHeader(page, pane).evaluate((el) => {
+        const s = getComputedStyle(el);
+        return `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`;
+      });
+    const headerTop = async (): Promise<number> => (await paneHeader(page, 'branches').boundingBox())!.y;
+    const sashMiddle = async (): Promise<number> => {
+      const box = (await sash.boundingBox())!;
+      return box.y + box.height / 2;
+    };
+
+    // The BRANCHES header's top border is the line, and the divider is grabbed across it.
+    expect(await topBorder('branches')).toBe('1px solid rgb(1, 2, 3)');
+    expect(await sashMiddle()).toBe(await headerTop());
+    // One line, in place of the theme's border, not over it: the colour is see-through, and a
+    // second line would add up to a stronger one. The divider draws none of its own, and the
+    // REPOSITORIES header, under the toolbar, none either.
+    expect(await sash.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('none');
+    expect(await topBorder('repos')).not.toContain('rgb(1, 2, 3)');
+
+    // It goes where the divider goes.
+    const before = await headerTop();
+    await dragDivider(page, -40);
+    await expect.poll(headerTop).toBe(before - 40);
+    expect(await sashMiddle()).toBe(await headerTop());
+
+    // A folded pane has no divider, and the BRANCHES header keeps the theme's own faint border.
+    await paneHeader(page, 'repos').click();
+    await expect(sash).toHaveCount(0);
+    expect(await topBorder('branches')).not.toContain('rgb(1, 2, 3)');
+    await paneHeader(page, 'repos').click();
+    await paneHeader(page, 'branches').click();
+    await expect(sash).toHaveCount(0);
+    expect(await topBorder('branches')).not.toContain('rgb(1, 2, 3)');
+    await paneHeader(page, 'branches').click();
+    await expect(sash).toHaveCount(1);
+    expect(await topBorder('branches')).toBe('1px solid rgb(1, 2, 3)');
+  });
+
   test('twenty repositories take a share of the panel, and the branches keep the rest', async ({ page }) => {
     await page.setViewportSize({ width: 400, height: 600 });
     await openPanel(page);

@@ -1060,6 +1060,7 @@ export function App() {
           {preview ? (
             <SplitPane
               direction="vertical"
+              className="gt-commit-split"
               ariaLabel="Changes and diff preview"
               ratio={ratio}
               onRatioChange={setRatio}
@@ -1172,6 +1173,10 @@ export function App() {
           <StashTab rpc={rpc} send={send} colors={state.colors} dateFormat={state.dateFormat} />
         </TabPanel>
       )}
+
+      {/* The line along the window's bottom edge, on VS Code's own divider
+          between this view and the one under it: where to grab it. */}
+      <div className="gt-commit-edge" aria-hidden="true" data-testid="commit-edge" />
 
       {optionsOpen && activeRepo !== undefined ? (
         <OptionsPopup rpc={rpc} repoRoot={activeRepo} onClose={() => setOptionsOpen(false)} />

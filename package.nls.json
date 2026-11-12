@@ -378,6 +378,7 @@
   "gittree.blame.age4Background.description": "Blame annotation background for the second-oldest fifth of a file's commits. Commits are ranked against the other commits in the same file, not against the clock.",
   "gittree.blame.age5Background.description": "Blame annotation background for the oldest fifth of a file's commits. Commits are ranked against the other commits in the same file, not against the clock.",
   "gittree.blame.uncommittedBackground.description": "Blame annotation background for a line that has not been committed yet.",
+  "gittree.sectionBorder.description": "The line along each border in GitTree's side bar that a drag resizes: under the Commit view, over the BRANCHES pane of the Repositories panel, and between the changes and their diff preview. Transparent hides the lines.",
   "gittree.config.decorations.fileExplorer.description": "Show GitTree's status colours and letter badges on files in the Explorer. Turn this off if you also run the built-in Git extension and would rather see only its decorations.",
   "gittree.command.diff.nextChange.title": "Next Change",
   "gittree.command.diff.prevChange.title": "Previous Change",

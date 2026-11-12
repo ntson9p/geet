@@ -221,6 +221,9 @@ design, not the popup standing open (D34). It answers three questions, top to bo
     to the automatic share: every repository while they take up to 40% of the panel, else 40%.
     It stops at the last repository, at one repository's row, and at BRANCHES' tabs and two
     rows. A press that never moves resizes nothing.
+  - **A line marks the divider** while both panes are open: the BRANCHES header's top border,
+    in `gittree.sectionBorder` (POST-P14bu, with the Commit window's). With a pane folded
+    there is nothing to drag, and the header keeps the theme's faint border.
   - **The REPOSITORIES header names the repositories picked**, each with its dot, folded or
     not: folded is when the list cannot say it. In a narrow sidebar its *Show all* gives way
     so the names keep their room.
@@ -501,6 +504,20 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   deleted the `vscode.scm` SourceControl entirely.
 * **Toolbar** (icon buttons with tooltips): Refresh · Rollback · Show Diff · Shelve Changes ·
   Preview Diff toggle · View Options (with several repositories) · Expand all · Collapse all.
+* **The borders a drag resizes are drawn** (POST-P14bu): a line in the theme colour
+  `gittree.sectionBorder` runs along each, so you can see where to grab. The Commit window
+  has two:
+  - **its bottom edge**, on VS Code's own divider between it and the view under it (the
+    Repositories panel). VS Code's modern look draws no line between views, and its classic
+    look only a faint one;
+  - **the divider between the change tree and Preview Diff**, along its middle. Under the
+    pointer the whole divider lights instead.
+
+  The Repositories panel draws the third, between its panes (§2, *The sidebar's Repositories
+  panel*). The lines take no clicks of their own: pointing at one shows the resize cursor and
+  lights the divider, as before. The colour is see-through white in dark themes, see-through
+  black in light ones, and the theme's border colour in high contrast.
+  `workbench.colorCustomizations` changes it, and transparent hides the lines.
 * **Context menus:** right-click a changelist row for Commit / Set Active / New / Rename /
   Delete / Shelve, or a file row for Add to VCS / Open Changes / Open File / Reveal in File
   Explorer / Move to Another Changelist / Roll Back / Add to .gitignore (P14-T2a). These were the

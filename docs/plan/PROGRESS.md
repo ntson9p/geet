@@ -1562,3 +1562,52 @@ Testing (written, **not run**, by the owner's standing instruction):
 - `VS_CODE_FONT` and `isCut` moved to the spec's top level, shared by both describes.
 
 Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14bu ✅ 2026-11-12 (branch `new-way-6`): **The borders that resize GitTree's side bar are drawn.** The owner: make the borders between Commit, Repositories and Branches in the left column clear, so users can spot where to put the pointer to resize them.
+
+**What was there.** Three borders in the column resize what is on either side, of two kinds:
+- VS Code's own divider (its sash) between the Commit view and the Repositories view. GitTree owns neither it nor the views' headers.
+- The Repositories panel's divider between its REPOSITORIES and BRANCHES panes (new-way-6), GitTree's own, made to behave as VS Code's.
+- The Commit window's divider between the change tree and Preview Diff (`SplitPane`), while the preview is on.
+
+Measured in a real VS Code 1.144 (`scratchpad/drive/sash.cjs`), in its six built-in themes:
+- **The modern look** (`workbench.experimental.modernUI`, on by default in 1.144) draws views as rounded cards, their headers on the side bar's background with no top border, in every theme, high contrast included. The only sign of the divider under the Commit view was the card's edge (`#1F1F1F` on `#181818` in Dark Modern).
+- **The classic look** gives the header a top border in `sideBarSectionHeader.border`: `#2B2B2B` on `#181818` in Dark Modern, `#E5E5E5` on `#F8F8F8` in Light Modern, 20% grey in Dark+.
+- The panel's divider showed only as the BRANCHES header's border, in the same faint colour. The preview's divider was a transparent 5px gap until hovered.
+- VS Code's sash is 4px across the line and above the webview: the pointer reaches it over the Commit page's bottom 2px and the next header's top 2px (`elementFromPoint`; its `hover` class lights from 2px above the line to 2px below).
+- **The page can be up to a pixel taller than what VS Code shows of it**: 398.4px of page in a 397.4px view (modern look, 125%), 414.4 in 414 (classic). A line on the page's last pixel row was cut away whole in the modern look.
+
+**Design.**
+- **A line on each border a drag resizes, and only those.** Borders that resize nothing (under the panel's toolbar, over the Commit window's message block) stay faint, so a clear line means "grab here". IntelliJ's splitters are lines too. No grip: neither VS Code nor IntelliJ has one.
+- **The colour** is a contributed theme colour, `gittree.sectionBorder`: `#ffffff33` dark and `#00000033` light (see-through, so it suits any side bar, and clearer than the Modern themes' borders, about 5%), `contrastBorder` in high contrast. Compared at 15, 20 and 25% in four themes and both looks. Transparent hides the lines; no setting of its own, as a colour is a theme's business.
+- **Under the Commit window**: a 2px line along the page's foot (`.gt-commit-edge`: fixed, no pointer events, under the popups and menus). 2px because the foot can be cut by up to a pixel: a 1px line at the foot vanished in the modern look, and one raised a pixel left a gap above VS Code's own faint line in the classic look, a double line. Two show 1 screen pixel in the modern look and 2 in the classic one, always on the sash.
+- **The panel's divider**: the BRANCHES header's top border takes the colour while the divider is there (`PaneHeader`'s `sashAbove`), in place of the theme's border. A first cut drew a second line from the sash, over that border; the see-through colours added up, to `#676767` in Dark+ against `#4B4B4B` under the Commit window.
+- **The preview divider**: a 1px line along its middle row (`.gt-commit-split`), giving way to the whole divider's highlight under the pointer or the keyboard.
+- Borders, not backgrounds, so forced colours keep them.
+- **Always under the Commit window, whatever is below it**: no API tells an extension the views' order, and in GitTree's layout the Repositories view is there. With the Commit view moved last, the line is at the foot of the side bar; the colour can hide it.
+
+**Checked in the real window** (`scratchpad/drive/borders.cjs`; the Repositories panel with four repositories):
+- Every theme gets the colour: `rgba(255,255,255,0.2)`, `rgba(0,0,0,0.2)`, `#6fc3df`, `#0f4a85`.
+- Pixel rows across each line, modern look, under the Commit window / over BRANCHES: Dark Modern `#4C4C4C` / `#464646` (the backgrounds under them differ), Light Modern `#CCCCCC` / `#C6C6C6`, Dark+ `#4B4B4B` both, Light+ `#CCCCCC` both, high contrast the theme's border colour. The classic look gives the same colours, the Commit window's 2 screen pixels high.
+- Pointing at the Commit window's line lights VS Code's divider with the resize cursor, and a drag from it resized the view by the 60px dragged (397.4 → 337.4). Pointing at the panel's line lights its divider, and a drag from it moved it 25px. The preview divider shows its line.
+
+Docs: FEATURES (the Commit window's shape; the panel's divider), CHANGELOG (Changed), the colour's description (`package.nls.json`).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit** (`sectionBorder.test.ts`):
+  - the colour is contributed for every kind of theme;
+  - see-through white and black, between 15% and 30%, in the plain themes;
+  - `contrastBorder` in high contrast;
+  - its description names the three places and how to hide them;
+  - both stylesheets read it as `--vscode-gittree-sectionBorder` (the first dot, its only one, a dash, as `themeColor` says), only in a border, and with a fallback.
+- **Playwright** (`commit.spec.ts`, *POST-P14bu the borders a drag resizes are drawn*):
+  - the 2px line along the foot, in every tab;
+  - it takes no pointer, and the menus and the options popup draw over it;
+  - the preview divider's middle line, giving way under the pointer, and a drag from it.
+- **Playwright** (`branches.spec.ts`, the panes):
+  - the BRANCHES header's top border is the line, with the divider centred on it;
+  - one line, not two;
+  - it follows a drag;
+  - with either pane folded, the theme's border is back.
+
+Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.

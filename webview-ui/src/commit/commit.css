@@ -14,6 +14,48 @@
   min-height: 0;
 }
 
+/* The borders a drag resizes are drawn (POST-P14bu), in `gittree.sectionBorder`:
+   VS Code draws none between its views in its modern look, and only a faint one
+   in its classic look, so nothing showed where to grab.
+
+   This one is the window's bottom edge, where VS Code's divider between this
+   view and the next lies; that divider reaches 2px into the page. The line is
+   2px thick for a reason: the page can be up to a pixel taller than the part
+   VS Code shows of it (398.4px of page in a 397.4px view, VS Code 1.144 at 125%,
+   and it changes as the divider moves), so a 1px line at the very bottom can be
+   cut away whole, and one raised off the edge leaves a gap above VS Code's own.
+   Two keep at least a pixel on the divider and none apart from it. Borders, not
+   backgrounds, so forced colours keep them; no pointer events, so the divider
+   still takes the drag; every popup and menu draws over it. */
+.gt-commit-edge {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  border-top: 2px solid var(--vscode-gittree-sectionBorder, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* The divider between the changes and their diff preview: a line along its
+   middle until the pointer or the keyboard is on it, and the whole of it lights. */
+.gt-commit-split > .gt-split-sash::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  height: 0;
+  border-top: 1px solid var(--vscode-gittree-sectionBorder, transparent);
+  pointer-events: none;
+}
+
+.gt-commit-split > .gt-split-sash:hover::after,
+.gt-commit-split > .gt-split-sash:focus-visible::after {
+  border-top-color: transparent;
+}
+
 /* The toolbar keeps its height: with overflow hidden it could shrink to half
    a row when something above it (the failure banner) took space (POST-QA). */
 .gt-commit-panel > .gt-toolbar-strip {

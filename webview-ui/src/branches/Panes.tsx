@@ -29,6 +29,11 @@ export interface PaneHeaderProps {
   readonly label?: ReactNode;
   /** At the end of the header; a press on one never folds the pane. */
   readonly actions?: ReactNode;
+  /**
+   * The divider between the panes lies along this header's top edge, so its top
+   * border is the line that marks it (`gittree.sectionBorder`).
+   */
+  readonly sashAbove?: boolean;
   readonly onToggle: () => void;
   readonly onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => void;
 }
@@ -39,13 +44,13 @@ export interface PaneHeaderProps {
  * the list above and its own.
  */
 export const PaneHeader = forwardRef<HTMLDivElement, PaneHeaderProps>(function PaneHeader(
-  { pane, title, open, count, ariaLabel, controls, label, actions, onToggle, onKeyDown },
+  { pane, title, open, count, ariaLabel, controls, label, actions, sashAbove, onToggle, onKeyDown },
   ref,
 ) {
   return (
     <div
       ref={ref}
-      className={`gtp-pane-header${open ? ' gtp-expanded' : ''}`}
+      className={`gtp-pane-header${open ? ' gtp-expanded' : ''}${sashAbove === true ? ' gtp-sash-above' : ''}`}
       data-pane={pane}
       role="button"
       tabIndex={0}
@@ -71,7 +76,8 @@ export const PaneHeader = forwardRef<HTMLDivElement, PaneHeaderProps>(function P
 export const SASH = 4;
 
 /**
- * The divider between the panes. Dragged, it moves the line between them; a
+ * The divider between the panes; the header under it draws the line that marks
+ * it (`PaneHeader`'s `sashAbove`). Dragged, it moves the line between them; a
  * double-click gives the REPOSITORIES pane back its automatic size. A press
  * that never moves changes nothing, so a click is not a resize.
  */

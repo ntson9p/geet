@@ -1889,3 +1889,110 @@ test.describe('POST-P14bs Ctrl+Enter in the message box', () => {
     });
   });
 });
+
+test.describe('POST-P14bu the borders a drag resizes are drawn', () => {
+  const LINE = 'rgb(1, 2, 3)';
+
+  async function openWithLine(page: Page): Promise<void> {
+    await openCommit(page);
+    // VS Code hands every webview the colour as this variable.
+    await page.evaluate(
+      (colour) => document.documentElement.style.setProperty('--vscode-gittree-sectionBorder', colour),
+      LINE,
+    );
+  }
+
+  const edgeOf = (page: Page) =>
+    page.getByTestId('commit-edge').evaluate((el) => {
+      const s = getComputedStyle(el);
+      const b = el.getBoundingClientRect();
+      return {
+        top: b.top,
+        bottom: b.bottom,
+        left: b.left,
+        right: b.right,
+        border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+        events: s.pointerEvents,
+        hidden: el.getAttribute('aria-hidden'),
+      };
+    });
+
+  test("a line runs along the window's foot, on VS Code's divider under the view, in every tab", async ({
+    page,
+  }) => {
+    await openWithLine(page);
+    const { width, height } = page.viewportSize()!;
+    // 2px: VS Code can show the page up to a pixel short of its foot, and its
+    // divider reaches 2px into the view, so the line stays on it whole or cut.
+    expect(await edgeOf(page)).toEqual({
+      top: height - 2,
+      bottom: height,
+      left: 0,
+      right: width,
+      border: `2px solid ${LINE}`,
+      events: 'none',
+      hidden: 'true',
+    });
+    for (const tab of ['Shelf', 'Stash', 'Commit']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click();
+      expect((await edgeOf(page)).bottom).toBe(height);
+    }
+  });
+
+  test('the line takes no pointer, and the menus and popups draw over it', async ({ page }) => {
+    await openWithLine(page);
+    const { width, height } = page.viewportSize()!;
+    // Whatever is under the line takes the pointer, never the line.
+    const under = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x!, y!)?.getAttribute('data-testid') ?? '(something else)',
+      [width / 2, height - 1],
+    );
+    expect(under).not.toBe('commit-edge');
+
+    const layer = (selector: string): Promise<number> =>
+      page.locator(selector).first().evaluate((el) => Number(getComputedStyle(el).zIndex));
+    const edge = await layer('[data-testid="commit-edge"]');
+    await page.getByRole('button', { name: 'Commit message history' }).click();
+    await expect(page.getByRole('menu', { name: 'Commit message history' })).toBeVisible();
+    expect(await layer('.gt-menu')).toBeGreaterThan(edge);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Commit options' }).click();
+    await expect(page.locator('.gt-options-popup')).toBeVisible();
+    expect(await layer('.gt-options-popup')).toBeGreaterThan(edge);
+  });
+
+  test('the divider over the diff preview has a line along its middle until the pointer is on it', async ({
+    page,
+  }) => {
+    await openWithLine(page);
+    await page.getByRole('button', { name: 'Preview Diff' }).click();
+    const divider = page.getByRole('separator', { name: 'Changes and diff preview' });
+    const line = () =>
+      divider.evaluate((el) => {
+        const s = getComputedStyle(el, '::after');
+        return {
+          offset: parseFloat(s.top),
+          height: el.getBoundingClientRect().height,
+          border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+          events: s.pointerEvents,
+        };
+      });
+    // The middle row of the 5px divider.
+    expect(await line()).toEqual({ offset: 2, height: 5, border: `1px solid ${LINE}`, events: 'none' });
+
+    // Under the pointer the whole divider lights, and the line makes way for it.
+    await divider.hover();
+    expect((await line()).border).toBe('1px solid rgba(0, 0, 0, 0)');
+
+    // Grabbed on the line, it drags.
+    const before = (await page.getByTestId('commit-preview').boundingBox())!.height;
+    const box = (await divider.boundingBox())!;
+    await page.mouse.move(box.x + 40, box.y + 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 40, box.y + 2 - 30, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(async () => (await page.getByTestId('commit-preview').boundingBox())!.height).toBeGreaterThan(
+      before + 20,
+    );
+  });
+});

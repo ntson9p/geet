@@ -246,6 +246,16 @@
   border-top-color: transparent;
 }
 
+/* The divider between the panes lies along this header's top edge: there, the
+   border is the line that says where to grab it (POST-P14bu,
+   `gittree.sectionBorder`), in place of the theme's faint one. In place of, not
+   over: the colour is see-through, and two would add up to a line darker or
+   lighter than the one under the Commit window. A folded pane has no divider,
+   and the theme's border is left. */
+.gtp-pane-header.gtp-sash-above {
+  border-top-color: var(--vscode-gittree-sectionBorder, var(--vscode-sideBarSectionHeader-border, transparent));
+}
+
 .gtp-pane-header:focus {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
