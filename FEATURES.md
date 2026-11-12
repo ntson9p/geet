@@ -270,12 +270,25 @@ picked; at first, on Recent while anything is recent, else Local.
     push goes there. The current-branch row says the same in place of its upstream.
 * **Several repositories are one list.** A branch name is one row however many repositories
   have it. Its actions run in every repository it stands for and say so: *Checkout in 2
-  repositories*. **Repository Dots** (off by default, `gittree.branches.showRepositoryDots`)
-  put a dot per repository in view on each row: filled where the branch is checked out,
-  ringed where it exists, small where it does not. They are switched by the toolbar's dots
+  repositories*.
+* **Each row says which repositories have its branch** (with several in view, in the tabs and
+  in a search alike), between its `↓ ↑` counts and its age, so the words line up down the
+  list: *in api, web* (up to three named, in the REPOSITORIES pane's order), *in both* or *in
+  all 20* (every repository in view: said, not left blank), *in 13 of 20* (more than three).
+  They come after the row's hover buttons, so they hold still when those show; the branch's
+  name gives way instead (on a hovered checked-out branch at 300px, down to a letter or two),
+  and a long list of names ends in `…` at about a third of the row. Below about 250px they become a count
+  (*in 2*); below about 190px they go. The row's hover names every repository, the ones
+  without it when there are three or fewer (*Not in shared*), and where it is checked out when
+  that is only some of them (*Checked out in api*); a screen reader hears *develop, in api and
+  web*. Narrowed to one repository, rows say nothing of where: the scope pill names it. Narrowed
+  to some, they speak of those.
+* **Repository Dots** (off by default, `gittree.branches.showRepositoryDots`) put a dot per
+  repository in view on each row in place of those words: filled where the branch is checked
+  out, ringed where it exists, small where it does not. They are switched by the toolbar's dots
   button (shown pressed while they are on), by `⋯` › *Show* › **Repository Dots**, and by
-  **GitTree: Toggle Repository Dots**. Off, nothing is lost: a branch's card still says which
-  repositories have it.
+  **GitTree: Toggle Repository Dots**. Either way a branch's card lists the repositories,
+  grouped by what they say about it.
 * **A repository's menu** (right-click, or its `⋯`) opens with the ways of looking at it:
   **Show Only This Repository** and **Show in New Log Tab**, its history at HEAD in a Log tab of
   its own (titled with the repository's name wherever another tab would read the same). It is a

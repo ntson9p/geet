@@ -29,6 +29,7 @@ import {
   remoteTwin,
   ROW,
   scopeReposOf,
+  SHORT_WHERE,
   shortAge,
   shownTab,
   TABS,
@@ -39,6 +40,7 @@ import {
   trackingShort,
   trackingText,
   upstreamElsewhere,
+  whereOf,
   type BranchEntry,
   type BranchTab,
   type CardLine,
@@ -567,6 +569,149 @@ describe('buildPanel: searching', () => {
     const bad = buildPanel(state([web]), ui({ query: 'no such thing' }));
     const last = bad.rows[bad.rows.length - 1]!;
     expect(last.kind === 'hint' && last.create).toBeUndefined();
+  });
+});
+
+describe('where a branch is, on its row (POST-P14bt)', () => {
+  const shared = repo('/shared', {
+    head: 'main',
+    locals: [ref('main', { current: true }), ref('refactor/types')],
+  });
+  /** The three as the panel orders them: by label. */
+  const three = [api, shared, web];
+  const entryIn = (repos: readonly BranchPanelRepoDto[], name: string, kind: 'local' | 'remote' = 'local'): BranchEntry =>
+    buildEntries(repos, kind).find((e) => e.name === name)!;
+  /** Twenty repositories, `/r1` to `/r20`, each with main; `develop` in the first `n`. */
+  const twenty = (n: number): BranchPanelRepoDto[] =>
+    Array.from({ length: 20 }, (_, i) =>
+      repo(`/r${i + 1}`, {
+        locals: [ref('main', { current: i === 0 }), ...(i < n ? [ref('develop')] : [])],
+      }),
+    );
+  const whereRows = (rows: readonly PanelRow[]) =>
+    rows.flatMap((r) => (r.kind === 'branch' ? [[r.entry.name, r.where?.text]] : []));
+
+  it('says nothing while one repository is in view: the scope or the workspace names it', () => {
+    expect(whereOf(entryIn([web], 'develop'), [web])).toBeUndefined();
+  });
+
+  it('names up to three repositories, in the panel’s order, and says which lack it when few', () => {
+    const develop = whereOf(entryIn(three, 'develop'), three)!;
+    expect(develop).toEqual({
+      text: 'in api, web',
+      short: 'in 2',
+      title: 'In api and web\nNot in shared',
+      spoken: 'in api and web',
+    });
+    const types = whereOf(entryIn(three, 'refactor/types'), three)!;
+    expect([types.text, types.short, types.title, types.spoken]).toEqual([
+      'in shared',
+      'in shared',
+      'In shared\nNot in api and web',
+      'in shared',
+    ]);
+  });
+
+  it('says every one in view rather than leave the row blank: both of two, all of more', () => {
+    const both = whereOf(entryIn([api, web], 'main'), [api, web])!;
+    expect([both.text, both.short, both.title, both.spoken]).toEqual([
+      'in both',
+      'in both',
+      'In both repositories: api and web\nChecked out in api',
+      'in both repositories',
+    ]);
+    const all = whereOf(entryIn(three, 'main'), three)!;
+    expect([all.text, all.title, all.spoken]).toEqual([
+      'in all 3',
+      'In all 3 repositories: api, shared and web\nChecked out in api and shared',
+      'in all 3 repositories',
+    ]);
+  });
+
+  it('counts past three, naming them all in the hover, and the few without it', () => {
+    const many = twenty(13);
+    const thirteen = whereOf(entryIn(many, 'develop'), many)!;
+    expect([thirteen.text, thirteen.short, thirteen.spoken]).toEqual([
+      'in 13 of 20',
+      'in 13',
+      'in 13 of 20 repositories',
+    ]);
+    expect(thirteen.title).toBe(
+      `In 13 of 20 repositories: ${Array.from({ length: 13 }, (_, i) => `r${i + 1}`).join(', ')}`,
+    );
+    // Seven without it are too many to list; three are the news.
+    const nearly = twenty(17);
+    expect(whereOf(entryIn(nearly, 'develop'), nearly)!.title.split('\n')).toEqual([
+      `In 17 of 20 repositories: ${Array.from({ length: 17 }, (_, i) => `r${i + 1}`).join(', ')}`,
+      'Not in r18, r19 and r20',
+    ]);
+  });
+
+  it('every one of twenty is "in all 20", and its hover does not list twenty names', () => {
+    const many = twenty(20);
+    const all = whereOf(entryIn(many, 'develop'), many)!;
+    expect([all.text, all.short, all.title, all.spoken]).toEqual([
+      'in all 20',
+      'in all 20',
+      'In all 20 repositories',
+      'in all 20 repositories',
+    ]);
+  });
+
+  it('says where it is checked out only where the row’s check cannot: some of them, not all', () => {
+    const many = twenty(20);
+    // main is checked out in r1 alone.
+    expect(whereOf(entryIn(many, 'main'), many)!.title).toBe('In all 20 repositories\nChecked out in r1');
+    // feature/login is checked out in web, the one repository that has it.
+    expect(whereOf(entryIn(three, 'feature/login'), three)!.title).toBe('In web\nNot in api and shared');
+  });
+
+  it('a narrow sidebar keeps the words while they are short, and counts past that', () => {
+    const many = twenty(13);
+    const short = (repos: readonly BranchPanelRepoDto[], name: string) => whereOf(entryIn(repos, name), repos)!.short;
+    expect(short(three, 'refactor/types')).toBe('in shared');
+    expect(short([api, web], 'main')).toBe('in both');
+    expect(short(three, 'develop')).toBe('in 2');
+    expect(short(many, 'develop')).toBe('in 13');
+    expect(short(twenty(20), 'develop')).toBe('in all 20');
+    expect('in shared'.length).toBeLessThanOrEqual(SHORT_WHERE);
+  });
+
+  it('is on every branch row while several repositories are in view: the tabs and a search alike', () => {
+    // Every folder open: bugfix/ and refactor/ by hand, feature/ for the current branch in it.
+    const local = buildPanel(
+      state(three),
+      ui({ tab: 'local', toggled: new Set(['dir:local:bugfix/', 'dir:local:refactor/']) }),
+    );
+    expect(whereRows(local.branchRows)).toEqual([
+      ['bugfix/header', 'in web'],
+      ['feature/login', 'in web'],
+      ['refactor/types', 'in shared'],
+      ['develop', 'in api, web'],
+      ['main', 'in all 3'],
+    ]);
+    const found = buildPanel(state(three), ui({ query: 'main' }));
+    expect(whereRows(found.branchRows)).toEqual([
+      ['main', 'in all 3'],
+      ['origin/main', 'in api, web'],
+      ['upstream/main', 'in web'],
+    ]);
+    // Recent too, whose rows are the same rows.
+    expect(whereRows(buildPanel(state(three), ui()).branchRows)).toEqual([
+      ['develop', 'in api, web'],
+      ['main', 'in all 3'],
+    ]);
+  });
+
+  it('speaks of the repositories in view: none narrowed to one, both narrowed to two', () => {
+    const one = buildPanel(state(three), ui({ scope: ['/web'], query: 'e' }));
+    expect(one.branchRows.some((r) => r.kind === 'branch' && r.where !== undefined)).toBe(false);
+    const two = buildPanel(state(three), ui({ scope: ['/api', '/web'], query: 'main' }));
+    expect(whereRows(two.branchRows)).toEqual([
+      ['main', 'in both'],
+      ['origin/main', 'in both'],
+      ['upstream/main', 'in web'],
+    ]);
   });
 });
 

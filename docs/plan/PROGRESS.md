@@ -1506,3 +1506,59 @@ Testing:
 Not changed, reported: docs/keyboard.md also lists `Ctrl+Up` for message history in the message box. That keybinding (`scmInputIsInFocused && scmProvider == gittree`) went with the native commit surface in 5e7a166, and nothing took its place in the Commit window.
 
 Gates: typecheck + lint clean; extension and webviews built.
+
+POST-P14bt ✅ 2026-11-12 (branch `new-way-6`): **Each branch row in the Repositories panel says which repositories have it.** The owner: with no repository focused, typing in the filter lists the matching branches, but nothing says which repositories they are in. Asked to investigate and to design and build the best fix.
+
+**Where the problem was.** The sidebar's Repositories panel (`gittree.branches`), not the popup: the popup's flat search already writes the repository before each match (`popupTree.flatSearch`), and the log's Branches pane is one repository's. The panel draws one row per branch name however many repositories have it (D34). The only per-row sign of where was the Repository Dots, off by default since POST-P14bj and unnamed without a hover. Opening a card told, a branch at a time.
+
+**What IntelliJ does.** Its Branches tree, not grouped by repository, appends the repositories' names in grey to a branch only some of them have, `feature/x (api, web)`, and nothing to one all of them have (`plugins/git4idea/backend/src/ui/branch/dashboard/BranchesTree.kt`, `BranchTreeCellRenderer`).
+
+**Design** (deviation detail recorded under D34):
+- **Every branch row, while several repositories are in view**, in the tabs and in a search alike. Rows look the same in both, and the tabs had the same blind spot. Narrowed to one repository there is nothing to say (the scope pill names it). Narrowed to some, the rows speak of those.
+- **The words** (`model.whereOf`, pure):
+  - up to three repositories named, in the panel's order: *in api, web*, as a card's group names up to `NAMED_REPOS`;
+  - every repository in view: *in both* (of two), *in all 20*. Not left blank as IntelliJ leaves it: the owner's complaint was rows that said nothing, and a blank cannot be told from that;
+  - otherwise counted: *in 13 of 20*.
+- **Hover** (the row's title, after its name): every repository it is in. Then the ones without it, when three or fewer (*Not in shared*: in 17 of 20, those three are the news). Then where it is checked out, when that is only some of them, which the row's dim check cannot say. **Screen reader**: the row's label gains *, in api and web* / *, in 13 of 20 repositories*, dots or no dots.
+- **Place**: the Repository Dots' slot, between the `↓ ↑` counts and the age, after the hover buttons. The words are a decoration, so they hold still when the buttons show (the owner's rule for the dots, POST-P14bj), and their right edges line up down the list. First built before the counts; a row then read *in api, web ↓1 ↑2*, as if web were behind, and the column was ragged.
+- **Width**: the words never shrink; only a long list of names is cut, at 35% of the row, with `…`. The name gives way instead: a search found the branch by its name, and the words are what the row did not say. Below 19em (about 250px) they become a count (`short`: the words while 10 characters or fewer, `in shared`, `in all 20`, else `in 2`). Below 14.5em (about 190px) they go, as the head row's upstream goes there.
+- **Repository Dots** on: the dots say the same in the same place, so the words step aside rather than say it twice. The setting's description says so.
+
+**Found while checking in the real window:** a first cut let the words shrink, by a factor of 0.001, "only once the name had none left". On hover, a fraction of a pixel of shrink already ended *in api, web* as *in api, w…*. The mock's measurements had rounded it away. The words now never shrink, and the Playwright test compares their box, to the fraction of a pixel, before and during hover.
+
+**Trade-off, kept:** at 300px a hovered checked-out branch (four buttons, and its counts) keeps a letter or two of its name. Nothing moves, and the hover names it. Before, the name kept about 60px more. A row with three buttons keeps about 66px of name.
+
+**Checked:**
+- **The mock**, by screenshot and measurement: three repositories at 620 and 300px; twenty (a jackfruit branch in two, its remote in three, develop in 17) at 420, 300, 240, 200 and 180px; Recent, Local and Remote; a selected row; the dots on. Hover leaves the words' box unchanged to three decimals on rows with and without counts. Every row's words end at the same x, 8px before the age.
+- **A real VS Code 1.144** (Playwright over CDP, `scratchpad/drive/where.cjs`), on four scratch repositories on C:, no repository picked:
+  - *jack*: *in api, web* on the local branch, *in api, shared, web* on its remote;
+  - *develop*: *in api, shared, web*, its hover naming docs as without it and api as where it is checked out;
+  - *main*: *in all 4*;
+  - *login*: *in web*;
+  - the Local tab;
+  - hover leaves both words whole and in place.
+
+Docs: FEATURES (Repositories panel), CHANGELOG (Fixed), D34, the Repository Dots setting's description (`package.nls.json`, settings.md regenerated).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit** (`branchPanelModel.test.ts`, *where a branch is, on its row*):
+  - nothing with one repository in view;
+  - up to three named, with the ones lacking it;
+  - *in both* and *in all 3*, with where it is checked out;
+  - counted past three, with *Not in* only when three or fewer lack it;
+  - *in all 20* with no list of twenty;
+  - the checked-out line only for some;
+  - the narrow form;
+  - `buildPanel` puts the words on every branch row in the Local tab, a search and Recent, none narrowed to one, *in both* narrowed to two.
+- **Playwright** (`branches.spec.ts`, *which repositories a branch is in*):
+  - a search's matches with no repository picked;
+  - the hover and the screen-reader label;
+  - the tabs' rows;
+  - narrowed to one, then two;
+  - the dots in place of the words, and back;
+  - twenty repositories (*in 19 of 20*, *Not in shared*, *in all 20*);
+  - at 300px the words between the counts and the age, holding still and whole on hover;
+  - and, under *a narrow sidebar*, the count at 230px and none at 180px with the hover still saying it.
+- `VS_CODE_FONT` and `isCut` moved to the spec's top level, shared by both describes.
+
+Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.

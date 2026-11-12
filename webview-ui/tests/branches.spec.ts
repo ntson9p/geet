@@ -39,6 +39,10 @@ async function requests(page: Page, method: string): Promise<Array<Record<string
 }
 
 const row = (page: Page, id: string): Locator => page.locator(`[data-row-id="${id}"]`);
+/** VS Code's own 13px, which the panel's narrow rules are measured in. */
+const VS_CODE_FONT = 'body { --vscode-font-family: Arial, sans-serif; --vscode-font-size: 13px; }';
+/** Text cut short: an ellipsis, or nothing shown past the box's edge. */
+const isCut = (l: Locator): Promise<boolean> => l.evaluate((el) => el.scrollWidth > el.clientWidth + 0.5);
 const WEB = '/work/web';
 const API = '/work/api';
 const SHARED = '/work/shared';
@@ -769,6 +773,145 @@ test.describe('searching', () => {
   });
 });
 
+test.describe('which repositories a branch is in (POST-P14bt)', () => {
+  /** The words a row says about where its branch is, as shown in a wide sidebar. */
+  const words = (page: Page, id: string): Locator => row(page, id).locator('.gtp-where-text');
+
+  test("a search's matches say which repositories have them, with no repository picked", async ({ page }) => {
+    await openPanel(page);
+    const filter = page.getByLabel('Filter branches');
+    await filter.fill('develop');
+    // api and web have develop, shared does not.
+    await expect(words(page, 'br:local:local:develop')).toHaveText('in api, web');
+    await expect(words(page, 'br:local:local:develop')).toBeVisible();
+    await expect(row(page, 'br:local:local:develop').locator('.gtp-where-short')).toBeHidden();
+    await expect(words(page, 'br:remote:remote:origin/develop')).toHaveText('in api, web');
+    // Every repository: said, not left blank.
+    await filter.fill('main');
+    await expect(words(page, 'br:local:local:main')).toHaveText('in all 3');
+    await expect(words(page, 'br:remote:remote:origin/main')).toHaveText('in all 3');
+    await filter.fill('types');
+    await expect(words(page, 'br:local:local:refactor/types')).toHaveText('in shared');
+  });
+
+  test('its hover names every repository, and a screen reader hears them', async ({ page }) => {
+    await openPanel(page);
+    const filter = page.getByLabel('Filter branches');
+    await filter.fill('develop');
+    const develop = row(page, 'br:local:local:develop');
+    await expect(develop.locator('.gtp-branch')).toHaveAttribute(
+      'title',
+      /^develop\nIn api and web\nNot in shared\nWork on develop\nDouble-click or Enter for details/u,
+    );
+    await expect(develop).toHaveAttribute('aria-label', 'develop, in api and web');
+    await filter.fill('main');
+    const main = row(page, 'br:local:local:main');
+    await expect(main.locator('.gtp-branch')).toHaveAttribute(
+      'title',
+      /^main\nIn all 3 repositories: api, shared and web\nChecked out in shared\n/u,
+    );
+    await expect(main).toHaveAttribute('aria-label', 'main, checked out, in all 3 repositories');
+  });
+
+  test("the tabs' rows say it too", async ({ page }) => {
+    await openPanel(page);
+    await expect(words(page, 'br:recent:local:develop')).toHaveText('in api, web');
+    await showTab(page, 'Local');
+    await expect(words(page, 'br:local:local:main')).toHaveText('in all 3');
+    await row(page, 'dir:local:refactor/').click();
+    await expect(words(page, 'br:local:local:refactor/types')).toHaveText('in shared');
+    await showTab(page, 'Remote');
+    await expect(words(page, 'br:remote:remote:origin/develop')).toHaveText('in api, web');
+  });
+
+  test('they speak of the repositories in view: nothing narrowed to one, both narrowed to two', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await row(page, `repo:${WEB}`).click();
+    await page.getByLabel('Filter branches').fill('develop');
+    const develop = row(page, 'br:local:local:develop');
+    await expect(develop).toBeVisible();
+    await expect(develop.locator('.gtp-where')).toHaveCount(0);
+    await expect(develop).toHaveAttribute('aria-label', 'develop');
+
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await expect(words(page, 'br:local:local:develop')).toHaveText('in both');
+    await expect(develop).toHaveAttribute('aria-label', 'develop, in both repositories');
+  });
+
+  test('with the Repository Dots on, the dots say it in place of the words', async ({ page }) => {
+    await openPanel(page, { dots: true });
+    await page.getByLabel('Filter branches').fill('develop');
+    const develop = row(page, 'br:local:local:develop');
+    await expect(develop.locator('.gtp-markers .gtp-marker')).toHaveCount(3);
+    await expect(develop.locator('.gtp-where')).toHaveCount(0);
+    // A screen reader cannot see the dots: it still hears the words.
+    await expect(develop).toHaveAttribute('aria-label', 'develop, in api and web');
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' }).click();
+    await expect(develop.locator('.gtp-markers')).toHaveCount(0);
+    await expect(words(page, 'br:local:local:develop')).toHaveText('in api, web');
+  });
+
+  test('twenty repositories: counted past three, and every one is "in all 20"', async ({ page }) => {
+    await openPanel(page);
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __mockState: { repos: Array<Record<string, unknown>> };
+        __pushState: () => void;
+      };
+      // Seventeen more like api: feature/login, main and develop.
+      const base = w.__mockState.repos[0]!;
+      for (let i = 1; i <= 17; i++) {
+        w.__mockState.repos.push({ ...base, root: `/work/extra-${i}`, label: `extra-${i}` });
+      }
+      w.__pushState();
+    });
+    await page.getByLabel('Filter branches').fill('develop');
+    const develop = row(page, 'br:local:local:develop');
+    await expect(words(page, 'br:local:local:develop')).toHaveText('in 19 of 20');
+    await expect(develop.locator('.gtp-branch')).toHaveAttribute(
+      'title',
+      /^develop\nIn 19 of 20 repositories: api, web, extra-1, extra-2, .*extra-17\nNot in shared\n/u,
+    );
+    await expect(develop).toHaveAttribute('aria-label', 'develop, in 19 of 20 repositories');
+    await page.getByLabel('Filter branches').fill('main');
+    await expect(words(page, 'br:local:local:main')).toHaveText('in all 20');
+  });
+
+  test("the words hold still, and whole, when the row's buttons show", async ({ page }) => {
+    // A usual sidebar's width, where a long name and the buttons leave little room.
+    await page.setViewportSize({ width: 300, height: 600 });
+    await openPanel(page);
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    await page.getByLabel('Filter branches').fill('feature');
+    const mistracked = row(page, 'br:local:local:feature/mistracked');
+    const where = mistracked.locator('.gtp-where');
+    const x = async (selector: string): Promise<number> =>
+      (await mistracked.locator(selector).boundingBox())!.x;
+    const place = async () => ({
+      sync: await x('.gtp-sync'),
+      where: (await where.boundingBox())!,
+      age: await x('.gtp-age'),
+    });
+    const at = await place();
+    // In the dots' place: after the counts, right before the age.
+    expect(at.sync).toBeLessThan(at.where.x);
+    expect(at.where.x + at.where.width).toBeLessThanOrEqual(at.age);
+    expect(await isCut(where)).toBe(false);
+
+    await mistracked.hover();
+    await expect(mistracked.getByRole('button', { name: 'Checkout' })).toBeVisible();
+    // The name gives way to the buttons; the words do not, by so much as a fraction of a
+    // pixel, which would already end them in `…`.
+    expect(await place()).toEqual(at);
+    expect(await isCut(where)).toBe(false);
+    await expect(where.locator('.gtp-where-text')).toHaveText('in web');
+    const buttons = (await mistracked.locator('.gtp-row-buttons').boundingBox())!;
+    expect(buttons.x + buttons.width).toBeLessThanOrEqual(at.sync + 0.5);
+  });
+});
+
 test.describe('one repository', () => {
   test("the current branch's menu leaves out the repository's Show in New Log Tab", async ({
     page,
@@ -1272,9 +1415,6 @@ test.describe('the REPOSITORIES and BRANCHES panes (new-way-6)', () => {
 });
 
 test.describe('a narrow sidebar', () => {
-  /** VS Code's own 13px, which the panel's narrow rules are measured in. */
-  const VS_CODE_FONT = 'body { --vscode-font-family: Arial, sans-serif; --vscode-font-size: 13px; }';
-  const isCut = (l: Locator): Promise<boolean> => l.evaluate((el) => el.scrollWidth > el.clientWidth + 0.5);
   const visibleButtons = (l: Locator): Locator => l.locator('.gtp-row-buttons > button:visible');
 
   test('the current branch keeps its name, and what it tracks gives way first', async ({ page }) => {
@@ -1352,6 +1492,29 @@ test.describe('a narrow sidebar', () => {
       'title',
       "New Branch from 'feature/login'…",
     );
+  });
+
+  test("a branch's repositories are counted in a narrow sidebar, and left to the hover in a narrower one", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 400, height: 600 });
+    await openPanel(page);
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    await page.getByLabel('Filter branches').fill('develop');
+    const develop = row(page, 'br:local:local:develop');
+    await expect(develop.locator('.gtp-where-text')).toBeVisible();
+    await expect(develop.locator('.gtp-where-text')).toHaveText('in api, web');
+    await expect(develop.locator('.gtp-where-short')).toBeHidden();
+    // Below about 250px the names give way to a count, so the branch keeps its room.
+    await page.setViewportSize({ width: 230, height: 600 });
+    await expect(develop.locator('.gtp-where-text')).toBeHidden();
+    await expect(develop.locator('.gtp-where-short')).toBeVisible();
+    await expect(develop.locator('.gtp-where-short')).toHaveText('in 2');
+    // Below about 190px the row keeps its name; its hover still says where.
+    await page.setViewportSize({ width: 180, height: 600 });
+    await expect(develop.locator('.gtp-where')).toBeHidden();
+    await expect(develop.locator('.gtp-name')).toBeVisible();
+    await expect(develop.locator('.gtp-branch')).toHaveAttribute('title', /\nIn api and web\n/u);
   });
 
   test('a narrow card leaves out who made the last commit, and keeps when', async ({ page }) => {

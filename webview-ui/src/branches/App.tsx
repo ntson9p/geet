@@ -788,8 +788,9 @@ export function App() {
   if (!state || !model) return <div className="gtp-empty">Loading…</div>;
 
   // Repository Dots: a dot per repository on each branch row, with several in
-  // view and the toolbar's switch on. A branch's card lists the repositories
-  // either way (`model.markers`), so turning them off hides nothing for good.
+  // view and the toolbar's switch on. Off, each row names its repositories in
+  // words instead (`row.where`), and a branch's card lists them either way
+  // (`model.markers`), so turning them off hides nothing.
   const dotsShown = model.markers && state.showRepositoryDots;
   if (state.repos.length === 0) {
     return (
@@ -1088,7 +1089,7 @@ export function App() {
       row.kind === 'branch'
         ? `${row.entry.name}${row.entry.currentIn.length > 0 ? ', checked out' : ''}${
             row.entry.tracksElsewhere !== undefined ? `, tracks ${row.entry.tracksElsewhere}` : ''
-          }`
+          }${row.where !== undefined ? `, ${row.where.spoken}` : ''}`
         : row.kind === 'repo'
           ? `${row.repo.label}, on ${row.repo.head ?? 'a detached HEAD'}${row.repo.fetching ? ', fetching' : ''}`
           : row.kind === 'head'

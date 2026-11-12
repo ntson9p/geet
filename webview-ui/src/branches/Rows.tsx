@@ -34,6 +34,7 @@ import {
   type CardLine,
   type PanelRow,
   type QuickAction,
+  type RowWhere,
 } from './model';
 
 /** One indent step, the width VS Code's trees use. */
@@ -566,11 +567,30 @@ export function Markers({
   );
 }
 
+/**
+ * Which repositories in view have the branch, in words (POST-P14bt): `in api, web`,
+ * `in all 20`. A decoration in the Repository Dots' place, between the counts and the age,
+ * so it comes after the hover buttons and holds still when they show, and its right edge
+ * lines up with the next row's. A narrow sidebar gets the short form (`in 2`), a narrower
+ * one none; the row's hover always names every repository.
+ */
+function Where({ where }: { where: RowWhere }) {
+  return (
+    <span className="gtp-where">
+      <span className="gtp-where-text">{where.text}</span>
+      <span className="gtp-where-short">{where.short}</span>
+    </span>
+  );
+}
+
 export interface BranchRowProps {
   readonly row: Extract<PanelRow, { kind: 'branch' }>;
   readonly now: number;
   readonly showInOut: boolean;
-  /** Draw the Repository Dots: several repositories in view, and the toggle on. */
+  /**
+   * Draw the Repository Dots: several repositories in view, and the toggle on. They say
+   * where the branch is in place of the row's words, which would only say it twice.
+   */
   readonly markers: boolean;
   readonly scopeRepos: readonly BranchPanelRepoDto[];
   readonly colorOf: (repo: BranchPanelRepoDto) => string;
@@ -616,20 +636,26 @@ export function BranchRow({
   draggable,
   onDragStart,
 }: BranchRowProps) {
-  const { entry } = row;
+  const { entry, where } = row;
   const current = entry.currentIn.length > 0;
   const partial = current && !isCurrentEverywhere(entry);
   const age = shortAge(now, entry.date);
+  // Its name, where it is (every repository named, whatever the row had room for), its
+  // last commit, then what the pointer can do with it.
+  const title = [
+    entry.name,
+    ...(where !== undefined ? [where.title] : []),
+    ...(entry.subject !== undefined ? [entry.subject] : []),
+    `Double-click or Enter for details · right-click for every action${
+      draggable ? ' · drag onto another branch to merge or rebase' : ''
+    }`,
+  ].join('\n');
   return (
     <div className="gtp-branch-wrap">
       <div
         className={`gtp-branch${current ? ' gtp-is-current' : ''}${partial ? ' gtp-partial' : ''}`}
         style={{ paddingLeft: 8 + row.depth * INDENT }}
-        title={`${entry.name}${entry.subject !== undefined ? `
-${entry.subject}` : ''}
-Double-click or Enter for details · right-click for every action${
-          draggable ? ' · drag onto another branch to merge or rebase' : ''
-        }`}
+        title={title}
         draggable={draggable}
         onDragStart={onDragStart}
       >
@@ -660,10 +686,10 @@ Double-click or Enter for details · right-click for every action${
           </span>
         ) : null}
         <span className="gtp-spacer" />
-        {/* The hover buttons come before the counts, the dots and the age, as
-            VS Code puts a row's actions before its decorations: they take the
-            free space (or the end of a long name), and nothing to their right
-            moves, on any row, hovered or selected. */}
+        {/* The hover buttons come before the counts, the repositories (words or
+            dots) and the age, as VS Code puts a row's actions before its
+            decorations: they take the free space (or the end of a long name),
+            and nothing to their right moves, on any row, hovered or selected. */}
         <span className="gtp-row-buttons">
           {quickActions(entry).map((action) => (
             <RowButton
@@ -677,6 +703,8 @@ Double-click or Enter for details · right-click for every action${
           ))}
         </span>
         {showInOut && entry.kind === 'local' ? <SyncCounts ahead={entry.ahead} behind={entry.behind} /> : null}
+        {/* Where it is: in words, or with Repository Dots on, a dot per repository, in the same place. */}
+        {where !== undefined && !markers ? <Where where={where} /> : null}
         {markers ? <Markers entry={entry} repos={scopeRepos} colorOf={colorOf} /> : null}
         <span className="gtp-age" title={entry.date !== undefined ? longAge(now, entry.date) : undefined}>
           {age}

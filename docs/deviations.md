@@ -930,6 +930,21 @@ away. The panes are drawn as VS Code draws views (22px headers, the side bar's s
 colours, a sash between them), keep their folds and size, and with one repository there is
 nothing to split: its current branch heads the one list, as before.
 
+**Where each branch is, in words** (POST-P14bt). IntelliJ's Branches tree, when it is not grouped
+by repository, writes after a branch that only some repositories have their names in grey,
+`feature/x (api, web)`, and nothing after one that all of them have (`BranchesTree.kt`,
+`BranchTreeCellRenderer`). The panel's rows name them too, with three differences:
+* a branch every repository in view has reads *in all 20* (*in both* of two), not nothing. The
+  owner reported rows that said nothing of where they were, and a blank cannot be told from that;
+* past three repositories the row counts them (*in 13 of 20*). IntelliJ's tree scrolls
+  sideways, but a sidebar row cannot, so the hover names them all instead;
+* the words sit in the Repository Dots' place, between the counts and the age, after the hover
+  buttons, so they hold still when the buttons show, as the owner chose for the dots
+  (POST-P14bj), and line up down the list. IntelliJ's follow the name. A narrow sidebar counts
+  (*in 2*).
+
+With Repository Dots on, the dots say the same and take the words' place.
+
 **Why:** the owner's request. The earlier panel copied the popup into a standing view (D29), and
 what made the popup good made the panel poor:
 * verb rows took the top of the list for good;

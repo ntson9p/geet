@@ -6,6 +6,23 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — each branch in the Repositories panel says which repositories have it
+
+- **With several repositories in view, every branch row now names the ones that have the
+  branch**, so a search's matches say where they are without picking a repository first. The
+  words sit between the row's `↓ ↑` counts and its age, lined up down the list:
+  - *in api, web*: up to three repositories, named;
+  - *in both*, *in all 20*: every repository in view has it;
+  - *in 13 of 20*: more than three.
+- It is the same in the Recent, Local, Remote and Tags tabs. Narrowed to some repositories, the
+  rows speak of those; narrowed to one, they say nothing, as the filter's pill already names it.
+- **Hover a row for the full story:** every repository it is in, the ones without it when there
+  are three or fewer, and where it is checked out when that is only some of them. A screen
+  reader hears it too.
+- The words hold still when the row's buttons show. In a narrow sidebar they become a count
+  (*in 2*); in VS Code's narrowest they make way for the branch's name, and the hover still says
+  it. With **Repository Dots** on, the dots take their place.
+
 ### Fixed — Ctrl+Enter in the Commit window's message box commits
 
 - **Type a message, press `Ctrl+Enter` (`⌘Enter` on macOS), and it commits**, as clicking

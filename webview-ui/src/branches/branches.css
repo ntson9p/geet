@@ -773,6 +773,46 @@
   transform: scale(0.35);
 }
 
+/* Which repositories have the branch, in words: `in api, web`, `in all 20`. In the
+   dots' place, between the counts and the age, after the hover buttons, so it holds
+   still when they show, and its right edge lines up down the list. It never shrinks:
+   the name gives way instead (a search found the branch by its name; this is what the
+   row did not say), and a shrink of a fraction of a pixel would already end it in `…`.
+   Only a long list of names is cut, at about a third of the row; the hover names them
+   all. */
+.gtp-where {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 35%;
+  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.gtp-where-short {
+  display: none;
+}
+
+/* A narrow sidebar counts (`in 2`) where the names would take the branch's room. */
+@container gtp-list (max-width: 19em) {
+  .gtp-where-text {
+    display: none;
+  }
+
+  .gtp-where-short {
+    display: inline;
+  }
+}
+
+/* Narrower still, the row keeps its name; the hover and the card say where it is. */
+@container gtp-list (max-width: 14.5em) {
+  .gtp-where {
+    display: none;
+  }
+}
+
 .gtp-age {
   flex: 0 0 auto;
   min-width: 26px;

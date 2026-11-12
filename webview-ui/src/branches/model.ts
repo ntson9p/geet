@@ -9,10 +9,11 @@
  * repository there is nothing to split: its current branch heads the one list.
  *
  * **One list for every repository.** A branch name is one row however many
- * repositories have it; the row carries a marker per repository in view, and
- * whatever the row does, it does in the repositories it stands for. Narrowing
- * the view to some repositories (the scope) narrows both the rows and what
- * they act on.
+ * repositories have it; the row says which of the repositories in view those
+ * are (`whereOf`: `in api, web`, `in all 20`), or with Repository Dots on, a
+ * dot per repository says it, and whatever the row does, it does in the
+ * repositories it stands for. Narrowing the view to some repositories (the
+ * scope) narrows both the rows and what they act on.
  *
  * **Where you are, then where you can go**: the repositories and what each has
  * checked out, then the branches, one kind at a time under tabs: Recent (the
@@ -346,6 +347,8 @@ export type PanelRow =
       readonly card: boolean;
       /** What its open card says, line by line: what its height was sized from. */
       readonly cardLines?: readonly CardLine[];
+      /** Which repositories in view have it: set while several are in view. */
+      readonly where?: RowWhere;
       readonly height: number;
     }
   | {
@@ -639,6 +642,98 @@ export function cardHeight(lines: readonly CardLine[]): number {
   return CARD_PAD + lines.length * CARD_LINE + CARD_BUTTONS;
 }
 
+// ---------------------------------------------------------------------------
+// Where a branch is: its row's words, with several repositories in view
+// ---------------------------------------------------------------------------
+
+/**
+ * Which repositories in view have a branch, said on its row (POST-P14bt). A name is one
+ * row however many repositories have it, so without these words a search's matches said
+ * nothing of where they were, unless the Repository Dots were on.
+ */
+export interface RowWhere {
+  /** What the row says: `in api, web`, `in both`, `in all 20`, `in 13 of 20`. */
+  readonly text: string;
+  /** What a narrow sidebar's row says: `text` while that is short, else a count, `in 2`. */
+  readonly short: string;
+  /** The row's hover: every repository it is in, those it is not when few, where it is checked out. */
+  readonly title: string;
+  /** What a screen reader hears after the name: `in api and web`, `in 13 of 20 repositories`. */
+  readonly spoken: string;
+}
+
+/** A narrow sidebar's row keeps `text` up to this many characters, and counts instead past it. */
+export const SHORT_WHERE = 10;
+
+/** `api`, `api and web`, `api, shared and web`. */
+function inWords(labels: readonly string[]): string {
+  if (labels.length <= 1) return labels.join('');
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * What a branch's row says about where it is, or nothing while one repository is in view
+ * (the scope pill, or the workspace, names it then). The repositories in view that have it
+ * are named while they are few (up to `NAMED_REPOS`, as a card's lines name them) and
+ * counted past that. Every one of them reads `in all 20` (`in both` of two), not a row left
+ * blank: a blank cannot be told from a row that says nothing.
+ */
+export function whereOf(
+  entry: BranchEntry,
+  scopeRepos: readonly BranchPanelRepoDto[],
+): RowWhere | undefined {
+  const total = scopeRepos.length;
+  if (total < 2) return undefined;
+  const has = new Set(entry.presence.map((p) => p.repo.root));
+  // In the panel's order, as the REPOSITORIES pane lists them.
+  const named = scopeRepos.filter((r) => has.has(r.root)).map((r) => r.label);
+  const lacking = scopeRepos.filter((r) => !has.has(r.root)).map((r) => r.label);
+  const n = named.length;
+  if (n === 0) return undefined;
+  const everywhere = lacking.length === 0;
+  const few = n <= NAMED_REPOS;
+
+  const text = everywhere
+    ? total === 2
+      ? 'in both'
+      : `in all ${total}`
+    : few
+      ? `in ${named.join(', ')}`
+      : `in ${n} of ${total}`;
+  const spoken = everywhere
+    ? total === 2
+      ? 'in both repositories'
+      : `in all ${total} repositories`
+    : few
+      ? `in ${inWords(named)}`
+      : `in ${n} of ${total} repositories`;
+
+  const title: string[] = [];
+  if (everywhere) {
+    title.push(
+      few
+        ? `In ${total === 2 ? 'both' : `all ${total}`} repositories: ${inWords(named)}`
+        : `In all ${total} repositories`,
+    );
+  } else {
+    title.push(few ? `In ${inWords(named)}` : `In ${n} of ${total} repositories: ${named.join(', ')}`);
+    // The few without it, when they are few: in 17 of 20, the three are the news.
+    if (lacking.length <= NAMED_REPOS) title.push(`Not in ${inWords(lacking)}`);
+  }
+  const current = scopeRepos
+    .filter((r) => entry.currentIn.includes(r.root))
+    .map((r) => r.label);
+  // Checked out everywhere it is, the row's check says it all; in some, the check is dim.
+  if (current.length > 0 && current.length < n) title.push(`Checked out in ${inWords(current)}`);
+
+  return {
+    text,
+    short: text.length <= SHORT_WHERE ? text : `in ${n}`,
+    title: title.join('\n'),
+    spoken,
+  };
+}
+
 interface Level {
   readonly folders: Array<{ readonly name: string; readonly prefix: string; readonly count: number }>;
   readonly entries: BranchEntry[];
@@ -700,6 +795,8 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
     const prefix = whole ? shownName.slice(0, cut) : '';
     const label = whole ? shownName.slice(cut) : shownName;
     const highlights = searching ? (matchRanges(prefix + label, tokens) ?? []) : [];
+    // Several repositories in view: the row says which have it, in a search and in the tabs alike.
+    const where = markers ? whereOf(entry, scopeRepos) : undefined;
     return {
       kind: 'branch',
       id,
@@ -711,6 +808,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
       highlights,
       card,
       ...(lines !== undefined ? { cardLines: lines } : {}),
+      ...(where !== undefined ? { where } : {}),
       height: ROW + (lines !== undefined ? cardHeight(lines) : 0),
     };
   };

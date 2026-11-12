@@ -172,7 +172,7 @@ Group branches into folders on `/` in the Repositories panel (`feature/login` un
 
 ### `gittree.branches.showRepositoryDots`
 
-With several repositories in view, show a dot per repository on each branch row of the Repositories panel: filled where the branch is checked out, ringed where it exists, small where it does not. A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command GitTree: Toggle Repository Dots.
+With several repositories in view, show a dot per repository on each branch row of the Repositories panel: filled where the branch is checked out, ringed where it exists, small where it does not. The dots take the place of the row's words for the same (in api, web; in all 20). A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command GitTree: Toggle Repository Dots.
 
 - Type: `boolean` · Default: `false`
 
