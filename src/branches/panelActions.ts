@@ -37,7 +37,7 @@ import {
 import { checkoutAcross, pickAndCheckoutAcross, refStateOf } from './checkoutAcross';
 import { acrossOffer, branchOfRemote, type CheckoutTarget } from './checkoutAcrossModel';
 import { oneRepositoryItems } from './oneRepository';
-import { REPOSITORY_MENU } from './repositoryMenu';
+import { REPOSITORY_MENU, repositoryMenuFor } from './repositoryMenu';
 import { showInfo } from '../ui/notices';
 
 export interface PanelActionDeps {
@@ -340,12 +340,13 @@ export function branchMenu(
 /**
  * A repository's menu: the Repositories section's entries, each run with that
  * repository's root. `New Branch…` opens the panel's form instead of the input
- * box, since the form is right there.
+ * box, since the form is right there. With one repository in the workspace
+ * (`repoCount`), its update is the project's, and says so (POST-P14bx).
  */
-export function repositoryMenu(root: string): BranchPanelMenuItemDto[] {
+export function repositoryMenu(root: string, repoCount: number): BranchPanelMenuItemDto[] {
   const items: BranchPanelMenuItemDto[] = [];
   let lastGroup: string | undefined;
-  for (const entry of REPOSITORY_MENU) {
+  for (const entry of repositoryMenuFor(repoCount)) {
     if (lastGroup !== undefined && entry.group !== lastGroup) items.push({ kind: 'separator' });
     lastGroup = entry.group;
     const run: BranchPanelRunDto =
@@ -514,7 +515,10 @@ function commonShort(id: string): string {
 export const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   ...REPOSITORY_MENU.map((e) => e.command),
   'gittree.fetch',
+  // The project's update: in a workspace of one repository, that repository's
+  // menu and row run it (POST-P14bx); with several, a repository's run its own.
   'gittree.update.dialog',
+  'gittree.update.withoutFetch',
   'gittree.push.dialog',
   'gittree.commit',
   'gittree.branches.checkoutRevision',
@@ -559,6 +563,16 @@ export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): P
       if (run.root !== undefined) args.push(run.root);
       if (run.arg !== undefined) args.push(run.arg);
       await vscode.commands.executeCommand(run.command, ...args);
+      return;
+    }
+    case 'update': {
+      // POST-P14bx: the `⋯` menu's update, of what is in view. No roots is the
+      // project; roots go as a list even when one, so a repository closed since
+      // is said to be gone rather than read as no repository, the project.
+      const command = run.fetch === false ? 'gittree.update.withoutFetch' : 'gittree.update.dialog';
+      const roots = Array.isArray(run.roots) ? run.roots.filter((r): r is string => typeof r === 'string') : [];
+      if (roots.length === 0) await vscode.commands.executeCommand(command);
+      else await vscode.commands.executeCommand(command, roots);
       return;
     }
     case 'newBranch':

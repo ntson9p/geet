@@ -6,6 +6,25 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — a repository's own update is *Update Repository…*, and the `⋯` menu updates what is in view
+
+- **A repository's right-click menu and its row's ↓ button now say *Update Repository…* and
+  *Update Repository Without Fetching…***, in the Repositories panel and in the Repositories
+  (Tree) view. They always updated that repository alone, but said *Update Project…*, which
+  everywhere else updates every repository.
+- **The Repositories panel's `⋯` menu updates what is in view:**
+  - *Update Project…* with every repository shown;
+  - *Update Repository…* with one picked;
+  - *Update 2 Repositories…* with two picked.
+
+  Before, with two of four picked, it updated all four; with one picked, it updated that one
+  under the project's name.
+- **The update's question says what it updates:** *Update Project*, *Update api* or *Update 2
+  Repositories*. So do its progress and a failure.
+- **Unchanged elsewhere:** *Update Project…* in `Ctrl+T`, the Command Palette, the Branches
+  popup and the VCS Operations popup still updates every repository. A workspace with one
+  repository sees no change: its update is still *Update Project*.
+
 ### Fixed — a repository clicked a second time no longer looks picked
 
 - In the Repositories panel, clicking the repository you are showing alone shows every

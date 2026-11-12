@@ -41,6 +41,7 @@ import {
   trackingShort,
   trackingText,
   upstreamElsewhere,
+  viewUpdate,
   whereOf,
   type BranchEntry,
   type BranchTab,
@@ -551,6 +552,36 @@ describe('buildPanel: several repositories', () => {
       ['/shared', false, true, false, 'Click to show only its branches · Ctrl+click to add it'],
       ['/web', true, true, false, 'Click to show only its branches · Ctrl+click to leave it out'],
     ]);
+  });
+
+  it("the ⋯ menu's update follows what is in view (POST-P14bx)", () => {
+    const shared = repo('/shared', { head: 'main', locals: [ref('main', { current: true })] });
+    const three = [api, shared, web];
+    const scoped = (scope: readonly string[]) => buildPanel(state(three), ui({ scope })).scopeRepos;
+
+    // Every repository in view: the project, as Ctrl+T.
+    expect(viewUpdate(three, scoped([]))).toEqual({
+      label: 'Update Project…',
+      withoutFetchLabel: 'Update Project Without Fetching…',
+      roots: [],
+      project: true,
+    });
+    // One picked: that one, under its own name (it was Update Project…).
+    expect(viewUpdate(three, scoped(['/web']))).toEqual({
+      label: 'Update Repository…',
+      withoutFetchLabel: 'Update Repository Without Fetching…',
+      roots: ['/web'],
+      project: false,
+    });
+    // Two of three: those two, in the panel's order (it was every repository).
+    expect(viewUpdate(three, scoped(['/web', '/api']))).toEqual({
+      label: 'Update 2 Repositories…',
+      withoutFetchLabel: 'Update 2 Repositories Without Fetching…',
+      roots: ['/api', '/web'],
+      project: false,
+    });
+    // The workspace's only repository is the project.
+    expect(viewUpdate([web], [web])).toMatchObject({ label: 'Update Project…', roots: [], project: true });
   });
 
   it('a scope naming no open repository means every repository', () => {

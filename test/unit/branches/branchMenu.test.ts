@@ -254,16 +254,17 @@ describe('the Repositories row context menu', () => {
     // VS Code's `scm/repository` is Pull · Push · Clone · Checkout to… · Fetch,
     // then Commit/Changes/Pull-Push/Branch/Remote/Stash/Tags submenus, then
     // Show Git Output. This is the same ground named the way the rest of
-    // GitTree names it — Update Project rather than Pull, because that is what
-    // the command actually is everywhere else in this extension.
+    // GitTree names it: an update rather than Pull. Update Repository, not
+    // Update Project (POST-P14bx): it updates this repository, and Update
+    // Project is every repository everywhere else.
     expect(
       repoEntries
         .sort((a, b) => String(a.group).localeCompare(String(b.group)))
         .map((e) => titles.get(e.command!)),
     ).toEqual([
       'Show in New Log Tab',
-      'Update Project…',
-      'Update Project Without Fetching…',
+      'Update Repository…',
+      'Update Repository Without Fetching…',
       'Push…',
       'Fetch',
       'Commit',
@@ -282,8 +283,8 @@ describe('the Repositories row context menu', () => {
     // argument would silently act on whichever repository the editor is in.
     const repoScoped = new Set([
       'gittree.repositories.showInLog',
-      'gittree.update.dialog',
-      'gittree.update.withoutFetch',
+      'gittree.update.repository',
+      'gittree.update.repositoryWithoutFetch',
       'gittree.push.dialog',
       'gittree.fetch',
       'gittree.commit',
@@ -295,5 +296,23 @@ describe('the Repositories row context menu', () => {
       'gittree.remotes.manage',
     ]);
     for (const e of repoEntries) expect(repoScoped.has(e.command!)).toBe(true);
+  });
+
+  it("keeps a repository's own update out of the command palette, where Update Project is the verb (POST-P14bx)", () => {
+    // Contributed for their titles on a repository's menu; from the palette they
+    // would name no repository, and asking which beside Update Project… is noise.
+    const hidden = new Set(
+      (pkg.contributes.menus['commandPalette'] ?? []).filter((m) => m.when === 'false').map((m) => m.command),
+    );
+    for (const command of ['gittree.update.repository', 'gittree.update.repositoryWithoutFetch']) {
+      expect(titles.has(command), command).toBe(true);
+      expect(hidden.has(command), command).toBe(true);
+    }
+    expect(titles.get('gittree.update.repository')).toBe('Update Repository…');
+    expect(titles.get('gittree.update.repositoryWithoutFetch')).toBe('Update Repository Without Fetching…');
+    // The project's stay in it.
+    for (const command of ['gittree.update.dialog', 'gittree.update.withoutFetch']) {
+      expect(hidden.has(command), command).toBe(false);
+    }
   });
 });

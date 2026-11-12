@@ -299,17 +299,19 @@ function headText(repo: BranchPanelRepoDto): string {
 
 export interface RepoButtonsProps {
   readonly repo: BranchPanelRepoDto;
+  /** `Update Repository…`, or for the workspace's only repository `Update Project…` (POST-P14bx). */
+  readonly updateTitle: string;
   readonly onUpdate: () => void;
   readonly onPush: () => void;
   readonly onFetch: () => void;
   readonly onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
-function RepoButtons({ repo, onUpdate, onPush, onFetch, onMenu }: RepoButtonsProps) {
+function RepoButtons({ repo, updateTitle, onUpdate, onPush, onFetch, onMenu }: RepoButtonsProps) {
   return (
     <span className={`gtp-row-buttons${repo.fetching ? ' gtp-busy' : ''}`}>
       {repo.upstream !== undefined && repo.upstreamGone !== true ? (
-        <RowButton icon="arrow-down" title="Update Project…" onClick={onUpdate} />
+        <RowButton icon="arrow-down" title={updateTitle} onClick={onUpdate} />
       ) : null}
       {!repo.unborn ? <RowButton icon="arrow-up" title="Push…" onClick={onPush} /> : null}
       <RowButton

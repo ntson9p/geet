@@ -6,6 +6,7 @@ import {
   REPOSITORY_MENU,
   repositoryMenuDto,
   repositoryMenuEntry,
+  repositoryMenuFor,
 } from '../../../src/branches/repositoryMenu';
 
 interface MenuEntry {
@@ -79,15 +80,47 @@ describe("REPOSITORY_MENU (a repository's right-click menu in the Branches secti
     expect(REPOSITORY_MENU[1]?.group).not.toBe('view');
   });
 
-  it('offers Update Project Without Fetching right under Update Project, in its group', () => {
+  it('updates the repository under its own name, Without Fetching right under it (POST-P14bx)', () => {
+    // Update Project… updates every repository everywhere else; here it updated this one alone.
     const commands = REPOSITORY_MENU.map((e) => e.command);
-    const at = commands.indexOf('gittree.update.dialog');
-    expect(commands[at + 1]).toBe('gittree.update.withoutFetch');
-    expect(repositoryMenuEntry('gittree.update.withoutFetch')).toEqual({
-      command: 'gittree.update.withoutFetch',
-      label: 'Update Project Without Fetching…',
+    const at = commands.indexOf('gittree.update.repository');
+    expect(at).toBeGreaterThan(0);
+    expect(commands[at + 1]).toBe('gittree.update.repositoryWithoutFetch');
+    expect(repositoryMenuEntry('gittree.update.repository')).toEqual({
+      command: 'gittree.update.repository',
+      label: 'Update Repository…',
       group: 'update',
     });
+    expect(repositoryMenuEntry('gittree.update.repositoryWithoutFetch')).toEqual({
+      command: 'gittree.update.repositoryWithoutFetch',
+      label: 'Update Repository Without Fetching…',
+      group: 'update',
+    });
+    expect(commands).not.toContain('gittree.update.dialog');
+    expect(commands).not.toContain('gittree.update.withoutFetch');
+  });
+
+  it("with one repository, which is the project, updates under the project's name (POST-P14bx)", () => {
+    const one = repositoryMenuFor(1);
+    expect(one.map((e) => e.label)).toEqual(
+      REPOSITORY_MENU.map((e) =>
+        e.command === 'gittree.update.repository'
+          ? 'Update Project…'
+          : e.command === 'gittree.update.repositoryWithoutFetch'
+            ? 'Update Project Without Fetching…'
+            : e.label,
+      ),
+    );
+    const update = one.find((e) => e.label === 'Update Project…');
+    expect(update).toEqual({ command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' });
+    expect(one.find((e) => e.label === 'Update Project Without Fetching…')?.command).toBe(
+      'gittree.update.withoutFetch',
+    );
+    // The project's titles are those commands' own, as every entry's is.
+    for (const entry of one) expect(entry.label).toBe(titleOf(entry.command));
+    // Several: the repository's own.
+    expect(repositoryMenuFor(2)).toBe(REPOSITORY_MENU);
+    expect(repositoryMenuFor(20)).toBe(REPOSITORY_MENU);
   });
 
   it('offers Fetch, which with a root fetches that repository only', () => {
@@ -102,7 +135,7 @@ describe('repositoryMenuDto', () => {
     expect(dto.map((d) => d.id)).toEqual(REPOSITORY_MENU.map((e) => e.command));
     expect(dto[0]?.separator).toBeUndefined();
     expect(dto.filter((d) => d.separator === true).map((d) => d.label)).toEqual([
-      'Update Project…',
+      'Update Repository…',
       'Commit',
       'New Branch…',
       'Stash Changes…',

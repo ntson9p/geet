@@ -661,6 +661,41 @@ export function repoHint(row: Pick<Extract<PanelRow, { kind: 'repo' }>, 'inScope
     : 'Click to show only its branches · Ctrl+click to add it';
 }
 
+/** What the panel's `⋯` menu updates, and what it calls it (`viewUpdate`). */
+export interface ViewUpdate {
+  /** `Update Project…`, `Update Repository…`, `Update 2 Repositories…`. */
+  readonly label: string;
+  /** The same, `… Without Fetching…`. */
+  readonly withoutFetchLabel: string;
+  /** The repositories it updates; none for the project. */
+  readonly roots: readonly string[];
+  /** The project's update, the one `Ctrl+T` runs, so the item may name that key. */
+  readonly project: boolean;
+}
+
+/**
+ * The `⋯` menu's update follows what is in view (POST-P14bx). Every repository in
+ * view, the workspace's only one included, is the project: `Update Project…`, as
+ * `Ctrl+T`. Some picked are those: `Update Repository…` for one, `Update 2
+ * Repositories…` for two. Before, one picked updated that one under the project's
+ * name, and two of four updated all four.
+ */
+export function viewUpdate(
+  repos: readonly BranchPanelRepoDto[],
+  scopeRepos: readonly BranchPanelRepoDto[],
+): ViewUpdate {
+  if (scopeRepos.length === 0 || scopeRepos.length >= repos.length) {
+    return { label: 'Update Project…', withoutFetchLabel: 'Update Project Without Fetching…', roots: [], project: true };
+  }
+  const what = scopeRepos.length === 1 ? 'Repository' : `${scopeRepos.length} Repositories`;
+  return {
+    label: `Update ${what}…`,
+    withoutFetchLabel: `Update ${what} Without Fetching…`,
+    roots: scopeRepos.map((r) => r.root),
+    project: false,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Where a branch is: its row's words, with several repositories in view
 // ---------------------------------------------------------------------------

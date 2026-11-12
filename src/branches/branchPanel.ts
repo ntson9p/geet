@@ -500,7 +500,7 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
   ): Promise<BranchPanelMenuItemDto[]> {
     if (this.last === undefined) await this.buildState();
     if ('target' in of) return branchMenu(this.actionDeps(), of.target, of.scope);
-    return this.deps.core.getRepo(of.root) ? repositoryMenu(of.root) : [];
+    return this.deps.core.getRepo(of.root) ? repositoryMenu(of.root, this.deps.core.repos.length) : [];
   }
 
   /** Runs what a menu entry, a card button or a row button asked for. */

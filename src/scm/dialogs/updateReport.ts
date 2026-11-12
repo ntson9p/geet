@@ -38,6 +38,32 @@ export function standing(branch: string, upstream: string, behind: number, ahead
 }
 
 /**
+ * What an update was asked to cover (POST-P14bx). `project`: every repository, as
+ * `Ctrl+T` and `Update Project…` are. `named`: the repositories a repository's own
+ * menu or button, or the Repositories panel's `⋯` with some repositories in view,
+ * named.
+ */
+export type UpdateCovers = 'project' | 'named';
+
+/**
+ * An update's title, for its question, its progress and its messages (POST-P14bx):
+ * `Update Project` for the project, else the repositories named, `Update api` for
+ * one and `Update 2 Repositories` for several, each `… Without Fetching` when
+ * nothing is fetched first. Until then every update was titled `Update Project`,
+ * one repository's included. The names are those asked for, not what is left
+ * once some are skipped, so the title says what the menu item said.
+ */
+export function updateTitle(covers: UpdateCovers, names: readonly string[], withoutFetch = false): string {
+  const what =
+    covers === 'project' || names.length === 0
+      ? 'Project'
+      : names.length === 1
+        ? names[0]!
+        : `${names.length} Repositories`;
+  return `Update ${what}${withoutFetch ? ' Without Fetching' : ''}`;
+}
+
+/**
  * How long ago a fetch was, for Update Project Without Fetching (POST-P14bm),
  * which works from what was fetched last and says how old that is:
  * `just now`, `5 minutes ago`, `2 hours ago`, `3 days ago`, `4 months ago`.

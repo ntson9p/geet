@@ -181,12 +181,97 @@ test.describe('several repositories', () => {
         .slice(0, 4)
         .map((e) => (e.getAttribute('role') === 'separator' ? '—' : (e.textContent ?? '').trim())),
     );
-    expect(firstRows).toEqual(['Show Only This Repository', 'Show in New Log Tab', '—', 'Update Project…']);
+    expect(firstRows).toEqual(['Show Only This Repository', 'Show in New Log Tab', '—', 'Update Repository…']);
 
     await menu.getByRole('menuitem', { name: 'Show in New Log Tab' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
       run: { type: 'command', command: 'gittree.repositories.showInLog', root: WEB },
     });
+  });
+
+  test("a repository's own update says it is the repository's, from its menu and its button (POST-P14bx)", async ({
+    page,
+  }) => {
+    await openPanel(page);
+    // Its menu: Update Repository… and Without Fetching, each run for that repository.
+    await row(page, `repo:${WEB}`).click({ button: 'right' });
+    const menu = page.getByRole('menu', { name: 'Actions for web' });
+    await expect(menu.getByRole('menuitem', { name: 'Update Project…' })).toHaveCount(0);
+    await menu.getByRole('menuitem', { name: 'Update Repository Without Fetching…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.update.repositoryWithoutFetch', root: WEB },
+    });
+    await row(page, `repo:${WEB}`).click({ button: 'right' });
+    await page.getByRole('menu', { name: 'Actions for web' }).getByRole('menuitem', { name: 'Update Repository…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.update.repository', root: WEB },
+    });
+
+    // Its row's ↓ button.
+    const web = row(page, `repo:${WEB}`);
+    await web.hover();
+    await expect(web.getByRole('button', { name: 'Update Project…' })).toHaveCount(0);
+    await web.getByRole('button', { name: 'Update Repository…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.update.repository', root: WEB },
+    });
+  });
+
+  test('the ⋯ menu updates what is in view: the project, the repository picked, or the repositories picked (POST-P14bx)', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    // The IntelliJ keymap on, so the items name their keys.
+    await page.evaluate(() => {
+      const w = window as unknown as { __mockState: { intellijKeymap?: boolean }; __pushState: () => void };
+      w.__mockState.intellijKeymap = true;
+      w.__pushState();
+    });
+    const more = page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' });
+    const menu = page.getByRole('menu', { name: 'More actions' });
+    /** The first two rows' words, and the key the first names. */
+    const updateRows = async (): Promise<{ rows: string[]; key: string | null }> => {
+      await more.click();
+      await expect(menu).toBeVisible();
+      const items = menu.locator('[role="menuitem"]');
+      const rows = [
+        ((await items.nth(0).locator('.gt-menu-label').textContent()) ?? '').trim(),
+        ((await items.nth(1).locator('.gt-menu-label').textContent()) ?? '').trim(),
+      ];
+      const accel = items.nth(0).locator('.gt-menu-accel');
+      return { rows, key: (await accel.count()) > 0 ? await accel.textContent() : null };
+    };
+    const lastRun = async (): Promise<unknown> => (await requests(page, 'branches/run')).at(-1);
+
+    // Every repository in view: the project, which Ctrl+T updates too.
+    expect(await updateRows()).toEqual({
+      rows: ['Update Project…', 'Update Project Without Fetching…'],
+      key: 'Ctrl+T',
+    });
+    await menu.getByRole('menuitem', { name: /^Update Project…/u }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'update', roots: [], fetch: true } });
+
+    // One picked: that one, under its own name, and not Ctrl+T's.
+    await row(page, `repo:${WEB}`).click();
+    expect(await updateRows()).toEqual({
+      rows: ['Update Repository…', 'Update Repository Without Fetching…'],
+      key: null,
+    });
+    await menu.getByRole('menuitem', { name: 'Update Repository…' }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'update', roots: [WEB], fetch: true } });
+
+    // Two of three: those two, which it used to leave for every repository.
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    expect(await updateRows()).toEqual({
+      rows: ['Update 2 Repositories…', 'Update 2 Repositories Without Fetching…'],
+      key: null,
+    });
+    await menu.getByRole('menuitem', { name: 'Update 2 Repositories Without Fetching…' }).click();
+    expect(await lastRun()).toEqual({ run: { type: 'update', roots: [API, WEB], fetch: false } });
+
+    // Every one shown again: the project again.
+    await page.getByRole('button', { name: /^Narrowed to 2 repositories/u }).click();
+    expect((await updateRows()).rows).toEqual(['Update Project…', 'Update Project Without Fetching…']);
   });
 
   test('clicking a repository narrows the list to it; the pill widens it again', async ({ page }) => {
@@ -1097,7 +1182,27 @@ test.describe('one repository', () => {
     expect(firstRows[1]).toContain('Update Project Without Fetching…');
     expect(firstRows[2]).toContain('Commit…');
     await menu.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
-    // The one repository in view, as Update Project's own row runs it.
+    // The workspace's only repository is the project: its update, as Ctrl+T's (POST-P14bx).
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'update', roots: [], fetch: false },
+    });
+  });
+
+  test("the only repository's own update is the project's too, from its row and its menu (POST-P14bx)", async ({
+    page,
+  }) => {
+    await openPanel(page, { single: true });
+    const head = row(page, `head:${WEB}`);
+    await head.hover();
+    await expect(head.getByRole('button', { name: 'Update Repository…' })).toHaveCount(0);
+    await head.getByRole('button', { name: 'Update Project…' }).click();
+    expect((await requests(page, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'command', command: 'gittree.update.dialog', root: WEB },
+    });
+    await head.click({ button: 'right' });
+    const menu = page.getByRole('menu', { name: 'Actions for web' });
+    await expect(menu.getByRole('menuitem', { name: 'Update Repository…' })).toHaveCount(0);
+    await menu.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
       run: { type: 'command', command: 'gittree.update.withoutFetch', root: WEB },
     });
@@ -1108,7 +1213,7 @@ test.describe('one repository', () => {
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.update.withoutFetch' },
+      run: { type: 'update', roots: [], fetch: false },
     });
   });
 

@@ -231,9 +231,12 @@ design, not the popup standing open (D34). It answers three questions, top to bo
     opens a folded BRANCHES, where its matches are.
   - The keyboard goes through the headers: `↓` from the last repository reaches the BRANCHES
     header, `↓` again its tabs, `↑` goes back the same way; typing on a header filters.
-* Every repository row (and the current-branch row) has **Update Project…**, **Push…**,
-  **Fetch** (that repository alone; it spins while it runs) and **`⋯`** on hover. Right-click
-  or `⋯` gives the repository's menu.
+* Every repository row has **Update Repository…**, **Push…**, **Fetch** (that repository
+  alone; it spins while it runs) and **`⋯`** on hover. Right-click or `⋯` gives the
+  repository's menu, whose update is **Update Repository…** and **Update Repository Without
+  Fetching…** too (POST-P14bx; it said *Update Project…*, which everywhere else updates every
+  repository). With one repository, the current-branch row has the same buttons, and there the
+  update is **Update Project…**: that repository is the project.
 * **A narrow sidebar keeps the names.** What a branch tracks gives way before the branch's own
   name does, and its hover still has it. Below about 250px the hover buttons fold into `⋯`,
   whose menu has the rest (a Fetch still turning stays); below about 190px the changed-file
@@ -381,7 +384,11 @@ picked; at first, on Recent while anything is recent, else Local.
 * **The toolbar:** the filter, **Fetch** (every repository; spins until done), **Repository
   Dots** (with several repositories in view; a two-by-two grid of dots, pressed while on),
   **New Branch**, and **`⋯`**:
-  - Update Project…, **Update Project Without Fetching…**, Commit…, Push…;
+  - the update of what is in view (POST-P14bx), and Without Fetching under it: **Update
+    Project…** with every repository shown (`Ctrl+T`'s, the key shown beside it under the
+    IntelliJ keymap), **Update Repository…** with one picked, **Update 2 Repositories…** with
+    two. It used to update the project with two of four picked, and the one picked under the
+    project's name. Then Commit…, Push…;
   - New Branch…, Checkout Tag or Revision… (only with one repository in view: with several,
     the `⋯` could not say which it would act on, and each repository's own menu has it),
     **Checkout Branch in All Repositories…** (with
@@ -1133,13 +1140,20 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   branch).* — with **Show Conflicts**, and **Show Details** (the Console) when something
   failed. A repository it cannot update (detached, no upstream, a merge or rebase in progress)
   is skipped and named, and `Reset` is offered only when a single repository is in play. A
-  Repositories row's own `Update Project…` updates just that one, fetched first the same way.
+  repository's own **Update Repository…** (its menu, in the Repositories panel and the
+  Repositories (Tree) view, and its row's `↓`) updates just that one, fetched first the same
+  way. **The question says what it updates** (POST-P14bx): *Update Project* for the project,
+  *Update api* for one repository's own, *Update 2 Repositories* for the Repositories panel's
+  `⋯` with two picked; its progress, a failure and a cancelled run say the same. With one
+  repository in the workspace, every update is *Update Project*.
 * **Update Project Without Fetching…** (GitTree's own, no IntelliJ counterpart) is the same
   update without the fetch: each repository is merged or rebased onto its remote branch as it
-  was **last fetched** — instant, and it works offline. It sits right under every `Update
-  Project…`: the Branches panel's `⋯`, each repository's menu (panel and sidebar), the Branches
-  popup, the VCS Operations popup and the Command Palette; it has no key, but one can be bound
-  to `gittree.update.withoutFetch`. The question is titled *Update Project Without Fetching*,
+  was **last fetched** — instant, and it works offline. It sits right under every update: the
+  Repositories panel's `⋯` (following what is in view, as its update does), each repository's
+  menu (panel and sidebar, as **Update Repository Without Fetching…**), the Branches popup,
+  the VCS Operations popup and the Command Palette; it has no key, but one can be bound to
+  `gittree.update.withoutFetch`. The question is titled *Update Project Without Fetching*
+  (*Update api Without Fetching* for one repository's own),
   opens with *Nothing is fetched first…*, and each line says how old its data is — `api: main ←
   origin/main · 3 to pull · fetched 2 hours ago`, the age read from `FETCH_HEAD`, which every
   `git fetch` rewrites, whoever ran it. A repository whose upstream was never fetched is

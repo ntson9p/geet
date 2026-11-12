@@ -62,6 +62,7 @@ import {
   TABS_ID,
   tabsLabel,
   targetOf,
+  viewUpdate,
   type BranchEntry,
   type BranchTab,
   type CardLine,
@@ -535,15 +536,18 @@ export function App() {
         runs.set(id, act);
         return { kind: 'item', id, label, ...extra };
       };
+      // POST-P14bx: what is in view, the project or the repositories picked.
+      const update = viewUpdate(state.repos, model.scopeRepos);
       const items: MenuItem[] = [
-        // IntelliJ's keys, named only when its keymap binds them (POST-QA).
-        item('update', 'Update Project…', () => runCommand('gittree.update.dialog', single), {
+        // IntelliJ's keys, named only when its keymap binds them (POST-QA), and
+        // Ctrl+T only on the project's update, which is what it runs.
+        item('update', update.label, () => run({ type: 'update', roots: update.roots, fetch: true }), {
           icon: 'arrow-down',
-          ...(keymap ? { accelerator: 'Ctrl+T' } : {}),
+          ...(keymap && update.project ? { accelerator: 'Ctrl+T' } : {}),
         }),
         // From each remote branch as it was last fetched: instant, and offline.
-        item('updateWithoutFetch', 'Update Project Without Fetching…', () =>
-          runCommand('gittree.update.withoutFetch', single),
+        item('updateWithoutFetch', update.withoutFetchLabel, () =>
+          run({ type: 'update', roots: update.roots, fetch: false }),
         ),
         item('commit', 'Commit…', () => runCommand('gittree.commit', single), {
           icon: 'git-commit',
@@ -882,8 +886,13 @@ export function App() {
   });
   const selected = selectedRepos(state.repos, model.scopeRepos);
 
-  const repoButtons = (repo: BranchPanelRepoDto) => ({
-    onUpdate: () => runCommand('gittree.update.dialog', repo.root),
+  /**
+   * A row's buttons. `project`: the workspace's only repository, whose update is
+   * the project's and says so; one of several says it updates that one (POST-P14bx).
+   */
+  const repoButtons = (repo: BranchPanelRepoDto, project: boolean) => ({
+    updateTitle: project ? 'Update Project…' : 'Update Repository…',
+    onUpdate: () => runCommand(project ? 'gittree.update.dialog' : 'gittree.update.repository', repo.root),
     onPush: () => runCommand('gittree.push.dialog', repo.root),
     onFetch: () => runCommand('gittree.fetch', repo.root),
     onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => {
@@ -988,7 +997,7 @@ export function App() {
             row={row}
             color={colorOf(row.repo)}
             showInOut={state.showInOut}
-            buttons={repoButtons(row.repo)}
+            buttons={repoButtons(row.repo, false)}
           />
         );
       case 'head': {
@@ -999,7 +1008,8 @@ export function App() {
             row={row}
             showInOut={state.showInOut}
             buttons={{
-              ...repoButtons(row.repo),
+              // The only repository's row: its update is the project's.
+              ...repoButtons(row.repo, true),
               onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 headMenu({ x: r.right, y: r.bottom });

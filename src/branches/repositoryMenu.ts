@@ -22,9 +22,11 @@ export interface RepositoryMenuEntry {
 export const REPOSITORY_MENU: readonly RepositoryMenuEntry[] = [
   // The repository's history at HEAD, in a Log tab of its own.
   { command: 'gittree.repositories.showInLog', label: 'Show in New Log Tab', group: 'view' },
-  { command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' },
+  // POST-P14bx: this repository's update, named so. It was Update Project…,
+  // which elsewhere updates every repository, and here updated this one alone.
+  { command: 'gittree.update.repository', label: 'Update Repository…', group: 'update' },
   // From each remote branch as last fetched: instant, and offline.
-  { command: 'gittree.update.withoutFetch', label: 'Update Project Without Fetching…', group: 'update' },
+  { command: 'gittree.update.repositoryWithoutFetch', label: 'Update Repository Without Fetching…', group: 'update' },
   { command: 'gittree.push.dialog', label: 'Push…', group: 'update' },
   { command: 'gittree.fetch', label: 'Fetch', group: 'update' },
   { command: 'gittree.commit', label: 'Commit', group: 'commit' },
@@ -41,6 +43,26 @@ export const REPOSITORY_MENU: readonly RepositoryMenuEntry[] = [
  * list is the very thing you right-clicked in.
  */
 export const LEFT_OUT_OF_BRANCHES_VIEW: readonly string[] = ['gittree.branches.open'];
+
+/**
+ * POST-P14bx: with one repository, the repository is the project, so its menu
+ * updates under the project's name, as `Ctrl+T` and the panel's own buttons do
+ * there. Only the Repositories panel ever shows it so: the Repositories (Tree)
+ * view is there only with several repositories.
+ */
+const AS_PROJECT: Readonly<Record<string, RepositoryMenuEntry>> = {
+  'gittree.update.repository': { command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' },
+  'gittree.update.repositoryWithoutFetch': {
+    command: 'gittree.update.withoutFetch',
+    label: 'Update Project Without Fetching…',
+    group: 'update',
+  },
+};
+
+/** A repository's menu in a workspace of `repoCount` repositories: `REPOSITORY_MENU`, or with one, `AS_PROJECT`'s. */
+export function repositoryMenuFor(repoCount: number): readonly RepositoryMenuEntry[] {
+  return repoCount > 1 ? REPOSITORY_MENU : REPOSITORY_MENU.map((entry) => AS_PROJECT[entry.command] ?? entry);
+}
 
 /** The menu as the view draws it: ids are the commands, a rule before each new group. */
 export function repositoryMenuDto(): BranchesActionDto[] {

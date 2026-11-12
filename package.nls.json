@@ -299,6 +299,8 @@
   "gittree.command.push.dialog.title": "Push…",
   "gittree.command.update.dialog.title": "Update Project…",
   "gittree.command.update.withoutFetch.title": "Update Project Without Fetching…",
+  "gittree.command.update.repository.title": "Update Repository…",
+  "gittree.command.update.repositoryWithoutFetch.title": "Update Repository Without Fetching…",
   "gittree.command.update.configure.title": "Update Project Strategy…",
   "gittree.command.merge.dialog.title": "Merge…",
   "gittree.command.rebase.dialog.title": "Rebase…",

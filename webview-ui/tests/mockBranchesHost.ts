@@ -111,13 +111,22 @@ export const mockBranchesHostScript = `
     { kind: 'separator' },
     { kind: 'submenu', label: 'More', items: [{ kind: 'item', label: 'Rename…', run: { type: 'action', target, action: 'rename' } }] },
   ];
-  const repoMenu = (root) => [
-    { kind: 'item', label: 'Show in New Log Tab', run: { type: 'command', command: 'gittree.repositories.showInLog', root } },
-    { kind: 'separator' },
-    { kind: 'item', label: 'Update Project…', run: { type: 'command', command: 'gittree.update.dialog', root } },
-    { kind: 'item', label: 'Update Project Without Fetching…', run: { type: 'command', command: 'gittree.update.withoutFetch', root } },
-    { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'gittree.fetch', root } },
-  ];
+  // As the host's: one of several repositories updates under its own name, the
+  // only one under the project's (POST-P14bx).
+  const repoMenu = (root) => {
+    const several = state.repos.length > 1;
+    return [
+      { kind: 'item', label: 'Show in New Log Tab', run: { type: 'command', command: 'gittree.repositories.showInLog', root } },
+      { kind: 'separator' },
+      several
+        ? { kind: 'item', label: 'Update Repository…', run: { type: 'command', command: 'gittree.update.repository', root } }
+        : { kind: 'item', label: 'Update Project…', run: { type: 'command', command: 'gittree.update.dialog', root } },
+      several
+        ? { kind: 'item', label: 'Update Repository Without Fetching…', run: { type: 'command', command: 'gittree.update.repositoryWithoutFetch', root } }
+        : { kind: 'item', label: 'Update Project Without Fetching…', run: { type: 'command', command: 'gittree.update.withoutFetch', root } },
+      { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'gittree.fetch', root } },
+    ];
+  };
 
   const api2 = {
     postMessage(msg) {

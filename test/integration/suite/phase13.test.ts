@@ -533,11 +533,23 @@ suite('P13 dialogs', () => {
       }
     };
 
+    /**
+     * POST-P14bx: one repository's own update is titled by it in a workspace of
+     * several (`Update repoC`), and `Update Project` in a workspace of one.
+     */
+    const ownTitle = (r: RepoHandle, withoutFetch = false): string => {
+      const what =
+        core.repos.length > 1
+          ? (repoLabels(core.repos.map((x) => x.root)).get(r.root) ?? path.basename(r.root))
+          : 'Project';
+      return `Update ${what}${withoutFetch ? ' Without Fetching' : ''}`;
+    };
+
     test('T2: the question names the branch and its upstream, and offers Merge first', async () => {
       await repo.refresher.refreshNow();
       const prompt = await reg.buildUpdatePrompt(repo);
       assert.ok(prompt, 'a tracked branch must get a question');
-      assert.strictEqual(prompt.message, 'Update Project');
+      assert.strictEqual(prompt.message, ownTitle(repo));
       // What the buttons act on — the thing a bare dialog title never said.
       assert.ok(
         prompt.detail.includes(`${branch} ← ${REMOTE}/${branch}`),
@@ -628,7 +640,7 @@ suite('P13 dialogs', () => {
       assert.strictEqual(second.commitsPulled, 1, second.message);
       const prompt = reg.lastUpdatePrompt();
       assert.ok(prompt, 'something to pull: asked');
-      assert.strictEqual(prompt.message, 'Update Project Without Fetching');
+      assert.strictEqual(prompt.message, ownTitle(repo, true));
       assert.ok(
         prompt.detail.startsWith(`Nothing is fetched first: ${REMOTE}/${branch} is used as it was last fetched.`),
         prompt.detail,
@@ -1183,6 +1195,48 @@ suite('P13 dialogs', () => {
           assert.deepStrictEqual(result.skipped.map((s) => s.repo.root), [repoE.root]);
           assert.strictEqual(git('rev-parse', 'HEAD').trim(), cAhead);
           assert.strictEqual(cli(repoD.root, 'rev-parse', 'HEAD').trim(), dAhead);
+        });
+      });
+
+      test('POST-P14bx: repositories named are updated alone, under their names', async function () {
+        this.timeout(120_000);
+        // Asked, so Cancel can stop it: these read the question only.
+        await reg.setUpdateStrategy('ask');
+        await withProject(async () => {
+          const headsBefore = core.repos.map((r) => cli(r.root, 'rev-parse', 'HEAD').trim());
+
+          // Some of the project, as the Repositories panel's ⋯ hands it: a list.
+          reg.clearLastUpdatePrompt();
+          await withChoice('cancel', async () => {
+            await vscode.commands.executeCommand('gittree.update.dialog', [repoD.root, repoE.root]);
+          });
+          let prompt = reg.lastUpdatePrompt();
+          assert.ok(prompt, 'repoD has a commit to pull: asked');
+          assert.strictEqual(prompt.message, 'Update 2 Repositories');
+          assert.match(prompt.detail, new RegExp(`${label(repoD)}: .* · 1 to pull`, 'u'), prompt.detail);
+          assert.ok(prompt.detail.includes(`${label(repoE)}: skipped — no upstream branch`), prompt.detail);
+          assert.ok(!prompt.detail.includes(`${label(repo)}:`), `only those two are on it:\n${prompt.detail}`);
+
+          // One repository's own update, as its menu and its row's button run it.
+          reg.clearLastUpdatePrompt();
+          await withChoice('cancel', async () => {
+            await vscode.commands.executeCommand('gittree.update.repository', repoD.root);
+          });
+          prompt = reg.lastUpdatePrompt();
+          assert.ok(prompt, 'asked');
+          assert.strictEqual(prompt.message, `Update ${label(repoD)}`);
+
+          // A list naming no repository still open updates nothing, not the project.
+          reg.clearLastUpdatePrompt();
+          await withChoice('merge', async () => {
+            await vscode.commands.executeCommand('gittree.update.dialog', [path.join(tmpDir, 'no-such-repo')]);
+          });
+          assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'nothing asked');
+          assert.deepStrictEqual(
+            core.repos.map((r) => cli(r.root, 'rev-parse', 'HEAD').trim()),
+            headsBefore,
+            'cancelled or naming nothing open, nothing is updated',
+          );
         });
       });
 

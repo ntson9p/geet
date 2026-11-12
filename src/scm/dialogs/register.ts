@@ -8,7 +8,7 @@
  * misfile it. `extension.ts` stays append-only per master §0.6.
  */
 import * as vscode from 'vscode';
-import { chooseRepo, implicitRepo } from '../../ui/chooseRepo';
+import { askRepo, chooseRepo, implicitRepo } from '../../ui/chooseRepo';
 import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { registerWorktrees, type WorktreeRegistry } from '../../branches/worktrees';
@@ -54,12 +54,15 @@ import {
   rememberedUpdateStrategy,
   reportUpdate,
   runRememberedUpdate,
+  runTitle,
   setUpdateStrategy,
   scopeAsLastFetched,
   scopeWithoutFetch,
   showProjectUpdate,
   showUpdateDialog,
   unreachableWithUpstream,
+  UPDATE_REPOSITORY_COMMAND,
+  UPDATE_REPOSITORY_WITHOUT_FETCH_COMMAND,
   UPDATE_WITHOUT_FETCH_COMMAND,
   type ProjectUpdateResult,
   type UpdateDialogDeps,
@@ -67,6 +70,7 @@ import {
   type UpdatePrompt,
   type UpdateRequest,
 } from './updateDialog';
+import type { UpdateCovers } from './updateReport';
 import {
   applyMergeResult,
   applyRebaseResult,
@@ -156,9 +160,10 @@ export interface Phase13Registry {
   buildProjectPrompt: (repos: readonly RepoHandle[]) => Promise<UpdatePrompt | undefined>;
   /** POST-P14bm: the question Update Project Without Fetching would put for `repos`. */
   buildPromptWithoutFetch: (repos: readonly RepoHandle[]) => Promise<UpdatePrompt | undefined>;
+  /** POST-P14bx: `covers: 'named'` is some of the project, titled by them. */
   showProjectUpdate: (
     repos: readonly RepoHandle[],
-    options?: { readonly fetch?: boolean },
+    options?: { readonly fetch?: boolean; readonly covers?: UpdateCovers },
   ) => Promise<ProjectUpdateResult | undefined>;
   /** POST-P14bm: what a project run's `Update Without Fetching` would update. */
   unreachableWithUpstream: typeof unreachableWithUpstream;
@@ -227,6 +232,21 @@ export function namedRepo(core: Core, arg?: unknown): RepoHandle | undefined {
   }
   if (arg instanceof vscode.Uri) return core.repoForPath(arg.fsPath);
   return undefined;
+}
+
+/**
+ * The repositories a list argument names (POST-P14bx): the Repositories panel's
+ * `⋯` hands the roots of those in view. Undefined when the argument is no list;
+ * a root no longer open is left out, and so is one named twice.
+ */
+export function namedRepos(core: Core, arg?: unknown): RepoHandle[] | undefined {
+  if (!Array.isArray(arg)) return undefined;
+  const repos: RepoHandle[] = [];
+  for (const item of arg) {
+    const repo = namedRepo(core, item);
+    if (repo !== undefined && !repos.includes(repo)) repos.push(repo);
+  }
+  return repos;
 }
 
 /** The repo a dialog acts on: an explicit argument, else the active editor's, else the only one. */
@@ -382,11 +402,34 @@ export function registerPhase13Dialogs(
     }),
   );
 
+  /**
+   * POST-P14bx: some of the project, titled by them. One left is that
+   * repository's own update; none left (each since closed) is said, not taken
+   * for the whole project.
+   */
+  const updateNamed = async (repos: readonly RepoHandle[], fetch: boolean): Promise<void> => {
+    const only = repos.length === 1 ? repos[0] : undefined;
+    if (only !== undefined) {
+      await showUpdateDialog(updateDeps, only, { fetch });
+    } else if (repos.length === 0) {
+      showInfo(vscode.l10n.t('Nothing to update: those repositories are no longer open.'));
+    } else {
+      await showProjectUpdate(updateDeps, repos, { fetch, covers: 'named' });
+    }
+  };
+
   // P13-T2: Update Project. `gittree.pull` (P1) stays as the raw pull; this is
   // Ctrl+T's question (a native modal since POST-P14ab, D30), and it runs
   // directly once the user chooses Don't Ask Again.
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.update.dialog', async (arg?: unknown) => {
+      // POST-P14bx: a list of repositories, the Repositories panel's `⋯` with
+      // some of them in view, updates those.
+      const several = namedRepos(core, arg);
+      if (several !== undefined) {
+        await updateNamed(several, true);
+        return;
+      }
       // POST-P14ae: a named repository — a Repositories row — updates just
       // that one. With nothing named this is the *project*, IntelliJ's meaning
       // of Update Project: every repository, after one question. It used to
@@ -407,8 +450,14 @@ export function registerPhase13Dialogs(
     }),
     // POST-P14bm: Update Project Without Fetching — the same update, from each
     // remote branch as it was last fetched: instant, and offline. Named, that
-    // repository; with nothing named, the project, as Update Project is.
+    // repository (or those, POST-P14bx); with nothing named, the project, as
+    // Update Project is.
     vscode.commands.registerCommand(UPDATE_WITHOUT_FETCH_COMMAND, async (arg?: unknown) => {
+      const several = namedRepos(core, arg);
+      if (several !== undefined) {
+        await updateNamed(several, false);
+        return;
+      }
       const repo = namedRepo(core, arg);
       if (repo) {
         await showUpdateDialog(updateDeps, repo, { fetch: false });
@@ -419,6 +468,19 @@ export function registerPhase13Dialogs(
         return;
       }
       await showProjectUpdate(updateDeps, core.repos, { fetch: false });
+    }),
+    // POST-P14bx: one repository's update, under its own name, where Update
+    // Project… said "project" and updated that repository alone: a repository's
+    // menu (the Repositories panel's and the Repositories (Tree) view's) and its
+    // row's button. Named, that repository; with nothing named (a keybinding),
+    // which one is asked, the editor's first. Not in the palette.
+    vscode.commands.registerCommand(UPDATE_REPOSITORY_COMMAND, async (arg?: unknown) => {
+      const repo = await askRepo(core, arg, vscode.l10n.t('Update which repository?'));
+      if (repo) await showUpdateDialog(updateDeps, repo);
+    }),
+    vscode.commands.registerCommand(UPDATE_REPOSITORY_WITHOUT_FETCH_COMMAND, async (arg?: unknown) => {
+      const repo = await askRepo(core, arg, vscode.l10n.t('Update which repository, without fetching?'));
+      if (repo) await showUpdateDialog(updateDeps, repo, { fetch: false });
     }),
     // POST-P14ad: the half that does not ask — a branch row's `Update` on the
     // checked-out branch. Internal: not contributed, so not in the palette,
@@ -581,9 +643,14 @@ export function registerPhase13Dialogs(
     clearLastPushDialogRequest,
     setShowPushDialogForCommitAndPush,
     // The question as it would read against what was fetched last: the real
-    // one is only ever built after a fetch.
+    // one is only ever built after a fetch. One repository's own, so titled by
+    // it, as `showUpdateDialog` titles it (POST-P14bx).
     buildUpdatePrompt: async (repo) =>
-      buildUpdatePrompt(updateDeps, await scopeAsLastFetched(updateDeps, [repo])),
+      buildUpdatePrompt(
+        updateDeps,
+        await scopeAsLastFetched(updateDeps, [repo]),
+        runTitle(updateDeps, 'named', [repo], false),
+      ),
     buildProjectPrompt: async (repos) =>
       buildUpdatePrompt(updateDeps, await scopeAsLastFetched(updateDeps, repos)),
     buildPromptWithoutFetch: async (repos) =>

@@ -1836,6 +1836,16 @@ export type BranchPanelRunDto =
       readonly arg?: string;
     }
   | {
+      /**
+       * POST-P14bx: the `⋯` menu's update, of what the panel shows: `roots`, the
+       * repositories in view, or none for the project, every repository.
+       */
+      readonly type: 'update';
+      readonly roots: readonly string[];
+      /** False: Without Fetching. */
+      readonly fetch: boolean;
+    }
+  | {
       /** Opens the panel's own New Branch form, starting at `from`. */
       readonly type: 'newBranch';
       readonly from: string;

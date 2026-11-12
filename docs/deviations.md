@@ -750,8 +750,13 @@ Control view" turns out to describe two different VS Code views:
 * **Right-click reaches the verbs.** In VS Code the repository verbs are on the row's `⋯`
   button (`scm/repository`, 14 entries) and right-click gives `scm/sourceControl`, which is
   *Close Repository* and two worktree rows. Ours puts the verbs on right-click, where a user
-  expects them. They are named GitTree's way, not VS Code's — `Update Project…`, not `Pull`
-  — because that is what those commands are called everywhere else in this extension.
+  expects them. They are named GitTree's way, not VS Code's — an update, not `Pull` —
+  because that is what those commands are called everywhere else in this extension. The
+  update was `Update Project…` here until POST-P14bx, though it updated that repository alone,
+  and Update Project is every repository everywhere else. It is now **Update Repository…**
+  and **Update Repository Without Fetching…**, commands of their own
+  (`gittree.update.repository`, `…repositoryWithoutFetch`), so the menu, which shows each
+  command's own title, can say so.
 
 **What it costs.** One more surface over the branch-action registry, which is the POST-P14d
 failure mode and is mitigated the same structural way: the Branches view emits the **same**
@@ -775,8 +780,11 @@ itself. That panel is now titled Repositories, and this tree *Repositories (Tree
 **IntelliJ:** `Ctrl+T` opens a small modal dialog — *Merge incoming changes into the current
 branch* / *Rebase the current branch on top of incoming changes* as two radio buttons,
 `Don't show again`, `OK` / `Cancel`, and in some states `Reset to the Remote Branch`.
-**GitTree:** a native modal message box titled *Update Project*. Its text names what is being
-updated — `develop ← origin/develop · 3 to pull · 1 to push` — and, with
+**GitTree:** a native modal message box titled *Update Project*, or since POST-P14bx, when some
+repositories were named rather than the project, titled by them: *Update api* for a repository's
+own **Update Repository…**, *Update 2 Repositories* for the Repositories panel's `⋯` with two
+picked. With only one repository in the workspace it is always *Update Project*. Its text names
+what is being updated — `develop ← origin/develop · 3 to pull · 1 to push` — and, with
 `gittree.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
 `Merge`, `Rebase`, `Reset to the Remote Branch` and VS Code's own `Cancel`; pressing one is
 the `OK`. The strategy answered last comes first, so `Enter` repeats it the way IntelliJ's

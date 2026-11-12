@@ -68,7 +68,9 @@ import {
   standing,
   standingAsFetched,
   summarizeProjectUpdate,
+  updateTitle,
   type RepoUpdateResult,
+  type UpdateCovers,
 } from './updateReport';
 import { showInfo } from '../../ui/notices';
 
@@ -96,6 +98,14 @@ const LAST_STRATEGY_KEY = 'gittree.update.lastStrategy';
 
 /** POST-P14bm: Update Project Without Fetching — with a root, that repository; without, the project. */
 export const UPDATE_WITHOUT_FETCH_COMMAND = 'gittree.update.withoutFetch';
+
+/**
+ * POST-P14bx: Update Repository… and its Without Fetching — one repository's
+ * update, as its own menu and button name it; with no repository named, which
+ * one is asked.
+ */
+export const UPDATE_REPOSITORY_COMMAND = 'gittree.update.repository';
+export const UPDATE_REPOSITORY_WITHOUT_FETCH_COMMAND = 'gittree.update.repositoryWithoutFetch';
 
 /** What the update actually did — returned so integration tests can assert it. */
 export interface UpdateOutcome {
@@ -257,6 +267,22 @@ function labelsFor(core: Core): (repo: RepoHandle) => string {
 }
 
 /**
+ * An update's title (POST-P14bx, `updateTitle`): `Update Project` when the project
+ * was asked for, and in a workspace of one repository, which *is* the project, so
+ * nothing changes there. Else the repositories `repos` named: `Update api`,
+ * `Update 2 Repositories`.
+ */
+export function runTitle(
+  deps: UpdateDialogDeps,
+  covers: UpdateCovers,
+  repos: readonly RepoHandle[],
+  withoutFetch: boolean,
+): string {
+  const label = labelsFor(deps.core);
+  return updateTitle(deps.core.repos.length > 1 ? covers : 'project', repos.map(label), withoutFetch);
+}
+
+/**
  * One repository fetched for an update (POST-P14aw): what it tracks, and what
  * the fetch found there. The question is built from these, after the fetch,
  * so the counts in it are the ones the merge will meet.
@@ -329,10 +355,14 @@ function standingLine(f: FetchedUpdate, now: number): string {
  *
  * POST-P14bm: without a fetch, it is titled so, opens by saying nothing is
  * fetched first, and each line says how long ago its repository fetched.
+ *
+ * POST-P14bx: titled by what was asked for (`runTitle`): `Update Project` unless
+ * the caller says otherwise, `Update api` for one repository's own update.
  */
 export function buildUpdatePrompt(
   deps: UpdateDialogDeps,
   scope: FetchedScope,
+  title: string = updateTitle('project', [], scope.withoutFetch === true),
 ): UpdatePrompt | undefined {
   const { fetched, skipped } = scope;
   const reachable = fetched.filter((f) => f.fetchError === undefined && f.after !== undefined);
@@ -402,7 +432,7 @@ export function buildUpdatePrompt(
     );
   }
   return {
-    message: withoutFetch ? vscode.l10n.t('Update Project Without Fetching') : vscode.l10n.t('Update Project'),
+    message: title,
     detail: lines.join('\n'),
     buttons: choices.map(choiceLabel),
     choices,
@@ -1034,6 +1064,11 @@ export interface ReportOptions {
    * the update need not wait on a network that is not there. Needs `root`.
    */
   offerWithoutFetch?: boolean;
+  /**
+   * POST-P14bx: what a failure is reported under, the run's title (`runTitle`):
+   * `Update api: Couldn't fetch …`. `Update Project` without it.
+   */
+  title?: string;
 }
 
 /**
@@ -1044,7 +1079,7 @@ export interface ReportOptions {
 export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}): void {
   const showConflicts = vscode.l10n.t('Show Conflicts');
   if (!outcome.ok) {
-    const message = vscode.l10n.t('Update Project: {0}', outcome.message.split('\n', 1)[0] ?? outcome.message);
+    const message = `${options.title ?? updateTitle('project', [])}: ${outcome.message.split('\n', 1)[0] ?? outcome.message}`;
     // Stopped on conflicts is not a failure to report but work to finish: the
     // merge is in progress, and the conflict lifecycle's own toast is held back
     // in favour of this one, which names the files.
@@ -1109,12 +1144,13 @@ function showConflictsAction(): NotificationAction {
 }
 
 /**
- * `Ctrl+T` on one named repository — a Repositories row's context menu. Asks
- * Merge or Rebase unless the user chose `Don't Ask Again`, in which case that
- * strategy runs directly — IntelliJ's behaviour, and restorable through
- * `gittree.update.configure`.
+ * The update of one named repository: a repository's own menu or button
+ * (`Update Repository…`). Asks Merge or Rebase unless the user chose `Don't Ask
+ * Again`, in which case that strategy runs directly — IntelliJ's behaviour, and
+ * restorable through `gittree.update.configure`.
  *
- * POST-P14bm: `fetch: false` is Update Project Without Fetching.
+ * POST-P14bm: `fetch: false` is Update Repository Without Fetching.
+ * POST-P14bx: titled by the repository (`Update api`), not `Update Project`.
  */
 export async function showUpdateDialog(
   deps: UpdateDialogDeps,
@@ -1128,7 +1164,8 @@ export async function showUpdateDialog(
     );
     return undefined;
   }
-  return updateOne(deps, repo, [], options.fetch !== false);
+  const fetch = options.fetch !== false;
+  return updateOne(deps, repo, [], fetch, runTitle(deps, 'named', [repo], !fetch));
 }
 
 /**
@@ -1137,12 +1174,14 @@ export async function showUpdateDialog(
  * POST-P14aw: fetched before anything is asked, so the question says what is
  * coming in. With nothing to pull it is not asked: `Already up to date`.
  * POST-P14bm: without `fetch`, measured against the upstream as last fetched.
+ * POST-P14bx: `title` is the run's, the question's and a failure's (`runTitle`).
  */
 async function updateOne(
   deps: UpdateDialogDeps,
   repo: RepoHandle,
   skipped: readonly SkippedRepo[],
-  fetch = true,
+  fetch: boolean,
+  title: string,
 ): Promise<UpdateOutcome | undefined> {
   const hold = holdConflictNotices(deps.core, [repo]);
   try {
@@ -1166,6 +1205,7 @@ async function updateOne(
         } else {
           reportUpdate(settled, {
             root: repo.root,
+            title,
             // An upstream fetched before is there to update from, network or not.
             ...(fetched.fetchError !== undefined && fetched.before !== '' ? { offerWithoutFetch: true } : {}),
           });
@@ -1175,7 +1215,7 @@ async function updateOne(
       if (setting !== 'ask') {
         // Nobody is asked, so one progress covers the fetch and the merge.
         const outcome = await integrateFetched(deps, fetched, setting, progress);
-        reportUpdate(outcome, { root: repo.root });
+        reportUpdate(outcome, { root: repo.root, title });
         return outcome;
       }
     } finally {
@@ -1183,18 +1223,22 @@ async function updateOne(
       progress.done();
     }
 
-    const prompt = buildUpdatePrompt(deps, {
-      fetched: [fetched],
-      skipped,
-      ...(fetch ? {} : { withoutFetch: true }),
-    });
+    const prompt = buildUpdatePrompt(
+      deps,
+      {
+        fetched: [fetched],
+        skipped,
+        ...(fetch ? {} : { withoutFetch: true }),
+      },
+      title,
+    );
     if (!prompt) return undefined;
     const choice = await askUpdate(prompt);
     if (choice === undefined) return undefined;
 
     if (choice === 'reset') {
       const outcome = await resetFetched(deps, fetched);
-      reportUpdate(outcome, { root: repo.root });
+      reportUpdate(outcome, { root: repo.root, title });
       return outcome;
     }
 
@@ -1208,7 +1252,7 @@ async function updateOne(
     } finally {
       integrating.done();
     }
-    reportUpdate(outcome, { dontAskAgain: choice, root: repo.root });
+    reportUpdate(outcome, { dontAskAgain: choice, root: repo.root, title });
     return outcome;
   } finally {
     hold.dispose();
@@ -1283,15 +1327,20 @@ async function fetchAllForUpdate(
  * POST-P14bm: `fetch: false` is Update Project Without Fetching — step 1
  * becomes measuring each repository against what it fetched last, which
  * skips one whose upstream was never fetched; steps 2 and 3 are unchanged.
+ *
+ * POST-P14bx: `covers: 'named'` is some of the project, the repositories the
+ * Repositories panel shows (`Update 2 Repositories…`), or those a run could not
+ * fetch: the same steps, titled by them rather than `Update Project`.
  */
 export async function showProjectUpdate(
   deps: UpdateDialogDeps,
   repos: readonly RepoHandle[],
-  options: { readonly fetch?: boolean } = {},
+  options: { readonly fetch?: boolean; readonly covers?: UpdateCovers } = {},
 ): Promise<ProjectUpdateResult | undefined> {
   const fetch = options.fetch !== false;
   const scope = updateScope(repos);
   const label = labelsFor(deps.core);
+  const title = runTitle(deps, options.covers ?? 'project', repos, !fetch);
   if (scope.targets.length === 0) {
     showInfo(
       scope.skipped.length === 1 && scope.skipped[0] !== undefined
@@ -1306,7 +1355,7 @@ export async function showProjectUpdate(
   }
   const first = scope.targets[0];
   if (scope.targets.length === 1 && first !== undefined) {
-    const outcome = await updateOne(deps, first, scope.skipped, fetch);
+    const outcome = await updateOne(deps, first, scope.skipped, fetch, title);
     return outcome
       ? { results: [{ repo: first, outcome }], skipped: scope.skipped }
       : undefined;
@@ -1316,16 +1365,14 @@ export async function showProjectUpdate(
   try {
     let found: FetchedScope;
     if (fetch) {
-      const fetching = beginOperationProgress(vscode.l10n.t('Update Project'));
+      const fetching = beginOperationProgress(title);
       try {
         found = { fetched: await fetchAllForUpdate(deps, scope.targets, fetching, label), skipped: scope.skipped };
       } finally {
         fetching.done();
       }
       if (fetching.token.isCancellationRequested) {
-        showInfo(
-          vscode.l10n.t('Update Project cancelled: nothing was merged or rebased.'),
-        );
+        showInfo(`${title} cancelled: nothing was merged or rebased.`);
         return undefined;
       }
     } else {
@@ -1350,7 +1397,7 @@ export async function showProjectUpdate(
     if (setting !== 'ask') {
       strategy = setting;
     } else {
-      const prompt = buildUpdatePrompt(deps, found);
+      const prompt = buildUpdatePrompt(deps, found, title);
       if (!prompt) return undefined;
       const choice = await askUpdate(prompt);
       // `reset` is never offered across several repositories; treat anything
@@ -1363,7 +1410,7 @@ export async function showProjectUpdate(
 
     const outcomes = new Map<RepoHandle, UpdateOutcome>();
     const notAttempted: RepoHandle[] = [];
-    const integrating = beginOperationProgress(vscode.l10n.t('Update Project'));
+    const integrating = beginOperationProgress(title);
     try {
       for (const [i, f] of pullable.entries()) {
         // Cancel stops the next one from starting, never one half-way through.
@@ -1461,7 +1508,8 @@ function reportProjectUpdate(
   if (unreachable.length > 0) {
     actions.push({
       title: vscode.l10n.t('Update Without Fetching'),
-      run: () => showProjectUpdate(deps, unreachable, { fetch: false }),
+      // Those repositories, titled by them (POST-P14bx): not the whole project again.
+      run: () => showProjectUpdate(deps, unreachable, { fetch: false, covers: 'named' }),
     });
   }
   if (summary.failures) {
@@ -1537,7 +1585,8 @@ export async function runRememberedUpdate(
       action: 'update',
       strategy: rememberedUpdateStrategy(deps.state),
     });
-    reportUpdate(outcome, { root: repo.root });
+    // A failure is reported under the repository's name (POST-P14bx), not the project's.
+    reportUpdate(outcome, { root: repo.root, title: runTitle(deps, 'named', [repo], false) });
     return outcome;
   } finally {
     hold.dispose();

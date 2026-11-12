@@ -651,7 +651,7 @@
 }
 
 /* A narrow sidebar: on hover a repository's row keeps only `⋯`, whose menu has
-   Update Project, Push and Fetch too, so the names keep their room. A Fetch
+   its update, Push and Fetch too, so the names keep their room. A Fetch
    still turning stays. Narrower still, the changed-file count goes (the Commit
    view counts them as well) and so does what the branch tracks, which its card
    says in full. */

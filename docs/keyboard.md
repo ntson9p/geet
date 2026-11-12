@@ -85,7 +85,10 @@ since POST-P14ao — IntelliJ has no Push without its dialog — and
 `Ctrl+T` becomes a direct action once you choose *Don't Ask Again* on an update's
 result (restore the question with **GitTree: Update Project Strategy…**).
 **GitTree: Update Project Without Fetching…** (`gittree.update.withoutFetch`) has no
-default key; bind one if you use it often.
+default key; bind one if you use it often. A repository's own update, **Update
+Repository…** (`gittree.update.repository`) and **Update Repository Without Fetching…**
+(`gittree.update.repositoryWithoutFetch`), is on its menu and not in the palette. A key
+bound to one asks which repository, the open file's first.
 
 ## Webview-internal keys
 

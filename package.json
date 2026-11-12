@@ -1774,6 +1774,18 @@
         "icon": "$(sync)"
       },
       {
+        "command": "gittree.update.repository",
+        "title": "%gittree.command.update.repository.title%",
+        "category": "GitTree",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "gittree.update.repositoryWithoutFetch",
+        "title": "%gittree.command.update.repositoryWithoutFetch.title%",
+        "category": "GitTree",
+        "icon": "$(sync)"
+      },
+      {
         "command": "gittree.update.configure",
         "title": "%gittree.command.update.configure.title%",
         "category": "GitTree",
@@ -2104,6 +2116,14 @@
         {
           "command": "gittree.commit.groupByChangelist",
           "when": "gittree.multiRepo && config.gittree.commit.groupBy == repository"
+        },
+        {
+          "command": "gittree.update.repository",
+          "when": "false"
+        },
+        {
+          "command": "gittree.update.repositoryWithoutFetch",
+          "when": "false"
         },
         {
           "command": "gittree.branches.compareWithCurrent",
@@ -2988,12 +3008,12 @@
           "group": "0_view@1"
         },
         {
-          "command": "gittree.update.dialog",
+          "command": "gittree.update.repository",
           "when": "view == gittree.repositories && viewItem == repository",
           "group": "1_update@1"
         },
         {
-          "command": "gittree.update.withoutFetch",
+          "command": "gittree.update.repositoryWithoutFetch",
           "when": "view == gittree.repositories && viewItem == repository",
           "group": "1_update@2"
         },

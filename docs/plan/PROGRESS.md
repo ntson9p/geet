@@ -1668,3 +1668,59 @@ Testing (written, **not run**, by the owner's standing instruction):
   - each hover says what its click does, and a click on one of two picked shows it alone.
 
 Gates: typecheck (both tsconfigs) + lint clean; webviews built.
+
+POST-P14bx ✅ 2026-11-12 (branch `new-way-6`): **A repository's own update is *Update Repository…*, and the panel's `⋯` updates what is in view.** The owner asked whether *Update Project…* on a repository's right-click menu meant every repository. It did not: it updated that repository alone, which the label never said. The owner agreed to rename it, and to have the `⋯` menu follow what is in view.
+
+**What was there.**
+- *Update Project…* named three things. `Ctrl+T`, the palette and the popups updated every repository. A repository's menu (the Repositories panel's and the Repositories (Tree) view's) and its row's ↓ updated that repository alone. The panel's `⋯` updated the one picked, under the project's name, or with two of four picked all four.
+- The question was titled *Update Project* whatever it updated, and so were its progress and a failure (`Update Project: Couldn't fetch …`).
+- The name came from D29: one name per command everywhere, and IntelliJ has no per-repository Update Project to take one from.
+
+**Design.**
+- ***Update Project…* is every repository**: `Ctrl+T`, the palette, the Branches popup, the VCS Operations popup, and the panel's `⋯` with every repository in view. Unchanged.
+- **A repository's own update is *Update Repository…*** and *Update Repository Without Fetching…*. They are commands of their own, `gittree.update.repository` and `…repositoryWithoutFetch`, because a native view's menu shows each command's own title. `REPOSITORY_MENU` names them, so the panel's menu and the Repositories (Tree) view's change together. They stay out of the palette, where *Update Project…* is the verb. A key bound to one asks which repository (`askRepo`, the open file's first).
+- **The panel's `⋯` follows what is in view** (`viewUpdate`, pure): *Update Project…* with every repository, *Update Repository…* with one picked, *Update 2 Repositories…* with two. `Ctrl+T` is named only on the project's item, since that is what the key runs. A new run message, `{ type: 'update', roots, fetch }`, carries it. The host hands the roots on as a list even when there is one, so a repository closed since is said to be gone, not taken for "none named", which is the project.
+- **`gittree.update.dialog` and `…withoutFetch` take a list** (`namedRepos`): those repositories. One left is that repository's own update; none left is *Nothing to update: those repositories are no longer open.*
+- **Titles** (`updateTitle`, pure, in `updateReport.ts`; `runTitle` applies the workspace): *Update Project*, *Update api*, *Update 2 Repositories*, each with *… Without Fetching*. They are used for:
+  - the question;
+  - a run's two progress titles and its cancel message;
+  - a failure's prefix (`reportUpdate`'s `title`), a branch row's Update included.
+
+  A run is titled by what was asked for, not by what is left once some are skipped. The *Update Without Fetching* offered after failed fetches names the repositories it retries.
+- **A workspace of one repository sees no change.** Its repository is the project:
+  - the head row's ↓ and its menu say *Update Project…* (`repositoryMenuFor(1)`, `repoButtons(…, project)`);
+  - the `⋯` says the same;
+  - every question is *Update Project*.
+- **Left as they were:** the Branches popup (its per-repository level has no update), the VCS Operations popup (the project), and the `⋯`'s Commit… and Push…, whose names claim no scope.
+
+**Checked in the real window** (VS Code 1.144, `scratchpad/drive/update*.cjs` and `single.cjs`; four repositories, api and web each one commit behind):
+- api's menu: *Update Repository…*, *Update Repository Without Fetching…*; its ↓: *Update Repository…*.
+- The `⋯`: *Update Project…* with nothing picked, *Update Repository…* with api, *Update 2 Repositories…* with api and web.
+- *Update 2 Repositories…* fetched, then asked *Update 2 Repositories*: api and web each `1 to pull`, Merge / Rebase / Cancel. web's own *Update Repository…* asked *Update web*, Reset offered. Both cancelled, and both still one behind.
+- The palette has the project's updates and not the repository's.
+- The Repositories (Tree) view's menu reads the same. Its *Update Repository…* asked *Update api* at once, with no picker: the view hands the command its row's root.
+- One repository (api's folder alone): the head row's ↓ and menu say *Update Project…*, the question is *Update Project*, and so is the `⋯`.
+
+Docs: FEATURES (row buttons, the `⋯`, Update Project, Without Fetching), CHANGELOG (Changed), D29 (the name), D30 (the title), keyboard.md (the two commands).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `updateReport.test.ts`: `updateTitle` for the project, one repository by name, several by number, and none named;
+  - `repositoryMenu.test.ts`: the new entries and their titles; one repository's menu getting the project's;
+  - `branchMenu.test.ts`: the Repositories (Tree) view's titles and repository-taking commands; the two hidden from the palette, the project's not;
+  - `branchPanelModel.test.ts`: `viewUpdate` for none, one and two of three (in the panel's order), and a workspace's only repository.
+- **Playwright** (`branches.spec.ts`):
+  - a repository's menu and ↓, each posting its command with the root, with no *Update Project…*;
+  - the `⋯` through none, one and two picked and back, `Ctrl+T` only on the project's;
+  - the only repository's ↓ and menu;
+  - the `⋯`'s Without Fetching posting the project's update, with one repository and with several;
+  - the repository menu's first rows.
+
+  The mock host's repository menu follows the repository count, as the host's does.
+- **Integration** (`phase13.test.ts`):
+  - the one-repository question's title, fetched and not (`ownTitle`);
+  - a list of two asks *Update 2 Repositories* with only those two on it, the one with no upstream skipped;
+  - `gittree.update.repository` asks *Update repoD*;
+  - a list naming nothing open asks nothing and updates nothing.
+
+Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.

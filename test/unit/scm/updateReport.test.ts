@@ -7,6 +7,7 @@ import {
   standing,
   standingAsFetched,
   summarizeProjectUpdate,
+  updateTitle,
   type RepoUpdateResult,
 } from '../../../src/scm/dialogs/updateReport';
 
@@ -266,5 +267,27 @@ describe('summarizeProjectUpdate without fetching (POST-P14bm)', () => {
     expect(summarizeProjectUpdate([upToDate('api'), upToDate('web')]).message).toBe(
       'All 2 repositories are already up to date.',
     );
+  });
+});
+
+describe('updateTitle (POST-P14bx)', () => {
+  it('titles the project as Update Project, whatever the repositories', () => {
+    expect(updateTitle('project', [])).toBe('Update Project');
+    expect(updateTitle('project', ['api', 'web'])).toBe('Update Project');
+    expect(updateTitle('project', ['api'], true)).toBe('Update Project Without Fetching');
+  });
+
+  it('titles one repository by its name, where it said Update Project', () => {
+    expect(updateTitle('named', ['api'])).toBe('Update api');
+    expect(updateTitle('named', ['local3 - Copy (2)'], true)).toBe('Update local3 - Copy (2) Without Fetching');
+  });
+
+  it('titles several by their number', () => {
+    expect(updateTitle('named', ['api', 'web'])).toBe('Update 2 Repositories');
+    expect(updateTitle('named', ['api', 'docs', 'web'], true)).toBe('Update 3 Repositories Without Fetching');
+  });
+
+  it('with no names to give, is the project', () => {
+    expect(updateTitle('named', [])).toBe('Update Project');
   });
 });
