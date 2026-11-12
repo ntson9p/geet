@@ -56,6 +56,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D39](#d39--the-filter-dropdowns-are-compact) | The log's filter dropdowns are small chips naming their value by IntelliJ's rules, a date in the Date column's format; `full` writes every value out | Deliberate (owner's request); `gittree.log.filterChips` |
 | [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `gittree.log.dateFormat` |
 | [D41](#d41--the-commit-windows-rows-open-the-file-manager) | The Commit window's file and folder rows open the system's file manager, under VS Code's names and key | Deliberate (owner's request) |
+| [D42](#d42--ctrlenter-commits-from-the-message-box-only) | Ctrl+Enter commits from the Commit window's message box only, as VS Code's Source Control box takes it; IntelliJ takes it anywhere in its Commit window | Deliberate (owner's request) |
 
 ---
 
@@ -1105,3 +1106,18 @@ Finder, or on Linux whichever answers the file-manager portal or `org.freedeskto
 (with `xdg-open` on the folder when neither does).
 
 **Revisitable:** yes — six menu entries and three keybindings in package.json.
+
+## D42 · Ctrl+Enter commits from the message box only
+
+**IntelliJ:** the Commit button's shortcut, `Ctrl+Enter` (and `⌘Enter` on macOS), works
+anywhere in the Commit tool window: in the commit message, and in the change tree too.
+`ChangesViewManager.setCommitUi` registers it on the tool window's whole panel
+(`ChangesViewCommitPanel.registerRootComponent`, `CommitActionsPanel.DEFAULT_COMMIT_ACTION_SHORTCUT`).
+**GitTree:** `Ctrl+Enter` (`⌘Enter` on macOS) commits from the message box only, as VS Code's
+Source Control box takes it. In the change tree the key does nothing. Where it works, it does what
+the Commit button does, and nothing when the button is disabled.
+
+Why: the owner's choice, asked when the key was fixed (POST-P14bs).
+
+**Revisitable:** yes. The keybinding's `when` (`gittree.commitMessageFocus`) would also take
+`gittree.commitTreeFocus`, and the webview's `answersCommitAsk` would answer from the tree.

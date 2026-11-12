@@ -33,6 +33,7 @@ import {
   type CommitDiffFileDto,
   type CommitDiffOnScreenDto,
   type CommitFileDiffDto,
+  type CommitMessageFocusParamsDto,
   type CommitOpenDiffParamsDto,
   type CommitGroupDto,
   type CommitRepoDto,
@@ -55,6 +56,7 @@ import type { CommitMessageBox } from '../messageBox';
 import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
 import { stageFiles, unstageFiles } from '../staging/stageFiles';
+import { setMessageFocus } from './commitKey';
 import { failureText } from './failureText';
 import { computeFileDiff, computeStagingDiff } from './fileDiff';
 import { stagingGroups } from './stagingGroups';
@@ -485,6 +487,18 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     this.rpc?.notify(COMMIT_METHODS.evtRevealRow, {});
   }
 
+  /**
+   * POST-P14bs: the commit key, pressed in the message box. The window commits
+   * as its Commit button does, with the message as typed this instant; the
+   * host's copy may still be inside the box's persist debounce (`commitKey.ts`).
+   */
+  commitFromMessageBox(): void {
+    // Bounded — this is test observability, not a log.
+    if (this.debugTrail.length > 50) this.debugTrail.shift();
+    this.debugTrail.push('commit key → webview');
+    this.rpc?.notify(COMMIT_METHODS.evtCommitKey, {});
+  }
+
   private diffSessions(): DiffSessionRegistry | undefined {
     return (this.deps.core.debugRegistry.get('phase14') as { sessions: DiffSessionRegistry } | undefined)?.sessions;
   }
@@ -670,6 +684,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       this.rpc = undefined;
       this.view = undefined;
       setTreeFocus(false);
+      setMessageFocus(false);
     });
     view.onDidChangeVisibility(() => {
       if (view.visible) {
@@ -677,9 +692,11 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
         this.push();
         this.pushShelf();
       } else {
-        // A hidden tree has no keyboard, whatever its last word was: the
-        // reveal key must not keep VS Code's own from the next view.
+        // A hidden tree or box has no keyboard, whatever its last word was:
+        // the reveal and commit keys must not keep VS Code's own from the next
+        // view, Ctrl+Enter in an editor least of all.
         setTreeFocus(false);
+        setMessageFocus(false);
       }
     });
   }
@@ -744,6 +761,10 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     // POST-P14bq: the reveal key's `when`, from the only side that knows.
     rpc.on(COMMIT_METHODS.treeFocus, (raw) => {
       setTreeFocus((raw as Partial<CommitTreeFocusParamsDto> | undefined)?.focused === true);
+    });
+    // POST-P14bs: the commit key's `when`, likewise (`commitFromMessageBox`).
+    rpc.on(COMMIT_METHODS.messageFocus, (raw) => {
+      setMessageFocus((raw as Partial<CommitMessageFocusParamsDto> | undefined)?.focused === true);
     });
 
     rpc.on(COMMIT_METHODS.setIncluded, async (raw) => {

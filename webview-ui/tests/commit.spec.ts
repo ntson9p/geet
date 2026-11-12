@@ -1721,3 +1721,171 @@ test.describe('POST-P14bq reveal in the file manager', () => {
     });
   });
 });
+
+/**
+ * POST-P14bs: Ctrl+Enter (⌘Enter on macOS) in the message box commits, as the
+ * Commit button does. The key is VS Code's keybinding, resolved from the key
+ * the webview passes on (while `gittree.commitMessageFocus`); the host then asks
+ * the webview (`commit/commitKey`), which alone has the message as typed. Here:
+ * what the box says and does with the key, and how the window answers the ask.
+ */
+test.describe('POST-P14bs Ctrl+Enter in the message box', () => {
+  const REPO = 'D:/repos/demo-git';
+  const WINDOWS_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.144.0 Chrome/138.0.0.0 Electron/37.0.0 Safari/537.36';
+  const MAC_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.144.0 Chrome/138.0.0.0 Electron/37.0.0 Safari/537.36';
+  // The key is Ctrl+Enter or ⌘Enter by the system: pinned, whichever runs the tests.
+  test.use({ userAgent: WINDOWS_UA });
+
+  interface HeardKey {
+    key: string;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    defaultPrevented: boolean;
+  }
+
+  const postEvent = (page: Page, method: string, params: unknown) =>
+    page.evaluate(
+      ({ method, params }) => window.postMessage({ v: 1, id: `evt-${method}`, kind: 'evt', method, params }, '*'),
+      { method, params },
+    );
+  const editor = (page: Page) => page.getByTestId('commit-message');
+  const commits = async (page: Page): Promise<unknown[]> =>
+    (await posted(page)).filter((m) => m.method === 'commit/commit').map((m) => m.params);
+  const focusReports = async (page: Page): Promise<unknown[]> =>
+    (await posted(page)).filter((m) => m.method === 'commit/messageFocus').map((m) => m.params);
+
+  /** Hears keys as VS Code's webview script does: on the window, after the page's own listeners. */
+  async function listenAsVsCode(page: Page): Promise<void> {
+    await page.evaluate(() => {
+      const w = window as unknown as { __heard: HeardKey[] };
+      w.__heard = [];
+      window.addEventListener('keydown', (e) => {
+        w.__heard.push({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, defaultPrevented: e.defaultPrevented });
+      });
+    });
+  }
+  const heardEnters = (page: Page): Promise<HeardKey[]> =>
+    page.evaluate(() => (window as unknown as { __heard: HeardKey[] }).__heard.filter((e) => e.key === 'Enter'));
+
+  test('the box says when it has the keyboard, which the commit key is bound to', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).click();
+    await expect.poll(() => focusReports(page)).toEqual([{ focused: true }]);
+    await row(page, 'guide.md').click();
+    await expect.poll(() => focusReports(page)).toEqual([{ focused: true }, { focused: false }]);
+    await editor(page).click();
+    await page.getByRole('tab', { name: 'Shelf' }).click();
+    await expect
+      .poll(() => focusReports(page))
+      .toEqual([{ focused: true }, { focused: false }, { focused: true }, { focused: false }]);
+    // A focus change is no intent: it never raises the failure banner.
+    await expect(page.getByTestId('commit-error')).toHaveCount(0);
+  });
+
+  test("the host's ask commits as the Commit button does: the message as typed goes first", async ({ page }) => {
+    await openCommit(page);
+    await editor(page).click();
+    // Typed just now: the box has not sent it yet (its persist waits 250 ms).
+    await editor(page).pressSequentially('add the key', { delay: 5 });
+    await postEvent(page, 'commit/commitKey', {});
+    await expect.poll(() => commits(page)).toEqual([{ repoRoot: REPO, andPush: false }]);
+    const all = await posted(page);
+    const setIdx = all.findIndex((m) => m.method === 'commit/setMessage' && m.params?.['message'] === 'add the key');
+    const commitIdx = all.findIndex((m) => m.method === 'commit/commit');
+    expect(setIdx).toBeGreaterThanOrEqual(0);
+    expect(commitIdx).toBeGreaterThan(setIdx);
+    // The box keeps the keyboard, as VS Code's Source Control box does.
+    await expect(editor(page)).toBeFocused();
+  });
+
+  test('the ask commits nothing while the Commit button is disabled', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).click();
+    // No message yet.
+    await expect(page.getByTestId('commit-button')).toBeDisabled();
+    await postEvent(page, 'commit/commitKey', {});
+    await page.waitForTimeout(150);
+    expect(await commits(page)).toEqual([]);
+  });
+
+  test('a late ask that finds the keyboard elsewhere commits nothing', async ({ page }) => {
+    await openCommit(page);
+    await editor(page).fill('not yet');
+    await row(page, 'guide.md').click();
+    await postEvent(page, 'commit/commitKey', {});
+    await page.waitForTimeout(150);
+    expect(await commits(page)).toEqual([]);
+  });
+
+  test('Ctrl+Enter types no line break, and is still passed on to VS Code', async ({ page }) => {
+    await openCommit(page);
+    await listenAsVsCode(page);
+    await editor(page).fill('subject');
+    await page.keyboard.press('Control+Enter');
+    await expect(editor(page)).toHaveValue('subject');
+    // VS Code resolves its keybinding from the key it hears: cancelled, but heard.
+    expect(await heardEnters(page)).toEqual([{ key: 'Enter', ctrlKey: true, metaKey: false, defaultPrevented: true }]);
+    // Enter alone is still a new line.
+    await page.keyboard.press('Enter');
+    await expect(editor(page)).toHaveValue('subject\n');
+  });
+
+  test('a held Ctrl+Enter is passed on once', async ({ page }) => {
+    await openCommit(page);
+    await listenAsVsCode(page);
+    await editor(page).fill('subject');
+    await page.keyboard.down('Control');
+    await page.keyboard.down('Enter');
+    // Pressed again while down: the key's repeats.
+    await page.keyboard.down('Enter');
+    await page.keyboard.down('Enter');
+    await page.keyboard.up('Enter');
+    await page.keyboard.up('Control');
+    expect(await heardEnters(page)).toHaveLength(1);
+    await expect(editor(page)).toHaveValue('subject');
+  });
+
+  test('while an IME is composing, the key and the ask wait for its text', async ({ page }) => {
+    await openCommit(page);
+    await listenAsVsCode(page);
+    await editor(page).fill('fix: ');
+    await editor(page).evaluate((el) => el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })));
+    await page.keyboard.press('Control+Enter');
+    // Held back from VS Code, which would commit without the composed text.
+    expect(await heardEnters(page)).toEqual([]);
+    await postEvent(page, 'commit/commitKey', {});
+    await page.waitForTimeout(150);
+    expect(await commits(page)).toEqual([]);
+
+    await editor(page).evaluate((el) => {
+      (el as HTMLTextAreaElement).value = 'fix: 日本';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    });
+    await page.keyboard.press('Control+Enter');
+    expect(await heardEnters(page)).toHaveLength(1);
+    await postEvent(page, 'commit/commitKey', {});
+    await expect.poll(() => commits(page)).toEqual([{ repoRoot: REPO, andPush: false }]);
+    expect(
+      (await posted(page)).some((m) => m.method === 'commit/setMessage' && m.params?.['message'] === 'fix: 日本'),
+    ).toBe(true);
+  });
+
+  test.describe('on macOS', () => {
+    test.use({ userAgent: MAC_UA });
+
+    test('⌘Enter is the key there; Ctrl+Enter is left to the box', async ({ page }) => {
+      await openCommit(page);
+      await listenAsVsCode(page);
+      await editor(page).fill('subject');
+      await page.keyboard.press('Meta+Enter');
+      await page.keyboard.press('Control+Enter');
+      expect(await heardEnters(page)).toEqual([
+        { key: 'Enter', ctrlKey: false, metaKey: true, defaultPrevented: true },
+        { key: 'Enter', ctrlKey: true, metaKey: false, defaultPrevented: false },
+      ]);
+    });
+  });
+});

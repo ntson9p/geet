@@ -16,11 +16,16 @@
  *   `compositionend`).
  * - Persist is debounced 250 ms; `flush()` (also wired to blur) forces it so a
  *   commit can never race a half-typed message.
+ * - POST-P14bs: Ctrl+Enter (⌘Enter) commits, through VS Code's keybinding and
+ *   back (`commitKey.ts`). The box only keeps the chord from typing a line
+ *   break, holds it back while an IME is composing or the key is held, and
+ *   says when it gains or loses the keyboard, which that keybinding's `when` reads.
  *
  * The subject-length hint and autogrow are direct DOM updates for the same
  * reason: a per-keystroke React state change would re-render this subtree.
  */
 import { forwardRef, memo, useEffect, useImperativeHandle, useRef } from 'react';
+import { isCommitChord, onMac } from './commitKey';
 
 export interface MessageEditorHandle {
   /** User-initiated insert (history/amend pick): undoable, takes focus. */
@@ -34,6 +39,8 @@ export interface MessageEditorHandle {
   adoptExternal(text: string): void;
   /** Fire a pending debounced persist immediately. */
   flush(): void;
+  /** POST-P14bs: an IME is composing here — text not taken yet, which a commit must wait for. */
+  composing(): boolean;
   value(): string;
   focus(): void;
 }
@@ -46,15 +53,19 @@ export interface MessageEditorProps {
   onInput: (value: string) => void;
   /** Debounced 250 ms — posts `commit/setMessage`. */
   onPersist: (value: string) => void;
+  /** POST-P14bs: the box gained or lost the keyboard, which the commit key is bound to. */
+  onFocusChange?: (focused: boolean) => void;
 }
 
 const PERSIST_DEBOUNCE_MS = 250;
+/** POST-P14bs: the commit key is ⌘Enter there, Ctrl+Enter elsewhere, as the keybinding's `mac` and `key`. */
+const ON_MAC = onMac(navigator.userAgent);
 const SUBJECT_SOFT_LIMIT = 72;
 const MAX_HEIGHT_PX = 320;
 
 export const MessageEditor = memo(
   forwardRef<MessageEditorHandle, MessageEditorProps>(function MessageEditor(
-    { initial, disabled, onInput, onPersist },
+    { initial, disabled, onInput, onPersist, onFocusChange },
     ref,
   ) {
     const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -63,8 +74,8 @@ export const MessageEditor = memo(
     const dirty = useRef(false);
     const timer = useRef<number | undefined>(undefined);
     // Callbacks live in a ref so the mount-only listener effect never re-runs.
-    const cb = useRef({ onInput, onPersist });
-    cb.current = { onInput, onPersist };
+    const cb = useRef({ onInput, onPersist, onFocusChange });
+    cb.current = { onInput, onPersist, onFocusChange };
 
     useEffect(() => {
       const el = taRef.current;
@@ -126,10 +137,34 @@ export const MessageEditor = memo(
         changed();
       };
 
+      // POST-P14bs: the commit key's `when` follows the keyboard in and out.
+      const focused = (): void => cb.current.onFocusChange?.(true);
+      const blurred = (): void => cb.current.onFocusChange?.(false);
+
+      // POST-P14bs: the commit chord. VS Code resolves the keybinding from the
+      // key it is passed on; all the box decides is what else the key does.
+      const onKeyDown = (e: KeyboardEvent): void => {
+        if (!isCommitChord(e, ON_MAC)) return;
+        if (e.isComposing || composing.current) {
+          // The IME's key, over text the box has not taken yet: VS Code must
+          // not commit without it.
+          e.stopPropagation();
+          return;
+        }
+        // Never a line break: the key is the Commit button's. VS Code passes
+        // on a cancelled key all the same.
+        e.preventDefault();
+        // A held key asks once.
+        if (e.repeat) e.stopPropagation();
+      };
+
       el.addEventListener('input', changed);
       el.addEventListener('compositionstart', onCompositionStart);
       el.addEventListener('compositionend', onCompositionEnd);
       el.addEventListener('blur', flushNow);
+      el.addEventListener('focus', focused);
+      el.addEventListener('blur', blurred);
+      el.addEventListener('keydown', onKeyDown);
       autosize();
       updateCounter();
       return () => {
@@ -137,7 +172,13 @@ export const MessageEditor = memo(
         el.removeEventListener('compositionstart', onCompositionStart);
         el.removeEventListener('compositionend', onCompositionEnd);
         el.removeEventListener('blur', flushNow);
+        el.removeEventListener('focus', focused);
+        el.removeEventListener('blur', blurred);
+        el.removeEventListener('keydown', onKeyDown);
         if (timer.current !== undefined) window.clearTimeout(timer.current);
+        // Unmounting fires no blur, so the box says it here; a box that did
+        // not have the keyboard repeats what was said, which sends nothing.
+        blurred();
       };
     }, []);
 
@@ -194,6 +235,9 @@ export const MessageEditor = memo(
           dirty.current = false;
           cb.current.onPersist(el.value);
         }
+      },
+      composing(): boolean {
+        return composing.current;
       },
       value(): string {
         return taRef.current?.value ?? '';

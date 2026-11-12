@@ -13,7 +13,7 @@ any of them in Keyboard Shortcuts):
 | Key | Command | Where |
 | --- | --- | --- |
 | `Ctrl+Up` (`Cmd+Up`) | `gittree.commit.showMessageHistory` | commit tool window message editor |
-| `Ctrl+Enter` (`Cmd+Enter`) | `gittree.commit` | commit tool window — replaces the SCM input box's accept action (P14-T4) |
+| `Ctrl+Enter` (`Cmd+Enter`) | `gittree.commit.fromMessageBox` | commit tool window's message box (`gittree.commitMessageFocus`) — commits as the Commit button does, as VS Code's Source Control box takes the key (POST-P14bs). Not in the change tree: the owner's choice, where IntelliJ takes it anywhere in its Commit window (D42). The window commits, not the host: the box sends its message on a 250 ms debounce, and the button's path sends it first |
 | `Shift+Alt+R` (`⌥⌘R` on macOS, `Ctrl+Alt+R` on Linux) | `gittree.revealFileInOS.windows` / `.mac` / `.linux` | commit tool window's change tree (`gittree.commitTreeFocus`) — the keyboard's file or folder row in the system's file manager (VS Code's own key for Reveal in File Explorer; POST-P14bq). On Windows the tree answers `Shift+Alt+R` itself: passed on to VS Code from a webview, Alt+R also opens the Run menu |
 | `Ctrl+Alt+Enter` | `gittree.stage.selectedRanges` | diff editor — stages the selected lines/hunk |
 | `F7` / `Shift+F7` | `gittree.merge.nextConflict` / `prevConflict` | merge tri-editor |

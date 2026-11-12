@@ -36,6 +36,7 @@ import { InclusionModel } from './window/inclusion';
 import { CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
 import { repoRootOf } from '../ui/rowContext';
 import { registerRevealInOS } from '../scm/revealInOS';
+import { COMMIT_FROM_MESSAGE_COMMAND } from './window/commitKey';
 import { STAGING_SIDES, stagingSideOf } from '../shared/protocol';
 
 export interface Phase03Registry {
@@ -168,6 +169,10 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     if (repoRoot === undefined) await runCommitAcross(flowDeps, repo);
     else await runCommitFlow(flowDeps, repo);
   });
+  // POST-P14bs: Ctrl+Enter (⌘Enter) in the Commit window's message box. Not
+  // the bare command above: the window commits as its Commit button does, with
+  // the message as typed this instant (see commitKey.ts).
+  register(COMMIT_FROM_MESSAGE_COMMAND, () => commitWindow.commitFromMessageBox());
   register('gittree.commitAndPush', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (!repo) return;

@@ -341,6 +341,19 @@ export const COMMIT_METHODS = {
    * outside its view pane.
    */
   treeFocus: 'commit/treeFocus',
+  /**
+   * POST-P14bs: `CommitMessageFocusParamsDto`, the message box gained or lost
+   * the keyboard. It sets `gittree.commitMessageFocus`, the commit key's `when`,
+   * for the same reason as `treeFocus`.
+   */
+  messageFocus: 'commit/messageFocus',
+  /**
+   * host → webview, POST-P14bs: the commit key (Ctrl+Enter, ⌘Enter) was
+   * pressed in the message box. The webview commits as its Commit button does:
+   * only it has the message as typed this instant (the host's copy trails it by
+   * the persist debounce) and knows whether that button is enabled. No params.
+   */
+  evtCommitKey: 'commit/commitKey',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
@@ -372,6 +385,11 @@ export interface CommitRevealParamsDto {
 
 /** POST-P14bq: whether the Commit window's change tree has the keyboard. */
 export interface CommitTreeFocusParamsDto {
+  focused: boolean;
+}
+
+/** POST-P14bs: whether the Commit window's message box has the keyboard. */
+export interface CommitMessageFocusParamsDto {
   focused: boolean;
 }
 

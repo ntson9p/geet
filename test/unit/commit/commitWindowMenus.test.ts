@@ -271,3 +271,44 @@ describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)
     }
   });
 });
+
+/**
+ * POST-P14bs: Ctrl+Enter (⌘Enter) in the Commit window's message box commits.
+ * Bound to `focusedView == 'gittree.commit'`, it never did in the real window.
+ */
+describe('Ctrl+Enter in the message box (POST-P14bs)', () => {
+  const contributes = manifest.contributes as unknown as {
+    keybindings: Array<{ command: string; key: string; mac?: string; when?: string }>;
+    views: Record<string, Array<{ id: string; type?: string }>>;
+  };
+  const keys = contributes.keybindings;
+
+  it('binds Ctrl+Enter, ⌘Enter on macOS, while the message box has the keyboard', () => {
+    expect(keys.filter((k) => k.command === 'gittree.commit.fromMessageBox')).toEqual([
+      { command: 'gittree.commit.fromMessageBox', key: 'ctrl+enter', mac: 'cmd+enter', when: 'gittree.commitMessageFocus' },
+    ]);
+  });
+
+  it('binds nothing to the bare Commit: that reads a message the box may not have sent yet', () => {
+    expect(keys.filter((k) => k.command === 'gittree.commit' && (k.key === 'ctrl+enter' || k.mac === 'cmd+enter'))).toEqual(
+      [],
+    );
+  });
+
+  it('names its command for Keyboard Shortcuts, and keeps it out of the Command Palette: it needs the box', () => {
+    expect(titleOf('gittree.commit.fromMessageBox')).toBe('Commit from the Message Box');
+    const palette = manifest.contributes.menus['commandPalette'] ?? [];
+    expect(palette.find((e) => e.command === 'gittree.commit.fromMessageBox')?.when).toBe('false');
+  });
+
+  it('binds no key to one of our webviews by focusedView, which VS Code clears once focus is inside one', () => {
+    const webviews = Object.values(contributes.views)
+      .flat()
+      .filter((v) => v.type === 'webview')
+      .map((v) => v.id);
+    expect(webviews).toEqual(expect.arrayContaining(['gittree.commit', 'gittree.log', 'gittree.branches']));
+    const viewsNamed = (when: string): string[] =>
+      [...when.matchAll(/focusedView\s*==\s*'?([\w.-]+)'?/gu)].map((m) => m[1]!);
+    expect(keys.filter((k) => viewsNamed(k.when ?? '').some((id) => webviews.includes(id)))).toEqual([]);
+  });
+});

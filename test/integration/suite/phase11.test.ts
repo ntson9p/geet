@@ -904,4 +904,34 @@ suite('P11 commit tool window', () => {
 
   // P14-T2 deleted the two surface-switching tests with the surface they
   // switched to: `gittree.commit.window` and its toggle command are gone.
+
+  test('POST-P14bs: the commit key asks the window, and never commits a message of its own', async function () {
+    this.timeout(60_000);
+    // Ctrl+Enter in the message box runs this command (while the box has the
+    // keyboard). The host's copy of the message may trail the box by its
+    // persist debounce, so the window commits, as its Commit button does.
+    await vscode.commands.executeCommand('gittree.commit.focus');
+    await waitFor(() => reg.commitWindow.isResolved, 15_000);
+    const box = reg.messageBoxFor(repo);
+    const previous = box.value;
+    write('p11/commit-key.txt', 'key\n');
+    await refresh();
+    const before = git('rev-parse', 'HEAD').trim();
+    const asks = (): number => reg.commitWindow.debugTrail.filter((l) => l === 'commit key → webview').length;
+    const asked = asks();
+    try {
+      box.value = 'p11 the commit key must not commit this';
+      await waitFor(() => box.value === 'p11 the commit key must not commit this', 5_000);
+      await vscode.commands.executeCommand('gittree.commit.fromMessageBox');
+      assert.strictEqual(asks(), asked + 1, `trail: ${reg.commitWindow.debugTrail.join(' | ')}`);
+      // The window's box never had the keyboard here, so the window lets the
+      // ask go: nothing commits, and the host never commits from its own copy.
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), before);
+    } finally {
+      box.value = previous;
+      fs.rmSync(path.join(repoRoot, 'p11/commit-key.txt'), { force: true });
+      await refresh();
+    }
+  });
 });

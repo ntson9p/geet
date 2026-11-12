@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — Ctrl+Enter in the Commit window's message box commits
+
+- **Type a message, press `Ctrl+Enter` (`⌘Enter` on macOS), and it commits**, as clicking
+  Commit does and as VS Code's Source Control box does. Until now the key did nothing there.
+- It commits exactly what the button would: what is ticked, with the message as you typed it,
+  down to the last character. When the button is disabled (no message, nothing ticked, or a
+  commit still running), the key does nothing, and holding it down commits once.
+- It works in the message box only, not in the file tree. The key no longer types a line break
+  there; `Enter` and `Shift+Enter` still do.
+- It can be rebound in Keyboard Shortcuts: **GitTree: Commit from the Message Box**.
+
 ### Fixed — GitTree's own menus and popups close when you click elsewhere
 
 - **A menu or popup GitTree draws itself now closes when you click anywhere outside it,

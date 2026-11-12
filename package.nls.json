@@ -76,6 +76,7 @@
   "gittree.command.commit.toggleAmend.title": "Toggle Amend Mode",
   "gittree.command.commit.toggleSign.title": "Toggle GPG Signing",
   "gittree.command.commit.showMessageHistory.title": "Commit Message History…",
+  "gittree.command.commit.fromMessageBox.title": "Commit from the Message Box",
   "gittree.command.commit.configureChecks.title": "Configure Pre-Commit Checks…",
   "gittree.command.changelist.new.title": "New Changelist…",
   "gittree.command.changelist.rename.title": "Rename Changelist…",

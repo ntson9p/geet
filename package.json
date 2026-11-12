@@ -1086,6 +1086,11 @@
         "icon": "$(history)"
       },
       {
+        "command": "gittree.commit.fromMessageBox",
+        "title": "%gittree.command.commit.fromMessageBox.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.commit.configureChecks",
         "title": "%gittree.command.commit.configureChecks.title%",
         "category": "GitTree",
@@ -2140,6 +2145,10 @@
         },
         {
           "command": "gittree.revealFileInOS.linux",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.fromMessageBox",
           "when": "false"
         },
         {
@@ -3670,10 +3679,10 @@
         "when": "editorTextFocus"
       },
       {
-        "command": "gittree.commit",
+        "command": "gittree.commit.fromMessageBox",
         "key": "ctrl+enter",
         "mac": "cmd+enter",
-        "when": "focusedView == 'gittree.commit'"
+        "when": "gittree.commitMessageFocus"
       },
       {
         "command": "gittree.revealFileInOS.windows",

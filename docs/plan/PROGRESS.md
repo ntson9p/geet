@@ -1467,3 +1467,42 @@ Testing (written, **not run**), Playwright with the mock hosts (Vitest has no DO
 Not changed: clicking the Commit window's gear while its options popup is open closes the popup on the press and opens it again on the click (seen in the real window). VS Code's own `…` toggles shut. The Repositories `⋯` menu covers its own button, and a filter chip counts as inside its panel, so neither does this.
 
 Gates: webview typecheck + lint clean; webviews built. No suite run.
+
+POST-P14bs ✅ 2026-11-12 (branch `new-way-6`): **Ctrl+Enter in the Commit window's message box commits; the Commit-window Playwright tests use today's row names.** Both were found during POST-P14bq and reported; the owner chose to fix both, with the key in the message box only, as VS Code's Source Control box takes it.
+
+Ctrl+Enter, root cause:
+- **The binding never fired.** It was `ctrl+enter` → `gittree.commit` while `focusedView == 'gittree.commit'`. VS Code clears `focusedView` once focus is inside a webview, whose iframe lives in an overlay outside its view pane (the reveal key's problem, POST-P14bq). In the real window, Ctrl+Enter in the box made no commit.
+- **Fixing the `when` alone would not have done.** The bare `gittree.commit` reads the host's copy of the message, which the box sends on a 250 ms debounce (`MessageEditor.tsx`). A key pressed right after typing could commit without the last characters, or warn "Enter a commit message first." It also skips the window's `guard()`: no busy state, and a second press is not refused. The Commit button instead flushes the message, then sends `commit/commit` into that guard.
+
+Fix:
+- **The key:** `gittree.commit.fromMessageBox` ("Commit from the Message Box", out of the Command Palette), `ctrl+enter` / `cmd+enter` while `gittree.commitMessageFocus`. The box reports its focus (`commit/messageFocus`, a plain request like `treeFocus`). The host sets the key, and clears it when the view hides or goes, so a stale key can never take Ctrl+Enter from an editor (`src/commit/window/commitKey.ts`).
+- **The command** asks the window (`commit/commitKey`). The webview answers as its Commit button would, only while the box has the keyboard and no IME is composing (`answersCommitAsk`, `webview-ui/src/commit/commitKey.ts`): flush, then `commit/commit`.
+- **In the box** (`MessageEditor.tsx`), the chord no longer types a line break: `preventDefault`. VS Code 1.144's webview script (`pre/index.html`, `handleInnerKeydown`) passes the key on all the same. The box holds the chord back from VS Code while an IME is composing, whose text it has not taken yet, and on a held key's repeats.
+- **Scope:** the box only, not the change tree. IntelliJ registers the shortcut on its whole Commit tool window (`ChangesViewManager.setCommitUi` → `ChangesViewCommitPanel.registerRootComponent`), so this is deviation D42.
+
+The row names: since 1e61472 a file row's name is the file's alone. 26 of the 106 tests in `commit.spec.ts` still asked for "<file>, <folder>" and could find nothing: 31 literals over 5 names, and 4 tests through the `DIFF_ROW` constant. Renamed in 0583fa9; each file name occurs once in the mock data. 0583fa9's message says "21 of the 94": that count missed double-quoted test titles and the constant.
+
+Verified in the real window (VS Code 1.144 on Windows, Playwright over CDP, real key input; `scratchpad/drive/commitkey.cjs`):
+- **Ctrl+Enter right after typing:** a message typed and committed at once, well inside the debounce. Committed, subject exact to the last letter, all three ticked files. The box was cleared and kept the keyboard.
+- **The button disabled** (empty box): nothing committed, no line break typed.
+- **In the change tree:** nothing committed.
+- **In a text editor:** Ctrl+Enter still inserted a line below (the key cleared on the box's blur), and nothing committed.
+- **Back in the box:** it committed the message typed before.
+- **Keyboard Shortcuts** lists "GitTree: Commit from the Message Box" on Ctrl+Enter, with its `when`.
+
+Testing:
+- Unit (written, not run): `test/unit/webview/commitKey.test.ts` (the chord on each system, the ask) and `commitWindowMenus.test.ts` (the binding, its command, the palette, and no GitTree keybinding bound to one of its webviews by `focusedView`).
+- Integration (written, not run): `phase11.test.ts`, the command asks the window and the host commits nothing of its own.
+- Playwright, `commit.spec.ts`, new tests:
+  - the box reports its focus;
+  - the ask sends the message as typed before the commit;
+  - nothing commits while the button is disabled or the box has lost the keyboard;
+  - the chord types no line break and is still passed on;
+  - a held key is passed on once;
+  - an IME's composition holds the key and the ask;
+  - ⌘Enter on macOS.
+- **Run once, at the owner's request:** `commit.spec.ts`, 114 passed (2.2 min). That is the 106, the 26 renamed among them, and the 8 new.
+
+Not changed, reported: docs/keyboard.md also lists `Ctrl+Up` for message history in the message box. That keybinding (`scmInputIsInFocused && scmProvider == gittree`) went with the native commit surface in 5e7a166, and nothing took its place in the Commit window.
+
+Gates: typecheck + lint clean; extension and webviews built.

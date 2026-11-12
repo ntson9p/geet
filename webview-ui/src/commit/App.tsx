@@ -37,6 +37,7 @@ import {
   type CommitStateDto,
   type CommitSetCheckedParamsDto,
   type CommitStageParamsDto,
+  type CommitMessageFocusParamsDto,
   type CommitTreeFocusParamsDto,
 } from '../../../src/shared/protocol';
 import {
@@ -94,6 +95,7 @@ import {
   type CommitTreeModel,
 } from './commitTree';
 import { firstLine, relativeTime } from './format';
+import { answersCommitAsk } from './commitKey';
 import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
 import { answersRevealAsk, isWindowsRevealChord, onWindows } from './revealKey';
@@ -389,16 +391,36 @@ export function App() {
     },
     [rpc],
   );
-  // Another tab unmounts the tree, which says nothing as it goes; leaving the
-  // window takes the keyboard from it too.
+  /**
+   * POST-P14bs: the same for the message box, which the commit key's `when`
+   * (`gittree.commitMessageFocus`) reads.
+   */
+  const messageFocused = useRef(false);
+  const reportMessageFocus = useCallback(
+    (focused: boolean) => {
+      if (messageFocused.current === focused) return;
+      messageFocused.current = focused;
+      void rpc
+        .request(COMMIT_METHODS.messageFocus, { focused } satisfies CommitMessageFocusParamsDto, INTENT_TIMEOUT_MS)
+        .catch(() => undefined);
+    },
+    [rpc],
+  );
+  // Another tab unmounts the tree and the box, which say nothing as they go;
+  // leaving the window takes the keyboard from them too.
   useEffect(() => {
-    if (tab !== 'commit') reportTreeFocus(false);
-  }, [reportTreeFocus, tab]);
+    if (tab === 'commit') return;
+    reportTreeFocus(false);
+    reportMessageFocus(false);
+  }, [reportMessageFocus, reportTreeFocus, tab]);
   useEffect(() => {
-    const away = (): void => reportTreeFocus(false);
+    const away = (): void => {
+      reportTreeFocus(false);
+      reportMessageFocus(false);
+    };
     window.addEventListener('blur', away);
     return () => window.removeEventListener('blur', away);
-  }, [reportTreeFocus]);
+  }, [reportMessageFocus, reportTreeFocus]);
   /** When a key was last pressed in the tree: the host's ask is that key's for a moment after. */
   const lastTreeKeyAt = useRef(Number.NEGATIVE_INFINITY);
   /** POST-P14bq: the keyboard's row in the file manager, as Enter opens it; nothing for a list or repository row. */
@@ -819,6 +841,18 @@ export function App() {
     // staged, nothing to commit — the counter says the same.
     (state.amend || state.checkedCount > 0);
 
+  // POST-P14bs: the commit key (Ctrl+Enter, ⌘Enter), pressed in the message
+  // box. What the Commit button does, when it would: the message as typed goes
+  // first, then the commit. In a ref, so the host's ask finds this render's.
+  const answerCommitKey = useRef<() => void>(() => undefined);
+  answerCommitKey.current = () => {
+    if (tabRef.current !== 'commit') return;
+    const composing = editorRef.current?.composing() ?? false;
+    if (!answersCommitAsk({ messageFocused: messageFocused.current, composing, canCommit })) return;
+    commit(false);
+  };
+  useEffect(() => rpc.onEvent(COMMIT_METHODS.evtCommitKey, () => answerCommitKey.current()), [rpc]);
+
   // The tree spans every repository, so in a multi-root workspace a bare
   // `Commit` leaves the scope invisible — which is how a commit lands in the
   // wrong repo unnoticed. Single-root workspaces keep the plain label.
@@ -1088,6 +1122,7 @@ export function App() {
             disabled={activeRepo === undefined}
             onInput={onEditorInput}
             onPersist={onEditorPersist}
+            onFocusChange={reportMessageFocus}
           />
 
           <div className="gt-commit-actions">

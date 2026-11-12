@@ -326,6 +326,8 @@ export const mockCommitHostScript = `
     'commit/reveal': () => undefined,
     // POST-P14bq: the host sets gittree.commitTreeFocus; receiving it is enough.
     'commit/treeFocus': () => undefined,
+    // POST-P14bs: the host sets gittree.commitMessageFocus; likewise.
+    'commit/messageFocus': () => undefined,
     'commit/diffChain': () => undefined,
     'commit/rollback': () => undefined,
     'commit/shelve': () => undefined,
