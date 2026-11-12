@@ -6,6 +6,18 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a repository clicked a second time no longer looks picked
+
+- In the Repositories panel, clicking the repository you are showing alone shows every
+  repository again, as it did before. Its row, though, stayed highlighted, so it still looked
+  picked.
+- **Now a repository's row is highlighted while it is picked, and only then.** When you
+  Ctrl+click several, every picked one is highlighted, not just the last one clicked.
+- Moving through the rows with the keyboard shows a focus ring and the row's buttons. A click
+  leaves no ring.
+- Each repository's hover now says what a click on it does. With two picked, it said a click
+  would show every repository; a click there shows that one alone.
+
 ### Changed — *Run advanced checks after a commit is done* starts unticked
 
 - In the Commit window's gear popup, **Run advanced checks after a commit is done** now starts

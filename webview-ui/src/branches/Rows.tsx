@@ -24,6 +24,7 @@ import {
   quickActions,
   relationText,
   remoteTwin,
+  repoHint,
   shortAge,
   tabTitle,
   trackingText,
@@ -338,9 +339,7 @@ export function RepoRow({
   const dim = row.narrowed && !row.inScope;
   const elsewhere =
     repo.head !== undefined ? upstreamElsewhere(repo, repo.head, repo.upstream, repo.upstreamGone) : undefined;
-  const hint = row.narrowed && row.inScope
-    ? 'Click to show every repository again · Ctrl+click to leave this one out'
-    : 'Click to show only its branches · Ctrl+click to add it to what is shown';
+  const hint = repoHint(row);
   return (
     <div className={`gtp-repo${dim ? ' gtp-out-of-scope' : ''}`} title={`${repo.root}
 ${hint}`}>

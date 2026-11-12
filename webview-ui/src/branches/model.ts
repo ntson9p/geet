@@ -292,6 +292,11 @@ export type PanelRow =
       readonly inScope: boolean;
       /** The user narrowed the scope (some repositories are out of it). */
       readonly narrowed: boolean;
+      /**
+       * Narrowed to this repository alone: a click shows every repository again.
+       * Picked among several, a click shows it alone (POST-P14bw).
+       */
+      readonly only: boolean;
       readonly height: number;
     }
   | {
@@ -642,6 +647,20 @@ export function cardHeight(lines: readonly CardLine[]): number {
   return CARD_PAD + lines.length * CARD_LINE + CARD_BUTTONS;
 }
 
+/**
+ * What a click on a repository's row does, as its hover says it (POST-P14bw). A click
+ * shows only that repository's branches, or every repository's again on the one the panel
+ * shows alone. A Ctrl+click adds a repository or leaves one out; with every repository
+ * shown, it shows only that one, as a click does, so the hover says nothing of it there.
+ */
+export function repoHint(row: Pick<Extract<PanelRow, { kind: 'repo' }>, 'inScope' | 'narrowed' | 'only'>): string {
+  if (!row.narrowed) return 'Click to show only its branches';
+  if (row.only) return 'Click to show every repository again';
+  return row.inScope
+    ? 'Click to show only its branches · Ctrl+click to leave it out'
+    : 'Click to show only its branches · Ctrl+click to add it';
+}
+
 // ---------------------------------------------------------------------------
 // Where a branch is: its row's words, with several repositories in view
 // ---------------------------------------------------------------------------
@@ -824,6 +843,7 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         repo,
         inScope: scopeRepos.includes(repo),
         narrowed,
+        only: narrowed && scopeRepos.length === 1 && scopeRepos[0] === repo,
         height: REPO,
       });
       if (repo.operation !== undefined) {

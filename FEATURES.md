@@ -303,6 +303,13 @@ picked; at first, on Recent while anything is recent, else Local.
   pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
   in the REPOSITORIES header, which names the repositories picked. The scope narrows what is
   shown *and* what the rows act on.
+  - **Clicking the repository shown alone again shows every repository again.** Clicking one
+    of several picked shows it alone. Each row's hover says what its click will do.
+  - **A picked repository's row is highlighted, every picked one alike, and only while it is
+    picked** (POST-P14bw); the others dim. A row is not highlighted for having been clicked:
+    the second click leaves it as the other rows are. The keyboard's place among the rows is
+    a focus ring with the row's buttons, shown only for the keyboard (a click leaves no ring);
+    `Enter` or `Space` picks the row as a click does.
 
 **What can I do with it?**
 

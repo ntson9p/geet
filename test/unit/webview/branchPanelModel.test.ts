@@ -27,6 +27,7 @@ import {
   relationShort,
   relationText,
   remoteTwin,
+  repoHint,
   ROW,
   scopeReposOf,
   SHORT_WHERE,
@@ -517,11 +518,39 @@ describe('buildPanel: several repositories', () => {
     expect(narrowed.scopeRepos.map((r) => r.root)).toEqual(['/api']);
     expect(narrowed.markers).toBe(false);
     const repos = narrowed.rows.filter((r) => r.kind === 'repo');
-    expect(repos.map((r) => (r.kind === 'repo' ? [r.repo.root, r.inScope, r.narrowed] : []))).toEqual([
-      ['/api', true, true],
-      ['/web', false, true],
+    expect(repos.map((r) => (r.kind === 'repo' ? [r.repo.root, r.inScope, r.narrowed, r.only] : []))).toEqual([
+      ['/api', true, true, true],
+      ['/web', false, true, false],
     ]);
     expect(narrowed.rows.some((r) => r.kind === 'branch' && r.entry.name === 'bugfix/header')).toBe(false);
+  });
+
+  it('says which repository the panel shows alone, and what a click on each row does (POST-P14bw)', () => {
+    const shared = repo('/shared', { head: 'main', locals: [ref('main', { current: true })] });
+    const three = [api, shared, web];
+    const repoRowsOf = (scope: readonly string[]) =>
+      buildPanel(state(three), ui({ scope })).repoRows.flatMap((r) => (r.kind === 'repo' ? [r] : []));
+    const facts = (scope: readonly string[]) =>
+      repoRowsOf(scope).map((r) => [r.repo.root, r.inScope, r.narrowed, r.only, repoHint(r)]);
+
+    // Every repository shown: none alone, and a click (or Ctrl+click) shows only that one.
+    expect(facts([])).toEqual([
+      ['/api', true, false, false, 'Click to show only its branches'],
+      ['/shared', true, false, false, 'Click to show only its branches'],
+      ['/web', true, false, false, 'Click to show only its branches'],
+    ]);
+    // Shown alone: a second click shows every repository again.
+    expect(facts(['/web'])).toEqual([
+      ['/api', false, true, false, 'Click to show only its branches · Ctrl+click to add it'],
+      ['/shared', false, true, false, 'Click to show only its branches · Ctrl+click to add it'],
+      ['/web', true, true, true, 'Click to show every repository again'],
+    ]);
+    // Two picked: neither alone, so a click on one shows it alone; Ctrl+click leaves it out.
+    expect(facts(['/web', '/api'])).toEqual([
+      ['/api', true, true, false, 'Click to show only its branches · Ctrl+click to leave it out'],
+      ['/shared', false, true, false, 'Click to show only its branches · Ctrl+click to add it'],
+      ['/web', true, true, false, 'Click to show only its branches · Ctrl+click to leave it out'],
+    ]);
   });
 
   it('a scope naming no open repository means every repository', () => {

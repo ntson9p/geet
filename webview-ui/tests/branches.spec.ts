@@ -218,6 +218,104 @@ test.describe('several repositories', () => {
     );
   });
 
+  test('a second click shows every repository again, and the row looks as the others do (POST-P14bw)', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    const ACTIVE = 'rgb(4, 57, 94)';
+    const INACTIVE = 'rgb(55, 55, 61)';
+    const OUTLINE = 'rgb(0, 120, 212)';
+    const NONE = 'rgba(0, 0, 0, 0)';
+    // Where VS Code puts its colours.
+    await page.evaluate(
+      ([active, inactive, outline]) => {
+        const s = document.documentElement.style;
+        s.setProperty('--vscode-list-activeSelectionBackground', active!);
+        s.setProperty('--vscode-list-inactiveSelectionBackground', inactive!);
+        s.setProperty('--vscode-list-focusOutline', outline!);
+      },
+      [ACTIVE, INACTIVE, OUTLINE],
+    );
+    /** How a repository's row looks: its highlight, its focus ring and how many of its buttons show. */
+    const look = (root: string): Promise<{ background: string; outline: string; buttons: number }> =>
+      row(page, `repo:${root}`).evaluate((el) => {
+        const own = getComputedStyle(el);
+        return {
+          background: getComputedStyle(el.querySelector('.gtp-repo')!).backgroundColor,
+          outline: own.outlineStyle === 'none' ? 'none' : own.outlineColor,
+          buttons: [...el.querySelectorAll('.gtp-row-buttons > .gtp-icon-button')].filter(
+            (b) => getComputedStyle(b).display !== 'none',
+          ).length,
+        };
+      });
+    const pointerAway = (): Promise<void> => page.mouse.move(0, 0);
+
+    // Picked: highlighted as a selected row is. A click leaves no focus ring.
+    await row(page, `repo:${API}`).click();
+    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+    await pointerAway();
+    expect(await look(API)).toEqual({ background: ACTIVE, outline: 'none', buttons: 0 });
+
+    // The second click shows every repository again, and leaves the row as the others are.
+    await row(page, `repo:${API}`).click();
+    await expect(page.getByLabel('Filter branches')).toHaveAttribute(
+      'placeholder',
+      'Filter branches in 3 repositories',
+    );
+    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'false');
+    await expect(row(page, `repo:${API}`)).toBeFocused();
+    await pointerAway();
+    expect(await look(API)).toEqual({ background: NONE, outline: 'none', buttons: 0 });
+    expect(await look(API)).toEqual(await look(WEB));
+
+    // The keyboard's place is the focus ring alone, with the row's buttons, until Enter picks it.
+    await page.keyboard.press('ArrowDown');
+    await expect(row(page, `repo:${SHARED}`)).toBeFocused();
+    const keyed = await look(SHARED);
+    expect([keyed.background, keyed.outline]).toEqual([NONE, OUTLINE]);
+    expect(keyed.buttons).toBeGreaterThan(0);
+    expect(await look(API)).toEqual({ background: NONE, outline: 'none', buttons: 0 });
+    await page.keyboard.press('Enter');
+    await expect(row(page, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'true');
+    expect((await look(SHARED)).background).toBe(ACTIVE);
+    expect((await look(SHARED)).outline).toBe(OUTLINE);
+
+    // Ctrl+click adds api: every picked row is highlighted, not just the one clicked last.
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+    await pointerAway();
+    expect((await look(API)).background).toBe(ACTIVE);
+    expect((await look(SHARED)).background).toBe(ACTIVE);
+    expect((await look(WEB)).background).toBe(NONE);
+
+    // With the focus elsewhere, the picked rows keep the inactive highlight, as VS Code's lists do.
+    await page.getByLabel('Filter branches').focus();
+    expect((await look(API)).background).toBe(INACTIVE);
+    expect((await look(SHARED)).background).toBe(INACTIVE);
+    expect((await look(WEB)).background).toBe(NONE);
+  });
+
+  test("a repository's hover says what a click on it does (POST-P14bw)", async ({ page }) => {
+    await openPanel(page);
+    const hint = async (root: string): Promise<string> =>
+      ((await row(page, `repo:${root}`).locator('.gtp-repo').getAttribute('title')) ?? '').split('\n')[1] ?? '';
+    // Every repository shown: a click (or a Ctrl+click) shows only this one.
+    expect(await hint(API)).toBe('Click to show only its branches');
+    // Shown alone: a click shows every repository again.
+    await row(page, `repo:${API}`).click();
+    expect(await hint(API)).toBe('Click to show every repository again');
+    expect(await hint(WEB)).toBe('Click to show only its branches · Ctrl+click to add it');
+    // Picked with another: a click shows it alone; Ctrl+click leaves it out.
+    await row(page, `repo:${WEB}`).click({ modifiers: ['Control'] });
+    expect(await hint(API)).toBe('Click to show only its branches · Ctrl+click to leave it out');
+    expect(await hint(WEB)).toBe('Click to show only its branches · Ctrl+click to leave it out');
+    expect(await hint(SHARED)).toBe('Click to show only its branches · Ctrl+click to add it');
+    // And it does: a click on one of the two shows that one alone.
+    await row(page, `repo:${WEB}`).click();
+    await expect(page.getByLabel('Filter branches')).toHaveAttribute('placeholder', 'Filter branches in web');
+    expect(await hint(WEB)).toBe('Click to show every repository again');
+  });
+
   test("a click selects a branch; a double-click opens its card, whose button acts in all of them", async ({
     page,
   }) => {

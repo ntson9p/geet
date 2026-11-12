@@ -165,16 +165,35 @@
   background: var(--vscode-list-hoverBackground);
 }
 
-.gtp-row.gtp-focused :is(.gtp-repo, .gtp-head, .gtp-node, .gtp-branch, .gtp-section, .gtp-hint) {
+.gtp-row.gtp-focused :is(.gtp-head, .gtp-node, .gtp-branch, .gtp-section, .gtp-hint) {
   background: var(--vscode-list-inactiveSelectionBackground);
 }
 
-.gtp-list:focus-within
-  .gtp-row.gtp-focused
-  :is(.gtp-repo, .gtp-head, .gtp-node, .gtp-branch, .gtp-section, .gtp-hint) {
+.gtp-list:focus-within .gtp-row.gtp-focused :is(.gtp-head, .gtp-node, .gtp-branch, .gtp-section, .gtp-hint) {
   background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground);
   outline: 1px solid var(--vscode-list-focusOutline, transparent);
+  outline-offset: -1px;
+}
+
+/* A repository's row is highlighted while it is picked, and only then
+   (POST-P14bw). Picking is what selecting a repository does, so the row shows it
+   as a selected row does, every picked one alike. The row last clicked kept the
+   highlight before: a second click showed every repository again and left the
+   row looking picked. Where the keyboard is among them is the focus outline
+   alone, drawn on the row so a dimmed one's is whole, and only where the
+   keyboard put it: a click leaves no ring. */
+.gtp-row.gtp-kind-repo[aria-selected='true'] .gtp-repo {
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.gtp-list:focus-within .gtp-row.gtp-kind-repo[aria-selected='true'] .gtp-repo {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.gtp-row.gtp-kind-repo.gtp-focused:focus-visible {
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
   outline-offset: -1px;
 }
 
@@ -481,8 +500,11 @@
   display: none;
 }
 
+/* On hover, and on the row the list keeps; for a repository, the row the
+   keyboard is on (POST-P14bw), so a row left by the pointer looks as the others do. */
 .gtp-row:hover .gtp-row-buttons > .gtp-icon-button,
-.gtp-row.gtp-focused .gtp-row-buttons > .gtp-icon-button,
+.gtp-row.gtp-focused:not(.gtp-kind-repo) .gtp-row-buttons > .gtp-icon-button,
+.gtp-row.gtp-kind-repo.gtp-focused:focus-visible .gtp-row-buttons > .gtp-icon-button,
 .gtp-row-buttons > .gtp-icon-button.gtp-keep {
   display: inline-flex;
 }

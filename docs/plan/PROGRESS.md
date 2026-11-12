@@ -1633,3 +1633,38 @@ Testing (written, **not run**, by the owner's standing instruction):
   - the Analyze gate test (phase03) still sets `false` itself, its comment saying why.
 
 Gates: typecheck (both tsconfigs) + lint clean; extension built.
+
+POST-P14bw ✅ 2026-11-12 (branch `new-way-6`): **A repository clicked a second time no longer looks picked.** The owner: make the repository unfocused when clicking on it the second time (or say why not).
+
+**What was there**, measured in a real VS Code 1.144 (`scratchpad/drive/repoclick.cjs`; Dark Modern, four repositories):
+- The second click already widened the scope (`toggleScope`): the header's names and *Show all* went, and the other rows stopped dimming.
+- The row kept the look a picked row has, though: the active selection background (`#04395E`), the focus outline (`#0078D4`) and its four buttons. With the focus elsewhere it stayed grey (`#37373D`).
+- That look was the list's: the row the list keeps, the one last clicked or arrowed to, drew as selected. It never followed the scope. Ctrl+click several repositories, and only the last one clicked was highlighted.
+
+**Design.** For a repository, picking is what selecting does, so the selected look follows the scope.
+- **Highlight**: on every picked row (`aria-selected`, already the scope), active while the list has focus, inactive otherwise, as VS Code's lists draw a selection. On no other row.
+- **Where the keyboard is**: the focus outline alone, on the row (so a dimmed row's ring is whole), and only where the keyboard put it (`:focus-visible`). VS Code's lists also ring a clicked row; here a click leaves none, or the second click would still leave a ring, which is what the owner asked to go.
+- **Buttons**: on hover and on the keyboard's row; no longer on the row the pointer left.
+- Branch rows keep the list's look: there the row the list keeps *is* the selected branch.
+- **The hover's words** said *Click to show every repository again* on every picked row. With two picked, a click shows that one alone, so the row model gains `only` (shown alone) and `repoHint` says what a click does: show only this one; show every repository again; Ctrl+click to add it or leave it out.
+
+**Checked in the real window**, the same steps:
+- After the second click, with the pointer elsewhere in the webview, the row draws as the others do: no background, no ring, no buttons.
+- ArrowDown rings the next row (`:focus-visible` holds for the list's scripted focus during the key) and shows its buttons. Enter picks it.
+- Ctrl+click highlights both picked rows, and with the focus elsewhere both turn inactive grey.
+- The hovers read as designed.
+- The driver's first "pointer away" left the webview; Playwright's synthetic pointer then leaves the last row hovered, which first read as buttons and a hover background left behind.
+
+Docs: FEATURES (the scope), CHANGELOG (Fixed).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit** (`branchPanelModel.test.ts`): `only` on the repository narrowed to alone; with three repositories, `only` and `repoHint` for none picked, one and two.
+- **Playwright** (`branches.spec.ts`, *several repositories*):
+  - the second click shows every repository again and the row looks as an untouched one, the pointer away;
+  - a click leaves no ring;
+  - ArrowDown rings the next row with its buttons, and Enter picks it;
+  - Ctrl+click highlights every picked row;
+  - focus elsewhere leaves them inactive;
+  - each hover says what its click does, and a click on one of two picked shows it alone.
+
+Gates: typecheck (both tsconfigs) + lint clean; webviews built.
