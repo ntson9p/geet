@@ -56,6 +56,10 @@ function state(paradigm: 'staging' | 'changelists'): CommitStateDto {
     modifiedCount: 3,
     checkedCount: 2,
     paradigm,
+    // The staging halves as rows of their own; without changelist rows (the
+    // default since POST-P14cb) they are rows too, in commitTreePlain.test.ts.
+    groupBy: 'changelist',
+    groupByDirectory: true,
   };
 }
 

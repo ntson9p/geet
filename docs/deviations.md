@@ -58,6 +58,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D41](#d41--the-commit-windows-rows-open-the-file-manager) | The Commit window's file and folder rows open the system's file manager, under VS Code's names and key | Deliberate (owner's request) |
 | [D42](#d42--ctrlenter-commits-from-the-message-box-only) | Ctrl+Enter commits from the Commit window's message box only, as VS Code's Source Control box takes it; IntelliJ takes it anywhere in its Commit window | Deliberate (owner's request) |
 | [D43](#d43--the-commit-window-is-compact) | The Commit window's toolbar shares the tabs' row and folds into `⋯`; one full-width Commit button holds Commit and Push… in its ▾ | Deliberate (owner's request) |
+| [D44](#d44--the-commit-window-lists-changes-without-changelists-by-default) | By default the Commit window lists every change under its repository, as VS Code's Source Control view does: no changelist rows, a status letter on each file, untracked files among the others in italics | Deliberate (owner's request); View Options › Group By |
 
 ---
 
@@ -1051,8 +1052,8 @@ several roots (`SetRepositoryChangesGroupingAction`).
 
 | IntelliJ | GitTree | Why |
 | --- | --- | --- |
-| Changelists always at the top | **Changelist › Repository** (the default) or **Repository › Changelist**: a row per repository with changes, its own lists beneath | The owner's request. With many repositories, what changed where reads best per repository, as VS Code's own Source Control lays them out |
-| Directory and Repository are toggles | Always grouped by directory and, with several repositories, by repository | Every GitTree file tree groups by directory; a flat list of several repositories' files would need each row to say which |
+| Changelists always at the top | **Changelist › Repository** or **Repository › Changelist**: a row per repository with changes, its own lists beneath | The owner's request. With many repositories, what changed where reads best per repository, as VS Code's own Source Control lays them out |
+| Directory and Repository are toggles | Directory is a toggle too since POST-P14cb (D44); with several repositories, always grouped by repository | A flat list of several repositories' files would need each row to say which |
 | The grouping is kept per project | Kept per workspace, in `gittree.commit.groupBy` | A setting is where VS Code keeps a view's choice, and the palette commands set it too |
 
 Every row looks as IntelliJ draws it: a repository row is its root colour and its branch, a
@@ -1061,7 +1062,8 @@ repository is that repository's copy of the list (D23), and carries the menu the
 under a list has; the repository row's own menu has New Changelist…, Shelve Changes… and
 Rollback… for that repository.
 
-**Revisitable:** yes — the default is IntelliJ's shape, and the other is one setting away.
+**Revisitable:** yes — either is one setting away. Since POST-P14cb changelists are not shown by
+default (D44); this choice is the order once they are.
 
 ## D38 · Every commit check starts unticked
 
@@ -1181,3 +1183,28 @@ Why: the owner asked for a much more compact Commit window that can be resized (
 
 **Revisitable:** yes. The toolbar row and the second button are a few lines in
 `webview-ui/src/commit/App.tsx` each.
+
+## D44 · The Commit window lists changes without changelists by default
+
+**IntelliJ:** the Commit tool window lists changes by changelist: the default list and any others,
+then Unversioned Files. A file's status is its colour. Group By › Directory adds folder rows.
+**GitTree:** by default it lists every changed file under its repository, as VS Code's Source Control
+view lists them (`gittree.commit.groupBy: none`):
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Changelist rows | None by default; View Options › Group By › **Changelist** brings them back | The owner's request: a list like VS Code's own, as the default |
+| Unversioned Files is a node of its own | Untracked files are among the others, in path order. They wear the colour and icon of the added file they become; their names are in italics and their letter is `U` | The owner's request: an untracked file looks like a tracked one and differs in one thing |
+| A file's status is its colour | Its colour, and VS Code's letter at the end of its row (`M`, `A`, `D`, `R`, `U`, `!`); a deleted file's name is struck through | VS Code's own look; a letter reads without colour |
+| Folder rows | None by default (`gittree.commit.groupByDirectory`): one list, each file naming its folder. Group By › **Directory** adds them, in every grouping | VS Code's Source Control view starts as a list |
+| A repository row's menu: New Changelist…, Shelve Changes…, Rollback… | **Select in Repositories Panel** first; then those, Reveal in File Explorer, and the Repositories panel's own menu for the repository, without its Commit | The owner's request; one repository, one menu |
+
+Changelists still exist underneath: new changes go to the active list, and Move to Another
+Changelist… is still on a file's menu. With staging, a repository's Staged, Unstaged and Unversioned
+halves stay rows of their own. Merge Conflicts is a row of its own, first under its repository, in
+either paradigm. With one repository there is no repository row, as in VS Code.
+
+Why: the owner asked for this mode and for it to be the default (POST-P14cb).
+
+**Revisitable:** yes. View Options' two toggles give IntelliJ's view back, and a grouping someone
+set is kept.

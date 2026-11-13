@@ -29,7 +29,7 @@ you disable the built-in extension, turn the setting on.
 
 | You used (built-in) | You get (GitTree) |
 | --- | --- |
-| Source Control view | Commit tool window in the **GitTree** container — changelists or Staged/Unstaged with hunk & line staging |
+| Source Control view | Commit tool window in the **GitTree** container — by default a list like the Source Control view's, each file with its status letter; changelist rows a click away, or Staged/Unstaged with hunk & line staging |
 | `Git: Commit` | `GitTree: Commit` (pre-commit checks, amend, sign, message history — `Ctrl+Up`) |
 | Branch status-bar item | Repositories view: each repository's current branch, then its branches under Recent / Local / Remote / Tags tabs, favorites, smart checkout |
 | `Git: Stash` commands | Stash view with diffs, plus the Shelf (patches stored outside `.git`) |

@@ -309,6 +309,12 @@ export function App() {
       });
     });
     const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, () => focusSearch());
+    // POST-P14cb: the Commit window's Select in Repositories Panel. Held until
+    // the panel's state is in, which a panel opened by it waits for.
+    const offShow = rpc.onEvent(BRANCHES_METHODS.evtShowRepo, (p) => {
+      const root = (p as { root?: unknown } | undefined)?.root;
+      if (typeof root === 'string' && root.length > 0) setShowRepo({ root });
+    });
     void rpc.request<BranchPanelStateDto>(BRANCHES_METHODS.init).then(
       (s) => setState(s),
       () => undefined,
@@ -317,8 +323,30 @@ export function App() {
       offState();
       offNew();
       offFocus();
+      offShow();
     };
   }, [focusSearch, openForm]);
+
+  // POST-P14cb: show only that repository, as a click on its row does, its pane
+  // open, and the keyboard on its row.
+  const [showRepo, setShowRepo] = useState<{ readonly root: string } | undefined>(undefined);
+  useEffect(() => {
+    if (showRepo === undefined || !state) return;
+    setShowRepo(undefined);
+    const same = (a: string, b: string): boolean =>
+      a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
+    const repo = state.repos.find((r) => r.root === showRepo.root) ?? state.repos.find((r) => same(r.root, showRepo.root));
+    if (repo === undefined) return;
+    if (state.repos.length > 1) {
+      setScope([repo.root]);
+      setOpenCard(undefined);
+      setPane('repos', true);
+    }
+    // Once the pane is open and its rows drawn.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => reposListRef.current?.focusRow(`repo:${repo.root}`)),
+    );
+  }, [setPane, showRepo, state]);
 
   const run = useCallback(
     (what: BranchPanelRunDto) => {

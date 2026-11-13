@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   canRevealInOS,
+  REPOSITORY_FOLDER,
   revealPath,
   revealTargetOf,
   versionAtLeast,
@@ -130,5 +131,30 @@ describe('revealPath', () => {
       path.join(root, 'src', 'main', 'a.ts'),
     );
     expect(revealPath(root, { repoRoot: root, relPath: '.idea', folder: true })).toBe(path.join(root, '.idea'));
+  });
+});
+
+describe('a Commit-window repository row (POST-P14cb)', () => {
+  it("reveals the repository's own folder, inside it as `.`", () => {
+    const target = revealTargetOf([{ webviewSection: 'commitRepository', repoRoot: 'D:/repos/api' }]);
+    expect(target).toEqual({ repoRoot: 'D:/repos/api', relPath: REPOSITORY_FOLDER, folder: true });
+    expect(revealPath('D:/repos/api', target!)).toBe(path.join('D:/repos/api'));
+  });
+
+  it("and the reveal key on one, which names the repository's folder as `.`", () => {
+    expect(revealTargetOf([{ repoRoot: 'D:/repos/api', folder: REPOSITORY_FOLDER }])).toEqual({
+      repoRoot: 'D:/repos/api',
+      relPath: REPOSITORY_FOLDER,
+      folder: true,
+    });
+  });
+
+  it('needs its repository, as every row does', () => {
+    expect(revealTargetOf([{ webviewSection: 'commitRepository' }])).toBeUndefined();
+    expect(revealTargetOf([{ webviewSection: 'commitRepository', repoRoot: '' }])).toBeUndefined();
+  });
+
+  it("leaves a list row as it was: a row's own file or folder, or nothing", () => {
+    expect(revealTargetOf([{ webviewSection: 'commitRepo', repoRoot: 'D:/repos/api' }])).toBeUndefined();
   });
 });

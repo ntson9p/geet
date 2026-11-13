@@ -148,17 +148,22 @@ export interface CommitGroupDto {
 }
 
 /**
- * How the Commit window arranges a workspace of several repositories
- * (`gittree.commit.groupBy`): IntelliJ's changelists at the top with each
- * repository's share beneath them, or GitTree's own repositories at the top
- * with their changelists beneath (deviation D37). One repository has no
- * repository rows to arrange, so it reads the same either way.
+ * How the Commit window arranges its changes (`gittree.commit.groupBy`):
+ * - `none`, the default (POST-P14cb, D44): no changelist rows. Every changed
+ *   file is listed under its repository, as VS Code's Source Control view lists
+ *   them; with one repository, at the top.
+ * - `changelist`: IntelliJ's changelists at the top, each repository's share
+ *   beneath them.
+ * - `repository`: GitTree's own repositories at the top, their changelists
+ *   beneath (D37).
+ * One repository has no repository rows to arrange, so `changelist` and
+ * `repository` read the same with one.
  */
-export type CommitGroupBy = 'changelist' | 'repository';
+export type CommitGroupBy = 'none' | 'changelist' | 'repository';
 
 /** The setting's value, or the default for anything else: it crosses `postMessage` and settings files. */
 export function commitGroupByOf(raw: unknown): CommitGroupBy {
-  return raw === 'repository' ? 'repository' : 'changelist';
+  return raw === 'repository' || raw === 'changelist' ? raw : 'none';
 }
 
 /** What a repository has checked out, for the label on its row (IntelliJ's branch label). */
@@ -241,8 +246,10 @@ export interface CommitStateDto {
   palette?: 'default' | 'colorBlind';
   /** `gittree.log.dateFormat`: stash, shelf and message-history dates past a day are written as the log writes them. */
   dateFormat?: LogDateFormat;
-  /** `gittree.commit.groupBy`: what the tree puts at the top when there are several repositories. */
+  /** `gittree.commit.groupBy`: whether changelists are rows, and what comes first when they are. */
   groupBy?: CommitGroupBy;
+  /** POST-P14cb: `gittree.commit.groupByDirectory`, folder rows over the files; a flat list without. */
+  groupByDirectory?: boolean;
   /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
   diffOnScreen?: CommitDiffFileDto;
 }
@@ -410,8 +417,11 @@ export interface CommitRunParamsDto {
   andPush: boolean;
 }
 
+/** View Options › Group By: the grouping, the folder rows, or both; what is absent stays. */
 export interface CommitSetGroupByParamsDto {
-  groupBy: CommitGroupBy;
+  groupBy?: CommitGroupBy;
+  /** POST-P14cb: `gittree.commit.groupByDirectory`. */
+  directory?: boolean;
 }
 
 export interface CommitSetIncludedParamsDto {
@@ -1941,6 +1951,12 @@ export const BRANCHES_METHODS = {
   evtNewBranch: 'branches/newBranch',
   /** host → webview: put the cursor in the filter field. */
   evtFocusFilter: 'branches/focusFilter',
+  /**
+   * host → webview (POST-P14cb): the Commit window's *Select in Repositories
+   * Panel*: show only this repository, as a click on its row does, with the
+   * keyboard on that row (`{ root }`).
+   */
+  evtShowRepo: 'branches/showRepo',
 } as const;
 
 /** One entry of a repository's menu (`repositoryMenu.ts`). */

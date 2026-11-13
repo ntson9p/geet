@@ -590,6 +590,15 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     await this.notifyWhenListening(BRANCHES_METHODS.evtFocusFilter, {});
   }
 
+  /**
+   * POST-P14cb: the Commit window's *Select in Repositories Panel*. The panel
+   * comes into view and shows only that repository, as a click on its row does,
+   * with the keyboard on the row.
+   */
+  async showRepository(root: string): Promise<void> {
+    await this.notifyWhenListening(BRANCHES_METHODS.evtShowRepo, { root });
+  }
+
   private async notifyWhenListening(method: string, params: unknown): Promise<void> {
     await vscode.commands.executeCommand(`${BranchPanelProvider.viewType}.focus`);
     if (this.rpc && this.ready) this.rpc.notify(method, params);

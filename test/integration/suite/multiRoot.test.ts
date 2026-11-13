@@ -185,20 +185,33 @@ suite('Multi-root commit', () => {
     assert.strictEqual(d?.head?.unborn, undefined, 'and it has commits');
   });
 
-  test('View Options › Group By lives in gittree.commit.groupBy, saved for the workspace', async function () {
+  test('View Options › Group By lives in gittree.commit.groupBy and groupByDirectory', async function () {
     this.timeout(30_000);
     const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree');
     const saved = config().inspect('commit.groupBy')?.workspaceValue;
+    const savedFolders = config().inspect('commit.groupByDirectory');
     try {
-      assert.strictEqual(reg.commitWindow.buildState().groupBy, 'changelist', "IntelliJ's grouping by default");
+      // POST-P14cb: no changelist rows and no folder rows by default.
+      assert.strictEqual(reg.commitWindow.buildState().groupBy, 'none', 'no changelist rows by default');
+      assert.strictEqual(reg.commitWindow.buildState().groupByDirectory, false, 'no folder rows by default');
       await vscode.commands.executeCommand('gittree.commit.groupByRepository');
       assert.strictEqual(config().inspect('commit.groupBy')?.workspaceValue, 'repository', 'saved for the workspace');
       assert.strictEqual(reg.commitWindow.buildState().groupBy, 'repository', 'the window reads it on its next push');
       await vscode.commands.executeCommand('gittree.commit.groupByChangelist');
       assert.strictEqual(config().inspect('commit.groupBy')?.workspaceValue, 'changelist');
       assert.strictEqual(reg.commitWindow.buildState().groupBy, 'changelist');
+      await vscode.commands.executeCommand('gittree.commit.groupByNone');
+      assert.strictEqual(config().inspect('commit.groupBy')?.workspaceValue, 'none');
+      assert.strictEqual(reg.commitWindow.buildState().groupBy, 'none');
+      await vscode.commands.executeCommand('gittree.commit.toggleGroupByDirectory');
+      assert.strictEqual(reg.commitWindow.buildState().groupByDirectory, true, 'the folder rows, from the palette');
+      await vscode.commands.executeCommand('gittree.commit.toggleGroupByDirectory');
+      assert.strictEqual(reg.commitWindow.buildState().groupByDirectory, false, 'and off again');
     } finally {
       await config().update('commit.groupBy', saved, vscode.ConfigurationTarget.Workspace);
+      // Kept nowhere before, so written to the user's settings (`writeSetting`).
+      await config().update('commit.groupByDirectory', savedFolders?.workspaceValue, vscode.ConfigurationTarget.Workspace);
+      await config().update('commit.groupByDirectory', savedFolders?.globalValue, vscode.ConfigurationTarget.Global);
     }
   });
 

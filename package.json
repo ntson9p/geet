@@ -354,16 +354,24 @@
           "gittree.commit.groupBy": {
             "type": "string",
             "enum": [
+              "none",
               "changelist",
               "repository"
             ],
             "enumDescriptions": [
+              "%gittree.config.commit.groupBy.none%",
               "%gittree.config.commit.groupBy.changelist%",
               "%gittree.config.commit.groupBy.repository%"
             ],
-            "default": "changelist",
+            "default": "none",
             "scope": "window",
             "description": "%gittree.config.commit.groupBy.description%"
+          },
+          "gittree.commit.groupByDirectory": {
+            "type": "boolean",
+            "default": false,
+            "scope": "window",
+            "description": "%gittree.config.commit.groupByDirectory.description%"
           },
           "gittree.commit.signoff": {
             "type": "boolean",
@@ -1078,6 +1086,16 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.commit.groupByNone",
+        "title": "%gittree.command.commit.groupByNone.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.toggleGroupByDirectory",
+        "title": "%gittree.command.commit.toggleGroupByDirectory.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.commit.toggleAmend",
         "title": "%gittree.command.commit.toggleAmend.title%",
         "category": "GitTree",
@@ -1269,6 +1287,11 @@
         "title": "%gittree.command.repositories.showInLog.title%",
         "category": "GitTree",
         "icon": "$(git-commit)"
+      },
+      {
+        "command": "gittree.branches.selectRepository",
+        "title": "%gittree.command.branches.selectRepository.title%",
+        "category": "GitTree"
       },
       {
         "command": "gittree.branches.newBranchInPanel",
@@ -2115,7 +2138,7 @@
         },
         {
           "command": "gittree.commit.groupByChangelist",
-          "when": "gittree.multiRepo && config.gittree.commit.groupBy == repository"
+          "when": "config.gittree.commit.groupBy != changelist"
         },
         {
           "command": "gittree.update.repository",
@@ -2560,6 +2583,14 @@
         {
           "command": "gittree.conflicts.resolve",
           "when": "gittree.hasConflicts"
+        },
+        {
+          "command": "gittree.commit.groupByNone",
+          "when": "config.gittree.commit.groupBy != none"
+        },
+        {
+          "command": "gittree.branches.selectRepository",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -3208,6 +3239,76 @@
           "command": "gittree.changelist.moveTo",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && gittree.paradigm == changelists",
           "group": "0_add@2"
+        },
+        {
+          "command": "gittree.branches.selectRepository",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "0_0_select@1"
+        },
+        {
+          "command": "gittree.revealFileInOS.windows",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && gittree.canRevealInOS && isWindows",
+          "group": "3_reveal@1"
+        },
+        {
+          "command": "gittree.revealFileInOS.mac",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && gittree.canRevealInOS && isMac",
+          "group": "3_reveal@1"
+        },
+        {
+          "command": "gittree.revealFileInOS.linux",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && gittree.canRevealInOS && isLinux",
+          "group": "3_reveal@1"
+        },
+        {
+          "command": "gittree.repositories.showInLog",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "4_view@1"
+        },
+        {
+          "command": "gittree.update.repository",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "5_update@1"
+        },
+        {
+          "command": "gittree.update.repositoryWithoutFetch",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "5_update@2"
+        },
+        {
+          "command": "gittree.push.dialog",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "5_update@3"
+        },
+        {
+          "command": "gittree.fetch",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "5_update@4"
+        },
+        {
+          "command": "gittree.branch.new",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "6_branch@1"
+        },
+        {
+          "command": "gittree.branches.checkoutRevision",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "6_branch@2"
+        },
+        {
+          "command": "gittree.stash.dialog",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "7_stash@1"
+        },
+        {
+          "command": "gittree.unstash.dialog",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "7_stash@2"
+        },
+        {
+          "command": "gittree.remotes.manage",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "group": "8_manage@1"
         },
         {
           "command": "gittree.addToVcs",

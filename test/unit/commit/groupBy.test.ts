@@ -1,17 +1,35 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { GROUP_BY_DIRECTORY_DEFAULT } from '../../../src/commit/window/groupByDefaults';
 import { repoHeadOf } from '../../../src/commit/window/repoHead';
 import { commitGroupByOf } from '../../../src/shared/protocol';
 
 describe('gittree.commit.groupBy, as both sides read it', () => {
-  it('is repository only when it says so', () => {
+  it('is changelist or repository only when it says so', () => {
     expect(commitGroupByOf('repository')).toBe('repository');
     expect(commitGroupByOf('changelist')).toBe('changelist');
+    expect(commitGroupByOf('none')).toBe('none');
   });
 
-  it('falls back to the default for anything a settings file or a message could hold', () => {
-    for (const odd of [undefined, null, '', 'Repository', 'repositories', 1, {}, ['repository']]) {
-      expect(commitGroupByOf(odd)).toBe('changelist');
+  it('falls back to the default, no changelist rows (POST-P14cb), for anything a settings file or a message could hold', () => {
+    for (const odd of [undefined, null, '', 'Repository', 'repositories', 'Changelist', 1, {}, ['repository']]) {
+      expect(commitGroupByOf(odd)).toBe('none');
     }
+  });
+
+  it('defaults in package.json as it does in the code, with the folder rows off', () => {
+    const manifest = JSON.parse(readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8')) as {
+      contributes: { configuration: Array<{ properties?: Record<string, { default?: unknown; enum?: unknown[] }> }> };
+    };
+    const props = Object.assign({}, ...manifest.contributes.configuration.map((s) => s.properties ?? {})) as Record<
+      string,
+      { default?: unknown; enum?: unknown[] }
+    >;
+    expect(props['gittree.commit.groupBy']?.default).toBe(commitGroupByOf(undefined));
+    expect(props['gittree.commit.groupBy']?.enum).toEqual(['none', 'changelist', 'repository']);
+    expect(props['gittree.commit.groupByDirectory']?.default).toBe(GROUP_BY_DIRECTORY_DEFAULT);
+    expect(GROUP_BY_DIRECTORY_DEFAULT).toBe(false);
   });
 });
 

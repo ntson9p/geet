@@ -60,7 +60,12 @@ import { setMessageFocus } from './commitKey';
 import { failureText } from './failureText';
 import { computeFileDiff, computeStagingDiff } from './fileDiff';
 import { stagingGroups } from './stagingGroups';
-import { readCommitGroupBy, writeCommitGroupBy } from './groupBy';
+import {
+  readCommitGroupBy,
+  readCommitGroupByDirectory,
+  writeCommitGroupBy,
+  writeCommitGroupByDirectory,
+} from './groupBy';
 import { signChanges, type InclusionModel } from './inclusion';
 import { localDiffSides } from './localDiffSides';
 import { applyOption, readOptions, type CommitOptionsStore } from './options';
@@ -149,7 +154,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
           e.affectsConfiguration('gittree.colors') ||
           e.affectsConfiguration('gittree.log.graphPalette') ||
           e.affectsConfiguration('gittree.log.dateFormat') ||
-          e.affectsConfiguration('gittree.commit.groupBy')
+          e.affectsConfiguration('gittree.commit.groupBy') ||
+          e.affectsConfiguration('gittree.commit.groupByDirectory')
         ) {
           this.push();
         }
@@ -337,6 +343,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
           ? 'colorBlind'
           : 'default',
       groupBy: readCommitGroupBy(),
+      groupByDirectory: readCommitGroupByDirectory(),
       dateFormat:
         vscode.workspace.getConfiguration('gittree.log').get<string>('dateFormat') === 'locale'
           ? 'locale'
@@ -920,12 +927,17 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       await this.shelfBridge.dispatch(raw as CommitShelfActionParamsDto);
     });
 
-    // View Options › Group By. The setting is the one place the choice lives:
+    // View Options › Group By. The settings are the one place the choice lives:
     // the push it causes reaches every view of this window, and a reload.
     rpc.on(COMMIT_METHODS.setGroupBy, async (raw) => {
-      const value = (raw as Partial<CommitSetGroupByParamsDto> | undefined)?.groupBy;
-      if (value !== 'changelist' && value !== 'repository') return;
-      await writeCommitGroupBy(value);
+      const params = (raw ?? {}) as Partial<CommitSetGroupByParamsDto>;
+      const value = params.groupBy;
+      const grouping = value === 'none' || value === 'changelist' || value === 'repository' ? value : undefined;
+      // POST-P14cb: Group By › Directory, the folder rows.
+      const directory = typeof params.directory === 'boolean' ? params.directory : undefined;
+      if (grouping === undefined && directory === undefined) return;
+      if (grouping !== undefined) await writeCommitGroupBy(grouping);
+      if (directory !== undefined) await writeCommitGroupByDirectory(directory);
       this.push();
     });
   }

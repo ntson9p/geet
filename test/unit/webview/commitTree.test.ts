@@ -75,6 +75,10 @@ function state(overrides: Partial<CommitStateDto> = {}): CommitStateDto {
     modifiedCount: 4,
     checkedCount: 1,
     paradigm: 'changelists',
+    // IntelliJ's shape, which these tests are about. Without changelist rows,
+    // the default since POST-P14cb, is commitTreePlain.test.ts's.
+    groupBy: 'changelist',
+    groupByDirectory: true,
     ...overrides,
   };
 }
@@ -675,11 +679,11 @@ describe('Repository › Changelist (D37)', () => {
     expect(groupByOf(byRepository({ groupBy: 'changelist' }))).toBe('changelist');
   });
 
-  it('reads anything but repository as the default, as a state from an older host would carry', () => {
+  it('reads anything but changelist or repository as the default, no changelist rows (POST-P14cb)', () => {
     const odd = byRepository({ groupBy: 'sideways' as unknown as CommitStateDto['groupBy'] });
-    expect(groupByOf(odd)).toBe('changelist');
+    expect(groupByOf(odd)).toBe('none');
     const { groupBy: _, ...without } = byRepository();
-    expect(groupByOf(without as CommitStateDto)).toBe('changelist');
+    expect(groupByOf(without as CommitStateDto)).toBe('none');
   });
 
   it('a repository row stands for every change of its repository; a list under it for one copy', () => {
@@ -1171,7 +1175,8 @@ describe('what Reveal in File Explorer is told about a row (POST-P14bq)', () => 
     expect(revealRequestOf(model, 'no such row')).toBeUndefined();
 
     const byRepo = assembleCommitTree(byRepository());
-    expect(revealRequestOf(byRepo, '@r:D:/repos/api')).toBeUndefined();
+    // POST-P14cb: a repository row shows its repository's folder, as its menu does.
+    expect(revealRequestOf(byRepo, '@r:D:/repos/api')).toEqual({ repoRoot: 'D:/repos/api', folder: '.' });
     expect(revealRequestOf(byRepo, '@r:D:/repos/api@g:@default')).toBeUndefined();
     expect(revealRequestOf(byRepo, '@r:D:/repos/api@g:@default/src')).toEqual({
       repoRoot: 'D:/repos/api',

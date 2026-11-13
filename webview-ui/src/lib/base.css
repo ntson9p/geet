@@ -414,6 +414,32 @@ button {
   white-space: nowrap;
 }
 
+/* POST-P14cb: a file's status as VS Code's views draw it. A file Git does not
+   track yet is in italics, a deleted one struck through, and the status letter
+   keeps the row's end, its inline actions just before it. The spacer takes the
+   room the actions' own auto margin would, so they sit beside the letter. */
+.gt-tree-name-italic {
+  font-style: italic;
+}
+
+.gt-tree-name-strike {
+  text-decoration: line-through;
+}
+
+.gt-tree-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gt-tree-letter {
+  flex: 0 0 auto;
+  width: 14px;
+  margin-left: 2px;
+  text-align: center;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
 .gt-tree-desc {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;

@@ -18,6 +18,7 @@ import { parseNameStatusZ } from '../branches/parsing';
 import { DEFAULT_FILTER } from './logFilter';
 import type { LogViewProvider } from './logView';
 import { showInfo } from '../ui/notices';
+import { repoRootOf } from '../ui/rowContext';
 
 interface CommitContext {
   sha?: string;
@@ -331,8 +332,10 @@ export function registerCommitActions(
   // its history at HEAD, the Log's own default, in a Log tab of its own. Not
   // the main tab, even when it shows exactly that: it was asked for as new.
   // An extra tab already showing it comes forward instead of a second.
-  register('gittree.repositories.showInLog', async (repoRoot) => {
-    const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
+  register('gittree.repositories.showInLog', async (arg) => {
+    // A root from the Repositories panel, or a Commit-window repository row (POST-P14cb).
+    const repoRoot = typeof arg === 'string' ? arg : repoRootOf(arg);
+    const repo = (repoRoot !== undefined ? core.getRepo(repoRoot) : undefined) ?? repoOf();
     if (!repo) return;
     await logView.openTab({ ...DEFAULT_FILTER }, repo.root, { newTab: true });
   });

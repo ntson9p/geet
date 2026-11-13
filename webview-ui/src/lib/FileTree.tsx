@@ -54,6 +54,20 @@ export interface FileTreeBadge {
   readonly title?: string;
 }
 
+/**
+ * POST-P14cb: a file's status as VS Code's views draw it: a letter at the row's
+ * end in the status colour, and the name in italics or struck through.
+ */
+export interface FileTreeDecoration {
+  readonly letter: string;
+  /** The letter's colour; the row's own when absent. */
+  readonly color?: string;
+  /** What the letter means: its hover, and what a screen reader hears after the row. */
+  readonly title: string;
+  readonly italic?: boolean;
+  readonly strike?: boolean;
+}
+
 /** Where the user is in the tree, so it can be found again once the rows are rebuilt. */
 export interface FileTreeViewState {
   /** The row the keyboard goes on from. */
@@ -115,6 +129,8 @@ export interface FileTreeProps {
   icon?: (node: TreeNode) => FileTreeIcon | undefined;
   /** P11-T8: status color for the row label (IntelliJ colors names, not icons). */
   nameColor?: (node: TreeNode) => string | undefined;
+  /** POST-P14cb: a status letter at the row's end, and the name's style. */
+  decoration?: (node: TreeNode) => FileTreeDecoration | undefined;
   rowContext?: (node: TreeNode) => Record<string, unknown> | undefined;
   /** Inline buttons for a row; none when absent or empty. */
   actions?: (node: TreeNode) => readonly FileTreeAction[] | undefined;
@@ -156,6 +172,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     badge,
     icon,
     nameColor,
+    decoration,
     rowContext,
     actions,
     rowHeight = DEFAULT_ROW_HEIGHT,
@@ -400,6 +417,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       const ico = icon?.(node);
       const labelColor = nameColor?.(node);
       const acts = actions?.(node);
+      const deco = decoration?.(node);
       return (
         <span
           className={`gt-tree-row-inner${node.path === current ? ' gt-tree-current' : ''}${
@@ -443,7 +461,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
             />
           )}
           <span
-            className="gt-tree-name"
+            className={`gt-tree-name${deco?.italic === true ? ' gt-tree-name-italic' : ''}${
+              deco?.strike === true ? ' gt-tree-name-strike' : ''
+            }`}
             style={labelColor !== undefined ? { color: labelColor } : undefined}
           >
             {node.name}
@@ -456,6 +476,8 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
               {label.text}
             </span>
           ) : null}
+          {/* POST-P14cb: the letter keeps the row's end, the actions just before it. */}
+          {deco !== undefined ? <span className="gt-tree-spacer" /> : null}
           {acts !== undefined && acts.length > 0 ? (
             <span className="gt-tree-actions">
               {acts.map((a) => (
@@ -476,10 +498,20 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
               ))}
             </span>
           ) : null}
+          {deco !== undefined ? (
+            <span
+              className="gt-tree-letter"
+              style={deco.color !== undefined ? { color: deco.color } : undefined}
+              title={deco.title}
+              aria-hidden="true"
+            >
+              {deco.letter}
+            </span>
+          ) : null}
         </span>
       );
     },
-    [actions, applyToggle, badge, current, description, icon, nameColor, rows, setExpanded, stateOf],
+    [actions, applyToggle, badge, current, decoration, description, icon, nameColor, rows, setExpanded, stateOf],
   );
 
   const rowAria = useCallback(
@@ -505,13 +537,16 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       if (!row) return undefined;
       const desc = description?.(row.node);
       const label = badge?.(row.node);
+      const deco = decoration?.(row.node);
       return [
         row.node.name,
         ...(desc !== undefined && desc !== '' ? [desc] : []),
         ...(label !== undefined ? [label.title ?? label.text] : []),
+        // POST-P14cb: the letter is drawn for the eye; the ear hears its meaning.
+        ...(deco !== undefined ? [deco.title] : []),
       ].join(', ');
     },
-    [badge, description, rows],
+    [badge, decoration, description, rows],
   );
 
   return (

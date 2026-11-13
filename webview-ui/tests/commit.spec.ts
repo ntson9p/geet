@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mockCommitHostScript } from './mockCommitHost';
 
 /**
@@ -1029,9 +1029,14 @@ test.describe('View Options › Group By (D37)', () => {
     return JSON.parse(raw ?? '{}') as Record<string, unknown>;
   }
 
-  test('is offered only where there are repositories to arrange', async ({ page }) => {
+  test('is offered with one repository too, for Changelist and Directory (POST-P14cb)', async ({ page }) => {
     await openCommit(page);
-    await expect(viewOptions(page)).toHaveCount(0);
+    await viewOptions(page).click();
+    const menu = page.getByRole('menu', { name: 'View Options' });
+    await expect(menu.getByRole('menuitemcheckbox', { name: 'Changelist' })).toHaveAttribute('aria-checked', 'true');
+    await expect(menu.getByRole('menuitemcheckbox', { name: 'Directory' })).toHaveAttribute('aria-checked', 'true');
+    // One repository has no order of changelists and repositories to choose.
+    await expect(menu.getByRole('menuitemradio')).toHaveCount(0);
     await expect(page.locator('.gt-tree-swatch')).toHaveCount(0);
   });
 
@@ -1040,15 +1045,15 @@ test.describe('View Options › Group By (D37)', () => {
     await viewOptions(page).click();
     const menu = page.getByRole('menu', { name: 'View Options' });
     await expect(menu).toBeVisible();
-    await expect(menu.locator('.gt-menu-header')).toHaveText('Group By');
+    await expect(menu.locator('.gt-menu-header')).toHaveText(['Group By', 'With Changelists']);
     const byList = page.getByRole('menuitemradio', { name: 'Changelist › Repository' });
     const byRepo = page.getByRole('menuitemradio', { name: 'Repository › Changelist' });
     await expect(byList).toHaveAttribute('aria-checked', 'true');
     await expect(byRepo).toHaveAttribute('aria-checked', 'false');
-    // The keyboard starts on the choice that holds.
-    await expect(byList).toHaveClass(/gt-active/);
-    // IntelliJ's dot only when the view is not the default one.
-    await expect(viewOptions(page).locator('.gt-toolbar-badge')).toHaveCount(0);
+    // The keyboard starts on the first choice (POST-P14cb).
+    await expect(menu.getByRole('menuitemcheckbox', { name: 'Changelist' })).toHaveClass(/gt-active/);
+    // IntelliJ's dot: with changelists shown the view is not the default one (POST-P14cb).
+    await expect(viewOptions(page).locator('.gt-toolbar-badge')).toHaveCount(1);
   });
 
   test('Repository › Changelist asks the host to save it, and puts repositories first', async ({ page }) => {
@@ -2168,5 +2173,127 @@ test.describe('POST-P14ca a compact Commit tab', () => {
     expect(above || below).toBe(true);
     expect(p.y).toBeGreaterThanOrEqual(0);
     expect(p.y + p.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  });
+});
+
+test.describe('POST-P14cb the default: changes without changelist rows', () => {
+  /** The mock as a real window starts: no changelist rows, no folder rows. */
+  async function openPlain(page: Page, opts: { second?: boolean; directory?: boolean } = {}): Promise<void> {
+    await page.addInitScript((o) => {
+      const w = window as unknown as {
+        __mockSecondRepo?: boolean;
+        __mockGroupBy?: string;
+        __mockGroupByDirectory?: boolean;
+      };
+      w.__mockGroupBy = 'none';
+      w.__mockGroupByDirectory = o.directory === true;
+      if (o.second === true) w.__mockSecondRepo = true;
+    }, opts);
+    await page.addInitScript(mockCommitHostScript);
+    await page.goto('/commit.html');
+    await expect(page.getByRole('tree', { name: 'Changes' })).toBeVisible();
+  }
+
+  const viewOptions = (page: Page) => page.getByRole('button', { name: 'View Options' });
+  const labels = (page: Page) =>
+    page.locator('[role="treeitem"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+  const colour = (l: Locator) => l.evaluate((el) => getComputedStyle(el).color);
+
+  test('one repository: every file at the top, in path order, each naming its folder and its status', async ({ page }) => {
+    await openPlain(page);
+    expect(await labels(page)).toEqual([
+      '2.txt, Untracked',
+      'guide.md, docs, Modified',
+      'ArticleDataController.java, src/main/java/api, Modified',
+      'CommentController.java, src/main/java/api, Added',
+      'Strings.java, src/main/java/util, Modified',
+    ]);
+    await expect(page.locator('[role="treeitem"][aria-level="1"]')).toHaveCount(5);
+  });
+
+  test("each file's status letter keeps the row's end, in its status colour", async ({ page }) => {
+    await openPlain(page);
+    const guide = row(page, 'guide.md, docs, Modified');
+    await expect(guide.locator('.gt-tree-letter')).toHaveText('M');
+    await expect(guide.locator('.gt-tree-letter')).toHaveAttribute('title', 'Modified');
+    // The mock's override for modified files wins, as on the name.
+    expect(await colour(guide.locator('.gt-tree-letter'))).toBe('rgb(255, 136, 0)');
+    expect(await colour(guide.locator('.gt-tree-name'))).toBe('rgb(255, 136, 0)');
+    const box = (await guide.boundingBox())!;
+    const letter = (await guide.locator('.gt-tree-letter').boundingBox())!;
+    expect(box.x + box.width - (letter.x + letter.width)).toBeLessThan(16);
+  });
+
+  test('an untracked file looks like the added file it becomes, its name in italics with a U, and starts unticked', async ({
+    page,
+  }) => {
+    await openPlain(page);
+    const untracked = row(page, '2.txt, Untracked');
+    const added = row(page, 'CommentController.java, src/main/java/api, Added');
+    await expect(untracked.locator('.gt-tree-letter')).toHaveText('U');
+    await expect(untracked.locator('.gt-tree-name')).toHaveClass(/gt-tree-name-italic/);
+    await expect(untracked.locator('.gt-tree-icon')).toHaveClass(/codicon-diff-added/);
+    await expect(added.locator('.gt-tree-icon')).toHaveClass(/codicon-diff-added/);
+    await expect(added.locator('.gt-tree-name')).not.toHaveClass(/gt-tree-name-italic/);
+    expect(await colour(untracked.locator('.gt-tree-letter'))).toBe(await colour(untracked.locator('.gt-tree-name')));
+    await expect(untracked).toHaveAttribute('aria-checked', 'false');
+    // Its box ticks it into the commit, as with changelists.
+    await untracked.locator('.gt-tree-check').click();
+    await expect(untracked).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('two repositories: a row each, its colour and branch, its files beneath, its own menu', async ({ page }) => {
+    await openPlain(page, { second: true });
+    const git = row(page, 'demo-git, 5 files, Branch main, tracking origin/main');
+    const lib = row(page, 'demo-lib, 2 files, Branch feature/login');
+    await expect(git).toHaveAttribute('aria-level', '1');
+    await expect(lib).toHaveAttribute('aria-level', '1');
+    await expect(lib.locator('.gt-tree-icon')).toHaveClass(/gt-tree-swatch/);
+    await expect(row(page, 'notes.txt, lib, Untracked')).toHaveAttribute('aria-level', '2');
+    expect(JSON.parse((await lib.getAttribute('data-vscode-context')) ?? '{}')).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitRepository',
+      repoRoot: 'D:/repos/demo-lib',
+      repoHasTracked: true,
+      repoHasUnversioned: true,
+    });
+    // No changelist row anywhere.
+    await expect(page.locator('[role="treeitem"][aria-label^="Changes,"]')).toHaveCount(0);
+    await expect(page.locator('[role="treeitem"][aria-label^="Unversioned Files,"]')).toHaveCount(0);
+  });
+
+  test('the eye shows no dot at the defaults', async ({ page }) => {
+    await openPlain(page);
+    await expect(viewOptions(page).locator('.gt-toolbar-badge')).toHaveCount(0);
+    await viewOptions(page).click();
+    const menu = page.getByRole('menu', { name: 'View Options' });
+    await expect(menu.getByRole('menuitemcheckbox', { name: 'Changelist' })).toHaveAttribute('aria-checked', 'false');
+    await expect(menu.getByRole('menuitemcheckbox', { name: 'Directory' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('Directory adds folder rows, and Changelist brings the changelist rows back', async ({ page }) => {
+    await openPlain(page);
+    await viewOptions(page).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Directory' }).click();
+    await expect(row(page, 'src/main/java, 3 files')).toBeVisible();
+    // The files keep their status: the letter is this grouping's, with or without folders.
+    await expect(row(page, 'guide.md, Modified').locator('.gt-tree-letter')).toHaveText('M');
+
+    await viewOptions(page).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Changelist' }).click();
+    await expect(row(page, 'Changes, 4 files')).toBeVisible();
+    // IntelliJ's look again: no letters.
+    await expect(page.locator('.gt-tree-letter')).toHaveCount(0);
+
+    const sent = (await posted(page)).filter((m) => m.method === 'commit/setGroupBy').map((m) => m.params);
+    expect(sent).toEqual([{ directory: true }, { groupBy: 'changelist' }]);
+  });
+
+  test('a file selected stays selected when the folder rows come', async ({ page }) => {
+    await openPlain(page);
+    await row(page, 'Strings.java, src/main/java/util, Modified').click();
+    await viewOptions(page).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Directory' }).click();
+    await expect(row(page, 'Strings.java, Modified')).toHaveAttribute('aria-selected', 'true');
   });
 });

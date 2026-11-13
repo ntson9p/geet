@@ -159,6 +159,42 @@ function toNodes(trie: Trie, prefix: string, depth: number, collapse: boolean): 
   return [...dirs, ...files];
 }
 
+/**
+ * POST-P14cb: the files `buildTree` would make, as one flat list, the way VS
+ * Code's Source Control view lists changes: no folder rows, every file at one
+ * depth, in path order. A file's `path` is the one `buildTree` gives it, so a
+ * row keeps its identity, its tick and its selection between the two.
+ */
+export function buildList(
+  paths: readonly string[],
+  options: Omit<BuildTreeOptions, 'collapseChains'> = {},
+): TreeNode[] {
+  const rels = new Set<string>();
+  for (const raw of paths) {
+    const parts = segments(raw);
+    if (parts.length > 0) rels.add(parts.join('/'));
+  }
+  const depth = options.root ? 1 : 0;
+  const prefix = options.pathPrefix ?? '';
+  const files: TreeFileNode[] = [...rels].sort(compareNames).map((rel) => ({
+    kind: 'file' as const,
+    path: join(prefix, rel),
+    name: rel.slice(rel.lastIndexOf('/') + 1),
+    depth,
+  }));
+  if (!options.root) return files;
+  return [
+    {
+      kind: 'dir',
+      path: options.root.path,
+      name: options.root.name,
+      depth: 0,
+      children: files,
+      fileCount: files.length,
+    },
+  ];
+}
+
 /** Files in the subtree; 1 for a file node. */
 export function countFiles(node: TreeNode): number {
   return node.kind === 'file' ? 1 : node.fileCount;

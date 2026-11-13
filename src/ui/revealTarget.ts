@@ -59,6 +59,12 @@ export interface RevealTarget {
   readonly folder: boolean;
 }
 
+/** The Commit window's repository rows, by their `webviewSection`. */
+const REPOSITORY_ROW = 'commitRepository';
+
+/** A repository row's target: its repository's folder, `.` inside the repository. */
+export const REPOSITORY_FOLDER = '.';
+
 /**
  * The row a `webview/context` menu was opened on, or the keyboard's row
  * (`CommitRevealParamsDto`). A folder row also carries its first file in
@@ -73,8 +79,10 @@ export interface RevealTarget {
 export function revealTargetOf(args: readonly unknown[]): RevealTarget | undefined {
   for (const arg of args) {
     if (typeof arg !== 'object' || arg === null || Array.isArray(arg)) continue;
-    const c = arg as { repoRoot?: unknown; relPath?: unknown; folder?: unknown };
+    const c = arg as { repoRoot?: unknown; relPath?: unknown; folder?: unknown; webviewSection?: unknown };
     if (typeof c.repoRoot !== 'string' || c.repoRoot.length === 0) continue;
+    // POST-P14cb: a repository row shows the repository's own folder.
+    if (c.webviewSection === REPOSITORY_ROW) return { repoRoot: c.repoRoot, relPath: REPOSITORY_FOLDER, folder: true };
     if (c.folder !== undefined) {
       // A folder row whose folder is unusable reveals nothing rather than its first file.
       const folder = typeof c.folder === 'string' ? insideRepo(c.folder) : undefined;

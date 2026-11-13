@@ -25,6 +25,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import {
+  commitGroupByOf,
   COMMIT_METHODS,
   type CommitDiffFileDto,
   type CommitDiffOnScreenDto,
@@ -47,6 +48,7 @@ import {
   FileTree,
   type FileTreeAction,
   type FileTreeBadge,
+  type FileTreeDecoration,
   type FileTreeHandle,
   type FileTreeRestore,
   type FileTreeViewState,
@@ -88,10 +90,13 @@ import {
   headLabel,
   iconFor,
   isConflictsRow,
+  layoutOf,
+  listDescription,
   originText,
   partialLabel,
   revealRequestOf,
   splitDelta,
+  statusLook,
   treePathOf,
   twinRow,
   twinRows,
@@ -268,7 +273,8 @@ export function App() {
     // Another grouping rebuilds every row: note where the user is while the old
     // rows still stand, to put them back on the same rows once it is drawn.
     const before = modelRef.current;
-    if (groupByOf(next) !== before.groupBy && before.nodes.length > 0) {
+    // POST-P14cb: so does a switch between folder rows and a list.
+    if ((groupByOf(next) !== before.groupBy || layoutOf(next) !== before.layout) && before.nodes.length > 0) {
       regroup.current = {
         from: before,
         view: treeHandle.current?.viewState() ?? { atTop: true },
@@ -322,7 +328,10 @@ export function App() {
     // Repository › Changelist with nothing changed draws the one empty Changes
     // row: not its own rows yet, so it opens everything when they come.
     const ownRows =
-      model.groupBy === 'changelist' || [...model.groups.values()].some((g) => g.kind === 'repository');
+      model.groupBy === 'changelist' ||
+      // POST-P14cb: without changelists, whatever it draws is its own.
+      model.groupBy === 'none' ||
+      [...model.groups.values()].some((g) => g.kind === 'repository');
     const firstVisit = ownRows && !seeded.has(model.groupBy);
     if (firstVisit || fresh.length > 0) {
       setExpanded((prev) => {
@@ -453,7 +462,7 @@ export function App() {
   }, [reportMessageFocus, reportTreeFocus]);
   /** When a key was last pressed in the tree: the host's ask is that key's for a moment after. */
   const lastTreeKeyAt = useRef(Number.NEGATIVE_INFINITY);
-  /** POST-P14bq: the keyboard's row in the file manager, as Enter opens it; nothing for a list or repository row. */
+  /** POST-P14bq: the keyboard's row in the file manager, as Enter opens it; nothing for a list row. A repository row, its folder (POST-P14cb). */
   const revealLeadRow = useCallback(() => {
     const lead = treeHandle.current?.viewState().lead;
     const ask = lead !== undefined ? revealRequestOf(modelRef.current, lead) : undefined;
@@ -635,11 +644,34 @@ export function App() {
       // A partially-included file says so first: it is the one row whose
       // checkbox does not tell the whole story.
       if (ref.change.partial !== undefined) return partialLabel(ref.change.partial);
+      // POST-P14cb: in a list no folder row says where a file is, so its row
+      // does, and where a renamed one came from.
+      if (model.layout === 'list') return listDescription(ref.relPath, ref.change.origPath);
       // Its folder is the row above it: what a file's row adds is where a
       // renamed one came from, as IntelliJ's grouped tree shows (POST-QA).
       return originText(ref.relPath, ref.change.origPath);
     },
     [model],
+  );
+
+  // POST-P14cb: without changelist rows, each file shows its status as VS
+  // Code's Source Control view does: a letter in its colour at the row's end, an
+  // untracked file's name in italics, a deleted one's struck through (D44).
+  const decoration = useCallback(
+    (node: TreeNode): FileTreeDecoration | undefined => {
+      if (model.groupBy !== 'none' || node.kind !== 'file') return undefined;
+      const ref = model.files.get(node.path);
+      if (!ref) return undefined;
+      const look = statusLook(ref.change);
+      return {
+        letter: look.letter,
+        title: look.title,
+        color: statusColor(ref.change.kind, state.colors),
+        italic: look.italic,
+        strike: look.strike,
+      };
+    },
+    [model, state.colors],
   );
 
   const icon = useCallback(
@@ -925,6 +957,14 @@ export function App() {
   // POST-P14ca: the toolbar shares the tabs' row, so what does not fit there
   // folds into `⋯`. The lower the priority, the longer a button stays out: at
   // the side bar's usual width, Refresh, Rollback and View Options do.
+  // POST-P14cb: what the eye's menu shows: the settings as set, not as drawn
+  // (one repository draws Repository › Changelist as Changelist › Repository).
+  const viewOptions = {
+    groupBy: commitGroupByOf(state.groupBy),
+    directory: state.groupByDirectory === true,
+    multiRepo: state.repos.length > 1,
+  };
+
   const commitTools: OverflowAction[] = [
     {
       id: 'refresh',
@@ -973,20 +1013,16 @@ export function App() {
       toggled: preview,
       run: () => setPreview((on) => !on),
     },
-    // IntelliJ's eye before Expand All and Collapse All, and like its
-    // Repository choice, only where there are repositories to arrange.
-    ...(state.repos.length > 1
-      ? [
-          {
-            id: 'viewOptions',
-            label: 'View Options',
-            icon: 'eye',
-            priority: 2,
-            badge: viewOptionsChanged(model.groupBy),
-            run: (at: { readonly x: number; readonly y: number }) => setViewMenu(at),
-          } satisfies OverflowAction,
-        ]
-      : []),
+    // IntelliJ's eye before Expand All and Collapse All. POST-P14cb: with one
+    // repository too, where Changelist and Directory are choices as well.
+    {
+      id: 'viewOptions',
+      label: 'View Options',
+      icon: 'eye',
+      priority: 2,
+      badge: viewOptionsChanged(viewOptions),
+      run: (at: { readonly x: number; readonly y: number }) => setViewMenu(at),
+    },
     // This grouping's rows only: the other keeps its own for when it comes back.
     {
       id: 'expandAll',
@@ -1037,6 +1073,7 @@ export function App() {
       badge={badge}
       icon={icon}
       nameColor={nameColor}
+      decoration={decoration}
       rowContext={rowContext}
       actions={rowActions}
       {...(reveal !== undefined ? { reveal } : {})}
@@ -1318,14 +1355,14 @@ export function App() {
 
       {viewMenu !== null ? (
         <Menu
-          items={viewOptionsItems(model.groupBy)}
+          items={viewOptionsItems(viewOptions)}
           at={viewMenu}
           ariaLabel="View Options"
-          activeId={model.groupBy}
+          activeId="changelist"
           onSelect={(id) => {
-            const next = applyViewOption(model.groupBy, id);
-            if (next !== undefined) {
-              send(COMMIT_METHODS.setGroupBy, { groupBy: next } satisfies CommitSetGroupByParamsDto);
+            const change = applyViewOption(viewOptions, id);
+            if (change !== undefined) {
+              send(COMMIT_METHODS.setGroupBy, change satisfies CommitSetGroupByParamsDto);
             }
           }}
           onClose={() => setViewMenu(null)}

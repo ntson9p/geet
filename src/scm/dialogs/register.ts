@@ -231,6 +231,9 @@ export function namedRepo(core: Core, arg?: unknown): RepoHandle | undefined {
     return core.repos.find((r) => canonicalKey(r.root) === canonicalKey(arg));
   }
   if (arg instanceof vscode.Uri) return core.repoForPath(arg.fsPath);
+  // POST-P14cb: a Commit-window repository row, `{ repoRoot }`, names its repository too.
+  const fromRow = repoRootOf(arg);
+  if (fromRow !== undefined) return namedRepo(core, fromRow);
   return undefined;
 }
 

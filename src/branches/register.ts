@@ -30,6 +30,7 @@ import { RepositoriesViewProvider } from './repositoriesView';
 import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
 import { askRepo } from '../ui/chooseRepo';
 import { showInfo } from '../ui/notices';
+import { repoRootOf } from '../ui/rowContext';
 import { writeSetting } from '../ui/writeSetting';
 
 const SCOPE_MEMENTO_KEY = 'gittree.sidebar.focusedRepo';
@@ -91,6 +92,9 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
 
   const pickRepo = (repoRoot?: unknown): RepoHandle | undefined => {
     if (typeof repoRoot === 'string') return core.getRepo(repoRoot);
+    // POST-P14cb: a Commit-window repository row passes its row, `{ repoRoot }`.
+    const fromRow = repoRootOf(repoRoot);
+    if (fromRow !== undefined) return core.getRepo(fromRow);
     const uri = vscode.window.activeTextEditor?.document.uri;
     return (uri && core.repoForUri(uri)) ?? core.repos[0];
   };
@@ -257,6 +261,12 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       ),
     ),
     vscode.commands.registerCommand('gittree.branches.filterPanel', () => panel.focusFilter()),
+    // POST-P14cb: a Commit-window repository row's Select in Repositories Panel.
+    vscode.commands.registerCommand('gittree.branches.selectRepository', async (arg?: unknown) => {
+      const named = typeof arg === 'string' ? arg : repoRootOf(arg);
+      const repo = named !== undefined ? core.getRepo(named) : undefined;
+      if (repo) await panel.showRepository(repo.root);
+    }),
     // The panel's Repository Dots, from the palette or a key: the same setting
     // its toolbar button and More Actions menu switch.
     vscode.commands.registerCommand('gittree.branches.toggleRepositoryDots', () => {

@@ -14,6 +14,17 @@
  * Only a workspace of several repositories has the choice; one repository has
  * no repository rows to arrange.
  *
+ * **Or no changelist rows at all** (`none`, the default since POST-P14cb, D44):
+ * every changed file under its repository, as VS Code's Source Control view
+ * lists them; with one repository, at the top. With changelists a repository's
+ * files are one list, each still in its own changelist; with staging its halves
+ * (Staged, Unstaged, Unversioned) stay rows of their own. Merge Conflicts is a
+ * row first in both, as it blocks the commit.
+ *
+ * **Folders or a list** (`gittree.commit.groupByDirectory`, POST-P14cb): IntelliJ's
+ * Group By › Directory, in every grouping. Off, the files are one list in path
+ * order and each row names its folder; a file's path is the same either way.
+ *
  * Pure so the identity rules are unit-tested rather than discovered in the UI:
  *   - node paths are namespaced per group and per repo, because two changelists
  *     may both contain `api/` and must not share an expansion key or a checkbox
@@ -42,6 +53,7 @@ import {
 } from '../../../src/shared/protocol';
 import { statusColor, statusIcon, type StatusColorOverrides, type StatusKind } from '../lib/status';
 import {
+  buildList,
   buildTree,
   collectFiles,
   countFiles,
@@ -157,6 +169,19 @@ export interface CommitTreeModel {
   readonly dirKinds: Map<string, ReadonlySet<StatusKind>>;
   /** The staging paradigm (POST-QA F5): rows stand for Staged/Unstaged halves, not changelists. */
   readonly staging: boolean;
+  /**
+   * POST-P14cb: folder rows over the files (`tree`), or the files as one list in
+   * path order (`list`), each naming its folder (`gittree.commit.groupByDirectory`).
+   */
+  readonly layout: CommitLayout;
+}
+
+/** POST-P14cb: folder rows, or none. */
+export type CommitLayout = 'tree' | 'list';
+
+/** The layout a state is drawn in: folder rows only when `gittree.commit.groupByDirectory` asks. */
+export function layoutOf(state: CommitStateDto): CommitLayout {
+  return state.groupByDirectory === true ? 'tree' : 'list';
 }
 
 /**
@@ -186,6 +211,18 @@ function repositoryKey(root: string): string {
   return `@r:${root}`;
 }
 
+/**
+ * POST-P14cb: a repository's path in the grouping without changelists. Its files
+ * hang off it, and any row of its own (Merge Conflicts, a staging half); with
+ * one repository the row itself is not drawn, but its files keep the paths.
+ */
+function plainKey(root: string): string {
+  return `@n:${root}`;
+}
+
+/** POST-P14cb: the one list a repository's changelists make without their rows; no changelist has this id. */
+export const ALL_CHANGES_ID = '@changes';
+
 /** IntelliJ's order of lists: the default first, the user's in their order, Unversioned Files last. */
 function listRank(group: CommitGroupDto): number {
   // IntelliJ's Merge Conflicts node comes before every list (POST-QA).
@@ -196,10 +233,13 @@ function listRank(group: CommitGroupDto): number {
 
 /**
  * The grouping a state is drawn in. One repository has no repository rows to
- * put first, so it is always drawn by changelist, whatever the setting says.
+ * put first, so with changelists it is always drawn by changelist, whatever the
+ * setting says; without them (`none`) it is drawn so whatever the count.
  */
 export function groupByOf(state: CommitStateDto): CommitGroupBy {
-  return state.repos.length > 1 ? commitGroupByOf(state.groupBy) : 'changelist';
+  const set = commitGroupByOf(state.groupBy);
+  if (set === 'none') return 'none';
+  return state.repos.length > 1 ? set : 'changelist';
 }
 
 interface MergedGroup {
@@ -224,6 +264,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   const multiRepo = state.repos.length > 1;
   const groupBy = groupByOf(state);
   const staging = state.paradigm === 'staging';
+  const layout = layoutOf(state);
 
   /** Bottom-up status rollup for the directory highlighting (P11-T8). */
   const annotate = (node: TreeNode): ReadonlySet<StatusKind> => {
@@ -285,7 +326,9 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     // name: buildTree collapses single-child chains, so `demo/docs/x.md` would
     // render as one row reading `demo/docs` and the repository row would
     // silently disappear exactly when there is least on screen to infer it from.
-    const built = buildTree(
+    // POST-P14cb: or one list, its files in path order, as VS Code lists them.
+    const build = layout === 'tree' ? buildTree : buildList;
+    const built = build(
       group.changes.map((c) => c.path),
       { root: { path: parent, name: label }, pathPrefix: parent },
     );
@@ -324,6 +367,85 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     recordFolders(root);
     return root;
   };
+
+  // POST-P14cb: no changelist rows. One row per repository with changes (none
+  // with one repository), its files beneath: with changelists every list's and
+  // the unversioned ones as one list, with staging under its halves' rows.
+  // Merge Conflicts is a row first, either way.
+  if (groupBy === 'none') {
+    for (const repo of state.repos) {
+      const rKey = plainKey(repo.root);
+      const withChanges = repo.groups.filter((g) => g.changes.length > 0);
+      const conflicts = withChanges.filter((g) => g.id === CONFLICTS_GROUP_ID);
+      const rest = withChanges.filter((g) => g.id !== CONFLICTS_GROUP_ID);
+      const sections: Array<{ readonly group: CommitGroupDto; readonly row: boolean }> = [
+        ...conflicts.map((group) => ({ group, row: true })),
+        ...(staging
+          ? [...rest].sort((a, b) => listRank(a) - listRank(b)).map((group) => ({ group, row: true }))
+          : rest.length > 0
+            ? [{ group: allChangesOf(rest), row: false }]
+            : []),
+      ];
+      // Under a repository's row, or at the top with one repository.
+      const depth = multiRepo ? 1 : 0;
+      const children: TreeNode[] = [];
+      for (const { group, row } of sections) {
+        if (row) {
+          const sKey = `${rKey}@g:${mergeKeyOf(group)}`;
+          const sub = buildRepoSubtree(sKey, group.name, repo, group, group.checkable);
+          if (!sub) continue;
+          children.push(reDepth(sub, depth));
+          groups.set(sKey, {
+            kind: 'repo',
+            shows: 'list',
+            targets: [{ repoRoot: repo.root, listId: group.id }],
+            isDefault: group.isDefault,
+            checkable: group.checkable,
+            repoRoot: repo.root,
+            listId: group.id,
+          });
+          if (!multiRepo) groupPaths.push(sKey);
+          continue;
+        }
+        // The files hang off the repository itself.
+        const sub = buildRepoSubtree(rKey, repo.label, repo, group, group.checkable);
+        if (sub?.kind === 'dir') children.push(...sub.children.map((c) => reDepth(c, depth)));
+      }
+      if (children.length === 0) continue;
+      if (!multiRepo) {
+        nodes.push(...children);
+        for (const child of children) if (child.kind === 'dir') annotate(child);
+        continue;
+      }
+      const node: TreeNode = {
+        kind: 'dir',
+        path: rKey,
+        name: repo.label,
+        depth: 0,
+        children,
+        fileCount: children.reduce((n, c) => n + countFiles(c), 0),
+      };
+      const checkable = withChanges.some((g) => g.checkable);
+      nodes.push(node);
+      groupPaths.push(rKey);
+      groups.set(rKey, {
+        kind: 'repository',
+        shows: 'repository',
+        targets: withChanges.map((g) => ({ repoRoot: repo.root, listId: g.id })),
+        isDefault: false,
+        checkable,
+        repoRoot: repo.root,
+        // Defensive: it crosses postMessage, where nothing checks the DTO.
+        colorIdx: repo.colorIdx ?? 0,
+        ...(repo.head !== undefined ? { head: repo.head } : {}),
+        hasTracked: withChanges.some((g) => g.changes.some((c) => c.kind !== 'untracked')),
+        hasUnversioned: withChanges.some((g) => g.changes.some((c) => c.kind === 'untracked')),
+      });
+      if (!checkable) checkboxless.add(rKey);
+      annotate(node);
+    }
+    return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging, layout };
+  }
 
   // Repository › Changelist: one row per repository with changes, in the order
   // the host sends them (by name, as the Repositories panel lists them), and
@@ -381,7 +503,7 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       annotate(node);
     }
     if (nodes.length > 0) {
-      return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging };
+      return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging, layout };
     }
     // Nothing changed anywhere: the one empty Changes row both groupings show.
   }
@@ -457,7 +579,24 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     annotate(node);
   }
 
-  return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging };
+  return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging, layout };
+}
+
+/**
+ * POST-P14cb: a repository's changelists, and its unversioned files, as the one
+ * list the grouping without changelists draws. Each file is still in its own
+ * changelist: a tick, a rollback or Move to Another Changelist acts on the file.
+ * Tickable when any of them is, as a repository row is.
+ */
+function allChangesOf(lists: readonly CommitGroupDto[]): CommitGroupDto {
+  return {
+    id: ALL_CHANGES_ID,
+    name: 'Changes',
+    isActive: false,
+    isDefault: false,
+    checkable: lists.some((g) => g.checkable),
+    changes: lists.flatMap((g) => g.changes),
+  };
 }
 
 /**
@@ -569,7 +708,7 @@ export function twinRow(from: CommitTreeModel, to: CommitTreeModel, path: string
  * paths are its own (`@g:` first or `@r:` first).
  */
 export function collapsedAll(model: CommitTreeModel, expanded: ReadonlySet<string>): Set<string> {
-  const own = model.groupBy === 'repository' ? '@r:' : '@g:';
+  const own = model.groupBy === 'repository' ? '@r:' : model.groupBy === 'none' ? '@n:' : '@g:';
   return new Set([...expanded].filter((path) => !path.startsWith(own)));
 }
 
@@ -600,6 +739,54 @@ export function originText(relPath: string, origPath: string | undefined): strin
   const name = (p: string): string => p.slice(p.lastIndexOf('/') + 1);
   if (parent(relPath) !== parent(origPath)) return `moved from ${origPath}`;
   return name(relPath) !== name(origPath) ? `renamed from ${name(origPath)}` : undefined;
+}
+
+/**
+ * POST-P14cb: what a file's row says after its name when the files are one list,
+ * with no folder rows to say where they are: its folder, then where a renamed or
+ * moved file came from. `docs ← setup.md` within its folder, `src ← lib/old.ts`
+ * from another, `← old.md` at the top of the repository.
+ */
+export function listDescription(relPath: string, origPath: string | undefined): string | undefined {
+  const parent = (p: string): string => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+  const name = (p: string): string => p.slice(p.lastIndexOf('/') + 1);
+  const folder = parent(relPath);
+  const from =
+    origPath === undefined || origPath === relPath
+      ? undefined
+      : parent(origPath) === folder
+        ? name(origPath)
+        : origPath;
+  const text = [folder, ...(from !== undefined ? [`← ${from}`] : [])].filter((t) => t.length > 0).join(' ');
+  return text.length > 0 ? text : undefined;
+}
+
+/**
+ * POST-P14cb: a file's status as VS Code's Source Control view writes it, for the
+ * grouping without changelists: the letter at the end of its row, what the
+ * letter means, and how its name is drawn. A file Git does not track yet looks
+ * like the added file it will become, in its colour and icon, and is told apart
+ * by its italic name and its `U` (D44); a deleted one is struck through.
+ */
+export interface StatusLook {
+  readonly letter: string;
+  readonly title: string;
+  readonly italic: boolean;
+  readonly strike: boolean;
+}
+
+const STATUS_LETTERS: Record<CommitChangeDto['kind'], { readonly letter: string; readonly title: string }> = {
+  added: { letter: 'A', title: 'Added' },
+  modified: { letter: 'M', title: 'Modified' },
+  deleted: { letter: 'D', title: 'Deleted' },
+  renamed: { letter: 'R', title: 'Renamed' },
+  untracked: { letter: 'U', title: 'Untracked' },
+  conflicted: { letter: '!', title: 'Conflicted' },
+};
+
+export function statusLook(change: CommitChangeDto): StatusLook {
+  const { letter, title } = STATUS_LETTERS[change.kind] ?? STATUS_LETTERS.modified;
+  return { letter, title, italic: change.kind === 'untracked', strike: change.kind === 'deleted' };
 }
 
 export function headLabel(head: CommitRepoHeadDto | undefined): { text: string; title: string } | undefined {
@@ -744,15 +931,20 @@ function folderGoneFromDisk(model: CommitTreeModel, node: TreeNode): boolean {
 
 /**
  * POST-P14bq: what the reveal shortcut shows for the row the keyboard is on: a
- * file row's file, a folder row's folder; nothing for a changelist or
- * repository row. A deleted file's row is sent anyway, and the host says it is
- * no longer on disk: a key that does nothing at all would look broken.
+ * file row's file, a folder row's folder; nothing for a changelist row. A
+ * deleted file's row is sent anyway, and the host says it is no longer on disk:
+ * a key that does nothing at all would look broken.
+ *
+ * POST-P14cb: a repository row shows its repository's folder, as its menu's
+ * Reveal in File Explorer does, which names this key.
  */
 export function revealRequestOf(model: CommitTreeModel, treePath: string): CommitRevealParamsDto | undefined {
   const file = model.files.get(treePath);
   if (file !== undefined) return { repoRoot: file.repoRoot, relPath: file.relPath };
   const folder = model.folders.get(treePath);
   if (folder !== undefined) return { repoRoot: folder.repoRoot, folder: folder.rel };
+  const group = model.groups.get(treePath);
+  if (group?.kind === 'repository' && group.repoRoot !== undefined) return { repoRoot: group.repoRoot, folder: '.' };
   return undefined;
 }
 

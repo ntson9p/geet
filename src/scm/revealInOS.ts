@@ -23,10 +23,11 @@
  * keybinding stays for the menu's label and for rebinding.
  */
 import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core } from '../core/core';
 import { showInfo } from '../ui/notices';
-import { canRevealInOS, revealPath, revealTargetOf } from '../ui/revealTarget';
+import { canRevealInOS, REPOSITORY_FOLDER, revealPath, revealTargetOf } from '../ui/revealTarget';
 
 /** Set once at start-up: whether this window's files are on this computer. */
 export const REVEAL_CONTEXT_KEY = 'gittree.canRevealInOS';
@@ -111,7 +112,9 @@ export async function revealRow(core: Core, args: readonly unknown[]): Promise<v
     // Deleted since the tree was drawn, or a deleted row reached by the key.
     // VS Code would open nothing and say nothing.
     record({ outcome: 'missing', path: full });
-    showInfo(vscode.l10n.t('{0} is no longer on disk.', target.relPath));
+    // A repository row's target is its folder, `.`: say the repository's name.
+    const shown = target.relPath === REPOSITORY_FOLDER ? path.basename(repo.root) : target.relPath;
+    showInfo(vscode.l10n.t('{0} is no longer on disk.', shown));
     return;
   }
   record({ outcome: 'revealed', path: full });

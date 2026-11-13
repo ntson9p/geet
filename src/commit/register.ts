@@ -31,7 +31,7 @@ import { MessageHistory } from './messageHistory';
 import { ParadigmManager } from './paradigmManager';
 import { registerStagingOps } from './staging/stagingOps';
 import { CommitWindowViewProvider } from './window/commitWindowView';
-import { writeCommitGroupBy } from './window/groupBy';
+import { readCommitGroupByDirectory, writeCommitGroupBy, writeCommitGroupByDirectory } from './window/groupBy';
 import { InclusionModel } from './window/inclusion';
 import { CommitOptionsStore, type DeferredChecksOutcome } from './window/options';
 import { repoRootOf } from '../ui/rowContext';
@@ -270,6 +270,9 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // The Commit window's View Options › Group By, from the palette or a key.
   register('gittree.commit.groupByRepository', () => writeCommitGroupBy('repository'));
   register('gittree.commit.groupByChangelist', () => writeCommitGroupBy('changelist'));
+  // POST-P14cb: the new default, without changelist rows, and the folder rows.
+  register('gittree.commit.groupByNone', () => writeCommitGroupBy('none'));
+  register('gittree.commit.toggleGroupByDirectory', () => writeCommitGroupByDirectory(!readCommitGroupByDirectory()));
   register('gittree.commit.configureChecks', () => configureChecks(pipeline));
   register('gittree.commit.showMessageHistory', async (repoRoot) => {
     const repo = pickRepo(repoRoot);

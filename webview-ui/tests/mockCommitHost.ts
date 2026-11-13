@@ -173,12 +173,24 @@ export const mockCommitHostScript = `
     };
   }
 
-  // gittree.commit.groupBy. Opt-in start (window.__mockGroupBy), read when first
-  // asked so an init script can set it; View Options writes it as the host does.
+  // gittree.commit.groupBy and (POST-P14cb) gittree.commit.groupByDirectory.
+  // Opt-in start (window.__mockGroupBy, window.__mockGroupByDirectory), read
+  // when first asked so an init script can set them; View Options writes them as
+  // the host does. The specs written before POST-P14cb are about IntelliJ's tree,
+  // so the mock starts there, changelists and folders; 'none' and false start it
+  // where a real window starts.
   let groupBy;
   function currentGroupBy() {
-    if (groupBy === undefined) groupBy = window.__mockGroupBy === 'repository' ? 'repository' : 'changelist';
+    if (groupBy === undefined) {
+      const asked = window.__mockGroupBy;
+      groupBy = asked === 'repository' || asked === 'none' ? asked : 'changelist';
+    }
     return groupBy;
+  }
+  let groupByDirectory;
+  function currentDirectory() {
+    if (groupByDirectory === undefined) groupByDirectory = window.__mockGroupByDirectory !== false;
+    return groupByDirectory;
   }
 
   function build() {
@@ -229,6 +241,7 @@ export const mockCommitHostScript = `
       // gittree.log.graphPalette, which the repositories' colours follow.
       palette: window.__mockGraphPalette === 'colorBlind' ? 'colorBlind' : 'default',
       groupBy: currentGroupBy(),
+      groupByDirectory: currentDirectory(),
     };
   }
 
@@ -260,9 +273,16 @@ export const mockCommitHostScript = `
     'commit/refresh': () => { setTimeout(push, 5); },
     // The host saves it to the workspace setting, whose change pushes the state.
     'commit/setGroupBy': (p) => {
-      if (p.groupBy !== 'changelist' && p.groupBy !== 'repository') return;
-      groupBy = p.groupBy;
-      setTimeout(push, 5);
+      let changed = false;
+      if (p.groupBy === 'none' || p.groupBy === 'changelist' || p.groupBy === 'repository') {
+        groupBy = p.groupBy;
+        changed = true;
+      }
+      if (typeof p.directory === 'boolean') {
+        groupByDirectory = p.directory;
+        changed = true;
+      }
+      if (changed) setTimeout(push, 5);
     },
     'commit/setChecked': (p) => {
       const wanted = new Set(p.paths);

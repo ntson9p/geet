@@ -6,6 +6,27 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — the Commit window lists changes as VS Code's Source Control view does
+
+- **No changelist rows by default.** Every changed file is listed under its repository, in path
+  order, with its folder after its name. With one repository the files are at the top.
+- **Each file shows its status**: VS Code's letter at the end of its row, in the status colour
+  (`M`, `A`, `D`, `R`, `U`, and `!` for a conflict). A deleted file's name is struck through.
+- **Untracked files are among the others.** They look like the added files they will become, in the
+  same colour and icon; their names are in italics and their letter is `U`. They start unticked, as
+  before.
+- **View Options (the eye) has two toggles**, and is there with one repository too:
+  - *Changelist* brings the changelist rows back;
+  - *Directory* adds folder rows, with or without changelists.
+  With several repositories, which comes first, changelists or repositories, is chosen under them.
+- **Right-click a repository** for *Select in Repositories Panel*: the panel shows only that
+  repository, as a click on it there does. The menu also has its change actions, *Reveal in File
+  Explorer*, and the Repositories panel's own menu for it.
+- Changelists still exist: new changes go to the active one, and *Move to Another Changelist…* is
+  still on a file's menu. Merge Conflicts is a row of its own, first under its repository.
+- Settings: `gittree.commit.groupBy` gains `none`, its new default, and
+  `gittree.commit.groupByDirectory` is new. A grouping you had set is kept.
+
 ### Changed — a compact Commit tab you can resize
 
 - **Twice the list in the same space.** At the side bar's first size, the list of changes

@@ -38,6 +38,7 @@ import { pullResultMessage } from './resultMessages';
 import { chooseRepo } from '../ui/chooseRepo';
 import { pullStrategyArgs } from './pullArgs';
 import { showInfo } from '../ui/notices';
+import { repoRootOf } from '../ui/rowContext';
 
 type BranchesOpenHandler = (repoRoot?: string) => Promise<void>;
 let branchesOpenHandler: BranchesOpenHandler | undefined;
@@ -330,8 +331,11 @@ export function registerSyncOps(
 
   // Argument presence decides the scope: a caller that knows which repository
   // it means says so, and everyone else gets IntelliJ's project-wide Fetch.
-  register('gittree.fetch', async (repoRoot) => {
-    if (typeof repoRoot === 'string') {
+  register('gittree.fetch', async (arg) => {
+    // A root, or a Commit-window repository row (POST-P14cb): without this, its
+    // row would have fetched every repository.
+    const repoRoot = typeof arg === 'string' ? arg : repoRootOf(arg);
+    if (repoRoot !== undefined) {
       const repo = core.getRepo(repoRoot);
       if (!repo) return;
       // Said plainly, rather than as git's "No remote repository specified":

@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { REPOSITORY_MENU } from '../../../src/branches/repositoryMenu';
 
 interface MenuEntry {
   command: string;
@@ -111,13 +112,46 @@ describe('the Commit window menus (POST-P14bf)', () => {
   it('gives a repository row Add to VCS only with new files, and Move for all of its changes', () => {
     const repository = { ...base, webviewSection: 'commitRepository', repoHasTracked: true };
     expect(shown('commitRepository', { ...repository, repoHasUnversioned: true })).toEqual([
+      // POST-P14cb: first, the way to it in the Repositories panel.
+      'Select in Repositories Panel',
       'Add to VCS',
       'Move to Another Changelist…',
       'New Changelist…',
       'Shelve Changes…',
       'Rollback…',
+      // POST-P14cb: then the Repositories panel's own menu for a repository.
+      'Show in New Log Tab',
+      'Update Repository…',
+      'Update Repository Without Fetching…',
+      'Push…',
+      'Fetch',
+      'New Branch…',
+      'Checkout Tag or Revision…',
+      'Stash Changes…',
+      'Unstash Changes…',
+      'Manage Remotes…',
     ]);
     expect(shown('commitRepository', { ...repository, repoHasUnversioned: false })).not.toContain('Add to VCS');
+  });
+
+  it("ends a repository row's menu with the Repositories panel's menu for it, in its order, without its Commit (POST-P14cb)", () => {
+    const repository = { ...base, webviewSection: 'commitRepository', repoHasTracked: true, repoHasUnversioned: false };
+    const panel = REPOSITORY_MENU.filter((e) => e.command !== 'gittree.commit');
+    const commands = menu('commitRepository')
+      .filter((m) => panel.some((e) => e.command === m.command))
+      .map((m) => m.command);
+    expect(commands).toEqual(panel.map((e) => e.command));
+    // Under the titles the panel gives them.
+    const titles = shown('commitRepository', repository);
+    expect(titles.slice(-panel.length)).toEqual(panel.map((e) => e.label));
+    // This is the Commit window: its Commit is the window's own button.
+    expect(menu('commitRepository').some((m) => m.command === 'gittree.commit')).toBe(false);
+  });
+
+  it('keeps Select in Repositories Panel out of the Command Palette: it needs a row', () => {
+    const palette = manifest.contributes.menus['commandPalette'] ?? [];
+    expect(palette.find((e) => e.command === 'gittree.branches.selectRepository')?.when).toBe('false');
+    expect(titleOf('gittree.branches.selectRepository')).toBe('Select in Repositories Panel');
   });
 
   it('offers no Move in the staging paradigm, where there are no changelists', () => {
@@ -242,10 +276,19 @@ describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)
     }
   });
 
-  it('is not on a changelist, repository or Merge Conflicts row', () => {
-    for (const section of ['commitGroup', 'commitRepo', 'commitRepository', 'commitConflicts']) {
+  it('is not on a changelist or Merge Conflicts row', () => {
+    for (const section of ['commitGroup', 'commitRepo', 'commitConflicts']) {
       const row = { ...on('isWindows'), webviewSection: section, listCheckable: true, repoHasTracked: true };
       expect(reveals(shown(section, row))).toEqual([]);
+    }
+  });
+
+  it("is on a repository row, for the repository's own folder, after its changes (POST-P14cb)", () => {
+    for (const { os, label } of SYSTEMS) {
+      const row = { ...on(os), webviewSection: 'commitRepository', repoHasTracked: true };
+      expect(reveals(shown('commitRepository', row))).toEqual([label]);
+      const titles = shown('commitRepository', row);
+      expect(titles.indexOf(label)).toBe(titles.indexOf('Rollback…') + 1);
     }
   });
 

@@ -304,13 +304,21 @@ How commits are assembled: IntelliJ-style changelists (index-bypassing checked-f
 
 ### `gittree.commit.groupBy`
 
-What the Commit window puts at the top of its tree when the workspace has several repositories. The window's View Options › Group By saves it for the workspace. One repository has no repository rows to arrange, so it looks the same either way.
+How the Commit window arranges its changes. The window's View Options › Group By saves it for the workspace. With one repository there are no repository rows, so `changelist` and `repository` look the same.
 
-- Type: `string` · Default: `"changelist"`
+- Type: `string` · Default: `"none"`
 - Scope: `window`
 - Values:
+  - `none` — No changelist rows: every changed file under its repository, as VS Code's Source Control view lists them. Each file shows its status letter; a file Git does not track yet is in italics. Changelists still exist; the window just does not show them.
   - `changelist` — Changelists at the top, each repository's share of a list beneath it, as IntelliJ shows them.
   - `repository` — Repositories at the top, each with its own changelists beneath it.
+
+### `gittree.commit.groupByDirectory`
+
+Show folder rows over the Commit window's files, as IntelliJ's Group By › Directory does. Off: one list of files, each with its folder after its name.
+
+- Type: `boolean` · Default: `false`
+- Scope: `window`
 
 ### `gittree.commit.signoff`
 
