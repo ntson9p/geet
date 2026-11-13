@@ -1843,3 +1843,21 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration** (`multiRoot.test.ts`): the default is `none` without folders; the palette commands, including the two new ones.
 
 Gates: typecheck (all three tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14cc ✅ 2026-11-14 (branch `new-way-6`): **No more two change bars on every changed line.** From POST-P14bz's investigation: GitTree's change bars (P14-T3, always on) doubled the built-in Git extension's quick diff (`scm.diffDecorations: all`, VS Code's default), and the two could disagree. In the real window VS Code's bars said *modified* (blue) where GitTree's said *added* (green). I asked the owner, who then left the decisions to me overnight. Off by default, as the badges are (D22).
+
+**Fix.** `gittree.changeBars.enabled` (new, `false`; `CHANGE_BARS_DEFAULT` in `changeBarsDefault.ts`, vscode-free, held to package.json). `ChangeBarsController` still computes every visible document's changes. Only the drawing reads the setting: with it off the three decoration types are set empty, so turning it off clears the bars and on draws them, through the existing `gittree.changeBars` configuration listener. The popup (`Ctrl+Alt+G H`), its hover (opt-in) and Next / Previous Change read `changesFor`, not the bars, so they work either way. Not "on unless the built-in extension runs": D22's rule.
+
+**Seen in a real VS Code 1.144** (`scratchpad/drive/barsprobe.cjs`, a modified README with a line typed at its end, unsaved):
+- Default: VS Code's `dirty-diff-modified` glyphs on the two changed lines, and no GitTree border decoration. `Ctrl+Alt+G H` opened *Change actions*: Stage, Open in Commit View, Rollback.
+- `gittree.changeBars.enabled: true`: the same two glyphs, and GitTree's green border on the same two lines again. The actions were as before.
+
+**The investigation's other findings, decided** (the owner left them to me):
+- **GitTree's own views carrying `file:` URIs** (Stashes, Local History, Conflicts, Worktrees), which VS Code's Git badges too: left as they are, for now. Two of the four are opt-in panes (`gittree.sidebar.extraViews`). The Conflicts badge (`!`) is true. Changing the URIs risks what VS Code does with them (file icons, drag and drop, Open). Reported in the summary for the owner.
+- **Terminal authentication** (`gittree.terminalAuth`, off by default) and the one-shot `git.enabled` cleanup: unchanged, as reported in POST-P14bz.
+
+Docs: D22 (change bars, likewise), D18 (not drawn by default), faq.md, migration-from-builtin.md, settings.md regenerated, CHANGELOG (Fixed).
+
+Testing (written, **not run**, by the owner's standing instruction): **unit** (`changeBarsDefault.test.ts`): off by default, in the code as in package.json; the description says why, that the actions still work, and when to turn the bars on; in the controller, the changes are still stored and every decoration is written through the setting.
+
+Gates: typecheck + lint clean; extension built.

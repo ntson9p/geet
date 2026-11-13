@@ -110,6 +110,12 @@ In a diff opened from a list of files, such as a commit's Changed Files, Next Ch
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.changeBars.enabled`
+
+Draw GitTree's change bars beside changed lines, at the text's edge. Off by default: VS Code's built-in Git draws its own in the gutter, and with both every changed line has two. GitTree's change actions work either way, at the cursor: `GitTree: Show Change Actions` (`Ctrl+Alt+G H`). Turn it on if you disable the built-in Git extension, or VS Code's own bars (`scm.diffDecorations`).
+
+- Type: `boolean` · Default: `false`
+
 ### `gittree.changeBars.base`
 
 What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).

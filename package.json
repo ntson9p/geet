@@ -162,6 +162,11 @@
             "default": true,
             "description": "%gittree.config.diff.goToNextFileAfterLastChange.description%"
           },
+          "gittree.changeBars.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%gittree.config.changeBars.enabled.description%"
+          },
           "gittree.changeBars.base": {
             "type": "string",
             "enum": [

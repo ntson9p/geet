@@ -22,8 +22,9 @@ launch it removes that override and shows a notification saying so. It only ever
 is left alone.
 
 GitTree's own file badges in the Explorer (`gittree.decorations.fileExplorer`)
-are off by default, so they never double up with the built-in extension's. If
-you disable the built-in extension, turn the setting on.
+and its change bars (`gittree.changeBars.enabled`) are off by default, so they
+never double up with the built-in extension's. If you disable the built-in
+extension, turn them on.
 
 ## 2. Feature equivalents
 

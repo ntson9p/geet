@@ -32,11 +32,11 @@ surface, which made genuine gaps invisible. Rules:
 | [D15](#d15--push-tags-current-branch-means---follow-tags) | `Push tags: Current Branch` maps to `--follow-tags` | No (no git equivalent) |
 | [D16](#d16--worktree-lockprunable-flags-are-derived-on-git--236) | Worktree lock/prunable derived from disk on git &lt; 2.36 | Yes (drop when git 2.36 is the floor) |
 | [D17](#d17--apply-non-conflicting-changes-acts-on-conflict-blocks-not-the-whole-diff) | `Apply non-conflicting changes` acts on conflict blocks; git pre-applies the rest | Only by dropping git's own re-merge |
-| [D18](#d18--change-bars-sit-at-the-content-edge) | Change bars sit at the content edge, ~21px right of VS Code's own lane | No (no public API targets that lane) |
+| [D18](#d18--change-bars-sit-at-the-content-edge) | Change bars sit at the content edge, ~21px right of VS Code's own lane; not drawn by default (D22) | No (no public API targets that lane) |
 | [D19](#d19--the-change-popup-is-keyboard-invoked-hover-is-opt-in) | The change popup opens from a key (hover is opt-in), not by clicking the bar | No (decorations expose no click handler) |
 | [D20](#d20--walking-a-list-of-changes-differs-from-intellij-in-small-ways) | Walking a list of changes differs from IntelliJ in small ways | Partly (image diffs); the rest are VS Code's limits |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
-| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension, and off by default | Deliberate |
+| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations and change bars are plain settings, not conditioned on the built-in extension, and off by default | Deliberate |
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 | [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
 | [D25](#d25--the-annotation-age-ramp-is-quantised-to-five-steps) | The blame age gradient has five steps instead of a continuous ramp | No (API) |
@@ -340,6 +340,7 @@ the *content* area.
 about 21px right at 100% zoom, at the identical 4px width. The alternative, `gutterIconPath`,
 renders in the **glyph margin**: 54px the *other* way, only 2px wide, and sharing a lane with
 breakpoints. The border was chosen on width fidelity and to keep breakpoints uncontested.
+Since POST-P14cc the bars are not drawn unless `gittree.changeBars.enabled` asks (D22).
 **Revisitable:** no, absent a new API.
 
 ## D19 · The change popup is keyboard-invoked; hover is opt-in
@@ -408,6 +409,12 @@ second copy of its own in every one of them (`U, U`, `M, M`). The owner asked fo
 independent. Off by default keeps both rules: GitTree adds nothing to VS Code's views, and
 still does not change what it does by what another extension is doing. Someone who disables
 the built-in extension turns it on.
+
+**Change bars, likewise** (`gittree.changeBars.enabled`, **off by default since POST-P14cc**). VS
+Code's built-in Git draws its own bars in the gutter (`scm.diffDecorations: all`, its default), so
+every changed line had two: VS Code's in its lane and GitTree's at the text's edge (D18), and they
+could disagree, VS Code calling a line modified that GitTree called added. GitTree's change actions
+read the changes, not the bars: `Ctrl+Alt+G H` and Next / Previous Change work with the bars off.
 
 **Why:** the plan for P14-T6 proposed detecting `vscode.git` and defaulting the setting off once.
 That was rejected during implementation: it writes a setting on the user's behalf unprompted,

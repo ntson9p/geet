@@ -364,6 +364,7 @@
   "gittree.config.push.tags.all": "All tags (--tags).",
   "gittree.config.push.tags.follow": "Tags reachable from the pushed commits (--follow-tags).",
   "gittree.config.dialogs.showCommandLine.description": "Show the dim \"will run: git …\" line in GitTree's dialogs, so the flags behind each option stay legible.",
+  "gittree.config.changeBars.enabled.description": "Draw GitTree's change bars beside changed lines, at the text's edge. Off by default: VS Code's built-in Git draws its own in the gutter, and with both every changed line has two. GitTree's change actions work either way, at the cursor: `GitTree: Show Change Actions` (`Ctrl+Alt+G H`). Turn it on if you disable the built-in Git extension, or VS Code's own bars (`scm.diffDecorations`).",
   "gittree.config.changeBars.base.description": "What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).",
   "gittree.config.changeBars.maxFileLines.description": "Files longer than this get no change bars. The line diff is quadratic in the worst case, and a stalled editor is worse than a missing bar.",
   "gittree.config.diff.goToNextFileAfterLastChange.description": "In a diff opened from a list of files, such as a commit's Changed Files, Next Change at the last change of a file says that pressing it again goes to the next file, and Previous Change does the same at the first change. Off: VS Code's own behaviour, wrapping to the other end of the same file.",

@@ -43,6 +43,16 @@ pre-release convention (odd minor = pre-release).
   rows, then from the message box, down to one line, then from the list again. The Commit
   button always stays on screen.
 
+### Fixed — no more two change bars on every changed line
+
+- **GitTree's change bars are now off by default** (`gittree.changeBars.enabled`). VS Code's
+  built-in Git draws its own beside the same changed lines, so every changed line had two, and
+  they could disagree (one saying *modified*, the other *added*).
+- GitTree's change actions still work without them: `GitTree: Show Change Actions`
+  (`Ctrl+Alt+G H`) at the cursor.
+- If you disable the built-in Git extension, or VS Code's own bars (`scm.diffDecorations`), turn
+  the setting on.
+
 ### Fixed — no more doubled badges (`U, U`, `M, M`) in VS Code's own views
 
 - **GitTree's file badges are now off by default** (`gittree.decorations.fileExplorer`). VS

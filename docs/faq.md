@@ -20,6 +20,11 @@ VS Code shows an extension's file badges in all of its views, its own Source
 Control view included, so with both extensions running they showed every badge
 twice (`U, U`). Turn the setting on if you disable the built-in Git extension.
 
+So are GitTree's change bars (`gittree.changeBars.enabled`): the built-in
+extension draws its own beside the same lines, and with both every changed line
+had two. GitTree's change actions work without them (`Ctrl+Alt+G H` at the
+cursor). Turn them on if you disable the built-in extension.
+
 ### GPG signing on Windows doesn't prompt / hangs — what now?
 
 GitTree runs git non-interactively, so gpg must be able to prompt on its own:
