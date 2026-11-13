@@ -1785,3 +1785,33 @@ Docs: D22 (the default, and why), faq.md, migration-from-builtin.md, settings.md
 Testing (written, **not run**, by the owner's standing instruction): **unit** (`fileDecorationsDefault.test.ts`): off by default, in the code as in package.json; the description says where the badges show, why they start off and when to turn them on.
 
 Gates: typecheck (both tsconfigs) + lint clean; extension built.
+
+POST-P14ca ✅ 2026-11-14 (branch `new-way-6`): **A compact Commit tab you can resize.** The owner asked for the Commit panel to be "much more compact and vertically resizeable", and to hear design ideas first. Their screenshot of it did not come through, so this takes the panel to be the Commit view. I drew three layouts at real size against measurements of today's (a published design page: today's screenshots, A, B, C with pros and cons). The owner then left the decisions to me overnight; this is A, the recommended one (D43).
+
+**Today, measured** in a real VS Code 1.144 (a 298 px side bar, two repositories, nine changes; `scratchpad/design/commitshot.cjs`). At its first size the view is 398 px. The block under the list (the Amend row, a 6-line message box, and Commit / Commit and Push… wrapped onto two rows) took 225 px of it, leaving the list 113 px, about 5 rows of 19. The block could not shrink. A view under about 360 px scrolled as a whole, and at 222 px the Commit buttons were gone.
+
+**Now:**
+- **The toolbar shares the tabs' row** (`Tabs`' `actions`). `OverflowToolbar` (new, `lib/`) keeps the buttons that fit and folds the rest into `⋯`. Which ones stay is decided by `toolbarFit` (new, pure): priority first, then the row's order. At the usual width Refresh, Rollback and View Options stay; a toggle reads as ticked in the menu, and a folded action's dot shows on the `⋯`.
+- **A divider above the Amend row** (`MessageDivider`, new) sets the message box's height: drag; `↑`/`↓` a line; `Home`/`End`; double-click or `Enter` for the first height. It is kept in the webview state (`messageHeight`).
+- **The box** (`MessageEditor`) starts at 3 lines (`MESSAGE_LINES`), with a set line height so a line is known in px (`metrics()`). It no longer grows as you type; a longer message scrolls inside.
+- **A short view takes height back in a fixed order** (`commitLayout.ts`, new, pure): from the list down to 3 rows, from the box down to one line, then from the list again. `fitMessageHeight` gives the box's height for the room the list and the box share, measured as the two elements' sum (the list takes whatever the box leaves). `clampMessageHeight` bounds a drag. The window is `overflow: hidden`, so nothing scrolls as a whole and the Commit button is never cut off.
+- **One full-width Commit button with a ▾** (Commit, with its key, and Commit and Push…). It keeps a long label whole. The gear moved to the Amend row, and its popup opens clear of it (`popupPlacement`: above when there is room, below otherwise). Its height now counts its padding (`box-sizing`): sized to the room above, it had run 7 px past the window's top.
+
+**Seen in a real VS Code 1.144** (`scratchpad/design/compactshot.cjs`, same window and changes):
+
+| View height | List | Message box | Commit button |
+| --- | --- | --- | --- |
+| 398 px (first size) | 227 px (10 rows) | 64 px | on screen |
+| 311 px | 140 px | 64 px | on screen |
+| 222 px | 66 px (3 rows) | 49 px | on screen |
+| 151 px | 17 px | 27 px (1 line) | on screen |
+
+The divider dragged 70 px up gave the box 134 px; a double-click gave back 64. The `⋯` held Show Diff, Shelve Changes, Preview Diff, Expand all and Collapse all. The ▾ held "Commit to 2 repositories  Ctrl+Enter" and "Commit and Push…". By raw pointer clicks nothing in the page scrolled (`scrollprobe.cjs`). A 5 px shift seen in the first run came from Playwright's own scrolling before a locator click.
+
+Docs: D43, keyboard.md (a Commit window table: the tabs, the toolbar's `⋯`, the divider's keys, the ▾), CHANGELOG (Changed).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `toolbarFit.test.ts` (all fit; unmeasured keeps all; one pixel short; the usual width keeps Refresh, Rollback, View Options in the row's order; every width fits what it shows; only `⋯`; equal priorities fold from the end). `commitLayout.test.ts` (3 lines and a 3-row floor; the box as given; gives way to the floor; never under a line; grows back; drag clamps; remembered heights; the popup above, below, or above in a short view; never a negative height).
+- **Playwright** (`commit.spec.ts`): Commit and Push… from the ▾. The ▾'s Commit names its key. The ▾ is disabled with Commit. A new describe block, "POST-P14ca a compact Commit tab": the toolbar beside the tabs; `⋯` in a 300 px window, and Preview Diff run from it; 3 lines and no growth; drag, reload, double-click; arrows a line at a time; the 3-row floor; a 250 px window keeps Commit whole with nothing scrolling; the box grows back; the popup clear of the gear.
+
+Gates: typecheck (webview tsconfig) + lint clean; webviews built.

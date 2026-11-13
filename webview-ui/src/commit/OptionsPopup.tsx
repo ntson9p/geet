@@ -22,14 +22,20 @@ import {
 } from '../../../src/shared/protocol';
 import type { RpcClient } from '../lib/rpc';
 import { useDismiss } from '../lib/useDismiss';
+import type { Placement } from './commitLayout';
+
+/** The tallest it grows, as the stylesheet's own `max-height` caps it. */
+const POPUP_MAX_PX = 480;
 
 export interface OptionsPopupProps {
   rpc: RpcClient;
   repoRoot: string;
+  /** POST-P14ca: where it opens, clear of the gear; the stylesheet's place without one. */
+  placement?: Placement;
   onClose: () => void;
 }
 
-export function OptionsPopup({ rpc, repoRoot, onClose }: OptionsPopupProps) {
+export function OptionsPopup({ rpc, repoRoot, placement, onClose }: OptionsPopupProps) {
   const [opts, setOpts] = useState<CommitOptionsDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authorDraft, setAuthorDraft] = useState('');
@@ -121,6 +127,13 @@ export function OptionsPopup({ rpc, repoRoot, onClose }: OptionsPopupProps) {
       tabIndex={-1}
       className="gt-options-popup"
       data-testid="commit-options-popup"
+      style={
+        placement === undefined
+          ? undefined
+          : placement.top !== undefined
+            ? { top: placement.top, bottom: 'auto', maxHeight: Math.min(placement.maxHeight, POPUP_MAX_PX) }
+            : { bottom: placement.bottom, maxHeight: Math.min(placement.maxHeight, POPUP_MAX_PX) }
+      }
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();

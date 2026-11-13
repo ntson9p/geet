@@ -1,11 +1,14 @@
 /**
- * Commit tool window (P11-T2). Layout follows the gap analysis §2A:
+ * Commit tool window (P11-T2). Layout follows the gap analysis §2A, made
+ * compact by POST-P14ca:
  *
- *   tabs  ->  toolbar strip  ->  change tree (flex)  ->  bottom block
+ *   tabs + toolbar  ->  change tree (flex)  ->  divider  ->  bottom block
  *
- * The bottom block is the amend row with the `N modified` counter, the message
- * editor, and `[Commit] [Commit and Push...]` with the options gear. P11-T4
- * replaces the editor with the IME/undo-hardened one; P11-T5 fills in the gear
+ * The toolbar shares the tabs' row and folds what does not fit into `⋯`. The
+ * bottom block is the Amend row (the message menus, the `N of M` counter and
+ * the options gear), the message editor at the height the divider gives it,
+ * and one full-width `[✓ Commit | ▾]` whose ▾ holds Commit and Push…. P11-T4
+ * replaced the editor with the IME/undo-hardened one; P11-T5 fills in the gear
  * popup; P11-T6 adds the `Shelf` tab beside `Commit`.
  *
  * The host owns every piece of state. This component renders what it is given
@@ -50,12 +53,12 @@ import {
 } from '../lib/FileTree';
 import { InlineDiff } from '../lib/InlineDiff';
 import { Menu, type MenuItem } from '../lib/Menu';
+import { OverflowToolbar, type OverflowAction } from '../lib/OverflowToolbar';
 import { RpcClient, RpcRequestError } from '../lib/rpc';
 import { dirStatusColor, statusColor } from '../lib/status';
 import { SplitPane } from '../lib/SplitPane';
 import { TabPanel, Tabs } from '../lib/Tabs';
 import { ToolbarButton } from '../lib/Toolbar';
-import { ToolbarSeparator, ToolbarSpacer, ToolbarStrip } from '../lib/ToolbarStrip';
 import {
   allDirPaths,
   ancestorDirs,
@@ -95,8 +98,17 @@ import {
   type CommitTreeModel,
 } from './commitTree';
 import { firstLine, relativeTime } from './format';
-import { answersCommitAsk } from './commitKey';
-import { MessageEditor, type MessageEditorHandle } from './MessageEditor';
+import { answersCommitAsk, onMac } from './commitKey';
+import {
+  clampMessageHeight,
+  fitMessageHeight,
+  LIST_FLOOR_PX,
+  popupPlacement,
+  savedMessageHeight,
+  type Placement,
+} from './commitLayout';
+import { MessageDivider } from './MessageDivider';
+import { MessageEditor, type MessageEditorHandle, type MessageMetrics } from './MessageEditor';
 import { OptionsPopup } from './OptionsPopup';
 import { answersRevealAsk, isWindowsRevealChord, onWindows } from './revealKey';
 import { ShelfTab } from './ShelfTab';
@@ -114,6 +126,8 @@ interface Persisted {
   message?: string;
   preview?: boolean;
   ratio?: number;
+  /** POST-P14ca: the message box's height as the divider left it, px; absent for its first height. */
+  messageHeight?: number;
 }
 
 /** A change of grouping on its way: where the user was, to be found again in the rebuilt tree. */
@@ -134,6 +148,9 @@ const ON_WINDOWS = onWindows(navigator.userAgent);
 
 /** Below this width the preview diff is one column: two sides would each get a few characters. */
 const UNIFIED_BELOW_PX = 640;
+
+/** POST-P14ca: the commit key as the ▾ menu shows it, the keybinding's `mac` or `key`. */
+const COMMIT_KEY_LABEL = onMac(navigator.userAgent) ? '⌘Enter' : 'Ctrl+Enter';
 
 const EMPTY: CommitStateDto = {
   repos: [],
@@ -216,12 +233,24 @@ export function App() {
   const [message, setMessage] = useState(saved.message ?? '');
   const [menu, setMenu] = useState<MessageMenu | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // POST-P14ca: where the options popup opens, from the gear's place on screen.
+  const [optionsAt, setOptionsAt] = useState<Placement | undefined>(undefined);
+  // POST-P14ca: the ▾ beside Commit, open at these viewport coordinates.
+  const [commitMenuAt, setCommitMenuAt] = useState<{ readonly x: number; readonly y: number } | null>(null);
   const [preview, setPreview] = useState(saved.preview ?? false);
   const [ratio, setRatio] = useState(saved.ratio ?? 0.55);
+  // POST-P14ca: the height the divider gave the message box; undefined for its first one.
+  const [messageHeight, setMessageHeight] = useState<number | undefined>(() =>
+    savedMessageHeight(saved.messageHeight),
+  );
+  const [messageMetrics, setMessageMetrics] = useState<MessageMetrics | undefined>(undefined);
   const [diff, setDiff] = useState<CommitFileDiffDto | undefined>(undefined);
   const [rpcError, setRpcError] = useState<string | undefined>(undefined);
   const [treeRef, treeSize] = useElementSize<HTMLDivElement>();
   const [diffRef, diffSize] = useElementSize<HTMLDivElement>();
+  // POST-P14ca: the list and the message box share what these two have between them.
+  const [bodyRef, bodySize] = useElementSize<HTMLDivElement>();
+  const [slotRef, slotSize] = useElementSize<HTMLDivElement>();
   // The repositories' colours have a light and a dark shade, as the log's lanes do.
   const theme = useVsCodeTheme();
   const dark = theme === 'dark' || theme === 'high-contrast';
@@ -341,8 +370,9 @@ export function App() {
       message,
       preview,
       ratio,
+      ...(messageHeight !== undefined ? { messageHeight } : {}),
     } satisfies Persisted);
-  }, [api, expanded, known, message, preview, ratio, seeded, tab]);
+  }, [api, expanded, known, message, messageHeight, preview, ratio, seeded, tab]);
 
   const activeRepo = state.activeRepo;
 
@@ -868,6 +898,112 @@ export function App() {
         : `Commit to ${targets.length} repositories`;
   const targetTitle = targets.length > 0 ? `Commits: ${targets.join(', ')}` : undefined;
 
+  // POST-P14ca: the box's sizes, read once it is drawn. It is drawn again on
+  // every return from the Shelf tab, at the same sizes, so once is enough.
+  useLayoutEffect(() => {
+    if (tab !== 'commit' || messageMetrics !== undefined) return;
+    const m = editorRef.current?.metrics();
+    if (m !== undefined) setMessageMetrics(m);
+  }, [messageMetrics, tab]);
+
+  // POST-P14ca: the list and the box share what they hold between them now:
+  // the list takes whatever the box leaves, so their sum is the room there is.
+  const messageRoom = bodySize.height + slotSize.height;
+  const measured = messageMetrics !== undefined && bodySize.height + slotSize.height > 0;
+  const messageFit = measured
+    ? { min: messageMetrics.min, room: messageRoom, listFloor: LIST_FLOOR_PX }
+    : undefined;
+  const preferredMessage = messageHeight ?? messageMetrics?.natural;
+  const appliedMessage =
+    messageFit !== undefined && preferredMessage !== undefined
+      ? fitMessageHeight({ ...messageFit, preferred: preferredMessage })
+      : messageHeight;
+  const resizeMessage = (next: number): void => {
+    if (messageFit !== undefined) setMessageHeight(clampMessageHeight(next, messageFit));
+  };
+
+  // POST-P14ca: the toolbar shares the tabs' row, so what does not fit there
+  // folds into `⋯`. The lower the priority, the longer a button stays out: at
+  // the side bar's usual width, Refresh, Rollback and View Options do.
+  const commitTools: OverflowAction[] = [
+    {
+      id: 'refresh',
+      label: 'Refresh',
+      icon: 'refresh',
+      priority: 0,
+      disabled: state.busy,
+      busy: refreshing,
+      run: () => trackRefresh(() => request(COMMIT_METHODS.refresh)),
+    },
+    {
+      id: 'rollback',
+      label: 'Rollback',
+      icon: 'discard',
+      priority: 1,
+      disabled: state.busy || selection.size === 0,
+      run: () => {
+        const target = selectedRelPaths();
+        if (target) send(COMMIT_METHODS.rollback, target);
+      },
+    },
+    {
+      id: 'showDiff',
+      label: 'Show Diff',
+      icon: 'diff',
+      priority: 3,
+      disabled: selection.size === 0,
+      run: () => {
+        const first = selectedFiles(model.nodes, selection)[0];
+        if (first !== undefined) openDiffAt(first);
+      },
+    },
+    {
+      id: 'shelve',
+      label: 'Shelve Changes',
+      icon: 'archive',
+      priority: 5,
+      disabled: state.busy || activeRepo === undefined,
+      run: () => send(COMMIT_METHODS.shelve, { repoRoot: activeRepo }),
+    },
+    {
+      id: 'preview',
+      label: 'Preview Diff',
+      icon: 'split-horizontal',
+      priority: 4,
+      toggled: preview,
+      run: () => setPreview((on) => !on),
+    },
+    // IntelliJ's eye before Expand All and Collapse All, and like its
+    // Repository choice, only where there are repositories to arrange.
+    ...(state.repos.length > 1
+      ? [
+          {
+            id: 'viewOptions',
+            label: 'View Options',
+            icon: 'eye',
+            priority: 2,
+            badge: viewOptionsChanged(model.groupBy),
+            run: (at: { readonly x: number; readonly y: number }) => setViewMenu(at),
+          } satisfies OverflowAction,
+        ]
+      : []),
+    // This grouping's rows only: the other keeps its own for when it comes back.
+    {
+      id: 'expandAll',
+      label: 'Expand all',
+      icon: 'expand-all',
+      priority: 6,
+      run: () => setExpanded((prev) => new Set([...prev, ...allDirPaths(model.nodes)])),
+    },
+    {
+      id: 'collapseAll',
+      label: 'Collapse all',
+      icon: 'collapse-all',
+      priority: 7,
+      run: () => setExpanded((prev) => collapsedAll(model, prev)),
+    },
+  ];
+
   const nothingToShow = ready && model.nodes.length === 0;
   const errorText = state.error ?? rpcError;
 
@@ -958,6 +1094,11 @@ export function App() {
           { id: 'shelf', label: 'Shelf' },
           ...(combined ? [] : [{ id: 'stash', label: 'Stash' }]),
         ]}
+        actions={
+          tab === 'commit' ? (
+            <OverflowToolbar ariaLabel="Commit actions" actions={commitTools} className="gt-commit-tools" />
+          ) : undefined
+        }
       />
 
       {/* Window-level, not per-tab: a failed shelf action must be visible from
@@ -990,73 +1131,7 @@ export function App() {
       ) : null}
 
       <TabPanel id="commit" active={tab} className="gt-commit-panel">
-        <ToolbarStrip ariaLabel="Commit actions">
-          <ToolbarButton
-            icon="refresh"
-            label="Refresh"
-            disabled={state.busy}
-            busy={refreshing}
-            onClick={() => trackRefresh(() => request(COMMIT_METHODS.refresh))}
-          />
-          <ToolbarButton
-            icon="discard"
-            label="Rollback"
-            disabled={state.busy || selection.size === 0}
-            onClick={() => {
-              const target = selectedRelPaths();
-              if (target) send(COMMIT_METHODS.rollback, target);
-            }}
-          />
-          <ToolbarButton
-            icon="diff"
-            label="Show Diff"
-            disabled={selection.size === 0}
-            onClick={() => {
-              const first = selectedFiles(model.nodes, selection)[0];
-              if (first !== undefined) openDiffAt(first);
-            }}
-          />
-          <ToolbarButton
-            icon="archive"
-            label="Shelve Changes"
-            disabled={state.busy || activeRepo === undefined}
-            onClick={() => send(COMMIT_METHODS.shelve, { repoRoot: activeRepo })}
-          />
-          <ToolbarButton
-            icon="split-horizontal"
-            label="Preview Diff"
-            toggled={preview}
-            onClick={() => setPreview((on) => !on)}
-          />
-          {/* IntelliJ's eye before Expand All and Collapse All, and like its
-              Repository choice, only where there are repositories to arrange. */}
-          {state.repos.length > 1 ? (
-            <ToolbarButton
-              icon="eye"
-              label="View Options"
-              badge={viewOptionsChanged(model.groupBy)}
-              onClick={(e) => {
-                const box = e.currentTarget.getBoundingClientRect();
-                setViewMenu({ x: box.left, y: box.bottom + 2 });
-              }}
-            />
-          ) : null}
-          <ToolbarSeparator />
-          {/* This grouping's rows only: the other keeps its own for when it comes back. */}
-          <ToolbarButton
-            icon="expand-all"
-            label="Expand all"
-            onClick={() => setExpanded((prev) => new Set([...prev, ...allDirPaths(model.nodes)]))}
-          />
-          <ToolbarButton
-            icon="collapse-all"
-            label="Collapse all"
-            onClick={() => setExpanded((prev) => collapsedAll(model, prev))}
-          />
-          <ToolbarSpacer />
-        </ToolbarStrip>
-
-        <div className="gt-commit-body" data-testid="commit-tree">
+        <div className="gt-commit-body" data-testid="commit-tree" ref={bodyRef}>
           {preview ? (
             <SplitPane
               direction="vertical"
@@ -1084,9 +1159,17 @@ export function App() {
           )}
         </div>
 
+        {/* POST-P14ca: the message box's height, dragged here. */}
+        <MessageDivider
+          height={appliedMessage ?? messageMetrics?.natural ?? 0}
+          step={messageMetrics?.line ?? 18}
+          onResize={resizeMessage}
+          onReset={() => setMessageHeight(undefined)}
+        />
+
         <div className="gt-commit-bottom">
           <div className="gt-commit-amend-row">
-            <label className="gt-checkbox">
+            <label className="gt-checkbox" title="Amend the last commit">
               <input
                 type="checkbox"
                 checked={state.amend}
@@ -1094,9 +1177,7 @@ export function App() {
                 onChange={() => send(COMMIT_METHODS.toggleAmend, { repoRoot: activeRepo })}
               />
               <span className="gt-checkbox-body">
-                <span>
-                  Amend <span className="gt-muted">last commit</span>
-                </span>
+                <span>Amend</span>
               </span>
             </label>
             <ToolbarButton
@@ -1115,46 +1196,65 @@ export function App() {
               {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
               {state.paradigm === 'staging' ? ' staged' : ''}
             </span>
-          </div>
-
-          <MessageEditor
-            ref={editorRef}
-            initial={message}
-            disabled={activeRepo === undefined}
-            onInput={onEditorInput}
-            onPersist={onEditorPersist}
-            onFocusChange={reportMessageFocus}
-          />
-
-          <div className="gt-commit-actions">
-            <button
-              type="button"
-              className="gt-button gt-primary"
-              data-testid="commit-button"
-              disabled={!canCommit}
-              title={targetTitle}
-              onClick={() => commit(false)}
-            >
-              {commitLabel}
-            </button>
-            <button
-              type="button"
-              className="gt-button"
-              data-testid="commit-push-button"
-              disabled={!canCommit}
-              title={targetTitle}
-              onClick={() => commit(true)}
-            >
-              Commit and Push...
-            </button>
-            <ToolbarSpacer />
             <ToolbarButton
               icon="gear"
               label="Commit options"
               disabled={activeRepo === undefined}
               toggled={optionsOpen}
-              onClick={() => setOptionsOpen((open) => !open)}
+              onClick={(e) => {
+                if (optionsOpen) {
+                  setOptionsOpen(false);
+                  return;
+                }
+                // Opened clear of the gear, which sits mid-window now.
+                setOptionsAt(popupPlacement(e.currentTarget.getBoundingClientRect(), window.innerHeight));
+                setOptionsOpen(true);
+              }}
             />
+          </div>
+
+          <div className="gt-commit-message-slot" ref={slotRef}>
+            <MessageEditor
+              ref={editorRef}
+              initial={message}
+              disabled={activeRepo === undefined}
+              onInput={onEditorInput}
+              onPersist={onEditorPersist}
+              onFocusChange={reportMessageFocus}
+              height={appliedMessage}
+            />
+          </div>
+
+          {/* POST-P14ca: one full-width button, as VS Code's Source Control
+              view has, so a long label stays whole; its ▾ holds the rest. */}
+          <div className="gt-commit-split-button" role="group" aria-label="Commit">
+            <button
+              type="button"
+              className="gt-button gt-primary gt-commit-main"
+              data-testid="commit-button"
+              disabled={!canCommit}
+              title={targetTitle}
+              onClick={() => commit(false)}
+            >
+              <span className="codicon codicon-check" aria-hidden="true" />
+              <span className="gt-commit-main-label">{commitLabel}</span>
+            </button>
+            <button
+              type="button"
+              className="gt-button gt-primary gt-commit-more"
+              data-testid="commit-more-button"
+              aria-label="More Commit Actions"
+              title="More Commit Actions"
+              aria-haspopup="menu"
+              aria-expanded={commitMenuAt !== null}
+              disabled={!canCommit}
+              onClick={(e) => {
+                const box = e.currentTarget.getBoundingClientRect();
+                setCommitMenuAt((open) => (open === null ? { x: box.left, y: box.bottom + 2 } : null));
+              }}
+            >
+              <span className="codicon codicon-chevron-down" aria-hidden="true" />
+            </button>
           </div>
         </div>
       </TabPanel>
@@ -1179,7 +1279,31 @@ export function App() {
       <div className="gt-commit-edge" aria-hidden="true" data-testid="commit-edge" />
 
       {optionsOpen && activeRepo !== undefined ? (
-        <OptionsPopup rpc={rpc} repoRoot={activeRepo} onClose={() => setOptionsOpen(false)} />
+        <OptionsPopup
+          rpc={rpc}
+          repoRoot={activeRepo}
+          placement={optionsAt}
+          onClose={() => setOptionsOpen(false)}
+        />
+      ) : null}
+
+      {commitMenuAt !== null ? (
+        <Menu
+          items={[
+            { kind: 'item', id: 'commit', label: commitLabel, icon: 'check', accelerator: COMMIT_KEY_LABEL },
+            { kind: 'item', id: 'commitAndPush', label: 'Commit and Push…', icon: 'repo-push' },
+          ]}
+          at={commitMenuAt}
+          ariaLabel="More Commit Actions"
+          onSelect={(id) => {
+            setCommitMenuAt(null);
+            // The state may have moved on while the menu was open.
+            if (!canCommit) return;
+            if (id === 'commitAndPush') commit(true);
+            else if (id === 'commit') commit(false);
+          }}
+          onClose={() => setCommitMenuAt(null)}
+        />
       ) : null}
 
       {menu !== null ? (

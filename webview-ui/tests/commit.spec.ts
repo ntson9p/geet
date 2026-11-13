@@ -164,7 +164,8 @@ test.describe('P11-T2 commit window layout', () => {
     // The single-line SCM input box is exactly what this replaces.
     expect(await editor.evaluate((el) => el.tagName)).toBe('TEXTAREA');
     await expect(page.getByTestId('commit-button')).toBeVisible();
-    await expect(page.getByTestId('commit-push-button')).toBeVisible();
+    // POST-P14ca: Commit and Push… is in the ▾ joined to it.
+    await expect(page.getByTestId('commit-more-button')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Commit options' })).toBeVisible();
     // A single-root workspace has nothing to disambiguate, so the button stays
     // the plain verb — the repo name belongs there only when there are several.
@@ -268,9 +269,31 @@ test.describe('P11-T2 commit actions', () => {
   test('Commit and Push posts the andPush flag', async ({ page }) => {
     await openCommit(page);
     await page.getByTestId('commit-message').fill('ship it');
-    await page.getByTestId('commit-push-button').click();
+    // POST-P14ca: it lives in the ▾ joined to the Commit button.
+    await page.getByTestId('commit-more-button').click();
+    const menu = page.getByRole('menu', { name: 'More Commit Actions' });
+    await menu.getByRole('menuitem', { name: /Commit and Push/ }).click();
     const msg = (await posted(page)).find((m) => m.method === 'commit/commit');
     expect(msg?.params).toEqual({ repoRoot: 'D:/repos/demo-git', andPush: true });
+  });
+
+  test('POST-P14ca: the ▾ also commits, and names the commit key', async ({ page }) => {
+    await openCommit(page);
+    await page.getByTestId('commit-message').fill('ship it');
+    await page.getByTestId('commit-more-button').click();
+    const menu = page.getByRole('menu', { name: 'More Commit Actions' });
+    const plain = menu.getByRole('menuitem', { name: /^Commit\b/ }).first();
+    await expect(plain).toContainText(/Ctrl\+Enter|⌘Enter/);
+    await plain.click();
+    await expect(menu).toHaveCount(0);
+    const msg = (await posted(page)).find((m) => m.method === 'commit/commit');
+    expect(msg?.params).toEqual({ repoRoot: 'D:/repos/demo-git', andPush: false });
+  });
+
+  test('POST-P14ca: with nothing to commit, the ▾ is disabled along with Commit', async ({ page }) => {
+    await openCommit(page);
+    await expect(page.getByTestId('commit-button')).toBeDisabled();
+    await expect(page.getByTestId('commit-more-button')).toBeDisabled();
   });
 
   test('typing streams the message to the host', async ({ page }) => {
@@ -2007,5 +2030,143 @@ test.describe('POST-P14bu the borders a drag resizes are drawn', () => {
     await expect.poll(async () => (await page.getByTestId('commit-preview').boundingBox())!.height).toBeGreaterThan(
       before + 20,
     );
+  });
+});
+
+test.describe('POST-P14ca a compact Commit tab', () => {
+  const tools = (page: Page) => page.getByRole('toolbar', { name: 'Commit actions' });
+  const divider = (page: Page) => page.getByRole('separator', { name: 'Resize the commit message' });
+  const messageHeight = async (page: Page): Promise<number> =>
+    (await page.getByTestId('commit-message').boundingBox())!.height;
+
+  test("the toolbar shares the tabs' row, whole when there is room", async ({ page }) => {
+    await openCommit(page);
+    const tabs = (await page.getByRole('tablist', { name: 'Commit tool window' }).boundingBox())!;
+    const strip = (await tools(page).boundingBox())!;
+    // Side by side, on one row.
+    expect(strip.x).toBeGreaterThanOrEqual(tabs.x + tabs.width - 1);
+    expect(Math.abs(strip.y + strip.height / 2 - (tabs.y + tabs.height / 2))).toBeLessThan(4);
+    await expect(tools(page).getByRole('button', { name: 'More Actions' })).toHaveCount(0);
+    for (const name of ['Refresh', 'Rollback', 'Show Diff', 'Shelve Changes', 'Preview Diff', 'Expand all', 'Collapse all']) {
+      await expect(tools(page).getByRole('button', { name })).toBeVisible();
+    }
+  });
+
+  test('in a narrow window the rest folds into ⋯, from where each still runs', async ({ page }) => {
+    await page.setViewportSize({ width: 300, height: 520 });
+    await openCommit(page);
+    await expect(tools(page).getByRole('button', { name: 'Refresh' })).toBeVisible();
+    await expect(tools(page).getByRole('button', { name: 'Rollback' })).toBeVisible();
+    await expect(tools(page).getByRole('button', { name: 'Preview Diff' })).toHaveCount(0);
+    await tools(page).getByRole('button', { name: 'More Actions' }).click();
+    const more = page.getByRole('menu', { name: 'More Actions' });
+    // A toggle reads as one there, unticked while it is off.
+    const previewItem = more.getByRole('menuitemcheckbox', { name: 'Preview Diff' });
+    await expect(previewItem).toHaveAttribute('aria-checked', 'false');
+    await expect(more.getByRole('menuitem', { name: 'Collapse all' })).toBeVisible();
+    await previewItem.click();
+    await expect(more).toHaveCount(0);
+    await expect(page.getByTestId('commit-preview')).toBeVisible();
+  });
+
+  test('the message box starts at three lines and no longer grows as you type', async ({ page }) => {
+    await openCommit(page);
+    const box = page.getByTestId('commit-message');
+    const start = await messageHeight(page);
+    const line = await box.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+    expect(start).toBeGreaterThan(3 * line);
+    expect(start).toBeLessThan(4 * line + 12);
+    await box.fill(Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n'));
+    expect(await messageHeight(page)).toBe(start);
+    // It scrolls inside instead.
+    expect(await box.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  });
+
+  test('dragging the divider sizes the box, a double-click gives back its first height, and it is remembered', async ({
+    page,
+  }) => {
+    await openCommit(page);
+    const start = await messageHeight(page);
+    const bar = (await divider(page).boundingBox())!;
+    await page.mouse.move(bar.x + 60, bar.y + 2);
+    await page.mouse.down();
+    await page.mouse.move(bar.x + 60, bar.y + 2 - 80, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(() => messageHeight(page)).toBeGreaterThan(start + 60);
+    const dragged = await messageHeight(page);
+
+    // Kept across a reload, as the window keeps its other sizes.
+    await page.reload();
+    await expect(row(page, 'Changes, 4 files')).toBeVisible();
+    await expect.poll(() => messageHeight(page)).toBe(dragged);
+
+    await divider(page).dblclick();
+    await expect.poll(() => messageHeight(page)).toBe(start);
+  });
+
+  test('the arrows move the divider a line at a time; Up makes the box taller', async ({ page }) => {
+    await openCommit(page);
+    const start = await messageHeight(page);
+    const line = await page
+      .getByTestId('commit-message')
+      .evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+    await divider(page).focus();
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(() => messageHeight(page)).toBeCloseTo(start + line, 0);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => messageHeight(page)).toBeCloseTo(start - line, 0);
+    await page.keyboard.press('Enter');
+    await expect.poll(() => messageHeight(page)).toBe(start);
+  });
+
+  test('the box never takes the list under three rows', async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 420 });
+    await openCommit(page);
+    const bar = (await divider(page).boundingBox())!;
+    await page.mouse.move(bar.x + 60, bar.y + 2);
+    await page.mouse.down();
+    await page.mouse.move(bar.x + 60, 5, { steps: 8 });
+    await page.mouse.up();
+    const list = (await page.getByTestId('commit-tree').boundingBox())!;
+    expect(list.height).toBeGreaterThanOrEqual(3 * 22 - 1);
+  });
+
+  test('a short window keeps the Commit button whole on screen, and nothing scrolls', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 250 });
+    await openCommit(page);
+    const button = (await page.getByTestId('commit-button').boundingBox())!;
+    expect(button.y + button.height).toBeLessThanOrEqual(250);
+    expect(await page.evaluate(() => document.scrollingElement!.scrollHeight)).toBeLessThanOrEqual(250);
+    // The box gave way, but keeps a line.
+    const line = await page
+      .getByTestId('commit-message')
+      .evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+    expect(await messageHeight(page)).toBeGreaterThanOrEqual(line);
+  });
+
+  test('the box gives its height back when the window grows again', async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 700 });
+    await openCommit(page);
+    const start = await messageHeight(page);
+    await page.setViewportSize({ width: 400, height: 230 });
+    await expect.poll(() => messageHeight(page)).toBeLessThan(start);
+    await page.setViewportSize({ width: 400, height: 700 });
+    await expect.poll(() => messageHeight(page)).toBe(start);
+  });
+
+  test('the options popup opens clear of the gear', async ({ page }) => {
+    await openCommit(page);
+    const gear = page.getByRole('button', { name: 'Commit options' });
+    await gear.click();
+    const popup = page.getByTestId('commit-options-popup');
+    await expect(popup).toBeVisible();
+    const g = (await gear.boundingBox())!;
+    const p = (await popup.boundingBox())!;
+    const above = p.y + p.height <= g.y + 1;
+    const below = p.y >= g.y + g.height - 1;
+    expect(above || below).toBe(true);
+    expect(p.y).toBeGreaterThanOrEqual(0);
+    expect(p.y + p.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   });
 });

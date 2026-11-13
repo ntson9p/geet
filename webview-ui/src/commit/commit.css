@@ -7,11 +7,49 @@
   flex-direction: column;
   height: 100vh;
   min-height: 0;
+  /* POST-P14ca: the window never scrolls as a whole. A short view takes room
+     from the list and the message box (commitLayout.ts), never from the
+     Commit button, and nothing is left to scroll. */
+  overflow: hidden;
 }
 
 .gt-commit-panel {
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+}
+
+/* POST-P14ca: the Commit tab's toolbar shares the tabs' row. The tabs keep
+   their width while they can; the toolbar takes the rest and folds what does
+   not fit into `⋯` (OverflowToolbar). */
+.gt-commit > .gt-tabs-strip > .gt-tabs {
+  flex: 0 1 auto;
+}
+
+.gt-commit > .gt-tabs-strip > .gt-tabs-actions {
+  flex: 1 1 0;
+  min-width: 28px;
+  justify-content: flex-end;
+}
+
+.gt-overflow-toolbar {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Sizes OverflowToolbar's OVERFLOW_* constants count with. */
+.gt-overflow-toolbar > .gt-toolbar {
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.gt-overflow-toolbar .gt-toolbar-button {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  justify-content: center;
 }
 
 /* The borders a drag resizes are drawn (POST-P14bu), in `gittree.sectionBorder`:
@@ -56,16 +94,35 @@
   border-top-color: transparent;
 }
 
-/* The toolbar keeps its height: with overflow hidden it could shrink to half
-   a row when something above it (the failure banner) took space (POST-QA). */
-.gt-commit-panel > .gt-toolbar-strip {
-  flex: 0 0 auto;
+/* POST-P14ca: the divider above the message area, drawn as the one over the
+   diff preview is: a line along its middle until it lights. */
+.gt-commit-message-sash {
+  flex: 0 0 5px;
+  cursor: row-resize;
 }
 
-/* The tree owns the slack so the message editor never scrolls off. */
+.gt-commit-message-sash::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 2px;
+  height: 0;
+  border-top: 1px solid var(--vscode-gittree-sectionBorder, var(--vscode-panel-border, transparent));
+  pointer-events: none;
+}
+
+.gt-commit-message-sash:hover::after,
+.gt-commit-message-sash:focus-visible::after {
+  border-top-color: transparent;
+}
+
+/* The tree owns the slack, down to nothing when the view is that short: the
+   message box gives up its height before the list goes under a few rows
+   (commitLayout.ts), and the Commit button never does. */
 .gt-commit-body {
   flex: 1 1 auto;
-  min-height: 60px;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -126,19 +183,25 @@
   background: var(--vscode-toolbar-hoverBackground);
 }
 
+/* POST-P14ca: the divider above draws the line that was this block's border. */
 .gt-commit-bottom {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 8px 8px;
-  border-top: 1px solid var(--vscode-panel-border, transparent);
+  padding: 2px 8px 8px;
 }
 
 .gt-commit-amend-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gt-commit-amend-row > .gt-checkbox {
+  margin-right: 2px;
+  white-space: nowrap;
 }
 
 .gt-muted {
@@ -154,8 +217,14 @@
 }
 
 /* Multi-line by default — the single-line SCM input box is exactly what the
-   commit window exists to replace. P11-T4: the editor autogrows from 6 rows
-   (style.height set from scrollHeight), so the manual resize handle is gone. */
+   commit window exists to replace. POST-P14ca: 3 lines at first; the divider
+   above the Amend row sets its height from then on, and a longer message
+   scrolls inside. A set line height, so a line is a known number of pixels. */
+.gt-commit-message-slot {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 .gt-commit-message-wrap {
   position: relative;
 }
@@ -166,8 +235,7 @@
   box-sizing: border-box;
   resize: none;
   overflow-y: auto;
-  min-height: 5.5em;
-  max-height: 320px;
+  line-height: 1.4;
   font-family: var(--vscode-font-family);
 }
 
@@ -184,34 +252,62 @@
   pointer-events: none;
 }
 
-.gt-commit-actions {
+/* POST-P14ca: one full-width Commit button, its ▾ joined to it, as VS Code's
+   Source Control view draws its own. The label keeps one line (POST-QA) and
+   only gives way, with an ellipsis, when the whole row is too narrow for it;
+   the tooltip names every repository. */
+.gt-commit-split-button {
   display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.gt-commit-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-/* POST-QA: a label keeps one line. `Commit to 3 repositories` wrapped inside
-   its button at the sidebar's default width; now, short of room, the row
-   wraps instead — `Commit and Push…` moves below, both labels whole. Only a
-   button wider than the whole row gives way, with an ellipsis (the tooltip
-   names every repository). */
-.gt-commit-actions {
-  flex-wrap: wrap;
-  row-gap: 6px;
-}
-
-.gt-commit-actions > .gt-button {
-  flex: 0 0 auto;
-  max-width: 100%;
+.gt-commit-main-label {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.gt-commit-more {
+  flex: 0 0 auto;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 5px;
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.gt-commit-more::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  border-left: 1px solid var(--vscode-button-separator, rgba(255, 255, 255, 0.4));
+}
+
 /* P11-T5: the gear popup. No anchored floating windows exist in VS Code, so
-   it renders inside the webview, pinned above the actions row. */
+   it renders inside the webview; POST-P14ca opens it clear of the gear, with
+   this place only as the fallback. */
 .gt-options-popup {
   position: fixed;
+  /* The height it is given includes its padding and border, or a popup sized
+     to the room above the gear ran past the top of the window (POST-P14ca). */
+  box-sizing: border-box;
   right: 8px;
   bottom: 48px;
   width: min(340px, calc(100vw - 16px));

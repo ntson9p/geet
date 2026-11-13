@@ -6,6 +6,22 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — a compact Commit tab you can resize
+
+- **Twice the list in the same space.** At the side bar's first size, the list of changes
+  shows about 10 rows instead of 5:
+  - the toolbar shares the tabs' row; what does not fit there is in `⋯`;
+  - the message box starts at 3 lines instead of 6;
+  - one full-width **Commit** button replaces the two that wrapped onto two rows. Its ▾ holds
+    *Commit and Push…*. The gear moved up to the Amend row.
+- **A divider above the Amend row sizes the message box.** Drag it; double-click it (or press
+  `Enter` on it) for the first 3 lines; `↑`/`↓` move it a line. The box keeps the height you
+  give it, also after a reload. It no longer grows as you type: a longer message scrolls inside.
+- **A short Commit view no longer cuts off the Commit button.** Below about 360 px the view
+  used to scroll as a whole and lose its buttons. Now it takes room from the list, down to 3
+  rows, then from the message box, down to one line, then from the list again. The Commit
+  button always stays on screen.
+
 ### Fixed — no more doubled badges (`U, U`, `M, M`) in VS Code's own views
 
 - **GitTree's file badges are now off by default** (`gittree.decorations.fileExplorer`). VS

@@ -21,10 +21,15 @@
  *   break, holds it back while an IME is composing or the key is held, and
  *   says when it gains or loses the keyboard, which that keybinding's `when` reads.
  *
- * The subject-length hint and autogrow are direct DOM updates for the same
- * reason: a per-keystroke React state change would re-render this subtree.
+ * The subject-length hint is a direct DOM update for the same reason: a
+ * per-keystroke React state change would re-render this subtree.
+ *
+ * POST-P14ca: the box no longer grows as you type. The window gives it a height
+ * (the divider above the Amend row sets it), and a longer message scrolls
+ * inside; until then it shows `MESSAGE_LINES` lines.
  */
 import { forwardRef, memo, useEffect, useImperativeHandle, useRef } from 'react';
+import { MESSAGE_LINES } from './commitLayout';
 import { isCommitChord, onMac } from './commitKey';
 
 export interface MessageEditorHandle {
@@ -43,6 +48,18 @@ export interface MessageEditorHandle {
   composing(): boolean;
   value(): string;
   focus(): void;
+  /** POST-P14ca: the box's sizes as drawn, for the divider; undefined before it is. */
+  metrics(): MessageMetrics | undefined;
+}
+
+/** POST-P14ca: what the divider needs to know about the box, all in px. */
+export interface MessageMetrics {
+  /** One line of text. */
+  readonly line: number;
+  /** The least the box is drawn at: one line, its padding and border. */
+  readonly min: number;
+  /** Its first height: `MESSAGE_LINES` lines, its padding and border. */
+  readonly natural: number;
 }
 
 export interface MessageEditorProps {
@@ -55,17 +72,32 @@ export interface MessageEditorProps {
   onPersist: (value: string) => void;
   /** POST-P14bs: the box gained or lost the keyboard, which the commit key is bound to. */
   onFocusChange?: (focused: boolean) => void;
+  /** POST-P14ca: the box's height in px, as the divider left it; its `MESSAGE_LINES` lines until then. */
+  height?: number;
 }
 
 const PERSIST_DEBOUNCE_MS = 250;
 /** POST-P14bs: the commit key is ⌘Enter there, Ctrl+Enter elsewhere, as the keybinding's `mac` and `key`. */
 const ON_MAC = onMac(navigator.userAgent);
 const SUBJECT_SOFT_LIMIT = 72;
-const MAX_HEIGHT_PX = 320;
+
+/** The box's line height and the room its padding and border take, as drawn. */
+export function measureMessageBox(el: HTMLTextAreaElement): MessageMetrics | undefined {
+  const s = getComputedStyle(el);
+  const px = (v: string): number => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  // `normal` has no number; the CSS sets one, so this is only a fallback.
+  const line = px(s.lineHeight) || px(s.fontSize) * 1.4;
+  if (line <= 0) return undefined;
+  const chrome = px(s.paddingTop) + px(s.paddingBottom) + px(s.borderTopWidth) + px(s.borderBottomWidth);
+  return { line, min: Math.ceil(line + chrome), natural: Math.ceil(MESSAGE_LINES * line + chrome) };
+}
 
 export const MessageEditor = memo(
   forwardRef<MessageEditorHandle, MessageEditorProps>(function MessageEditor(
-    { initial, disabled, onInput, onPersist, onFocusChange },
+    { initial, disabled, onInput, onPersist, onFocusChange, height },
     ref,
   ) {
     const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -80,11 +112,6 @@ export const MessageEditor = memo(
     useEffect(() => {
       const el = taRef.current;
       if (!el) return undefined;
-
-      const autosize = (): void => {
-        el.style.height = 'auto';
-        el.style.height = `${Math.min(el.scrollHeight + 2, MAX_HEIGHT_PX)}px`;
-      };
 
       const updateCounter = (): void => {
         const c = counterRef.current;
@@ -108,7 +135,6 @@ export const MessageEditor = memo(
 
       const changed = (): void => {
         if (composing.current) return;
-        autosize();
         updateCounter();
         cb.current.onInput(el.value);
         dirty.current = true;
@@ -165,7 +191,6 @@ export const MessageEditor = memo(
       el.addEventListener('focus', focused);
       el.addEventListener('blur', blurred);
       el.addEventListener('keydown', onKeyDown);
-      autosize();
       updateCounter();
       return () => {
         el.removeEventListener('input', changed);
@@ -245,6 +270,10 @@ export const MessageEditor = memo(
       focus(): void {
         taRef.current?.focus();
       },
+      metrics(): MessageMetrics | undefined {
+        const el = taRef.current;
+        return el ? measureMessageBox(el) : undefined;
+      },
     }));
 
     return (
@@ -254,10 +283,12 @@ export const MessageEditor = memo(
           className="gt-input gt-commit-message"
           aria-label="Commit message"
           data-testid="commit-message"
-          rows={6}
+          rows={MESSAGE_LINES}
           defaultValue={initial}
           disabled={disabled}
           placeholder="Commit message"
+          // React writes the style, never the value: the box stays uncontrolled.
+          style={height !== undefined ? { height: `${height}px` } : undefined}
         />
         <span
           ref={counterRef}

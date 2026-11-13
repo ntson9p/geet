@@ -95,6 +95,17 @@ bound to one asks which repository, the open file's first.
 The log and rebase webviews implement roving-tabindex lists (one `Tab` stop;
 arrows move within):
 
+**Commit window (`gittree.commit` view)**
+
+| Key | Action |
+| --- | --- |
+| `←` / `→` / `Home` / `End` (tab strip) | move between Commit, Shelf and Stash |
+| `Tab` | tab strip → toolbar (one stop; `←`/`→` move along it to `⋯`, which holds the actions that do not fit on the row) → change tree → the divider → the Amend row → message box → Commit and its ▾ |
+| `↑` / `↓` (the divider above the Amend row) | make the message box a line taller / shorter (POST-P14ca) |
+| `Home` / `End` (divider) | as tall as three rows of the list allow / one line |
+| `Enter` / `Space` (divider) | back to the box's first 3 lines, as a double-click does |
+| `Enter` (the ▾ beside Commit) | its menu: Commit, Commit and Push… |
+
 **Git log (`gittree.log` view)**
 
 | Key | Action |

@@ -281,7 +281,7 @@ suite('Multi-root commit', () => {
     p13.clearLastPushDialogRequest();
     reg.commitWindow.messageBoxFor(repoD).value = 'multi-root: commit and push';
 
-    // No repo argument: the commit window's `Commit and Push…` button.
+    // No repo argument: the commit window's `Commit and Push…` (in the ▾ beside Commit).
     await withPushDialogCancelled(() =>
       commitWith(() => vscode.commands.executeCommand('gittree.commitAndPush')),
     );

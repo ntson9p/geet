@@ -57,6 +57,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `gittree.log.dateFormat` |
 | [D41](#d41--the-commit-windows-rows-open-the-file-manager) | The Commit window's file and folder rows open the system's file manager, under VS Code's names and key | Deliberate (owner's request) |
 | [D42](#d42--ctrlenter-commits-from-the-message-box-only) | Ctrl+Enter commits from the Commit window's message box only, as VS Code's Source Control box takes it; IntelliJ takes it anywhere in its Commit window | Deliberate (owner's request) |
+| [D43](#d43--the-commit-window-is-compact) | The Commit window's toolbar shares the tabs' row and folds into `⋯`; one full-width Commit button holds Commit and Push… in its ▾ | Deliberate (owner's request) |
 
 ---
 
@@ -1156,3 +1157,27 @@ Why: the owner's choice, asked when the key was fixed (POST-P14bs).
 
 **Revisitable:** yes. The keybinding's `when` (`gittree.commitMessageFocus`) would also take
 `gittree.commitTreeFocus`, and the webview's `answersCommitAsk` would answer from the tree.
+
+## D43 · The Commit window is compact
+
+**IntelliJ:** the Commit tool window has a row of tabs (Commit, Shelf, Stash), a toolbar row
+under it, the change tree, and the commit area: Amend with the message buttons, the message
+editor, then **Commit** and **Commit and Push…** side by side. A splitter shares the height
+between the tree and the commit area.
+**GitTree:**
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| The toolbar has its own row | It shares the tabs' row; what does not fit there is in `⋯` at its end | The owner's request: in a side bar, every row of chrome is a row of changes fewer |
+| Commit and Commit and Push… side by side | One full-width **Commit** button; its ▾ holds Commit and Push… | Side by side they wrapped onto two rows at a side bar's width; one button keeps a long label whole (`Commit to 2 repositories`), as VS Code's Source Control view's does |
+| The options gear beside the buttons | On the Amend row | The buttons' row has room for one button only |
+
+As in IntelliJ, a divider shares the height between the tree and the commit area. GitTree's moves
+the message box's height, remembers it, and when the view is short takes height back in a fixed
+order: from the tree down to three rows, from the box down to one line, from the tree again. The
+Commit button is never cut off.
+
+Why: the owner asked for a much more compact Commit window that can be resized (POST-P14ca).
+
+**Revisitable:** yes. The toolbar row and the second button are a few lines in
+`webview-ui/src/commit/App.tsx` each.
