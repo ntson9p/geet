@@ -89,7 +89,7 @@
           },
           "gittree.decorations.fileExplorer": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%gittree.config.decorations.fileExplorer.description%"
           },
           "gittree.terminalAuth": {

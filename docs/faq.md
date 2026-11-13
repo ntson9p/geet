@@ -15,9 +15,10 @@ Earlier versions asked once per workspace and, if you chose "takeover", wrote
 carries that setting, GitTree removes it on first launch and tells you it did.
 See [migration-from-builtin.md](migration-from-builtin.md).
 
-The one place both extensions can still draw on the same thing is Explorer file
-badges. If you run both and would rather see only one set, turn off
-`gittree.decorations.fileExplorer` (or disable the other extension).
+GitTree's own file badges (`gittree.decorations.fileExplorer`) are off by default.
+VS Code shows an extension's file badges in all of its views, its own Source
+Control view included, so with both extensions running they showed every badge
+twice (`U, U`). Turn the setting on if you disable the built-in Git extension.
 
 ### GPG signing on Windows doesn't prompt / hangs — what now?
 

@@ -1766,3 +1766,22 @@ Testing (written, **not run**, by the owner's standing instruction):
   - Push… with a list lists every repository with those two ticked, and with nothing open opens nothing.
 
 Gates: typecheck (both tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14bz ✅ 2026-11-13 (branch `new-way-6`): **No more doubled badges (`U, U`) in VS Code's own views.** The owner, with a screenshot of VS Code's Source Control view: changed files read `U, U` and `A, A`. Fix it, find every similar case of GitTree reaching into VS Code's own Git, and make the two independent; ask about anything that cannot or should not be done.
+
+**Cause.** GitTree's file decorations (P1-T6), on by default since P14-T6 made them a plain setting (D22). A decoration is VS Code's, not a view's: no API keeps an extension's out of VS Code's own Source Control view, its Explorer, tabs or breadcrumbs, and VS Code joins two providers' badges for one file. With the built-in Git extension running, every changed file read `U, U`, `M, M`, `A, A`. Seen in a real VS Code 1.144 (`scratchpad/drive/native.cjs`, four repositories with an added, a modified and an untracked file): Source Control `A, A` and `M, M`, the Explorer `A, A`, `M, M`, `U, U`, the editor tab `README.md M, M`. Without GitTree loaded, the tab read `M`.
+
+**Fix.** `gittree.decorations.fileExplorer` defaults to off (`EXPLORER_DECORATIONS_DEFAULT`, `fileDecorationsDefault.ts`, pure, held to package.json's). Not "on unless the built-in extension is running": D22 rejected GitTree changing its behaviour by another extension's state, and off by default needs no such rule. GitTree adds nothing to VS Code's views. Someone who disables the built-in extension turns it on, as the description says. Afterwards, the same real window showed `A` and `M` in Source Control, `A`, `M`, `U` in the Explorer, and `README.md M` on the tab.
+
+**The rest of the investigation** (each reported to the owner; nothing else changed yet):
+- **Change bars, decision asked.** GitTree paints its own (always on, a 3px border at the text's edge). VS Code's Git paints its own in the gutter by default (`scm.diffDecorations: all`). Every changed line gets two bars, and they can disagree: in the real window VS Code's read *modified* (blue) and GitTree's *added* (green) on the same lines.
+- **GitTree's own views, decision asked.** Conflicts, Stashes, Local History and Worktrees give their rows `file:` URIs, so VS Code's Git badges them too. In Stashes and Local History the badge is the file's state now, not the stash's or the history entry's.
+- **Terminal authentication** (`gittree.terminalAuth`, off by default): when turned on it replaces the built-in extension's askpass in new terminals, as it exists to. Reported, unchanged.
+- **One write to a `git.*` setting**: the P14 migration removing the `git.enabled: false` that older GitTree versions wrote under "takeover". It removes only its own value. Unchanged.
+- **Nothing else:** no Source Control provider, nothing in VS Code's Source Control menus or its view container, no `git.*` setting read (the status bar's `auto` reads `git.enabled` only to shape GitTree's own item), no language or editor claim on Git's files (`COMMIT_EDITMSG`, `git-rebase-todo`), and keybindings that collide with none of VS Code's Git keys.
+
+Docs: D22 (the default, and why), faq.md, migration-from-builtin.md, settings.md regenerated, CHANGELOG (Fixed).
+
+Testing (written, **not run**, by the owner's standing instruction): **unit** (`fileDecorationsDefault.test.ts`): off by default, in the code as in package.json; the description says where the badges show, why they start off and when to turn them on.
+
+Gates: typecheck (both tsconfigs) + lint clean; extension built.

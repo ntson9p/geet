@@ -1,13 +1,15 @@
 /**
  * Explorer file decorations (P1-T6): IntelliJ-style colored filenames +
- * letter badges, propagated to parent folders. Registered only in takeover
- * mode — the built-in git extension owns explorer decorations in companion
- * mode (§3).
+ * letter badges, propagated to parent folders. Registered only while
+ * `gittree.decorations.fileExplorer` is on, which it is not by default
+ * (POST-P14bz): the built-in Git extension draws its own, and VS Code shows
+ * both everywhere, its own Source Control view included.
  */
 import * as vscode from 'vscode';
 import type { Core } from '../core/core';
 import { shortCode, type StatusEntry } from '../core/model/statusEntry';
 import { repoRelative } from '../core/util/paths';
+import { EXPLORER_DECORATIONS_DEFAULT } from './fileDecorationsDefault';
 
 function decorationFor(entry: StatusEntry): vscode.FileDecoration {
   let badge: string;
@@ -91,12 +93,18 @@ export class GitTreeFileDecorationProvider implements vscode.FileDecorationProvi
 }
 
 /**
- * P14-T6: registered unless `gittree.decorations.fileExplorer` turns it off.
- * The old gate was the takeover/companion mode — GitTree skipped explorer
+ * P14-T6: registered only while `gittree.decorations.fileExplorer` is on. The
+ * old gate was the takeover/companion mode — GitTree skipped explorer
  * decorations in companion mode so it would not double up with the built-in
  * git extension's. That is now a plain user setting: GitTree does not change
- * its own behaviour based on what another extension is doing, and someone
- * running both who dislikes the overlap can switch one of them off.
+ * its own behaviour based on what another extension is doing (D22).
+ *
+ * POST-P14bz: off by default. A decoration is VS Code's, not a view's: no API
+ * keeps it out of VS Code's own Source Control view, its Explorer or its tabs,
+ * and VS Code joins two providers' badges for one file (`U, U`). With the
+ * built-in Git extension running, as it does by default, GitTree's badges were
+ * a second copy of its own in every one of them. Off, GitTree adds nothing to
+ * VS Code's views; someone who disables the built-in extension turns it on.
  */
 export function wireFileDecorations(context: vscode.ExtensionContext, core: Core): void {
   let registration: vscode.Disposable | undefined;
@@ -105,7 +113,7 @@ export function wireFileDecorations(context: vscode.ExtensionContext, core: Core
   const apply = (): void => {
     const wantOn = vscode.workspace
       .getConfiguration('gittree')
-      .get<boolean>('decorations.fileExplorer', true);
+      .get<boolean>('decorations.fileExplorer', EXPLORER_DECORATIONS_DEFAULT);
     if (wantOn && !registration) {
       provider = new GitTreeFileDecorationProvider(core);
       registration = vscode.Disposable.from(

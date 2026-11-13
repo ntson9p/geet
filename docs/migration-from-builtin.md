@@ -21,9 +21,9 @@ launch it removes that override and shows a notification saying so. It only ever
 *removes* what it wrote — a `git.enabled` you set yourself, at any other scope,
 is left alone.
 
-The one overlap that remains is Explorer file badges, which both extensions can
-draw. If you run both and want only one set, turn off
-`gittree.decorations.fileExplorer`.
+GitTree's own file badges in the Explorer (`gittree.decorations.fileExplorer`)
+are off by default, so they never double up with the built-in extension's. If
+you disable the built-in extension, turn the setting on.
 
 ## 2. Feature equivalents
 

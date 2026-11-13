@@ -6,6 +6,15 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — no more doubled badges (`U, U`, `M, M`) in VS Code's own views
+
+- **GitTree's file badges are now off by default** (`gittree.decorations.fileExplorer`). VS
+  Code shows an extension's file badges in every view: its Explorer, editor tabs, breadcrumbs
+  and its own Source Control view. It joins two extensions' badges for the same file. With
+  the built-in Git extension running, as it does by default, every changed file there read
+  `U, U` or `M, M`.
+- If you disable the built-in Git extension and want GitTree's badges, turn the setting on.
+
 ### Changed — the Repositories panel's `⋯` menu commits and pushes what is in view too
 
 - **With some repositories picked, *Commit…* and *Push…* in the `⋯` menu act on those, and

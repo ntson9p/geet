@@ -36,7 +36,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D19](#d19--the-change-popup-is-keyboard-invoked-hover-is-opt-in) | The change popup opens from a key (hover is opt-in), not by clicking the bar | No (decorations expose no click handler) |
 | [D20](#d20--walking-a-list-of-changes-differs-from-intellij-in-small-ways) | Walking a list of changes differs from IntelliJ in small ways | Partly (image diffs); the rest are VS Code's limits |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
-| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension | Deliberate |
+| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations are a plain setting, not conditioned on the built-in extension, and off by default | Deliberate |
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 | [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
 | [D25](#d25--the-annotation-age-ramp-is-quantised-to-five-steps) | The blame age gradient has five steps instead of a continuous ramp | No (API) |
@@ -396,8 +396,16 @@ correct diffs of the same change; the block covers the same number of lines.
 
 **Before P14:** GitTree skipped explorer decorations in "companion" mode so as not to double up
 with the built-in Git extension's.
-**Now:** `gittree.decorations.fileExplorer` (default on). GitTree does not inspect what other
-extensions are doing.
+**Now:** `gittree.decorations.fileExplorer`, **off by default since POST-P14bz** (it was on).
+GitTree does not inspect what other extensions are doing.
+
+A decoration is VS Code's, not a view's: no API keeps it out of VS Code's own Source Control
+view, its Explorer or its tabs, and VS Code joins two providers' badges for one file. With the
+built-in Git extension running, as it does by default, GitTree's on-by-default badges were a
+second copy of its own in every one of them (`U, U`, `M, M`). The owner asked for the two to be
+independent. Off by default keeps both rules: GitTree adds nothing to VS Code's views, and
+still does not change what it does by what another extension is doing. Someone who disables
+the built-in extension turns it on.
 
 **Why:** the plan for P14-T6 proposed detecting `vscode.git` and defaulting the setting off once.
 That was rejected during implementation: it writes a setting on the user's behalf unprompted,

@@ -38,9 +38,9 @@ Folder names the repository search never descends into. Matched against the fold
 
 ### `gittree.decorations.fileExplorer`
 
-Show GitTree's status colours and letter badges on files in the Explorer. Turn this off if you also run the built-in Git extension and would rather see only its decorations.
+Show GitTree's status colours and letter badges on files wherever VS Code shows a file's decorations: the Explorer, editor tabs, breadcrumbs and VS Code's own Source Control view. Off by default: VS Code's built-in Git extension draws the same, and with both, every badge shows twice (U, U). Turn it on if you disable the built-in Git extension.
 
-- Type: `boolean` · Default: `true`
+- Type: `boolean` · Default: `false`
 
 ### `gittree.terminalAuth`
 
