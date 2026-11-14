@@ -38,6 +38,8 @@ import {
   type CommitGroupDto,
   type CommitRepoDto,
   type CommitRunParamsDto,
+  type CommitSetAllCheckedParamsDto,
+  type CommitSetCheckedManyParamsDto,
   type CommitSetCheckedParamsDto,
   type CommitSetGroupByParamsDto,
   type CommitSetIncludedParamsDto,
@@ -59,7 +61,7 @@ import { stageFiles, unstageFiles } from '../staging/stageFiles';
 import { setMessageFocus } from './commitKey';
 import { failureText } from './failureText';
 import { computeFileDiff, computeStagingDiff } from './fileDiff';
-import { stagingGroups } from './stagingGroups';
+import { stageAllPaths, stagingGroups } from './stagingGroups';
 import {
   readCommitGroupBy,
   readCommitGroupByDirectory,
@@ -144,6 +146,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   private view: vscode.WebviewView | undefined;
   private rpc: WebviewRpcHost | undefined;
   private busy = 0;
+  /** POST-P14cf: inside `batch`: the state is pushed once, when it ends. */
+  private pushHold = 0;
   private lastError: string | undefined;
   private shelfBridge: ShelfBridge | undefined;
   /** POST-P14l: the Stash tab data source, attached by the same layer. */
@@ -681,6 +685,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
   push(): void {
     if (!this.view) return;
+    // POST-P14cf: inside `batch`, which pushes once at its end.
+    if (this.pushHold > 0) return;
     const state = this.buildState();
     // P14-T4: the pending-change count used to be `SourceControl.count`. With
     // no SourceControl left, the view carries its own badge. POST-P14ce: every
@@ -705,6 +711,89 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
   private repoFor(root: string): RepoHandle | undefined {
     return this.deps.core.repos.find((r) => canonicalKey(r.root) === canonicalKey(root));
+  }
+
+  /**
+   * POST-P14cf: runs `change` with the state pushed once, at its end, however
+   * many repositories' ticks it changes. Each changelist service reports its
+   * own change, and a gesture across twenty repositories was forty pushes.
+   */
+  private batch(change: () => void): void {
+    this.pushHold++;
+    try {
+      change();
+    } finally {
+      this.pushHold--;
+      if (this.pushHold === 0) this.push();
+    }
+  }
+
+  /** One repository's ticks, as a row's box sets them. Unticking a file drops its picked changes. */
+  private applyChecked(p: CommitSetCheckedParamsDto): void {
+    const repo = this.repoFor(p.repoRoot);
+    if (!repo) return;
+    this.deps.changelistsFor(repo).setChecked(p.paths, p.checked);
+    if (!p.checked) {
+      // Unticking a file discards its per-change selection, so ticking it
+      // again means the whole file — never a set the user forgot they made.
+      const key = canonicalKey(repo.root);
+      for (const relPath of p.paths) this.deps.inclusion.clear(key, relPath);
+    }
+  }
+
+  /**
+   * POST-P14cf: the repositories a list-wide action reaches: `roots`, the ones
+   * the list showed, else those the Repositories panel's pick leaves in view
+   * (the Command Palette).
+   */
+  private listedRepos(roots: readonly string[] | undefined): RepoHandle[] {
+    if (roots !== undefined) return roots.flatMap((root) => this.repoFor(root) ?? []);
+    const view = this.deps.reposInView.snapshot();
+    return this.reposInOrder().filter((repo) => view.has(repo.root));
+  }
+
+  /**
+   * POST-P14cf: the tick-all box and the list menu's Tick All / Untick All
+   * Changes: every change of these repositories, in every changelist and the
+   * unversioned files, ticked or unticked, with one push. Unticking drops the
+   * picked changes, as unticking a file does. Nothing with staging, where a
+   * change goes in by being staged.
+   */
+  setAllTicked(roots: readonly string[] | undefined, checked: boolean): void {
+    if (this.deps.paradigm.paradigm !== 'changelists') return;
+    const repos = this.listedRepos(roots);
+    this.batch(() => {
+      for (const repo of repos) {
+        const service = this.deps.changelistsFor(repo);
+        for (const list of service.getLists()) service.setListChecked(list.id, checked);
+        service.setListChecked(UNVERSIONED_ID, checked);
+        if (!checked) this.deps.inclusion.clearRepo(canonicalKey(repo.root));
+      }
+    });
+  }
+
+  /**
+   * POST-P14cf: the list menu's Stage All / Unstage All Changes with the
+   * staging area: what these repositories have to stage (changes and new
+   * files), or to unstage. Conflicts are left to be resolved: staging one
+   * would mark it resolved unseen.
+   */
+  async stageAll(roots: readonly string[] | undefined, how: 'stage' | 'unstage'): Promise<void> {
+    if (this.deps.paradigm.paradigm !== 'staging') return;
+    for (const repo of this.listedRepos(roots)) {
+      const paths = stageAllPaths(repo.model.snapshot.statusEntries, how);
+      if (paths.length > 0) await this.stagePaths(repo, paths, how);
+    }
+  }
+
+  /** POST-P14cf: the list menu's Expand All, which only the webview can do. */
+  expandAll(): void {
+    this.rpc?.notify(COMMIT_METHODS.evtExpandAll, {});
+  }
+
+  /** POST-P14cf: the list menu's Collapse All. */
+  collapseAll(): void {
+    this.rpc?.notify(COMMIT_METHODS.evtCollapseAll, {});
   }
 
   /**
@@ -791,16 +880,27 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
     rpc.on(COMMIT_METHODS.setChecked, (raw) => {
       const p = raw as CommitSetCheckedParamsDto;
-      const repo = this.repoFor(p.repoRoot);
-      if (!repo) return;
-      this.deps.changelistsFor(repo).setChecked(p.paths, p.checked);
-      if (!p.checked) {
-        // Unticking a file discards its per-change selection, so ticking it
-        // again means the whole file — never a set the user forgot they made.
-        const key = canonicalKey(repo.root);
-        for (const relPath of p.paths) this.deps.inclusion.clear(key, relPath);
-      }
-      this.push();
+      if (!this.repoFor(p.repoRoot)) return;
+      this.batch(() => this.applyChecked(p));
+    });
+    // POST-P14cf: one gesture across repositories, one push.
+    rpc.on(COMMIT_METHODS.setCheckedMany, (raw) => {
+      const parts = (raw as Partial<CommitSetCheckedManyParamsDto> | undefined)?.parts;
+      if (!Array.isArray(parts)) return;
+      this.batch(() => {
+        for (const part of parts) {
+          if (typeof part?.repoRoot === 'string' && Array.isArray(part.paths) && typeof part.checked === 'boolean') {
+            this.applyChecked(part);
+          }
+        }
+      });
+    });
+    // POST-P14cf: the tick-all box on the counter.
+    rpc.on(COMMIT_METHODS.setAllChecked, (raw) => {
+      const p = (raw ?? {}) as Partial<CommitSetAllCheckedParamsDto>;
+      if (typeof p.checked !== 'boolean') return;
+      const roots = Array.isArray(p.roots) ? p.roots.filter((r): r is string => typeof r === 'string') : undefined;
+      this.setAllTicked(roots, p.checked);
     });
 
     rpc.on(COMMIT_METHODS.fileDiff, async (raw) => {

@@ -585,6 +585,18 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   with Conflicts*.
 * **Tri-state checkboxes on group, folder and file rows** — ticking a folder resolves to its
   leaf set; a partially ticked folder renders the mixed state `TreeItemCheckboxState` cannot.
+* **Tick every change at once** (POST-P14cf,
+  [D46](docs/deviations.md#d46--the-commit-windows-counter-ticks-every-change-and-its-blank-space-has-a-menu)):
+  the `7 of 120 files` counter has a box in front of it, empty, mixed or ticked as the rows' boxes
+  are. A click ticks every change the list shows, new files included, or, all ticked, unticks
+  them all; narrowed to some repositories, only those. IntelliJ's keys too: Ctrl+A selects every
+  row, and Space on a row of a selection of several ticks them all, or unticks them all when every
+  one is ticked. With the staging area there is no box.
+* **The list's blank space has its own menu** (under the rows, on "No changes.", on the filter
+  bar): New Changelist… while changelist rows are shown, Tick All / Untick All Changes (Stage All /
+  Unstage All Changes with staging), Expand All / Collapse All, Show All Repositories while
+  narrowed, Refresh. The window's chrome (tabs, toolbar, Amend row) has no menu; the message box
+  and the commit options' text fields keep Cut, Copy and Paste.
 * **Unversioned files are tickable** and start unticked; a ticked untracked file joins a
   whole-repo commit but never a "commit this changelist".
 * **Per-change inclusion:** selecting one file with Preview Diff on shows its changes with an

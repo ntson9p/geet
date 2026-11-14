@@ -400,6 +400,21 @@ export const COMMIT_METHODS = {
    * the persist debounce) and knows whether that button is enabled. No params.
    */
   evtCommitKey: 'commit/commitKey',
+  /**
+   * POST-P14cf: the tick-all box on the counter: every change of these
+   * repositories ticked, or unticked (`CommitSetAllCheckedParamsDto`).
+   */
+  setAllChecked: 'commit/setAllChecked',
+  /**
+   * POST-P14cf: one gesture's ticks in several repositories, applied together
+   * with one state push (`CommitSetCheckedManyParamsDto`): a row standing for
+   * several repositories, Space on a selection of several.
+   */
+  setCheckedMany: 'commit/setCheckedMany',
+  /** host → webview, POST-P14cf: the list menu's Expand All. No params. */
+  evtExpandAll: 'commit/expandAll',
+  /** host → webview, POST-P14cf: the list menu's Collapse All. No params. */
+  evtCollapseAll: 'commit/collapseAll',
   /** POST-P14ce: the filter bar's Show all: every repository in view again, in both panels. No params. */
   showAllRepositories: 'commit/showAllRepositories',
   /** POST-P14ce: a name on the filter bar: the Repositories panel, its row under the keyboard (`{ root }`). */
@@ -453,6 +468,21 @@ export interface CommitSetCheckedParamsDto {
   repoRoot: string;
   paths: string[];
   checked: boolean;
+}
+
+/** POST-P14cf: one gesture's ticks across repositories, one part per repository. */
+export interface CommitSetCheckedManyParamsDto {
+  parts: CommitSetCheckedParamsDto[];
+}
+
+/**
+ * POST-P14cf: the tick-all box. `roots`: the repositories the list shows, every
+ * change of which is ticked or unticked; absent, those the Repositories
+ * panel's pick leaves in view.
+ */
+export interface CommitSetAllCheckedParamsDto {
+  checked: boolean;
+  roots?: string[];
 }
 
 export interface CommitRunParamsDto {

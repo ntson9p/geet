@@ -29,6 +29,7 @@
  * inside; until then it shows `MESSAGE_LINES` lines.
  */
 import { forwardRef, memo, useEffect, useImperativeHandle, useRef } from 'react';
+import { TEXT_FIELD_MENU } from '../lib/menuContext';
 import { MESSAGE_LINES } from './commitLayout';
 import { isCommitChord, onMac } from './commitKey';
 
@@ -283,6 +284,8 @@ export const MessageEditor = memo(
           className="gt-input gt-commit-message"
           aria-label="Commit message"
           data-testid="commit-message"
+          // POST-P14cf: the one place in the Commit tab with text to cut, copy or paste.
+          data-vscode-context={TEXT_FIELD_MENU}
           rows={MESSAGE_LINES}
           defaultValue={initial}
           disabled={disabled}

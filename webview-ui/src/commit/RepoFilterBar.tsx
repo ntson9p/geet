@@ -25,9 +25,14 @@ export interface RepoFilterBarProps {
   readonly onShowAll: () => void;
   /** The Repositories panel, with the keyboard on this repository's row. */
   readonly onReveal: (root: string) => void;
+  /**
+   * POST-P14cf: the list's menu payload (`listContext`): a right-click on the
+   * bar opens the menu of the list it narrows.
+   */
+  readonly menuContext?: string;
 }
 
-export function RepoFilterBar({ filter, staging, colorOf, onShowAll, onReveal }: RepoFilterBarProps) {
+export function RepoFilterBar({ filter, staging, colorOf, onShowAll, onReveal, menuContext }: RepoFilterBarProps) {
   const text = filterBarText(filter, staging);
   const labels = filter.shown.map((repo) => repo.label);
   const [barRef, bar] = useElementSize<HTMLDivElement>();
@@ -66,6 +71,7 @@ export function RepoFilterBar({ filter, staging, colorOf, onShowAll, onReveal }:
       aria-label={text.label}
       title={text.title}
       data-testid="commit-filter"
+      data-vscode-context={menuContext}
       ref={barRef}
     >
       <span className="codicon codicon-filter gt-commit-filter-icon" aria-hidden="true" />

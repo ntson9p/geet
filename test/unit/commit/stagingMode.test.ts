@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { stageFiles, unstageFiles } from '../../../src/commit/staging/stageFiles';
 import { localDiffSides } from '../../../src/commit/window/localDiffSides';
-import { stagingGroups } from '../../../src/commit/window/stagingGroups';
+import { stageAllPaths, stagingGroups } from '../../../src/commit/window/stagingGroups';
 import { GitExecutorImpl } from '../../../src/core/git/executor';
 import type { StatusEntry } from '../../../src/core/model/statusEntry';
 import {
@@ -64,6 +64,37 @@ describe('stagingGroups', () => {
     expect(stagingSideOf(UNSTAGED_GROUP_ID)).toBe('unstaged');
     expect(stagingSideOf(UNVERSIONED_GROUP_ID)).toBe('unversioned');
     expect(stagingSideOf('default')).toBeUndefined();
+  });
+});
+
+/**
+ * POST-P14cf: the Commit list menu's Stage All / Unstage All Changes, with
+ * staging: the rows of the Unstaged and Unversioned Files nodes, or of Staged.
+ */
+describe('stageAllPaths', () => {
+  const status = [
+    entry('both.ts', 'M', 'M'),
+    entry('staged.ts', 'A', '.'),
+    entry('worktree.ts', '.', 'D'),
+    entry('new.txt', '?', '?', { kind: 'untracked' }),
+    entry('clash.ts', 'U', 'U', { kind: 'unmerged' }),
+    entry('build.log', '!', '!', { kind: 'ignored' }),
+  ];
+
+  it('stages what is not staged yet, new files included', () => {
+    expect(stageAllPaths(status, 'stage')).toEqual(['both.ts', 'worktree.ts', 'new.txt']);
+  });
+
+  it('unstages what is staged', () => {
+    expect(stageAllPaths(status, 'unstage')).toEqual(['both.ts', 'staged.ts']);
+  });
+
+  it('never a merge conflict, which staging would mark resolved, nor an ignored file', () => {
+    for (const how of ['stage', 'unstage'] as const) {
+      expect(stageAllPaths(status, how)).not.toContain('clash.ts');
+      expect(stageAllPaths(status, how)).not.toContain('build.log');
+    }
+    expect(stageAllPaths([], 'stage')).toEqual([]);
   });
 });
 

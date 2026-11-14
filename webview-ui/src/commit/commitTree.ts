@@ -59,6 +59,7 @@ import {
   countFiles,
   diffWalk,
   selectedFiles,
+  type CheckState,
   type ToggleDelta,
   type TreeNode,
 } from '../lib/treeModel';
@@ -1131,6 +1132,72 @@ export function fileRowContext(
     // shows; the selection's other rows play no part in it.
     ...(goneFromDisk(ref.change) ? { fileDeleted: true } : {}),
     ...sideContext(fileSide(ref)),
+  };
+}
+
+/** POST-P14cf: what the tick-all box says of the list: how many of its boxes are ticked. */
+export interface TickAllState {
+  /** The files with a box: every change listed but a merge conflict. */
+  readonly total: number;
+  readonly ticked: number;
+  /** The box's own: none, some or all of them ticked. */
+  readonly state: CheckState;
+}
+
+/**
+ * POST-P14cf: the tick-all box on the counter, from the list as drawn. None with
+ * the staging area, where no row has a box: a change goes in by being staged.
+ */
+export function tickAllState(model: CommitTreeModel): TickAllState | undefined {
+  if (model.staging) return undefined;
+  let total = 0;
+  let ticked = 0;
+  for (const path of model.files.keys()) {
+    if (model.checkboxless.has(path)) continue;
+    total++;
+    if (model.checked.has(path)) ticked++;
+  }
+  const state: CheckState = ticked === 0 ? 'unchecked' : ticked === total ? 'checked' : 'partial';
+  return { total, ticked, state };
+}
+
+/** Some row has rows under it to fold: what Expand All and Collapse All need. */
+function hasFoldingRows(nodes: readonly TreeNode[]): boolean {
+  return nodes.some((node) => node.kind === 'dir' && node.children.length > 0);
+}
+
+/**
+ * POST-P14cf: the native context payload of the list's blank space (under the
+ * rows, the "No changes." message, the filter bar): what its menu offers acts
+ * on the whole list. A row's own payload overrides `webviewSection`, so its
+ * menu is its own. `listRoots` are the repositories the list shows, which the
+ * menu's ticks and stages reach.
+ */
+export function listContext(
+  model: CommitTreeModel,
+  opts: { readonly narrowed: boolean; readonly roots: readonly string[] },
+): Record<string, unknown> {
+  const tick = tickAllState(model);
+  let canStage = false;
+  let canUnstage = false;
+  if (model.staging) {
+    for (const ref of model.files.values()) {
+      if (ref.side === 'staged') canUnstage = true;
+      else if (ref.side === 'unstaged' || ref.side === 'unversioned') canStage = true;
+    }
+  }
+  return {
+    preventDefaultContextMenuItems: true,
+    webviewSection: 'commitList',
+    // Changelist rows drawn: New Changelist… is offered, as the owner asked.
+    listShowsChangelists: !model.staging && model.groupBy !== 'none',
+    listHasUnticked: tick !== undefined && tick.ticked < tick.total,
+    listHasTicked: tick !== undefined && tick.ticked > 0,
+    listCanStage: canStage,
+    listCanUnstage: canUnstage,
+    listCanFold: hasFoldingRows(model.nodes),
+    listNarrowed: opts.narrowed,
+    listRoots: [...opts.roots],
   };
 }
 

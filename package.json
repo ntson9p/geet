@@ -862,6 +862,36 @@
         "icon": "$(remove)"
       },
       {
+        "command": "gittree.commit.tickAll",
+        "title": "%gittree.command.commit.tickAll.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.untickAll",
+        "title": "%gittree.command.commit.untickAll.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.stageAll",
+        "title": "%gittree.command.commit.stageAll.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.unstageAll",
+        "title": "%gittree.command.commit.unstageAll.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.expandAll",
+        "title": "%gittree.command.commit.expandAll.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.commit.collapseAll",
+        "title": "%gittree.command.commit.collapseAll.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.openDiffHead",
         "title": "%gittree.command.openDiffHead.title%",
         "category": "GitTree"
@@ -2596,6 +2626,30 @@
           "when": "false"
         },
         {
+          "command": "gittree.commit.tickAll",
+          "when": "gittree.paradigm == changelists"
+        },
+        {
+          "command": "gittree.commit.untickAll",
+          "when": "gittree.paradigm == changelists"
+        },
+        {
+          "command": "gittree.commit.stageAll",
+          "when": "gittree.paradigm == staging"
+        },
+        {
+          "command": "gittree.commit.unstageAll",
+          "when": "gittree.paradigm == staging"
+        },
+        {
+          "command": "gittree.commit.expandAll",
+          "when": "false"
+        },
+        {
+          "command": "gittree.commit.collapseAll",
+          "when": "false"
+        },
+        {
           "command": "gittree.conflicts.resolve",
           "when": "gittree.hasConflicts"
         },
@@ -3337,6 +3391,51 @@
           "command": "gittree.remotes.manage",
           "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
           "group": "8_manage@1"
+        },
+        {
+          "command": "gittree.changelist.new",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listShowsChangelists",
+          "group": "0_new@1"
+        },
+        {
+          "command": "gittree.commit.tickAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listHasUnticked",
+          "group": "1_tick@1"
+        },
+        {
+          "command": "gittree.commit.untickAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listHasTicked",
+          "group": "1_tick@2"
+        },
+        {
+          "command": "gittree.commit.stageAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listCanStage",
+          "group": "1_tick@3"
+        },
+        {
+          "command": "gittree.commit.unstageAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listCanUnstage",
+          "group": "1_tick@4"
+        },
+        {
+          "command": "gittree.commit.expandAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listCanFold",
+          "group": "2_fold@1"
+        },
+        {
+          "command": "gittree.commit.collapseAll",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listCanFold",
+          "group": "2_fold@2"
+        },
+        {
+          "command": "gittree.branches.showAllRepositories",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList' && listNarrowed",
+          "group": "3_view@1"
+        },
+        {
+          "command": "gittree.refresh",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitList'",
+          "group": "3_view@2"
         },
         {
           "command": "gittree.addToVcs",

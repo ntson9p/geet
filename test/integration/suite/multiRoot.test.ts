@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { ReposInView } from '../../../src/branches/reposInView';
+import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { rootColorIndices } from '../../../src/log/graphLayout/colors';
@@ -586,6 +587,83 @@ suite('Multi-root commit', () => {
       await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
       await waitFor(() => headOf(repoD) !== beforeD, 60_000);
       await waitFor(() => ourTargets().length === 0, 30_000);
+    });
+  });
+
+  /**
+   * POST-P14cf: the tick-all box on the Commit window's counter, and its list
+   * menu's Tick All / Untick All Changes: every change of the repositories the
+   * list shows, new files too, with one push.
+   */
+  suite('Tick All and Untick All Changes (POST-P14cf)', () => {
+    const NEW_FILE = 'tick-all-new.txt';
+    const inView = (): ReposInView => (core.debugRegistry.get('phase02') as { reposInView: ReposInView }).reposInView;
+
+    teardown(async () => {
+      inView().clear('elsewhere');
+      fs.rmSync(path.join(repoE.root, NEW_FILE), { force: true });
+      gitWithRetry(repoD.root, ['checkout', '--', 'README.md']);
+      await repoD.refresher.refreshNow();
+      await repoE.refresher.refreshNow();
+    });
+
+    test('they reach every change of the repositories listed, a new file too, and nothing else', async function () {
+      this.timeout(60_000);
+      await tick(repoD, '# repoD tick all\n');
+      fs.writeFileSync(path.join(repoE.root, NEW_FILE), 'new\n');
+      await repoE.refresher.refreshNow();
+      const d = reg.changelistsFor(repoD);
+      const e = reg.changelistsFor(repoE);
+      await waitFor(() => e.unversioned().includes(NEW_FILE), 20_000);
+      assert.strictEqual(e.isChecked(NEW_FILE), false, 'a new file starts unticked');
+
+      // The list menu names the repositories its list shows.
+      await vscode.commands.executeCommand('gittree.commit.untickAll', { listRoots: [repoD.root, repoE.root] });
+      assert.strictEqual(d.isChecked('README.md'), false);
+      await vscode.commands.executeCommand('gittree.commit.tickAll', { listRoots: [repoE.root] });
+      assert.strictEqual(e.isChecked(NEW_FILE), true, 'a new file is ticked with the rest');
+      assert.strictEqual(d.isChecked('README.md'), false, 'repoD was not listed, and is left as it was');
+      await vscode.commands.executeCommand('gittree.commit.tickAll', { listRoots: [repoD.root, repoE.root] });
+      assert.strictEqual(d.isChecked('README.md'), true);
+
+      // And untick all again: the new file too.
+      await vscode.commands.executeCommand('gittree.commit.untickAll', { listRoots: [repoD.root, repoE.root] });
+      assert.strictEqual(e.isChecked(NEW_FILE), false);
+      assert.strictEqual(d.isChecked('README.md'), false);
+    });
+
+    test('from the Command Palette, they reach the repositories the Repositories panel’s pick shows', async function () {
+      this.timeout(60_000);
+      await tick(repoD, '# repoD out of the pick\n');
+      fs.writeFileSync(path.join(repoE.root, NEW_FILE), 'new\n');
+      await repoE.refresher.refreshNow();
+      const d = reg.changelistsFor(repoD);
+      const e = reg.changelistsFor(repoE);
+      await waitFor(() => e.unversioned().includes(NEW_FILE), 20_000);
+      inView().set([repoE.root], 'elsewhere');
+      // No argument: the palette.
+      await vscode.commands.executeCommand('gittree.commit.tickAll');
+      assert.strictEqual(e.isChecked(NEW_FILE), true);
+      await vscode.commands.executeCommand('gittree.commit.untickAll');
+      assert.strictEqual(e.isChecked(NEW_FILE), false);
+      assert.strictEqual(d.isChecked('README.md'), true, 'repoD, out of the pick, keeps its tick');
+    });
+
+    test('unticking all drops the changes picked inside a file, as unticking the file does', async function () {
+      this.timeout(60_000);
+      await tick(repoD, '# repoD picked\nsecond line\n');
+      const key = canonicalKey(repoD.root);
+      // One of two changes picked: a selection, which "all of it" would not be.
+      const line = (n: number) => ({
+        originalStartLineNumber: n,
+        originalEndLineNumber: n,
+        modifiedStartLineNumber: n,
+        modifiedEndLineNumber: n,
+      });
+      reg.inclusion.set(key, 'README.md', [line(1), line(2)], [0]);
+      assert.ok(reg.inclusion.count(key) > 0, 'a pick to drop');
+      await vscode.commands.executeCommand('gittree.commit.untickAll', { listRoots: [repoD.root] });
+      assert.strictEqual(reg.inclusion.count(key), 0);
     });
   });
 

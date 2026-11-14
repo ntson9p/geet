@@ -224,9 +224,26 @@ export const mockCommitHostScript = `
     };
   }
 
+  // POST-P14cf: opt-in (window.__mockStaging), the staging area: demo-git's
+  // changes as its Staged, Unstaged and Unversioned Files nodes, nothing ticked.
+  function stagingOf(whole) {
+    const row = (path, code, kind, checked) => ({ path, code, kind, checked });
+    const half = (id, name, changes) => ({ id, name, isActive: false, isDefault: false, checkable: false, changes });
+    whole.repos[0].groups = [
+      half('__staged__', 'Staged', [row('src/main/java/api/CommentController.java', 'A.', 'added', true)]),
+      half('__unstaged__', 'Unstaged', [
+        row('src/main/java/api/ArticleDataController.java', '.M', 'modified', false),
+        row('src/main/java/util/Strings.java', '.M', 'modified', false),
+        row('docs/guide.md', '.M', 'modified', false),
+      ]),
+      half('__unversioned__', 'Unversioned Files', [row('2.txt', '??', 'untracked', false)]),
+    ];
+    return Object.assign(whole, { paradigm: 'staging', modifiedCount: 5, checkedCount: 1 });
+  }
+
   /** As the host narrows its state: only what is picked listed and counted, the rest summed for the bar. */
   function build() {
-    const whole = buildWhole();
+    const whole = window.__mockStaging === true ? stagingOf(buildWhole()) : buildWhole();
     if (window.__mockFilter === undefined) return whole;
     const repos = whole.repos.concat(window.__mockSecondRepo === true ? [] : [secondRepo()], [docsRepo()]);
     const picked = currentFilter();
@@ -312,6 +329,11 @@ export const mockCommitHostScript = `
     filterRoots = roots === null ? null : roots.slice();
     push();
   };
+  // POST-P14cf: what a native menu item's command tells the page, as the host
+  // does: commit/expandAll, commit/collapseAll.
+  window.__mockHostEvent = (method, params) => {
+    window.postMessage({ v: 1, id: 'e' + Math.random(), kind: 'evt', method: method, params: params || {} }, '*');
+  };
 
   // P11-T4: programmatic message writes travel on their own event; the webview
   // deliberately ignores state.message after init (see COMMIT_METHODS.evtMessage).
@@ -351,6 +373,27 @@ export const mockCommitHostScript = `
         if (wanted.has(c.path)) c.checked = p.checked;
       }
       if (!p.checked) for (const path of p.paths) included.delete(path);
+      setTimeout(push, 5);
+    },
+    // POST-P14cf: one gesture across repositories, applied together. Only
+    // demo-git's files change: the second repository is read-only here.
+    'commit/setCheckedMany': (p) => {
+      for (const part of p.parts) {
+        if (part.repoRoot !== REPO) continue;
+        const wanted = new Set(part.paths);
+        for (const c of changes.concat(unversioned)) {
+          if (wanted.has(c.path)) c.checked = part.checked;
+        }
+        if (!part.checked) for (const path of part.paths) included.delete(path);
+      }
+      setTimeout(push, 5);
+    },
+    // POST-P14cf: the tick-all box: every change of the repositories listed.
+    'commit/setAllChecked': (p) => {
+      if (!Array.isArray(p.roots) || p.roots.includes(REPO)) {
+        for (const c of changes.concat(unversioned)) c.checked = p.checked;
+        if (!p.checked) included.clear();
+      }
       setTimeout(push, 5);
     },
     'commit/setMessage': (p) => {

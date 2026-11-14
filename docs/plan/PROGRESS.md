@@ -1964,3 +1964,69 @@ Testing (written, **not run**, by the owner's standing instruction):
   - nothing ticked in the pick: the notice, no commit, and *Show All Repositories* widening.
 
 Gates: typecheck (all three tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14cf ✅ 2026-11-14 (branch `new-way-6`): **Tick every change at once, and a menu for the Commit list's blank space.** The owner asked for two things:
+- a way to tick and untick every change in the Commit panel. Their screenshot showed a dozen repository rows, each with its own box;
+- a useful menu on the list's blank space, where right-clicking showed VS Code's Cut, Copy and Paste. *New Changelist…* was to be on it with changelist rows shown, and the rest was left to me to suggest.
+
+I drew both at real size on a design page, ranked. Tick all: A (the counter becomes the box), B (a header row), C (a toolbar button), D (keys and a menu only). Menu: by situation, with what was left out and why. The owner chose A, the menu as proposed, and no menu on the window's chrome (D46).
+
+**The tick-all box.**
+- The counter on the Amend row is a `role="checkbox"` button with the rows' own `TriCheckbox` in front of `N of M files`, empty, mixed or ticked (`tickAllState`: every file with a box, so no merge conflict).
+- A click sends `commit/setAllChecked { checked, roots }`, the roots the list shows. The host's `setAllTicked` sets every changelist and the unversioned files of those repositories with `setListChecked`, unticking drops their picked changes (`inclusion.clearRepo`), and pushes once.
+- Its hover is *Tick all N files* or *Untick all N files*. With staging there is no box: `tickAllState` is undefined and the counter stays *N of M files staged*.
+
+**IntelliJ's keys** (`FileTree`'s new `selectionKeys`, on for the Commit tree only):
+- Ctrl+A (⌘A) selects every row. It is stopped from propagating as well as cancelled, since VS Code would otherwise forward it and select the page's text.
+- Space on a row of a selection of several toggles the files under the selected rows (`toggleSelection` in `treeModel.ts`, from IntelliJ's `ChangesTree.toggleChanges`): any unticked, all ticked; else all unticked. A selected folder stands for its files, folded or not, and rows without a box are left out.
+- Space on a row outside the selection ticks that row alone, as before.
+
+**One push per gesture.**
+- `batch` holds the window's pushes while a gesture changes several changelist services, then pushes once. A row's tick was two pushes, and one across twenty repositories was forty.
+- A tick spanning several repositories (a changelist row standing for several, Space on a selection) goes as one `commit/setCheckedMany`; one repository's stays `commit/setChecked`.
+
+**The list's blank space.**
+- The list pane, the filter bar and the "No changes." message carry `listContext` as `data-vscode-context`: section `commitList` and what is true of the list (`listShowsChangelists`, `listHasUnticked`, `listHasTicked`, `listCanStage`, `listCanUnstage`, `listCanFold`, `listNarrowed`), plus `listRoots`.
+- VS Code merges every context from the element clicked up to the root, the nearest winning (`pre/index.html`, checked in 1.144). So a row keeps its own menu, its `webviewSection` overriding the list's.
+- The menu, in `package.json`: *New Changelist…* (`gittree.changelist.new`, changelist rows shown), *Tick All* / *Untick All Changes* (`gittree.commit.tickAll` / `untickAll`), *Stage All* / *Unstage All Changes* with staging (`gittree.commit.stageAll` / `unstageAll`), *Expand All* / *Collapse All* (`gittree.commit.expandAll` / `collapseAll`, which tell the webview), *Show All Repositories* while narrowed, *Refresh*.
+- `stageAllPaths` takes the Unstaged and Unversioned Files rows, or the Staged ones, never a conflict or an ignored file.
+- From the Command Palette, the ticks (changelists) and the stages (staging) reach the repositories the Repositories panel's pick leaves in view.
+- No Group By toggles: in 1.144's source an extension's command keeps only its title, icon, category and enablement, so a native menu cannot show its checkmark.
+
+**No menu on the chrome.** The window's root says `preventDefaultContextMenuItems: true`, so a right-click on the tabs, the toolbar or the Amend row shows nothing (VS Code shows no empty menu). The message box and the options popup's three text fields say `false` (`TEXT_FIELD_MENU` in `lib/menuContext.ts`) and keep Cut, Copy and Paste.
+
+**Seen in a real VS Code 1.144** (`scratchpad/design/tickshot.cjs`, shop-api and shop-web with changes, docs with none):
+
+| Step | Result |
+| --- | --- |
+| Start | box mixed, *Tick all 9 files*, `7 of 9 files` |
+| Click the box, then again | `9 of 9 files`, every row ticked, *Untick all 9 files*; then `0 of 9 files` |
+| A row, Ctrl+A | all 11 rows selected; no text selected on the page |
+| Space | `9 of 9 files` |
+| Blank space, all ticked | Untick All Changes · Expand All, Collapse All · Refresh; each worked |
+| Blank space, none ticked | Tick All Changes · Expand All, Collapse All · Refresh |
+| Changelist rows | New Changelist… · Untick All Changes · Expand All, Collapse All · Refresh |
+| Narrowed (a row's Show Only This Repository) | … · Show All Repositories, Refresh; the same on the filter bar, where it cleared the pick |
+| Tabs, Amend row | no menu |
+| Message box | Cut, Copy, Paste |
+| A file row | its own menu, as before |
+| Staging | no box; Stage All Changes · Unstage All Changes · Expand All, Collapse All · Refresh. Stage All staged every change of both repositories, new files too, and left only Unstage All on offer; Unstage All undid it, the staged rename coming apart into a deletion and a new file |
+
+Docs: D46 (new), CHANGELOG (Added), FEATURES (the change tree), keyboard.md (Space, Ctrl+A, the box).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `treeModel.test.ts`: `toggleSelection`;
+  - `commitListMenu.test.ts` (new): `tickAllState` (conflicts left out, staging none, narrowed), `listContext` by grouping, staging and narrowing;
+  - `commitWindowMenus.test.ts`: the `commitList` menu in each situation and its order, a row's menu unchanged with the list's keys merged in, titles and palette entries;
+  - `stagingMode.test.ts`: `stageAllPaths`.
+- **Playwright** (`commit.spec.ts`, new describe; mock: `setAllChecked`, `setCheckedMany`, `__mockStaging`, `__mockHostEvent`):
+  - the box (role, mixed, hover, place), its two clicks, narrowed roots, none with staging;
+  - Ctrl+A and Space with no text selected; Space on a selection both ways; Space outside the selection;
+  - one `setCheckedMany` across repositories;
+  - the list payload in each situation, and the filter bar's;
+  - Expand and Collapse All from the host;
+  - no menu on the root, Cut/Copy/Paste on the four text fields.
+- **Integration** (`multiRoot.test.ts`, new suite): Tick All and Untick All by the menu's roots (a new file too, a repository not listed left alone), from the palette within the pick, and unticking dropping picked changes.
+
+Gates: typecheck (all three tsconfigs) + lint clean; extension and webviews built.

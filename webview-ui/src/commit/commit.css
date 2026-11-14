@@ -366,6 +366,34 @@
   white-space: nowrap;
 }
 
+/* POST-P14cf: the counter as the tick-all box: a button drawn as its text, its
+   box the rows' own (TriCheckbox), lit on hover as a toolbar button is. */
+.gt-commit-tick-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 4px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.gt-commit-tick-all:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+.gt-commit-tick-all:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 0;
+}
+
+.gt-commit-tick-all:disabled {
+  cursor: default;
+}
+
 /* Multi-line by default — the single-line SCM input box is exactly what the
    commit window exists to replace. POST-P14ca: 3 lines at first; the divider
    above the Amend row sets its height from then on, and a longer message

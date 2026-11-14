@@ -36,6 +36,8 @@ import {
   type CommitOpenDiffParamsDto,
   type CommitRecentCommitsDto,
   type CommitRunParamsDto,
+  type CommitSetAllCheckedParamsDto,
+  type CommitSetCheckedManyParamsDto,
   type CommitSetGroupByParamsDto,
   type CommitSetIncludedParamsDto,
   type CommitStashStateDto,
@@ -56,7 +58,9 @@ import {
 } from '../lib/FileTree';
 import { InlineDiff } from '../lib/InlineDiff';
 import { Menu, type MenuItem } from '../lib/Menu';
+import { NO_MENU } from '../lib/menuContext';
 import { OverflowToolbar, type OverflowAction } from '../lib/OverflowToolbar';
+import { TriCheckbox } from '../lib/TriCheckbox';
 import { RpcClient, RpcRequestError } from '../lib/rpc';
 import { dirStatusColor, statusColor } from '../lib/status';
 import { SplitPane } from '../lib/SplitPane';
@@ -92,6 +96,7 @@ import {
   iconFor,
   isConflictsRow,
   layoutOf,
+  listContext,
   listDescription,
   multiRepoOf,
   originText,
@@ -99,6 +104,7 @@ import {
   revealRequestOf,
   splitDelta,
   statusLook,
+  tickAllState,
   treePathOf,
   twinRow,
   twinRows,
@@ -607,16 +613,49 @@ export function App() {
 
   const onToggleCheck = useCallback(
     (delta: ToggleDelta) => {
-      for (const part of splitDelta(delta, model)) {
-        send(COMMIT_METHODS.setChecked, {
-          repoRoot: part.repoRoot,
-          paths: part.paths,
-          checked: part.checked,
-        } satisfies CommitSetCheckedParamsDto);
-      }
+      const parts: CommitSetCheckedParamsDto[] = splitDelta(delta, model).map((part) => ({
+        repoRoot: part.repoRoot,
+        paths: part.paths,
+        checked: part.checked,
+      }));
+      if (parts.length === 1) send(COMMIT_METHODS.setChecked, parts[0]);
+      // POST-P14cf: several repositories, one request: the host applies them
+      // together and pushes once, not twice per repository.
+      else if (parts.length > 1) send(COMMIT_METHODS.setCheckedMany, { parts } satisfies CommitSetCheckedManyParamsDto);
     },
     [model, send],
   );
+
+  /**
+   * POST-P14cf: the tick-all box on the counter: every change the list shows,
+   * in the repositories it shows, ticked or unticked by the host in one go.
+   */
+  const setAllChecked = useCallback(
+    (checked: boolean) => {
+      send(COMMIT_METHODS.setAllChecked, {
+        checked,
+        roots: stateRef.current.repos.map((repo) => repo.root),
+      } satisfies CommitSetAllCheckedParamsDto);
+    },
+    [send],
+  );
+
+  // This grouping's rows only, from the toolbar or the list's menu (POST-P14cf):
+  // the other grouping keeps its own for when it comes back.
+  const expandAllRows = useCallback(() => {
+    setExpanded((prev) => new Set([...prev, ...allDirPaths(modelRef.current.nodes)]));
+  }, []);
+  const collapseAllRows = useCallback(() => {
+    setExpanded((prev) => collapsedAll(modelRef.current, prev));
+  }, []);
+  useEffect(() => {
+    const offExpand = rpc.onEvent(COMMIT_METHODS.evtExpandAll, expandAllRows);
+    const offCollapse = rpc.onEvent(COMMIT_METHODS.evtCollapseAll, collapseAllRows);
+    return () => {
+      offExpand();
+      offCollapse();
+    };
+  }, [collapseAllRows, expandAllRows, rpc]);
 
   const onToggleExpand = useCallback((path: string, open: boolean) => {
     setExpanded((prev) => {
@@ -1079,16 +1118,26 @@ export function App() {
       label: 'Expand all',
       icon: 'expand-all',
       priority: 6,
-      run: () => setExpanded((prev) => new Set([...prev, ...allDirPaths(model.nodes)])),
+      run: expandAllRows,
     },
     {
       id: 'collapseAll',
       label: 'Collapse all',
       icon: 'collapse-all',
       priority: 7,
-      run: () => setExpanded((prev) => collapsedAll(model, prev)),
+      run: collapseAllRows,
     },
   ];
+
+  // POST-P14cf: the tick-all box's state, and the menu of the list's blank space.
+  const tickAll = tickAllState(model);
+  const listMenu = useMemo(
+    () =>
+      JSON.stringify(
+        listContext(model, { narrowed: state.filter !== undefined, roots: state.repos.map((repo) => repo.root) }),
+      ),
+    [model, state.filter, state.repos],
+  );
 
   // POST-P14ce: narrowed to repositories with nothing to commit, the list says
   // so — whatever the grouping, rather than an empty changelist row — beside
@@ -1144,6 +1193,8 @@ export function App() {
       decoration={decoration}
       rowContext={rowContext}
       actions={rowActions}
+      // POST-P14cf: IntelliJ's keys: Ctrl+A selects every row, Space ticks a selection.
+      selectionKeys
       {...(reveal !== undefined ? { reveal } : {})}
       {...(restore !== undefined ? { restore } : {})}
       {...(onScreenPath !== undefined ? { current: onScreenPath } : {})}
@@ -1189,7 +1240,10 @@ export function App() {
   })();
 
   return (
-    <div className="gt-commit">
+    // POST-P14cf: no menu on the window's chrome (tabs, toolbar, Amend row),
+    // where VS Code's Cut, Copy and Paste have nothing to act on. The list's
+    // blank space has its own menu; the text fields keep theirs.
+    <div className="gt-commit" data-vscode-context={NO_MENU}>
       <Tabs
         ariaLabel="Commit tool window"
         active={tab}
@@ -1245,6 +1299,7 @@ export function App() {
             colorOf={(colorIdx) => laneColor(colorIdx, dark, state.palette)}
             onShowAll={showAllRepositories}
             onReveal={(root) => send(COMMIT_METHODS.revealRepository, { root })}
+            menuContext={listMenu}
           />
         ) : null}
         <div className="gt-commit-body" data-testid="commit-tree" ref={bodyRef}>
@@ -1258,7 +1313,8 @@ export function App() {
               minFirst={80}
               minSecond={80}
               first={
-                <div className="gt-commit-pane" ref={treeRef} {...treeFocusProps}>
+                // POST-P14cf: the list's blank space has the list's menu; its rows, their own.
+                <div className="gt-commit-pane" ref={treeRef} data-vscode-context={listMenu} {...treeFocusProps}>
                   {treePane}
                 </div>
               }
@@ -1269,7 +1325,7 @@ export function App() {
               }
             />
           ) : (
-            <div className="gt-commit-pane" ref={treeRef} {...treeFocusProps}>
+            <div className="gt-commit-pane" ref={treeRef} data-vscode-context={listMenu} {...treeFocusProps}>
               {treePane}
             </div>
           )}
@@ -1323,10 +1379,31 @@ export function App() {
               disabled={activeRepo === undefined}
               onClick={(e) => void openMessageMenu(e.currentTarget, 'history')}
             />
-            <span className="gt-commit-counter" data-testid="commit-counter">
-              {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
-              {state.paradigm === 'staging' ? ' staged' : ''}
-            </span>
+            {tickAll !== undefined ? (
+              // POST-P14cf: the counter is the tick-all box, drawn as the rows'
+              // boxes are: none, some or all of them ticked. A click ticks every
+              // change the list shows, or, all ticked, unticks them all.
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={tickAll.state === 'partial' ? 'mixed' : tickAll.state === 'checked'}
+                className="gt-commit-counter gt-commit-tick-all"
+                data-testid="commit-tick-all"
+                title={`${tickAll.state === 'checked' ? 'Untick' : 'Tick'} all ${fileCountLabel(tickAll.total)}`}
+                disabled={state.busy || tickAll.total === 0}
+                onClick={() => setAllChecked(tickAll.state !== 'checked')}
+              >
+                <TriCheckbox state={tickAll.state} disabled={state.busy || tickAll.total === 0} />
+                <span data-testid="commit-counter">
+                  {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
+                </span>
+              </button>
+            ) : (
+              <span className="gt-commit-counter" data-testid="commit-counter">
+                {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
+                {state.paradigm === 'staging' ? ' staged' : ''}
+              </span>
+            )}
             <ToolbarButton
               icon="gear"
               label="Commit options"

@@ -20,6 +20,7 @@ import {
   type CommitOptionChangeDto,
   type CommitOptionsDto,
 } from '../../../src/shared/protocol';
+import { TEXT_FIELD_MENU } from '../lib/menuContext';
 import type { RpcClient } from '../lib/rpc';
 import { useDismiss } from '../lib/useDismiss';
 import type { Placement } from './commitLayout';
@@ -153,6 +154,8 @@ export function OptionsPopup({ rpc, repoRoot, placement, onClose }: OptionsPopup
               id="gt-author-input"
               className={`gt-input${authorInvalid ? ' gt-invalid' : ''}`}
               data-testid="opt-author"
+              // POST-P14cf: a text field keeps VS Code's Cut, Copy and Paste.
+              data-vscode-context={TEXT_FIELD_MENU}
               list="gt-author-suggestions"
               placeholder="Name <email@example.com>"
               value={authorDraft}
@@ -214,6 +217,7 @@ export function OptionsPopup({ rpc, repoRoot, placement, onClose }: OptionsPopup
               id="gt-cleanup-kind"
               className="gt-input"
               data-testid="opt-cleanup-kind"
+              data-vscode-context={TEXT_FIELD_MENU}
               disabled={!opts.checks.cleanup}
               defaultValue={opts.cleanupKind}
               onBlur={(e) => {
@@ -249,6 +253,7 @@ export function OptionsPopup({ rpc, repoRoot, placement, onClose }: OptionsPopup
               className="gt-input gt-options-select"
               aria-label="TODO pattern"
               data-testid="opt-todo-pattern"
+              data-vscode-context={TEXT_FIELD_MENU}
               disabled={!opts.checks.todo}
               defaultValue={opts.todoPattern}
               onBlur={(e) => {

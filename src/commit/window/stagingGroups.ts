@@ -92,3 +92,15 @@ export function stagingGroups(entries: readonly StatusEntry[], names: StagingGro
   if (unversioned.length > 0) out.push(group(UNVERSIONED_GROUP_ID, names.unversioned, unversioned));
   return out;
 }
+
+/**
+ * POST-P14cf: what the Commit list menu's Stage All Changes stages of one
+ * repository's status, or Unstage All Changes unstages: every row of its
+ * Unstaged and Unversioned Files nodes, or of its Staged node. Never a merge
+ * conflict, which staging would mark resolved unseen; never an ignored file.
+ */
+export function stageAllPaths(entries: readonly StatusEntry[], how: 'stage' | 'unstage'): string[] {
+  return entries
+    .filter((e) => (how === 'stage' ? isUnstaged(e) || isUntracked(e) : isStaged(e)))
+    .map((e) => e.path);
+}

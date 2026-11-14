@@ -231,6 +231,96 @@ describe('the Commit window menus (POST-P14bf)', () => {
 });
 
 /**
+ * POST-P14cf: the list's blank space (under the rows, the "No changes."
+ * message, the filter bar) has a menu acting on the whole list, in place of
+ * VS Code's Cut, Copy and Paste. Its payload is `listContext` in commitTree.ts.
+ */
+describe("the menu of the Commit list's blank space (POST-P14cf)", () => {
+  const list = { ...base, webviewSection: 'commitList', listHasUnticked: true, listHasTicked: true, listCanFold: true };
+
+  it('offers New Changelist… first while changelist rows are drawn, then the whole list’s actions', () => {
+    expect(shown('commitList', { ...list, listShowsChangelists: true })).toEqual([
+      'New Changelist…',
+      'Tick All Changes',
+      'Untick All Changes',
+      'Expand All',
+      'Collapse All',
+      'Refresh',
+    ]);
+  });
+
+  it('has no New Changelist… without changelist rows', () => {
+    expect(shown('commitList', list)).toEqual([
+      'Tick All Changes',
+      'Untick All Changes',
+      'Expand All',
+      'Collapse All',
+      'Refresh',
+    ]);
+  });
+
+  it('offers Tick All only with something to tick, Untick All only with something ticked', () => {
+    expect(shown('commitList', { ...list, listHasTicked: false })).not.toContain('Untick All Changes');
+    expect(shown('commitList', { ...list, listHasUnticked: false })).not.toContain('Tick All Changes');
+  });
+
+  it('offers Show All Repositories while the list is narrowed, before Refresh', () => {
+    const titles = shown('commitList', { ...list, listNarrowed: true });
+    expect(titles.slice(-2)).toEqual(['Show All Repositories', 'Refresh']);
+    expect(shown('commitList', list)).not.toContain('Show All Repositories');
+  });
+
+  it('offers Stage All and Unstage All with staging, in place of the ticks', () => {
+    const staging = {
+      ...base,
+      'gittree.paradigm': 'staging',
+      webviewSection: 'commitList',
+      listCanStage: true,
+      listCanUnstage: true,
+      listCanFold: true,
+    };
+    expect(shown('commitList', staging)).toEqual([
+      'Stage All Changes',
+      'Unstage All Changes',
+      'Expand All',
+      'Collapse All',
+      'Refresh',
+    ]);
+  });
+
+  it('has no Expand All or Collapse All when nothing folds; Refresh always', () => {
+    expect(shown('commitList', { ...base, webviewSection: 'commitList' })).toEqual(['Refresh']);
+  });
+
+  it("leaves a row's own menu as it was, though VS Code merges the list's payload into a row's", () => {
+    // A row inside the list carries its own section; the list's keys come with it.
+    const merged = { ...list, listShowsChangelists: true, listNarrowed: true, webviewSection: 'commitFile' };
+    const titles = shown('commitFile', merged);
+    for (const listItem of ['New Changelist…', 'Tick All Changes', 'Untick All Changes', 'Expand All', 'Refresh']) {
+      expect(titles).not.toContain(listItem);
+    }
+  });
+
+  it('names its commands, and offers the ticks and stages in the Command Palette by paradigm', () => {
+    expect(titleOf('gittree.commit.tickAll')).toBe('Tick All Changes');
+    expect(titleOf('gittree.commit.untickAll')).toBe('Untick All Changes');
+    expect(titleOf('gittree.commit.stageAll')).toBe('Stage All Changes');
+    expect(titleOf('gittree.commit.unstageAll')).toBe('Unstage All Changes');
+    expect(titleOf('gittree.commit.expandAll')).toBe('Expand All');
+    expect(titleOf('gittree.commit.collapseAll')).toBe('Collapse All');
+    const palette = manifest.contributes.menus['commandPalette'] ?? [];
+    const whenOf = (command: string): string | undefined => palette.find((e) => e.command === command)?.when;
+    expect(whenOf('gittree.commit.tickAll')).toBe('gittree.paradigm == changelists');
+    expect(whenOf('gittree.commit.untickAll')).toBe('gittree.paradigm == changelists');
+    expect(whenOf('gittree.commit.stageAll')).toBe('gittree.paradigm == staging');
+    expect(whenOf('gittree.commit.unstageAll')).toBe('gittree.paradigm == staging');
+    // They need the window's list.
+    expect(whenOf('gittree.commit.expandAll')).toBe('false');
+    expect(whenOf('gittree.commit.collapseAll')).toBe('false');
+  });
+});
+
+/**
  * POST-P14bq: a row shown in the OS file manager, named as VS Code names it on
  * each system — in its Explorer, its editor tabs and its Git view alike.
  */

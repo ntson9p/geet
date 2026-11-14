@@ -14,6 +14,7 @@ import {
   selectedFiles,
   selectionFollowing,
   toggle,
+  toggleSelection,
   type TreeDirNode,
   type TreeNode,
 } from '../../../webview-ui/src/lib/treeModel';
@@ -282,6 +283,43 @@ describe('toggle', () => {
       paths: ['api/a.ts'],
       next: true,
     });
+  });
+});
+
+/**
+ * POST-P14cf: Space on a row of a selection of several, as IntelliJ's change
+ * tree toggles a selection (`ChangesTree.toggleChanges`).
+ */
+describe('toggleSelection', () => {
+  const tree = buildTree(['api/a.ts', 'api/nested/b.ts', 'top.ts', 'conflict.ts']);
+  const every = (): boolean => true;
+  const pick = (...paths: string[]): Set<string> => new Set(paths);
+
+  it('ticks every file under the selected rows when any of them is unticked', () => {
+    expect(toggleSelection(tree, pick('api', 'top.ts'), pick('api/a.ts'), every)).toEqual({
+      paths: ['api/nested/b.ts', 'api/a.ts', 'top.ts'],
+      next: true,
+    });
+  });
+
+  it('unticks them all when every one is ticked', () => {
+    const all = pick('api/a.ts', 'api/nested/b.ts', 'top.ts');
+    expect(toggleSelection(tree, pick('api', 'top.ts'), all, every)?.next).toBe(false);
+  });
+
+  it('stands a selected folder for its files, each once, shut or open', () => {
+    // The folder and one of its files both selected: the file counts once.
+    expect(toggleSelection(tree, pick('api', 'api/a.ts'), pick(), every)?.paths).toEqual(['api/nested/b.ts', 'api/a.ts']);
+  });
+
+  it('leaves out the files with no box, and says nothing when none has one', () => {
+    const boxed = (path: string): boolean => path !== 'conflict.ts';
+    expect(toggleSelection(tree, pick('top.ts', 'conflict.ts'), pick('top.ts'), boxed)).toEqual({
+      paths: ['top.ts'],
+      next: false,
+    });
+    expect(toggleSelection(tree, pick('conflict.ts'), pick(), boxed)).toBeUndefined();
+    expect(toggleSelection(tree, pick(), pick(), every)).toBeUndefined();
   });
 });
 

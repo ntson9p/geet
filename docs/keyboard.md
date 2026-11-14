@@ -101,6 +101,9 @@ arrows move within):
 | --- | --- |
 | `←` / `→` / `Home` / `End` (tab strip) | move between Commit, Shelf and Stash |
 | `Tab` | tab strip → toolbar (one stop; `←`/`→` move along it to `⋯`, which holds the actions that do not fit on the row) → change tree → the divider → the Amend row → message box → Commit and its ▾ |
+| `Space` (change tree) | tick or untick the row; on a row of a selection of several, all of them: any unticked, all ticked, else all unticked (IntelliJ's change tree, POST-P14cf) |
+| `Ctrl+A` (`Cmd+A`) (change tree) | select every row (POST-P14cf) |
+| `Space` (the box before `N of M files`) | tick every change the list shows, or untick them all when all are ticked (POST-P14cf) |
 | `↑` / `↓` (the divider above the Amend row) | make the message box a line taller / shorter (POST-P14ca) |
 | `Home` / `End` (divider) | as tall as three rows of the list allow / one line |
 | `Enter` / `Space` (divider) | back to the box's first 3 lines, as a double-click does |

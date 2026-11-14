@@ -335,6 +335,24 @@ export function toggle(node: TreeNode, state: CheckState): ToggleDelta {
   return { paths: collectFiles(node), next: state !== 'checked' };
 }
 
+/**
+ * POST-P14cf: what Space does on a row of a selection of several, as IntelliJ's
+ * change tree does it (`ChangesTree.toggleChanges`): every file under the
+ * selected rows that has a box is ticked, unless every one of them already is,
+ * which unticks them all. A selected folder stands for its files, folded or
+ * not. Undefined when none of them has a box.
+ */
+export function toggleSelection(
+  nodes: readonly TreeNode[],
+  selection: ReadonlySet<string>,
+  checked: ReadonlySet<string>,
+  boxed: (path: string) => boolean,
+): ToggleDelta | undefined {
+  const paths = selectedFiles(nodes, selection).filter(boxed);
+  if (paths.length === 0) return undefined;
+  return { paths, next: paths.some((path) => !checked.has(path)) };
+}
+
 export interface FlatRow {
   readonly node: TreeNode;
   /** A directory with children — i.e. the row draws a twistie. */

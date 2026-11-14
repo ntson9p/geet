@@ -2475,3 +2475,208 @@ test.describe('POST-P14ce the list narrowed to the repositories picked in the Re
     await expect(row(page, 'guide.md, docs, Modified')).toHaveAttribute('aria-selected', 'false');
   });
 });
+
+test.describe('POST-P14cf tick every change, and the menus of the list and the window', () => {
+  const GIT = 'D:/repos/demo-git';
+  const LIB = 'D:/repos/demo-lib';
+
+  /** The mock: plain list (no changelist or folder rows) unless asked; staging, a second repository, a pick. */
+  async function open(
+    page: Page,
+    o: { groupBy?: string; folders?: boolean; staging?: boolean; second?: boolean; filter?: string } = {},
+  ): Promise<void> {
+    await page.addInitScript((opts) => {
+      const w = window as unknown as Record<string, unknown>;
+      w['__mockGroupBy'] = opts.groupBy ?? 'none';
+      w['__mockGroupByDirectory'] = opts.folders === true;
+      if (opts.staging === true) w['__mockStaging'] = true;
+      if (opts.second === true) w['__mockSecondRepo'] = true;
+      if (opts.filter !== undefined) w['__mockFilter'] = opts.filter;
+    }, o);
+    await page.addInitScript(mockCommitHostScript);
+    await page.goto('/commit.html');
+    await expect(page.getByRole('tree', { name: 'Changes' })).toBeVisible();
+  }
+
+  const box = (page: Page) => page.getByTestId('commit-tick-all');
+  const counter = (page: Page) => page.getByTestId('commit-counter');
+  const sent = async (page: Page, method: string) =>
+    (await posted(page)).filter((m) => m.method === method).map((m) => m.params);
+  const contextOf = async (l: Locator): Promise<Record<string, unknown>> =>
+    JSON.parse((await l.getAttribute('data-vscode-context')) ?? '{}') as Record<string, unknown>;
+  const listPane = (page: Page) => page.locator('[data-testid="commit-tree"] > .gt-commit-pane');
+
+  test('the counter is a box, mixed while some changes are ticked, drawn as the rows’ boxes', async ({ page }) => {
+    await open(page);
+    await expect(box(page)).toHaveAttribute('role', 'checkbox');
+    await expect(box(page)).toHaveAttribute('aria-checked', 'mixed');
+    await expect(box(page)).toHaveAttribute('title', 'Tick all 5 files');
+    await expect(counter(page)).toHaveText('3 of 5 files');
+    await expect(box(page).locator('.gt-tricheck')).toHaveClass(/gt-tricheck-partial/);
+    // Where it was: at the end of the Amend row, before the gear.
+    const gear = (await page.getByRole('button', { name: 'Commit options' }).boundingBox())!;
+    const at = (await box(page).boundingBox())!;
+    expect(at.x + at.width).toBeLessThanOrEqual(gear.x + 1);
+    expect(Math.abs(at.y + at.height / 2 - (gear.y + gear.height / 2))).toBeLessThan(4);
+  });
+
+  test('a click ticks every change, and a second unticks them all', async ({ page }) => {
+    await open(page);
+    await box(page).click();
+    expect(await sent(page, 'commit/setAllChecked')).toEqual([{ checked: true, roots: [GIT] }]);
+    await expect(box(page)).toHaveAttribute('aria-checked', 'true');
+    await expect(counter(page)).toHaveText('5 of 5 files');
+    await expect(box(page)).toHaveAttribute('title', 'Untick all 5 files');
+    await expect(row(page, '2.txt, Untracked')).toHaveAttribute('aria-checked', 'true');
+    await box(page).click();
+    expect((await sent(page, 'commit/setAllChecked')).at(-1)).toEqual({ checked: false, roots: [GIT] });
+    await expect(box(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(counter(page)).toHaveText('0 of 5 files');
+  });
+
+  test('narrowed to some repositories, it ticks the ones the list shows', async ({ page }) => {
+    await open(page, { filter: GIT });
+    await box(page).click();
+    expect(await sent(page, 'commit/setAllChecked')).toEqual([{ checked: true, roots: [GIT] }]);
+  });
+
+  test('with staging there is no box: the counter says what is staged', async ({ page }) => {
+    await open(page, { staging: true });
+    await expect(box(page)).toHaveCount(0);
+    await expect(counter(page)).toHaveText('1 of 5 files staged');
+  });
+
+  test('Ctrl+A selects every row; Space then ticks them all, and selects no text', async ({ page }) => {
+    await open(page);
+    await row(page, 'guide.md, docs, Modified').click();
+    await page.keyboard.press('Control+A');
+    const rows = page.locator('[role="treeitem"]');
+    await expect(rows).toHaveCount(5);
+    for (let i = 0; i < 5; i++) await expect(rows.nth(i)).toHaveAttribute('aria-selected', 'true');
+    expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
+    await page.keyboard.press('Space');
+    const last = (await sent(page, 'commit/setChecked')).at(-1) as { paths: string[]; checked: boolean };
+    expect(last.checked).toBe(true);
+    expect([...last.paths].sort()).toEqual(
+      [
+        '2.txt',
+        'docs/guide.md',
+        'src/main/java/api/ArticleDataController.java',
+        'src/main/java/api/CommentController.java',
+        'src/main/java/util/Strings.java',
+      ].sort(),
+    );
+    await expect(box(page)).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('Space on a row of a selection of several ticks all of them, or unticks them all', async ({ page }) => {
+    await open(page);
+    await row(page, 'guide.md, docs, Modified').click();
+    await row(page, '2.txt, Untracked').click({ modifiers: ['Control'] });
+    await page.keyboard.press('Space');
+    const first = (await sent(page, 'commit/setChecked')).at(-1) as { paths: string[]; checked: boolean };
+    expect(first.checked).toBe(true);
+    expect([...first.paths].sort()).toEqual(['2.txt', 'docs/guide.md']);
+    await expect(row(page, '2.txt, Untracked')).toHaveAttribute('aria-checked', 'true');
+    // Every one ticked now: Space unticks them both.
+    await page.keyboard.press('Space');
+    const second = (await sent(page, 'commit/setChecked')).at(-1) as { paths: string[]; checked: boolean };
+    expect(second.checked).toBe(false);
+    expect([...second.paths].sort()).toEqual(['2.txt', 'docs/guide.md']);
+  });
+
+  test('Space on a row outside the selection ticks that row alone, as before', async ({ page }) => {
+    await open(page);
+    await row(page, 'guide.md, docs, Modified').click();
+    await row(page, '2.txt, Untracked').click({ modifiers: ['Control'] });
+    // The keyboard moves on without selecting.
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Space');
+    const last = (await sent(page, 'commit/setChecked')).at(-1) as { paths: string[]; checked: boolean };
+    expect(last.paths).toEqual(['src/main/java/api/ArticleDataController.java']);
+    expect(last.checked).toBe(false);
+  });
+
+  test('a tick across repositories is one request, applied together', async ({ page }) => {
+    await open(page, { groupBy: 'changelist', folders: true, second: true });
+    const before = (await sent(page, 'commit/setChecked')).length;
+    await row(page, 'Changes, 5 files').locator('.gt-tree-check').click();
+    const many = await sent(page, 'commit/setCheckedMany');
+    expect(many).toHaveLength(1);
+    const parts = (many[0] as { parts: Array<{ repoRoot: string; checked: boolean; paths: string[] }> }).parts;
+    expect(parts.map((p) => [p.repoRoot, p.checked, p.paths.length])).toEqual([
+      [GIT, true, 4],
+      [LIB, true, 1],
+    ]);
+    expect((await sent(page, 'commit/setChecked')).length).toBe(before);
+  });
+
+  test("the list's blank space carries its menu's payload, which the filter bar shares", async ({ page }) => {
+    await open(page);
+    expect(await contextOf(listPane(page))).toEqual({
+      preventDefaultContextMenuItems: true,
+      webviewSection: 'commitList',
+      listShowsChangelists: false,
+      listHasUnticked: true,
+      listHasTicked: true,
+      listCanStage: false,
+      listCanUnstage: false,
+      listCanFold: false,
+      listNarrowed: false,
+      listRoots: [GIT],
+    });
+    // A row keeps its own menu: its section is nearer than the list's.
+    expect((await contextOf(row(page, 'guide.md, docs, Modified')))['webviewSection']).toBe('commitFile');
+  });
+
+  test('with changelist rows the list offers New Changelist…, and Expand and Collapse All', async ({ page }) => {
+    await open(page, { groupBy: 'changelist', folders: true });
+    expect(await contextOf(listPane(page))).toMatchObject({ listShowsChangelists: true, listCanFold: true });
+  });
+
+  test('narrowed, the list and its bar offer Show All Repositories', async ({ page }) => {
+    await open(page, { filter: GIT });
+    expect(await contextOf(listPane(page))).toMatchObject({ listNarrowed: true, listRoots: [GIT] });
+    expect(await contextOf(page.getByTestId('commit-filter'))).toMatchObject({
+      webviewSection: 'commitList',
+      listNarrowed: true,
+    });
+  });
+
+  test('with staging the list offers Stage All and Unstage All, and no ticks', async ({ page }) => {
+    await open(page, { staging: true });
+    expect(await contextOf(listPane(page))).toMatchObject({
+      listCanStage: true,
+      listCanUnstage: true,
+      listHasTicked: false,
+      listHasUnticked: false,
+      listShowsChangelists: false,
+    });
+  });
+
+  test("the menu's Expand All and Collapse All reach the rows", async ({ page }) => {
+    await open(page, { groupBy: 'changelist', folders: true });
+    await expect(row(page, 'src/main/java, 3 files')).toBeVisible();
+    await page.evaluate(() =>
+      (window as unknown as { __mockHostEvent(m: string): void }).__mockHostEvent('commit/collapseAll'),
+    );
+    await expect(row(page, 'src/main/java, 3 files')).toHaveCount(0);
+    await expect(row(page, 'Changes, 4 files')).toHaveAttribute('aria-expanded', 'false');
+    await page.evaluate(() =>
+      (window as unknown as { __mockHostEvent(m: string): void }).__mockHostEvent('commit/expandAll'),
+    );
+    await expect(row(page, 'src/main/java, 3 files')).toBeVisible();
+  });
+
+  test('no menu on the window’s chrome; the message box and the option fields keep Cut, Copy and Paste', async ({
+    page,
+  }) => {
+    await open(page);
+    expect(await contextOf(page.locator('.gt-commit'))).toEqual({ preventDefaultContextMenuItems: true });
+    expect(await contextOf(page.getByTestId('commit-message'))).toEqual({ preventDefaultContextMenuItems: false });
+    await page.getByRole('button', { name: 'Commit options' }).click();
+    for (const id of ['opt-author', 'opt-cleanup-kind', 'opt-todo-pattern']) {
+      expect(await contextOf(page.getByTestId(id))).toEqual({ preventDefaultContextMenuItems: false });
+    }
+  });
+});

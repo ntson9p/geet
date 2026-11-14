@@ -411,5 +411,11 @@
   "gittree.view.branchesTree.name": "Branches (Tree)",
   "gittree.config.protectedBranches.description": "Protected branches, as in IntelliJ's Settings | Version Control | Git: the Push dialog does not offer Force Push to a branch whose name matches one of these. Each entry is a regular expression matched against the whole branch name, so main protects main and not main-copy.",
   "gittree.command.commit.stage.title": "Stage",
-  "gittree.command.commit.unstage.title": "Unstage"
+  "gittree.command.commit.unstage.title": "Unstage",
+  "gittree.command.commit.tickAll.title": "Tick All Changes",
+  "gittree.command.commit.untickAll.title": "Untick All Changes",
+  "gittree.command.commit.stageAll.title": "Stage All Changes",
+  "gittree.command.commit.unstageAll.title": "Unstage All Changes",
+  "gittree.command.commit.expandAll.title": "Expand All",
+  "gittree.command.commit.collapseAll.title": "Collapse All"
 }

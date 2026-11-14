@@ -60,6 +60,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D43](#d43--the-commit-window-is-compact) | The Commit window's toolbar shares the tabs' row and folds into `⋯`; one full-width Commit button holds Commit and Push… in its ▾ | Deliberate (owner's request) |
 | [D44](#d44--the-commit-window-lists-changes-without-changelists-by-default) | By default the Commit window lists every change under its repository, as VS Code's Source Control view does: no changelist rows, a status letter on each file, untracked files among the others in italics | Deliberate (owner's request); View Options › Group By |
 | [D45](#d45--the-repositories-panels-pick-narrows-the-commit-window) | The repositories picked in the Repositories panel narrow the Commit window, which says so in a bar over its list, and commits only what it shows | Deliberate (owner's request) |
+| [D46](#d46--the-commit-windows-counter-ticks-every-change-and-its-blank-space-has-a-menu) | The Commit window's counter is a box that ticks every change, and the list's blank space has a menu of its own | Deliberate (owner's request) |
 
 ---
 
@@ -1255,3 +1256,34 @@ over a filter of the Commit window's own (POST-P14ce).
 
 **Revisitable:** yes. A *Follow the Repositories Panel* switch in View Options was the second
 choice: an option, and a branch in `commitWindowView.ts`'s `buildState`.
+
+## D46 · The Commit window's counter ticks every change, and its blank space has a menu
+
+**IntelliJ:** no control ticks every change of its Commit tool window at once. Ctrl+A selects
+every row and Space then ticks or unticks the selection (`ChangesTree`'s toggle: anything
+unticked, all ticked; else all unticked); a changelist's box ticks that list. A right-click on the
+tree's blank space opens its one change menu, most of it disabled with no row selected (New
+Changelist… and Refresh are what work).
+**GitTree:**
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Ctrl+A, then Space | The same keys, and a box in front of the `N of M files` counter: empty, mixed or ticked, drawn as the rows' boxes are. One click ticks every change the list shows; all ticked, one click unticks them all | The owner's request: with twenty repositories, twenty boxes were twenty clicks. The counter already said what the box changes, so it costs no row |
+| The change menu, mostly disabled, on the blank space | A menu for the list as a whole: New Changelist… (changelist rows shown), Tick All / Untick All Changes (with staging, Stage All / Unstage All Changes), Expand All / Collapse All, Show All Repositories (narrowed), Refresh | The owner's request: the blank space stood for the list, and showed VS Code's Cut, Copy and Paste |
+| — | No menu on the window's chrome (tabs, toolbar, Amend row); the message box and the options' text fields keep VS Code's Cut, Copy and Paste | Nothing there to cut, copy or paste |
+
+What "every change" means: every change the list shows, new files included, since the counter
+counts them; not a merge conflict, which has no box. Narrowed to some repositories (D45), only
+those. A file with only some of its changes picked keeps its picks when ticked, and loses them
+when unticked, as unticking a folder does. With the staging area there is no box: nothing is
+ticked, a change goes in by being staged.
+
+VS Code cannot draw a checkmark next to an extension's menu item (an extension's command keeps only
+its title, icon, category and enablement in 1.144), so the menu has no Group By toggles; the eye's
+menu has them, with their checkmarks.
+
+Why: the owner asked for a way to tick and untick every change, and for a useful menu on the
+list's blank space; they chose the counter's box over a header row and a toolbar button (POST-P14cf).
+
+**Revisitable:** yes. The box is a few lines in `webview-ui/src/commit/App.tsx`; the menu is
+`package.json`'s `commitList` entries.

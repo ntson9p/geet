@@ -316,6 +316,22 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   };
   register('gittree.commit.stage', (arg) => stageFromRow(arg, 'stage'));
   register('gittree.commit.unstage', (arg) => stageFromRow(arg, 'unstage'));
+
+  /**
+   * POST-P14cf: the Commit list's menu, on its blank space. Its payload names
+   * the repositories the list shows (`listRoots`); from the Command Palette,
+   * none: the ones the Repositories panel's pick leaves in view.
+   */
+  const listRootsOf = (arg: unknown): string[] | undefined => {
+    const raw = typeof arg === 'object' && arg !== null ? (arg as { listRoots?: unknown }).listRoots : undefined;
+    return Array.isArray(raw) ? raw.filter((r): r is string => typeof r === 'string') : undefined;
+  };
+  register('gittree.commit.tickAll', (arg) => commitWindow.setAllTicked(listRootsOf(arg), true));
+  register('gittree.commit.untickAll', (arg) => commitWindow.setAllTicked(listRootsOf(arg), false));
+  register('gittree.commit.stageAll', (arg) => commitWindow.stageAll(listRootsOf(arg), 'stage'));
+  register('gittree.commit.unstageAll', (arg) => commitWindow.stageAll(listRootsOf(arg), 'unstage'));
+  register('gittree.commit.expandAll', () => commitWindow.expandAll());
+  register('gittree.commit.collapseAll', () => commitWindow.collapseAll());
   register('gittree.commit.switchParadigm', () => paradigm.switch());
   // The Commit window's View Options › Group By, from the palette or a key.
   register('gittree.commit.groupByRepository', () => writeCommitGroupBy('repository'));

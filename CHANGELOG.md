@@ -6,6 +6,28 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — tick every change at once, and a menu for the list's blank space
+
+- **The counter is a box now.** `7 of 120 files` on the Amend row has a box in front of it, drawn
+  as the rows' boxes are: empty, mixed or ticked. One click ticks every change the list shows, new
+  files included. When all are ticked, one click unticks them all. With the list narrowed to some
+  repositories, only those are ticked. With the staging area there is no box, as no row has one.
+- **IntelliJ's keys in the list.** Ctrl+A (⌘A) selects every row. Space on a row of a selection of
+  several ticks them all, or unticks them all when every one is ticked.
+- **Right-click the list's blank space** (under the rows, on "No changes.", on the filter bar)
+  for a menu that acts on the whole list:
+  - *New Changelist…*, while changelist rows are shown;
+  - *Tick All Changes* / *Untick All Changes* (with staging: *Stage All Changes* /
+    *Unstage All Changes*);
+  - *Expand All* / *Collapse All*;
+  - *Show All Repositories*, while the list is narrowed;
+  - *Refresh*.
+- **No more Cut, Copy and Paste where there is nothing to cut, copy or paste.** Right-clicking the
+  tabs, the toolbar or the Amend row shows no menu. The message box and the commit options' text
+  fields keep them.
+- A tick that spans several repositories (a changelist row standing for several, Space on a
+  selection) is applied at once, and the window redraws once instead of twice per repository.
+
 ### Added — the Commit window shows only the repositories picked in the Repositories panel
 
 - **Picking repositories in the Repositories panel narrows the Commit window to them**: a click on

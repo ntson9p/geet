@@ -24,6 +24,7 @@ import {
   rollup,
   rowIndexOf,
   toggle,
+  toggleSelection,
   type CheckState,
   type FlatRow,
   type ToggleDelta,
@@ -150,6 +151,13 @@ export interface FileTreeProps {
   current?: string;
   /** See `FileTreeRestore`. */
   restore?: FileTreeRestore;
+  /**
+   * POST-P14cf: IntelliJ's change-tree keys. Ctrl+A (⌘A) selects every row;
+   * Space on a row of a selection of several ticks every file under them, or
+   * unticks them all when every one is ticked (`toggleSelection`). Without it,
+   * Space ticks only the keyboard's row.
+   */
+  selectionKeys?: boolean;
 }
 
 const DEFAULT_ROW_HEIGHT = 22;
@@ -181,6 +189,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     reveal,
     current,
     restore,
+    selectionKeys = false,
   }: FileTreeProps,
   ref,
 ) {
@@ -376,14 +385,44 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     (index: number, e: ReactKeyboardEvent<HTMLDivElement>): boolean => {
       const row = rows[index];
       if (!row) return false;
+      // POST-P14cf: Ctrl+A (⌘A) selects every row, as IntelliJ's change tree.
+      // Kept from VS Code too, which would otherwise select the page's text: it
+      // takes a key the webview only cancels (webview-keybinding-gotchas).
+      if (
+        selectionKeys &&
+        onSelectionChange &&
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'a'
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        onSelectionChange(rows.map((r) => r.node.path));
+        return true;
+      }
       switch (e.key) {
-        case ' ':
+        case ' ': {
           // Space belongs to the checkbox; without this it would reach
           // VirtualList and fire onActivate instead.
           e.preventDefault();
+          // POST-P14cf: on a row of a selection of several, the whole selection.
+          if (
+            selectionKeys &&
+            checked !== undefined &&
+            onToggleCheck &&
+            selection !== undefined &&
+            selection.size > 1 &&
+            selection.has(row.node.path)
+          ) {
+            const delta = toggleSelection(nodes, selection, checked, (path) => checkboxless?.has(path) !== true);
+            if (delta !== undefined) onToggleCheck(delta);
+            return true;
+          }
           if (showsCheckbox(row)) applyToggle(row);
           else select(index, { ctrlKey: false, shiftKey: false, metaKey: false });
           return true;
+        }
         case 'ArrowRight':
           e.preventDefault();
           if (row.expandable && !row.expanded) setExpanded(row, true);
@@ -403,7 +442,21 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           return false;
       }
     },
-    [applyToggle, parentIndex, rows, select, setExpanded, showsCheckbox],
+    [
+      applyToggle,
+      checkboxless,
+      checked,
+      nodes,
+      onSelectionChange,
+      onToggleCheck,
+      parentIndex,
+      rows,
+      select,
+      selection,
+      selectionKeys,
+      setExpanded,
+      showsCheckbox,
+    ],
   );
 
   const renderRow = useCallback(
