@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — VS Code's Git no longer marks the rows of GitTree's own views
+
+- **Stashes and Local History showed VS Code's status letter for a file as it is now.** That says
+  nothing about the stash or the snapshot: of two files a stash changed, the one edited since
+  showed `M`, the other nothing. The rows of GitTree's Stashes, Local History, Conflicts and
+  Worktrees views now carry GitTree's own address, so no other extension marks them.
+- **GitTree marks them itself, with what is true**: a stash's files with what the stash did to them
+  (`M`, `A`, `D`, `R`, `U`) in the status colour, a conflicted file with `!`. Local History and
+  Worktrees rows have no letter.
+- Hovering a stashed file shows its path and what the stash did to it.
+
 ### Changed — the Commit window lists changes as VS Code's Source Control view does
 
 - **No changelist rows by default.** Every changed file is listed under its repository, in path

@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
 import type { StashInfo } from '../core/git/parsers/stashList';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
+import { rowUri } from '../ui/rowDecorations';
 import type { StashFile, StashService } from './stashService';
 
 export type StashNode =
@@ -110,13 +111,21 @@ export class StashViewProvider implements vscode.TreeDataProvider<StashNode> {
       item.id = `${node.repo.root}#${node.info.sha}`;
       return item;
     }
-    const item = new vscode.TreeItem(
-      path.posix.basename(node.file.path),
-      vscode.TreeItemCollapsibleState.None,
-    );
+    const name = path.posix.basename(node.file.path);
+    const item = new vscode.TreeItem(name, vscode.TreeItemCollapsibleState.None);
     const dir = path.posix.dirname(node.file.path);
-    item.description = dir === '.' ? node.file.status : `${dir} · ${node.file.status}`;
-    item.resourceUri = vscode.Uri.file(path.join(node.repo.root, node.file.path));
+    const description = dir === '.' ? node.file.status : `${dir} · ${node.file.status}`;
+    item.description = description;
+    // POST-P14cd: GitTree's own address, marked with what the stash did to the
+    // file. A `file:` one let VS Code's Git mark the row with the file's status
+    // now, which says nothing about the stash.
+    const fullPath = path.join(node.repo.root, node.file.path);
+    item.resourceUri = rowUri('stash', fullPath, node.file.status);
+    // The hover a `file:` address gave the row; under another scheme it would be
+    // the address. VS Code reads a text tooltip out as the row's name, so the
+    // name a screen reader hears is set as it was: the label and description.
+    item.tooltip = fullPath;
+    item.accessibilityInformation = { label: `${name} ${description}` };
     item.iconPath = new vscode.ThemeIcon(
       node.file.status === 'deleted' ? 'diff-removed' : node.file.status === 'untracked' ? 'diff-added' : 'diff-modified',
     );

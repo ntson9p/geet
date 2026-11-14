@@ -164,6 +164,23 @@ suite('P9 local history — restore UX & destruction detection', () => {
       for (const snap of reg.viewProvider.getChildren(day)) {
         if (snap.kind === 'snapshot') {
           labels.push(snap.manifest.label);
+          // POST-P14cd: a snapshot's files carry GitTree's own address, unmarked:
+          // the file now is not the snapshot's.
+          for (const file of reg.viewProvider.getChildren(snap)) {
+            if (file.kind !== 'file') continue;
+            const item = reg.viewProvider.getTreeItem(file);
+            assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+            assert.strictEqual(item.resourceUri?.authority, 'history');
+            assert.strictEqual(item.resourceUri?.query, '');
+            assert.strictEqual(item.tooltip, path.join(file.repo.root, file.relPath));
+            // What a screen reader hears stays the label and description, not that hover.
+            const description = String(item.description ?? '');
+            const name = path.posix.basename(file.relPath);
+            assert.strictEqual(
+              item.accessibilityInformation?.label,
+              description.length > 0 ? `${name} ${description}` : name,
+            );
+          }
           assert.ok(
             snap.manifest.files.some((f) => f.relPath.replace(/\\/g, '/').startsWith('lhsub')),
             `manifest "${snap.manifest.label}" does not touch lhsub/`,

@@ -12,6 +12,7 @@ import type { Core, RepoHandle } from '../core/core';
 import { canonicalKey } from '../core/repoDiscovery';
 import { makeSnapUri } from '../core/vdocs/snapFs';
 import { confirmModal } from '../ui/confirm';
+import { rowUri } from '../ui/rowDecorations';
 import { groupByDay } from './grouping';
 import type { SnapshotManifest, SnapshotStore } from './snapshotStore';
 
@@ -160,21 +161,28 @@ export class LocalHistoryViewProvider implements vscode.TreeDataProvider<History
         return item;
       }
       case 'file': {
-        const item = new vscode.TreeItem(
-          path.posix.basename(node.relPath),
-          vscode.TreeItemCollapsibleState.None,
-        );
+        const name = path.posix.basename(node.relPath);
+        const item = new vscode.TreeItem(name, vscode.TreeItemCollapsibleState.None);
         const dir = path.posix.dirname(node.relPath);
         const deleted = node.manifest.files.some((f) => f.relPath === node.relPath && f.deleted === true);
         // A file at the root has no folder to name: "." said nothing.
-        item.description = deleted
+        const description = deleted
           ? dir === '.'
             ? vscode.l10n.t('deleted')
             : vscode.l10n.t('{0} · deleted', dir)
           : dir === '.'
             ? ''
             : dir;
-        item.resourceUri = vscode.Uri.file(path.join(node.repo.root, node.relPath));
+        item.description = description;
+        // POST-P14cd: GitTree's own address, unmarked: a snapshot's file is not
+        // the file now, whose status VS Code's Git marked a `file:` row with.
+        // It keeps the file's name, which the icon theme reads (`ThemeIcon.File`).
+        const fullPath = path.join(node.repo.root, node.relPath);
+        item.resourceUri = rowUri('history', fullPath);
+        // The hover the `file:` address gave; VS Code would read this text out as
+        // the row's name, so that is set as it was: the label and description.
+        item.tooltip = fullPath;
+        item.accessibilityInformation = { label: description.length > 0 ? `${name} ${description}` : name };
         item.iconPath = new vscode.ThemeIcon('file');
         item.contextValue = 'lh:file';
         item.command = {

@@ -31,6 +31,7 @@ import {
 } from './worktreeArgs';
 import { remoteNamesOf } from './newBranchArgs';
 import { showInfo } from '../ui/notices';
+import { rowUri } from '../ui/rowDecorations';
 
 export interface WorktreeOutcome {
   ok: boolean;
@@ -196,7 +197,9 @@ export class WorktreesViewProvider implements vscode.TreeDataProvider<WorktreeNo
       : (info.branch ?? vscode.l10n.t('detached at {0}', (info.head ?? '').slice(0, 7)));
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
     item.description = info.path;
-    item.resourceUri = vscode.Uri.file(info.path);
+    // POST-P14cd: GitTree's own address, unmarked: no other extension marks
+    // the row as the folder on disk.
+    item.resourceUri = rowUri('worktree', info.path);
     item.iconPath = new vscode.ThemeIcon(
       info.isMain ? 'repo' : info.locked ? 'lock' : info.prunable ? 'warning' : 'git-branch',
     );

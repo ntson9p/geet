@@ -130,6 +130,13 @@ suite('P6 merge engine — conflict sessions & view', () => {
     // The view renders one row per conflicted file.
     const rows = reg.viewProvider.getChildren();
     assert.strictEqual(rows.length, 3);
+    // POST-P14cd: each under GitTree's own address, marked `!` by GitTree.
+    for (const row of rows) {
+      const item = reg.viewProvider.getTreeItem(row);
+      assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+      assert.strictEqual(item.resourceUri?.authority, 'conflict');
+      assert.strictEqual(item.resourceUri?.query, 'conflicted');
+    }
 
     // Continue is blocked while conflicts remain.
     assert.strictEqual(session.canContinue, false);

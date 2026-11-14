@@ -27,6 +27,7 @@ import { registerChangePopup } from './gutter/changePopup';
 import { registerHunkActions } from './hunkActions';
 import { registerSyncOps } from './syncOps';
 import { notificationsRegistry } from '../ui/notify';
+import { registerRowDecorations } from '../ui/rowDecorations';
 import { setNoticeLog } from '../ui/notices';
 
 export interface Phase01Registry {
@@ -219,6 +220,9 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   // gittree.commit + acceptInputCommand are owned by Phase 3 (commitFlow),
   // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
+  // POST-P14cd: the marks on GitTree's own Stashes and Conflicts rows, which
+  // carry GitTree's own addresses so that nothing else marks them.
+  registerRowDecorations(context);
 
   const statusBarDiagnostics = (): StatusBarDiagnostics => ({
     mode: statusBarMode(),

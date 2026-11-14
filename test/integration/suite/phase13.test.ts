@@ -2650,6 +2650,11 @@ suite('P13 dialogs', () => {
       assert.ok(mainNode, 'the main worktree should have a row');
       const item = reg.worktrees.provider.getTreeItem(mainNode);
       assert.strictEqual(item.label, branch);
+      // POST-P14cd: GitTree's own address, unmarked: no extension marks the row
+      // as the folder on disk.
+      assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+      assert.strictEqual(item.resourceUri?.authority, 'worktree');
+      assert.strictEqual(item.resourceUri?.query, '');
       assert.ok(String(item.contextValue).includes('main'));
       // Leaf rows only — worktrees do not nest.
       assert.deepStrictEqual(await reg.worktrees.provider.getChildren(mainNode), []);

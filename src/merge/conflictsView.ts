@@ -6,6 +6,7 @@
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { rowUri } from '../ui/rowDecorations';
 import { isSpecialConflict, type ConflictKind, type ConflictSession } from './conflictSession';
 
 export interface ConflictNode {
@@ -64,7 +65,9 @@ export class ConflictsViewProvider implements vscode.TreeDataProvider<ConflictNo
     const dir = path.posix.dirname(node.path);
     item.description = dir === '.' ? kindLabel(node.kind) : `${dir} · ${kindLabel(node.kind)}`;
     item.tooltip = vscode.l10n.t('{0} — {1} ({2})', node.path, kindLabel(node.kind), node.session.source);
-    item.resourceUri = vscode.Uri.file(path.join(node.session.repo.root, node.path));
+    // POST-P14cd: GitTree's own address, marked `!` by GitTree rather than by
+    // whichever extension marks files on disk.
+    item.resourceUri = rowUri('conflict', path.join(node.session.repo.root, node.path), 'conflicted');
     item.iconPath = new vscode.ThemeIcon(
       node.kind === 'both-modified' || node.kind === 'added-by-both' ? 'git-merge' : 'warning',
       new vscode.ThemeColor('gittree.color.conflicted'),

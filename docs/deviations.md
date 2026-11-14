@@ -36,7 +36,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D19](#d19--the-change-popup-is-keyboard-invoked-hover-is-opt-in) | The change popup opens from a key (hover is opt-in), not by clicking the bar | No (decorations expose no click handler) |
 | [D20](#d20--walking-a-list-of-changes-differs-from-intellij-in-small-ways) | Walking a list of changes differs from IntelliJ in small ways | Partly (image diffs); the rest are VS Code's limits |
 | [D21](#d21--change-bar-anchoring-can-differ-by-one-line) | Change-bar anchoring can differ from VS Code's by one line | No (inherent to owning the diff) |
-| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations and change bars are plain settings, not conditioned on the built-in extension, and off by default | Deliberate |
+| [D22](#d22--explorer-decorations-are-a-setting-not-a-negotiation) | Explorer decorations and change bars are plain settings, not conditioned on the built-in extension, and off by default; GitTree's own tree rows carry GitTree's own addresses | Deliberate |
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 | [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
 | [D25](#d25--the-annotation-age-ramp-is-quantised-to-five-steps) | The blame age gradient has five steps instead of a continuous ramp | No (API) |
@@ -415,6 +415,15 @@ Code's built-in Git draws its own bars in the gutter (`scm.diffDecorations: all`
 every changed line had two: VS Code's in its lane and GitTree's at the text's edge (D18), and they
 could disagree, VS Code calling a line modified that GitTree called added. GitTree's change actions
 read the changes, not the bars: `Ctrl+Alt+G H` and Next / Previous Change work with the bars off.
+
+**And the other way round: VS Code's Git does not mark GitTree's rows** (POST-P14cd). The rows of
+GitTree's Stashes, Local History, Conflicts and Worktrees views carried `file:` addresses, which
+tell VS Code a row *is* that file on disk, so VS Code's Git marked them with the file's status
+now. In a stash or a snapshot that is misleading: of two files a stash changed, the one edited
+since read `M` and the other nothing. They now carry GitTree's own address (`gittree-row:`), as the
+Compare view's always have (`gittree-compare:`). GitTree marks them itself with what is true of
+the row: a stash's files with the stash's own change, a conflicted file `!`; Local History and
+Worktrees rows carry no mark. The address keeps the file's name, which the icon theme reads.
 
 **Why:** the plan for P14-T6 proposed detecting `vscode.git` and defaulting the setting off once.
 That was rejected during implementation: it writes a setting on the user's behalf unprompted,

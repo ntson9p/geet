@@ -324,6 +324,19 @@ suite('P7 stash & shelve — StashService', () => {
     for (const child of children) {
       const item = reg07.stashViewProvider.getTreeItem(child);
       assert.strictEqual(item.command?.command, 'vscode.diff');
+      // POST-P14cd: GitTree's own address, marked with what the stash did to
+      // the file, so no other extension marks the row with its status now.
+      if (child.kind === 'file') {
+        assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+        assert.strictEqual(item.resourceUri?.authority, 'stash');
+        assert.strictEqual(item.resourceUri?.query, child.file.status);
+        assert.strictEqual(item.tooltip, path.join(child.repo.root, child.file.path));
+        // What a screen reader hears stays the label and description, not that hover.
+        assert.strictEqual(
+          item.accessibilityInformation?.label,
+          `${path.posix.basename(child.file.path)} ${String(item.description)}`,
+        );
+      }
       // The diff actually opens (both sides resolvable, headless-safe).
       await vscode.commands.executeCommand(
         'vscode.diff',

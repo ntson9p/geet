@@ -1861,3 +1861,34 @@ Docs: D22 (change bars, likewise), D18 (not drawn by default), faq.md, migration
 Testing (written, **not run**, by the owner's standing instruction): **unit** (`changeBarsDefault.test.ts`): off by default, in the code as in package.json; the description says why, that the actions still work, and when to turn the bars on; in the controller, the changes are still stored and every decoration is written through the setting.
 
 Gates: typecheck + lint clean; extension built.
+
+POST-P14cd ✅ 2026-11-14 (branch `new-way-6`): **VS Code's Git no longer marks the rows of GitTree's own views.** The last finding of POST-P14bz's investigation, left to the owner in POST-P14cc. Asked what "Git badges" meant, I sent a screenshot from a real window: GitTree's Stashes view, a stash of a.txt and b.txt, with VS Code's `M` on a.txt only, because a.txt alone had been edited since. Offered four ranked options, the owner chose 1: GitTree's own row addresses in all four views, and GitTree's own marks where they are true.
+
+**Cause.** `TreeItem.resourceUri = vscode.Uri.file(…)` on the rows of four views: Stashes (`stashView.ts`), Local History (`restoreUx.ts`), Conflicts (`conflictsView.ts`) and Worktrees (`worktrees.ts`). A `file:` address tells VS Code the row *is* that file on disk, so every file decoration provider marks it. VS Code's Git marked it with the file's status now, which in a stash or a snapshot says nothing about the row.
+
+**Fix.**
+- `rowAddress.ts` (new, vscode-free) builds the address: `gittree-row://<view>/<the file's path>?<mark>`. The view is `stash`, `history`, `conflict` or `worktree`. The path is the file's own (`Uri.file(p).path`), so its last segment is the file name the icon theme reads for `ThemeIcon.File` rows. The mark is in the query. `rowMarkOf` reads a mark back only for this scheme and its views, and looks marks up as own keys, so no prototype key passes. The letters and colours are `rowLook`: VS Code's letters, GitTree's `gittree.color.*`.
+- `rowDecorations.ts` (new) gives `rowUri(view, fsPath, mark?)`, and a `FileDecorationProvider` registered once at activation (`scm/register.ts`). It draws a mark's letter and colour, with a hover that says what it means: "Modified in this stash", "Merge conflict".
+- Stashes rows are marked with the stash's own status (`StashFileStatus` is a subset of the marks), Conflicts rows with `conflicted`; Local History and Worktrees rows are unmarked.
+- GitTree's own file badges (`gittree.decorations.fileExplorer`) already answer only `file:`. The Compare view keeps its own `gittree-compare:` scheme, the precedent.
+- **Checked before changing:** these rows' icons are explicit (`ThemeIcon`s), their clicks and menu commands take the node, not the address, none of the four views has a drag-and-drop controller, and no menu `when` reads `resource*`. So the address is only what VS Code marks a row by, and what it shows as the hover when there is none.
+- **Hover and screen readers:** Stashes and Local History file rows had no `tooltip`, and VS Code showed their address instead. They now get the file's full path. VS Code also reads a text tooltip out as the row's name: the first real run read stash rows out as their full path instead of `a.txt modified`. So `accessibilityInformation` now keeps the old name, the label and description.
+
+**Seen in a real VS Code 1.144, before and after** (`scratchpad/design/rowsshot.cjs`). The workspace had a stash of a.txt and b.txt with a.txt edited since, a merge in conflict, a linked worktree, and a Local History snapshot taken by dropping the stash with a.txt still edited (`GITTREE_TEST_AUTOCONFIRM=1`). "Before" is the committed view files swapped back in and built; after the capture the new files were restored and checked with `cmp`.
+
+| View | Before | After |
+| --- | --- | --- |
+| Stashes | a.txt `M` (VS Code's: edited now), b.txt nothing | a.txt `M`, b.txt `M` (GitTree's: both changed by the stash) |
+| Conflicts | c.txt `!` (VS Code's) | c.txt `!` (GitTree's), once |
+| Local History | the snapshot's a.txt `M` (VS Code's: edited now) | no mark |
+| Worktrees | no marks | no marks |
+
+Also seen after: screen-reader names unchanged (`a.txt modified`, `b.txt modified`, `a.txt`); the stash row's hover `<full path> • Modified in this stash`, VS Code adding the mark's hover; the snapshot row's file icon unchanged.
+
+Docs: D22 (and the other way round), CHANGELOG (Fixed).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit** (`rowAddress.test.ts`): the address and its parts; the letters and colours, each colour one GitTree contributes; every stash status is a mark; marks read back, and not for another scheme, view, query or a prototype key; the four views call `rowUri` with the true mark; the hover and screen-reader name; no `resourceUri = vscode.Uri.file(` left anywhere in `src`; the provider registered at activation.
+- **Integration:** Stashes (`phase07`: scheme, view, mark = the stash's status, hover, screen-reader name), Conflicts (`phase06`: `conflicted`), Local History (`phase09`: unmarked, hover, name), Worktrees (`phase13`: unmarked).
+
+Gates: typecheck (all three tsconfigs) + lint clean; extension built.
