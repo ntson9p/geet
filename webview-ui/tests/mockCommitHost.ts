@@ -193,7 +193,62 @@ export const mockCommitHostScript = `
     return groupByDirectory;
   }
 
+  // POST-P14ce: opt-in (window.__mockFilter, a root or a list of roots), the
+  // list narrowed to those, as the Repositories panel's pick narrows it. The
+  // workspace is then demo-git, demo-lib and docs, which has nothing to commit.
+  // Show all widens it again, as the host does.
+  const DOCS = 'D:/repos/docs';
+  let filterRoots;
+  function currentFilter() {
+    if (filterRoots === undefined) {
+      const asked = window.__mockFilter;
+      filterRoots = typeof asked === 'string' ? [asked] : Array.isArray(asked) ? asked.slice() : null;
+    }
+    return filterRoots;
+  }
+  function docsRepo() {
+    return {
+      root: DOCS, label: 'docs', colorIdx: 2, head: { branch: 'main', sha: 'd0c5d0c5d0' },
+      groups: [
+        { id: 'default', name: 'Changes', isActive: true, isDefault: true, checkable: true, changes: [] },
+        { id: '__unversioned__', name: 'Unversioned Files', isActive: false, isDefault: false, checkable: true, changes: [] },
+      ],
+    };
+  }
+  function summaryOf(repo) {
+    const all = repo.groups.reduce((out, g) => out.concat(g.changes), []);
+    return {
+      root: repo.root, label: repo.label, colorIdx: repo.colorIdx,
+      changes: new Set(all.map((c) => c.path)).size,
+      ticked: all.filter((c) => c.checked).length,
+    };
+  }
+
+  /** As the host narrows its state: only what is picked listed and counted, the rest summed for the bar. */
   function build() {
+    const whole = buildWhole();
+    if (window.__mockFilter === undefined) return whole;
+    const repos = whole.repos.concat(window.__mockSecondRepo === true ? [] : [secondRepo()], [docsRepo()]);
+    const picked = currentFilter();
+    // Shown all again: the three of them, as the host would list them.
+    if (picked === null) return Object.assign(whole, { repos });
+    const shown = repos.filter((r) => picked.includes(r.root));
+    const hidden = repos.filter((r) => !picked.includes(r.root));
+    const changesOf = (list) => list.reduce((out, r) => out.concat(r.groups.reduce((o, g) => o.concat(g.changes), [])), []);
+    const shownChanges = changesOf(shown);
+    return Object.assign(whole, {
+      repos: shown,
+      // The message box stays demo-git's, the editor's; Amend acts on one listed.
+      activeRepo: REPO,
+      commitRepo: picked.includes(REPO) ? REPO : shown[0].root,
+      filter: { shown: shown.map(summaryOf), hidden: hidden.map(summaryOf) },
+      targets: shown.filter((r) => changesOf([r]).some((c) => c.checked)).map((r) => r.label),
+      modifiedCount: shownChanges.length,
+      checkedCount: shownChanges.filter((c) => c.checked).length,
+    });
+  }
+
+  function buildWhole() {
     return {
       repos: [
         {
@@ -251,6 +306,12 @@ export const mockCommitHostScript = `
       '*'
     );
   }
+  // POST-P14ce: a pick made in the Repositories panel while the window is open
+  // (null: every repository). Needs window.__mockFilter set, even to null.
+  window.__mockNarrow = (roots) => {
+    filterRoots = roots === null ? null : roots.slice();
+    push();
+  };
 
   // P11-T4: programmatic message writes travel on their own event; the webview
   // deliberately ignores state.message after init (see COMMIT_METHODS.evtMessage).
@@ -342,6 +403,13 @@ export const mockCommitHostScript = `
       setTimeout(push, 5);
     },
     'commit/commit': () => undefined,
+    // POST-P14ce: the filter bar's Show all, which the host passes to the
+    // Repositories panel too; and a name on it, which brings that panel up.
+    'commit/showAllRepositories': () => {
+      filterRoots = null;
+      setTimeout(push, 5);
+    },
+    'commit/revealRepository': () => undefined,
     'commit/openDiff': () => undefined,
     // POST-P14bq: the host opens the file manager; receiving it is enough.
     'commit/reveal': () => undefined,

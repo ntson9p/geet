@@ -7,9 +7,12 @@
  * **The host owns the facts; the webview owns the view.** This side builds one
  * state object from the snapshots the status refresher keeps, plus the two
  * things that cost git — the recent branches (the reflog) and which branches
- * are merged — and pushes it whenever any repository moves. Filtering, folding,
- * the scope and the open card are the webview's: none of them needs git, so
- * none of them waits on a round trip.
+ * are merged — and pushes it whenever any repository moves. Filtering, folding
+ * and the open card are the webview's: none of them needs git, so none of them
+ * waits on a round trip. The repositories picked are kept here since POST-P14ce
+ * (`reposInView.ts`), because the Commit window follows them: the webview
+ * changes its copy at once and tells this side, which tells it in turn of a
+ * pick made elsewhere.
  *
  * Actions come from the shared registry through `panelActions.ts`; a card's
  * extra facts (author, how the branch stands against HEAD) are read when the
@@ -48,6 +51,7 @@ import {
 } from './panelActions';
 import { buildRepoDto, mainBranchOf, mergedArgs, mergedBranches } from './panelState';
 import type { RefService } from './refService';
+import type { ReposInView } from './reposInView';
 import { showTagsSetting } from './showTags';
 import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
 
@@ -58,6 +62,8 @@ export interface BranchPanelDeps {
   readonly actions: readonly BranchAction[];
   /** The drop prompt the branch trees use: merge, rebase or compare. */
   readonly onDrop: (repo: RepoHandle, source: string, target: string) => Promise<void>;
+  /** POST-P14ce: the repositories picked, which the Commit window follows too. */
+  readonly reposInView: ReposInView;
 }
 
 /** Bursts of model events (a checkout fires several) become one push. */
@@ -120,6 +126,15 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     this.subs.push(
       toDisposable(core.onDidAddRepo(() => this.onRepos())),
       toDisposable(core.onDidRemoveRepo(() => this.onRepos())),
+      // POST-P14ce: a pick made elsewhere (the Commit window's Show all, Show
+      // Only This Repository). One the panel made it already shows. Before the
+      // webview listens, its first state carries the pick instead.
+      toDisposable(
+        deps.reposInView.onDidChange((source) => {
+          if (source === 'panel' || !this.rpc || !this.ready) return;
+          this.rpc.notify(BRANCHES_METHODS.evtScope, { roots: deps.reposInView.picked });
+        }),
+      ),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (
           e.affectsConfiguration('gittree.branches') ||
@@ -256,6 +271,9 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
           ? 'colorBlind'
           : 'default',
       intellijKeymap: vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
+      // Read once the awaits above are over, so a push built across a pick
+      // carries the pick as it is when it is sent, never as it was.
+      scope: this.deps.reposInView.picked,
     };
     this.last = state;
     return state;
@@ -406,7 +424,9 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
   // ---- gestures --------------------------------------------------------------
 
   private wire(rpc: WebviewRpcHost): void {
-    rpc.on(BRANCHES_METHODS.init, async () => {
+    rpc.on(BRANCHES_METHODS.init, async (params) => {
+      // POST-P14ce: the pick the panel kept itself until now, adopted once.
+      this.deps.reposInView.adoptLegacy((params as { scope?: unknown } | undefined)?.scope);
       const state = await this.buildState();
       // Asked for before the webview listened: deliver once it can hear —
       // after this answer, which is posted first.
@@ -485,6 +505,15 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       if (!isTarget(p?.source) || !isTarget(p.target)) return null;
       await this.drop(p.source, p.target);
       return null;
+    });
+
+    // POST-P14ce: a click, Ctrl+click, Show Only This Repository or Show all in
+    // the panel. Kept for the Commit window, which follows it; answered with the
+    // pick as kept (every open repository picked is none).
+    rpc.on(BRANCHES_METHODS.setScope, (params) => {
+      const roots = (params as { roots?: unknown } | undefined)?.roots;
+      if (Array.isArray(roots)) this.deps.reposInView.set(roots, 'panel');
+      return { roots: this.deps.reposInView.picked };
     });
   }
 
@@ -591,12 +620,14 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * POST-P14cb: the Commit window's *Select in Repositories Panel*. The panel
-   * comes into view and shows only that repository, as a click on its row does,
-   * with the keyboard on the row.
+   * POST-P14ce: a name on the Commit window's filter bar. The panel comes into
+   * view with its REPOSITORIES pane open and the keyboard on that repository's
+   * row; what is picked stays as it is. (POST-P14cb's *Select in Repositories
+   * Panel*, which also picked it, is now *Show Only This Repository*, and picks
+   * without moving the keyboard.)
    */
-  async showRepository(root: string): Promise<void> {
-    await this.notifyWhenListening(BRANCHES_METHODS.evtShowRepo, { root });
+  async revealRepository(root: string): Promise<void> {
+    await this.notifyWhenListening(BRANCHES_METHODS.evtRevealRepo, { root });
   }
 
   private async notifyWhenListening(method: string, params: unknown): Promise<void> {

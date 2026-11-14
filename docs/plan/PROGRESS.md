@@ -1892,3 +1892,75 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration:** Stashes (`phase07`: scheme, view, mark = the stash's status, hover, screen-reader name), Conflicts (`phase06`: `conflicted`), Local History (`phase09`: unmarked, hover, name), Worktrees (`phase13`: unmarked).
 
 Gates: typecheck (all three tsconfigs) + lint clean; extension built.
+
+POST-P14ce ✅ 2026-11-14 (branch `new-way-6`): **The Commit window shows only the repositories picked in the Repositories panel.** The owner asked whether picking repositories in the Repositories panel narrowed the Commit panel's list. It did not: the pick lived in the panel's webview, and the Commit window always listed every repository. They asked for a design with an indicator in the Commit panel (seen with the Repositories panel folded) and a quick way back. The design page offered A (one pick for both panels, a bar over the list, commit what is shown), B (A plus a switch to unlink them) and C (a filter of the Commit window's own). The owner chose A, and the rename of *Select in Repositories Panel* to *Show Only This Repository* (D45).
+
+**One pick, kept by the host.** `reposInView.ts` (new, vscode-free) keeps the pick for the workspace (`workspaceState`, `gittree.reposInView`). Its rules are the panel's as they were: none picked, or every open one, shows them all; a pick of repositories since closed shows them all rather than none; roots match by `canonicalKey`, each asked of the disk once. `snapshot()` says which are in view, and whether the list is narrowed: never with one repository.
+- **The Repositories panel** keeps a copy, changed at once on a click, Ctrl+click, the pill, *Show all* or its menu, and sends it to the host (`branches/setScope`, answered with the pick as kept). It takes the host's word from its first state, from `branches/scope` (a pick made elsewhere), and from its state pushes, but never while a pick it sent is unanswered, so a push built before cannot undo it. Its old webview copy is sent with `branches/init` and adopted once.
+- **The Commit window** subscribes and pushes. Narrowed, `buildState` lists only the repositories in view, counts only theirs (counter, `targets`), and adds `filter`: the repositories shown and left out, with their changes and ticks. Labels and colours are worked out among every repository, so narrowing renames or recolours none. The view's badge still counts every change.
+- **The message box stays the editor's repository's** (`activeRepo`), even out of view, so a message typed before narrowing stays on screen. Amend, its ▾ list, the options and Shelve act on `commitRepo`: the editor's repository while it is shown, else the first listed. The Amend toggle names the box on screen for its prefill (`messageRepoRoot`): the editor may have moved since the last state.
+
+**What you see is what you commit.**
+- The webview sends the roots it shows with Commit, Commit and Push… and Ctrl+Enter (`CommitRunParamsDto.roots`).
+- The bare `gittree.commit` and `gittree.commitAndPush` (Ctrl+K, the palette) commit the repositories in view, through POST-P14by's `runCommitAcross(…, { roots })`. `commitAmend`, `toggleAmend` and `toggleSign` act on `commitRepo`.
+- A narrowed commit's notification names where it went (`committedMessage(…, repos)`: *5 files committed to shop-api: …*).
+- With nothing ticked in the repositories shown but something elsewhere, a narrowed commit says *Nothing ticked to commit in docs. What is ticked in shop-api is not shown.* (*staged* with staging), offers *Show All Repositories*, and commits nothing. It no longer says "No checked files" while files are ticked, nor offers staging's commit-all.
+- `singleCommitRepo` prefers a repository asked for with Amend ticked when the message's own is out of view, so a message-only amend reaches the Amend shown.
+
+**The bar** (`RepoFilterBar.tsx`, words in `repoFilter.ts`):
+- the filter icon, then the repositories shown with their dots in the Repositories panel's colours. Several are counted (*2 of 3 repositories*) when they do not fit with the rest of the bar, measured by an unseen copy of it. One is always named, cut short if it must be;
+- then `· 3 changes elsewhere`, or `· 5 ticked elsewhere` (*staged*) in the warning colour;
+- **Show all** at the end;
+- the hover lists what is left out, ten repositories and a count. A screen reader hears "Showing shop-api only. 2 ticked elsewhere."
+
+A name, or the count, brings the Repositories panel up on that repository's row with the REPOSITORIES pane open (`gittree.branches.revealRepository`, `branches/revealRepo`); the pick stays. Narrowed to repositories with nothing to commit, the list says *No changes in docs.* beside *Show all repositories · 9 changes*, in every grouping.
+
+**The rest follows the list.**
+- A narrowed list keeps the shape of several repositories (`multiRepoOf`): its repository rows, its grouping, the same row paths.
+- A selected row the list leaves out is no longer selected, so Rollback, Show Diff and the preview never act on a hidden row (this also drops rows a commit removed).
+- Collapse all leaves the rows of repositories left out as they were. Their rows are found by the root a path names, the longest one, so a repository inside another's folder is told apart.
+- Another set of repositories starts the list at its top.
+
+**Menus and commands.**
+- A Commit-window repository row's *Select in Repositories Panel* is now **Show Only This Repository**: it sets the pick and leaves the keyboard where it was.
+- On the repository shown alone it is **Show All Repositories** (`repoShownAlone` in the row's context).
+- *GitTree: Show All Repositories* is in the Command Palette while `gittree.reposNarrowed`.
+
+**Seen in a real VS Code 1.144** (`scratchpad/design/filtershot.cjs`, three repositories: shop-api and shop-web with changes, docs with none):
+
+| Step | Commit window | Repositories panel |
+| --- | --- | --- |
+| Nothing picked | no bar; both repositories, `7 of 9 files`, *Commit to 2 repositories* | 3 repositories; *Show All Repositories* not in the palette |
+| Click shop-api in the panel | bar `● shop-api · 2 ticked elsewhere` (warning colour), 24 px; shop-api's row and files; `5 of 6 files`; *Commit to shop-api* | narrowed to shop-api; the palette offers *Show All Repositories* |
+| The bar's *Show all* | no bar; every repository | 3 repositories |
+| shop-web row › *Show Only This Repository* | bar `● shop-web · 5 ticked elsewhere`; keyboard still in the Commit window | narrowed to shop-web |
+| The same row's menu | *Show All Repositories* first, the rest unchanged | |
+| Click docs | bar `● docs · 7 ticked elsewhere`; *No changes in docs. Show all repositories · 9 changes*; *Commit* | narrowed to docs |
+| *docs* on the bar | pick unchanged | panel up, keyboard on the docs row |
+| shop-web, Ctrl+click shop-api | bar `● shop-api ● shop-web`, no rest (docs has nothing) | 2 repositories |
+| Side bar 207 px | `2 of 3 repositories`, Show all whole | |
+| shop-api alone, a message, Commit | shop-api committed its 5 ticked files, shop-web untouched; *5 files committed to shop-api: Narrowed commit of shop-api* | |
+| Reload | the pick kept: bar `● shop-web · 1 ticked elsewhere` | the pick kept |
+
+Found on the way, not changed here: a staged rename committed from a changelist commits the new path only. `git commit --only -- docs/install.md` leaves the deletion of `docs/setup.md` staged, and the file shows again as deleted.
+
+Docs: D45 (new), D44 (the row's menu), CHANGELOG (Added; the earlier line renamed), FEATURES (the scope, the Commit window), keyboard.md (Ctrl+K).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `reposInView.test.ts`: the store's rules, its persistence, the adoption of the old pick once and never over a kept one, and roots asked of the disk once;
+  - `repoFilter.test.ts`: the bar's words, hover and spoken name, and the empty list's;
+  - `commitTreeFilter.test.ts`: the shape kept, Collapse all, whose a row is (nested roots), `repoShownAlone`;
+  - `commitScope.test.ts`: the Amend preference;
+  - `resultMessages.test.ts`: `committedMessage` with where, `repositoriesPhrase`;
+  - `commitWindowMenus.test.ts`: the rename, Show All Repositories on the repository alone, the palette;
+  - `commitTree.test.ts` and `commitTreePlain.test.ts`: the row context's new key.
+- **Playwright:**
+  - `commit.spec.ts` (new describe, mock `__mockFilter` and `__mockNarrow`): the bar, its warning and hover; the list and counter; Show all; a name; Commit with roots, and without; Amend's repository and the box named; the empty list; names counted at 200 px, back at 600; one name in a narrow side bar; the row context; a hidden selected row dropped;
+  - `branches.spec.ts` (new describe, mock keeps the pick): picks sent from a click, Ctrl+click, the pill and the menu; opening on the host's pick; picks made elsewhere coming in; the old pick handed over once and not over the host's; the bar's reveal opening the pane on its row.
+- **Integration** (`multiRoot.test.ts`, new suite):
+  - the state narrowed, counted and named, the panel drawing the same pick, and the palette's Show All;
+  - a bare commit through *Show Only This Repository* committing the pick alone with the message on screen, its notification naming it, the box emptied;
+  - nothing ticked in the pick: the notice, no commit, and *Show All Repositories* widening.
+
+Gates: typecheck (all three tsconfigs) + lint clean; extension and webviews built.

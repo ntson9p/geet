@@ -6,6 +6,33 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — the Commit window shows only the repositories picked in the Repositories panel
+
+- **Picking repositories in the Repositories panel narrows the Commit window to them**: a click on
+  a repository, Ctrl+click for several, or *Show Only This Repository*. The list shows only their
+  changes, and the counter counts only those.
+- **A bar over the list says so**, whether the Repositories panel is open or folded away:
+  - the repositories shown, in their colours, or *2 of 5 repositories* when the names do not fit;
+  - how many changes are left out, `· 3 changes elsewhere`, or `· 5 ticked elsewhere` in a
+    warning colour when some of them are ticked. Its hover lists them;
+  - a repository's name brings the Repositories panel up on it;
+  - **Show all** shows every repository again, in both panels.
+- **What you see is what you commit.** The Commit button, *Commit and Push…*, Ctrl+Enter and the
+  Command Palette's *Commit* (Ctrl+K with the IntelliJ keymap) commit only the repositories shown.
+  The button names them, and the notification says where the commit went. Ticks out of view stay
+  ticked, and are committed once shown again. With nothing ticked in the repositories shown but
+  something elsewhere, *Commit* says so and offers *Show All Repositories*.
+- **A message you typed stays.** The message box is still the one of the repository you are
+  editing in, even when the list leaves that repository out. Amend, its ▾ list, the options and
+  *Shelve Changes* act on a repository the list shows.
+- A repository row's *Select in Repositories Panel* is now **Show Only This Repository**, the
+  Repositories panel's name for the same thing, and the keyboard stays in the Commit window. On the
+  repository shown alone it is *Show All Repositories*, also in the Command Palette while the list
+  is narrowed.
+- The pick is kept for the workspace, as the Repositories panel's always was. With one repository
+  there is nothing to narrow and no bar. The Shelf and Stash tabs are not narrowed, and the view's
+  badge still counts every change.
+
 ### Fixed — VS Code's Git no longer marks the rows of GitTree's own views
 
 - **Stashes and Local History showed VS Code's status letter for a file as it is now.** That says
@@ -30,9 +57,9 @@ pre-release convention (odd minor = pre-release).
   - *Changelist* brings the changelist rows back;
   - *Directory* adds folder rows, with or without changelists.
   With several repositories, which comes first, changelists or repositories, is chosen under them.
-- **Right-click a repository** for *Select in Repositories Panel*: the panel shows only that
-  repository, as a click on it there does. The menu also has its change actions, *Reveal in File
-  Explorer*, and the Repositories panel's own menu for it.
+- **Right-click a repository** for *Show Only This Repository*: the Repositories panel shows only
+  that repository, as a click on it there does, and so does this list (see above). The menu also
+  has its change actions, *Reveal in File Explorer*, and the Repositories panel's own menu for it.
 - Changelists still exist: new changes go to the active one, and *Move to Another Changelist…* is
   still on a file's menu. Merge Conflicts is a row of its own, first under its repository.
 - Settings: `gittree.commit.groupBy` gains `none`, its new default, and

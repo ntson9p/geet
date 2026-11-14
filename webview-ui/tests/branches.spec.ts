@@ -1806,3 +1806,95 @@ test.describe('a narrow sidebar', () => {
     await expect(meta).toHaveAttribute('title', /^Alice · /u);
   });
 });
+
+test.describe('the pick is the host’s, which the Commit window follows (POST-P14ce)', () => {
+  /** The panel with the pick the host kept (`undefined`: nothing kept yet) and the panel's own old copy. */
+  async function openPicked(page: Page, opts: { kept?: string[]; old?: string[] } = {}): Promise<void> {
+    await page.addInitScript((o) => {
+      const w = window as unknown as Record<string, unknown>;
+      if (o.kept !== undefined) w['__mockScope'] = o.kept;
+      if (o.old !== undefined) w['__mockVsState'] = { scope: o.old };
+    }, opts);
+    await page.addInitScript(mockBranchesHostScript);
+    await page.goto('/branches.html');
+    await expect(page.locator('[data-row-id]').first()).toBeVisible();
+  }
+  const filterField = (page: Page): Locator => page.getByLabel('Filter branches');
+  const sentPicks = async (page: Page) => (await requests(page, 'branches/setScope')).map((p) => p['roots']);
+
+  test('a click, a Ctrl+click and the pill each tell the host the pick, at once in the panel', async ({ page }) => {
+    await openPicked(page);
+    await row(page, `repo:${WEB}`).click();
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in web');
+    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 2 repositories');
+    await page.getByRole('button', { name: /^Narrowed to 2 repositories/u }).click();
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
+    expect(await sentPicks(page)).toEqual([[WEB], [WEB, API], []]);
+  });
+
+  test("a repository's menu tells it too: Show Only This Repository, then Show All Repositories", async ({ page }) => {
+    await openPicked(page);
+    await row(page, `repo:${SHARED}`).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Show Only This Repository' }).click();
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in shared');
+    await row(page, `repo:${SHARED}`).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Show All Repositories' }).click();
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
+    expect(await sentPicks(page)).toEqual([[SHARED], []]);
+  });
+
+  test('the panel opens on the pick the host kept', async ({ page }) => {
+    await openPicked(page, { kept: [API] });
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in api');
+    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+    expect(await sentPicks(page)).toEqual([]);
+  });
+
+  test('a pick made in the Commit window comes in: its Show all widens the panel, its Show Only narrows it', async ({
+    page,
+  }) => {
+    await openPicked(page, { kept: [WEB] });
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in web');
+    await page.evaluate(() => (window as unknown as { __mockPickElsewhere(r: string[]): void }).__mockPickElsewhere([]));
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
+    // And its Show Only This Repository narrows it.
+    await page.evaluate(
+      (root) => (window as unknown as { __mockPickElsewhere(r: string[]): void }).__mockPickElsewhere([root]),
+      SHARED,
+    );
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in shared');
+    // Nothing was asked of the host for it: the host made it.
+    expect(await sentPicks(page)).toEqual([]);
+  });
+
+  test('the pick it kept itself before is handed to the host once, and no longer kept by the panel', async ({
+    page,
+  }) => {
+    await openPicked(page, { old: [SHARED] });
+    expect((await requests(page, 'branches/init'))[0]).toEqual({ scope: [SHARED] });
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in shared');
+    // The panel's own state forgets it on its next save.
+    await showTab(page, 'Local');
+    await expect.poll(async () => (await vsState(page))['scope']).toBeUndefined();
+  });
+
+  test("an old pick does not override the host's", async ({ page }) => {
+    await openPicked(page, { kept: [API], old: [SHARED] });
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in api');
+  });
+
+  test("a name on the Commit window's filter bar opens REPOSITORIES and puts the keyboard on its row; the pick stays", async ({
+    page,
+  }) => {
+    await openPicked(page, { kept: [WEB] });
+    await paneHeader(page, 'repos').click();
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, `repo:${WEB}`)).toBeHidden();
+    await page.evaluate((root) => (window as unknown as { __mockReveal(r: string): void }).__mockReveal(root), WEB);
+    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in web');
+    expect(await sentPicks(page)).toEqual([]);
+  });
+});

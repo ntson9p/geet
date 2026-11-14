@@ -912,6 +912,8 @@ describe('the menu a changelist or repository row opens', () => {
       repoHasTracked: true,
       // todo.txt is new: Add to VCS is on offer.
       repoHasUnversioned: true,
+      // POST-P14ce: every repository listed: Show Only This Repository is on offer.
+      repoShownAlone: false,
     });
   });
 

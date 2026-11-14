@@ -47,4 +47,20 @@ describe('singleCommitRepo', () => {
   it('with none ticked and the message typed elsewhere, the first repository asked for speaks', () => {
     expect(singleCommitRepo('api', [], ['web', 'docs'], only('web', 'docs'))).toBe('web');
   });
+
+  it('with none ticked and the message typed elsewhere, the one asked for with Amend ticked amends (POST-P14ce)', () => {
+    // The Commit window narrowed to web and docs, its message box still api's:
+    // its Amend is docs', the first it lists, wherever docs is among them.
+    expect(singleCommitRepo('api', [], ['web', 'docs'], only('web', 'docs'), only('docs'))).toBe('docs');
+    // None armed: the first, as before.
+    expect(singleCommitRepo('api', [], ['web', 'docs'], only('web', 'docs'), only())).toBe('web');
+    // An Amend armed outside them amends nothing.
+    expect(singleCommitRepo('api', [], ['web', 'docs'], only('web', 'docs'), only('api'))).toBe('web');
+  });
+
+  it("the message's own repository, asked for, still speaks first, Amend armed elsewhere or not", () => {
+    expect(singleCommitRepo('api', [], ['api', 'web'], every, only('web'))).toBe('api');
+    // One ticked: that one, whatever is armed.
+    expect(singleCommitRepo('api', ['web'], ['api', 'web', 'docs'], every, only('docs'))).toBe('web');
+  });
 });

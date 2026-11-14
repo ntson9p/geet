@@ -9,11 +9,12 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { isStaged } from '../core/model/statusEntry';
 import { CancellationSource } from '../core/util/cancellation';
-import { committedMessage } from '../scm/resultMessages';
+import { committedMessage, repositoriesPhrase } from '../scm/resultMessages';
 import { confirmModal } from '../ui/confirm';
 import { pathListDetail } from '../ui/pathList';
 import { excludedFromMergeCommit, hasUnresolvedConflicts } from './mergeCommitChecks';
-import { notifySuccess } from '../ui/notify';
+import { notifyInfo, notifySuccess } from '../ui/notify';
+import { repoLabels } from '../core/util/repoLabels';
 import { UNVERSIONED_ID, type ChangelistService } from './changelists/changelistService';
 import type { CheckPipeline } from './checks/pipeline';
 import { CommitService, describeGpgFailure } from './commitService';
@@ -213,6 +214,11 @@ export async function runCommitFlow(
     onCommitted?: (files: number, subject: string) => void;
     /** The multi-root commit asked the merge checks for every repository at once. */
     mergeChecked?: boolean;
+    /**
+     * POST-P14ce: where its notification says it went. A commit narrowed to
+     * some repositories names them; one of the whole project does not.
+     */
+    where?: readonly string[];
   } = {},
 ): Promise<boolean> {
   const inputBox = deps.inputBoxFor(repo);
@@ -360,7 +366,7 @@ export async function runCommitFlow(
     // IntelliJ's commit result (`vcs.commit.files.committed`): what went in.
     const summary = await headCommitSummary(deps.core, repo);
     options.onCommitted?.(summary.files, summary.subject);
-    if (options.notify !== false) notifySuccess(committedMessage(summary.files, summary.subject));
+    if (options.notify !== false) notifySuccess(committedMessage(summary.files, summary.subject, options.where));
     if (options.andPush === true) await pushAfterCommit([repo]);
     if (deferAdvanced) {
       // Fire-and-forget by design: the commit is done and the flow must not
@@ -393,27 +399,45 @@ export async function runCommitFlow(
  *
  * `options.roots` (POST-P14by) narrows it to those repositories, by canonical
  * root, whatever list is ticked: the Repositories panel's `⋯` with some of them
- * in view. `messageRepo` may lie outside them; the message the user typed is
- * still the one used, and its Amend is not, since it amends a repository that
- * is not being committed.
+ * in view, and since POST-P14ce the Commit window's own Commit, Commit and
+ * Push and Ctrl+K while its list is narrowed to them. `messageRepo` may lie
+ * outside them; the message the user typed is still the one used, and its
+ * Amend is not, since it amends a repository that is not being committed. Its
+ * notification names where it went, and with nothing ticked in them but
+ * something elsewhere it says so, offering `options.showAll`.
  */
 export async function runCommitAcross(
   deps: CommitFlowDeps,
   messageRepo: RepoHandle,
-  options: { andPush?: boolean; lists?: ReadonlyMap<string, string>; roots?: ReadonlySet<string> } = {},
+  options: {
+    andPush?: boolean;
+    lists?: ReadonlyMap<string, string>;
+    roots?: ReadonlySet<string>;
+    /**
+     * POST-P14ce: what shows every repository again — `roots` are the
+     * Repositories panel's pick — offered when what is ticked is outside them.
+     */
+    showAll?: () => void;
+  } = {},
 ): Promise<boolean> {
   const nameOf = (r: RepoHandle): string => path.basename(r.root);
+  // The names the Commit window and the Repositories panel give them, which a
+  // notification of a narrowed commit uses: two basenames can be the same.
+  const labels = repoLabels(deps.core.repos.map((r) => r.root));
+  const labelOf = (r: RepoHandle): string => labels.get(r.root) ?? nameOf(r);
   const typedMessage = (): string => deps.inputBoxFor(messageRepo)?.value.trim() ?? '';
   const { lists, roots } = options;
   const listOf = (r: RepoHandle): string | undefined => lists?.get(canonicalKey(r.root));
   /** In the repositories asked for: every one, unless `roots` names some. */
   const inScope = (r: RepoHandle): boolean => roots === undefined || roots.has(canonicalKey(r.root));
   /** Per-repo flow options. Built explicitly so `lists` never leaks through. */
-  const optionsFor = (r: RepoHandle): { andPush?: boolean; listId?: string } => {
+  const optionsFor = (r: RepoHandle): { andPush?: boolean; listId?: string; where?: readonly string[] } => {
     const listId = listOf(r);
     return {
       ...(options.andPush !== undefined ? { andPush: options.andPush } : {}),
       ...(listId !== undefined ? { listId } : {}),
+      // POST-P14ce: narrowed to some repositories, it says which one it went to.
+      ...(roots !== undefined ? { where: [labelOf(r)] } : {}),
     };
   };
 
@@ -444,11 +468,33 @@ export async function runCommitAcross(
     return false;
   }
   const participants = candidates.filter((r) => hasCommittableChanges(deps, r, listOf(r)));
+  const isAmend = (r: RepoHandle): boolean => deps.commitService.isAmend(r);
+  // POST-P14ce: nothing ticked in the repositories asked for, and something is
+  // elsewhere. "No checked files to commit" would be untrue of the project, and
+  // staging's commit-all offer would commit what nobody ticked: say where the
+  // ticks are, and offer to show them. An Amend armed among those asked for
+  // amends with no files, as it always could.
+  if (roots !== undefined && participants.length === 0 && !candidates.some(isAmend)) {
+    const elsewhere = deps.core.repos.filter((r) => !inScope(r) && hasCommittableChanges(deps, r));
+    if (elsewhere.length > 0) {
+      const here = repositoriesPhrase(candidates.map(labelOf));
+      const there = repositoriesPhrase(elsewhere.map(labelOf));
+      const showAll = options.showAll;
+      notifyInfo(
+        deps.paradigm.paradigm === 'staging'
+          ? vscode.l10n.t('Nothing staged to commit in {0}. What is staged in {1} is not shown.', here, there)
+          : vscode.l10n.t('Nothing ticked to commit in {0}. What is ticked in {1} is not shown.', here, there),
+        ...(showAll !== undefined ? [{ title: vscode.l10n.t('Show All Repositories'), run: showAll }] : []),
+      );
+      return false;
+    }
+  }
   // With none, `messageRepo` reproduces today's diagnostics ("No checked files
   // to commit", the staging commit-all offer, …): it, if it is one asked for,
-  // else the first that is, never a repository outside them (`singleCommitRepo`).
+  // else the first armed to amend, else the first, never a repository outside
+  // them (`singleCommitRepo`).
   if (participants.length <= 1) {
-    return commitOne(singleCommitRepo(messageRepo, participants, candidates, inScope));
+    return commitOne(singleCommitRepo(messageRepo, participants, candidates, inScope, isAmend));
   }
 
   // Amend stays single-repo. Amending N repositories from one checkbox rewrites
@@ -460,7 +506,7 @@ export async function runCommitAcross(
   // bound to. Without this the spanning loop below would reach that repo with
   // amend still armed and rewrite its history as part of a plain commit.
   // POST-P14by: only a repository being committed can be amended (`amendTarget`).
-  const amending = amendTarget(messageRepo, participants, inScope, (r) => deps.commitService.isAmend(r));
+  const amending = amendTarget(messageRepo, participants, inScope, isAmend);
   if (amending !== undefined) {
     const others = participants.filter((r) => r !== amending).map(nameOf);
     const ok = await confirmModal(
@@ -540,7 +586,8 @@ export async function runCommitAcross(
   // user typed into belongs to a repo that committed nothing, it still holds
   // the text of a commit that has already happened.
   clearTypedMessage(deps, messageRepo);
-  notifySuccess(committedMessage(filesCommitted, message));
+  // POST-P14ce: narrowed to some repositories, it says which it went to.
+  notifySuccess(committedMessage(filesCommitted, message, roots !== undefined ? landed.map(labelOf) : undefined));
   if (andPush) await pushAfterCommit(landed);
   return true;
 }

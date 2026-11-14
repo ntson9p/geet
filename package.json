@@ -1299,6 +1299,16 @@
         "category": "GitTree"
       },
       {
+        "command": "gittree.branches.showAllRepositories",
+        "title": "%gittree.command.branches.showAllRepositories.title%",
+        "category": "GitTree"
+      },
+      {
+        "command": "gittree.branches.revealRepository",
+        "title": "%gittree.command.branches.revealRepository.title%",
+        "category": "GitTree"
+      },
+      {
         "command": "gittree.branches.newBranchInPanel",
         "title": "%gittree.command.branches.newBranchInPanel.title%",
         "category": "GitTree",
@@ -2596,6 +2606,14 @@
         {
           "command": "gittree.branches.selectRepository",
           "when": "false"
+        },
+        {
+          "command": "gittree.branches.showAllRepositories",
+          "when": "gittree.reposNarrowed"
+        },
+        {
+          "command": "gittree.branches.revealRepository",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -3247,7 +3265,12 @@
         },
         {
           "command": "gittree.branches.selectRepository",
-          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository'",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && !repoShownAlone",
+          "group": "0_0_select@1"
+        },
+        {
+          "command": "gittree.branches.showAllRepositories",
+          "when": "webviewId == 'gittree.commit' && webviewSection == 'commitRepository' && repoShownAlone",
           "group": "0_0_select@1"
         },
         {

@@ -145,6 +145,14 @@ export function notifyWarning(message: string, ...actions: NotificationAction[])
   show('warning', message, actions);
 }
 
+/**
+ * POST-P14ce: it did nothing, for a reason worth a button: *Nothing ticked to
+ * commit in web* when what is ticked is in a repository the list leaves out.
+ */
+export function notifyInfo(message: string, ...actions: NotificationAction[]): void {
+  show('info', message, actions);
+}
+
 /** Test seam: what was said, oldest first. */
 export function recentNotifications(): readonly RecordedNotification[] {
   return [...recent];

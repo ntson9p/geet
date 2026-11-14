@@ -38,6 +38,8 @@ import { repoRootOf } from '../ui/rowContext';
 import { registerRevealInOS } from '../scm/revealInOS';
 import { COMMIT_FROM_MESSAGE_COMMAND } from './window/commitKey';
 import { STAGING_SIDES, stagingSideOf } from '../shared/protocol';
+import type { Phase02Registry } from '../branches/register';
+import { everyRepoInView, type ReposInViewReader } from '../branches/reposInView';
 
 export interface Phase03Registry {
   paradigm: ParadigmManager;
@@ -103,6 +105,15 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // P11-T5: the gear popup's backing store.
   const optionsStore = new CommitOptionsStore(context.workspaceState);
 
+  // POST-P14ce: the repositories picked in the Repositories panel (phase 02,
+  // registered first). The Commit window lists only theirs, and a bare commit
+  // commits only them.
+  const reposInView: ReposInViewReader =
+    (core.debugRegistry.get('phase02') as Pick<Phase02Registry, 'reposInView'> | undefined)?.reposInView ??
+    everyRepoInView(() => core.repos.map((r) => r.root));
+  /** What widens the list again, offered when what is ticked lies outside it. */
+  const showAll = (): void => reposInView.clear('elsewhere');
+
   const commitWindow = new CommitWindowViewProvider({
     context,
     core,
@@ -112,7 +123,9 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     paradigm,
     inclusion,
     options: optionsStore,
-    runCommit: (repo, options) => runCommitAcross(flowDeps, repo, options),
+    reposInView,
+    runCommit: (repo, options) =>
+      runCommitAcross(flowDeps, repo, options.roots !== undefined ? { ...options, showAll } : options),
   });
   context.subscriptions.push(commitWindow);
 
@@ -149,10 +162,31 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // the row the keyboard is on.
   registerRevealInOS(context, core, () => commitWindow.revealKeyboardRow());
 
+  /**
+   * The repository named, else the one the Commit window's message box is bound
+   * to: the active editor's, else the first (POST-P14ce: the first the list
+   * shows, when it is narrowed and there is no editor).
+   */
   const pickRepo = (arg?: unknown): RepoHandle | undefined => {
     if (typeof arg === 'string') return core.getRepo(arg);
-    const uri = vscode.window.activeTextEditor?.document.uri;
-    return (uri && core.repoForUri(uri)) ?? core.repos[0];
+    return commitWindow.messageRepo();
+  };
+  /**
+   * POST-P14ce: the repository named, else the one the Commit window's Amend
+   * acts on, which its list shows: the editor's while it is in view.
+   */
+  const pickCommitRepo = (arg?: unknown): RepoHandle | undefined => {
+    if (typeof arg === 'string') return core.getRepo(arg);
+    return commitWindow.commitRepo();
+  };
+  /**
+   * POST-P14ce: what a bare commit commits while the Commit window's list is
+   * narrowed to the repositories picked in the Repositories panel: those alone,
+   * as the list shows them, the window out of sight or not.
+   */
+  const inView = (): { roots?: ReadonlySet<string>; showAll?: () => void } => {
+    const view = reposInView.snapshot();
+    return view.narrowed ? { roots: new Set(view.roots.map((r) => canonicalKey(r))), showAll } : {};
   };
   const register = (id: string, fn: (...args: unknown[]) => Promise<void> | void): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
@@ -162,7 +196,8 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // An explicit repo argument is a *scoped* request — a context menu, or a
   // test naming its fixture — and commits exactly that repository. The bare
   // command (palette, Ctrl+K, the commit window's button) means "commit what
-  // is ticked", which in a multi-root workspace may span repositories.
+  // is ticked", which in a multi-root workspace may span repositories — those
+  // the Commit window lists (POST-P14ce).
   register('gittree.commit', async (repoRoot) => {
     // POST-P14by: a list, the Repositories panel's `⋯` with some repositories in
     // view: what is ticked in those, with the message typed in the Commit window
@@ -173,12 +208,12 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       const roots = new Set(
         repoRoot.filter((r): r is string => typeof r === 'string').map((r) => canonicalKey(r)),
       );
-      await runCommitAcross(flowDeps, messageRepo, { roots });
+      await runCommitAcross(flowDeps, messageRepo, { roots, showAll });
       return;
     }
     const repo = pickRepo(repoRoot);
     if (!repo) return;
-    if (repoRoot === undefined) await runCommitAcross(flowDeps, repo);
+    if (repoRoot === undefined) await runCommitAcross(flowDeps, repo, inView());
     else await runCommitFlow(flowDeps, repo);
   });
   // POST-P14bs: Ctrl+Enter (⌘Enter) in the Commit window's message box. Not
@@ -188,34 +223,49 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   register('gittree.commitAndPush', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (!repo) return;
-    if (repoRoot === undefined) await runCommitAcross(flowDeps, repo, { andPush: true });
+    if (repoRoot === undefined) await runCommitAcross(flowDeps, repo, { andPush: true, ...inView() });
     else await runCommitFlow(flowDeps, repo, { andPush: true });
   });
   register('gittree.commitAmend', async (repoRoot) => {
-    const repo = pickRepo(repoRoot);
+    // POST-P14ce: bare, the repository the window's Amend acts on, which its
+    // list shows; the message is the one on screen, in the box of the editor's
+    // repository, which may be one the list leaves out.
+    const repo = pickCommitRepo(repoRoot);
     if (!repo) return;
+    const boxRepo = repoRoot === undefined ? (pickRepo(undefined) ?? repo) : repo;
+    const input = messageBoxFor(boxRepo);
     if (!commitService.isAmend(repo)) {
       const result = await commitService.toggleAmend(repo);
       if (!result.amend) return;
-      const input = messageBoxFor(repo);
       if (input && input.value.trim().length === 0 && result.previousMessage !== undefined) {
         input.value = result.previousMessage;
       }
     }
-    await runCommitFlow(flowDeps, repo);
+    if (boxRepo === repo) {
+      await runCommitFlow(flowDeps, repo);
+      return;
+    }
+    // Another repository's box: its message handed down, and emptied once it
+    // is committed, as a commit across repositories does (`runCommitAcross`).
+    const typed = input.value.trim();
+    const ok = await runCommitFlow(flowDeps, repo, typed.length > 0 ? { message: typed } : {});
+    if (ok && input.value.length > 0) input.value = '';
   });
   register('gittree.commit.toggleAmend', async (repoRoot) => {
-    const repo = pickRepo(repoRoot);
+    // POST-P14ce: bare, as the window's Amend box does: a repository the list
+    // shows, the prefill into the box on screen.
+    const repo = pickCommitRepo(repoRoot);
     if (!repo) return;
     const result = await commitService.toggleAmend(repo);
-    const input = messageBoxFor(repo);
+    const input = messageBoxFor(repoRoot === undefined ? (pickRepo(undefined) ?? repo) : repo);
     if (result.amend && input && input.value.trim().length === 0 && result.previousMessage !== undefined) {
       input.value = result.previousMessage;
     }
     commitWindow.push();
   });
   register('gittree.commit.toggleSign', async (repoRoot) => {
-    const repo = pickRepo(repoRoot);
+    // POST-P14ce: the next commit of a repository the list shows, as Amend.
+    const repo = pickCommitRepo(repoRoot);
     if (!repo) return;
     const on = await commitService.toggleSign(repo);
     void vscode.window.setStatusBarMessage(

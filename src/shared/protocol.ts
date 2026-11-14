@@ -213,11 +213,50 @@ export interface CommitDiffOnScreenDto {
   file?: CommitDiffFileDto;
 }
 
+/**
+ * POST-P14ce: one repository as the Commit window's filter bar names it, with
+ * what it has: what the bar counts of the repositories it leaves out.
+ */
+export interface CommitFilterRepoDto {
+  root: string;
+  label: string;
+  colorIdx: number;
+  /** Its changed files. */
+  changes: number;
+  /** How many of its rows are ticked: staged, with staging. */
+  ticked: number;
+}
+
+/**
+ * POST-P14ce: the list is narrowed to the repositories picked in the
+ * Repositories panel. `CommitStateDto.repos` holds only those; this says which
+ * they are and what is left out.
+ */
+export interface CommitRepoFilterDto {
+  /** The repositories listed, in the list's order. */
+  shown: CommitFilterRepoDto[];
+  /** Every other repository, in the same order. */
+  hidden: CommitFilterRepoDto[];
+}
+
 export interface CommitStateDto {
-  /** In the order the user reads: by name, as the Repositories panel lists them. */
+  /**
+   * In the order the user reads: by name, as the Repositories panel lists them.
+   * Only the repositories in view while `filter` says the list is narrowed.
+   */
   repos: CommitRepoDto[];
-  /** Repo the message box and the amend checkbox act on. */
+  /**
+   * Repo the message box acts on: the active editor's, even when the list is
+   * narrowed to others (POST-P14ce), so a message typed stays on screen.
+   */
   activeRepo?: string;
+  /**
+   * POST-P14ce: the repo Amend, the Amend ▾ list, the options and Shelve act on:
+   * one the list shows. `activeRepo` unless the list is narrowed to others.
+   */
+  commitRepo?: string;
+  /** POST-P14ce: present while the list is narrowed to the repositories picked in the Repositories panel. */
+  filter?: CommitRepoFilterDto;
   /**
    * Labels of the repositories a commit would actually touch, host-computed
    * through the same predicate the commit path uses. The button renders this
@@ -232,7 +271,7 @@ export interface CommitStateDto {
   signing: boolean;
   /** A mutation is running — the action buttons disable rather than queue. */
   busy: boolean;
-  /** The `N modified` counter above the message editor. */
+  /** The `N modified` counter above the message editor: what the list shows. */
   modifiedCount: number;
   checkedCount: number;
   paradigm: 'changelists' | 'staging';
@@ -361,6 +400,10 @@ export const COMMIT_METHODS = {
    * the persist debounce) and knows whether that button is enabled. No params.
    */
   evtCommitKey: 'commit/commitKey',
+  /** POST-P14ce: the filter bar's Show all: every repository in view again, in both panels. No params. */
+  showAllRepositories: 'commit/showAllRepositories',
+  /** POST-P14ce: a name on the filter bar: the Repositories panel, its row under the keyboard (`{ root }`). */
+  revealRepository: 'commit/revealRepository',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
@@ -415,6 +458,11 @@ export interface CommitSetCheckedParamsDto {
 export interface CommitRunParamsDto {
   repoRoot: string;
   andPush: boolean;
+  /**
+   * POST-P14ce: the repositories the list showed, when it was narrowed: those
+   * alone are committed, whatever is ticked elsewhere. Absent: every one.
+   */
+  roots?: string[];
 }
 
 /** View Options › Group By: the grouping, the folder rows, or both; what is absent stays. */
@@ -1778,6 +1826,11 @@ export interface BranchPanelStateDto {
   readonly palette: 'default' | 'colorBlind';
   /** `gittree.keymap.intellij`: Ctrl+T, Ctrl+K and Ctrl+Shift+K are bound, so the menu names them. */
   readonly intellijKeymap?: boolean;
+  /**
+   * POST-P14ce: the repositories picked, kept by the host since the Commit
+   * window follows them too; none for every repository.
+   */
+  readonly scope?: readonly string[];
 }
 
 export type BranchPanelRefKind = 'local' | 'remote' | 'tag';
@@ -1923,7 +1976,11 @@ export const REPOSITORY_LOG_TAB_COMMAND = 'gittree.repositories.showInLog';
 export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder' | 'showRepositoryDots';
 
 export const BRANCHES_METHODS = {
-  /** webview → host: the first paint; answers a `BranchPanelStateDto`. */
+  /**
+   * webview → host: the first paint; answers a `BranchPanelStateDto`. POST-P14ce:
+   * `{ scope? }`, the pick the panel kept itself until then, which the host
+   * adopts once.
+   */
   init: 'branches/init',
   /** host → webview: the state changed. */
   evtState: 'branches/state',
@@ -1952,11 +2009,22 @@ export const BRANCHES_METHODS = {
   /** host → webview: put the cursor in the filter field. */
   evtFocusFilter: 'branches/focusFilter',
   /**
-   * host → webview (POST-P14cb): the Commit window's *Select in Repositories
-   * Panel*: show only this repository, as a click on its row does, with the
-   * keyboard on that row (`{ root }`).
+   * webview → host (POST-P14ce): the repositories picked (`{ roots }`; none for
+   * every one), which the Commit window follows. Answers the pick as kept
+   * (`{ roots }`).
    */
-  evtShowRepo: 'branches/showRepo',
+  setScope: 'branches/setScope',
+  /**
+   * host → webview (POST-P14ce): the pick changed elsewhere, the Commit window's
+   * Show all or Show Only This Repository (`{ roots }`).
+   */
+  evtScope: 'branches/scope',
+  /**
+   * host → webview (POST-P14ce): a name on the Commit window's filter bar: the
+   * REPOSITORIES pane open, with the keyboard on that repository's row
+   * (`{ root }`). The pick stays as it is.
+   */
+  evtRevealRepo: 'branches/revealRepo',
 } as const;
 
 /** One entry of a repository's menu (`repositoryMenu.ts`). */

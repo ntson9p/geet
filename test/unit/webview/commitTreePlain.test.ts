@@ -172,6 +172,8 @@ describe('the default: no changelist rows, one list (POST-P14cb)', () => {
       repoRoot: API,
       repoHasTracked: true,
       repoHasUnversioned: true,
+      // POST-P14ce: every repository listed.
+      repoShownAlone: false,
     });
   });
 

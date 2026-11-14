@@ -59,6 +59,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D42](#d42--ctrlenter-commits-from-the-message-box-only) | Ctrl+Enter commits from the Commit window's message box only, as VS Code's Source Control box takes it; IntelliJ takes it anywhere in its Commit window | Deliberate (owner's request) |
 | [D43](#d43--the-commit-window-is-compact) | The Commit window's toolbar shares the tabs' row and folds into `⋯`; one full-width Commit button holds Commit and Push… in its ▾ | Deliberate (owner's request) |
 | [D44](#d44--the-commit-window-lists-changes-without-changelists-by-default) | By default the Commit window lists every change under its repository, as VS Code's Source Control view does: no changelist rows, a status letter on each file, untracked files among the others in italics | Deliberate (owner's request); View Options › Group By |
+| [D45](#d45--the-repositories-panels-pick-narrows-the-commit-window) | The repositories picked in the Repositories panel narrow the Commit window, which says so in a bar over its list, and commits only what it shows | Deliberate (owner's request) |
 
 ---
 
@@ -1213,7 +1214,7 @@ view lists them (`gittree.commit.groupBy: none`):
 | Unversioned Files is a node of its own | Untracked files are among the others, in path order. They wear the colour and icon of the added file they become; their names are in italics and their letter is `U` | The owner's request: an untracked file looks like a tracked one and differs in one thing |
 | A file's status is its colour | Its colour, and VS Code's letter at the end of its row (`M`, `A`, `D`, `R`, `U`, `!`); a deleted file's name is struck through | VS Code's own look; a letter reads without colour |
 | Folder rows | None by default (`gittree.commit.groupByDirectory`): one list, each file naming its folder. Group By › **Directory** adds them, in every grouping | VS Code's Source Control view starts as a list |
-| A repository row's menu: New Changelist…, Shelve Changes…, Rollback… | **Select in Repositories Panel** first; then those, Reveal in File Explorer, and the Repositories panel's own menu for the repository, without its Commit | The owner's request; one repository, one menu |
+| A repository row's menu: New Changelist…, Shelve Changes…, Rollback… | **Show Only This Repository** first (once *Select in Repositories Panel*; D45); then those, Reveal in File Explorer, and the Repositories panel's own menu for the repository, without its Commit | The owner's request; one repository, one menu |
 
 Changelists still exist underneath: new changes go to the active list, and Move to Another
 Changelist… is still on a file's menu. With staging, a repository's Staged, Unstaged and Unversioned
@@ -1224,3 +1225,33 @@ Why: the owner asked for this mode and for it to be the default (POST-P14cb).
 
 **Revisitable:** yes. View Options' two toggles give IntelliJ's view back, and a grouping someone
 set is kept.
+
+## D45 · The Repositories panel's pick narrows the Commit window
+
+**IntelliJ:** the Commit tool window lists the changes of every VCS root; nothing else on screen
+narrows it. Which roots a commit reaches is decided by the changes ticked.
+**GitTree:** the repositories picked in the Repositories panel (D34) are one pick for the side bar.
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Every root's changes are listed | Only the repositories picked: a click on a repository in the Repositories panel, Ctrl+click for several, *Show Only This Repository*. None picked: every one | The owner's request: pick a repository, see and commit just its changes |
+| — | A bar over the list names the repositories shown, counts the changes left out (as a warning when some are ticked), and has **Show all**; a name brings the Repositories panel up on its row | The pick has to be seen where commits are made, with that panel folded away too |
+| Commit commits every ticked change | Commit, Commit and Push…, Ctrl+Enter and *Commit* from the Command Palette (Ctrl+K) commit only the repositories shown. Ticks out of view are kept, and committed once shown | What you see is what you commit |
+| One commit message | The message box stays the one of the repository being edited, which may be one left out; Amend, its ▾ list, the options and Shelve act on one the list shows | A message typed before narrowing must not disappear; an Amend must amend a repository being committed |
+
+POST-P14u (`repoScope.ts`) kept a side-bar pick from changing what a command does, because nothing
+on screen would have said so. This pick is said where it matters: the bar is over the list, the
+Commit button names the repositories, and the commit's notification says where it went. A bare
+commit with nothing ticked in the repositories shown, but something elsewhere, says so and offers
+*Show All Repositories* rather than committing nothing in silence. Every other command (Update,
+Push, the branch actions) still finds its repository as before.
+
+The pick is kept for the workspace (`reposInView.ts`), as the panel's was. With one repository
+there is nothing to narrow, and no bar. The Shelf and Stash tabs are not narrowed. The view's badge
+still counts every change, as VS Code's Source Control count does.
+
+Why: the owner asked for it, and chose one pick for both panels over a switch to unlink them and
+over a filter of the Commit window's own (POST-P14ce).
+
+**Revisitable:** yes. A *Follow the Repositories Panel* switch in View Options was the second
+choice: an option, and a branch in `commitWindowView.ts`'s `buildState`.

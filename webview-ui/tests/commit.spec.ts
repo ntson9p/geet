@@ -1099,6 +1099,8 @@ test.describe('View Options › Group By (D37)', () => {
       repoHasTracked: true,
       // lib/notes.txt is new: Add to VCS is on offer.
       repoHasUnversioned: true,
+      // POST-P14ce: every repository listed.
+      repoShownAlone: false,
     });
     // A list under it is that repository's copy of the list: a folder, and the
     // menu a repository row under a list has in the other grouping.
@@ -2256,6 +2258,8 @@ test.describe('POST-P14cb the default: changes without changelist rows', () => {
       repoRoot: 'D:/repos/demo-lib',
       repoHasTracked: true,
       repoHasUnversioned: true,
+      // POST-P14ce: every repository listed.
+      repoShownAlone: false,
     });
     // No changelist row anywhere.
     await expect(page.locator('[role="treeitem"][aria-label^="Changes,"]')).toHaveCount(0);
@@ -2295,5 +2299,179 @@ test.describe('POST-P14cb the default: changes without changelist rows', () => {
     await viewOptions(page).click();
     await page.getByRole('menuitemcheckbox', { name: 'Directory' }).click();
     await expect(row(page, 'Strings.java, Modified')).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+test.describe('POST-P14ce the list narrowed to the repositories picked in the Repositories panel', () => {
+  const GIT = 'D:/repos/demo-git';
+  const LIB = 'D:/repos/demo-lib';
+  const DOCS = 'D:/repos/docs';
+
+  /**
+   * The mock's workspace of three — demo-git, demo-lib, and docs with nothing
+   * to commit — narrowed to `picked` (null: none picked), without changelist
+   * rows, as a real window starts.
+   */
+  async function openNarrowed(page: Page, picked: string | string[] | null): Promise<void> {
+    await page.addInitScript((p) => {
+      const w = window as unknown as { __mockFilter?: unknown; __mockGroupBy?: string; __mockGroupByDirectory?: boolean };
+      w.__mockFilter = p;
+      w.__mockGroupBy = 'none';
+      w.__mockGroupByDirectory = false;
+    }, picked);
+    await page.addInitScript(mockCommitHostScript);
+    await page.goto('/commit.html');
+    await expect(page.getByRole('tree', { name: 'Changes' }).or(page.getByTestId('commit-empty'))).toBeVisible();
+  }
+
+  const bar = (page: Page) => page.getByTestId('commit-filter');
+  const sent = async (page: Page, method: string) =>
+    (await posted(page)).filter((m) => m.method === method).map((m) => m.params);
+  const narrow = (page: Page, roots: string[] | null) =>
+    page.evaluate((r) => (window as unknown as { __mockNarrow(roots: string[] | null): void }).__mockNarrow(r), roots);
+
+  test('a bar over the list names the repository shown, and warns of what is ticked out of view', async ({ page }) => {
+    await openNarrowed(page, LIB);
+    await expect(bar(page).getByTestId('commit-filter-repo')).toHaveText('demo-lib');
+    // demo-git, left out, has five changes, three of them ticked; docs has none.
+    const rest = page.getByTestId('commit-filter-rest');
+    await expect(rest).toHaveText('· 3 ticked elsewhere');
+    await expect(rest).toHaveClass(/gt-warn/);
+    await expect(bar(page)).toHaveAttribute(
+      'title',
+      'Showing demo-lib only. Not shown: demo-git, 5 changes, 3 ticked; docs, no changes. ' +
+        'Ticked changes out of view stay ticked, and are not committed until shown.',
+    );
+    await expect(bar(page)).toHaveAttribute('aria-label', 'Showing demo-lib only. 3 ticked elsewhere.');
+    await expect(bar(page)).toHaveAttribute('role', 'group');
+    // Above the list, under the tabs.
+    const barBox = (await bar(page).boundingBox())!;
+    const listBox = (await page.getByTestId('commit-tree').boundingBox())!;
+    expect(barBox.y + barBox.height).toBeLessThanOrEqual(listBox.y + 1);
+  });
+
+  test("the list keeps the repository's row and shows its changes alone; the counter counts them", async ({ page }) => {
+    await openNarrowed(page, LIB);
+    await expect(row(page, 'demo-lib, 2 files, Branch feature/login')).toHaveAttribute('aria-level', '1');
+    await expect(row(page, 'notes.txt, lib, Untracked')).toHaveAttribute('aria-level', '2');
+    await expect(page.locator('[role="treeitem"][aria-label^="demo-git"]')).toHaveCount(0);
+    await expect(page.locator('[role="treeitem"][aria-label^="guide.md"]')).toHaveCount(0);
+    await expect(page.getByTestId('commit-counter')).toHaveText('0 of 2 files');
+    // Nothing ticked in it: nothing to commit, whatever is ticked elsewhere.
+    await page.getByTestId('commit-message').fill('not yet');
+    await expect(page.getByTestId('commit-button')).toBeDisabled();
+  });
+
+  test('Show all shows every repository again, and says so to the host, which tells the Repositories panel', async ({
+    page,
+  }) => {
+    await openNarrowed(page, LIB);
+    await bar(page).getByRole('button', { name: 'Show all repositories' }).click();
+    expect(await sent(page, 'commit/showAllRepositories')).toHaveLength(1);
+    await expect(bar(page)).toHaveCount(0);
+    await expect(row(page, 'demo-git, 5 files, Branch main, tracking origin/main')).toBeVisible();
+    await expect(row(page, 'demo-lib, 2 files, Branch feature/login')).toBeVisible();
+  });
+
+  test("a repository's name on the bar brings the Repositories panel up, on its row", async ({ page }) => {
+    await openNarrowed(page, LIB);
+    await bar(page).getByTestId('commit-filter-repo').click();
+    expect(await sent(page, 'commit/revealRepository')).toEqual([{ root: LIB }]);
+    // The pick stays as it is.
+    await expect(bar(page)).toBeVisible();
+  });
+
+  test('Commit names where it goes and commits only the repositories shown', async ({ page }) => {
+    await openNarrowed(page, GIT);
+    await expect(page.getByTestId('commit-button')).toHaveText('Commit to demo-git');
+    await expect(page.getByTestId('commit-counter')).toHaveText('3 of 5 files');
+    await page.getByTestId('commit-message').fill('ship it');
+    await page.getByTestId('commit-button').click();
+    await expect.poll(() => sent(page, 'commit/commit')).toEqual([{ repoRoot: GIT, andPush: false, roots: [GIT] }]);
+  });
+
+  test('every repository shown, Commit names none', async ({ page }) => {
+    await openNarrowed(page, null);
+    await expect(bar(page)).toHaveCount(0);
+    await page.getByTestId('commit-message').fill('ship it');
+    await page.getByTestId('commit-button').click();
+    await expect.poll(() => sent(page, 'commit/commit')).toEqual([{ repoRoot: GIT, andPush: false }]);
+  });
+
+  test("Amend acts on the repository shown; its last message goes into the box on screen, the editor's", async ({
+    page,
+  }) => {
+    await openNarrowed(page, LIB);
+    const amend = page.locator('.gt-commit-amend-row .gt-checkbox');
+    await expect(amend).toHaveAttribute('title', 'Amend the last commit of demo-lib');
+    await amend.locator('input').click();
+    expect(await sent(page, 'commit/toggleAmend')).toEqual([{ repoRoot: LIB, messageRepoRoot: GIT }]);
+  });
+
+  test('narrowed to a repository with nothing to commit, the list says so, beside the way to the rest', async ({
+    page,
+  }) => {
+    await openNarrowed(page, DOCS);
+    const empty = page.getByTestId('commit-empty');
+    await expect(empty).toContainText('No changes in docs.');
+    // demo-git's five and demo-lib's two.
+    await expect(empty).toContainText('Show all repositories · 7 changes');
+    await expect(page.getByTestId('commit-filter-rest')).toHaveText('· 3 ticked elsewhere');
+    await page.getByTestId('commit-empty-show-all').click();
+    expect(await sent(page, 'commit/showAllRepositories')).toHaveLength(1);
+    await expect(empty).toHaveCount(0);
+  });
+
+  test('several names that do not fit are counted, and the count still brings the panel up', async ({ page }) => {
+    await page.setViewportSize({ width: 200, height: 600 });
+    await openNarrowed(page, [GIT, LIB]);
+    const count = bar(page).getByTestId('commit-filter-count');
+    await expect(count).toHaveText('2 of 3 repositories');
+    await expect(bar(page).getByTestId('commit-filter-repo')).toHaveCount(0);
+    await expect(bar(page).getByRole('button', { name: 'Show all repositories' })).toBeVisible();
+    await count.click();
+    expect(await sent(page, 'commit/revealRepository')).toEqual([{ root: GIT }]);
+    // With room, the names.
+    await page.setViewportSize({ width: 600, height: 600 });
+    await expect(bar(page).getByTestId('commit-filter-repo')).toHaveText(['demo-git', 'demo-lib']);
+    await expect(count).toHaveCount(0);
+  });
+
+  test('the one name stays a name in a narrow side bar, cut short if it must be, and Show all stays whole', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 160, height: 600 });
+    await openNarrowed(page, LIB);
+    await expect(bar(page).getByTestId('commit-filter-repo')).toBeVisible();
+    await expect(bar(page).getByTestId('commit-filter-count')).toHaveCount(0);
+    const all = bar(page).getByRole('button', { name: 'Show all repositories' });
+    const box = (await all.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(160);
+    expect(await all.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  });
+
+  test("the repository shown alone says so to its row's menu, which offers Show All Repositories", async ({ page }) => {
+    await openNarrowed(page, LIB);
+    const lib = row(page, 'demo-lib, 2 files, Branch feature/login');
+    expect(JSON.parse((await lib.getAttribute('data-vscode-context')) ?? '{}')).toMatchObject({
+      webviewSection: 'commitRepository',
+      repoRoot: LIB,
+      repoShownAlone: true,
+    });
+  });
+
+  test('a selected row the list leaves out is no longer selected, so Rollback has nothing to act on', async ({
+    page,
+  }) => {
+    await openNarrowed(page, null);
+    await row(page, 'guide.md, docs, Modified').click();
+    const rollback = page.getByRole('button', { name: 'Rollback' });
+    await expect(rollback).toBeEnabled();
+    await narrow(page, [LIB]);
+    await expect(bar(page)).toBeVisible();
+    await expect(rollback).toBeDisabled();
+    // Back: the row is there again, not selected.
+    await narrow(page, null);
+    await expect(row(page, 'guide.md, docs, Modified')).toHaveAttribute('aria-selected', 'false');
   });
 });

@@ -174,6 +174,24 @@ export interface CommitTreeModel {
    * path order (`list`), each naming its folder (`gittree.commit.groupByDirectory`).
    */
   readonly layout: CommitLayout;
+  /**
+   * POST-P14ce: the repositories the list leaves out while the Repositories
+   * panel's pick narrows it. Their rows keep their state for when they are back.
+   */
+  readonly hiddenRoots: readonly string[];
+  /** POST-P14ce: the repositories the list shows, every one when it is not narrowed. */
+  readonly shownRoots: readonly string[];
+  /** POST-P14ce: the one repository the list is narrowed to, when it is one. */
+  readonly onlyRepo?: string;
+}
+
+/**
+ * POST-P14ce: the workspace has several repositories, whether or not the list
+ * shows them all. Narrowed to one, the list keeps its repository row and its
+ * grouping: a pick changes which repositories are listed, never how.
+ */
+export function multiRepoOf(state: CommitStateDto): boolean {
+  return state.repos.length + (state.filter?.hidden.length ?? 0) > 1;
 }
 
 /** POST-P14cb: folder rows, or none. */
@@ -239,7 +257,7 @@ function listRank(group: CommitGroupDto): number {
 export function groupByOf(state: CommitStateDto): CommitGroupBy {
   const set = commitGroupByOf(state.groupBy);
   if (set === 'none') return 'none';
-  return state.repos.length > 1 ? set : 'changelist';
+  return multiRepoOf(state) ? set : 'changelist';
 }
 
 interface MergedGroup {
@@ -261,10 +279,18 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
   const groups = new Map<string, CommitGroupRef>();
   const folders = new Map<string, CommitFolderRef>();
   const dirKinds = new Map<string, ReadonlySet<StatusKind>>();
-  const multiRepo = state.repos.length > 1;
+  const multiRepo = multiRepoOf(state);
   const groupBy = groupByOf(state);
   const staging = state.paradigm === 'staging';
   const layout = layoutOf(state);
+  // POST-P14ce: what the Repositories panel's pick leaves out, and the one it shows.
+  const hiddenRoots = (state.filter?.hidden ?? []).map((repo) => repo.root);
+  const only = state.filter !== undefined && state.filter.shown.length === 1 ? state.filter.shown[0]?.root : undefined;
+  const narrowing = {
+    hiddenRoots,
+    shownRoots: state.repos.map((repo) => repo.root),
+    ...(only !== undefined ? { onlyRepo: only } : {}),
+  };
 
   /** Bottom-up status rollup for the directory highlighting (P11-T8). */
   const annotate = (node: TreeNode): ReadonlySet<StatusKind> => {
@@ -444,7 +470,20 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       if (!checkable) checkboxless.add(rKey);
       annotate(node);
     }
-    return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging, layout };
+    return {
+      groupBy,
+      nodes,
+      checked,
+      checkboxless,
+      files,
+      groupPaths,
+      groups,
+      folders,
+      dirKinds,
+      staging,
+      layout,
+      ...narrowing,
+    };
   }
 
   // Repository › Changelist: one row per repository with changes, in the order
@@ -503,7 +542,20 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
       annotate(node);
     }
     if (nodes.length > 0) {
-      return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging, layout };
+      return {
+        groupBy,
+        nodes,
+        checked,
+        checkboxless,
+        files,
+        groupPaths,
+        groups,
+        folders,
+        dirKinds,
+        staging,
+        layout,
+        ...narrowing,
+      };
     }
     // Nothing changed anywhere: the one empty Changes row both groupings show.
   }
@@ -579,7 +631,20 @@ export function assembleCommitTree(state: CommitStateDto): CommitTreeModel {
     annotate(node);
   }
 
-  return { groupBy, nodes, checked, checkboxless, files, groupPaths, groups, folders, dirKinds, staging, layout };
+  return {
+    groupBy,
+    nodes,
+    checked,
+    checkboxless,
+    files,
+    groupPaths,
+    groups,
+    folders,
+    dirKinds,
+    staging,
+    layout,
+    ...narrowing,
+  };
 }
 
 /**
@@ -705,11 +770,47 @@ export function twinRow(from: CommitTreeModel, to: CommitTreeModel, path: string
 /**
  * The open rows once Collapse All has shut this grouping's. The other
  * grouping's stay as they were, to be found again when it comes back: its
- * paths are its own (`@g:` first or `@r:` first).
+ * paths are its own (`@g:` first or `@r:` first). POST-P14ce: so do the rows of
+ * repositories the list leaves out, as they were when it is widened again.
  */
 export function collapsedAll(model: CommitTreeModel, expanded: ReadonlySet<string>): Set<string> {
   const own = model.groupBy === 'repository' ? '@r:' : model.groupBy === 'none' ? '@n:' : '@g:';
-  return new Set([...expanded].filter((path) => !path.startsWith(own)));
+  const roots = [...model.hiddenRoots, ...model.shownRoots];
+  const outOfView = (path: string): boolean => {
+    if (model.hiddenRoots.length === 0) return false;
+    const owner = repositoryOfRow(path, roots);
+    return owner !== undefined && model.hiddenRoots.includes(owner);
+  };
+  return new Set([...expanded].filter((path) => !path.startsWith(own) || outOfView(path)));
+}
+
+/**
+ * POST-P14ce: whether a row is one of a repository's own: its row, or one under
+ * it, in any grouping (`@n:<root>`, `@r:<root>`, `@g:<list>@r:<root>`). The
+ * root must end there, so `/w/api` is not `/w/api-docs`. A changelist's row
+ * spanning repositories is none of theirs.
+ */
+export function isRowOfRepository(path: string, root: string): boolean {
+  for (const mark of [`@n:${root}`, `@r:${root}`]) {
+    for (let at = path.indexOf(mark); at >= 0; at = path.indexOf(mark, at + 1)) {
+      const next = path.charAt(at + mark.length);
+      if (next === '' || next === '/' || next === '@') return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * POST-P14ce: the repository of `roots` a row is one of. A repository can sit
+ * inside another's folder, and its rows then name the outer one's root too:
+ * the longest root it names is its own.
+ */
+export function repositoryOfRow(path: string, roots: readonly string[]): string | undefined {
+  let owner: string | undefined;
+  for (const root of roots) {
+    if (isRowOfRepository(path, root) && (owner === undefined || root.length > owner.length)) owner = root;
+  }
+  return owner;
 }
 
 /** `twinRow` for every row of a selection, each twin once, in the order given. */
@@ -845,6 +946,9 @@ export function groupRowContext(model: CommitTreeModel, nodePath: string): Recor
       ...(group.repoRoot !== undefined ? { repoRoot: group.repoRoot } : {}),
       repoHasTracked: group.hasTracked === true,
       repoHasUnversioned: group.hasUnversioned === true,
+      // POST-P14ce: the list shows this repository alone: its menu offers Show
+      // All Repositories where Show Only This Repository would do nothing.
+      repoShownAlone: group.repoRoot !== undefined && group.repoRoot === model.onlyRepo,
     };
   }
   return {

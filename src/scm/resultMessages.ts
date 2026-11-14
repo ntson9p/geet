@@ -25,11 +25,24 @@ export function pullResultMessage(commits: number, files: number, source?: strin
 /**
  * IntelliJ's commit result (`vcs.commit.files.committed`): `1 file committed`,
  * `3 files committed`, `No files committed` — with the message's first line.
+ *
+ * POST-P14ce: `repos` names where it went, for a commit narrowed to some
+ * repositories — the Repositories panel's pick, which Ctrl+K follows even with
+ * the Commit window out of sight: `3 files committed to api: …`. Absent, or
+ * empty, it says nothing of where, as IntelliJ's does.
  */
-export function committedMessage(files: number, message: string): string {
+export function committedMessage(files: number, message: string, repos?: readonly string[]): string {
   const count = files === 0 ? 'No files' : plural(files, 'file', 'files');
+  const where = repos !== undefined && repos.length > 0 ? ` to ${repositoriesPhrase(repos)}` : '';
   const subject = message.split('\n', 1)[0]?.trim() ?? '';
-  return subject.length > 0 ? `${count} committed: ${subject}` : `${count} committed`;
+  return subject.length > 0 ? `${count} committed${where}: ${subject}` : `${count} committed${where}`;
+}
+
+/** `api`, `api and web`, `3 repositories`: some repositories, short enough for a notification. */
+export function repositoriesPhrase(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.length} repositories`;
 }
 
 /**

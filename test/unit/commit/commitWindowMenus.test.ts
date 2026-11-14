@@ -112,8 +112,9 @@ describe('the Commit window menus (POST-P14bf)', () => {
   it('gives a repository row Add to VCS only with new files, and Move for all of its changes', () => {
     const repository = { ...base, webviewSection: 'commitRepository', repoHasTracked: true };
     expect(shown('commitRepository', { ...repository, repoHasUnversioned: true })).toEqual([
-      // POST-P14cb: first, the way to it in the Repositories panel.
-      'Select in Repositories Panel',
+      // POST-P14cb: first, the Repositories panel's pick of it; POST-P14ce: which
+      // the list follows, so it is named as that panel names it.
+      'Show Only This Repository',
       'Add to VCS',
       'Move to Another Changelist…',
       'New Changelist…',
@@ -148,10 +149,32 @@ describe('the Commit window menus (POST-P14bf)', () => {
     expect(menu('commitRepository').some((m) => m.command === 'gittree.commit')).toBe(false);
   });
 
-  it('keeps Select in Repositories Panel out of the Command Palette: it needs a row', () => {
+  it('keeps Show Only This Repository out of the Command Palette: it needs a row', () => {
     const palette = manifest.contributes.menus['commandPalette'] ?? [];
     expect(palette.find((e) => e.command === 'gittree.branches.selectRepository')?.when).toBe('false');
-    expect(titleOf('gittree.branches.selectRepository')).toBe('Select in Repositories Panel');
+    // POST-P14ce: once Select in Repositories Panel; the list follows the pick now.
+    expect(titleOf('gittree.branches.selectRepository')).toBe('Show Only This Repository');
+  });
+
+  it('offers Show All Repositories in place of Show Only This Repository on the repository shown alone (POST-P14ce)', () => {
+    const repository = { ...base, webviewSection: 'commitRepository', repoHasTracked: true, repoHasUnversioned: false };
+    const alone = shown('commitRepository', { ...repository, repoShownAlone: true });
+    expect(alone[0]).toBe('Show All Repositories');
+    expect(alone).not.toContain('Show Only This Repository');
+    const among = shown('commitRepository', { ...repository, repoShownAlone: false });
+    expect(among[0]).toBe('Show Only This Repository');
+    expect(among).not.toContain('Show All Repositories');
+    // The rest of the menu is the same either way.
+    expect(alone.slice(1)).toEqual(among.slice(1));
+  });
+
+  it("offers Show All Repositories in the Command Palette while a pick narrows the list, and keeps the bar's reveal out of it (POST-P14ce)", () => {
+    const palette = manifest.contributes.menus['commandPalette'] ?? [];
+    expect(titleOf('gittree.branches.showAllRepositories')).toBe('Show All Repositories');
+    expect(palette.find((e) => e.command === 'gittree.branches.showAllRepositories')?.when).toBe('gittree.reposNarrowed');
+    // The filter bar's names: a root in, so no palette entry.
+    expect(titleOf('gittree.branches.revealRepository')).toBe('Show in Repositories Panel');
+    expect(palette.find((e) => e.command === 'gittree.branches.revealRepository')?.when).toBe('false');
   });
 
   it('offers no Move in the staging paradigm, where there are no changelists', () => {

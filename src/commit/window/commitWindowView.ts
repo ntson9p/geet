@@ -73,9 +73,11 @@ import { repoHeadOf } from './repoHead';
 import type { ShelfBridge } from './shelfBridge';
 import type { StashBridge } from './stashBridge';
 import type {
+  CommitFilterRepoDto,
   CommitShelfActionParamsDto,
   CommitStashActionParamsDto,
 } from '../../shared/protocol';
+import type { InViewSnapshot, ReposInViewReader } from '../../branches/reposInView';
 
 export interface CommitWindowDeps {
   context: vscode.ExtensionContext;
@@ -88,8 +90,29 @@ export interface CommitWindowDeps {
   inclusion: InclusionModel;
   /** P11-T5 — author/sign-off/checks state behind the gear popup. */
   options: CommitOptionsStore;
-  /** Runs the shared P3 commit flow — the webview never commits by itself. */
-  runCommit(repo: RepoHandle, options: { andPush?: boolean }): Promise<boolean>;
+  /**
+   * POST-P14ce: the repositories picked in the Repositories panel. The list
+   * shows only theirs, and its Commit commits only them.
+   */
+  reposInView: ReposInViewReader;
+  /**
+   * Runs the shared P3 commit flow — the webview never commits by itself.
+   * `roots`: what the list showed, when it was narrowed (canonical keys).
+   */
+  runCommit(repo: RepoHandle, options: { andPush?: boolean; roots?: ReadonlySet<string> }): Promise<boolean>;
+}
+
+/** POST-P14ce: what the filter bar says of one repository: its name, colour, changes and ticks. */
+function filterRepoOf(repo: CommitRepoDto): CommitFilterRepoDto {
+  const changes = repo.groups.flatMap((g) => g.changes);
+  return {
+    root: repo.root,
+    label: repo.label,
+    colorIdx: repo.colorIdx,
+    // Files, not rows: with staging a file staged in part is two rows.
+    changes: new Set(changes.map((c) => c.path)).size,
+    ticked: changes.filter((c) => c.checked).length,
+  };
 }
 
 const MESSAGE_KEY_PREFIX = 'gittree.commit.message.';
@@ -146,6 +169,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       core.onDidRemoveRepo(() => this.push()),
       deps.paradigm.onDidChange(() => this.push()),
       deps.commitService.onDidCommit(() => this.push()),
+      // POST-P14ce: a repository picked, or every one shown again, in either panel.
+      deps.reposInView.onDidChange(() => this.push()),
       // P11-T8: a changed color override must repaint without a reload; so must
       // the palette the repositories' colours come from, and the grouping,
       // which the palette commands and the settings file change too.
@@ -205,9 +230,48 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
 
   // ---- state ----------------------------------------------------------------
 
-  private activeRepo(): RepoHandle | undefined {
+  /** Every repository, in the order the list shows them: by name, as the Repositories panel does. */
+  private reposInOrder(): RepoHandle[] {
+    const byRoot = new Map(this.deps.core.repos.map((repo) => [repo.root, repo]));
+    return sortRootsByLabel([...byRoot.keys()]).flatMap((root) => {
+      const repo = byRoot.get(root);
+      return repo !== undefined ? [repo] : [];
+    });
+  }
+
+  /**
+   * The repositories the window's message and its commit act on.
+   *
+   * The message box is the active editor's repository's whatever the list
+   * shows (POST-P14ce): a message typed before the list was narrowed stays on
+   * screen, and it is the one committed (`runCommitAcross` takes it from
+   * there). Amend, the Amend ▾ list, the options and Shelve act on a repository
+   * the list shows: the editor's while it is in view, else the first listed.
+   * Not narrowed, both are the editor's repository, else the first one, as
+   * they always were.
+   */
+  private bound(
+    view: InViewSnapshot = this.deps.reposInView.snapshot(),
+    ordered: readonly RepoHandle[] = this.reposInOrder(),
+  ): { readonly message?: RepoHandle; readonly commit?: RepoHandle } {
     const uri = vscode.window.activeTextEditor?.document.uri;
-    return (uri && this.deps.core.repoForUri(uri)) ?? this.deps.core.repos[0];
+    const editor = uri !== undefined ? this.deps.core.repoForUri(uri) : undefined;
+    if (!view.narrowed) {
+      const repo = editor ?? this.deps.core.repos[0];
+      return { message: repo, commit: repo };
+    }
+    const commit = editor !== undefined && view.has(editor.root) ? editor : ordered.find((r) => view.has(r.root));
+    return { message: editor ?? commit, commit };
+  }
+
+  /** The repository the message box is bound to: what a bare commit command takes the message from. */
+  messageRepo(): RepoHandle | undefined {
+    return this.bound().message;
+  }
+
+  /** POST-P14ce: the repository Amend and the commit options act on: one the list shows. */
+  commitRepo(): RepoHandle | undefined {
+    return this.bound().commit;
   }
 
   private groupsFor(repo: RepoHandle): CommitGroupDto[] {
@@ -295,15 +359,13 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     this.pruneInclusion();
     // Each repository named, ordered and coloured as the Repositories panel and
     // the log's Roots show it, so its rows here are the same repository at a glance.
-    const byRoot = new Map(this.deps.core.repos.map((repo) => [repo.root, repo]));
-    const roots = sortRootsByLabel([...byRoot.keys()]);
+    // Named and coloured among every repository, the ones out of view too, so
+    // narrowing the list renames or recolours none.
+    const handles = this.reposInOrder();
+    const roots = handles.map((repo) => repo.root);
     const labels = repoLabels(roots);
     const colors = rootColorIndices(roots);
-    const handles = roots.flatMap((root) => {
-      const repo = byRoot.get(root);
-      return repo !== undefined ? [repo] : [];
-    });
-    const repos: CommitRepoDto[] = handles.map((repo) => {
+    const dtoOf = (repo: RepoHandle): CommitRepoDto => {
       const head = repoHeadOf(repo.model.snapshot);
       return {
         root: repo.root,
@@ -312,24 +374,33 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
         ...(head !== undefined ? { head } : {}),
         groups: this.groupsFor(repo),
       };
-    });
-    const active = this.activeRepo();
-    // The tree renders every repository's groups, so the `N of M` counter has
-    // to describe everything on screen — not just the repo the message box
-    // happens to target.
+    };
+    // POST-P14ce: the repositories picked in the Repositories panel, alone; the
+    // others are only counted, for the filter bar.
+    const view = this.deps.reposInView.snapshot();
+    const shown = view.narrowed ? handles.filter((repo) => view.has(repo.root)) : handles;
+    const repos: CommitRepoDto[] = shown.map(dtoOf);
+    const hidden = view.narrowed ? handles.filter((repo) => !view.has(repo.root)).map(dtoOf) : [];
+    const { message: active, commit: committing } = this.bound(view, handles);
+    // The tree renders every listed repository's groups, so the `N of M`
+    // counter has to describe everything on screen — not just the repo the
+    // message box happens to target, and nothing the list leaves out.
     const changes = repos.flatMap((r) => r.groups.flatMap((g) => g.changes));
     // Asked through the commit path's own predicate rather than recomputed
     // from `changes`, so the button cannot promise a repo the flow skips. Named
     // as the tree's rows name them.
-    const targets = handles
+    const targets = shown
       .filter((repo) => hasCommittableChanges(this.deps, repo))
       .map((repo) => labels.get(repo.root) ?? path.basename(repo.root));
     return {
       repos,
       targets,
       ...(active !== undefined ? { activeRepo: active.root } : {}),
+      ...(committing !== undefined ? { commitRepo: committing.root } : {}),
+      ...(view.narrowed ? { filter: { shown: repos.map(filterRepoOf), hidden: hidden.map(filterRepoOf) } } : {}),
       message: active ? this.getMessage(active) : '',
-      amend: active ? this.deps.commitService.isAmend(active) : false,
+      // The Amend box is the repository's it acts on, which the list shows.
+      amend: committing ? this.deps.commitService.isAmend(committing) : false,
       signing: false,
       busy: this.busy > 0,
       // Files, not rows: with staging a file staged in part is two rows.
@@ -612,15 +683,18 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     if (!this.view) return;
     const state = this.buildState();
     // P14-T4: the pending-change count used to be `SourceControl.count`. With
-    // no SourceControl left, the view carries its own badge.
+    // no SourceControl left, the view carries its own badge. POST-P14ce: every
+    // repository's, as VS Code's Source Control count is, the ones the list
+    // leaves out too; its filter bar says how many those are.
+    const pending = state.modifiedCount + (state.filter?.hidden.reduce((n, r) => n + r.changes, 0) ?? 0);
     this.view.badge =
-      state.modifiedCount > 0
+      pending > 0
         ? {
-            value: state.modifiedCount,
+            value: pending,
             tooltip:
-              state.modifiedCount === 1
+              pending === 1
                 ? vscode.l10n.t('1 pending change')
-                : vscode.l10n.t('{0} pending changes', state.modifiedCount),
+                : vscode.l10n.t('{0} pending changes', pending),
           }
         : undefined;
     this.rpc?.notify(COMMIT_METHODS.evtState, state);
@@ -811,30 +885,51 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const p = raw as CommitRunParamsDto;
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return;
+      // POST-P14ce: what the list showed when Commit was pressed, if it was
+      // narrowed: those repositories alone, whatever is ticked elsewhere.
+      const roots = Array.isArray(p.roots)
+        ? new Set(p.roots.filter((r): r is string => typeof r === 'string').map((r) => canonicalKey(r)))
+        : undefined;
       await this.guard(
         'commit',
         async () => {
-          await this.deps.runCommit(repo, { andPush: p.andPush });
+          await this.deps.runCommit(repo, { andPush: p.andPush, ...(roots !== undefined ? { roots } : {}) });
         },
         repo,
       );
     });
 
     rpc.on(COMMIT_METHODS.toggleAmend, async (raw) => {
-      const p = raw as { repoRoot: string };
+      const p = raw as { repoRoot: string; messageRepoRoot?: string };
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return;
       const result = await this.deps.commitService.toggleAmend(repo);
+      // POST-P14ce: the prefill goes to the box on screen, which is the
+      // editor's repository's even when Amend acts on another (`bound`). The
+      // webview names it: the editor may have moved since its last state.
+      const box = (typeof p.messageRepoRoot === 'string' ? this.repoFor(p.messageRepoRoot) : undefined) ?? repo;
       if (
         result.amend &&
         result.previousMessage !== undefined &&
-        this.getMessage(repo).trim().length === 0
+        this.getMessage(box).trim().length === 0
       ) {
         // echo=true: the prefill must reach the editor as a programmatic write
         // (setRangeText → lands on the undo stack) — a state push would not.
-        this.setMessage(repo, result.previousMessage, true);
+        this.setMessage(box, result.previousMessage, true);
       }
       this.push();
+    });
+
+    // POST-P14ce: the filter bar's Show all: every repository in view again,
+    // here and in the Repositories panel.
+    rpc.on(COMMIT_METHODS.showAllRepositories, () => {
+      this.deps.reposInView.clear('elsewhere');
+    });
+    // POST-P14ce: a name on the filter bar: the Repositories panel, with the
+    // keyboard on that repository's row.
+    rpc.on(COMMIT_METHODS.revealRepository, async (raw) => {
+      const root = (raw as { root?: unknown } | undefined)?.root;
+      if (typeof root === 'string') await vscode.commands.executeCommand('gittree.branches.revealRepository', root);
     });
 
     rpc.on(COMMIT_METHODS.openDiff, (raw) => this.openDiff(raw as CommitOpenDiffParamsDto));

@@ -20,8 +20,11 @@
  * one; the scope's `×` widens it again.
  *
  * The host sends facts (`branches/state`); everything this file decides —
- * the scope, what is open, the filter — lives here, so none of it waits on a
- * round trip.
+ * what is open, the filter — lives here, so none of it waits on a round trip.
+ * The repositories picked (the scope) are the host's since POST-P14ce, because
+ * the Commit window shows only theirs: a pick here changes this panel at once
+ * and is told to the host (`branches/setScope`); one made elsewhere, the
+ * Commit window's Show all, arrives (`branches/scope`).
  */
 import {
   useCallback,
@@ -106,6 +109,10 @@ const DETAILS_KEPT = 40;
 const DRAG_MIME = 'application/x-gittree-branch';
 
 interface Persisted {
+  /**
+   * The repositories picked, as kept here until POST-P14ce. Read once, for the
+   * host to adopt; the host keeps the pick now, and it is no longer written.
+   */
   readonly scope?: readonly string[];
   readonly toggled?: readonly string[];
   /** The branch tab picked, kept until another is. */
@@ -170,13 +177,28 @@ function rowRect(id: string): DOMRect | undefined {
   return document.querySelector(`[data-row-id="${CSS.escape(id)}"]`)?.getBoundingClientRect();
 }
 
+/** POST-P14ce: the roots a host message names; anything else names none. */
+function rootsOf(raw: unknown): readonly string[] | undefined {
+  return Array.isArray(raw) && raw.every((r) => typeof r === 'string') ? raw : undefined;
+}
+
+function sameRoots(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((root, i) => root === b[i]);
+}
+
 export function App() {
   const api = useMemo(() => getVsCodeApi(), []);
   const saved = useMemo(() => (api.getState() as Persisted | undefined) ?? {}, [api]);
 
   const [state, setState] = useState<BranchPanelStateDto | null>(null);
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<readonly string[]>(() => saved.scope ?? []);
+  // POST-P14ce: the repositories picked, as the host keeps them (`pickScope`,
+  // `adoptScope`). Empty until its first state, which the panel waits for anyway.
+  const [scope, setScope] = useState<readonly string[]>([]);
+  /** The pick as of the last change, for handlers that run before the next render. */
+  const scopeNow = useRef<readonly string[]>([]);
+  /** Picks sent to the host and not yet answered: until then, the host's word on the pick is older than this one's. */
+  const scopeAsks = useRef(0);
   const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set(saved.toggled ?? []));
   const [tab, setTab] = useState<BranchTab | undefined>(() =>
     saved.tab !== undefined && TAB_ORDER.includes(saved.tab) ? saved.tab : undefined,
@@ -225,13 +247,13 @@ export function App() {
   const dark = theme === 'dark' || theme === 'high-contrast';
 
   useEffect(() => {
+    // The pick is the host's (POST-P14ce): not written here any more.
     api.setState({
-      scope: [...scope],
       toggled: [...toggled],
       ...(tab !== undefined ? { tab } : {}),
       ...(reposSize !== undefined ? { reposSize } : {}),
     } satisfies Persisted);
-  }, [api, reposSize, scope, tab, toggled]);
+  }, [api, reposSize, tab, toggled]);
 
   // The repositories in view, as the model works them out: what a card's facts are asked for in.
   const scopeRoots = useMemo(
@@ -298,9 +320,52 @@ export function App() {
     });
   }, []);
 
+  // ---- the repositories picked (POST-P14ce) ---------------------------------
+  /**
+   * The host's pick, taken as this panel's: at its first state, from a pick made
+   * elsewhere, or as the answer to one made here. A pick that changes closes
+   * the open card, which may be a branch now out of view.
+   */
+  const adoptScope = useCallback((roots: readonly string[]) => {
+    if (sameRoots(scopeNow.current, roots)) return;
+    scopeNow.current = roots;
+    setScope(roots);
+    setOpenCard(undefined);
+  }, []);
+
+  /**
+   * A pick made here: at once in this panel, then told to the host, which the
+   * Commit window follows. The host's word on the pick waits until every pick
+   * sent is answered; the last answer is the pick as kept.
+   */
+  const pickScope = useCallback(
+    (next: readonly string[]) => {
+      scopeNow.current = next;
+      setScope(next);
+      scopeAsks.current += 1;
+      void rpc.request<{ roots?: unknown }>(BRANCHES_METHODS.setScope, { roots: [...next] }).then(
+        (answer) => {
+          scopeAsks.current -= 1;
+          const kept = rootsOf(answer?.roots);
+          if (scopeAsks.current === 0 && kept !== undefined) adoptScope(kept);
+        },
+        () => {
+          scopeAsks.current -= 1;
+        },
+      );
+    },
+    [adoptScope],
+  );
+
   // ---- the host ---------------------------------------------------------------
   useEffect(() => {
-    const offState = rpc.onEvent(BRANCHES_METHODS.evtState, (p) => setState(p as BranchPanelStateDto));
+    const offState = rpc.onEvent(BRANCHES_METHODS.evtState, (p) => {
+      const next = p as BranchPanelStateDto;
+      setState(next);
+      // Built before a pick on its way was kept, a state can carry the one before.
+      const roots = rootsOf(next.scope);
+      if (scopeAsks.current === 0 && roots !== undefined) adoptScope(roots);
+    });
     const offNew = rpc.onEvent(BRANCHES_METHODS.evtNewBranch, (p) => {
       const params = (p ?? {}) as { from?: string; roots?: string[] };
       openForm({
@@ -309,44 +374,53 @@ export function App() {
       });
     });
     const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, () => focusSearch());
-    // POST-P14cb: the Commit window's Select in Repositories Panel. Held until
-    // the panel's state is in, which a panel opened by it waits for.
-    const offShow = rpc.onEvent(BRANCHES_METHODS.evtShowRepo, (p) => {
-      const root = (p as { root?: unknown } | undefined)?.root;
-      if (typeof root === 'string' && root.length > 0) setShowRepo({ root });
+    // POST-P14ce: a pick made elsewhere: the Commit window's Show all, or a
+    // repository row's Show Only This Repository there.
+    const offScope = rpc.onEvent(BRANCHES_METHODS.evtScope, (p) => {
+      const roots = rootsOf((p as { roots?: unknown } | undefined)?.roots);
+      if (scopeAsks.current === 0 && roots !== undefined) adoptScope(roots);
     });
-    void rpc.request<BranchPanelStateDto>(BRANCHES_METHODS.init).then(
-      (s) => setState(s),
+    // POST-P14ce: a name on the Commit window's filter bar. Held until the
+    // panel's state is in, which a panel opened by it waits for.
+    const offReveal = rpc.onEvent(BRANCHES_METHODS.evtRevealRepo, (p) => {
+      const root = (p as { root?: unknown } | undefined)?.root;
+      if (typeof root === 'string' && root.length > 0) setRevealRepo({ root });
+    });
+    // The pick kept here before POST-P14ce, for the host to adopt once.
+    const legacy = saved.scope !== undefined && saved.scope.length > 0 ? { scope: [...saved.scope] } : {};
+    void rpc.request<BranchPanelStateDto>(BRANCHES_METHODS.init, legacy).then(
+      (s) => {
+        setState(s);
+        if (scopeAsks.current === 0) adoptScope(rootsOf(s.scope) ?? []);
+      },
       () => undefined,
     );
     return () => {
       offState();
       offNew();
       offFocus();
-      offShow();
+      offScope();
+      offReveal();
     };
-  }, [focusSearch, openForm]);
+  }, [adoptScope, focusSearch, openForm, saved]);
 
-  // POST-P14cb: show only that repository, as a click on its row does, its pane
-  // open, and the keyboard on its row.
-  const [showRepo, setShowRepo] = useState<{ readonly root: string } | undefined>(undefined);
+  // POST-P14ce: the REPOSITORIES pane open, and the keyboard on the row of the
+  // repository named on the Commit window's filter bar. What is picked stays.
+  const [revealRepo, setRevealRepo] = useState<{ readonly root: string } | undefined>(undefined);
   useEffect(() => {
-    if (showRepo === undefined || !state) return;
-    setShowRepo(undefined);
+    if (revealRepo === undefined || !state) return;
+    setRevealRepo(undefined);
     const same = (a: string, b: string): boolean =>
       a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
-    const repo = state.repos.find((r) => r.root === showRepo.root) ?? state.repos.find((r) => same(r.root, showRepo.root));
+    const repo =
+      state.repos.find((r) => r.root === revealRepo.root) ?? state.repos.find((r) => same(r.root, revealRepo.root));
     if (repo === undefined) return;
-    if (state.repos.length > 1) {
-      setScope([repo.root]);
-      setOpenCard(undefined);
-      setPane('repos', true);
-    }
+    if (state.repos.length > 1) setPane('repos', true);
     // Once the pane is open and its rows drawn.
     requestAnimationFrame(() =>
       requestAnimationFrame(() => reposListRef.current?.focusRow(`repo:${repo.root}`)),
     );
-  }, [setPane, showRepo, state]);
+  }, [revealRepo, setPane, state]);
 
   const run = useCallback(
     (what: BranchPanelRunDto) => {
@@ -488,16 +562,18 @@ export function App() {
 
   const toggleScope = useCallback(
     (root: string, additive: boolean) => {
-      setScope((prev) => {
-        if (!additive) return prev.length === 1 && prev[0] === root ? [] : [root];
-        const base = prev.length === 0 ? [] : prev;
-        const next = base.includes(root) ? base.filter((r) => r !== root) : [...base, root];
-        return next.length >= repoCount ? [] : next;
-      });
+      const prev = scopeNow.current;
+      let next: readonly string[];
+      if (!additive) next = prev.length === 1 && prev[0] === root ? [] : [root];
+      else {
+        const picked = prev.includes(root) ? prev.filter((r) => r !== root) : [...prev, root];
+        next = picked.length >= repoCount ? [] : picked;
+      }
+      pickScope(next);
       // The open card may belong to a branch that is now out of view.
       setOpenCard(undefined);
     },
-    [repoCount],
+    [pickScope, repoCount],
   );
 
   const openRepoMenu = useCallback(
@@ -507,8 +583,8 @@ export function App() {
         repoCount > 1
           ? [
               narrowedToIt
-                ? { label: 'Show All Repositories', icon: 'list-flat', run: () => setScope([]) }
-                : { label: 'Show Only This Repository', icon: 'filter', run: () => setScope([repo.root]) },
+                ? { label: 'Show All Repositories', icon: 'list-flat', run: () => pickScope([]) }
+                : { label: 'Show Only This Repository', icon: 'filter', run: () => pickScope([repo.root]) },
             ]
           : [];
       void rpc.request<BranchPanelMenuItemDto[]>(BRANCHES_METHODS.menu, { root: repo.root }).then(
@@ -518,7 +594,7 @@ export function App() {
         () => undefined,
       );
     },
-    [repoCount, scope, showMenu],
+    [pickScope, repoCount, scope, showMenu],
   );
 
   /** The single repository's first row: its current branch's menu, then the repository's own. */
@@ -1183,7 +1259,7 @@ export function App() {
               className="gtp-scope-pill"
               title="Show every repository"
               aria-label={`Narrowed to ${scopeLabel}; show every repository`}
-              onClick={() => setScope([])}
+              onClick={() => pickScope([])}
             >
               {scopeLabel}
               <Codicon name="close" />
@@ -1314,7 +1390,7 @@ export function App() {
             }
             actions={
               selected.length > 0 ? (
-                <button type="button" className="gtp-link" title="Show every repository" onClick={() => setScope([])}>
+                <button type="button" className="gtp-link" title="Show every repository" onClick={() => pickScope([])}>
                   Show all
                 </button>
               ) : undefined

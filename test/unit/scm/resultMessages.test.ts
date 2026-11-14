@@ -4,6 +4,7 @@ import {
   joinMessages,
   plural,
   pullResultMessage,
+  repositoriesPhrase,
 } from '../../../src/scm/resultMessages';
 
 /**
@@ -49,6 +50,26 @@ describe('committedMessage', () => {
   it('says No files for an empty commit, and leaves a blank subject out', () => {
     expect(committedMessage(0, 'Empty')).toBe('No files committed: Empty');
     expect(committedMessage(4, '')).toBe('4 files committed');
+  });
+
+  it('names where a commit narrowed to some repositories went (POST-P14ce)', () => {
+    expect(committedMessage(3, 'Add the orders endpoint', ['shop-api'])).toBe(
+      '3 files committed to shop-api: Add the orders endpoint',
+    );
+    expect(committedMessage(5, 'Bump', ['shop-api', 'shop-web'])).toBe('5 files committed to shop-api and shop-web: Bump');
+    expect(committedMessage(1, '', ['a', 'b', 'c'])).toBe('1 file committed to 3 repositories');
+    // A commit of the whole project says nothing of where, as IntelliJ's does.
+    expect(committedMessage(2, 'Fix', [])).toBe('2 files committed: Fix');
+    expect(committedMessage(2, 'Fix', undefined)).toBe('2 files committed: Fix');
+  });
+});
+
+describe('repositoriesPhrase', () => {
+  it('names one or two, and counts more', () => {
+    expect(repositoriesPhrase([])).toBe('');
+    expect(repositoriesPhrase(['api'])).toBe('api');
+    expect(repositoriesPhrase(['api', 'web'])).toBe('api and web');
+    expect(repositoriesPhrase(['api', 'web', 'docs'])).toBe('3 repositories');
   });
 });
 

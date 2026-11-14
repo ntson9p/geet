@@ -26,6 +26,7 @@ import { BranchesViewProvider, type BranchNode } from './branchesView';
 import { CompareService } from './compare';
 import { RefService, type FavoritesStorage } from './refService';
 import { RepoScope } from './repoScope';
+import { ReposInView } from './reposInView';
 import { RepositoriesViewProvider } from './repositoriesView';
 import { INTELLIJ_KEYMAP_SETTING } from '../ui/accelerators';
 import { askRepo } from '../ui/chooseRepo';
@@ -34,6 +35,8 @@ import { repoRootOf } from '../ui/rowContext';
 import { writeSetting } from '../ui/writeSetting';
 
 const SCOPE_MEMENTO_KEY = 'gittree.sidebar.focusedRepo';
+/** POST-P14ce: the repositories picked in the Repositories panel, for the workspace. */
+const REPOS_IN_VIEW_KEY = 'gittree.reposInView';
 
 export interface Phase02Registry {
   refServices: Map<string, RefService>;
@@ -48,6 +51,8 @@ export interface Phase02Registry {
   hub: BranchHubViewProvider;
   /** new-way-4: the sidebar's Repositories panel (`gittree.branches`). */
   panel: BranchPanelProvider;
+  /** POST-P14ce: the repositories picked in that panel, which the Commit window lists and commits. */
+  reposInView: ReposInView;
   /**
    * P13-T5: the single branch-action registry the popup, the branches tree and
    * the log's Branches pane all consume, so the three cannot drift.
@@ -233,6 +238,28 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   });
   context.subscriptions.push(hubView);
 
+  // POST-P14ce: what the Repositories panel picks, the Commit window shows. Kept
+  // here, where both reach it, and for the workspace, as the panel's pick always was.
+  const reposInView = new ReposInView(
+    {
+      get: () => context.workspaceState.get<unknown>(REPOS_IN_VIEW_KEY),
+      set: (value) => void context.workspaceState.update(REPOS_IN_VIEW_KEY, [...value]),
+    },
+    () => core.repos.map((r) => r.root),
+  );
+  context.subscriptions.push({ dispose: () => reposInView.dispose() });
+  // The Command Palette offers Show All Repositories while a pick narrows the
+  // list: a repository opening or closing can widen or narrow it too.
+  const syncNarrowed = (): void =>
+    void vscode.commands.executeCommand('setContext', 'gittree.reposNarrowed', reposInView.snapshot().narrowed);
+  syncNarrowed();
+  const narrowedSubs = [
+    reposInView.onDidChange(syncNarrowed),
+    core.onDidAddRepo(syncNarrowed),
+    core.onDidRemoveRepo(syncNarrowed),
+  ];
+  context.subscriptions.push(new vscode.Disposable(() => narrowedSubs.forEach((sub) => sub.dispose())));
+
   /**
    * The Repositories panel (new-way-4; once titled Branches): every repository's
    * status, then its branches under Recent, Local, Remote and Tags tabs, a card
@@ -248,6 +275,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     actions,
     // The branch trees' own drop prompt, so the gesture has one implementation.
     onDrop: (repo, source, target) => viewProvider.showDropActions(repo, source, target),
+    reposInView,
   });
   context.subscriptions.push({ dispose: () => panel.dispose() });
   context.subscriptions.push(
@@ -261,11 +289,23 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       ),
     ),
     vscode.commands.registerCommand('gittree.branches.filterPanel', () => panel.focusFilter()),
-    // POST-P14cb: a Commit-window repository row's Select in Repositories Panel.
-    vscode.commands.registerCommand('gittree.branches.selectRepository', async (arg?: unknown) => {
+    // POST-P14cb, POST-P14ce: a Commit-window repository row's Show Only This
+    // Repository (once Select in Repositories Panel): the panel's pick, which
+    // the Commit window follows. The keyboard stays where it was.
+    vscode.commands.registerCommand('gittree.branches.selectRepository', (arg?: unknown) => {
       const named = typeof arg === 'string' ? arg : repoRootOf(arg);
       const repo = named !== undefined ? core.getRepo(named) : undefined;
-      if (repo) await panel.showRepository(repo.root);
+      if (repo) reposInView.set([repo.root], 'elsewhere');
+    }),
+    // POST-P14ce: every repository in view again, in both panels: a repository
+    // row's menu when it is the one shown, and the Command Palette.
+    vscode.commands.registerCommand('gittree.branches.showAllRepositories', () => reposInView.clear('elsewhere')),
+    // POST-P14ce: a name on the Commit window's filter bar: the panel in view,
+    // the keyboard on that repository's row, the pick as it is.
+    vscode.commands.registerCommand('gittree.branches.revealRepository', async (arg?: unknown) => {
+      const named = typeof arg === 'string' ? arg : repoRootOf(arg);
+      const repo = named !== undefined ? core.getRepo(named) : undefined;
+      if (repo) await panel.revealRepository(repo.root);
     }),
     // The panel's Repository Dots, from the palette or a key: the same setting
     // its toolbar button and More Actions menu switch.
@@ -566,6 +606,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     reposView,
     hub,
     panel,
+    reposInView,
     actions,
     runCommonAction: (repos, common, actionId) => runCommonAction(repos, common, actions, actionId),
     lastLocalChangesQuestion,

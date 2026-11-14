@@ -140,6 +140,156 @@
   color: var(--vscode-descriptionForeground);
 }
 
+/* POST-P14ce: the list narrowed to the repositories picked, and nothing in
+   them: the way to the rest, under the words. */
+.gt-commit-empty-more {
+  margin-top: 4px;
+}
+
+.gt-commit-empty .gt-link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-commit-empty .gt-link-button:hover {
+  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+  text-decoration: underline;
+}
+
+/* POST-P14ce: the bar over the list while the Repositories panel's pick
+   narrows it. One row, tinted as a link is, so it reads as a state of the list
+   and not as one of its rows. */
+.gt-commit-filter {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border, transparent));
+  background: color-mix(in srgb, var(--vscode-textLink-foreground) 10%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.gt-commit-filter-icon {
+  flex: 0 0 auto;
+  color: var(--vscode-textLink-foreground);
+}
+
+.gt-commit-filter-names {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.gt-commit-filter-repo {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-commit-filter-repo:hover .gt-commit-filter-name {
+  text-decoration: underline;
+}
+
+.gt-commit-filter-repo:focus-visible,
+.gt-commit-filter-all:focus-visible,
+.gt-commit-empty .gt-link-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.gt-commit-filter-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The repository's dot in the Repositories panel, filled as a picked one is. */
+.gt-commit-filter-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gt-repo);
+}
+
+/* What is left out gives way first, to an ellipsis; the hover says it whole. */
+.gt-commit-filter-rest {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Ticked changes the commit leaves out. */
+.gt-commit-filter-rest.gt-warn {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-list-warningForeground));
+}
+
+.gt-commit-filter-all {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.gt-commit-filter-all:hover {
+  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+  text-decoration: underline;
+}
+
+/* The bar with every name in it, unseen: how wide it would have to be. */
+.gt-commit-filter-probe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  border: none;
+  background: none;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.gt-commit-filter-probe .gt-commit-filter-names,
+.gt-commit-filter-probe .gt-commit-filter-repo,
+.gt-commit-filter-probe .gt-commit-filter-rest {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+@media (forced-colors: active) {
+  .gt-commit-filter-dot {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
 .gt-commit-error {
   flex: 0 0 auto;
   display: flex;

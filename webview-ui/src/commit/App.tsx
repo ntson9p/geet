@@ -35,6 +35,7 @@ import {
   type CommitMessageEvtDto,
   type CommitOpenDiffParamsDto,
   type CommitRecentCommitsDto,
+  type CommitRunParamsDto,
   type CommitSetGroupByParamsDto,
   type CommitSetIncludedParamsDto,
   type CommitStashStateDto,
@@ -92,6 +93,7 @@ import {
   isConflictsRow,
   layoutOf,
   listDescription,
+  multiRepoOf,
   originText,
   partialLabel,
   revealRequestOf,
@@ -102,6 +104,8 @@ import {
   twinRows,
   type CommitTreeModel,
 } from './commitTree';
+import { filterEmptyText } from './repoFilter';
+import { RepoFilterBar } from './RepoFilterBar';
 import { firstLine, relativeTime } from './format';
 import { answersCommitAsk, onMac } from './commitKey';
 import {
@@ -168,6 +172,20 @@ const EMPTY: CommitStateDto = {
   checkedCount: 0,
   paradigm: 'changelists',
 };
+
+/** POST-P14ce: which repositories the list shows, as one key; empty for every one. */
+function shownKeyOf(state: CommitStateDto): string {
+  return state.filter !== undefined ? state.filter.shown.map((repo) => repo.root).join('\n') : '';
+}
+
+/** POST-P14ce: every row's path, the rows inside shut ones too. */
+function rowPaths(nodes: readonly TreeNode[], into: Set<string> = new Set()): Set<string> {
+  for (const node of nodes) {
+    into.add(node.path);
+    if (node.kind === 'dir') rowPaths(node.children, into);
+  }
+  return into;
+}
 
 /** A message dropdown (history clock or Amend ▾), anchored under its button. */
 interface MessageMenu {
@@ -280,6 +298,10 @@ export function App() {
         view: treeHandle.current?.viewState() ?? { atTop: true },
         selection: selectionRef.current,
       };
+    } else if (shownKeyOf(next) !== shownKeyOf(stateRef.current) && before.nodes.length > 0) {
+      // POST-P14ce: other repositories listed: the list starts again at its
+      // top, where the scroll of the one before would mean nothing.
+      setRestore({ top: true });
     }
     setState(next);
     setDiffOnScreen(next.diffOnScreen);
@@ -370,6 +392,17 @@ export function App() {
     });
   }, [model]);
 
+  // POST-P14ce: a row gone from the list — its repository left out by the
+  // Repositories panel's pick, or its file committed — is no longer selected,
+  // so Rollback, Show Diff and the preview never act on a row not on screen.
+  // After the regroup above, whose twins are rows of this list.
+  useLayoutEffect(() => {
+    const live = rowPaths(model.nodes);
+    setSelection((prev) =>
+      [...prev].every((path) => live.has(path)) ? prev : new Set([...prev].filter((path) => live.has(path))),
+    );
+  }, [model]);
+
   useEffect(() => {
     api.setState({
       tab,
@@ -384,6 +417,10 @@ export function App() {
   }, [api, expanded, known, message, messageHeight, preview, ratio, seeded, tab]);
 
   const activeRepo = state.activeRepo;
+  // POST-P14ce: Amend, its ▾ list, the options and Shelve act on a repository
+  // the list shows; the message box stays the editor's repository's.
+  const commitRepo = state.commitRepo ?? activeRepo;
+  const multiRepo = multiRepoOf(state);
 
   /**
    * Every webview→host intent is an RPC **request**, matching what
@@ -813,6 +850,8 @@ export function App() {
   const onEditorInput = useCallback((value: string) => setMessage(value), []);
   const activeRepoRef = useRef(activeRepo);
   activeRepoRef.current = activeRepo;
+  const commitRepoRef = useRef(commitRepo);
+  commitRepoRef.current = commitRepo;
   const onEditorPersist = useCallback(
     (value: string) => {
       const repoRoot = activeRepoRef.current;
@@ -825,7 +864,9 @@ export function App() {
   /** Opens the history clock or Amend ▾ dropdown under its button. */
   const openMessageMenu = useCallback(
     async (anchor: HTMLElement, kind: 'history' | 'amend') => {
-      const repoRoot = activeRepoRef.current;
+      // The history is the message box's; the commits to reuse, those of the
+      // repository Amend acts on (POST-P14ce), which the list shows.
+      const repoRoot = kind === 'history' ? activeRepoRef.current : commitRepoRef.current;
       if (repoRoot === undefined) return;
       const rect = anchor.getBoundingClientRect();
       const at = { x: rect.left, y: rect.bottom + 2 };
@@ -892,7 +933,12 @@ export function App() {
     // A half-typed message may still be inside the debounce window; the flush
     // posts it first, and the host processes messages in arrival order.
     editorRef.current?.flush();
-    send(COMMIT_METHODS.commit, { repoRoot: activeRepo, andPush });
+    send(COMMIT_METHODS.commit, {
+      repoRoot: activeRepo,
+      andPush,
+      // POST-P14ce: narrowed, what the list shows is what is committed.
+      ...(state.filter !== undefined ? { roots: state.filter.shown.map((repo) => repo.root) } : {}),
+    } satisfies CommitRunParamsDto);
   };
 
   const canCommit =
@@ -922,8 +968,10 @@ export function App() {
   // the compiler enforces nothing, and a missing field must not blank the
   // whole panel — which is exactly what it did the first time.
   const targets = state.targets ?? [];
+  // POST-P14ce: narrowed to one repository, the workspace still has several,
+  // and the button still names where the commit goes.
   const commitLabel =
-    state.repos.length < 2 || targets.length === 0
+    !multiRepo || targets.length === 0
       ? 'Commit'
       : targets.length === 1
         ? `Commit to ${targets[0]}`
@@ -962,7 +1010,8 @@ export function App() {
   const viewOptions = {
     groupBy: commitGroupByOf(state.groupBy),
     directory: state.groupByDirectory === true,
-    multiRepo: state.repos.length > 1,
+    // POST-P14ce: the workspace's repositories, the ones the list leaves out too.
+    multiRepo,
   };
 
   const commitTools: OverflowAction[] = [
@@ -1002,8 +1051,9 @@ export function App() {
       label: 'Shelve Changes',
       icon: 'archive',
       priority: 5,
-      disabled: state.busy || activeRepo === undefined,
-      run: () => send(COMMIT_METHODS.shelve, { repoRoot: activeRepo }),
+      // POST-P14ce: a repository the list shows.
+      disabled: state.busy || commitRepo === undefined,
+      run: () => send(COMMIT_METHODS.shelve, { repoRoot: commitRepo }),
     },
     {
       id: 'preview',
@@ -1040,12 +1090,30 @@ export function App() {
     },
   ];
 
-  const nothingToShow = ready && model.nodes.length === 0;
+  // POST-P14ce: narrowed to repositories with nothing to commit, the list says
+  // so — whatever the grouping, rather than an empty changelist row — beside
+  // the way to the changes it leaves out.
+  const nothingToShow = ready && (model.nodes.length === 0 || (state.filter !== undefined && model.files.size === 0));
   const errorText = state.error ?? rpcError;
+  const showAllRepositories = (): void => send(COMMIT_METHODS.showAllRepositories, {});
+  const emptyText = state.filter !== undefined ? filterEmptyText(state.filter) : { text: 'No changes.' };
 
   const treePane = nothingToShow ? (
     <div className="gt-commit-empty" data-testid="commit-empty">
-      No changes.
+      {emptyText.text}
+      {emptyText.elsewhere !== undefined ? (
+        <div className="gt-commit-empty-more">
+          <button
+            type="button"
+            className="gt-link-button"
+            data-testid="commit-empty-show-all"
+            onClick={showAllRepositories}
+          >
+            Show all repositories
+          </button>
+          {` · ${emptyText.elsewhere}`}
+        </div>
+      ) : null}
     </div>
   ) : (
     <FileTree
@@ -1168,6 +1236,17 @@ export function App() {
       ) : null}
 
       <TabPanel id="commit" active={tab} className="gt-commit-panel">
+        {/* POST-P14ce: the list narrowed to the repositories picked in the
+            Repositories panel, said where commits are made. */}
+        {state.filter !== undefined ? (
+          <RepoFilterBar
+            filter={state.filter}
+            staging={state.paradigm === 'staging'}
+            colorOf={(colorIdx) => laneColor(colorIdx, dark, state.palette)}
+            onShowAll={showAllRepositories}
+            onReveal={(root) => send(COMMIT_METHODS.revealRepository, { root })}
+          />
+        ) : null}
         <div className="gt-commit-body" data-testid="commit-tree" ref={bodyRef}>
           {preview ? (
             <SplitPane
@@ -1206,12 +1285,27 @@ export function App() {
 
         <div className="gt-commit-bottom">
           <div className="gt-commit-amend-row">
-            <label className="gt-checkbox" title="Amend the last commit">
+            <label
+              className="gt-checkbox"
+              // POST-P14ce: which repository's last commit, when the list is
+              // narrowed and the message box is another's.
+              title={
+                commitRepo !== undefined && commitRepo !== activeRepo
+                  ? `Amend the last commit of ${state.repos.find((r) => r.root === commitRepo)?.label ?? commitRepo}`
+                  : 'Amend the last commit'
+              }
+            >
               <input
                 type="checkbox"
                 checked={state.amend}
-                disabled={state.busy || activeRepo === undefined}
-                onChange={() => send(COMMIT_METHODS.toggleAmend, { repoRoot: activeRepo })}
+                disabled={state.busy || commitRepo === undefined}
+                onChange={() =>
+                  send(COMMIT_METHODS.toggleAmend, {
+                    repoRoot: commitRepo,
+                    // The box on screen, which takes the last commit's message.
+                    ...(activeRepo !== undefined ? { messageRepoRoot: activeRepo } : {}),
+                  })
+                }
               />
               <span className="gt-checkbox-body">
                 <span>Amend</span>
@@ -1220,7 +1314,7 @@ export function App() {
             <ToolbarButton
               icon="chevron-down"
               label="Reuse a recent commit message"
-              disabled={activeRepo === undefined}
+              disabled={commitRepo === undefined}
               onClick={(e) => void openMessageMenu(e.currentTarget, 'amend')}
             />
             <ToolbarButton
@@ -1236,7 +1330,7 @@ export function App() {
             <ToolbarButton
               icon="gear"
               label="Commit options"
-              disabled={activeRepo === undefined}
+              disabled={commitRepo === undefined}
               toggled={optionsOpen}
               onClick={(e) => {
                 if (optionsOpen) {
@@ -1315,10 +1409,11 @@ export function App() {
           between this view and the one under it: where to grab it. */}
       <div className="gt-commit-edge" aria-hidden="true" data-testid="commit-edge" />
 
-      {optionsOpen && activeRepo !== undefined ? (
+      {optionsOpen && commitRepo !== undefined ? (
         <OptionsPopup
           rpc={rpc}
-          repoRoot={activeRepo}
+          // POST-P14ce: a repository the list shows: its author is the one committed.
+          repoRoot={commitRepo}
           placement={optionsAt}
           onClose={() => setOptionsOpen(false)}
         />

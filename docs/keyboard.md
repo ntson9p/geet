@@ -48,7 +48,7 @@ binding set (all gated on the setting — off by default):
 
 | Key | IntelliJ action | GitTree command |
 | --- | --- | --- |
-| `Ctrl+K` (`Cmd+K`) | Commit… | `gittree.commit` |
+| `Ctrl+K` (`Cmd+K`) | Commit… | `gittree.commit` — what the Commit window lists: with repositories picked in the Repositories panel, those alone (POST-P14ce, D45) |
 | `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `gittree.push.dialog` |
 | `Ctrl+T` (`Cmd+T`) | Update Project | `gittree.update.dialog` |
 | `Alt+9` (`Cmd+9`) | Git tool window | `gittree.log.focus` |

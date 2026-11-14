@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
+import type { ReposInView } from '../../../src/branches/reposInView';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { rootColorIndices } from '../../../src/log/graphLayout/colors';
@@ -468,6 +469,124 @@ suite('Multi-root commit', () => {
       vscode.commands.executeCommand('gittree.push.dialog', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
     );
     assert.strictEqual(p13.lastPushDialogOpened(), undefined, 'nothing open was named: no dialog');
+  });
+
+  /**
+   * POST-P14ce: the repositories picked in the Repositories panel narrow the
+   * Commit window: its list, its counter and button, and what a bare commit
+   * (its button, Ctrl+K) commits. The message box stays the editor's.
+   */
+  suite('the Repositories panel’s pick narrows the Commit window (POST-P14ce)', () => {
+    const inView = (): ReposInView => (core.debugRegistry.get('phase02') as { reposInView: ReposInView }).reposInView;
+
+    teardown(() => {
+      inView().clear('elsewhere');
+    });
+
+    test('the list, its counter and its button show the repository picked alone; the rest is counted', async function () {
+      this.timeout(60_000);
+      await tick(repoD, '# repoD out of the pick\n');
+      await tick(repoE, '# repoE picked\n');
+      await focus(repoD);
+      const whole = reg.commitWindow.buildState();
+      inView().set([repoE.root], 'elsewhere');
+
+      const state = reg.commitWindow.buildState();
+      assert.deepStrictEqual(state.repos.map((r) => r.root), [repoE.root], 'the repository picked, alone');
+      assert.ok(state.filter, 'the list says it is narrowed');
+      assert.deepStrictEqual(state.filter.shown.map((r) => r.root), [repoE.root]);
+      const d = state.filter.hidden.find((r) => r.root === repoD.root);
+      assert.ok(d && d.changes > 0 && d.ticked > 0, "repoD's ticked change is counted out of view");
+      assert.deepStrictEqual(state.targets, [labelOf(repoE)], 'the button names the repository picked');
+      // The counter counts what the list shows; the bar, the rest.
+      assert.ok(state.checkedCount >= 1);
+      assert.strictEqual(
+        state.checkedCount + state.filter.hidden.reduce((n, r) => n + r.ticked, 0),
+        whole.checkedCount,
+      );
+      // The box stays the editor's; Amend acts on the repository listed.
+      assert.strictEqual(state.activeRepo, repoD.root);
+      assert.strictEqual(state.commitRepo, repoE.root);
+
+      // The Repositories panel draws the same pick.
+      const panel = (core.debugRegistry.get('phase02') as { panel: { buildState(): Promise<BranchPanelStateDto> } }).panel;
+      assert.deepStrictEqual((await panel.buildState()).scope, [repoE.root]);
+
+      // Shown all again from the Command Palette: every repository listed.
+      await vscode.commands.executeCommand('gittree.branches.showAllRepositories');
+      const all = reg.commitWindow.buildState();
+      assert.strictEqual(all.filter, undefined);
+      assert.ok(all.repos.some((r) => r.root === repoD.root) && all.repos.some((r) => r.root === repoE.root));
+      assert.strictEqual(all.commitRepo, all.activeRepo);
+    });
+
+    test('a bare commit commits the repository picked alone, with the message on screen, and says where it went', async function () {
+      this.timeout(90_000);
+      await tick(repoD, '# repoD stays ticked\n');
+      await tick(repoE, '# repoE committed from the pick\n');
+      await focus(repoD);
+      // A repository row's Show Only This Repository, in the Commit window.
+      await vscode.commands.executeCommand('gittree.branches.selectRepository', { repoRoot: repoE.root });
+      assert.deepStrictEqual(reg.commitWindow.buildState().targets, [labelOf(repoE)]);
+
+      const beforeD = headOf(repoD);
+      const beforeE = headOf(repoE);
+      const message = 'committed what the list shows';
+      reg.commitWindow.messageBoxFor(repoD).value = message;
+      const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+      notes.clear();
+
+      // No repository argument: the button, Ctrl+K.
+      await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
+
+      await waitFor(() => headOf(repoE) !== beforeE, 60_000);
+      assert.strictEqual(subjectOf(repoE), message, 'repoE used the message on screen');
+      assert.strictEqual(headOf(repoD), beforeD, 'repoD is out of the list and must not commit');
+      await waitFor(() => notes.recent().some((n) => n.message.endsWith(`committed to ${labelOf(repoE)}: ${message}`)), 30_000);
+      assert.strictEqual(reg.commitWindow.messageBoxFor(repoD).value, '', 'the box that held the message is emptied');
+      await waitFor(() => ourTargets().length === 1, 30_000);
+
+      // Hand repoD back clean.
+      inView().clear('elsewhere');
+      reg.commitWindow.messageBoxFor(repoD).value = 'pick cleanup of repoD';
+      await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+      await waitFor(() => headOf(repoD) !== beforeD, 60_000);
+      await waitFor(() => ourTargets().length === 0, 30_000);
+    });
+
+    test('nothing ticked in the repository picked: it says where the ticks are, commits nothing, and Show All Repositories widens', async function () {
+      this.timeout(90_000);
+      await tick(repoD, '# repoD ticked, out of the pick\n');
+      await focus(repoD);
+      inView().set([repoE.root], 'elsewhere');
+      const beforeD = headOf(repoD);
+      const beforeE = headOf(repoE);
+      reg.commitWindow.messageBoxFor(repoD).value = 'must not be committed';
+      const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
+      notes.clear();
+      const saved = process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+      process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Show All Repositories';
+      try {
+        await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
+      } finally {
+        if (saved === undefined) delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+        else process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = saved;
+      }
+      const said = notes.recent().find((n) => n.message.startsWith(`Nothing ticked to commit in ${labelOf(repoE)}.`));
+      assert.ok(said, JSON.stringify(notes.recent()));
+      assert.match(said.message, new RegExp(`What is ticked in .*${labelOf(repoD)}|What is ticked in \\d+ repositories`, 'u'));
+      assert.deepStrictEqual(said.actions, ['Show All Repositories']);
+      assert.strictEqual(headOf(repoD), beforeD, 'nothing committed');
+      assert.strictEqual(headOf(repoE), beforeE, 'nothing committed');
+      // Its button, taken: every repository in view again.
+      await waitFor(() => !inView().snapshot().narrowed, 10_000);
+
+      // Hand repoD back clean.
+      reg.commitWindow.messageBoxFor(repoD).value = 'pick notice cleanup of repoD';
+      await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+      await waitFor(() => headOf(repoD) !== beforeD, 60_000);
+      await waitFor(() => ourTargets().length === 0, 30_000);
+    });
   });
 
   /**

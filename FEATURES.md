@@ -306,6 +306,10 @@ picked; at first, on Recent while anything is recent, else Local.
   pill in the filter field (`web ×`) names the scope and widens it again, as does *Show all*
   in the REPOSITORIES header, which names the repositories picked. The scope narrows what is
   shown *and* what the rows act on.
+  - **The Commit window follows it** (POST-P14ce): it lists only the repositories picked, says
+    so in a bar over its list with *Show all*, and commits only them
+    ([D45](docs/deviations.md#d45--the-repositories-panels-pick-narrows-the-commit-window)). The
+    pick is kept for the workspace by GitTree, not by the panel, so either one changes it.
   - **Clicking the repository shown alone again shows every repository again.** Clicking one
     of several picked shows it alone. Each row's hover says what its click will do.
   - **A picked repository's row is highlighted, every picked one alike, and only while it is
@@ -628,6 +632,28 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
     neither the eye nor the commands are offered.
   - Nothing else changes: the counter, the message, Amend and *Commit to 2 repositories* work on
     the same ticks whatever the grouping, and a diff walks the files in the order shown.
+* **Narrowed to the repositories picked in the Repositories panel** (POST-P14ce,
+  [D45](docs/deviations.md#d45--the-repositories-panels-pick-narrows-the-commit-window)): the list
+  shows only theirs, still under their repository rows, and a bar over it says so whether that
+  panel is open or folded:
+  - the repositories shown, in their colours, or *2 of 5 repositories* when the names do not fit;
+    then the changes left out, `· 3 changes elsewhere`, or `· 5 ticked elsewhere` in a warning
+    colour when some are ticked; its hover lists them. A name brings the Repositories panel up on
+    that repository; **Show all** shows every repository again, in both panels;
+  - **what you see is what you commit**: the Commit button, *Commit and Push…*, Ctrl+Enter and
+    *Commit* from the palette (Ctrl+K) commit only the repositories shown, the button names them,
+    and the notification says where the commit went. Ticks out of view stay ticked. With nothing
+    ticked in the repositories shown but something elsewhere, *Commit* says so and offers *Show
+    All Repositories*;
+  - the message box stays the edited repository's, so a message typed before narrowing stays on
+    screen; Amend (its hover names the repository), its ▾ list, the options and Shelve act on a
+    repository the list shows;
+  - the counter counts what the list shows, the view's badge every change. Rollback, Show Diff,
+    the preview and Expand/Collapse all act on the rows shown: a selected row left out is no
+    longer selected, and Collapse all leaves the rows of the repositories left out as they were;
+  - narrowed to repositories with nothing to commit, the list says *No changes in docs.* beside
+    *Show all repositories · 9 changes*. A repository row's menu has **Show Only This
+    Repository**, or on the repository shown alone **Show All Repositories**.
 
 ### Paradigm A: Changelists (the default)
 

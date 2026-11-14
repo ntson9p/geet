@@ -9,7 +9,12 @@
  * - `window.__mockHoldFetch` — Fetch All answers only on `window.__releaseFetch()`;
  * - `window.__mockNoOperation` — no rebase in progress;
  * - `window.__mockHoldRun` — `branches/run` answers only on `window.__releaseRun()`;
- * - `window.__mockDots` — the Repository Dots start on.
+ * - `window.__mockDots` — the Repository Dots start on;
+ * - `window.__mockScope` — the repositories picked, as the host kept them
+ *   (POST-P14ce); unset, nothing is kept yet and the panel's old copy is adopted.
+ * POST-P14ce: `window.__mockPickElsewhere(roots)` is a pick made in the Commit
+ * window (Show all, Show Only This Repository); `window.__mockReveal(root)` a
+ * name on its filter bar.
  * Every message the page posts is in `window.__postedMessages`.
  */
 export const mockBranchesHostScript = `
@@ -88,6 +93,24 @@ export const mockBranchesHostScript = `
   window.__pushState = pushState;
   const repoOf = (root) => state.repos.find((r) => r.root === root);
 
+  // POST-P14ce: the pick, kept here as the host keeps it (reposInView.ts):
+  // every open repository picked is none; until one is kept, the panel's old
+  // copy is adopted once.
+  let scopeKept = Array.isArray(window.__mockScope);
+  state.scope = scopeKept ? window.__mockScope.slice() : [];
+  const keepScope = (roots) => {
+    const open = state.repos.map((r) => r.root);
+    const picked = roots.filter((r, i) => typeof r === 'string' && roots.indexOf(r) === i);
+    state.scope = open.length > 0 && open.every((r) => picked.includes(r)) ? [] : picked;
+    scopeKept = true;
+  };
+  window.__mockPickElsewhere = (roots) => {
+    keepScope(roots);
+    post({ v: 1, id: 'evtscope', kind: 'evt', method: 'branches/scope', params: { roots: state.scope.slice() } });
+  };
+  window.__mockReveal = (root) =>
+    post({ v: 1, id: 'evtreveal', kind: 'evt', method: 'branches/revealRepo', params: { root } });
+
   const details = (target) => ({
     repos: target.roots.map((root) => {
       const r = repoOf(root);
@@ -137,7 +160,13 @@ export const mockBranchesHostScript = `
       const p = msg.params || {};
       switch (msg.method) {
         case 'branches/init':
+          // The pick the panel kept itself before POST-P14ce, adopted once.
+          if (!scopeKept && Array.isArray(p.scope) && p.scope.length > 0) keepScope(p.scope);
           res(JSON.parse(JSON.stringify(state)));
+          break;
+        case 'branches/setScope':
+          if (Array.isArray(p.roots)) keepScope(p.roots);
+          res({ roots: state.scope.slice() });
           break;
         case 'branches/details':
           res(details(p.target));
