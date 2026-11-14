@@ -86,9 +86,11 @@ function languageWriters(locale: string | undefined, timeZone: string | undefine
     day: 'numeric',
     ...zone,
   });
+  // The language's own short time, as Java's `DateFormat.SHORT` gives IntelliJ
+  // where there are no system patterns: `3:07 PM`, `03:45` in en-GB. Not
+  // `hour: 'numeric'`, which ICU 78 (Node 24) writes `3:45` in en-GB.
   const time = new Intl.DateTimeFormat(locale, {
-    hour: 'numeric',
-    minute: '2-digit',
+    timeStyle: 'short',
     ...zone,
   });
   return { date: (at) => date.format(at), time: (at) => time.format(at) };

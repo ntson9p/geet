@@ -14,6 +14,9 @@ pre-release convention (odd minor = pre-release).
   the host to retarget every repository twice.
 - **Log: Show Details for a tab the strip no longer has changes nothing.** The unknown tab came
   up in front as an empty Log tab of its own.
+- **Dates without the system's patterns** (another platform, or Windows' unreadable) give the
+  time as the language's own short time: `03:45` in English (UK), as IntelliJ's
+  `DateFormat.SHORT` does. ICU 78 (Node 24's) wrote `3:45`.
 
 ### Security — development tools updated; `npm audit` finds nothing
 

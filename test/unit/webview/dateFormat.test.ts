@@ -43,6 +43,13 @@ describe('createCommitDateFormat (POST-P14z)', () => {
     expect(createCommitDateFormat('en-GB', 'Pacific/Kiritimati')(T)).toBe('22/09/2026 03:45');
   });
 
+  it("writes an hour before ten as the language's short time does, whatever the ICU", () => {
+    // ICU 78 (Node 24) writes `hour: 'numeric'` as `3:45` in en-GB and de-DE;
+    // their short time, and IntelliJ's `DateFormat.SHORT`, is `03:45`.
+    expect(createCommitDateFormat('de-DE', 'Pacific/Kiritimati')(T)).toBe('22.9.2026 03:45');
+    expect(createCommitDateFormat('en-US', 'Pacific/Kiritimati')(T)).toMatch(/^9\/22\/2026 3:45\sAM$/u);
+  });
+
   it('joins date and time with a plain space, with no locale comma', () => {
     // A combined Intl format writes `21/09/2026, 13:45`; the separator buys
     // nothing in a dense commit row.
