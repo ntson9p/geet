@@ -389,6 +389,24 @@ Run the advanced checks (Analyze code, Check TODO) after the commit and report w
 
 - Type: `boolean` · Default: `false`
 
+### `gittree.commit.messageGeneration.enabled`
+
+Show Generate Commit Message in the Commit window. A language model that VS Code has (GitHub Copilot's, or one you added under Chat: Manage Language Models) writes the message for the changes you are about to commit; those changes are sent to it. Also hidden while VS Code's own AI features are off (chat.disableAIFeatures).
+
+- Type: `boolean` · Default: `true`
+
+### `gittree.commit.messageGeneration.model`
+
+The language model that writes commit messages, as vendor/id (for example copilot/gpt-4.1). Empty: the only model there is, or, with several, the one you choose the first time. The command Choose the Model for Commit Messages… lists them.
+
+- Type: `string` · Default: `""`
+
+### `gittree.commit.messageGeneration.instructions`
+
+Your own instructions for generated commit messages, which come before GitTree's where they differ: a format, a language, a length. $GIT_BRANCH_NAME stands for the current branch, as in IntelliJ.
+
+- Type: `string` · Default: `""`
+
 ## GitTree Log & Blame
 
 ### `gittree.log.sort`

@@ -431,6 +431,22 @@
             "type": "boolean",
             "default": false,
             "description": "%gittree.config.commit.checks.deferAdvanced.description%"
+          },
+          "gittree.commit.messageGeneration.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.commit.messageGeneration.enabled.description%"
+          },
+          "gittree.commit.messageGeneration.model": {
+            "type": "string",
+            "default": "",
+            "description": "%gittree.config.commit.messageGeneration.model.description%"
+          },
+          "gittree.commit.messageGeneration.instructions": {
+            "type": "string",
+            "default": "",
+            "editPresentation": "multilineText",
+            "description": "%gittree.config.commit.messageGeneration.instructions.description%"
           }
         }
       },
@@ -1149,6 +1165,17 @@
         "title": "%gittree.command.commit.showMessageHistory.title%",
         "category": "GitTree",
         "icon": "$(history)"
+      },
+      {
+        "command": "gittree.commit.generateMessage",
+        "title": "%gittree.command.commit.generateMessage.title%",
+        "category": "GitTree",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "gittree.commit.chooseMessageModel",
+        "title": "%gittree.command.commit.chooseMessageModel.title%",
+        "category": "GitTree"
       },
       {
         "command": "gittree.commit.fromMessageBox",
@@ -2171,6 +2198,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gittree.commit.generateMessage",
+          "when": "config.gittree.commit.messageGeneration.enabled && !config.chat.disableAIFeatures"
+        },
+        {
+          "command": "gittree.commit.chooseMessageModel",
+          "when": "config.gittree.commit.messageGeneration.enabled && !config.chat.disableAIFeatures"
+        },
         {
           "command": "gittree.branches.checkoutEverywhere",
           "when": "gittree.multiRepo"

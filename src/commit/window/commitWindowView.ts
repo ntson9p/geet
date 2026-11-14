@@ -34,6 +34,7 @@ import {
   type CommitDiffFileDto,
   type CommitDiffOnScreenDto,
   type CommitFileDiffDto,
+  type CommitGenerateParamsDto,
   type CommitMessageFocusParamsDto,
   type CommitOpenDiffParamsDto,
   type CommitGroupDto,
@@ -56,6 +57,7 @@ import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui
 import { ChangelistService, UNVERSIONED_ID } from '../changelists/changelistService';
 import { hasCommittableChanges } from '../commitFlow';
 import type { CommitService } from '../commitService';
+import { generationOffered, type GenerateRequest, type GenerateResult } from '../generate/messageGenerator';
 import type { CommitMessageBox } from '../messageBox';
 import { recentCommitMessages, type MessageHistory } from '../messageHistory';
 import type { ParadigmManager } from '../paradigmManager';
@@ -99,6 +101,12 @@ export interface CommitWindowDeps {
    * shows only theirs, and its Commit commits only them.
    */
   reposInView: ReposInViewReader;
+  /**
+   * POST-P14cj: Generate Commit Message. A language model writes the message
+   * for what a Commit would commit; never throws, and tells the user itself
+   * when there is nothing to write or nothing to write it with.
+   */
+  generateMessage(request: GenerateRequest, token: vscode.CancellationToken): Promise<GenerateResult>;
   /**
    * Runs the shared P3 commit flow — the webview never commits by itself.
    * `roots`: what the list showed, when it was narrowed (canonical keys).
@@ -157,6 +165,8 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   private readonly subs: vscode.Disposable[] = [];
   /** The file a diff opened from this list is showing, which the tree marks. */
   private diffOnScreen: CommitDiffFileDto | undefined;
+  /** POST-P14cj: the commit message being generated, if one is: what stops it. */
+  private generating: vscode.CancellationTokenSource | undefined;
   /** Test observability, mirroring the RebaseViewController convention. */
   readonly debugTrail: string[] = [];
 
@@ -186,7 +196,10 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
           e.affectsConfiguration('gittree.log.graphPalette') ||
           e.affectsConfiguration('gittree.log.dateFormat') ||
           e.affectsConfiguration('gittree.commit.groupBy') ||
-          e.affectsConfiguration('gittree.commit.groupByDirectory')
+          e.affectsConfiguration('gittree.commit.groupByDirectory') ||
+          // POST-P14cj: the Generate Commit Message button, shown or not.
+          e.affectsConfiguration('gittree.commit.messageGeneration.enabled') ||
+          e.affectsConfiguration('chat.disableAIFeatures')
         ) {
           this.push();
         }
@@ -423,6 +436,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       groupByDirectory: readCommitGroupByDirectory(),
       dateFormat: readDateFormat(vscode.workspace.getConfiguration('gittree.log').get<unknown>('dateFormat')),
       ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
+      ...(generationOffered() ? { messageGeneration: this.generating !== undefined ? 'running' : 'idle' } : {}),
     };
   }
 
@@ -785,6 +799,63 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     }
   }
 
+  // ---- Generate Commit Message (POST-P14cj) -------------------------------------
+
+  /** Whether a commit message is being generated now. */
+  get isGenerating(): boolean {
+    return this.generating !== undefined;
+  }
+
+  /**
+   * A language model writes the commit message for what a Commit pressed now
+   * would commit: what is ticked (or staged) in the repositories the list
+   * shows, or in `roots`. The message goes into the box of `box`, else the one
+   * on screen, as a programmatic write: Ctrl+Z there brings back what it replaced.
+   *
+   * One at a time: a second ask while one runs starts nothing (the webview
+   * posts a request again after a rehydrate). The view's own progress bar runs
+   * meanwhile, as VS Code's Source Control view's does for Copilot's.
+   */
+  async generateMessage(roots?: readonly string[], box?: RepoHandle): Promise<GenerateResult['kind']> {
+    if (this.generating !== undefined) return 'stopped';
+    const messageRepo = box ?? this.messageRepo();
+    if (messageRepo === undefined) return 'nothing';
+    const view = this.deps.reposInView.snapshot();
+    // Named by the webview, else what the Repositories panel's pick leaves in view (the Command Palette).
+    const listed = roots ?? (view.narrowed ? view.roots : undefined);
+    const source = new vscode.CancellationTokenSource();
+    this.generating = source;
+    this.push();
+    try {
+      const result = await vscode.window.withProgress({ location: { viewId: CommitWindowViewProvider.viewType } }, () =>
+        this.deps.generateMessage(
+          {
+            messageRepo,
+            ...(listed !== undefined ? { roots: new Set(listed.map((r) => canonicalKey(r))) } : {}),
+          },
+          source.token,
+        ),
+      );
+      if (result.kind === 'message') {
+        // echo=true: into the editor as a programmatic write, on its undo stack.
+        this.setMessage(messageRepo, result.message, true);
+        // Bounded — this is test observability, not a log.
+        if (this.debugTrail.length > 50) this.debugTrail.shift();
+        this.debugTrail.push(`generated a message with ${result.model}`);
+      }
+      return result.kind;
+    } finally {
+      this.generating = undefined;
+      source.dispose();
+      this.push();
+    }
+  }
+
+  /** Stops the commit message being generated; nothing is written. */
+  stopGenerating(): void {
+    this.generating?.cancel();
+  }
+
   /** POST-P14cf: the list menu's Expand All, which only the webview can do. */
   expandAll(): void {
     this.rpc?.notify(COMMIT_METHODS.evtExpandAll, {});
@@ -1039,6 +1110,20 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const root = (raw as { root?: unknown } | undefined)?.root;
       if (typeof root === 'string') await vscode.commands.executeCommand('gittree.branches.revealRepository', root);
     });
+
+    // POST-P14cj: Generate Commit Message. Answered at once: the state says
+    // while it runs, and the message arrives as `evtMessage`.
+    rpc.on(COMMIT_METHODS.generateMessage, (raw) => {
+      const p = (raw ?? {}) as Partial<CommitGenerateParamsDto>;
+      const box = typeof p.repoRoot === 'string' ? this.repoFor(p.repoRoot) : undefined;
+      const roots = Array.isArray(p.roots) ? p.roots.filter((r): r is string => typeof r === 'string') : undefined;
+      // Not awaited: the request is answered now. The generator tells the user
+      // what goes wrong itself; anything else is written down.
+      this.generateMessage(roots, box).catch((err: unknown) => {
+        this.deps.core.output.appendLine(`[commit-window] generate message: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    });
+    rpc.on(COMMIT_METHODS.stopGenerating, () => this.stopGenerating());
 
     rpc.on(COMMIT_METHODS.openDiff, (raw) => this.openDiff(raw as CommitOpenDiffParamsDto));
     rpc.on(COMMIT_METHODS.diffChain, (raw) => {

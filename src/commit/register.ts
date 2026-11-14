@@ -26,6 +26,7 @@ import { reformatCheck } from './checks/reformat';
 import { todoCheck } from './checks/todo';
 import { runCommitAcross, runCommitFlow, type CommitFlowDeps } from './commitFlow';
 import { CommitService } from './commitService';
+import { MessageGenerator } from './generate/messageGenerator';
 import type { CommitMessageBox } from './messageBox';
 import { MessageHistory } from './messageHistory';
 import { ParadigmManager } from './paradigmManager';
@@ -57,6 +58,8 @@ export interface Phase03Registry {
   optionsStore: CommitOptionsStore;
   /** P11-T5 — the most recent deferred post-commit check run (test seam). */
   lastDeferredChecks?: Promise<DeferredChecksOutcome | undefined>;
+  /** POST-P14cj — Generate Commit Message; its models can be a test's (`setModelSource`). */
+  messageGenerator: MessageGenerator;
 }
 
 export function registerPhase03(context: vscode.ExtensionContext, core: Core): Phase03Registry {
@@ -114,6 +117,9 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   /** What widens the list again, offered when what is ticked lies outside it. */
   const showAll = (): void => reposInView.clear('elsewhere');
 
+  // POST-P14cj: Generate Commit Message, with a model VS Code has (`vscode.lm`).
+  const messageGenerator = new MessageGenerator({ core, paradigm, changelistsFor, commitService, inclusion });
+
   const commitWindow = new CommitWindowViewProvider({
     context,
     core,
@@ -124,6 +130,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     inclusion,
     options: optionsStore,
     reposInView,
+    generateMessage: (request, token) => messageGenerator.generate(request, token),
     runCommit: (repo, options) =>
       runCommitAcross(flowDeps, repo, options.roots !== undefined ? { ...options, showAll } : options),
   });
@@ -220,6 +227,16 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // the bare command above: the window commits as its Commit button does, with
   // the message as typed this instant (see commitKey.ts).
   register(COMMIT_FROM_MESSAGE_COMMAND, () => commitWindow.commitFromMessageBox());
+  // POST-P14cj: Generate Commit Message, as the Commit window's button: for what
+  // its list shows, into the box on screen. Run again while a message is being
+  // written, it stops it, as the button then does.
+  register('gittree.commit.generateMessage', async () => {
+    if (commitWindow.isGenerating) commitWindow.stopGenerating();
+    else await commitWindow.generateMessage();
+  });
+  register('gittree.commit.chooseMessageModel', async () => {
+    await messageGenerator.chooseModel();
+  });
   register('gittree.commitAndPush', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (!repo) return;
@@ -663,6 +680,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     messageBoxFor,
     inclusion,
     optionsStore,
+    messageGenerator,
   };
   core.debugRegistry.set('phase03', registry);
   return registry;

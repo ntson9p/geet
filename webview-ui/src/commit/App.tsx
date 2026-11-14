@@ -30,6 +30,7 @@ import {
   type CommitDiffFileDto,
   type CommitDiffOnScreenDto,
   type CommitFileDiffDto,
+  type CommitGenerateParamsDto,
   type CommitGroupBy,
   type CommitHistoryDto,
   type CommitMessageEvtDto,
@@ -980,6 +981,50 @@ export function App() {
     } satisfies CommitRunParamsDto);
   };
 
+  /**
+   * POST-P14cj: Generate Commit Message. A language model writes the message
+   * for what Commit would commit: what the list shows, when it is narrowed.
+   * The host answers at once; the message comes as a programmatic write.
+   */
+  const generateMessage = (): void => {
+    if (activeRepo === undefined) return;
+    send(COMMIT_METHODS.generateMessage, {
+      repoRoot: activeRepo,
+      ...(state.filter !== undefined ? { roots: state.filter.shown.map((repo) => repo.root) } : {}),
+    } satisfies CommitGenerateParamsDto);
+  };
+  // In a ref, so the button below is the same element from render to render
+  // and the memoized message box is not drawn again for it.
+  const generateRef = useRef(generateMessage);
+  generateRef.current = generateMessage;
+  const generation = state.messageGeneration;
+  const cannotGenerate = activeRepo === undefined || state.busy;
+  /**
+   * The button in the message box's corner, where VS Code's Source Control
+   * input and IntelliJ's commit message keep theirs. While a model writes, the
+   * same place stops it. Nothing while the setting, or VS Code's AI features,
+   * are off.
+   */
+  const messageCorner = useMemo(
+    () =>
+      generation === 'running' ? (
+        <ToolbarButton
+          icon="stop-circle"
+          label="Stop Generating the Commit Message"
+          toggled
+          onClick={() => send(COMMIT_METHODS.stopGenerating)}
+        />
+      ) : generation === 'idle' ? (
+        <ToolbarButton
+          icon="sparkle"
+          label="Generate Commit Message"
+          disabled={cannotGenerate}
+          onClick={() => generateRef.current()}
+        />
+      ) : undefined,
+    [cannotGenerate, generation, send],
+  );
+
   const canCommit =
     !state.busy &&
     activeRepo !== undefined &&
@@ -1430,6 +1475,8 @@ export function App() {
               onPersist={onEditorPersist}
               onFocusChange={reportMessageFocus}
               height={appliedMessage}
+              // POST-P14cj: Generate Commit Message.
+              corner={messageCorner}
             />
           </div>
 

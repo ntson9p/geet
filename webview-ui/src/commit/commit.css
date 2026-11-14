@@ -430,6 +430,31 @@
   pointer-events: none;
 }
 
+/* POST-P14cj: Generate Commit Message, in the box's top right corner, where
+   VS Code's Source Control input and IntelliJ's commit message keep theirs.
+   It stands clear of the scrollbar a message longer than the box has, by that
+   scrollbar's own width (MessageEditor measures it). */
+.gt-commit-message-corner {
+  position: absolute;
+  top: 2px;
+  right: calc(2px + var(--gt-message-scrollbar, 0px));
+  display: flex;
+}
+
+/* Smaller than a toolbar's: it shares the box with the text. 22px square. */
+.gt-commit-message-corner > .gt-toolbar-button {
+  padding: 2px;
+}
+
+/* The text, and the subject's count, keep clear of it. */
+.gt-commit-message-wrap.gt-has-corner .gt-commit-message {
+  padding-right: 26px;
+}
+
+.gt-commit-message-wrap.gt-has-corner .gt-commit-subject-len {
+  right: calc(28px + var(--gt-message-scrollbar, 0px));
+}
+
 /* POST-P14ca: one full-width Commit button, its ▾ joined to it, as VS Code's
    Source Control view draws its own. The label keeps one line (POST-QA) and
    only gives way, with an ellipsis, when the whole row is too narrow for it;

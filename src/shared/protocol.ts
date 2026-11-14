@@ -291,7 +291,16 @@ export interface CommitStateDto {
   groupByDirectory?: boolean;
   /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
   diffOnScreen?: CommitDiffFileDto;
+  /**
+   * POST-P14cj: Generate Commit Message. Absent while it is not offered:
+   * `gittree.commit.messageGeneration.enabled` off, or VS Code's AI features
+   * (`chat.disableAIFeatures`). `running` while a model writes the message.
+   */
+  messageGeneration?: CommitMessageGeneration;
 }
+
+/** POST-P14cj: whether a commit message is being generated. */
+export type CommitMessageGeneration = 'idle' | 'running';
 
 /**
  * One file's HEAD↔worktree diff for the commit window's preview pane (P11-T3).
@@ -419,6 +428,15 @@ export const COMMIT_METHODS = {
   showAllRepositories: 'commit/showAllRepositories',
   /** POST-P14ce: a name on the filter bar: the Repositories panel, its row under the keyboard (`{ root }`). */
   revealRepository: 'commit/revealRepository',
+  /**
+   * POST-P14cj: Generate Commit Message (`CommitGenerateParamsDto`): a language
+   * model writes the message for what Commit would commit. Answers at once;
+   * `messageGeneration` in the state says while it is being written, and the
+   * message arrives as a programmatic write (`evtMessage`).
+   */
+  generateMessage: 'commit/generateMessage',
+  /** POST-P14cj: stop the message being generated. No params. */
+  stopGenerating: 'commit/stopGenerating',
   /** host → webview */
   evtState: 'commit/state',
   /** P11-T6: pushed whenever a shelf store or the show-unshelved toggle changes. */
@@ -482,6 +500,14 @@ export interface CommitSetCheckedManyParamsDto {
  */
 export interface CommitSetAllCheckedParamsDto {
   checked: boolean;
+  roots?: string[];
+}
+
+/** POST-P14cj: Generate Commit Message, for the box of `repoRoot`. */
+export interface CommitGenerateParamsDto {
+  /** The repository whose message box is on screen: the message goes there. */
+  repoRoot: string;
+  /** The repositories the list showed, when it was narrowed, as `CommitRunParamsDto.roots`. */
   roots?: string[];
 }
 

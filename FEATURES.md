@@ -698,6 +698,28 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   their message can be reused; the 🕘 clock opens the 50-entry **message history** dropdown
   (first line + relative time) in place.
 * Soft subject hint: a right-aligned counter past 72 characters; never blocks.
+* **Generate Commit Message**: the ✨ in the box's top right corner, or *GitTree: Generate
+  Commit Message* in the palette. IntelliJ's *Generate Commit Message with AI Assistant*: a
+  language model writes the message for what **Commit** would commit
+  ([D48](docs/deviations.md#d48--generate-commit-message-uses-a-model-vs-code-has)).
+  - *What it describes:* the ticked changes of the repositories the list shows (with the
+    staging area, the staged ones); a file committed in part, as that part; with **Amend**,
+    the last commit's own changes and message as well, since the new message is the message
+    of both.
+  - *Which model:* one VS Code has: GitHub Copilot's once you are signed in, or any added
+    under *Chat: Manage Language Models*. With several, GitTree asks the first time and keeps
+    the answer in `gittree.commit.messageGeneration.model`; *GitTree: Choose the Model for
+    Commit Messages…* changes it. VS Code asks your consent the first time GitTree uses
+    Copilot's models. With no model, GitTree says what gives VS Code one.
+  - *What is sent, and only on your click:* the diffs of those changes, the repository's name
+    and branch, and the subjects of its last ten commits, whose style the message follows. A
+    large diff is cut short; a binary file is only named.
+  - *While it writes:* the ✨ is a ⏹ that stops it, and the view shows progress. The message
+    then replaces what the box held, and **Ctrl+Z** brings that back.
+  - *Your own instructions:* `gittree.commit.messageGeneration.instructions` (a format, a
+    language, a length), where `$GIT_BRANCH_NAME` stands for the current branch, as in IntelliJ.
+  - *Off:* `gittree.commit.messageGeneration.enabled`, or VS Code's own
+    `chat.disableAIFeatures`, takes the button and the command away.
 
 ### Commit options gear popup (shape)
 

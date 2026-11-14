@@ -62,6 +62,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D45](#d45--the-repositories-panels-pick-narrows-the-commit-window) | The repositories picked in the Repositories panel narrow the Commit window, which says so in a bar over its list, and commits only what it shows | Deliberate (owner's request) |
 | [D46](#d46--the-commit-windows-counter-ticks-every-change-and-its-blank-space-has-a-menu) | The Commit window's counter is a box that ticks every change, and the list's blank space has a menu of its own | Deliberate (owner's request) |
 | [D47](#d47--date-format-is-in-the-logs-eye-menu) | The log's date format is chosen in its eye menu, not in a settings page; off Windows the "system" format is VS Code's display language's | Deliberate (owner's request); the second, a platform limit |
+| [D48](#d48--generate-commit-message-uses-a-model-vs-code-has) | Generate Commit Message is written by a language model VS Code has, chosen in GitTree; its button is in the message box's corner and its prompt in a setting | Platform (an extension brings no model); the rest deliberate |
 
 ---
 
@@ -1317,3 +1318,32 @@ format kept as the default and IntelliJ's added (POST-P14cg).
 
 **Revisitable:** yes. The choices are `DATE_FORMAT_CHOICES` in `webview-ui/src/log/presentationMenu.ts`;
 the reading is `src/ui/systemDates.ts`.
+
+## D48 · Generate Commit Message uses a model VS Code has
+
+**IntelliJ:** the AI Assistant plugin adds *Generate Commit Message with AI Assistant* to the
+Commit tool window: it "can send your diffs to the LLM, which will generate a commit message
+describing your changes" (AI Assistant 2026.3 help, *AI in version control*). The prompt is
+edited under the Commit tool window's gear (*AI Assistant ▸ Prompt for generation*) or in
+*Settings ▸ Tools ▸ AI Assistant ▸ Prompt Library ▸ Commit Message Generation*, where
+`$GIT_BRANCH_NAME` stands for the current branch.
+**GitTree:**
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| The model is AI Assistant's own, with a JetBrains AI subscription | A model VS Code has, through its Language Model API (`vscode.lm`): GitHub Copilot's once signed in, or one added under *Chat: Manage Language Models*. With several, GitTree asks the first time and keeps the answer (`gittree.commit.messageGeneration.model`) | An extension brings no model of its own, and GitTree holds no key. VS Code hands an extension the models the user already has, and asks their consent first for Copilot's |
+| The prompt is edited under the gear, or in the Prompt Library | `gittree.commit.messageGeneration.instructions`: the author's own rules, added to GitTree's and coming before them. `$GIT_BRANCH_NAME` is the same | VS Code keeps such text in settings. GitTree's own rules (subject length, plain text, the repository's style) stay, so a one-line instruction is enough |
+| A button of the Commit tool window | The ✨ in the message box's top right corner; also *GitTree: Generate Commit Message* in the palette | Where VS Code's own Source Control input keeps Copilot's. The Amend row has no room for another button at the sidebar's default width (measured: it fills 300 px exactly) |
+| — | With **Amend**, the last commit's own changes and message go to the model too | The message written replaces the amended commit's, so it has to describe both. GitTree's own |
+| — | The message arrives whole, as one edit of the box | One **Ctrl+Z** brings back what it replaced. GitTree's own |
+| Offered while the plugin is enabled | Offered while `gittree.commit.messageGeneration.enabled` is on and VS Code's `chat.disableAIFeatures` is off | Someone who turned VS Code's AI features off has said so once |
+
+What is sent: the diffs of the changes being committed (a large one cut short, a binary file
+only named), the repository's name and branch, and the subjects of its last ten commits. It
+goes to the provider of the model the user chose, and only on a click or the command: GitTree
+asks VS Code for a model at no other time, since that is when VS Code may ask for consent.
+
+Why: the owner asked whether GitTree could generate commit messages with AI (POST-P14cj).
+
+**Revisitable:** yes. The request is `src/commit/generate/prompt.ts`, what is read from git
+`collectChanges.ts`, the model and its failures `messageGenerator.ts`.

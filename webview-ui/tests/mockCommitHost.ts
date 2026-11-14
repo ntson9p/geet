@@ -314,8 +314,17 @@ export const mockCommitHostScript = `
       palette: window.__mockGraphPalette === 'colorBlind' ? 'colorBlind' : 'default',
       groupBy: currentGroupBy(),
       groupByDirectory: currentDirectory(),
+      ...(window.__mockMessageGeneration === true ? { messageGeneration: generating ? 'running' : 'idle' } : {}),
     };
   }
+
+  // POST-P14cj: Generate Commit Message. Opt-in (window.__mockMessageGeneration
+  // = true), as with the setting on: the state then says idle or running. A
+  // model's writing takes window.__mockGenerateMs (30 by default), or lasts
+  // until window.__releaseGeneration() when window.__mockHoldGeneration is set.
+  // The message then arrives as the host's does, a programmatic write.
+  let generating = false;
+  let generationTimer;
 
   function push() {
     window.postMessage(
@@ -399,6 +408,27 @@ export const mockCommitHostScript = `
     'commit/setMessage': (p) => {
       message = p.message;
       sessionStorage.setItem('gt-mock-message', p.message);
+    },
+    'commit/generateMessage': () => {
+      if (generating) return;
+      generating = true;
+      setTimeout(push, 5);
+      const finish = () => {
+        if (!generating) return;
+        generating = false;
+        window.__releaseGeneration = undefined;
+        message = window.__mockGeneratedMessage || 'feat: generated subject\\n\\nGenerated body.';
+        pushMessage();
+        push();
+      };
+      if (window.__mockHoldGeneration === true) window.__releaseGeneration = finish;
+      else generationTimer = setTimeout(finish, window.__mockGenerateMs || 30);
+    },
+    'commit/stopGenerating': () => {
+      clearTimeout(generationTimer);
+      window.__releaseGeneration = undefined;
+      generating = false;
+      setTimeout(push, 5);
     },
     'commit/toggleAmend': () => {
       amend = !amend;

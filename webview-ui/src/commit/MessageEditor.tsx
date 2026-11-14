@@ -27,8 +27,15 @@
  * POST-P14ca: the box no longer grows as you type. The window gives it a height
  * (the divider above the Amend row sets it), and a longer message scrolls
  * inside; until then it shows `MESSAGE_LINES` lines.
+ *
+ * POST-P14cj: the box has a corner, top right, for Generate Commit Message:
+ * where VS Code's Source Control input and IntelliJ's commit message keep
+ * theirs. The text keeps clear of it, and it steps aside for the scrollbar of
+ * a message longer than the box, by that scrollbar's own width
+ * (`--gt-message-scrollbar`, set here as the counter is: straight on the DOM,
+ * with no render).
  */
-import { forwardRef, memo, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, memo, useEffect, useImperativeHandle, useRef, type ReactNode } from 'react';
 import { TEXT_FIELD_MENU } from '../lib/menuContext';
 import { MESSAGE_LINES } from './commitLayout';
 import { isCommitChord, onMac } from './commitKey';
@@ -75,6 +82,8 @@ export interface MessageEditorProps {
   onFocusChange?: (focused: boolean) => void;
   /** POST-P14ca: the box's height in px, as the divider left it; its `MESSAGE_LINES` lines until then. */
   height?: number;
+  /** POST-P14cj: what stands in the box's top right corner; nothing when undefined. */
+  corner?: ReactNode;
 }
 
 const PERSIST_DEBOUNCE_MS = 250;
@@ -96,11 +105,19 @@ export function measureMessageBox(el: HTMLTextAreaElement): MessageMetrics | und
   return { line, min: Math.ceil(line + chrome), natural: Math.ceil(MESSAGE_LINES * line + chrome) };
 }
 
+/** The room the box's vertical scrollbar takes, in px; 0 when it has none. */
+export function scrollbarWidth(el: HTMLElement): number {
+  const s = getComputedStyle(el);
+  const borders = (parseFloat(s.borderLeftWidth) || 0) + (parseFloat(s.borderRightWidth) || 0);
+  return Math.max(0, Math.round(el.offsetWidth - el.clientWidth - borders));
+}
+
 export const MessageEditor = memo(
   forwardRef<MessageEditorHandle, MessageEditorProps>(function MessageEditor(
-    { initial, disabled, onInput, onPersist, onFocusChange, height },
+    { initial, disabled, onInput, onPersist, onFocusChange, height, corner },
     ref,
   ) {
+    const wrapRef = useRef<HTMLDivElement | null>(null);
     const taRef = useRef<HTMLTextAreaElement | null>(null);
     const counterRef = useRef<HTMLSpanElement | null>(null);
     const composing = useRef(false);
@@ -128,6 +145,15 @@ export const MessageEditor = memo(
         }
       };
 
+      // POST-P14cj: a message longer than the box has a scrollbar, which the
+      // corner's button must not cover. Its width is measured: VS Code's is not
+      // the same in every version, and an overlay scrollbar takes none.
+      const updateScrolls = (): void => {
+        const wrap = wrapRef.current;
+        if (!wrap) return;
+        wrap.style.setProperty('--gt-message-scrollbar', `${scrollbarWidth(el)}px`);
+      };
+
       const persistNow = (): void => {
         if (!dirty.current) return;
         dirty.current = false;
@@ -137,6 +163,7 @@ export const MessageEditor = memo(
       const changed = (): void => {
         if (composing.current) return;
         updateCounter();
+        updateScrolls();
         cb.current.onInput(el.value);
         dirty.current = true;
         if (timer.current !== undefined) window.clearTimeout(timer.current);
@@ -193,7 +220,12 @@ export const MessageEditor = memo(
       el.addEventListener('blur', blurred);
       el.addEventListener('keydown', onKeyDown);
       updateCounter();
+      updateScrolls();
+      // The divider gives the box another height; the window, another width.
+      const resized = typeof ResizeObserver === 'function' ? new ResizeObserver(updateScrolls) : undefined;
+      resized?.observe(el);
       return () => {
+        resized?.disconnect();
         el.removeEventListener('input', changed);
         el.removeEventListener('compositionstart', onCompositionStart);
         el.removeEventListener('compositionend', onCompositionEnd);
@@ -278,7 +310,10 @@ export const MessageEditor = memo(
     }));
 
     return (
-      <div className="gt-commit-message-wrap">
+      <div
+        ref={wrapRef}
+        className={`gt-commit-message-wrap${corner !== undefined ? ' gt-has-corner' : ''}`}
+      >
         <textarea
           ref={taRef}
           className="gt-input gt-commit-message"
@@ -300,6 +335,11 @@ export const MessageEditor = memo(
           data-testid="subject-length"
           aria-live="polite"
         />
+        {corner !== undefined ? (
+          <div className="gt-commit-message-corner" data-testid="commit-message-corner">
+            {corner}
+          </div>
+        ) : null}
       </div>
     );
   }),

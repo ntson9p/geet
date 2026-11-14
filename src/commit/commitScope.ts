@@ -47,3 +47,36 @@ export function singleCommitRepo<R>(
     (inScope(messageRepo) ? messageRepo : (candidates.find((repo) => isAmend(repo)) ?? candidates[0] ?? messageRepo))
   );
 }
+
+/** One repository a generated commit message describes, and whether its last commit is rewritten. */
+export interface GenerationTarget<R> {
+  readonly repo: R;
+  readonly amend: boolean;
+}
+
+/**
+ * The repositories a generated commit message describes (POST-P14cj): the ones
+ * a Commit pressed now would commit, decided as `runCommitAcross` decides it,
+ * so the message is written for the commit it will be used on.
+ *
+ * - At most one repository has anything ticked: that one (`singleCommitRepo`),
+ *   amended if its own Amend is ticked.
+ * - Several have, and one is to be amended (`amendTarget`): that one alone,
+ *   since Amend rewrites one repository and leaves the others uncommitted.
+ * - Several have and none is amended: all of them, under the one message.
+ */
+export function generationScope<R>(
+  messageRepo: R,
+  participants: readonly R[],
+  candidates: readonly R[],
+  inScope: (repo: R) => boolean,
+  isAmend: (repo: R) => boolean,
+): GenerationTarget<R>[] {
+  if (participants.length <= 1) {
+    const repo = singleCommitRepo(messageRepo, participants, candidates, inScope, isAmend);
+    return [{ repo, amend: isAmend(repo) }];
+  }
+  const amending = amendTarget(messageRepo, participants, inScope, isAmend);
+  if (amending !== undefined) return [{ repo: amending, amend: true }];
+  return participants.map((repo) => ({ repo, amend: false }));
+}

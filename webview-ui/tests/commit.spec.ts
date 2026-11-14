@@ -2689,3 +2689,178 @@ test.describe('POST-P14cf tick every change, and the menus of the list and the w
     }
   });
 });
+
+/**
+ * POST-P14cj: Generate Commit Message. A language model VS Code has writes the
+ * message for what Commit would commit (IntelliJ's Generate Commit Message with
+ * AI Assistant). Here: where the button stands, what it tells the host, and
+ * what the box does with the message that comes back. The model itself is the
+ * host's, and the mock's stand-in answers with a fixed text.
+ */
+test.describe('POST-P14cj Generate Commit Message', () => {
+  const GIT = 'D:/repos/demo-git';
+  const LIB = 'D:/repos/demo-lib';
+  const GENERATED = 'feat: generated subject\n\nGenerated body.';
+
+  async function open(page: Page, o: { hold?: boolean; narrowedTo?: string } = {}): Promise<void> {
+    await page.addInitScript((opts) => {
+      const w = window as unknown as Record<string, unknown>;
+      w['__mockMessageGeneration'] = true;
+      if (opts.hold === true) w['__mockHoldGeneration'] = true;
+      if (opts.narrowedTo !== undefined) w['__mockFilter'] = opts.narrowedTo;
+    }, o);
+    await page.addInitScript(mockCommitHostScript);
+    await page.goto('/commit.html');
+    await expect(page.getByRole('tree', { name: 'Changes' })).toBeVisible();
+  }
+
+  const box = (page: Page) => page.getByTestId('commit-message');
+  const corner = (page: Page) => page.getByTestId('commit-message-corner');
+  const generate = (page: Page) => page.getByRole('button', { name: 'Generate Commit Message' });
+  const stop = (page: Page) => page.getByRole('button', { name: 'Stop Generating the Commit Message' });
+  const sent = async (page: Page, method: string) =>
+    (await posted(page)).filter((m) => m.method === method).map((m) => m.params);
+  const release = (page: Page) =>
+    page.evaluate(() => (window as unknown as { __releaseGeneration(): void }).__releaseGeneration());
+
+  /** The corner's button and the box, as drawn: what the box leaves the button, and the text. */
+  const geometry = (page: Page) =>
+    box(page).evaluate((ta) => {
+      const button = ta.parentElement!.querySelector('[data-testid="commit-message-corner"] button')!;
+      const t = ta.getBoundingClientRect();
+      const b = button.getBoundingClientRect();
+      const style = getComputedStyle(ta);
+      const border = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+      return {
+        insideLeft: b.left - t.left,
+        insideTop: b.top - t.top,
+        insideRight: t.right - b.right,
+        insideBottom: t.bottom - b.bottom,
+        buttonWidth: b.width,
+        paddingRight: parseFloat(style.paddingRight),
+        // What a vertical scrollbar takes of the box; 0 with none, or an overlay one.
+        scrollbar: Math.max(0, Math.round((ta as HTMLElement).offsetWidth - ta.clientWidth - border)),
+        scrolls: ta.scrollHeight > ta.clientHeight + 1,
+      };
+    });
+
+  test('is not offered unless the host says so: the setting, or VS Code’s AI features, are off', async ({ page }) => {
+    await openCommit(page);
+    await expect(generate(page)).toHaveCount(0);
+    await expect(corner(page)).toHaveCount(0);
+    // And the box keeps its text's full width.
+    const padding = await box(page).evaluate((ta) => [getComputedStyle(ta).paddingLeft, getComputedStyle(ta).paddingRight]);
+    expect(padding[1]).toBe(padding[0]);
+  });
+
+  test('stands in the message box’s corner, clear of the text, and the Amend row is as it was', async ({ page }) => {
+    await open(page);
+    await expect(corner(page).getByRole('button', { name: 'Generate Commit Message' })).toBeVisible();
+    await expect(page.locator('.gt-commit-amend-row').getByRole('button', { name: 'Generate Commit Message' })).toHaveCount(0);
+    const g = await geometry(page);
+    expect(g.insideTop).toBeGreaterThanOrEqual(0);
+    expect(g.insideRight).toBeGreaterThanOrEqual(0);
+    expect(g.insideLeft).toBeGreaterThan(0);
+    expect(g.insideBottom).toBeGreaterThan(0);
+    // The text stops short of the button.
+    expect(g.paddingRight).toBeGreaterThanOrEqual(g.buttonWidth + g.insideRight);
+  });
+
+  test('a click asks the host for the box on screen, and for the whole list when it is not narrowed', async ({ page }) => {
+    await open(page);
+    await generate(page).click();
+    await expect.poll(() => sent(page, 'commit/generateMessage')).toEqual([{ repoRoot: GIT }]);
+  });
+
+  test('narrowed to the repositories picked, the ask names the ones the list shows', async ({ page }) => {
+    await open(page, { narrowedTo: LIB });
+    await expect(page.getByTestId('commit-filter')).toBeVisible();
+    await generate(page).click();
+    await expect.poll(() => sent(page, 'commit/generateMessage')).toEqual([{ repoRoot: GIT, roots: [LIB] }]);
+  });
+
+  test('while a model writes, the same place stops it; the message then replaces the draft, and Ctrl+Z brings it back', async ({
+    page,
+  }) => {
+    await open(page, { hold: true });
+    await box(page).click();
+    await box(page).pressSequentially('my draft', { delay: 5 });
+    await generate(page).click();
+    await expect(stop(page)).toBeVisible();
+    await expect(corner(page).getByRole('button')).toHaveCount(1);
+    await expect(generate(page)).toHaveCount(0);
+    // Nothing is written until the model is done.
+    await expect(box(page)).toHaveValue('my draft');
+
+    await release(page);
+    await expect(box(page)).toHaveValue(GENERATED);
+    await expect(generate(page)).toBeVisible();
+    await expect(stop(page)).toHaveCount(0);
+    // A programmatic write, on the box's own undo stack.
+    await box(page).press('Control+z');
+    await expect(box(page)).toHaveValue('my draft');
+  });
+
+  test('the message that arrives is the one committed: the host hears it as typed', async ({ page }) => {
+    await open(page);
+    await generate(page).click();
+    await expect(box(page)).toHaveValue(GENERATED);
+    await expect
+      .poll(async () => (await sent(page, 'commit/setMessage')).at(-1))
+      .toEqual({ repoRoot: GIT, message: GENERATED });
+    await expect(page.getByTestId('commit-button')).toBeEnabled();
+  });
+
+  test('Stop tells the host, and nothing is written', async ({ page }) => {
+    await open(page, { hold: true });
+    await box(page).click();
+    await box(page).pressSequentially('keep me', { delay: 5 });
+    await generate(page).click();
+    await stop(page).click();
+    await expect.poll(() => sent(page, 'commit/stopGenerating')).toHaveLength(1);
+    await expect(generate(page)).toBeVisible();
+    await expect(box(page)).toHaveValue('keep me');
+    // And it can be asked again.
+    await generate(page).click();
+    await expect.poll(() => sent(page, 'commit/generateMessage')).toHaveLength(2);
+  });
+
+  test('a message longer than the box: the button stands clear of its scrollbar, and goes back after', async ({ page }) => {
+    await open(page);
+    const short = await geometry(page);
+    expect(short.scrolls).toBe(false);
+    await box(page).click();
+    await box(page).pressSequentially(Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n'), { delay: 2 });
+    const long = await geometry(page);
+    expect(long.scrolls).toBe(true);
+    // Left of whatever the scrollbar takes: nothing with an overlay scrollbar, its width with a classic one.
+    expect(long.insideRight).toBeGreaterThanOrEqual(long.scrollbar);
+    expect(Math.abs(long.insideRight - short.insideRight - long.scrollbar)).toBeLessThanOrEqual(1);
+
+    await box(page).press('Control+a');
+    await box(page).press('Backspace');
+    const again = await geometry(page);
+    expect(again.scrolls).toBe(false);
+    expect(Math.abs(again.insideRight - short.insideRight)).toBeLessThanOrEqual(1);
+  });
+
+  test('the count of a long subject keeps clear of the button', async ({ page }) => {
+    await open(page);
+    await box(page).click();
+    await box(page).pressSequentially('x'.repeat(80), { delay: 1 });
+    const hint = page.getByTestId('subject-length');
+    await expect(hint).toHaveText('80');
+    const [hintBox, buttonBox] = [(await hint.boundingBox())!, (await generate(page).boundingBox())!];
+    expect(hintBox.x + hintBox.width).toBeLessThanOrEqual(buttonBox.x);
+  });
+
+  test('in a 170 px window, the narrowest a sidebar goes, the button is still inside the box', async ({ page }) => {
+    await page.setViewportSize({ width: 170, height: 600 });
+    await open(page);
+    const g = await geometry(page);
+    expect(g.insideRight).toBeGreaterThanOrEqual(0);
+    expect(g.insideLeft).toBeGreaterThan(0);
+    const b = (await generate(page).boundingBox())!;
+    expect(b.x + b.width).toBeLessThanOrEqual(170);
+  });
+});

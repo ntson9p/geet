@@ -46,7 +46,8 @@ export interface CommitFlowDeps {
   onDeferredChecks?: (run: Promise<DeferredChecksOutcome | undefined>) => void;
 }
 
-interface CommitTarget {
+/** What one repository's commit takes: the ticked files, or the index. Also what a generated message describes. */
+export interface CommitTarget {
   /** Tracked paths for --only (changelists) or [] (staged). */
   relPaths: string[];
   untrackedRelPaths: string[];
@@ -62,7 +63,7 @@ interface CommitTarget {
  */
 export type CommitScopeDeps = Pick<CommitFlowDeps, 'paradigm' | 'changelistsFor'>;
 
-function resolveTarget(deps: CommitScopeDeps, repo: RepoHandle, listId?: string): CommitTarget | undefined {
+export function resolveTarget(deps: CommitScopeDeps, repo: RepoHandle, listId?: string): CommitTarget | undefined {
   if (deps.paradigm.paradigm === 'changelists') {
     const service = deps.changelistsFor(repo);
     const lists = service.getLists().filter((l) => (listId === undefined ? true : l.id === listId));
@@ -160,8 +161,8 @@ async function mergeCommitChecks(
  * per-change selection this is a pure copy and costs no git calls, so the
  * ordinary commit path stays exactly what P3-T5 shipped.
  */
-async function planCommit(
-  deps: CommitFlowDeps,
+export async function planCommit(
+  deps: Pick<CommitFlowDeps, 'inclusion'>,
   repo: RepoHandle,
   target: CommitTarget,
 ): Promise<PartialPlan> {

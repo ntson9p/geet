@@ -2218,3 +2218,71 @@ Standing, not changed:
 - Real-git unit tests keep the 5 s default and time out under load here, 0 to 20 a run.
 - The perf budget (median frame ≤ 17.5 ms) is at this machine's edge: 2 of 5 runs passed alone, none of 4 beside another worker.
 - Both are the owner's to decide: a longer timeout for the real-git files, and for perf a worker of its own, a looser budget, or a quieter machine.
+
+POST-P14cj ✅ 2026-11-15 (branch `new-way-8`, from `new-way-7`): **Generate Commit Message: a language model VS Code has writes the commit message.** The owner asked for a careful investigation of whether GitTree can generate commit messages with AI, with anything tried put on a new branch.
+
+**The answer is yes**, through VS Code's Language Model API (`vscode.lm`), and it is built on this branch.
+
+**What was established, and from what:**
+
+| Question | Finding | Source |
+| --- | --- | --- |
+| Can an extension use a language model? | Yes: `vscode.lm.selectChatModels()` lists them and `LanguageModelChat.sendRequest()` asks one. Stable API | VS Code's Language Model API guide (approved 11/11/2026); `vscode.d.ts` of 1.147 |
+| At GitTree's minimum VS Code? | Yes: every type used is in `@types/vscode` 1.96.0, the floor (`engines.vscode ^1.96.0`) | `node_modules/@types/vscode/index.d.ts` |
+| Whose models? | GitHub Copilot's once the user is signed in, and any that another extension contributes (`languageModelChatProviders`). Copilot Chat registers its bring-your-own-key providers (Anthropic, OpenAI, Ollama and others) that same way | The Language Model Chat Provider guide; Copilot Chat 0.44.0's `package.json` |
+| Does one extension reach another's models? | Yes. In a scratch VS Code 1.144.0, a plain extension listed a stand-in provider extension's two models and got a streamed answer. No consent dialog for that provider. The same with `chat.disableAIFeatures` on | `scratchpad/ai/probe.cjs`, three runs |
+| With no model at all? | `selectChatModels()` answers `[]`, with no error | The same probe, without the provider |
+| Consent | For Copilot's models VS Code asks once per extension (*The extension '{0}' wants to access the language models provided by {1}.*), so models are to be asked for only on a user's action | The guide; 1.144.0's `nls.messages.json` |
+| Can Copilot's own command be reused? | No. `github.copilot.git.generateCommitMessage` reads the built-in Git extension's index, or its working tree, and writes that extension's input box: not GitTree's ticks, changelists or message box | `gitCommitMessageServiceImpl.ts`, microsoft/vscode-copilot-chat |
+| Is Copilot in the owner's VS Code? | 1.144.0 ships it built in (`resources/app/extensions/copilot`); a fresh profile offers the sign-in | The scratch 1.144.0 build |
+| What does IntelliJ have? | *Generate Commit Message with AI Assistant* in the Commit tool window; the prompt under its gear or in the Prompt Library; `$GIT_BRANCH_NAME` | AI Assistant 2026.3 help, *AI in version control* |
+
+**Not established: a request to a real Copilot model.** The scratch VS Code has no account, and signing in or accepting GitHub's terms there was not mine to do. Every other step was run for real with the stand-in provider. The owner's first click will show VS Code's consent dialog, then the message.
+
+**What was built:**
+- **The button:** the ✨ in the message box's top right corner (`MessageEditor`'s new `corner`), where VS Code's Source Control input keeps Copilot's. While a model writes it is a ⏹ that stops it, and the view shows progress (`withProgress` on the view). Also *GitTree: Generate Commit Message* in the palette.
+- **What is described** (`generationScope`, `collectChanges`): what a Commit pressed now would commit, decided as `runCommitAcross` decides it.
+  - With changelists: the ticked files against HEAD; a file committed in part as the patch the commit applies (`planCommit`); a new file from its own text.
+  - With the staging area: the index.
+  - With Amend: the last commit's own changes and message as well.
+  - Read-only: `git diff`, never the commit's scratch index, so nothing is written to the object store.
+- **Limits** (`DiffReader`, `shareBudget`): a file's diff is kept to 600 lines or 30,000 characters as it streams from git. The request then shares a budget from the model's `maxInputTokens` (at most 120,000 characters), small diffs whole and large ones a share. If the model's own `countTokens` says the request is still too large, it is rebuilt smaller, up to three times. A binary file is only named.
+- **The request** (`prompt.ts`): two user messages, since the API has no system message. The rules (subject within 72 characters, a body only when needed, nothing made up, plain text), the repository's last ten subjects as style, the author's own instructions; then the repository, branch, list of files and diffs.
+- **The answer** (`cleanMessage`): out of a code fence, a `Commit message:` label or quotes if the model added them. Written into the box as one programmatic edit, so Ctrl+Z brings back what it replaced.
+- **The model** (`modelChoice.ts`, `MessageGenerator`): the one `gittree.commit.messageGeneration.model` names, else the only one there is, else a picker, whose choice is kept. *GitTree: Choose the Model for Commit Messages…* changes it.
+- **When it cannot:** no model (a notice with VS Code's own *Set Up Copilot* and *Manage Language Models*, each offered only where that VS Code has the command); consent refused; the model gone; the request refused; nothing ticked. Each says so, and nothing is written.
+- **Off:** `gittree.commit.messageGeneration.enabled`, and VS Code's `chat.disableAIFeatures`, each take the button and the palette entry away.
+
+**Where the button stands was measured, not assumed.** It first went into the Amend row, beside the history clock. That row fills a 300 px sidebar exactly: with a fifth button it ran 6 px over in the real window and 20 px over in the mock page. So it moved into the message box. There the real window corrected two more guesses: a toolbar button is 30 px wide, not 22 (the corner's is made 22), and VS Code's scrollbar is about 15 px, not 10 (the button now steps aside by the scrollbar's measured width).
+
+**Verified in real windows** (`scratchpad/ai/drive.cjs`, Playwright over CDP, the real extension and a stand-in model provider):
+
+| Run | Result |
+| --- | --- |
+| VS Code 1.144.0, with the stand-in provider | 22 of 22 checks, four runs in a row, the last on the code as committed: the picker and its saved choice, progress and Stop, the message without its fence, what the model was sent (repository, branch, every ticked file, the diffs, a 5,000-line diff cut short), Ctrl+Z and Ctrl+Y, the palette command, Amend, nothing ticked, the staging area, both off-switches, a long message's scrollbar, a 167 px sidebar |
+| VS Code 1.144.0, no provider | 5 of 5: the notice, with *Set Up Copilot* and *Manage Language Models* |
+| VS Code 1.96.0 (the minimum), no provider | 5 of 5: the extension loads, the button stands the same, the notice offers *Set Up Copilot* alone |
+| `collectChanges` against real git (`scratchpad/ai/check.ts`) | Every value the unit tests expect, printed: whole files, a partial commit, Amend, the staging area, an unborn repository, an amended first commit, limits, cancellation, and that nothing is written |
+
+Before those four, two runs failed one check, the palette command. The second time the log showed why: the driver typed before the palette had the keyboard, so the text went into the message box and the palette listed its unfiltered rows. The driver now waits for the palette's input, and has not failed since. The first failure left no log; it is taken for the same.
+
+**Found on the way, and left alone:**
+- **A ticked file whose name is also a pattern commits more than was ticked.** `git commit --only -- '[id].tsx'`, as the changelist commit runs it, also commits a changed `i.tsx` beside it (run against real git: both files in the commit; with `--literal-pathspecs`, the one). `git add` and `git diff` read names the same way. The new reader passes `--literal-pathspecs`; the commit path does not. Not this task's: for the owner to decide.
+- **The Amend row does not fit under 300 px**, with or without this change: at 250 px it runs 36 px over, and its gear is past the window's edge (measured in the mock page).
+
+Gates: typecheck (root, webview, integration) and lint of every touched file clean; extension and webviews built.
+
+Docs: CHANGELOG (Added), FEATURES (the message editor), deviations D48, settings.md (regenerated).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit**, new under `test/unit/commit/generate/`:
+  - `changeDiff.test.ts`: reading git's diffs, statuses, binary files, a deleted `-- comment`, limits, a new file;
+  - `prompt.test.ts`: the list of files, sharing the budget, the request in each case, the answer's clean-up;
+  - `modelChoice.test.ts`: the setting's model, when to ask, the budgets;
+  - `collectChanges.test.ts`: real git, each with a 60 s timeout;
+  - `manifest.test.ts`: the commands, the palette, the settings, and that models are asked for only in the generator.
+  - `commitScope.test.ts`: `generationScope` added.
+- **Playwright** (`commit.spec.ts`, *POST-P14cj Generate Commit Message*, 10 tests): not offered without the host's word; the corner and the text clear of it; what a click posts, narrowed or not; Stop; the message replacing the draft and Ctrl+Z; the scrollbar; the subject's count; a 170 px window. The mock host generates on request.
+- **Integration** (`generateMessage.test.ts`, 10 tests): the real commands and settings with a stand-in model through `MessageGenerator.setModelSource`.
+
+The expected values of the unit tests were taken from the functions' printed output, not worked out by hand alone: two worked out by hand were wrong, and the print caught them.

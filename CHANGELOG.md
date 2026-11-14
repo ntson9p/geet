@@ -6,6 +6,27 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — Generate Commit Message, written by a language model VS Code has
+
+- **Generate Commit Message**: the ✨ in the corner of the Commit window's message box, and
+  *GitTree: Generate Commit Message* in the palette. A language model writes the commit message
+  for the changes you are about to commit, as IntelliJ's *Generate Commit Message with AI
+  Assistant* does.
+- **The model is one VS Code already has**, through VS Code's Language Model API: GitHub
+  Copilot's once you are signed in, or one you added under *Chat: Manage Language Models*.
+  GitTree holds no key and talks to no service itself. VS Code asks your consent the first
+  time GitTree uses Copilot's models. With no model, GitTree says what gives VS Code one.
+- **What is sent to the model, and only when you click:** the diff of the ticked changes (the
+  staged ones, with the staging area), the repository's name and branch, and the subjects of
+  its last ten commits, for their style. With Amend, the last commit's changes and message as
+  well. A large diff is cut short; a binary file is only named.
+- The message replaces what the box held, and Ctrl+Z brings that back. While the model
+  writes, the same button stops it.
+- Settings: `gittree.commit.messageGeneration.enabled` (on); `.model` (asked the first time
+  there are several; *GitTree: Choose the Model for Commit Messages…* changes it); and
+  `.instructions`, your own rules for the message, where `$GIT_BRANCH_NAME` is the current
+  branch, as in IntelliJ. VS Code's own `chat.disableAIFeatures` hides the button too.
+
 ### Fixed — bugs the test suites found
 
 - **Push dialog: Escape in the target editor cancels the edit.** It applied the typed branch
