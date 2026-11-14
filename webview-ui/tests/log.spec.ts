@@ -1789,6 +1789,8 @@ test.describe('P4-T3/T4 log webview', () => {
       'References on the Left',
     ]);
     await expect(menu.getByRole('menuitem', { name: 'Columns' })).toBeVisible();
+    // POST-P14cg: GitTree's own, after Columns.
+    await expect(menu.getByRole('menuitem', { name: 'Date Format' })).toBeVisible();
     const compact = page.getByRole('menuitemcheckbox', { name: 'Compact References View' });
     await expect(compact).toHaveAttribute('aria-checked', 'true');
     await expect(compact).toHaveClass(/gt-active/);
@@ -1909,6 +1911,99 @@ test.describe('P4-T3/T4 log webview', () => {
     // The last column: after Date, as in IntelliJ.
     const dateBox = (await cell(page, 0, 'date').boundingBox())!;
     expect((await cell(page, 0, 'hash').boundingBox())!.x).toBeGreaterThanOrEqual(dateBox.x + dateBox.width - 1);
+  });
+
+  // ---- POST-P14cg: Presentation Settings ▸ Date Format ----
+
+  /** Windows' US Region settings, as the host hands every page them (`window.__gittreeSystemDates`). */
+  const US_DATES = { date: 'M/d/yyyy', time: 'h:mm a', locale: 'en-US' };
+
+  /** The log at a fixed local time; the mock's commits are an hour apart, the first one then. */
+  async function openLogAt(page: Page, time: string, dates: unknown = US_DATES): Promise<void> {
+    await page.clock.setFixedTime(new Date(time));
+    await page.addInitScript((d) => {
+      (window as unknown as { __gittreeSystemDates?: unknown }).__gittreeSystemDates = d;
+    }, dates);
+    await openLog(page);
+  }
+
+  async function openDateFormat(page: Page) {
+    await page.getByRole('button', { name: 'Presentation Settings' }).click();
+    await page.getByRole('menuitem', { name: 'Date Format' }).click();
+    const menu = page.getByRole('menu', { name: 'Date Format' });
+    await expect(menu).toBeVisible();
+    return menu;
+  }
+
+  test('Presentation Settings ▸ Date Format: Year First, IntelliJ and System, each writing today at 14:19', async ({ page }) => {
+    await openLogAt(page, '2026-11-14T15:00:00');
+    const menu = await openDateFormat(page);
+    const formats = menu.getByRole('menuitemradio');
+    await expect(formats.locator('.gt-menu-label')).toHaveText(['Year First', 'IntelliJ', 'System']);
+    await expect(formats.locator('.gt-menu-accel')).toHaveText(['2026/11/14 14:19', 'Today 2:19 PM', '11/14/2026 2:19 PM']);
+    // One choice holds: the default.
+    await expect(formats.nth(0)).toHaveAttribute('aria-checked', 'true');
+    await expect(formats.nth(1)).toHaveAttribute('aria-checked', 'false');
+    await expect(formats.nth(2)).toHaveAttribute('aria-checked', 'false');
+    await expect(formats.nth(1)).toHaveAttribute('title', /IntelliJ/u);
+    // Beside the row that opened it, never over it: at the webview's right edge
+    // the submenu opens leftwards, as VS Code's own do.
+    const row = (await page.getByRole('menuitem', { name: 'Date Format' }).boundingBox())!;
+    const sub = (await menu.boundingBox())!;
+    const overlap = Math.min(row.x + row.width, sub.x + sub.width) - Math.max(row.x, sub.x);
+    expect(overlap).toBeLessThanOrEqual(4);
+  });
+
+  test("Date Format ▸ IntelliJ writes the column as IntelliJ's log does, and the host is told", async ({ page }) => {
+    await openLogAt(page, '2026-11-14T15:00:00');
+    const menu = await openDateFormat(page);
+    await menu.getByRole('menuitemradio', { name: 'IntelliJ' }).click();
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect.poll(() => setPresentationCalls(page)).toEqual([{ dateFormat: 'pretty' }]);
+    await expect(cell(page, 0, 'date')).toHaveText('Moments ago');
+    await expect(cell(page, 1, 'date')).toHaveText('1 hour ago');
+    await expect(cell(page, 2, 'date')).toHaveText('Today 1:00 PM');
+    await expect(cell(page, 3, 'date')).toHaveText('Today 12:00 PM');
+    // A screen reader hears what the row shows.
+    await expect(commitRow(page).locator('[data-gt-row="2"]')).toHaveAttribute('aria-label', /, Today 1:00 PM/u);
+
+    // The menu now ticks IntelliJ, and choosing it again changes nothing.
+    const again = await openDateFormat(page);
+    await expect(again.getByRole('menuitemradio', { name: 'IntelliJ' })).toHaveAttribute('aria-checked', 'true');
+    await again.getByRole('menuitemradio', { name: 'IntelliJ' }).click();
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    expect(await setPresentationCalls(page)).toEqual([{ dateFormat: 'pretty' }]);
+  });
+
+  test('IntelliJ writes Yesterday for the commits before midnight', async ({ page }) => {
+    await openLogAt(page, '2026-11-14T01:30:00');
+    await postPresentation(page, { dateFormat: 'pretty' });
+    await expect(cell(page, 1, 'date')).toHaveText('1 hour ago');
+    await expect(cell(page, 2, 'date')).toHaveText('Yesterday 11:30 PM');
+    await expect(cell(page, 3, 'date')).toHaveText('Yesterday 10:30 PM');
+  });
+
+  test("IntelliJ's dates age while the log stays open", async ({ page }) => {
+    await openLogAt(page, '2026-11-14T15:00:00');
+    await postPresentation(page, { dateFormat: 'pretty' });
+    await expect(cell(page, 0, 'date')).toHaveText('Moments ago');
+    await page.clock.setFixedTime(new Date('2026-11-14T15:05:00'));
+    // The half-minute redraw, brought forward: the page coming back into view draws at once.
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(cell(page, 0, 'date')).toHaveText('5 minutes ago');
+    // An hour and five minutes: past the minutes, the time of day.
+    await expect(cell(page, 1, 'date')).toHaveText('Today 2:00 PM');
+  });
+
+  test("System and IntelliJ write the Region settings' date and time the host read, not the display language's", async ({ page }) => {
+    await openLogAt(page, '2026-11-14T15:00:00', { date: 'dd.MM.yyyy', time: 'HH:mm', locale: 'de-DE' });
+    await postPresentation(page, { dateFormat: 'locale' });
+    await expect(cell(page, 0, 'date')).toHaveText('14.11.2026 15:00');
+    await postPresentation(page, { dateFormat: 'pretty' });
+    await expect(cell(page, 2, 'date')).toHaveText('Today 13:00');
+    // Year First is the same everywhere.
+    await postPresentation(page, { dateFormat: 'YYYY/MM/DD HH:mm' });
+    await expect(cell(page, 0, 'date')).toHaveText('2026/11/14 15:00');
   });
 
   test('a column switched off leaves its room to the message', async ({ page }) => {

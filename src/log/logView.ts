@@ -30,6 +30,7 @@ import {
   type LogTabsDto,
   type LogWorktreeActionParamsDto,
 } from '../shared/protocol';
+import { whenSystemDatesKnown } from '../ui/systemDates';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../ui/webviewHost';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../diff/diffSession';
@@ -67,11 +68,11 @@ import {
 import { PageReads } from './pageReads';
 import { buildPathTree, mergeTreeSelection } from './pathTree';
 import {
-  PRESENTATION_SETTINGS,
   presentationPatch,
+  presentationWrites,
   readPresentation,
   writeScope,
-  type PresentationKey,
+  type PresentationPatch,
 } from './presentation';
 import { showInfo } from '../ui/notices';
 
@@ -365,11 +366,20 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       enableScripts: true,
       localResourceRoots: webviewResourceRoots(this.context.extensionUri),
     };
-    view.webview.html = buildWebviewHtml({
-      app: 'log',
-      webview: view.webview,
-      extensionUri: this.context.extensionUri,
-      title: vscode.l10n.t('Git Log'),
+    // POST-P14cg: the page carries the system's date and time formats, read
+    // once a session (a few milliseconds); the handlers below are wired at once.
+    whenSystemDatesKnown(() => {
+      if (this.view !== view) return;
+      try {
+        view.webview.html = buildWebviewHtml({
+          app: 'log',
+          webview: view.webview,
+          extensionUri: this.context.extensionUri,
+          title: vscode.l10n.t('Git Log'),
+        });
+      } catch {
+        // The view closed in those milliseconds.
+      }
     });
     // The one allowed retainContextWhenHidden instance is configured via the
     // package.json view options; still rehydrate on visibility for safety.
@@ -791,12 +801,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
-  private async writePresentation(patch: Partial<Pick<LogPresentationDto, PresentationKey>>): Promise<void> {
+  private async writePresentation(patch: PresentationPatch): Promise<void> {
     const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
-    for (const name of Object.keys(patch) as PresentationKey[]) {
-      const value = patch[name];
-      if (value === undefined) continue;
-      const { section, key, scope } = PRESENTATION_SETTINGS[name];
+    for (const { section, key, value, scope } of presentationWrites(patch)) {
       const config = vscode.workspace.getConfiguration(section);
       const target =
         writeScope(config.inspect(key), scope, hasWorkspace) === 'workspace'

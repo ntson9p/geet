@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { EVT_REHYDRATE, isMsg, PROTOCOL_VERSION, type Msg, type RpcError } from '../shared/protocol';
+import { loadSystemDates, systemDatesNow } from './systemDates';
 
 export interface WebviewHtmlOptions {
   /** App folder under dist/webviews/<app>/. */
@@ -61,6 +62,13 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
     options.initialState === undefined
       ? 'undefined'
       : JSON.stringify(options.initialState).replace(/</g, '\\u003c');
+  // POST-P14cg: the system's short date and time, as IntelliJ writes dates
+  // (`systemDates.ts`); a page without them writes the display language's.
+  // The first page of the session starts the one read, for the pages after it;
+  // the views that show dates at startup wait for it (`whenSystemDatesKnown`).
+  void loadSystemDates();
+  const dates = systemDatesNow();
+  const systemDates = dates === undefined ? 'undefined' : JSON.stringify(dates).replace(/</g, '\\u003c');
 
   const styleLinks = styleUris
     .map((u) => `  <link rel="stylesheet" href="${u.toString()}">`)
@@ -76,7 +84,7 @@ ${styleLinks}
 </head>
 <body>
   <div id="root"></div>
-  <script nonce="${nonce}">window.__gittreeInitialState = ${state};</script>
+  <script nonce="${nonce}">window.__gittreeInitialState = ${state}; window.__gittreeSystemDates = ${systemDates};</script>
   <script nonce="${nonce}" type="module" src="${scriptUri.toString()}"></script>
 </body>
 </html>`;

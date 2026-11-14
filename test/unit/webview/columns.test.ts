@@ -6,6 +6,7 @@ import {
   MIN_COLUMN_WIDTH,
   authorText,
   autoAuthorWidth,
+  autoTextWidth,
   draggedWidth,
   fitColumns,
   readColumnWidths,
@@ -56,6 +57,25 @@ describe('autoAuthorWidth (fit to the rows, as IntelliJ sizes Author)', () => {
   it('reads the first thousand rows only', () => {
     const names = [...Array.from({ length: 1000 }, () => 'Bobby'), 'Somebody With A Long Name'];
     expect(autoAuthorWidth(names, measure)).toBe(6 * 7 + CELL_PADDING);
+  });
+});
+
+describe("autoTextWidth (the Date column with IntelliJ's dates, sized by its rows: POST-P14cg)", () => {
+  it("fits the widest row with room for a *, as IntelliJ's FromData measures `$value*`", () => {
+    expect(autoTextWidth(['Moments ago', 'Yesterday 10:58 PM', 'Today 2:19 PM'], measure)).toBe(
+      19 * 7 + CELL_PADDING,
+    );
+  });
+
+  it('skips empty rows, never goes past 300 pixels nor under the minimum', () => {
+    expect(autoTextWidth(['', 'Today 2:19 PM'], measure)).toBe(14 * 7 + CELL_PADDING);
+    expect(autoTextWidth(['x'.repeat(80)], measure)).toBe(MAX_AUTO_WIDTH);
+    expect(autoTextWidth([], measure)).toBe(MIN_COLUMN_WIDTH);
+  });
+
+  it('reads the first thousand rows only', () => {
+    const rows = [...Array.from({ length: 1000 }, () => 'Moments ago'), '12/28/2026 10:58 PM'];
+    expect(autoTextWidth(rows, measure)).toBe(12 * 7 + CELL_PADDING);
   });
 });
 

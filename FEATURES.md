@@ -838,11 +838,27 @@ docked bottom, tabs `Log | Console`").
   every row lines up. **Author** shows IntelliJ's **`*`** when someone other than the
   author committed the change (a rebase, a cherry-pick), comparing names as IntelliJ does
   (`Ben Okafor` = `ben.okafor`); a commit with no author name shows its email's local part.
-  **Date** reads `2026/09/05 15:07` — year first, two digits each, a 24-hour clock, the same
-  in every language — always the full date, no "Today"/"Yesterday" (owner's choices;
+  **Date** reads `2026/09/05 15:07` by default — year first, two digits each, a 24-hour
+  clock, the same in every language (owner's choice;
   [D40](docs/deviations.md#d40--the-date-column-writes-yyyymmdd-hhmm)).
-  `gittree.log.dateFormat: locale` brings back IntelliJ's own, `9/5/2026 3:07 PM` in en-US
-  (the locale's short date with a four-digit year).
+  **`Presentation Settings ▸ Date Format`** (GitTree's own row,
+  [D47](docs/deviations.md#d47--date-format-is-in-the-logs-eye-menu)) offers three choices,
+  each with a sample of today at 14:19:
+  - **Year First**: the default above.
+  - **IntelliJ**: IntelliJ's log as it ships (`formatPrettyDateTime`). *Moments ago*,
+    *A minute ago*, *5 minutes ago* and *1 hour ago* up to an hour and a minute; then
+    *Today 2:19 PM* and *Yesterday 2:19 PM*; older commits in the system's short date and
+    time. Minutes are rounded as Java's `Math.rint` rounds them. The rows are redrawn every
+    half minute while on show, and the column is sized by its rows as IntelliJ sizes it.
+  - **System**: the system's short date and time for every commit, as IntelliJ writes them
+    with its pretty formatting off.
+
+  On Windows the "system" is the Region settings' short date and time, read from
+  `HKCU\Control Panel\International` once per session and turned into Java's pattern
+  letters as IntelliJ's `fixWindowsFormat` does (`M/d/yyyy`, `h:mm a`); elsewhere it is VS
+  Code's display language. Commit Details always writes the date and time in full, as
+  IntelliJ's does. The choice is `gittree.log.dateFormat` (`YYYY/MM/DD HH:mm`, `pretty`,
+  `locale`).
   **Drag a column's left border** to resize it (the width is kept per tab, across reloads);
   **double-click** the border to fit the column to its content again. Columns give way
   together rather than squeeze the message under the graph plus 80 px.

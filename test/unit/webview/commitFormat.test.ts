@@ -24,4 +24,11 @@ describe('relativeTime', () => {
     const then = new Date(2026, 10, 5, 9, 30).getTime();
     expect(relativeTime(then, now, 'locale')).toBe(new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }).format(then));
   });
+
+  it("gives the system's short date with IntelliJ's dates too, never Today (POST-P14cg)", () => {
+    const then = new Date(2026, 10, 5, 9, 30).getTime();
+    expect(relativeTime(then, now, 'pretty')).toBe(relativeTime(then, now, 'locale'));
+    // Within the day the Commit window keeps its own ages, whatever the log's format.
+    expect(relativeTime(ago(5 * 60_000), now, 'pretty')).toBe('5 min ago');
+  });
 });

@@ -26,6 +26,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { placeMenu } from './menuPlace';
 import { useDismiss } from './useDismiss';
 
 export type MenuItem =
@@ -64,8 +65,12 @@ export type MenuItem =
 
 export interface MenuProps {
   items: readonly MenuItem[];
-  /** Viewport coordinates to open at. */
-  at: { readonly x: number; readonly y: number };
+  /**
+   * Viewport coordinates to open at. A submenu also has `flipX`, its parent's
+   * left edge: with no room on the right it opens leftwards from there, as
+   * VS Code's own submenus do, rather than over the row that opened it.
+   */
+  at: { readonly x: number; readonly y: number; readonly flipX?: number };
   onSelect: (id: string) => void;
   onClose: () => void;
   ariaLabel: string;
@@ -74,8 +79,6 @@ export interface MenuProps {
   /** Internal: submenus skip the dismissal (`useDismiss`) and focus-restore handling. */
   nested?: boolean;
 }
-
-const MARGIN = 4;
 
 function isEnabled(item: MenuItem): boolean {
   return (item.kind === 'item' || item.kind === 'submenu') && item.disabled !== true;
@@ -91,7 +94,7 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
     const wanted = activeId !== undefined ? items.findIndex((i) => isEnabled(i) && i.id === activeId) : -1;
     return wanted >= 0 ? wanted : items.findIndex(isEnabled);
   });
-  const [openSub, setOpenSub] = useState<{ index: number; x: number; y: number } | null>(null);
+  const [openSub, setOpenSub] = useState<{ index: number; x: number; y: number; flipX: number } | null>(null);
   /**
    * The keyboard (or the opening, on `activeId`) moved the active row: bring
    * it into view. The pointer's row is in view already, and scrolling under
@@ -113,14 +116,14 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
   useLayoutEffect(() => {
     const el = hostRef.current;
     if (!el) return;
-    const { offsetWidth: w, offsetHeight: h } = el;
-    const maxX = window.innerWidth - w - MARGIN;
-    const maxY = window.innerHeight - h - MARGIN;
-    setPos({
-      x: Math.max(MARGIN, Math.min(at.x, Math.max(MARGIN, maxX))),
-      y: Math.max(MARGIN, Math.min(at.y, Math.max(MARGIN, maxY))),
-    });
-  }, [at.x, at.y, items]);
+    setPos(
+      placeMenu(
+        { x: at.x, y: at.y, ...(at.flipX !== undefined ? { flipX: at.flipX } : {}) },
+        { width: el.offsetWidth, height: el.offsetHeight },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    );
+  }, [at.x, at.y, at.flipX, items]);
 
   useLayoutEffect(() => {
     if (!reveal.current) return;
@@ -173,6 +176,7 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
         index,
         x: (host?.right ?? pos.x) - 2,
         y: box?.top ?? pos.y,
+        flipX: (host?.left ?? pos.x) + 2,
       });
     },
     [pos.x, pos.y],
@@ -312,7 +316,7 @@ export function Menu({ items, at, onSelect, onClose, ariaLabel, activeId, nested
           <Menu
             nested
             items={sub.items}
-            at={{ x: openSub.x, y: openSub.y }}
+            at={{ x: openSub.x, y: openSub.y, flipX: openSub.flipX }}
             ariaLabel={sub.label}
             onSelect={(id) => {
               onSelect(id);

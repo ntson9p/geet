@@ -22,6 +22,7 @@ import { canonicalKey } from '../../core/repoDiscovery';
 import { repoLabels, sortRootsByLabel } from '../../core/util/repoLabels';
 import { diffTitle, makeRevUri } from '../../core/vdocs/revContentProvider';
 import { rootColorIndices } from '../../log/graphLayout/colors';
+import { readDateFormat } from '../../log/presentation';
 import { revealRow, setTreeFocus } from '../../scm/revealInOS';
 import type { DiffEntry, DiffSessionRegistry } from '../../diff/diffSession';
 import { nextMark } from '../../diff/onScreen';
@@ -50,6 +51,7 @@ import {
   type StagingSide,
 } from '../../shared/protocol';
 import { statusColorOverrides } from '../../ui/statusColors';
+import { whenSystemDatesKnown } from '../../ui/systemDates';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
 import { ChangelistService, UNVERSIONED_ID } from '../changelists/changelistService';
 import { hasCommittableChanges } from '../commitFlow';
@@ -419,10 +421,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
           : 'default',
       groupBy: readCommitGroupBy(),
       groupByDirectory: readCommitGroupByDirectory(),
-      dateFormat:
-        vscode.workspace.getConfiguration('gittree.log').get<string>('dateFormat') === 'locale'
-          ? 'locale'
-          : 'YYYY/MM/DD HH:mm',
+      dateFormat: readDateFormat(vscode.workspace.getConfiguration('gittree.log').get<unknown>('dateFormat')),
       ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
     };
   }
@@ -836,11 +835,20 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       enableScripts: true,
       localResourceRoots: webviewResourceRoots(this.deps.context.extensionUri),
     };
-    view.webview.html = buildWebviewHtml({
-      app: 'commit',
-      webview: view.webview,
-      extensionUri: this.deps.context.extensionUri,
-      title: vscode.l10n.t('Commit'),
+    // POST-P14cg: the page carries the system's date formats (the stash, shelf
+    // and message-history dates), read once a session; the handlers are wired at once.
+    whenSystemDatesKnown(() => {
+      if (this.view !== view) return;
+      try {
+        view.webview.html = buildWebviewHtml({
+          app: 'commit',
+          webview: view.webview,
+          extensionUri: this.deps.context.extensionUri,
+          title: vscode.l10n.t('Commit'),
+        });
+      } catch {
+        // The view closed in those milliseconds.
+      }
     });
 
     const rpc = new WebviewRpcHost(view.webview, (l) =>

@@ -500,10 +500,12 @@
             "type": "string",
             "enum": [
               "YYYY/MM/DD HH:mm",
+              "pretty",
               "locale"
             ],
             "enumDescriptions": [
               "%gittree.config.log.dateFormat.ymd%",
+              "%gittree.config.log.dateFormat.pretty%",
               "%gittree.config.log.dateFormat.locale%"
             ],
             "default": "YYYY/MM/DD HH:mm",

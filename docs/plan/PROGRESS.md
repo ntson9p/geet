@@ -2030,3 +2030,75 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration** (`multiRoot.test.ts`, new suite): Tick All and Untick All by the menu's roots (a new file too, a repository not listed left alone), from the palette within the pick, and unticking dropping picked changes.
 
 Gates: typecheck (all three tsconfigs) + lint clean; extension and webviews built.
+
+POST-P14cg ✅ 2026-11-14 (branch `new-way-6`): **Choose how the log writes dates, IntelliJ's way included.** The owner asked, with a screenshot of the eye menu, to change the Date column's format from the Commit Graph panel: the current format kept as the default, a new one "the same as IntelliJ", and any others suggested to them first.
+
+**IntelliJ's rules, from its source.** IntelliJ's sources (`VcsLogDefaultColumn.Date`, `DateFormatUtil`, `DateTimeFormatManager`, `UtilBundle`, `CommitPresentationUtil`, `VcsLogGraphTable`) were read, not recalled:
+- The Date column is `formatPrettyDateTime`, with "Use pretty formatting" on by default:
+  - up to an hour and a minute ago, the minutes rounded by `Math.rint`, in the words of `date.format.minutes.ago` (`{0,choice, 0#Moments|1#A minute|2#{0,number} minutes|60#1 hour} ago`);
+  - then *Today* or *Yesterday* and the short time;
+  - otherwise the short date and short time joined by a space.
+- The minutes come first, so at 00:20 a commit from 23:50 reads *30 minutes ago*. A commit dated later today (a clock ahead) is *Today*.
+- The formats are the OS's (`getSystemFormats`):
+  - on Windows, `GetLocaleInfoEx` `LOCALE_SSHORTDATE` and `LOCALE_SSHORTTIME`, turned into Java's letters by `fixWindowsFormat`;
+  - on macOS CoreFoundation's; on Linux `LC_TIME`'s.
+- Commit Details write `formatDate` and `formatTime`, never pretty.
+- With pretty formatting the column is sized by its first thousand rows (`PreferredWidth.FromData`, `"$value*"`) instead of a sample date.
+- The owner's Region settings read `M/d/yyyy` and `h:mm tt` (en-US), so their IntelliJ writes *Today 5:19 AM* and `10/27/2026 5:19 AM`.
+
+**The choices** (`gittree.log.dateFormat`, now `YYYY/MM/DD HH:mm` · `pretty` · `locale`):
+- `pretty` is IntelliJ's as it ships (`prettyDateTime`, `rint`, `minutesAgo` in `dateFormat.ts`).
+- `locale` is the system's date and time always (IntelliJ with pretty formatting off). It was already a value of the setting.
+- The default is unchanged.
+- Commit Details' `on … at …` and its committer line (`plainDateFormat`), the `Date ▾` chip and the Commit window's stash, shelf and message-history dates write `pretty` as `locale`.
+
+**The menu.** *Presentation Settings ▸ Date Format* sits after Columns, as GitTree's own row (D47). It has three radio rows: *Year First*, *IntelliJ*, *System*.
+- Each row shows how its format writes today at 14:19 (`dateFormatSample`): `2026/11/14 14:19`, `Today 2:19 PM`, `11/14/2026 2:19 PM`. *IntelliJ* is asked as of 23:59, so its sample never turns into minutes.
+- Each row has a hover text.
+- A choice goes through `log/setPresentation`. `presentationPatch` now takes a date format the setting offers; `presentationWrites` writes it as the toggles are written, user settings unless a workspace holds one. `filterChips` stays the Settings editor's.
+
+**The system's formats are Windows' own** (`src/ui/systemDates.ts`):
+- **Reading.** `reg query "HKCU\Control Panel\International"` (`latin1`, 3 s timeout), `sShortDate`, `sShortTime` and `LocaleName`, `windowsPattern` (= `fixWindowsFormat`):
+  - read once a session, started by the first webview page (`buildWebviewHtml`);
+  - every page carries the result as `window.__gittreeSystemDates`;
+  - the Log and Commit views write their page once it is known (`whenSystemDatesKnown`, at most 1.5 s).
+- **Refused, falling back to the display language's date and time** as before:
+  - a value past ASCII (`reg` prints in the console's code page);
+  - a pattern Java would refuse;
+  - any OS but Windows.
+- **Writing.** `datePattern.ts` writes by a Java pattern letter for letter: `y`/`yy`, `M`…`MMMMM` and `L`, `d`, `E`/`EEEE`, `G`, `a`, `h`/`H`/`K`/`k`, `m`, `s`, quotes. It uses Western digits and the Gregorian year whatever the locale, as Java does.
+- **Push dialog.** Its tooltip (`commitDate`) follows too.
+
+**Live.** `useClockTick` redraws the rows every 30 s while the tab is on show and the page visible, and at once on coming back. The width is measured again when the rows or the day change, not on every tick.
+
+**Found on the way: a submenu at the right edge covered its own row.** The eye's menu opens at the right end of the toolbar, and a submenu with no room on the right was pushed back over it. *Date Format*, the last row, was hidden by its own submenu, and Columns half so. `placeMenu` (`lib/menuPlace.ts`) now opens a submenu leftwards from its parent's left edge, as VS Code's do. It is pushed back inside only when neither side has room.
+
+**Seen in a real VS Code 1.144** (`scratchpad/design/dateshot.cjs`). The scratch repository on C: has commits from 20 s and 20 min ago, 09:41 today, 22:15 yesterday and ten days ago:
+
+| Step | Result |
+| --- | --- |
+| The page's formats (Log and Commit views) | `{"date":"M/d/yyyy","time":"h:mm a","locale":"en-US"}`, from this machine's registry |
+| Start | `2026/11/14 12:03` … `2026/11/04 16:42`, unchanged |
+| Date Format ▸ | Year First ✓ `2026/11/14 14:19` · IntelliJ `Today 2:19 PM` · System `11/14/2026 2:19 PM` |
+| IntelliJ | `A minute ago`, `21 minutes ago`, `Today 9:41 AM`, `Yesterday 10:15 PM`, `11/4/2026 4:42 PM`; setting `pretty`; a row's `aria-label` ends `, Today 9:41 AM`; the column 133 px (125 Year First, 149 System) |
+| Commit Details of 09:41 | `on 11/14/2026 at 9:41 AM` |
+| 65 s later | `2 minutes ago`, `22 minutes ago` |
+| System, then Year First | `11/14/2026 12:03 PM` …; `locale`; back to `2026/11/14 12:03`, `YYYY/MM/DD HH:mm` |
+| Submenus after the fix | Date Format at x 458–658 and Columns at 478–658, beside the menu (656–842 in an 846 px webview), each level with its row; a click through it picks |
+
+Docs: D47 (new), D40, CHANGELOG (Added), FEATURES (the columns), settings (generated).
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:**
+  - `dateFormat.test.ts`: the system patterns, the fallback, the page's own; every pretty rule and its edges (`rint`'s halves, 61 min, midnight, New Year, a zone, the clock read each time); details, chip, `plainDateFormat`, samples;
+  - `datePattern.test.ts` (new): every letter, names in de/ko/vi/ru, Western digits under ar/th/Japanese calendar, quotes, zones, what Java refuses;
+  - `systemDates.test.ts` (new): `windowsPattern`, `parseInternational`, `readSystemDates` by platform and failure, the one read and its timeout;
+  - `presentationMenu.test.ts`: the submenu, its order, samples, ticks, titles, the choice's patch;
+  - `presentation.test.ts`: `pretty` in the manifest's enum, the patch takes a date format and not `filterChips`, `presentationWrites`, `readDateFormat`;
+  - `columns.test.ts`: `autoTextWidth`;
+  - `commitFormat.test.ts`: `pretty` in the Commit window;
+  - `menuPlace.test.ts` (new): `placeMenu`.
+- **Playwright** (`log.spec.ts`, fixed clock and page formats): the submenu and its samples beside its row, IntelliJ chosen and posted, the rows and `aria-label`, Yesterday, the rows aging, System and IntelliJ by the page's German formats.
+- **Integration** (`systemDates.test.ts`, new): the real Region settings through the real `reg.exe`, patterns a page can write by.
+
+Gates: typecheck (all three tsconfigs) + repo-wide lint clean; extension and webviews built.

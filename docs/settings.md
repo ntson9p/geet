@@ -456,12 +456,13 @@ Draw the commit graph, its coloured lanes and commit dots, beside each commit's 
 
 ### `gittree.log.dateFormat`
 
-How the log's Date column writes each commit's date and time.
+How the log's Date column writes each commit's date and time. Also under Presentation Settings ▸ Date Format.
 
 - Type: `string` · Default: `"YYYY/MM/DD HH:mm"`
 - Values:
   - `YYYY/MM/DD HH:mm` — Year first, two digits for everything else, 24-hour clock: 2026/10/29 14:19. The same in every language.
-  - `locale` — The short date and time of VS Code's display language, as IntelliJ shows them: 10/29/2026 2:19 PM in English (US).
+  - `pretty` — As IntelliJ's log writes dates: Moments ago, 5 minutes ago and 1 hour ago within the hour, then Today 2:19 PM and Yesterday 2:19 PM, and older dates in the system's short date and time.
+  - `locale` — The system's short date and time for every date, as IntelliJ writes them with its pretty formatting off: 10/29/2026 2:19 PM in English (US). On Windows the Region settings' formats; elsewhere VS Code's display language's.
 
 ### `gittree.log.filterChips`
 

@@ -1338,18 +1338,41 @@ export interface LogPresentationDto {
    * the message and the columns alone, with no lanes or commit dots.
    */
   showGraph: boolean;
-  /** `gittree.log.dateFormat`: how the Date column writes a commit's date and time. */
+  /**
+   * `gittree.log.dateFormat`: how the Date column writes a commit's date and
+   * time. Presentation Settings ▸ Date Format (POST-P14cg), and the Settings editor.
+   */
   dateFormat: LogDateFormat;
   /** `gittree.log.filterChips`: how the Branch, User, Date and Paths dropdowns show what they filter. */
   filterChips: LogFilterChips;
 }
 
 /**
- * The Date column's formats. `YYYY/MM/DD HH:mm` is GitTree's own (D40);
- * `locale` is IntelliJ's, the system's short date and time.
+ * The Date column's formats. `YYYY/MM/DD HH:mm` is GitTree's own (D40).
+ * `pretty` is IntelliJ's log as it ships (`DateFormatUtil.formatPrettyDateTime`):
+ * `5 minutes ago`, `Today 2:19 PM`, `Yesterday 2:19 PM`, and older dates in the
+ * system's short date and time. `locale` is that short date and time always,
+ * IntelliJ's with its "Use pretty formatting" off (POST-P14cg).
  */
-export const LOG_DATE_FORMATS = ['YYYY/MM/DD HH:mm', 'locale'] as const;
+export const LOG_DATE_FORMATS = ['YYYY/MM/DD HH:mm', 'pretty', 'locale'] as const;
 export type LogDateFormat = (typeof LOG_DATE_FORMATS)[number];
+
+/**
+ * The system's own short date and short time, as IntelliJ reads them
+ * (`DateFormatUtil.getSystemFormats`): patterns in Java's letters (`M/d/yyyy`,
+ * `h:mm a`), and the locale that names months and writes AM and PM. Read once
+ * by the host (on Windows, the Region settings) and handed to every webview
+ * with its page as `window.__gittreeSystemDates`; without it a webview writes
+ * the short date and time of VS Code's display language.
+ */
+export interface SystemDatesDto {
+  /** The short date, e.g. `M/d/yyyy` (Windows' `sShortDate`, IntelliJ's letters). */
+  readonly date: string;
+  /** The short time, e.g. `h:mm a` (Windows' `sShortTime`, `tt` written `a`). */
+  readonly time: string;
+  /** BCP 47, e.g. `en-US`: month and day names, AM and PM. */
+  readonly locale?: string;
+}
 
 /**
  * The filter dropdowns' looks. `compact` is GitTree's own (D39): smaller, each

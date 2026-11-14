@@ -61,6 +61,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D44](#d44--the-commit-window-lists-changes-without-changelists-by-default) | By default the Commit window lists every change under its repository, as VS Code's Source Control view does: no changelist rows, a status letter on each file, untracked files among the others in italics | Deliberate (owner's request); View Options › Group By |
 | [D45](#d45--the-repositories-panels-pick-narrows-the-commit-window) | The repositories picked in the Repositories panel narrow the Commit window, which says so in a bar over its list, and commits only what it shows | Deliberate (owner's request) |
 | [D46](#d46--the-commit-windows-counter-ticks-every-change-and-its-blank-space-has-a-menu) | The Commit window's counter is a box that ticks every change, and the list's blank space has a menu of its own | Deliberate (owner's request) |
+| [D47](#d47--date-format-is-in-the-logs-eye-menu) | The log's date format is chosen in its eye menu, not in a settings page; off Windows the "system" format is VS Code's display language's | Deliberate (owner's request); the second, a platform limit |
 
 ---
 
@@ -1127,11 +1128,14 @@ rules. What differs:
 
 ## D40 · The Date column writes YYYY/MM/DD HH:mm
 
-**IntelliJ:** the log's Date column is `DateFormatUtil.formatDateTime`: the system's short date
-with a four-digit year and its short time, `9/5/2026 3:07 PM` in US English.
+**IntelliJ:** the log's Date column is `DateFormatUtil.formatPrettyDateTime`: within the hour
+*5 minutes ago*, then *Today 3:07 PM* and *Yesterday 3:07 PM*, and older dates in the system's
+short date and time, `9/5/2026 3:07 PM` with US English Region settings on Windows.
 **GitTree:** `2026/09/05 15:07` by default (`gittree.log.dateFormat: YYYY/MM/DD HH:mm`): year
 first, two digits for every other field, a 24-hour clock, the same in every language. The
-`Date ▾` chip writes its days the same way. `gittree.log.dateFormat: locale` is IntelliJ's.
+`Date ▾` chip writes its days the same way. *Presentation Settings ▸ Date Format ▸ IntelliJ*
+(`pretty`) is IntelliJ's as it ships, and *System* (`locale`) the system's date and time with
+pretty formatting off (POST-P14cg, D47).
 
 Why: the owner's request. Every row's date is the same width and lines up, and dates sort by
 eye.
@@ -1287,3 +1291,29 @@ list's blank space; they chose the counter's box over a header row and a toolbar
 
 **Revisitable:** yes. The box is a few lines in `webview-ui/src/commit/App.tsx`; the menu is
 `package.json`'s `commitList` entries.
+
+## D47 · Date Format is in the log's eye menu
+
+**IntelliJ:** the log writes dates as its *Settings › Appearance & Behavior › System Settings ›
+Date Formats* page says (`DateTimeFormatManager`): *Use pretty formatting* (on) writes the last
+hour in minutes (*Moments ago*, *5 minutes ago*, *1 hour ago*) and today's and yesterday's as
+*Today* and *Yesterday* with the time; *Override system date and time format* (off) swaps the
+system's date for a pattern of one's own. The system's formats are the OS's: on Windows the
+Region settings (`GetLocaleInfoEx`), on macOS CoreFoundation's, on Linux `LC_TIME`'s.
+**GitTree:**
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| A settings page, two checkboxes and a pattern | *Presentation Settings ▸ Date Format* (the eye over the Commits list), three choices each showing today at 14:19: *Year First* (GitTree's default, D40), *IntelliJ* (pretty formatting on), *System* (pretty formatting off); also `gittree.log.dateFormat` | The owner's request: change the format from the log itself. Three named choices instead of two checkboxes, since the default (D40) is GitTree's own |
+| The system's formats on every OS | On Windows the Region settings' short date and time, read from `HKCU\Control Panel\International` and turned into Java's letters as `fixWindowsFormat` does; elsewhere VS Code's display language's short date and time | A webview's `Intl` knows VS Code's display language, not the OS's formats; Node can read Windows' registry, but not CoreFoundation or a C library's `LC_TIME` |
+| The table repaints, and so rewrites the minutes, whenever anything moves | The rows are redrawn every half minute while on show | A webview list is drawn only when told |
+| — | A Windows format with a character beyond ASCII in it (a literal such as Bulgarian `'г.'`) is not used; the display language's is | `reg` prints in the console's code page; a misread literal would be worse |
+
+The words (*Today*, *Moments ago*) are English whatever the language, as all of GitTree's
+webviews are. IntelliJ in another language writes its own words and that language's formats.
+
+Why: the owner asked for the format to be chosen in the Commit Graph panel, with the current
+format kept as the default and IntelliJ's added (POST-P14cg).
+
+**Revisitable:** yes. The choices are `DATE_FORMAT_CHOICES` in `webview-ui/src/log/presentationMenu.ts`;
+the reading is `src/ui/systemDates.ts`.

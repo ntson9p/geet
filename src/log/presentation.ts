@@ -1,15 +1,17 @@
 /**
  * The settings behind the Git tool window's presentation menus: the Commits
  * pane's `Presentation Settings ▾` (Graph, Compact References View, Tag Names,
- * References on the Left, Columns ▸ Author · Hash · Date) and the Branches
- * pane's `Branches Pane Settings · Show Tags` — plus two that only the Settings
- * editor changes, the Date column's format and the filter dropdowns' look.
+ * References on the Left, Columns ▸ Author · Hash · Date, Date Format ▸) and
+ * the Branches pane's `Branches Pane Settings · Show Tags` — plus one that only
+ * the Settings editor changes, the filter dropdowns' look.
  * Nothing here imports `vscode`, so the rules are unit-testable;
  * `LogViewProvider` does the reading and writing.
  */
 import {
+  DEFAULT_LOG_PRESENTATION,
   LOG_DATE_FORMATS,
   LOG_FILTER_CHIPS,
+  type LogDateFormat,
   type LogPresentationDto,
   type LogPresentationToggle,
 } from '../shared/protocol';
@@ -52,11 +54,27 @@ export interface PresentationChoice {
   readonly values: readonly string[];
 }
 
-/** Changed in the Settings editor only: no menu offers them. */
+/**
+ * `dateFormat` is Presentation Settings ▸ Date Format's (POST-P14cg) as well as
+ * the Settings editor's; `filterChips` is the Settings editor's alone.
+ */
 export const PRESENTATION_CHOICES: Readonly<Record<PresentationChoiceKey, PresentationChoice>> = {
   dateFormat: { section: 'gittree.log', key: 'dateFormat', values: LOG_DATE_FORMATS },
   filterChips: { section: 'gittree.log', key: 'filterChips', values: LOG_FILTER_CHIPS },
 };
+
+/** The choices a menu changes: Presentation Settings ▸ Date Format. */
+export type MenuChoiceKey = 'dateFormat';
+
+/**
+ * `gittree.log.dateFormat` as a view takes it: a value the setting does not
+ * offer (a typo in settings.json) is the default.
+ */
+export function readDateFormat(value: unknown): LogDateFormat {
+  return (LOG_DATE_FORMATS as readonly unknown[]).includes(value)
+    ? (value as LogDateFormat)
+    : DEFAULT_LOG_PRESENTATION.dateFormat;
+}
 
 /** The full setting id behind a presentation key, e.g. `gittree.log.columns.hash`. */
 export function settingId(name: PresentationKey | PresentationChoiceKey): string {
@@ -123,17 +141,52 @@ export function writeScope(
   return hasWorkspace && settingScope(inspected) === 'workspace' ? 'workspace' : 'global';
 }
 
+/** What a menu may change: the toggles, and Date Format's choice. */
+export type PresentationPatch = Partial<Pick<LogPresentationDto, PresentationKey | MenuChoiceKey>>;
+
 /**
  * What a `log/setPresentation` request may change: known toggles with boolean
- * values. The two choices are the Settings editor's alone.
+ * values, and a date format the setting offers. The filter dropdowns' look is
+ * the Settings editor's alone.
  */
-export function presentationPatch(params: unknown): Partial<Pick<LogPresentationDto, PresentationKey>> {
-  const patch: Partial<Pick<LogPresentationDto, PresentationKey>> = {};
+export function presentationPatch(params: unknown): PresentationPatch {
+  const patch: PresentationPatch = {};
   if (params === null || typeof params !== 'object') return patch;
   const p = params as Record<string, unknown>;
   for (const key of Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]) {
     const value = p[key];
     if (typeof value === 'boolean') patch[key] = value;
   }
+  if ((LOG_DATE_FORMATS as readonly unknown[]).includes(p.dateFormat)) {
+    patch.dateFormat = p.dateFormat as LogDateFormat;
+  }
   return patch;
+}
+
+/** One setting a menu's change writes, and where it goes when no scope holds it. */
+export interface PresentationWrite {
+  readonly section: string;
+  readonly key: string;
+  readonly value: boolean | string;
+  readonly scope: 'global' | 'workspace';
+}
+
+/**
+ * The settings a patch writes, toggles first. A date format goes where the
+ * toggles beside it go, the user's own settings, unless a workspace already
+ * holds one (`writeScope`).
+ */
+export function presentationWrites(patch: PresentationPatch): PresentationWrite[] {
+  const writes: PresentationWrite[] = [];
+  for (const name of Object.keys(PRESENTATION_SETTINGS) as PresentationKey[]) {
+    const value = patch[name];
+    if (value === undefined) continue;
+    const { section, key, scope } = PRESENTATION_SETTINGS[name];
+    writes.push({ section, key, value, scope });
+  }
+  if (patch.dateFormat !== undefined) {
+    const { section, key } = PRESENTATION_CHOICES.dateFormat;
+    writes.push({ section, key, value: patch.dateFormat, scope: 'global' });
+  }
+  return writes;
 }

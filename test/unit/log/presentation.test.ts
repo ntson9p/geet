@@ -6,6 +6,8 @@ import {
   PRESENTATION_SETTINGS,
   presentationPatch,
   presentationSettingIds,
+  presentationWrites,
+  readDateFormat,
   readPresentation,
   settingId,
   writeScope,
@@ -99,8 +101,28 @@ describe('readPresentation (POST-P14bh)', () => {
   });
 
   it('offers exactly the choices the manifest declares', () => {
-    expect(PRESENTATION_CHOICES.dateFormat.values).toEqual(['YYYY/MM/DD HH:mm', 'locale']);
+    expect(PRESENTATION_CHOICES.dateFormat.values).toEqual(['YYYY/MM/DD HH:mm', 'pretty', 'locale']);
     expect(PRESENTATION_CHOICES.filterChips.values).toEqual(['compact', 'full']);
+  });
+
+  it("reads IntelliJ's dates (POST-P14cg)", () => {
+    expect(readPresentation(settings({ 'gittree.log.dateFormat': 'pretty' }), DEFAULT_LOG_PRESENTATION).dateFormat).toBe(
+      'pretty',
+    );
+  });
+});
+
+describe('readDateFormat (the Commit window, POST-P14cg)', () => {
+  it('takes every format the setting offers', () => {
+    expect(readDateFormat('YYYY/MM/DD HH:mm')).toBe('YYYY/MM/DD HH:mm');
+    expect(readDateFormat('pretty')).toBe('pretty');
+    expect(readDateFormat('locale')).toBe('locale');
+  });
+
+  it('is the default for anything else', () => {
+    expect(readDateFormat(undefined)).toBe('YYYY/MM/DD HH:mm');
+    expect(readDateFormat('DD.MM.YYYY')).toBe('YYYY/MM/DD HH:mm');
+    expect(readDateFormat(3)).toBe('YYYY/MM/DD HH:mm');
   });
 });
 
@@ -124,8 +146,15 @@ describe('presentationPatch', () => {
     expect(presentationPatch({ showGraph: false })).toEqual({ showGraph: false });
   });
 
-  it('never passes the two choices: only the Settings editor changes them', () => {
-    expect(presentationPatch({ dateFormat: 'locale', filterChips: 'full' })).toEqual({});
+  it('passes a date format the setting offers: Presentation Settings ▸ Date Format (POST-P14cg)', () => {
+    expect(presentationPatch({ dateFormat: 'pretty' })).toEqual({ dateFormat: 'pretty' });
+    expect(presentationPatch({ dateFormat: 'locale', showGraph: true })).toEqual({ dateFormat: 'locale', showGraph: true });
+    expect(presentationPatch({ dateFormat: 'DD.MM.YYYY' })).toEqual({});
+    expect(presentationPatch({ dateFormat: true })).toEqual({});
+  });
+
+  it("never passes the filter dropdowns' look: only the Settings editor changes it", () => {
+    expect(presentationPatch({ filterChips: 'full' })).toEqual({});
   });
 
   it('drops anything else', () => {
@@ -133,6 +162,29 @@ describe('presentationPatch', () => {
     expect(presentationPatch(undefined)).toEqual({});
     expect(presentationPatch(null)).toEqual({});
     expect(presentationPatch('showTags')).toEqual({});
+  });
+});
+
+describe('presentationWrites (POST-P14cg)', () => {
+  it('writes each toggle to its setting, where the menu writes it', () => {
+    expect(presentationWrites({ showTagNames: true, showTags: false })).toEqual([
+      { section: 'gittree.log', key: 'showTagNames', value: true, scope: 'global' },
+      { section: 'gittree.branches', key: 'showTags', value: false, scope: 'workspace' },
+    ]);
+  });
+
+  it("writes Date Format's choice to gittree.log.dateFormat, IDE-wide as IntelliJ keeps its date formats", () => {
+    expect(presentationWrites({ dateFormat: 'pretty' })).toEqual([
+      { section: 'gittree.log', key: 'dateFormat', value: 'pretty', scope: 'global' },
+    ]);
+  });
+
+  it('writes the toggles first, then the choice, and nothing for an empty patch', () => {
+    expect(presentationWrites({ dateFormat: 'locale', showGraph: false }).map((w) => w.key)).toEqual([
+      'showGraph',
+      'dateFormat',
+    ]);
+    expect(presentationWrites({})).toEqual([]);
   });
 });
 

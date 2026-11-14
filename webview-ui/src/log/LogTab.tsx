@@ -45,6 +45,7 @@ import {
   SHORT_HASH_LENGTH,
   authorText,
   autoAuthorWidth,
+  autoTextWidth,
   draggedWidth,
   fitColumns,
   readColumnWidths,
@@ -54,6 +55,7 @@ import {
   type ColumnWidths,
 } from './columns';
 import { SAMPLE_COMMIT_TIME, createLogDateFormat } from './dateFormat';
+import { useClockTick } from './useClockTick';
 import { hasFilters, missingRefsText, resetFilters } from './filterChips';
 import { BranchesPane } from './BranchesPane';
 import { ChangedFilesPane, changedFilesLabel } from './ChangedFilesPane';
@@ -542,13 +544,33 @@ export function LogTab({
   );
   // `gittree.log.dateFormat`: one formatter per choice, not per row.
   const formatDate = useMemo(() => createLogDateFormat(presentation.dateFormat), [presentation.dateFormat]);
+  // POST-P14cg: IntelliJ's dates ("5 minutes ago", "Today 2:19 PM") read the
+  // clock as they are written, so the rows are written again every half
+  // minute while they are on show; the other formats never change.
+  const pretty = presentation.dateFormat === 'pretty';
+  useClockTick(pretty && visible);
+  // A new day turns "Today" into "Yesterday": the width is measured again then.
+  const today = pretty ? new Date().toDateString() : '';
+  // IntelliJ sizes the column by one sample date, but by the rows themselves
+  // when its dates are pretty (`Date.createTableCellRenderer`).
+  const dateAuto = useMemo(
+    () =>
+      pretty
+        ? autoTextWidth(
+            rowsRef.current.slice(0, sizedBy).map((r) => formatDate(r.authorTime)),
+            measure.text,
+          )
+        : sampleWidth(formatDate(SAMPLE_COMMIT_TIME), measure.bold),
+    // `today` only re-measures; `rowsRef` is read for the rows `sizedBy` and `firstSha` stand for.
+    [pretty, formatDate, measure, sizedBy, firstSha, today],
+  );
   const autoWidths = useMemo(
     () => ({
       author: authorAuto,
-      date: sampleWidth(formatDate(SAMPLE_COMMIT_TIME), measure.bold),
+      date: dateAuto,
       hash: sampleWidth(HASH_SAMPLES, measure.bold),
     }),
-    [authorAuto, formatDate, measure],
+    [authorAuto, dateAuto, measure],
   );
   const repo = useMemo(() => repoRefs(branchesData), [branchesData]);
 

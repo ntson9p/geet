@@ -67,6 +67,23 @@ export function autoAuthorWidth(names: Iterable<string>, measure: (text: string)
   return Math.max(MIN_COLUMN_WIDTH, Math.min(Math.ceil(widest) + CELL_PADDING, MAX_AUTO_WIDTH));
 }
 
+/**
+ * A column sized by its rows' text, as IntelliJ's `PreferredWidth.FromData`
+ * sizes one (`"$value*"`): the widest of the first thousand, with room for a
+ * `*`, capped at 300 pixels. The Date column with IntelliJ's dates (POST-P14cg),
+ * whose `Moments ago` and full dates no one sample can stand for.
+ */
+export function autoTextWidth(texts: Iterable<string>, measure: (text: string) => number): number {
+  let widest = 0;
+  let seen = 0;
+  for (const text of texts) {
+    if (seen++ >= MAX_ROWS_TO_MEASURE) break;
+    if (text === '') continue;
+    widest = Math.max(widest, measure(`${text}*`));
+  }
+  return Math.max(MIN_COLUMN_WIDTH, Math.min(Math.ceil(widest) + CELL_PADDING, MAX_AUTO_WIDTH));
+}
+
 /** A column sized by samples rather than by the rows (Date, Hash): the widest, in bold for slack. */
 export function sampleWidth(samples: string | readonly string[], measureBold: (text: string) => number): number {
   const list = typeof samples === 'string' ? [samples] : samples;

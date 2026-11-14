@@ -16,7 +16,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { CommitDetailsDto, LogDateFormat } from '../../../src/shared/protocol';
-import { createDetailsDate, createLogDateFormat } from './dateFormat';
+import { createDetailsDate, createLogDateFormat, plainDateFormat } from './dateFormat';
 import { ToolbarButton } from '../lib/Toolbar';
 import { linkifyBody, signatureLabel } from './linkify';
 
@@ -129,8 +129,10 @@ function CommitDetailsBlock({
 
   const subject = details.body.split('\n', 1)[0] ?? '';
   const authored = useMemo(() => createDetailsDate(dateFormat)(details.authorTime), [dateFormat, details.authorTime]);
+  // The full date even with IntelliJ's "Today" in the column: IntelliJ's
+  // details write the date and the time (POST-P14cg).
   const committedAt = useMemo(
-    () => createLogDateFormat(dateFormat)(details.committerTime),
+    () => createLogDateFormat(plainDateFormat(dateFormat))(details.committerTime),
     [dateFormat, details.committerTime],
   );
   const signature = signatureLabel(details.signature);

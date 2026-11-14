@@ -6,6 +6,24 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — choose how the log writes dates, IntelliJ's way included
+
+- **Presentation Settings ▸ Date Format** (the eye over the Commits list) chooses how the Date
+  column writes a commit's date and time. Each choice shows how it would write today at 14:19:
+  - *Year First*, `2026/11/14 14:19`: the default, unchanged.
+  - *IntelliJ*, new: dates as IntelliJ's log writes them. A commit from the last hour reads
+    *Moments ago*, *5 minutes ago* or *1 hour ago*. Today's and yesterday's read *Today 2:19 PM*
+    and *Yesterday 2:19 PM*. Older ones get the system's short date and time,
+    `11/12/2026 2:19 PM`. The rows keep up with the clock while the log is open.
+  - *System*, `11/14/2026 2:19 PM`: the system's short date and time for every commit. This
+    was already in the Settings editor as `gittree.log.dateFormat: locale`.
+- The choice is the `gittree.log.dateFormat` setting, now with the value `pretty` for IntelliJ's
+  way. Commit Details, the `Date ▾` chip and the Commit window's stash, shelf and message-history
+  dates follow it. Commit Details always writes the date and time in full, as IntelliJ's does.
+- **The system's date and time are Windows' own.** On Windows, *IntelliJ* and *System* now use
+  the short date and time from the Region settings, as IntelliJ reads them, even when VS Code's
+  display language is different. Elsewhere they use VS Code's display language, as before.
+
 ### Added — tick every change at once, and a menu for the list's blank space
 
 - **The counter is a box now.** `7 of 120 files` on the Amend row has a box in front of it, drawn
