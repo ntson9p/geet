@@ -12,6 +12,8 @@ pre-release convention (odd minor = pre-release).
   instead. Ending the edit hands the focus back to the list, and that blur counted as moving
   on, which applies an edit. For the same reason Enter applied *Edit all targets* twice, asking
   the host to retarget every repository twice.
+- **Log: Show Details for a tab the strip no longer has changes nothing.** The unknown tab came
+  up in front as an empty Log tab of its own.
 
 ### Security — development tools updated; `npm audit` finds nothing
 

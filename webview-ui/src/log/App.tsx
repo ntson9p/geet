@@ -183,7 +183,11 @@ export function App() {
     // POST-P14af: a push notification's `Show Details` lands on the Console.
     const offShowTab = rpc.onEvent(LOG_METHODS.evtShowTab, (params) => {
       const tab = (params as { tab?: unknown } | undefined)?.tab;
-      if (typeof tab === 'string') show(tab, { tell: false });
+      // A tab the strip has, as on opening: any other id would come up as an
+      // empty Log tab of its own (a Log tab closed since the ask, say).
+      if (typeof tab === 'string' && (isFixed(tab) || tabsRef.current.some((t) => t.id === tab))) {
+        show(tab, { tell: false });
+      }
     });
     // A reveal or a focus-the-filter is about a Log tab, which then has to be in front.
     const offReveal = rpc.onEvent(LOG_METHODS.evtReveal, (params) => show(logTabOf(params), { tell: false }));
