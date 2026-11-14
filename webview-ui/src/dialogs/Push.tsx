@@ -119,6 +119,13 @@ export function Push() {
   const [lead, setLead] = useState<string | undefined>(undefined);
 
   const [editing, setEditing] = useState<Editing | undefined>(undefined);
+  /**
+   * The edit as of now, not as of the last render. Ending an edit hands the
+   * focus back to the tree at once, and the field's blur arrives before React
+   * renders again: by `editing` alone, that blur would apply what Escape
+   * dropped, or apply Enter's edit a second time.
+   */
+  const editingRef = useRef<Editing | undefined>(undefined);
   const [editText, setEditText] = useState('');
   const [editRemote, setEditRemote] = useState('');
   const [editUpstream, setEditUpstream] = useState(false);
@@ -310,7 +317,8 @@ export function Push() {
     (root: string, sync = false) => {
       const repo = byRoot.get(root);
       if (!editable(repo) || repo.target === undefined) return;
-      setEditing({ root, sync });
+      editingRef.current = { root, sync };
+      setEditing(editingRef.current);
       setEditText(repo.target.branch);
       setEditRemote(repo.target.remote);
       setEditUpstream(repo.setUpstream);
@@ -331,6 +339,7 @@ export function Push() {
 
   /** `refocus`: back to the tree after Enter or Escape; not when the user clicked elsewhere. */
   const endEdit = useCallback((refocus = true) => {
+    editingRef.current = undefined;
     setEditing(undefined);
     setEditProblem(undefined);
     if (refocus) treeRef.current?.focus();
@@ -363,6 +372,8 @@ export function Push() {
 
   /** Focus moved on: the edit is applied if it can be, else dropped — IntelliJ's interrupted edit. */
   const leaveEdit = useCallback(() => {
+    // The blur of an edit Enter or Escape has just ended: nothing is left to apply.
+    if (editingRef.current === undefined) return;
     if (remoteMenu !== undefined) return;
     if (isValidRefName(editText)) applyEdit(false);
     else endEdit(false);

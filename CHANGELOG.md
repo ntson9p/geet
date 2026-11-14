@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — bugs the test suites found
+
+- **Push dialog: Escape in the target editor cancels the edit.** It applied the typed branch
+  instead. Ending the edit hands the focus back to the list, and that blur counted as moving
+  on, which applies an edit. For the same reason Enter applied *Edit all targets* twice, asking
+  the host to retarget every repository twice.
+
 ### Security — development tools updated; `npm audit` finds nothing
 
 - `npm audit` reported 14 vulnerabilities (2 critical, 1 high, 11 moderate), all in the tools
