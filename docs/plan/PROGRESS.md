@@ -2151,3 +2151,70 @@ POST-P14ch ✅ 2026-11-14 (branch `new-way-7`, from `new-way-6`): **Dependencies
 Docs: CHANGELOG (Security), docs/releasing.md (Dependency security: the overrides, when to drop each, the launcher, the `npm list` crash), README (Node 22 or later).
 
 Testing (written, **not run**, by the owner's standing instruction): `test/unit/scripts/driveLetter.test.ts` (new). No suite was run. The listing above collects the unit tests without running them; the unit, Playwright and integration suites remain to be run.
+
+POST-P14ci ✅ 2026-11-14 (branch `new-way-7`): **The unit and Playwright suites, run at the owner's request after the dependency update: everything passes again but the perf budget, which is at this machine's edge.** It was the first run of either since the owner's rule of 2026-10-31: write tests, don't run them.
+
+**The update broke nothing.**
+- **Unit, first run** (Vitest 4.1.12 through the launcher, from `d:\`): 2,171 of 2,178 passed. Two of the seven failures also failed alone (below). The other five passed alone: four real-git tests over the 5 s default, and the 100k-commit layout budget (495 ms against 400; 243–367 ms alone).
+- **Vitest 3 against 4.** Clean exports of 8024006 (Vitest 3.2.7) and a45bf74 (4.1.12) on C:, each installed with `npm ci`, run alternately, twice:
+
+  | | Vitest 3.2.7 | Vitest 4.1.12 |
+  | --- | --- | --- |
+  | Round 1 failures | 20 | 15 |
+  | Round 2 failures | 15 | 11 |
+  | Round 2 run time | 174 s | 127 s |
+
+  - The failures were the same family in both versions: real-git tests over the 5 s default, the standing issue (POST-P14f's runs counted 25–32). The same two deterministic failures failed in both as well.
+  - Summed test time, new over old, was 1.05 in round 1 and 0.85 in round 2.
+  - Both versions fail a synchronous test that overruns its timeout (the same check in `@vitest/runner`), and both start CPUs − 1 = 3 workers here.
+- **Playwright:** none of its toolchain changed (Vite, esbuild, Rollup, React, Playwright, Babel and TypeScript: 20 lockfile entries, all identical), and no webview file did. Every failure below is older than the update.
+
+**How it was run.**
+- Playwright ran through a scratchpad copy of `webview-ui/playwright.config.ts`, from `D:\`. It used port 5174 with its own server; the repository's config reuses whatever holds 5173.
+- The first full run took 26.6 minutes on a busy machine (CPU at 66% with nothing of ours running): 477 passed, 30 failed, 3 skipped (the capture specs).
+- The 30 were rerun with one worker: 11 passed (load) and 19 failed again.
+
+**The 19, and the two unit failures.**
+- Three were product bugs. The rest were tests, or a mock, that never matched the product or no longer did.
+- Every one was written after the rule began and never run until now.
+
+| Test | Cause | Fix |
+| --- | --- | --- |
+| push › Escape cancels the edit, not the dialog | **Bug** since b0845cd. `endEdit` hands the focus to the tree. The field's blur then calls `leaveEdit`, which applied the edit Escape had dropped | `Push.tsx`: the edit is kept in a ref too, cleared before the focus moves |
+| push › Edit all targets sends what is typed to every repository | **Bug** on the same path: Enter retargeted every repository twice | as above |
+| log › Show Details opens the Console tab, and an unknown tab is ignored | **Bug**: `log/showTab` mounted any unknown id as an empty Log tab | `App.tsx`: only ids the strip has, as at opening |
+| unit dateFormat › renders in the time zone it is given (POST-P14z) | ICU 78 (Node 24) writes `hour: 'numeric'` as `3:45` in en-GB. The code before POST-P14cg asked for the same fields | `dateFormat.ts`: `timeStyle: 'short'`, the language's own short time (`03:45`, as IntelliJ's `DateFormat.SHORT`); a new test for de-DE and en-US |
+| unit branchPanes › fold and open through the set the folders use | the expected array was not in the sorted order the test compares against | both sides sorted |
+| commit × 4 (a state that names the file on screen; no walk open; a walk over a selection; a deleted file and a folder) | hand-written `commit/state`s without `groupBy`, which has meant the flat list since 3ca88a1 | the states carry `groupBy: 'changelist'` and `groupByDirectory: true`, as the mock's own do |
+| branches › a click selects a branch; a double-click opens its card | `branches/details` has carried `scope` since 7af7ea2 | `scope` expected |
+| branches › clearing From goes back to each repository's own current branch | the phrase is the field's placeholder, not its text, and both repositories are on feature/login | the placeholder, and the title's branch |
+| branches › the panel starts again with the panes folded | `openPanel` waited for the first row, which a folded pane hides | the first visible row |
+| kit › a click outside a menu with a submenu open still closes both | (5, 5) is the Tree tab | the page's empty corner |
+| log › Presentation Settings ▾ lists IntelliJ's rows after Graph | Graph has been the first row since 015d6e8 | Graph takes the keyboard |
+| log › colorBlind palette | `.gt-ref-chip` has been Commit Details' since f83f5bc, coloured by kind of ref | the graph canvas's pixels (Okabe–Ito lane 0) |
+| log › Paths ▾ · Roots keeps the Branch selection | the mock's filter and refresh resets lacked `roots`; the host's `startSession` sends them | the mock's resets carry them |
+| push › several selected commits merge their changes | the dialog caches changes per set of commits, and this set was fetched at opening | the selection and the files, and that the set was asked for |
+| push › clicking the branch edits it | the suggestions include names that only hold the text, as IntelliJ's push field does (`PlainPrefixMatcher`, `containsIgnoreCase`, read in its source). No name holds `my_topic`, so Escape cancelled | `feature/x` expected; no Escape |
+| push › Set upstream appears for another target | the suggestion stays under the field, and Enter picked it | Escape closes it, then Enter |
+| push › checkboxes … Space toggles | the middle of the row is its `origin` link | click the repository's name |
+| perf › median 60 fps while scrolling the 100k graph | the 17.5 ms budget is at this machine's edge. Alone it passed 2 of 5 runs (17.6–17.8 ms otherwise); beside another worker it failed all 4 (19.5–22.5 ms). Nothing today touches the scroll path | none: left to the owner |
+
+Found on the way: `branches › a repository's Fetch spins on its row` once missed the mock's 400 ms spin under load. The test now gives the spin 2 s.
+
+**After:**
+
+| Run | Result |
+| --- | --- |
+| Unit, full (`npm run test:unit`, from `d:\`) | **2,179 passed** of 2,179 (one new), 92 s |
+| Playwright, push + log specs | 154/154 |
+| Playwright, full, 2 workers | 505 passed, 2 failed, 3 skipped, 7.6 min. The failures: perf (19.5 ms), and the first branches test cold-starting past 5 s, which passed in the next two runs |
+| Playwright, branches spec twice over (after the spin fix) | 184/184 |
+| Playwright, full again, 2 workers | **506 passed**, 1 failed (perf, 20.1 ms), 3 skipped, 7.75 min |
+| Playwright, perf alone, three times | 1 passed; 17.8 and 17.6 ms |
+
+Gates: typecheck (root and webview) clean; lint of every touched file clean.
+
+Standing, not changed:
+- Real-git unit tests keep the 5 s default and time out under load here, 0 to 20 a run.
+- The perf budget (median frame ≤ 17.5 ms) is at this machine's edge: 2 of 5 runs passed alone, none of 4 beside another worker.
+- Both are the owner's to decide: a longer timeout for the real-git files, and for perf a worker of its own, a looser budget, or a quieter machine.

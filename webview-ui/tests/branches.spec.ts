@@ -28,7 +28,8 @@ async function openPanel(
   }, opts);
   await page.addInitScript(mockBranchesHostScript);
   await page.goto('/branches.html');
-  await expect(page.locator('[data-row-id]').first()).toBeVisible();
+  // The first row on show: a pane can start folded, its rows hidden.
+  await expect(page.locator('[data-row-id]:visible').first()).toBeVisible();
 }
 
 async function requests(page: Page, method: string): Promise<Array<Record<string, unknown>>> {
@@ -449,6 +450,8 @@ test.describe('several repositories', () => {
     await expect(develop.locator('.gtp-markers')).toHaveCount(0);
     expect((await requests(page, 'branches/details')).at(-1)).toEqual({
       target: { kind: 'local', name: 'develop', roots: [API, WEB] },
+      // Every repository in view: a checkout across them reaches beyond develop's two.
+      scope: [API, SHARED, WEB],
     });
     // Opening a card ran nothing.
     expect(await requests(page, 'branches/run')).toHaveLength(0);
@@ -579,6 +582,11 @@ test.describe('several repositories', () => {
   });
 
   test("a repository's Fetch spins on its row until the host is done", async ({ page }) => {
+    // Two seconds, not the mock's 400 ms: on a busy machine the spin was over
+    // before the first look. The row still settles well within the wait.
+    await page.addInitScript(() => {
+      (window as unknown as { __mockFetchMs: number }).__mockFetchMs = 2000;
+    });
     await openPanel(page);
     const web = row(page, `repo:${WEB}`);
     await web.hover();
@@ -756,7 +764,10 @@ test.describe('the New Branch form', () => {
     const form = page.getByRole('form', { name: 'New branch' });
     await expect(form.getByLabel('Start point')).toHaveValue('develop');
     await form.getByLabel('Start point').fill('');
-    await expect(form).toContainText('each repository’s current branch');
+    // The empty field says so (a placeholder, which is not the form's text);
+    // the title names the one branch api and web are both on.
+    await expect(form.getByLabel('Start point')).toHaveAttribute('placeholder', 'each repository’s current branch');
+    await expect(form).toContainText('New branch from feature/login');
     await form.getByLabel('Branch name').fill('feature/own-heads');
     await form.getByRole('button', { name: 'Create' }).click();
     expect((await requests(page, 'branches/create')).at(-1)?.['from']).toBe('HEAD');

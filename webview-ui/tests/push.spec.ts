@@ -104,9 +104,15 @@ test.describe('push dialog — IntelliJ layout', () => {
     await openPush(page);
     await commitRows(page).first().click();
     await commitRows(page).nth(1).click({ modifiers: ['Control'] });
-    await expect
-      .poll(async () => (await posted(page)).filter((m) => m.method === 'pushDialog/changes').at(-1)?.params?.['shas'])
-      .toEqual(['a'.repeat(40), 'b'.repeat(40)]);
+    await expect(commitRows(page).first()).toHaveAttribute('aria-selected', 'true');
+    await expect(commitRows(page).nth(1)).toHaveAttribute('aria-selected', 'true');
+    // Both are the repository's whole set, asked for (oldest first) when its
+    // row was selected on opening; the dialog keeps the answer, not asking twice.
+    const asked = (await posted(page)).filter((m) => m.method === 'pushDialog/changes').map((m) => m.params?.['shas']);
+    expect(asked).toContainEqual(['a'.repeat(40), 'b'.repeat(40)]);
+    const files = page.getByTestId('push-files');
+    await expect(files.getByRole('treeitem', { name: /Strings\.java/ })).toBeVisible();
+    await expect(files.getByRole('treeitem', { name: /Controller\.java/ })).toBeVisible();
     await expect(page.getByTestId('push-details')).toHaveCount(0);
 
     // Nothing selected: IntelliJ's empty text.
@@ -216,14 +222,17 @@ test.describe('push dialog — the target', () => {
     await field.fill('');
     await field.pressSequentially('re');
     const list = page.getByTestId('push-completion');
-    await expect(list.getByRole('option')).toHaveText([/review\/x.*recently pushed/, /release\/1\.2/]);
+    // Names that start with `re`, recent first; then the ones that only hold it,
+    // as IntelliJ's plain matcher also offers them.
+    await expect(list.getByRole('option')).toHaveText([/review\/x.*recently pushed/, /release\/1\.2/, /feature\/x/]);
 
     // Spaces become `_` as they are typed.
     await field.fill('');
     await field.pressSequentially('my topic');
     await expect(field).toHaveValue('my_topic');
-    await page.keyboard.press('Escape'); // closes the suggestions only
-    await expect(field).toBeVisible();
+    // No name holds `my_topic`: no suggestions stand between it and Enter
+    // (and Escape here would drop the edit, as with none it does).
+    await expect(list).toHaveCount(0);
     await page.keyboard.press('Enter');
 
     await expect(page.getByTestId('push-target-editor')).toHaveCount(0);
@@ -268,6 +277,11 @@ test.describe('push dialog — the target', () => {
     await expect(page.getByTestId('push-set-upstream')).toHaveCount(0);
     await field.fill('release/1.2');
     await page.getByTestId('push-set-upstream').check();
+    // The box keeps the focus in the field, and the suggestion under it: Escape
+    // closes that (Enter on it would pick it), then Enter applies.
+    await expect(page.getByTestId('push-completion')).toBeVisible();
+    await field.press('Escape');
+    await expect(field).toBeVisible();
     await field.press('Enter');
     await expect(page.getByTestId('push-badge-demo-git')).toHaveText('Upstream');
     await expect(page.getByTestId('push-command')).toContainText('git push --set-upstream origin');
@@ -326,7 +340,8 @@ test.describe('push dialog — several repositories', () => {
     await expect(page.getByTestId('push-command')).toContainText('refs/heads/feature/x');
     await expect(page.getByTestId('push-command')).not.toContainText('refs/heads/main');
 
-    await repoRow(page, 'lib-utils').click();
+    // On its name: the middle of the row is its `origin` link, which opens the remotes.
+    await repoRow(page, 'lib-utils').getByText('lib-utils', { exact: true }).click();
     await page.keyboard.press('Space');
     await expect(page.getByTestId('push-repo-lib-utils')).toBeChecked();
     await expect(page.getByTestId('push-command')).toContainText('refs/heads/main:refs/heads/main');

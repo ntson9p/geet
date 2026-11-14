@@ -55,7 +55,8 @@ describe('the panes, folded and open', () => {
   it('fold and open through the set the folders use, leaving the folders alone', () => {
     const folders = new Set(['dir:local:feature/']);
     const shut = withPane(folders, 'branches', false);
-    expect([...shut].sort()).toEqual([BRANCHES_PANE, 'dir:local:feature/']);
+    // Both sides sorted: a set's order is not the point, its members are.
+    expect([...shut].sort()).toEqual([BRANCHES_PANE, 'dir:local:feature/'].sort());
     expect(paneOpen(shut, 'branches')).toBe(false);
     expect(paneOpen(shut, 'repos')).toBe(true);
     const open = withPane(shut, 'branches', true);

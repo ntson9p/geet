@@ -336,8 +336,9 @@ export const mockLogHostScript = `
           // the reset waits for window.__releaseRefresh(), as a slow re-read.
           const logTab = tabOf(msg.params);
           const tab = tabsState().tabs.find((t) => t.id === logTab);
+          // Every reset carries the roots, as logView's startSession puts them in.
           const reset = () =>
-            post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: rootOf(logTab), repoLabel: rootLabel(logTab), filter: (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, logTab, preserve: true } });
+            post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: rootOf(logTab), repoLabel: rootLabel(logTab), roots: ROOTS, filter: (tab && tab.filter) || { sort: 'topo', refs: 'HEAD' }, laneWidth: 12, logTab, preserve: true } });
           if (window.__mockHoldRefresh === true) window.__releaseRefresh = reset;
           else reset();
           res({ ok: true });
@@ -378,7 +379,8 @@ export const mockLogHostScript = `
           const tab = tabsState().tabs.find((t) => t.id === logTab);
           if (tab) tab.filter = msg.params.filter;
           res({ ok: true });
-          post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: rootOf(logTab), repoLabel: rootLabel(logTab), filter: msg.params.filter, laneWidth: 12, logTab } });
+          // With the roots, as logView's startSession sends every reset.
+          post({ v: 1, id: 'evtreset', kind: 'evt', method: 'log/reset', params: { repoRoot: rootOf(logTab), repoLabel: rootLabel(logTab), roots: ROOTS, filter: msg.params.filter, laneWidth: 12, logTab } });
           // The strip retitles from the host's echo, as logView sends it.
           postTabs();
           break;

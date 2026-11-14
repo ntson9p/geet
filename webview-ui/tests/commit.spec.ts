@@ -451,6 +451,9 @@ test.describe('P11-T2 commit actions', () => {
       modifiedCount: 1,
       checkedCount: 1,
       paradigm: 'changelists',
+      // IntelliJ's tree, where the mock starts: without these a state is the flat list.
+      groupBy: 'changelist',
+      groupByDirectory: true,
       diffOnScreen: { repoRoot: 'D:/repos/demo-git', path: 'docs/guide.md' },
     });
     await expect(row(page, 'guide.md')).toHaveAttribute('aria-current', 'true');
@@ -514,6 +517,9 @@ test.describe('P11-T2 commit actions', () => {
       modifiedCount: 1,
       checkedCount: 1,
       paradigm: 'changelists',
+      // IntelliJ's tree, where the mock starts: without these a state is the flat list.
+      groupBy: 'changelist',
+      groupByDirectory: true,
     });
   const chains = async (page: Page): Promise<PostedMsg[]> =>
     (await posted(page)).filter((m) => m.method === 'commit/diffChain');
@@ -1618,6 +1624,9 @@ test.describe('POST-P14bq reveal in the file manager', () => {
       modifiedCount: 4,
       checkedCount: 4,
       paradigm: 'changelists',
+      // IntelliJ's tree, where the mock starts: without these a state is the flat list.
+      groupBy: 'changelist',
+      groupByDirectory: true,
     });
     await expect(row(page, 'old, 2 files')).toBeVisible();
     // The menu leaves Reveal out on these: there is nothing on disk to select.

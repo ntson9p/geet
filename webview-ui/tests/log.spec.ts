@@ -1619,18 +1619,31 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(page.getByTestId('log-row-0')).toBeVisible();
   });
 
-  test('P10-T2: colorBlind palette drives ref-chip and graph colors', async ({ page }) => {
+  test('P10-T2: the colorBlind palette draws the graph', async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __mockGraphPalette?: string }).__mockGraphPalette = 'colorBlind';
     });
     await openLog(page);
     // Okabe–Ito lane 0: #0072b2 light / #56b4e9 dark — either proves the
-    // palette reached the renderer (theme depends on the harness page).
-    const border = await page
-      .locator('.gt-ref-chip')
-      .first()
-      .evaluate((el) => getComputedStyle(el).borderColor);
-    expect(['rgb(0, 114, 178)', 'rgb(86, 180, 233)']).toContain(border);
+    // palette reached the renderer (theme depends on the harness page). The
+    // graph, not the ref chips: since f83f5bc those are Commit Details', and
+    // coloured by the kind of ref, not by lane.
+    const drawsLaneZero = (): Promise<boolean> =>
+      page
+        .locator('.gt-log-graph-canvas')
+        .first()
+        .evaluate((el) => {
+          const canvas = el as HTMLCanvasElement;
+          const px = canvas.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data;
+          if (px === undefined) return false;
+          const near = (i: number, rgb: readonly number[]): boolean =>
+            rgb.every((c, k) => Math.abs((px[i + k] ?? -99) - c) <= 3) && (px[i + 3] ?? 0) > 200;
+          for (let i = 0; i < px.length; i += 4) {
+            if (near(i, [0, 114, 178]) || near(i, [86, 180, 233])) return true;
+          }
+          return false;
+        });
+    await expect.poll(drawsLaneZero).toBe(true);
   });
 // ---- POST-P14k: the Worktrees tab ----------------------------------------
 
@@ -1793,9 +1806,12 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(menu.getByRole('menuitem', { name: 'Date Format' })).toBeVisible();
     const compact = page.getByRole('menuitemcheckbox', { name: 'Compact References View' });
     await expect(compact).toHaveAttribute('aria-checked', 'true');
-    await expect(compact).toHaveClass(/gt-active/);
-    await expect(page.getByRole('menuitemcheckbox', { name: 'Graph' })).toHaveAttribute('aria-checked', 'true');
-    // The first row past the caption takes the keyboard: Graph.
+    // The first row past the caption takes the keyboard: Graph, first since
+    // POST-P14bh, and no longer Compact References View.
+    const graph = page.getByRole('menuitemcheckbox', { name: 'Graph' });
+    await expect(graph).toHaveAttribute('aria-checked', 'true');
+    await expect(graph).toHaveClass(/gt-active/);
+    await expect(compact).not.toHaveClass(/gt-active/);
     await page.keyboard.press('Enter');
     await expect.poll(() => setPresentationCalls(page)).toEqual([{ showGraph: false }]);
   });

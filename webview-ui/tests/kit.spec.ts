@@ -141,7 +141,10 @@ test.describe('P11-T1 menu', () => {
     await page.getByTestId('open-menu').click();
     await page.getByRole('menu', { name: 'Branch actions' }).getByRole('menuitem', { name: 'Compare' }).hover();
     await expect(page.getByRole('menu', { name: 'Compare' })).toBeVisible();
-    await page.mouse.click(5, 5);
+    // The page's empty corner. Not (5, 5): the section tabs start there, and
+    // a click on Tree leaves the Menu section, readout and all.
+    const view = page.viewportSize()!;
+    await page.mouse.click(view.width - 5, view.height - 5);
     await expect(page.getByRole('menu', { name: 'Branch actions' })).toHaveCount(0);
     await expect(page.getByRole('menu', { name: 'Compare' })).toHaveCount(0);
     await expect(page.getByTestId('menu-picked')).not.toHaveText('diff-working');
