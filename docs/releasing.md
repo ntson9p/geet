@@ -18,6 +18,33 @@ that do not exactly match `package.json`'s version.
   automatically by the `postpackage` hook (`scripts/checkBundleSize.mjs`) on
   every `npm run package`, locally and in CI.
 
+## Dependency security
+
+`npm audit` must report no vulnerabilities. The extension has no npm runtime
+dependencies (`dependencies` is empty and esbuild bundles our own code), so
+an advisory can only reach the development tools; they are kept clean all
+the same. Three advisories have no fixed release in the range their users
+ask for, so `package.json#overrides` forces the fixed versions, each only
+under the package that needs it:
+
+| Override | Why | Drop it when |
+| --- | --- | --- |
+| `mocha` → `serialize-javascript ^7.1.4` | GHSA-5c6j-r48x-rmvq and two more: mocha 10 and 11 ask for 6.x. Mocha uses it only in parallel mode, which the integration runner does not use | mocha is upgraded. Mocha 12 is ESM-only and asks for a vulnerable `glob` and `minimatch`, so it was not taken |
+| `@typescript-eslint/typescript-estree` → `minimatch ^11.0.1` | GHSA-g3hv-75wg-m249: 8.72.2 asks for `^10.2.2`; only 11.0.1 is fixed | typescript-eslint asks for `minimatch` 11 itself |
+| `@vscode/vsce` → `minimatch ^11.0.1` | The same advisory: vsce 4.1.1 asks for `^10.2.6` | vsce asks for `minimatch` 11 itself |
+
+ESLint's own `minimatch` 3 is outside the advisory's range and is left alone.
+
+`npm run test:unit` starts Vitest through `scripts/vitest.mjs`. On Windows,
+Vitest 4 loads two copies of itself when the working directory's drive letter
+is lower case (vitest-dev/vitest#11872), and every suite fails. The launcher
+starts it from the upper-case form; go back to `vitest run` once that is fixed.
+
+`npm list` (and so `vsce ls` and `vsce package`) crashes with "Cannot read
+properties of null (reading 'edgesOut')" when started from a lower-case drive
+letter, because the workspace link resolves to the upper-case form. Run them
+from the upper-case form (`D:\…`, not `d:\…`).
+
 ## Changelog process
 
 Every release adds a `## [x.y.z] — YYYY-MM-DD` section at the top of

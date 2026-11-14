@@ -6,6 +6,24 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Security — development tools updated; `npm audit` finds nothing
+
+- `npm audit` reported 14 vulnerabilities (2 critical, 1 high, 11 moderate), all in the tools
+  used to build, test and package GitTree. The extension has no npm runtime dependencies, so
+  none of them was ever in an installed GitTree. It now reports none.
+- **Vitest 4.1.12** (was 3.2.7): fixes the critical `tinypool` advisories, which Vitest 4 no
+  longer uses, and the `@vitest/mocker` ones.
+- **vsce 4.1.1** (was 3.9.2): no longer uses `glob`. It packages the same 48 files.
+- **typescript-eslint 8.72.2** (was 8.72.1).
+- Overrides force the fixed `minimatch` 11 under typescript-eslint and vsce, and the fixed
+  `serialize-javascript` 7.1.4 under mocha 10. Upstream does not ask for them yet; see
+  [docs/releasing.md](docs/releasing.md#dependency-security).
+- Development needs Node.js 22 or later (vsce 4); CI runs Node 24 (Node 20 is past its end
+  of life).
+- `npm run test:unit` starts Vitest through `scripts/vitest.mjs`. On Windows, Vitest 4 fails
+  every suite when started from a lower-case drive letter (`d:\…`); the launcher starts it
+  from `D:\…`.
+
 ### Added — choose how the log writes dates, IntelliJ's way included
 
 - **Presentation Settings ▸ Date Format** (the eye over the Commits list) chooses how the Date

@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - name: Lockfile provenance audit
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - name: Run integration tests (Linux)
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - name: Run perf benchmarks (Linux)
@@ -111,7 +111,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       # postpackage runs scripts/checkBundleSize.mjs (< 2.5 MB sans images).
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - name: vsce publish (pre-release)
@@ -151,7 +151,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - name: vsce publish (stable)

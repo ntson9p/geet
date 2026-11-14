@@ -2102,3 +2102,52 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration** (`systemDates.test.ts`, new): the real Region settings through the real `reg.exe`, patterns a page can write by.
 
 Gates: typecheck (all three tsconfigs) + repo-wide lint clean; extension and webviews built.
+
+POST-P14ch ✅ 2026-11-14 (branch `new-way-7`, from `new-way-6`): **Dependencies updated so that `npm audit` finds nothing.** The owner asked for a new branch and a careful update, since npm warned of vulnerabilities, critical ones included.
+
+**Before:** 14 vulnerabilities (2 critical, 1 high, 11 moderate), all in development tools. The extension has no npm runtime dependencies (`dependencies` is empty), so none of them was in an installed GitTree.
+
+| Package | Advisory | Patched | Reached through |
+| --- | --- | --- | --- |
+| `tinypool` (critical) | GHSA-5gmw-xhrv-c9v3, GHSA-85c8-ppgw-ccpr | 2.1.2 | vitest 3.2.7 |
+| `@vitest/mocker` | GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8 | 4.1.12 | vitest 3.2.7 |
+| `serialize-javascript` (high) | GHSA-5c6j-r48x-rmvq, GHSA-qj8w-gfj5-8c6v, GHSA-m5mm-p8h7-m29v | 7.1.3 | mocha 10.8.2 |
+| `minimatch` | GHSA-g3hv-75wg-m249 | 11.0.1 (no 10.x) | typescript-eslint 8.72.x, vsce 3.9.2 |
+| `glob` | GHSA-3g3m-2fjr-6pw4 | 14.0.2 | vsce 3.9.2 |
+
+**Choices** (each read from the registry, the advisories and the release notes, not taken from `npm audit fix --force`):
+- **Vitest 4.1.12, not 5.1.0.** 4.1.12 fixes both mocker advisories and has no `tinypool` (Vitest 4 rewrote its pools). It still takes Node 20 and `@types/node` 20, which match VS Code 1.96's runtime. Vitest 5 needs `@types/node` 22. Vitest 4's breaking changes were checked against the repository; none applies to a two-line config, `describe`/`it`/`expect`, plain `vi.fn()` and fake timers.
+- **Mocha stays 10.8.2, with `serialize-javascript` overridden to ^7.1.4 under it.**
+  - Every mocha before 12 asks for 6.x.
+  - Mocha 12 is ESM-only, so the CJS integration runner would `require()` it inside VS Code's extension host. It also asks for `glob` 13 and `minimatch` 10, both still vulnerable.
+  - Mocha 10 loads `serialize-javascript` only in parallel mode (`buffered-worker-pool.js`), which the runner does not use. 7.1.4 is CommonJS with the same `serialize(obj)`.
+- **vsce 4.1.1.**
+  - 4.0 replaced `glob` with `tinyglobby` and dropped `keytar` for `@napi-rs/keyring`, taking 157 packages out of the tree.
+  - Its Node baseline is 22; we run `vsce package --pre-release` only.
+  - It still asks for `minimatch` 10, so `minimatch` is overridden to ^11.0.1 under it.
+- **typescript-eslint 8.72.2** (latest) still asks for `minimatch` ^10.2.2: overridden to ^11.0.1 under `@typescript-eslint/typescript-estree`. ESLint's own `minimatch` 3.1.5 is outside the advisory and left alone, which is why the overrides are scoped and not global.
+- **CI on Node 24** (`ci.yml`, `release.yml`, 10 places): vsce 4 needs 22 or later, and Node 20 has been past its end of life since April. README says Node 22 or later.
+
+**Found on the way: two Windows drive-letter bugs.** VS Code and Git Bash here give the working directory as `d:\Code\gittree-vsix`.
+- **`npm list` crashes from a lower-case drive** ("Cannot read properties of null (reading 'edgesOut')", `lib/commands/ls.js:131`). It happens with or without these updates. The workspace link `node_modules/gittree-webview-ui` resolves to `D:\…`, and npm's tree then has a link without a target. From `D:\…` it works. `vsce ls` and `vsce package` run `npm list`, so they fail the same way. This is documented, not worked around.
+- **Vitest 4 loads two copies of itself from a lower-case drive** (vitest-dev/vitest#10692 and #11872 open; none of the fix PRs merged). Every suite then fails with "Vitest failed to find the current suite" or finds no tests. Vitest 3 had been fixed for this (#6779).
+  - Reproduced in a throwaway project on C:. Vitest 3.2.7 passed from `c:` and `C:`; 4.1.12 found no tests from `c:` and passed from `C:`.
+  - `npm run test:unit` now starts Vitest through `scripts/vitest.mjs`. It changes to the upper-case root (`upperDriveLetter`, `scripts/driveLetter.mjs`) and imports Vitest's entry from there, so every URL has one casing. The same project passed from `c:` through it.
+
+**After:** `npm audit` 0 vulnerabilities; `npm audit signatures` 413 packages verified, 89 with attestations.
+
+| Check | Result |
+| --- | --- |
+| `npm ls --all` (from `D:\`) | exit 0; the unmet ones are other platforms' optional binaries |
+| `npm ci --dry-run` | lockfile in sync |
+| Typecheck (root, webview, integration) + repo-wide lint | clean |
+| `node esbuild.mjs --production`, `npm run build:webviews` | built |
+| `vitest list` through the launcher, from `d:\` | 2,178 tests in 164 files collected (none run); plain `vitest list` from `d:\` failed, from `D:\` collected 2,176 in 163 |
+| `vsce ls` (4.1.1 against 3.9.2's list) | the same 48 files |
+| `vsce package --pre-release` into the scratchpad | 50 entries, 551 KB |
+| mocha 10.8.2 with `serialize-javascript` 7.1.4 | `new Mocha`, `addFile`, `run`, `grep` present; the parallel worker pool loads; `</script>` escaped |
+| Webview packages (Vite, React, Playwright) | unchanged in the lockfile |
+
+Docs: CHANGELOG (Security), docs/releasing.md (Dependency security: the overrides, when to drop each, the launcher, the `npm list` crash), README (Node 22 or later).
+
+Testing (written, **not run**, by the owner's standing instruction): `test/unit/scripts/driveLetter.test.ts` (new). No suite was run. The listing above collects the unit tests without running them; the unit, Playwright and integration suites remain to be run.

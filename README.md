@@ -124,6 +124,8 @@ a dirty worktree is refused with git's own reason.
 
 ## Development
 
+Node.js 22 or later (CI runs 24).
+
 ```sh
 npm install
 npm run watch             # esbuild watch → dist/extension.js  (F5 to debug)

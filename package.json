@@ -4198,7 +4198,7 @@
     "build:webviews": "npm run build -w webview-ui",
     "typecheck": "tsc --noEmit && tsc -p webview-ui/tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test:unit": "vitest run",
+    "test:unit": "node scripts/vitest.mjs run",
     "test:webview": "npm run test -w webview-ui",
     "check": "npm run typecheck && npm run lint && npm run test:unit",
     "pretest:integration": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
@@ -4214,12 +4214,23 @@
     "@types/node": "^20.17.0",
     "@types/vscode": "1.96.0",
     "@vscode/test-electron": "^2.4.1",
-    "@vscode/vsce": "^3.2.1",
+    "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.25.0",
     "eslint": "^9.20.0",
     "mocha": "^10.8.2",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.24.0",
-    "vitest": "^3.0.0"
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "mocha": {
+      "serialize-javascript": "^7.1.4"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    },
+    "@vscode/vsce": {
+      "minimatch": "^11.0.1"
+    }
   }
 }
