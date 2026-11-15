@@ -426,8 +426,12 @@ suite('P3 commit lifecycle', () => {
       assert.ok(def.files.includes('v-one.txt'), 'v-one.txt not in the default list');
       assert.ok(def.files.includes('nested/v-two.txt'), 'nested/v-two.txt not in the default list');
       assert.deepStrictEqual(service.getList(side.id)?.files, [], 'active list must not claim them');
-      // Ticked, the way a changelist file is.
-      assert.ok(service.isChecked('v-one.txt'));
+      // Unticked, as they were under Unversioned Files: a move keeps the tick
+      // (382bc9c), and the owner chose to keep it so for Add to VCS
+      // (2026-11-15, POST-P14cm) — versioning a file is not ticking it for the
+      // next commit. They used to arrive ticked.
+      assert.strictEqual(service.isChecked('v-one.txt'), false, 'v-one.txt keeps its untick');
+      assert.strictEqual(service.isChecked('nested/v-two.txt'), false, 'nested/v-two.txt keeps its untick');
     } finally {
       git('reset', '-q', '--', 'v-one.txt', 'nested/v-two.txt');
       fs.rmSync(path.join(repoRoot, 'v-one.txt'), { force: true });
