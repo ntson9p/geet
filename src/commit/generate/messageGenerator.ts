@@ -19,6 +19,7 @@ import type { Core, RepoHandle } from '../../core/core';
 import { canonicalKey } from '../../core/repoDiscovery';
 import { anyToken } from '../../core/util/cancellation';
 import { repoLabels } from '../../core/util/repoLabels';
+import { showInfo } from '../../ui/notices';
 import { writeSetting } from '../../ui/writeSetting';
 import type { ChangelistService } from '../changelists/changelistService';
 import { hasCommittableChanges, planCommit, resolveTarget } from '../commitFlow';
@@ -303,14 +304,15 @@ export class MessageGenerator {
     const nothing: GenerateResult = { kind: 'nothing' };
     // The button and the palette's entry are gone while either is off; a key
     // bound to the command, or another extension, can still ask.
+    // Plain notices, timed as GitTree's others are (`showInfo`).
     if (aiDisabledInVsCode()) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t('AI features are turned off in VS Code (chat.disableAIFeatures), so no commit message was written.'),
       );
       return nothing;
     }
     if (!generationEnabled()) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         vscode.l10n.t(
           'Generate Commit Message is turned off (gittree.commit.messageGeneration.enabled), so no commit message was written.',
         ),
@@ -330,7 +332,7 @@ export class MessageGenerator {
     }
     if (token.isCancellationRequested) return stopped;
     if (described.length === 0) {
-      void vscode.window.showInformationMessage(
+      showInfo(
         this.deps.paradigm.paradigm === 'staging'
           ? vscode.l10n.t('Nothing staged to write a commit message for.')
           : vscode.l10n.t('Nothing ticked to write a commit message for.'),
