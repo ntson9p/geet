@@ -15,6 +15,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { CancelToken, GitExecutor } from '../../core/git/executor';
+import { literalPathspecs } from '../../core/git/pathspec';
 import { chunked } from '../changelists/moveChoices';
 import { DEFAULT_DIFF_LIMITS, DiffReader, readNewFile, type ChangeDiff, type DiffLimits } from './changeDiff';
 
@@ -47,11 +48,13 @@ export class CollectCancelled extends Error {
 const slash = (p: string): string => p.replace(/\\/g, '/');
 
 /**
- * `--literal-pathspecs`: a ticked `[id].tsx` is that file, not a pattern.
- * `--no-ext-diff`: the text git writes, not a diff tool's window.
+ * `--no-ext-diff`: the text git writes, not a diff tool's window. The paths
+ * after `--` go as literal pathspecs, so a ticked `[id].tsx` is that file, not
+ * a pattern — through `literalPathspecs`, as every other git call GitTree
+ * makes (POST-P14ck), and not git's global `--literal-pathspecs`, which git
+ * hands on to whatever it runs.
  */
 const diffArgs = (rest: readonly string[]): string[] => [
-  '--literal-pathspecs',
   'diff',
   '--no-color',
   '--no-ext-diff',
@@ -140,7 +143,7 @@ async function collect(
 
   const untracked = new Set(request.untrackedPaths.map(slash));
   const tracked = request.wholePaths.map(slash).filter((p) => !untracked.has(p));
-  for (const slice of chunked(tracked)) await stream([base, '--', ...slice]);
+  for (const slice of chunked(tracked)) await stream([base, '--', ...literalPathspecs(slice)]);
 
   reader.mark({ partial: true });
   for (const partial of request.partials) {
@@ -177,7 +180,7 @@ async function collect(
     const covered = new Set([...tracked, ...untracked]);
     const others = names.stdout.split('\0').filter((p) => p.length > 0 && !covered.has(p));
     reader.mark({ amended: true });
-    for (const slice of chunked(others)) await stream([base, 'HEAD', '--', ...slice]);
+    for (const slice of chunked(others)) await stream([base, 'HEAD', '--', ...literalPathspecs(slice)]);
     reader.mark({});
   }
   return reader.finish();
