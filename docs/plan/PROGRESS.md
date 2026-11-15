@@ -2391,6 +2391,8 @@ POST-P14cm ✅ 2026-11-15 (run on `new-way-8`; test fixes on `new-way-7`, then o
 | **Load** | P7's stash view refreshed in 535–541 ms against a 500 ms bound | left alone |
 | **For the owner** | POST-P14v: since 382bc9c a file added with Add to VCS lands in the default list *unticked* (a move keeps the tick, and an unversioned file starts unticked); the test says ticked | not changed: IntelliJ's commit dialog includes added files (`ScheduleForAdditionAction`: `browser.viewer.includeChanges` for a `CommitDialogChangesBrowser`), elsewhere it does not |
 
-Confirmed by runs of the changed suites alone (fresh profile): sidebar sections 9 of 9; P3 all but POST-P14v; multi-root's POST-P14ce test. The run of the whole suite after these fixes was on `new-way-8`.
+Confirmed by runs of the changed suites alone (fresh profile): sidebar sections 9 of 9; P3 all but POST-P14v; multi-root's POST-P14ce test.
+
+**After the fixes, the whole suite again on `new-way-8`** (fresh profile): **429 passing, 6 failing, 1 pending**, 20 min. The six are the ones above, and nothing else: discovery ×4 (the home repository), POST-P14v (the owner's question) and P7's bound (694 ms). POST-P14ck's suite passed 2 of 2, Generate Commit Message's 10 of 10.
 
 Also seen: with a repository in the home folder, discovery adds it for any folder opened under the home folder, and runs status over the whole home folder; VS Code's own Git asks first (`git.openRepositoryInParentFolders`). A product question, not changed.
