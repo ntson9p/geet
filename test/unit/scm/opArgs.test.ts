@@ -385,4 +385,36 @@ describe('rollbackCommands', () => {
     expect(rollbackCommands(plan)).toEqual([]);
     expect(plan.deletePaths).toEqual(['u.txt']);
   });
+
+  it('POST-P14ck: names a path git would glob as that path alone, and shows it quoted', () => {
+    const plan = planRollback(
+      [
+        { path: '[id].tsx', kind: 'restore', origPath: 'old/[id].tsx' },
+        { path: 'a.txt', kind: 'restore' },
+        { path: '[n].txt', kind: 'added' },
+      ],
+      true,
+    );
+    expect(rollbackCommands(plan)).toEqual([
+      [
+        'restore',
+        '--source=HEAD',
+        '--staged',
+        '--worktree',
+        '--',
+        ':(literal)[id].tsx',
+        ':(literal)old/[id].tsx',
+        'a.txt',
+      ],
+      ['rm', '--cached', '-q', '--', ':(literal)[n].txt'],
+    ]);
+    // Pasted into a shell bare, `[id].tsx` would glob and `(` would not parse.
+    expect(rollbackCommands(plan).map((c) => formatGitCommand(c))).toEqual([
+      'git restore --source=HEAD --staged --worktree -- ":(literal)[id].tsx" ":(literal)old/[id].tsx" a.txt',
+      'git rm --cached -q -- ":(literal)[n].txt"',
+    ]);
+    // The plan itself keeps the names: the snapshot and the deletions use them.
+    expect(plan.restorePaths).toEqual(['[id].tsx', 'old/[id].tsx', 'a.txt']);
+    expect(plan.deletePaths).toEqual(['[n].txt']);
+  });
 });

@@ -20,6 +20,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { RepoHandle } from '../../core/core';
+import { literalPathspec, literalPathspecs } from '../../core/git/pathspec';
 
 export type CreatePatchSource =
   | { kind: 'commits'; shas: string[] }
@@ -127,11 +128,11 @@ async function createWorktreePatch(
       try {
         await git.exec(repo.root, ['read-tree', 'HEAD'], { env, token });
         if (wholePaths.length > 0) {
-          await git.exec(repo.root, ['add', '--', ...wholePaths], { env, token });
+          await git.exec(repo.root, ['add', '--', ...literalPathspecs(wholePaths)], { env, token });
         }
         for (const partial of partials) {
           const lsTree = (
-            await git.exec(repo.root, ['ls-tree', 'HEAD', '--', partial.relPath], {
+            await git.exec(repo.root, ['ls-tree', 'HEAD', '--', literalPathspec(partial.relPath)], {
               structured: true,
               token,
             })

@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import { writeSetting } from '../ui/writeSetting';
 import type { Core, RepoHandle } from '../core/core';
 import { parseDecorations } from '../core/git/parsers/logFormat';
+import { literalPathspec } from '../core/git/pathspec';
 import { canonicalKey } from '../core/repoDiscovery';
 import { repoRelative } from '../core/util/paths';
 import { repoLabels } from '../core/util/repoLabels';
@@ -1586,7 +1587,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       for (const uri of uris) {
         const rel = repoRelative(session.repo.root, uri.fsPath);
         if (rel === undefined) outside.push(path.basename(uri.fsPath));
-        else chosen.push(rel);
+        // A file or folder picked is that one (POST-P14ck); only what is typed
+        // under Enter path or glob… stays a pattern.
+        else chosen.push(literalPathspec(rel));
       }
       // A path outside the repository used to be dropped in silence, and if
       // every pick was outside the filter silently *widened* to unfiltered.
@@ -1654,7 +1657,10 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       return { ok: false };
     }
 
+    // The filter holds pathspecs: a node picked here went in as its literal
+    // pathspec (POST-P14ck), and one picked before that as its bare path.
     const current = new Set(session.filter.paths ?? []);
+    const isCurrent = (p: string): boolean => current.has(p) || current.has(literalPathspec(p));
     interface Item extends vscode.QuickPickItem {
       value: string;
     }
@@ -1667,7 +1673,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       label: `${indent.repeat(node.depth)}$(${node.kind === 'dir' ? 'folder' : 'file'}) ${node.name}`,
       description: node.depth > 0 ? node.path : undefined,
       value: node.path,
-      picked: current.has(node.path),
+      picked: isCurrent(node.path),
     }));
     const title =
       tree.mode === 'full'
@@ -1694,8 +1700,9 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
     const next: LogFilter = { ...session.filter };
     const paths = mergeTreeSelection(
       session.filter.paths ?? [],
-      tree.items.map((node) => node.path),
-      picked.map((p) => p.value),
+      // Either spelling of a node is the tree's own to keep or drop.
+      tree.items.flatMap((node) => [node.path, literalPathspec(node.path)]),
+      picked.map((p) => literalPathspec(p.value)),
     );
     if (paths.length === 0) delete next.paths;
     else next.paths = paths;

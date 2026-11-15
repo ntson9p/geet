@@ -9,6 +9,7 @@ import { filesCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
+import { literalPathspec, literalPathspecs } from '../core/git/pathspec';
 import { isRebasing } from '../core/model/inProgressOp';
 import {
   classifyConflict,
@@ -116,10 +117,14 @@ export class ConflictSession {
       snapshotLabel: SNAPSHOT_LABELS.rollback,
       snapshotPaths: paths.map((p) => vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), p).fsPath),
       run: async (git, token) => {
-        await git.exec(this.repo.root, ['checkout', gitSideFlag(side, this.reversed), '--', ...paths], {
-          token,
-        });
-        await git.exec(this.repo.root, ['add', '--', ...paths], { token });
+        // Literal pathspecs (POST-P14ck): as a pattern, accepting a side for
+        // `[id].tsx` also resolved a conflicted `i.tsx` the same way.
+        await git.exec(
+          this.repo.root,
+          ['checkout', gitSideFlag(side, this.reversed), '--', ...literalPathspecs(paths)],
+          { token },
+        );
+        await git.exec(this.repo.root, ['add', '--', ...literalPathspecs(paths)], { token });
       },
     });
     await this.repo.refresher.refreshNow();
@@ -136,14 +141,16 @@ export class ConflictSession {
       snapshotPaths: [vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), path).fsPath],
       run: async (git, token) => {
         if (keep === 'deleted') {
-          await git.exec(this.repo.root, ['rm', '--', path], { token });
+          await git.exec(this.repo.root, ['rm', '--', literalPathspec(path)], { token });
         } else {
           if (side !== undefined) {
-            await git.exec(this.repo.root, ['checkout', gitSideFlag(side, this.reversed), '--', path], {
-              token,
-            });
+            await git.exec(
+              this.repo.root,
+              ['checkout', gitSideFlag(side, this.reversed), '--', literalPathspec(path)],
+              { token },
+            );
           }
-          await git.exec(this.repo.root, ['add', '--', path], { token });
+          await git.exec(this.repo.root, ['add', '--', literalPathspec(path)], { token });
         }
       },
     });
@@ -157,7 +164,7 @@ export class ConflictSession {
       kind: 'mutate',
       bypassHold: true,
       run: async (git, token) => {
-        await git.exec(this.repo.root, ['add', '--', path], { token });
+        await git.exec(this.repo.root, ['add', '--', literalPathspec(path)], { token });
       },
     });
     await this.repo.refresher.refreshNow();

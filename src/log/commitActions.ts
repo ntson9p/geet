@@ -10,6 +10,7 @@ import { commitsCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
+import { literalPathspecs } from '../core/git/pathspec';
 import { readStaged, restoreStaged } from '../core/ops/keepStaged';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import { confirmModal } from '../ui/confirm';
@@ -230,6 +231,8 @@ export function registerCommitActions(
     const repo = repoOf();
     if (!repo || !Array.isArray(shas) || shas.length !== 2) return;
     const [upper, lower] = shas as [string, string];
+    // The filter's own pathspecs: what was typed stays a pattern, and a path
+    // picked or opened as a file's history was made literal when it was picked.
     const paths = logView.currentSession?.filter.paths ?? [];
     const result = await repo.queue.enqueue({
       label: vscode.l10n.t('Compare {0} with {1}', lower.slice(0, 7), upper.slice(0, 7)),
@@ -399,7 +402,7 @@ export function registerCommitActions(
       kind: 'mutate',
       run: async (git, token) => {
         const args = ['commit', `--${mode}=${sha}`];
-        if (paths.length > 0) args.push('--only', '--', ...paths);
+        if (paths.length > 0) args.push('--only', '--', ...literalPathspecs(paths));
         await git.exec(repo.root, args, { token });
       },
     });

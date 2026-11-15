@@ -124,4 +124,17 @@ describe('mergeTreeSelection', () => {
   it('never emits a duplicate', () => {
     expect(mergeTreeSelection(['src'], ['src'], ['src', 'src'])).toEqual(['src']);
   });
+
+  it("POST-P14ck: with both spellings of each row offered, a pick's older bare spelling gives way", () => {
+    // Select in Tree offers each row as itself and as its literal pathspec, and
+    // hands picks back literal: `app/[id]` picked before the fix, kept ticked,
+    // comes back as `:(literal)app/[id]`; a typed glob with no row stays.
+    expect(
+      mergeTreeSelection(
+        ['app/[id]', 'src/*.ts', 'docs'],
+        ['app/[id]', ':(literal)app/[id]', 'docs'],
+        [':(literal)app/[id]'],
+      ),
+    ).toEqual(['src/*.ts', ':(literal)app/[id]']);
+  });
 });

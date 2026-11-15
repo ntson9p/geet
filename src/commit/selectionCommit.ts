@@ -6,6 +6,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { CancelToken, GitExecutor } from '../core/git/executor';
+import { literalPathspecs } from '../core/git/pathspec';
 import { chunked } from './changelists/moveChoices';
 import { buildCommitArgs, type CommitOptions } from './commitArgs';
 
@@ -70,7 +71,7 @@ export async function commitSelection(
     // `git add <path>` also records deletions, so a ticked deleted file needs
     // no separate branch here. Sliced: a merge can tick thousands of files.
     for (const slice of chunked(wholeRelPaths)) {
-      await git.exec(root, ['add', '--', ...slice], { env, ...tok });
+      await git.exec(root, ['add', '--', ...literalPathspecs(slice)], { env, ...tok });
     }
     for (const partial of partials) {
       await git.exec(root, ['apply', '--cached', '--unidiff-zero', '-'], { env, stdin: partial.patch, ...tok });
@@ -82,6 +83,6 @@ export async function commitSelection(
   }
   // Real index ← new HEAD for exactly the paths we committed.
   for (const slice of chunked(committed)) {
-    await git.exec(root, ['reset', '-q', '--', ...slice], { allowNonZeroExit: true, ...tok });
+    await git.exec(root, ['reset', '-q', '--', ...literalPathspecs(slice)], { allowNonZeroExit: true, ...tok });
   }
 }

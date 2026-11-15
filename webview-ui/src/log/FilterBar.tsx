@@ -15,6 +15,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { pathOfPathspec } from '../../../src/core/git/pathspec';
 import type {
   LogBranchesDto,
   LogFilterDto,
@@ -730,13 +731,14 @@ export function FilterBar({
             {(filter.paths ?? []).length > 0 ? <div className="gt-filter-section">Paths</div> : null}
             {(filter.paths ?? []).map((p) => (
               <div key={p} className="gt-filter-pathrow">
-                <span className="gt-filter-checkrow-label" title={p}>
-                  {p}
+                {/* A picked path's `:(literal)` tells git it is a name; it is not shown. */}
+                <span className="gt-filter-checkrow-label" title={pathOfPathspec(p)}>
+                  {pathOfPathspec(p)}
                 </span>
                 <button
                   type="button"
                   className="gt-chip-clear"
-                  aria-label={`Remove ${p}`}
+                  aria-label={`Remove ${pathOfPathspec(p)}`}
                   onClick={() => {
                     const paths = (filter.paths ?? []).filter((x) => x !== p);
                     const next = { ...filter };

@@ -12,6 +12,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { buildCapabilities, parseGitVersion, type GitCapabilities } from './capabilities';
 import { makeGitError, GitError } from './errors';
+import { pathspecsForEnvironment } from './pathspec';
 
 /** Canonical absolute path of a repository root; opaque key for all services. */
 export type RepoId = string;
@@ -112,7 +113,17 @@ export class GitExecutorImpl implements GitExecutor {
     this.baseArgs = init.baseArgs ?? BASE_ARGS;
   }
 
-  private spawnGit(repo: RepoId, args: string[], o: ExecOpts): ChildProcessWithoutNullStreams {
+  /**
+   * Starts git; `argv` is what it was given after the base args — `args`,
+   * unless the environment reads every pathspec literally already, when the
+   * `:(literal)` prefixes come off (see `pathspecsForEnvironment`). The trace
+   * and any GitError name that argv: what ran, not what was asked for.
+   */
+  private spawnGit(
+    repo: RepoId,
+    args: string[],
+    o: ExecOpts,
+  ): { child: ChildProcessWithoutNullStreams; argv: string[] } {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ...this.baseEnv(),
@@ -121,11 +132,13 @@ export class GitExecutorImpl implements GitExecutor {
       ...(o.structured ? { LC_ALL: 'C' } : {}),
       ...o.env,
     };
-    return spawn(this.gitPath, [...this.baseArgs, ...args], {
+    const argv = [...pathspecsForEnvironment(args, env, process.platform)];
+    const child = spawn(this.gitPath, [...this.baseArgs, ...argv], {
       cwd: o.cwd ?? repo,
       env,
       windowsHide: true,
     });
+    return { child, argv };
   }
 
   private traceRun(
@@ -163,7 +176,7 @@ export class GitExecutorImpl implements GitExecutor {
       });
     }
     const startedAt = Date.now();
-    const child = this.spawnGit(repo, args, o);
+    const { child, argv } = this.spawnGit(repo, args, o);
     let cancelled = false;
     const tokenSub = o.token?.onCancellationRequested(() => {
       cancelled = true;
@@ -188,12 +201,12 @@ export class GitExecutorImpl implements GitExecutor {
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
         exitCode,
       };
-      this.traceRun(repo, args, startedAt, exitCode, cancelled ? 'cancelled' : '', {
+      this.traceRun(repo, argv, startedAt, exitCode, cancelled ? 'cancelled' : '', {
         stdout: result.stdout,
         stderr: result.stderr,
       });
       if (exitCode !== 0 && !o.allowNonZeroExit && !cancelled) {
-        throw makeGitError({ args, exitCode, stderr: result.stderr, stdout: result.stdout, cwd: repo });
+        throw makeGitError({ args: argv, exitCode, stderr: result.stderr, stdout: result.stdout, cwd: repo });
       }
       return result;
     } finally {
@@ -204,7 +217,7 @@ export class GitExecutorImpl implements GitExecutor {
   stream(repo: RepoId, args: string[], onLine: (l: string) => void, o: ExecOpts = {}): Cancellable {
     const startedAt = Date.now();
     const delimiter = o.delimiter ?? '\0';
-    const child = this.spawnGit(repo, args, o);
+    const { child, argv } = this.spawnGit(repo, args, o);
     let cancelled = false;
     const stderrChunks: Buffer[] = [];
     child.stderr.on('data', (c: Buffer) => stderrChunks.push(c));
@@ -243,12 +256,12 @@ export class GitExecutorImpl implements GitExecutor {
       }
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
       const code = exitCode ?? -1;
-      this.traceRun(repo, args, startedAt, code, cancelled ? 'cancelled (stream)' : 'stream', {
+      this.traceRun(repo, argv, startedAt, code, cancelled ? 'cancelled (stream)' : 'stream', {
         stdout: '',
         stderr,
       });
       if (code !== 0 && !cancelled && !o.allowNonZeroExit) {
-        rejectDone(makeGitError({ args, exitCode: code, stderr, stdout: '', cwd: repo }));
+        rejectDone(makeGitError({ args: argv, exitCode: code, stderr, stdout: '', cwd: repo }));
       } else {
         resolveDone({ stdout: '', stderr, exitCode: code });
       }

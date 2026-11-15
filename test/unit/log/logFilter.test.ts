@@ -124,6 +124,16 @@ describe('buildLogArgs', () => {
     expect(noFollow).not.toContain('--follow');
   });
 
+  it("POST-P14ck: hands git the filter's pathspecs as they are — a pick literal, a typed glob a glob", () => {
+    // File History and the pickers store `literalPathspec(path)`; what is typed
+    // under "path or glob" stays a pattern. Nothing is added here.
+    const a = args({ paths: [':(literal)app/[id]/page.tsx', 'src/**/*.ts', '[typed].ts'], follow: false });
+    expect(a.slice(a.indexOf('--') + 1)).toEqual([':(literal)app/[id]/page.tsx', 'src/**/*.ts', '[typed].ts']);
+    const history = args({ paths: [':(literal)[id].tsx'], follow: true });
+    expect(history).toContain('--follow');
+    expect(history.slice(history.indexOf('--') + 1)).toEqual([':(literal)[id].tsx']);
+  });
+
   it('intersecting filter combines every kind', () => {
     const a = args({
       refs: ['main'],

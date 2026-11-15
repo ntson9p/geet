@@ -225,6 +225,18 @@ describe('setting local changes aside (POST-P14ac)', () => {
     expect(buildReattachArgs(['a'])).toEqual(['add', '-N', '--', 'a']);
   });
 
+  it('POST-P14ck: sets aside a new file git would glob as that file alone', () => {
+    expect(buildDetachArgs(['[n].txt', 'b'])).toEqual(['rm', '--cached', '-q', '--', ':(literal)[n].txt', 'b']);
+    expect(buildReattachArgs(['[n].txt'])).toEqual(['add', '-N', '--', ':(literal)[n].txt']);
+    const aside = { autostash: false, detach: ['app/[id]/new.ts'] };
+    expect(buildUpdatePlan('update', 'merge', 'origin/main', 'origin', aside)).toEqual([
+      ['fetch', '--prune', 'origin'],
+      ['rm', '--cached', '-q', '--', ':(literal)app/[id]/new.ts'],
+      ['merge', 'origin/main'],
+      ['add', '-N', '--', ':(literal)app/[id]/new.ts'],
+    ]);
+  });
+
   it('never sets anything aside around a reset, whose whole job is to discard it', () => {
     const aside = { autostash: true, detach: ['src/new.ts'] };
     expect(buildUpdatePlan('reset', 'merge', 'origin/main', 'origin', aside)).toEqual([

@@ -2286,3 +2286,61 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration** (`generateMessage.test.ts`, 10 tests): the real commands and settings with a stand-in model through `MessageGenerator.setModelSource`.
 
 The expected values of the unit tests were taken from the functions' printed output, not worked out by hand alone: two worked out by hand were wrong, and the print caught them.
+
+POST-P14ck ✅ 2026-11-15 (branch `new-way-7`, then onto `new-way-8`): **A path whose name looks like a pattern is handed to git as that name.** POST-P14cj found that a ticked `[id].tsx` also committed a changed `i.tsx` beside it. The owner asked for a careful fix on `new-way-7`, the code investigated there first, then the fix brought to `new-way-8`.
+
+**The cause.** Git reads every path after `--` as a pathspec: a pattern, matched literally first and then as a glob. `[id].tsx` is also the class `[id]`, so it names `i.tsx` and `d.tsx` too; `*`, `?` and `\` glob as well, and a leading `:` opens pathspec magic. GitTree passed ticked and picked paths bare everywhere.
+
+**What it did, run against git 2.55 with `[id].tsx` beside changed `i.tsx` and `d.tsx`** (`scratchpad/lit/probe1.sh`, `probe2.sh`):
+
+| Operation | As a pattern |
+| --- | --- |
+| Commit (`commit --only`), Fixup/Squash, the scratch-index commit | committed all three |
+| A new `[new].tsx` (`add -N`, then `commit --only`) | also committed an untracked `n.tsx` |
+| Rollback (`restore --source=HEAD`) | **threw away `i.tsx`'s and `d.tsx`'s changes**, which the Local History snapshot did not cover: it names the ticked files |
+| Delete Untracked Files (`clean`) of an untracked `[x].txt` | **deleted an untracked `x.txt`** |
+| Keep the deletion of a conflicted file (`git rm`) | **deleted `i.tsx` and `d.tsx` from disk** |
+| Accept Yours/Theirs (`checkout --theirs`, `add`) | resolved a conflicted `i.tsx` the same way |
+| Stage, Unstage, Add to VCS, Update Project's detach and reattach | took the other files too |
+| Stash and Shelve of chosen files, Create Patch, Unshelve | took the other files too |
+| File History (`log --follow`), the log's picked paths, Compare Versions | listed the other files' commits |
+| Add to .gitignore's folder check (`ls-files app/[x]`) | matched a tracked file `app/x` |
+| `ls-tree` | already literal |
+| `blame` | already literal: it takes the file's name, and **fails** with a `:(literal)` prefix |
+
+**The fix: `:(literal)` on each path that needs it** (`src/core/git/pathspec.ts`):
+- `literalPathspec(s)` prefixes a path holding git's glob characters (`*?[\`, its `is_glob_special`) or starting with `:`. Every other path, and so every other command line and Console row, is as it was.
+- **Not git's global `--literal-pathspecs`.** Git exports it to everything it starts as `GIT_LITERAL_PATHSPECS=1`. In a probe, a pre-commit hook's `git diff --cached -- '*.tsx'` then matched none of five staged files. Magit's FAQ documents the same; Emacs's vc-git set the variable, broke hooks, and went back to the prefix (bug#39452). With the prefix, the hook saw no variable and matched as always.
+- **A user's own `GIT_LITERAL_PATHSPECS`** turns magic off too: git then reads `:(literal)` as part of the name and fails ("did not match any file"). The executor takes the prefix off again, only after `--`, when that variable is on as git reads booleans (`gitBoolean`, checked against git). On Windows it finds the variable in any case. The Console and any GitError name the argv that ran.
+- Applied at every call site that hands git paths: 43 of the 65 `'--'` in `src`. The other 22 are no pathspecs: branch and tag names, refs, URLs, a clone's directory, the end of a revision list, blame's file name, and the log filter's own pathspecs.
+- **The log's Paths filter holds pathspecs.** What is typed under *path or glob* stays a pattern, as that box promises. File History, Browse… and Select in Tree… store `literalPathspec(path)`, and Select in Tree… still knows a pick of either spelling. The tab title, the chip and the dropdown's rows show the name without the prefix (`pathOfPathspec`). Compare Versions passes the filter's pathspecs on as they are.
+- The Rollback dialog ran its two commands from a copy of `rollbackCommands`; it runs that function now.
+- The dialogs' *will run* line also quotes `()[]*?` (`formatGitCommand`). Pasted bare into bash, `[id].tsx` became `i.tsx d.tsx`, and `:(literal)` does not parse.
+
+**Verified, not run as tests:**
+- Ad-hoc drivers against real git (`scratchpad/lit/check2.ts`) ran each argv GitTree builds, through its own builders and `ShelfStore` with a real queue. Each touched `[id].tsx` alone, and the unit tests' expected values are those printed results.
+- `check1.ts`, `check3.ts` and `check4.ts` printed the pure functions' outputs and the executor's wiring. One expectation worked out by hand was wrong (the compact chip shortens past 20 characters); the print caught it.
+- The guard test's own logic run over `src`: no unexplained `--`, no stale allowance.
+- **In a real VS Code 1.144.0 window** (`scratchpad/lit/drive.cjs`, Playwright over CDP, the real extension), 2 of 6 changed files ticked: `[id].tsx` and `pages/api/auth/[...nextauth].ts`, beside `i.tsx`, `d.tsx`, `a.ts` and `x.ts`. The same drive against `new-way-7` before the fix (a `git archive` export, built apart) is the control:
+
+| Through the real UI | Before the fix | After |
+| --- | --- | --- |
+| Commit | **all six committed** | the two ticked |
+| Roll Back… on `[id].tsx`'s row | **`i.tsx`'s and `d.tsx`'s own changes thrown away** | `[id].tsx` alone |
+| Show File History of `[id].tsx` | `i.tsx`'s commit listed | its own commits; the tab reads `History: [id].tsx`, the chip `Paths: [id].tsx` |
+| Checks passed | 4 of 8 | **8 of 8** |
+
+Gates: typecheck (root, webview, integration) clean; lint of every touched file clean; extension and webviews built.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit, new:**
+  - `test/unit/core/git/pathspec.test.ts` (16): the helper, `pathOfPathspec`, `gitBoolean`, and the prefix coming off with the variable on.
+  - `literalPathspecs.test.ts`: 28 real-git cases with a 60 s timeout each. The commit (whole, deleted, new, Fixup, scratch index), Stage, Unstage before and after the first commit, Add to VCS, Rollback, Delete Untracked Files, Stash, Update Project, Accept Theirs, `git rm`, File History beside a typed pattern, Compare Versions, ls-tree, ls-files, blame, the variable, a hook, and both kinds of Shelve.
+  - `pathspecCallSites.test.ts` (4): every `'--'` in `src` is followed by the helper or by an allowance with its reason; no allowance is stale; no `--literal-pathspecs` in code.
+- **Unit, added to:** `executor.test.ts` (exec, stream and GitError under the variable), `checks.test.ts` (`buildCommitArgs`), `opArgs.test.ts` (`rollbackCommands` and its *will run* line), `t4Args.test.ts` (stash), `updateArgs.test.ts` (detach, reattach and the plan), `pushArgs.test.ts` (`formatGitCommand`), `logFilter.test.ts`, `pathTree.test.ts`, `logTabsModel.test.ts` and `filterChips.test.ts`.
+- **Integration**, `literalPathspecs.test.ts` on repoC: a changelist commit and a Rollback of `p14ck/[id].tsx` through the real commands. It puts HEAD back (soft), removes its files and its changelist.
+
+Found on the way, left alone:
+- `src/log/logView.ts` has three mojibake labels: `Custom rangeâ€¦`, `$(folder) Browseâ€¦` and `$(edit) Enter path or globâ€¦` (UTF-8 `…` read as Windows-1252 and saved back). The Date ▾ and Paths ▾ pickers show them so.
+- IntelliJ hands git the paths bare too (`GitFileUtils.executeForPaths`: chunked arguments or `--pathspec-from-file`, neither literal), so it likely has the same behaviour. Read in its source, not tried.
+- The Rollback dialog runs one command for every file it lists, without the 200-path slices the row's Roll Back… uses; a long list may outgrow Windows' command line. Not tried.

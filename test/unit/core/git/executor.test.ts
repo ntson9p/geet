@@ -185,6 +185,64 @@ describe('GitExecutorImpl.stream', () => {
   });
 });
 
+/**
+ * POST-P14ck: with `GIT_LITERAL_PATHSPECS` on, git reads `:(literal)` as part
+ * of the name, so the executor takes the prefix off after `--` — and the
+ * Console, and any error, name the argv that ran. Node stands in for git: it
+ * consumes the `--` itself and prints what followed it.
+ */
+describe('GitExecutorImpl and GIT_LITERAL_PATHSPECS', () => {
+  const echo = 'process.stdout.write(JSON.stringify(process.argv.slice(1)))';
+  const args = ['-e', echo, '--', ':(literal)[id].tsx', 'a.ts'];
+
+  function traced(runs: (readonly string[])[]): GitExecutorImpl {
+    return new GitExecutorImpl({
+      gitPath: process.execPath,
+      version: '2.43.0',
+      baseArgs: [],
+      onDidRun: (run) => runs.push(run.argv),
+    });
+  }
+
+  it('passes a literal pathspec on as it was given', async () => {
+    const runs: (readonly string[])[] = [];
+    const r = await traced(runs).exec(CWD, args);
+    expect(JSON.parse(r.stdout)).toEqual([':(literal)[id].tsx', 'a.ts']);
+    expect(runs).toEqual([args]);
+  });
+
+  it('takes the prefix off when the environment makes every pathspec literal', async () => {
+    const runs: (readonly string[])[] = [];
+    const r = await traced(runs).exec(CWD, args, { env: { GIT_LITERAL_PATHSPECS: '1' } });
+    expect(JSON.parse(r.stdout)).toEqual(['[id].tsx', 'a.ts']);
+    expect(runs).toEqual([['-e', echo, '--', '[id].tsx', 'a.ts']]);
+  });
+
+  it('does the same for a stream', async () => {
+    const runs: (readonly string[])[] = [];
+    const frames: string[] = [];
+    const h = traced(runs).stream(CWD, args, (l) => frames.push(l), {
+      env: { GIT_LITERAL_PATHSPECS: 'true' },
+      delimiter: '\n',
+    });
+    await h.done;
+    expect(frames.map((f) => JSON.parse(f) as string[])).toEqual([['[id].tsx', 'a.ts']]);
+    expect(runs).toEqual([['-e', echo, '--', '[id].tsx', 'a.ts']]);
+  });
+
+  it('names the argv that ran in a GitError', async () => {
+    const failing = ['-e', 'process.exit(1)', '--', ':(literal)[id].tsx'];
+    const err = await nodeExecutor()
+      .exec(CWD, failing, { env: { GIT_LITERAL_PATHSPECS: '1' } })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    expect(err).toBeInstanceOf(GitError);
+    expect((err as GitError).details.args).toEqual(['-e', 'process.exit(1)', '--', '[id].tsx']);
+  });
+});
+
 describe('resolveGitCandidates', () => {
   it('orders the setting first, then PATH, then well-known locations', () => {
     // P14-T5 removed the built-in `git.path` fallback that used to sit between

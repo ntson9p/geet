@@ -17,6 +17,7 @@ import type {
   LogFilterDto,
   LogRootDto,
 } from '../../../src/shared/protocol';
+import { pathOfPathspec } from '../../../src/core/git/pathspec';
 import { formatFilterDay } from './dateFormat';
 import { shortRef } from './logTabsModel';
 
@@ -114,7 +115,8 @@ export function dateChip(
 
 /**
  * `Paths ▾`. It names the repository on show only when there is another to
- * choose, then the paths: in full as picked, compact by their last part.
+ * choose, then the paths: in full as picked, compact by their last part. A
+ * picked path's `:(literal)` is how git is told it is a name; it is not shown.
  */
 export function pathsChip(
   f: LogFilterDto,
@@ -123,7 +125,7 @@ export function pathsChip(
   currentRoot: string,
 ): ChipText {
   const root = roots.length > 1 ? roots.find((r) => r.root === currentRoot)?.label : undefined;
-  const paths = f.paths ?? [];
+  const paths = (f.paths ?? []).map(pathOfPathspec);
   const parts = root !== undefined ? [root, ...paths] : paths;
   if (parts.length === 0) return NONE;
   const full = parts.join(', ');

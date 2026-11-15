@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { filesCount } from '../ui/counts';
 import type { Core, RepoHandle } from '../core/core';
+import { literalPathspecs } from '../core/git/pathspec';
 import { isStaged, isUnstaged, isUntracked } from '../core/model/statusEntry';
 import { canonicalKey } from '../core/repoDiscovery';
 import { confirmModal } from '../ui/confirm';
@@ -561,7 +562,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       kind: 'mutate',
       run: async (git, token) => {
         for (const slice of chunked(relPaths)) {
-          await git.exec(repo.root, ['add', '-N', '--', ...slice], { token });
+          await git.exec(repo.root, ['add', '-N', '--', ...literalPathspecs(slice)], { token });
         }
       },
     });

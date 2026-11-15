@@ -28,6 +28,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
+import { literalPathspecs } from '../core/git/pathspec';
 import { splitPatchFiles, type PatchFileSection } from '../core/patch/patchParser';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import type { ConflictSource } from '../merge/conflictSession';
@@ -125,7 +126,7 @@ export class UnshelveEngine {
             if (opts.unstageAfterApply === true && relPaths.length > 0) {
               // Changelists bypass the index — return the files to plain
               // worktree modifications the lists can own (P5-T3 precedent).
-              await git.exec(this.repo.root, ['reset', '-q', '--', ...relPaths], { token });
+              await git.exec(this.repo.root, ['reset', '-q', '--', ...literalPathspecs(relPaths)], { token });
             }
           };
           const clean = await git.exec(this.repo.root, ['apply', '--index', tmp], {

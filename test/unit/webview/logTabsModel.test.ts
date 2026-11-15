@@ -42,6 +42,16 @@ describe('tabTitle (IntelliJ titles a Log tab by what it shows)', () => {
     ).toBe('History: strings.ts');
   });
 
+  it("POST-P14ck: names a file by its own name, not the `:(literal)` git is told it with", () => {
+    expect(tabTitle({ sort: 'topo', refs: 'HEAD', paths: [':(literal)[id].tsx'], follow: true })).toBe(
+      'History: [id].tsx',
+    );
+    expect(tabTitle({ sort: 'topo', refs: 'HEAD', paths: [':(literal)app/[locale]/page.tsx'], follow: true })).toBe(
+      'History: page.tsx',
+    );
+    expect(tabTitle({ sort: 'date', paths: [':(literal)[id].tsx', 'src/**/*.ts'] })).toBe('Log: [id].tsx, *.ts');
+  });
+
   it("reads one filter bare, in IntelliJ's words for its value", () => {
     expect(tabTitle({ sort: 'date', authors: ['Ava Tran', 'Ben Okafor'] })).toBe('Log: Ava Tran, Ben Okafor');
     expect(tabTitle({ sort: 'date', dateRange: { from: '2026-10-01' } })).toBe('Log: since 2026-10-01');

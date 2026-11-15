@@ -7,6 +7,7 @@
  * `[x] Delete local copies of added files` is a real switch there: untick it and
  * a newly added file is unstaged but stays on disk.
  */
+import { literalPathspecs } from '../../core/git/pathspec';
 
 /** How rollback must treat one file — derived from its status, not its name. */
 export type RollbackKind =
@@ -81,14 +82,18 @@ export function isEmptyRollbackPlan(plan: RollbackPlan): boolean {
   );
 }
 
-/** The dim "will run" line: rollback's several commands, in order. */
+/**
+ * Rollback's several commands, in order: what the host runs and the dim "will
+ * run" line shows. The paths go as literal pathspecs (POST-P14ck): rolling
+ * back `[id].tsx` as a pattern also threw away a changed `i.tsx`'s changes.
+ */
 export function rollbackCommands(plan: RollbackPlan): string[][] {
   const out: string[][] = [];
   if (plan.restorePaths.length > 0) {
-    out.push(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...plan.restorePaths]);
+    out.push(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...literalPathspecs(plan.restorePaths)]);
   }
   if (plan.unstagePaths.length > 0) {
-    out.push(['rm', '--cached', '-q', '--', ...plan.unstagePaths]);
+    out.push(['rm', '--cached', '-q', '--', ...literalPathspecs(plan.unstagePaths)]);
   }
   return out;
 }

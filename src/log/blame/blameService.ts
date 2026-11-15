@@ -117,6 +117,8 @@ export class BlameService {
     const runs: BlameRun[] = [];
     const args = ['blame', '--incremental'];
     if (isDirty) args.push('--contents', '-');
+    // The file's own name, not a pathspec: blame reads `[id].tsx` literally,
+    // and would take a `:(literal)` prefix for part of the name (POST-P14ck).
     args.push('--', rel);
 
     try {

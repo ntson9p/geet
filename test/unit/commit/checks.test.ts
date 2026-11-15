@@ -60,6 +60,32 @@ describe('buildCommitArgs', () => {
     ]);
   });
 
+  it('POST-P14ck: --only names a path git would glob as that path alone', () => {
+    expect(
+      buildCommitArgs('only', 'msg', { amend: false, sign: false }, ['a.ts', '[id].tsx', 'app/[locale]/page.tsx']),
+    ).toEqual([
+      'commit',
+      '-m',
+      'msg',
+      '--only',
+      '--',
+      'a.ts',
+      ':(literal)[id].tsx',
+      ':(literal)app/[locale]/page.tsx',
+    ]);
+  });
+
+  it('POST-P14ck: a message that looks like a pathspec is left as written', () => {
+    expect(buildCommitArgs('only', ':(literal)[x]', { amend: false, sign: false }, ['[x]'])).toEqual([
+      'commit',
+      '-m',
+      ':(literal)[x]',
+      '--only',
+      '--',
+      ':(literal)[x]',
+    ]);
+  });
+
   it('amend without message uses --no-edit', () => {
     expect(buildCommitArgs('staged', '', { amend: true, sign: false })).toEqual([
       'commit',

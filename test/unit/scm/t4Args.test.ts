@@ -136,6 +136,19 @@ describe('buildStashPushArgs', () => {
   it('can stash tracked changes only', () => {
     expect(stash({ includeUntracked: false })).toEqual(['stash', 'push']);
   });
+
+  it('POST-P14ck: names a path git would glob as that path alone', () => {
+    expect(stash({ message: ':(literal)wip', paths: ['[id].tsx', 'b.txt'] })).toEqual([
+      'stash',
+      'push',
+      '--include-untracked',
+      '-m',
+      ':(literal)wip',
+      '--',
+      ':(literal)[id].tsx',
+      'b.txt',
+    ]);
+  });
 });
 
 describe('validateStashPushOptions', () => {

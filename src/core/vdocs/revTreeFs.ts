@@ -17,6 +17,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core';
+import { literalPathspec } from '../git/pathspec';
 import { canonicalKey } from '../repoDiscovery';
 
 export const REV_TREE_SCHEME = 'gittree-tree';
@@ -86,7 +87,9 @@ export class RevTreeFs implements vscode.FileSystemProvider {
   }
 
   private async lsTree(repo: RepoHandle, rev: string, rel: string): Promise<LsTreeEntry[]> {
-    const spec = rel.length === 0 ? [] : ['--', rel.endsWith('/') ? rel : `${rel}/`];
+    // ls-tree reads names without globbing already; the prefix still keeps a
+    // name that starts with `:` from opening pathspec magic.
+    const spec = rel.length === 0 ? [] : ['--', literalPathspec(rel.endsWith('/') ? rel : `${rel}/`)];
     const result = await repo.queue.enqueue({
       label: `ls-tree ${rev.slice(0, 7)}`,
       kind: 'read',
@@ -119,7 +122,7 @@ export class RevTreeFs implements vscode.FileSystemProvider {
       label: `stat ${parsed.rev.slice(0, 7)}:${parsed.rel}`,
       kind: 'read',
       run: (git, token) =>
-        git.exec(repo.root, ['ls-tree', '-z', '--long', parsed.rev, '--', parsed.rel], {
+        git.exec(repo.root, ['ls-tree', '-z', '--long', parsed.rev, '--', literalPathspec(parsed.rel)], {
           structured: true,
           noOptionalLocks: true,
           allowNonZeroExit: true,

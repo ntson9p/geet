@@ -25,6 +25,7 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { literalPathspec, literalPathspecs } from '../core/git/pathspec';
 import type { OperationQueue } from '../core/ops/operationQueue';
 import { splitPatchFiles } from '../core/patch/patchParser';
 import { Emitter, type Disposable, type Event } from '../core/util/events';
@@ -62,7 +63,10 @@ export interface ShelfMeta {
 export interface ShelveOptions {
   name: string;
   comment?: string;
-  /** Repo-relative pathspec subset; default = every dirty file. */
+  /**
+   * Repo-relative paths to shelve, each read as the name it is (POST-P14ck);
+   * default = every dirty file.
+   */
   paths?: readonly string[];
   /** IntelliJ shelve default: revert the shelved changes from the worktree. */
   removeFromWorktree?: boolean;
@@ -355,14 +359,14 @@ export class ShelfStore implements Disposable {
         try {
           await git.exec(repoRoot, ['read-tree', 'HEAD'], { env, token });
           if (opts.wholePaths.length > 0) {
-            await git.exec(repoRoot, ['add', '--', ...opts.wholePaths], { env, token });
+            await git.exec(repoRoot, ['add', '--', ...literalPathspecs(opts.wholePaths)], { env, token });
           }
           for (const partial of opts.partials) {
             // Partial inclusion needs both sides, so the path exists in HEAD —
             // take its mode from there (100644/100755). Plain ls-tree output:
             // `<mode> blob <oid>\t<path>` — no --format, which needs git 2.36.
             const lsTree = (
-              await git.exec(repoRoot, ['ls-tree', 'HEAD', '--', partial.relPath], {
+              await git.exec(repoRoot, ['ls-tree', 'HEAD', '--', literalPathspec(partial.relPath)], {
                 structured: true,
                 token,
               })
@@ -483,12 +487,12 @@ export class ShelfStore implements Disposable {
         if (restorable.length > 0) {
           await git.exec(
             repoRoot,
-            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...restorable],
+            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...literalPathspecs(restorable)],
             { token },
           );
         }
         if (added.length > 0) {
-          await git.exec(repoRoot, ['reset', '-q', '--', ...added], {
+          await git.exec(repoRoot, ['reset', '-q', '--', ...literalPathspecs(added)], {
             allowNonZeroExit: true,
             token,
           });
@@ -508,7 +512,7 @@ export class ShelfStore implements Disposable {
           // changelists paradigm reads staged and unstaged alike.
           await git.exec(
             repoRoot,
-            ['add', '--', ...opts.partials.map((p) => p.relPath)],
+            ['add', '--', ...literalPathspecs(opts.partials.map((p) => p.relPath))],
             { allowNonZeroExit: true, token },
           );
         }
@@ -536,7 +540,8 @@ export class ShelfStore implements Disposable {
       .toString('hex')}`;
     const dir = this.entryDir(id);
     const patchFile = this.patchPath(id);
-    const pathspec = opts.paths !== undefined && opts.paths.length > 0 ? ['--', ...opts.paths] : [];
+    const pathspec =
+      opts.paths !== undefined && opts.paths.length > 0 ? ['--', ...literalPathspecs(opts.paths)] : [];
     const { repoRoot } = this.deps;
 
     const result = await this.deps.queue.enqueue<ShelveResult>({
@@ -568,7 +573,9 @@ export class ShelfStore implements Disposable {
         // 2/3. Temporary intent-to-add so untracked content joins the diff;
         // the finally leg restores the index no matter what fails in between.
         let files: ShelfFileMeta[];
-        if (untracked.length > 0) await git.exec(repoRoot, ['add', '-N', '--', ...untracked], { token });
+        if (untracked.length > 0) {
+          await git.exec(repoRoot, ['add', '-N', '--', ...literalPathspecs(untracked)], { token });
+        }
         try {
           const names = await git.exec(
             repoRoot,
@@ -599,7 +606,7 @@ export class ShelfStore implements Disposable {
         } finally {
           if (untracked.length > 0) {
             try {
-              await git.exec(repoRoot, ['reset', '-q', '--', ...untracked], { token });
+              await git.exec(repoRoot, ['reset', '-q', '--', ...literalPathspecs(untracked)], { token });
             } catch (err) {
               this.trace(`shelve: index restore (reset -N undo) failed: ${String(err)}`);
             }
@@ -655,13 +662,13 @@ export class ShelfStore implements Disposable {
         if (restorable.length > 0) {
           await git.exec(
             repoRoot,
-            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...restorable],
+            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...literalPathspecs(restorable)],
             { token },
           );
         }
         if (added.length > 0) {
           // Not in HEAD: unstage (no-op for untracked), then delete the file.
-          await git.exec(repoRoot, ['reset', '-q', '--', ...added], {
+          await git.exec(repoRoot, ['reset', '-q', '--', ...literalPathspecs(added)], {
             allowNonZeroExit: true,
             token,
           });

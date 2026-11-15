@@ -8,6 +8,7 @@
  */
 import * as vscode from 'vscode';
 import type { Core } from '../core/core';
+import { literalPathspec } from '../core/git/pathspec';
 import { repoRelative } from '../core/util/paths';
 import type { LogViewProvider } from './logView';
 
@@ -33,7 +34,12 @@ export function registerFileHistory(
       // off): with every branch, a commit on another branch read as the
       // file's newest change on this one (POST-QA). The tab's Branch filter
       // widens it.
-      await logView.openTab({ sort: 'topo', refs: 'HEAD', paths: [rel], follow: true }, repo.root);
+      // The file's own name (POST-P14ck): as a pattern, `[id].tsx`'s history
+      // also showed every commit to an `i.tsx` beside it, --follow or not.
+      await logView.openTab(
+        { sort: 'topo', refs: 'HEAD', paths: [literalPathspec(rel)], follow: true },
+        repo.root,
+      );
     }),
   );
 }

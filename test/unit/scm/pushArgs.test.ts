@@ -152,4 +152,18 @@ describe('formatGitCommand', () => {
       'git push origin "my branch:refs/heads/my branch"',
     );
   });
+
+  it('POST-P14ck: quotes what a shell would glob or group with', () => {
+    // Bare, a shell turned `[id].tsx` into `i.tsx d.tsx`; `(` does not parse.
+    expect(formatGitCommand(['add', '--', '[id].tsx', ':(literal)[id].tsx', 'a*b', 'what?'])).toBe(
+      'git add -- "[id].tsx" ":(literal)[id].tsx" "a*b" "what?"',
+    );
+    expect(formatGitCommand(['push', 'origin', 'refs/heads/*:refs/heads/*'])).toBe(
+      'git push origin "refs/heads/*:refs/heads/*"',
+    );
+    // Everything else stays bare.
+    expect(formatGitCommand(['stash', 'apply', 'stash@{0}', '--', 'src/a.ts'])).toBe(
+      'git stash apply stash@{0} -- src/a.ts',
+    );
+  });
 });

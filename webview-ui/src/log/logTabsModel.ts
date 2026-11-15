@@ -4,6 +4,7 @@
  * a `×`, and a `+` after the last (`Open Another Log Tab`). Pure, so titles and
  * the close rules are testable without a page.
  */
+import { pathOfPathspec } from '../../../src/core/git/pathspec';
 import type { LogFilterDto, LogTabDto } from '../../../src/shared/protocol';
 
 /** The main Log tab's id, which is also what the strip has always called the log. */
@@ -25,7 +26,9 @@ export function comparedRefs(filter: LogFilterDto): { readonly a: string; readon
   return range === undefined || (SHA_RE.test(range.a) && SHA_RE.test(range.b)) ? undefined : range;
 }
 
-function basename(path: string): string {
+/** A path filter's last name, without the `:(literal)` a picked one carries. */
+function basename(spec: string): string {
+  const path = pathOfPathspec(spec);
   const parts = path.split('/').filter((p) => p.length > 0);
   return parts[parts.length - 1] ?? path;
 }

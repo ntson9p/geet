@@ -3,6 +3,7 @@
  * (POST-QA F5). vscode-free, so it is unit-tested against real git.
  */
 import type { CancelToken, GitExecutor } from '../../core/git/executor';
+import { literalPathspecs } from '../../core/git/pathspec';
 import { chunked } from '../changelists/moveChoices';
 
 const opt = (token: CancelToken | undefined): { token?: CancelToken } => (token ? { token } : {});
@@ -18,7 +19,7 @@ export async function stageFiles(
   token?: CancelToken,
 ): Promise<void> {
   for (const slice of chunked(paths)) {
-    await git.exec(root, ['add', '-A', '--', ...slice], opt(token));
+    await git.exec(root, ['add', '-A', '--', ...literalPathspecs(slice)], opt(token));
   }
 }
 
@@ -40,9 +41,13 @@ export async function unstageFiles(
   });
   for (const slice of chunked(paths)) {
     if (head.exitCode === 0) {
-      await git.exec(root, ['reset', '-q', 'HEAD', '--', ...slice], opt(token));
+      await git.exec(root, ['reset', '-q', 'HEAD', '--', ...literalPathspecs(slice)], opt(token));
     } else {
-      await git.exec(root, ['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...slice], opt(token));
+      await git.exec(
+        root,
+        ['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...literalPathspecs(slice)],
+        opt(token),
+      );
     }
   }
 }

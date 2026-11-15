@@ -6,6 +6,24 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — a file whose name looks like a pattern no longer takes others with it
+
+- **A ticked `[id].tsx` is committed alone.** Git reads the paths it is given as patterns, and
+  `[id].tsx` also matches `i.tsx` and `d.tsx`: changed files of those names were committed with
+  it. Names with `[`, `*`, `?` or `\` in them, or starting with `:` — Next.js routes such as
+  `app/[locale]/page.tsx` and `[...nextauth].ts` — now go to git as names (`:(literal)…`).
+- **Nothing is lost beside such a file any more.** Rolling back `[id].tsx` threw away the
+  changes of `i.tsx` and `d.tsx`; Delete Untracked Files on an untracked `[x].txt` also deleted
+  an untracked `x.txt`; keeping the deletion of a conflicted `[id].tsx` deleted `i.tsx` and
+  `d.tsx` from disk; accepting a side for it resolved a conflicted `i.tsx` the same way.
+- The same holds wherever GitTree hands git paths: Stage and Unstage, Add to VCS, Stash and
+  Shelve of chosen files, Create Patch, Unshelve, Update Project setting new files aside, File
+  History, and the files and folders picked for the log's Paths filter. A path typed there as a
+  pattern stays one.
+- Hooks are not affected: a pre-commit hook's own `git diff -- '*.ts'` matches as it always did.
+- The dialogs' *will run* line quotes such names, so a copy pasted into a shell runs the same
+  command.
+
 ### Added — Generate Commit Message, written by a language model VS Code has
 
 - **Generate Commit Message**: the ✨ in the corner of the Commit window's message box, and

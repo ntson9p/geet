@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { filesCount, untrackedFilesCount } from '../ui/counts';
 import { notifySuccess } from '../ui/notify';
 import type { Core, RepoHandle } from '../core/core';
+import { literalPathspec, literalPathspecs } from '../core/git/pathspec';
 import { noConflictsLeft, type StatusEntry } from '../core/model/statusEntry';
 import { repoRelative } from '../core/util/paths';
 import { diffTitle, makeRevUri } from '../core/vdocs/revContentProvider';
@@ -102,7 +103,7 @@ async function tracksNothingIn(repo: RepoHandle, folder: string): Promise<boolea
       label: vscode.l10n.t('Look for tracked files in {0}', folder),
       kind: 'read',
       run: (git, token) =>
-        git.exec(repo.root, ['ls-files', '-z', '--', folder], {
+        git.exec(repo.root, ['ls-files', '-z', '--', literalPathspec(folder)], {
           noOptionalLocks: true,
           allowNonZeroExit: true,
           token,
@@ -210,7 +211,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     await runGit(
       sel.repo,
       vscode.l10n.t('Stage {0}', filesCount(sel.entries.length)),
-      ['add', '-A', '--', ...sel.entries.map((e) => e.path)],
+      ['add', '-A', '--', ...literalPathspecs(sel.entries.map((e) => e.path))],
       undefined,
       noConflictsLeft(sel.repo.model.snapshot.statusEntries),
     );
@@ -225,13 +226,15 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       kind: 'mutate',
       bypassHold: noConflictsLeft(sel.repo.model.snapshot.statusEntries),
       run: async (git, token) => {
-        const r = await git.exec(sel.repo.root, ['restore', '--staged', '--', ...paths], {
+        const r = await git.exec(sel.repo.root, ['restore', '--staged', '--', ...literalPathspecs(paths)], {
           token,
           allowNonZeroExit: true,
         });
         if (r.exitCode !== 0) {
           // Unborn HEAD: restore --staged needs a commit; rm --cached doesn't.
-          await git.exec(sel.repo.root, ['rm', '--cached', '-r', '-q', '--', ...paths], { token });
+          await git.exec(sel.repo.root, ['rm', '--cached', '-r', '-q', '--', ...literalPathspecs(paths)], {
+            token,
+          });
         }
       },
     });
@@ -350,9 +353,11 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
       run: async (git, token) => {
         // Sliced: one git call per 200 paths stays under Windows' command-line limit.
         for (const slice of chunked(tracked.map((e) => e.path))) {
-          await git.exec(sel.repo.root, ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...slice], {
-            token,
-          });
+          await git.exec(
+            sel.repo.root,
+            ['restore', '--source=HEAD', '--worktree', '--staged', '--', ...literalPathspecs(slice)],
+            { token },
+          );
         }
         for (const e of untracked) {
           await vscode.workspace.fs.delete(vscode.Uri.file(path.join(sel.repo.root, e.path)), {
@@ -393,7 +398,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
         // POST-QA: sliced, as Rollback's restore is — every untracked path in
         // one argv outgrew Windows' command line on a big tree.
         for (const slice of chunked(untracked.map((e) => e.path))) {
-          await git.exec(repo.root, ['clean', '-f', '-q', '--', ...slice], { token });
+          await git.exec(repo.root, ['clean', '-f', '-q', '--', ...literalPathspecs(slice)], { token });
         }
       },
     });

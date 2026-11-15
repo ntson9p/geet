@@ -1,8 +1,9 @@
 /**
  * Stash / Unstash argv (P13-T4), vscode-free so the option matrix is
- * unit-testable. `StashService.push` builds through the same function, so the
- * dialog's preview and the P7 QuickPick path cannot diverge.
+ * unit-testable. The dialog's preview and its run build through the same
+ * function; the P7 QuickPick path (`StashService.push`) has its own.
  */
+import { literalPathspecs } from '../../core/git/pathspec';
 
 export interface StashPushArgsOptions {
   readonly message: string;
@@ -50,7 +51,7 @@ export function buildStashPushArgs(o: StashPushArgsOptions): string[] {
   }
   if (o.keepIndex && !o.staged) args.push('--keep-index');
   if (o.message.trim().length > 0) args.push('-m', o.message.trim());
-  if (o.paths.length > 0) args.push('--', ...o.paths);
+  if (o.paths.length > 0) args.push('--', ...literalPathspecs(o.paths));
   return args;
 }
 

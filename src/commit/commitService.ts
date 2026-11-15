@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { GitError } from '../core/git/errors';
+import { literalPathspecs } from '../core/git/pathspec';
 import { Emitter, type Event } from '../core/util/events';
 import { confirmModal } from '../ui/confirm';
 import { buildCommitArgs, type CommitOptions } from './commitArgs';
@@ -131,7 +132,7 @@ export class CommitService {
       run: async (git, token) => {
         if (untrackedRelPaths.length > 0) {
           // Intent-to-add so --only can see brand-new files.
-          await git.exec(repo.root, ['add', '-N', '--', ...untrackedRelPaths], { token });
+          await git.exec(repo.root, ['add', '-N', '--', ...literalPathspecs(untrackedRelPaths)], { token });
         }
         try {
           await git.exec(repo.root, buildCommitArgs('only', message, options, relPaths), { token });
@@ -143,7 +144,7 @@ export class CommitService {
             untrackedRelPaths.length > 0 &&
             /intent to add|ita entries|not possible because you have unmerged|pathspec/.test(err.stderr)
           ) {
-            await git.exec(repo.root, ['add', '--', ...untrackedRelPaths], { token });
+            await git.exec(repo.root, ['add', '--', ...literalPathspecs(untrackedRelPaths)], { token });
             await git.exec(repo.root, buildCommitArgs('only', message, options, relPaths), { token });
           } else {
             throw err;

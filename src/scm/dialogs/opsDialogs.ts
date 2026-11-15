@@ -39,6 +39,7 @@ import { buildResetArgs, RESET_DEFAULT_REF, resetNeedsConfirm, resetNeedsSnapsho
 import {
   isEmptyRollbackPlan,
   planRollback,
+  rollbackCommands,
   rollbackKindOf,
   type RollbackFile,
 } from './rollbackPlan';
@@ -369,13 +370,9 @@ export async function applyRollbackResult(
     return { ok: false, message: vscode.l10n.t('Nothing selected to roll back.'), commands: [] };
   }
 
-  const commands: string[][] = [];
-  if (plan.restorePaths.length > 0) {
-    commands.push(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...plan.restorePaths]);
-  }
-  if (plan.unstagePaths.length > 0) {
-    commands.push(['rm', '--cached', '-q', '--', ...plan.unstagePaths]);
-  }
+  // The very commands the dialog's "will run" line showed — one builder, so
+  // the two cannot drift apart (they were written out twice until POST-P14ck).
+  const commands = rollbackCommands(plan);
 
   try {
     await repo.queue.enqueue({

@@ -107,6 +107,17 @@ describe('the chips, compact (the default, D39)', () => {
       full: 'local, src/main/ui.ts, docs/',
     });
   });
+
+  it("POST-P14ck: Paths shows a picked file by its name, not the `:(literal)` git is told it with", () => {
+    const f: LogFilterDto = { ...base, paths: [':(literal)app/[id]/page.tsx', ':(literal)[id].tsx'] };
+    expect(pathsChip(f, 'compact', ROOTS.slice(0, 1), '/w/local')).toEqual({
+      value: 'page.tsx|[id].tsx',
+      full: 'app/[id]/page.tsx, [id].tsx',
+    });
+    // A typed pattern is shown as it was typed.
+    const typed: LogFilterDto = { ...base, paths: [':(literal)[id].tsx', 'src/*.ts'] };
+    expect(pathsChip(typed, 'full', ROOTS.slice(0, 1), '/w/local').value).toBe('[id].tsx, src/*.ts');
+  });
 });
 
 describe('the chips, full (the look before, `gittree.log.filterChips: full`)', () => {

@@ -2,7 +2,11 @@
  * Pure commit argv assembly (P3-T5; vscode-free for unit tests).
  * P11-T5 adds the author override (`--author=`) and sign-off (`-s`) — both
  * optional so every pre-P11 call site keeps meaning exactly what it said.
+ * POST-P14ck: `--only`'s paths go as literal pathspecs — a ticked `[id].tsx`
+ * also committed a changed `i.tsx` (see core/git/pathspec).
  */
+import { literalPathspecs } from '../core/git/pathspec';
+
 export interface CommitOptions {
   amend: boolean;
   /** GPG-sign (`-S`) — distinct from `signoff`. */
@@ -32,6 +36,6 @@ export function buildCommitArgs(
     args.push('--no-edit');
   }
   if (mode === 'all') args.push('--all');
-  if (mode === 'only') args.push('--only', '--', ...paths);
+  if (mode === 'only') args.push('--only', '--', ...literalPathspecs(paths));
   return args;
 }

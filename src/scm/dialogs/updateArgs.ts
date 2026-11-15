@@ -16,6 +16,7 @@
  */
 
 import type { StatusEntry } from '../../core/git/parsers/statusV2';
+import { literalPathspecs } from '../../core/git/pathspec';
 import { formatGitCommands } from './commandLine';
 
 export type UpdateStrategy = 'merge' | 'rebase';
@@ -139,12 +140,12 @@ export function planSetAside(
 
 /** Out of the index, left on disk: an intent-to-add entry becomes untracked. */
 export function buildDetachArgs(paths: readonly string[]): string[] {
-  return ['rm', '--cached', '-q', '--', ...paths];
+  return ['rm', '--cached', '-q', '--', ...literalPathspecs(paths)];
 }
 
 /** Back to intent-to-add, exactly what `Add to VCS` made them. */
 export function buildReattachArgs(paths: readonly string[]): string[] {
-  return ['add', '-N', '--', ...paths];
+  return ['add', '-N', '--', ...literalPathspecs(paths)];
 }
 
 /**

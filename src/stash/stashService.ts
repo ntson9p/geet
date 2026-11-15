@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../core/core';
 import type { StashInfo } from '../core/git/parsers/stashList';
+import { literalPathspecs } from '../core/git/pathspec';
 import { SNAPSHOT_LABELS } from '../localHistory/hooks';
 import type { ConflictSource } from '../merge/conflictSession';
 
@@ -62,7 +63,7 @@ export class StashService {
       args.push('--include-untracked');
     }
     if (opts.message !== undefined && opts.message.length > 0) args.push('-m', opts.message);
-    if (opts.paths !== undefined && opts.paths.length > 0) args.push('--', ...opts.paths);
+    if (opts.paths !== undefined && opts.paths.length > 0) args.push('--', ...literalPathspecs(opts.paths));
     await this.repo.queue.enqueue({
       label: vscode.l10n.t('Stash changes'),
       kind: 'mutate',

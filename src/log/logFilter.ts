@@ -12,6 +12,11 @@ export interface LogFilter {
   /** OR within; intersects with the other filter kinds (git semantics). */
   authors?: string[];
   dateRange?: { from?: string; to?: string };
+  /**
+   * Repository-relative pathspecs: as typed (a glob stays a glob), or a picked
+   * file's `literalPathspec` — a name like `[id].tsx` carries `:(literal)`.
+   * Shown without it (`pathOfPathspec`).
+   */
   paths?: string[];
   text?: { q: string; regex: boolean; matchCase: boolean };
   sort: 'topo' | 'date' | 'intelli';
@@ -227,6 +232,9 @@ export function buildLogArgs(
     args.push('--follow');
   }
   if (f.paths && f.paths.length > 0) {
+    // Pathspecs as the filter holds them: what was typed as "path or glob"
+    // stays a pattern, and a file opened or picked was made literal where it
+    // was picked (`literalPathspec`, POST-P14ck) — so nothing is added here.
     args.push('--', ...f.paths);
   }
   return args;
