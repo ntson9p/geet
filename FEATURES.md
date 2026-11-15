@@ -760,8 +760,10 @@ The `⚙` beside the action buttons opens the §2A popup inside the window:
   *Show Push dialog for Commit and Push*, on by default (`gittree.push.showDialogForCommitAndPush`)
   — for exactly the repositories it committed: one dialog when the commit spans several, and
   nothing pushed until you press Push. The commit window does not wait on the dialog, so it is
-  ready for the next commit while the dialog is open. Off, it pushes straight away, through the
-  same Push Rejected handling as every push.
+  ready for the next commit while the dialog is open. Off — or with the Push dialog off
+  altogether (`gittree.push.showDialog`, POST-P14cn) — it pushes straight away what the dialog
+  would have pushed, publishing a branch that tracks nothing, through the same Push Rejected
+  handling as every push.
 * **Multi-root commit (IntelliJ's behaviour):** the tree spans every repository, so `Commit`
   commits *every* repository that has something ticked — one message, one commit each, run in
   order and stopped at the first refusal with a report of what already landed. The button says
@@ -1269,6 +1271,16 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   a branch common to several repositories opens one dialog for all of them), the log's
   `Push All up to Here…` (that commit and everything before it, from the branch it is on) and
   `Commit and Push…`. Nothing is pushed until you press Push.
+  - **Or none of them does** (POST-P14cn, D49): `Don't show this dialog again` in its footer
+    (`gittree.push.showDialog`) makes every one of those push straight away what the dialog
+    would have pushed had Push been pressed the moment it opened: the repositories it would
+    tick, each to the target it would show, tags as last chosen, hooks run. A branch that tracks
+    nothing is published (a new branch of its name, tracked from then on). A rejected push still
+    asks Merge or Rebase, and the report is the same. The dialog still opens when a push cannot
+    go ahead without it, with *Shown because …* at its top: a repository with no remote or no
+    commits, a commit on no branch, several repositories and nothing to say which. There the box
+    is ticked; untick it and push to have the dialog back. It is kept on Push and Force Push,
+    never on Cancel.
   - **Left, the push log:** a row per repository, `feature → origin : feature`, the source
     plain and the remote and branch as links, a green **`New`** when the remote has no such
     branch yet. Under it the outgoing commits, subject only, twenty at first and a `...` that
@@ -1300,7 +1312,8 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
     The details toggle, grouping and splitters are remembered, as IntelliJ's are.
   - **Footer:** `? · [ ] Push tags: [All | Current Branch]` (remembered) ·
     `[x] Run Git hooks`, shown only when a repository has a pre-push hook and ticked every
-    time. Then `[Push ▾] [Cancel]`, with **Force Push** in the split.
+    time · `[ ] Don't show this dialog again`. Then `[Push ▾] [Cancel]`, with **Force Push** in
+    the split. In a narrow editor the options wrap and the buttons stay in view.
   - **Force Push** (`--force-with-lease`, P5) asks first, in IntelliJ's words: *You're going to
     force push to 'feature'. It may overwrite commits at the remote. Are you sure you want to
     proceed?*, with `Don't warn about this target`. It is not offered for a protected branch.

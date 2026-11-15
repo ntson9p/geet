@@ -8,7 +8,8 @@
  * `window.__gtPushScenario`, set by an init script registered before this
  * one, picks the dialog: `single` (default), `multi` (two repositories),
  * `noRemote`, `protected` (the target is `main`), `hooks` (a pre-push hook
- * exists), `many` (45 commits).
+ * exists), `many` (45 commits), `needed` (POST-P14cn: `gittree.push.showDialog`
+ * is off, and a Push of two repositories with neither named opened it).
  *
  * `pushDialog/retarget` recomputes host-side in the real thing; here it
  * returns a commit list that visibly differs for a new branch, which proves
@@ -60,7 +61,7 @@ export const mockPushDialogHostScript = `
   };
 
   let repos = [demo];
-  if (scenario === 'multi') {
+  if (scenario === 'multi' || scenario === 'needed') {
     repos = [
       demo,
       {
@@ -77,6 +78,8 @@ export const mockPushDialogHostScript = `
         checked: false,
       },
     ];
+    // Nothing said which repository to push, so neither is ticked.
+    if (scenario === 'needed') repos = repos.map((r) => ({ ...r, checked: false }));
   } else if (scenario === 'noRemote') {
     repos = [{ ...demo, remotes: [], target: undefined, defaultTarget: undefined, sourceTracks: false, commits: [], remoteBranches: [], recentTargets: [] }];
     delete repos[0].target;
@@ -102,6 +105,10 @@ export const mockPushDialogHostScript = `
     silentForceTargets: [],
     ui: { showDetails: true, groupByDirectory: true, treeRatio: 0.5, detailsRatio: 0.67 },
     colors: {},
+    dontShowAgain: scenario === 'needed',
+    ...(scenario === 'needed'
+      ? { openedBecause: 'Shown because nothing said which repository to push: tick the ones to push.' }
+      : {}),
   };
 
   const clone = (v) => JSON.parse(JSON.stringify(v));

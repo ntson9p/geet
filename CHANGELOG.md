@@ -6,6 +6,33 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — push without the Push dialog
+
+- **Don't show this dialog again**, in the Push dialog's footer, turns the dialog off
+  (`gittree.push.showDialog`). From then on every Push pushes straight away: Push… (Ctrl+Shift+K),
+  a branch's Push…, Push All up to Here… and Commit and Push.
+- **It pushes what the dialog would have pushed** had you pressed Push the moment it opened: the
+  repositories it would tick, each to the target it would show, with Push tags as you last left
+  it and the Git hooks run. A branch that tracks nothing is published: pushed to a new branch of
+  its name, which it then tracks. A push the remote turns away still asks Merge or Rebase, and
+  every push is reported as before.
+- **The dialog still opens when a push cannot go ahead without it**, and says why at its top: a
+  repository with no remote (define one there), or with no commits yet; a commit on no branch
+  (say which branch it goes to); several repositories and nothing to say which. There the box is
+  ticked: untick it and push to have the dialog for every push again, or turn
+  `gittree.push.showDialog` back on in the settings.
+- The box is kept only when you press Push (or Force Push), never on Cancel, as IntelliJ keeps its
+  own.
+
+### Changed — Commit and Push without the dialog pushes as the dialog would
+
+With *Show Push dialog for Commit and Push* off (`gittree.push.showDialogForCommitAndPush`),
+Commit and Push… now pushes what the dialog would have pushed, as a Push without the dialog does.
+A branch with no upstream is published without asking (it used to ask *Publish it?*, and then
+always to `origin`), and a remote's push spec (`remote.<name>.push`) is followed, as the dialog
+follows it. A commit spanning several repositories is pushed in one go, with one report. That
+setting counts only while `gittree.push.showDialog` is on.
+
 ### Fixed — the Amend row in a narrow sidebar, and two smaller things
 
 - **The Commit window's Amend row fits a narrow sidebar.** Under about 255 px it ran past the

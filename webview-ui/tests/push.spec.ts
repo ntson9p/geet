@@ -16,7 +16,7 @@ interface PostedMsg {
   params?: Record<string, unknown>;
 }
 
-type Scenario = 'single' | 'multi' | 'noRemote' | 'protected' | 'hooks' | 'many';
+type Scenario = 'single' | 'multi' | 'noRemote' | 'protected' | 'hooks' | 'many' | 'needed';
 
 async function openPush(page: Page, scenario: Scenario = 'single'): Promise<void> {
   await page.addInitScript((s) => {
@@ -164,6 +164,7 @@ test.describe('push dialog — what runs', () => {
       tags: 'all',
       runHooks: true,
       force: false,
+      dontShowAgain: false,
     });
   });
 
@@ -366,6 +367,98 @@ test.describe('push dialog — several repositories', () => {
           .sort(),
       )
       .toEqual(['D:/repos/demo-git', 'D:/repos/lib-utils']);
+  });
+});
+
+/**
+ * POST-P14cn: the owner asked for a way to push without this dialog. The
+ * footer's checkbox is `gittree.push.showDialog`, ticked when that is off; the
+ * host writes it when Push is pressed, as IntelliJ keeps its own checkbox.
+ */
+test.describe('push dialog — Don’t show this dialog again', () => {
+  const dontShow = (page: Page) => page.getByTestId('push-dont-show');
+
+  test('sits in the footer unticked, says what it does, and is posted with Push', async ({ page }) => {
+    await openPush(page);
+    await expect(dontShow(page)).not.toBeChecked();
+    const label = page.locator('label', { has: dontShow(page) });
+    await expect(label).toHaveText("Don't show this dialog again");
+    await expect(label).toHaveAttribute('title', /push pushes straight away.*gittree\.push\.showDialog/isu);
+    // The dialog that opened for every Push says nothing about why.
+    await expect(page.getByTestId('push-opened-because')).toHaveCount(0);
+
+    await dontShow(page).check();
+    // Nothing else changes: the same push runs.
+    await expect(page.getByTestId('push-command')).toContainText(
+      'git push origin refs/heads/feature/x:refs/heads/feature/x',
+    );
+    await pushButton(page).click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    const accepted = acceptOf(await posted(page))!;
+    expect(accepted['dontShowAgain']).toBe(true);
+    expect(accepted['force']).toBe(false);
+  });
+
+  test('ticked, then Cancel, posts no accept at all', async ({ page }) => {
+    await openPush(page);
+    await dontShow(page).check();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect.poll(async () => (await posted(page)).some((m) => m.method === 'dialog/cancel')).toBe(true);
+    expect(acceptOf(await posted(page))).toBeUndefined();
+  });
+
+  test('goes with Force Push too', async ({ page }) => {
+    await openPush(page);
+    await dontShow(page).check();
+    await page.getByRole('button', { name: 'Push options' }).click();
+    await page.getByRole('menuitem', { name: 'Force Push' }).click();
+    await page.getByTestId('push-force-confirm-accept').click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    const accepted = acceptOf(await posted(page))!;
+    expect([accepted['force'], accepted['dontShowAgain']]).toEqual([true, true]);
+  });
+
+  test('opened for a Push that was to go straight away: says why, ticked; unticked, Push turns the dialog back on', async ({ page }) => {
+    await openPush(page, 'needed');
+    await expect(page.getByTestId('push-opened-because')).toHaveText(
+      'Shown because nothing said which repository to push: tick the ones to push.',
+    );
+    await expect(page.getByTestId('push-opened-because')).toHaveAttribute('role', 'note');
+    await expect(dontShow(page)).toBeChecked();
+    // Nothing is ticked, so nothing can be pushed until one is.
+    await expect(page.getByTestId('push-repo-demo-git')).not.toBeChecked();
+    await expect(pushButton(page)).toBeDisabled();
+    await page.getByTestId('push-repo-demo-git').check();
+    await expect(pushButton(page)).toBeEnabled();
+
+    await dontShow(page).uncheck();
+    await pushButton(page).click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    const accepted = acceptOf(await posted(page))!;
+    expect(accepted['dontShowAgain']).toBe(false);
+    expect((accepted['repos'] as Array<{ root: string }>).map((r) => r.root)).toEqual(['D:/repos/demo-git']);
+  });
+
+  test('left ticked, Push keeps pushing without the dialog', async ({ page }) => {
+    await openPush(page, 'needed');
+    await page.getByTestId('push-repo-lib-utils').check();
+    await pushButton(page).click();
+    await expect.poll(async () => acceptOf(await posted(page))).toBeTruthy();
+    expect(acceptOf(await posted(page))!['dontShowAgain']).toBe(true);
+  });
+
+  test('in a narrow editor the options wrap, and Push and Cancel stay in the window', async ({ page }) => {
+    await page.setViewportSize({ width: 460, height: 640 });
+    await openPush(page, 'hooks');
+    for (const button of [pushButton(page), page.getByRole('button', { name: 'Cancel' })]) {
+      const box = await button.boundingBox();
+      expect(box, 'the button is laid out').not.toBeNull();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(460);
+    }
+    const box = await dontShow(page).boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(460);
+    await expect(dontShow(page)).toBeInViewport();
   });
 });
 

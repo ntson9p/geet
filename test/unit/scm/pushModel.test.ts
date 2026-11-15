@@ -10,6 +10,7 @@ import {
   outgoingRange,
   pushDialogTitle,
   pushRefspec,
+  pushWithoutDialog,
   remembersTarget,
   revisionSource,
   RECENT_PUSH_TARGETS_LIMIT,
@@ -21,6 +22,7 @@ import {
   typedTarget,
   uniqueDetachedName,
   upstreamCheckboxBase,
+  type PushRowFacts,
   type PushTargetSpec,
   type RecentPushTarget,
   type TargetContext,
@@ -325,5 +327,130 @@ describe('the dialog', () => {
     expect(initiallyChecked('/b', { single: false, preselected: asked, current: '/b' })).toBe(false);
     expect(initiallyChecked('/b', { single: false, preselected: new Set(), current: '/b' })).toBe(true);
     expect(initiallyChecked('/c', { single: false, preselected: new Set(), current: '/b' })).toBe(false);
+  });
+});
+
+/**
+ * POST-P14cn: with `gittree.push.showDialog` off, a Push posts what the dialog
+ * would post had Push been pressed the moment it opened, and opens the dialog
+ * instead only when that push cannot go ahead (IntelliJ's
+ * `GitPushAfterCommitDialog.shouldShow`: `!canPush`).
+ */
+describe('a Push without the dialog', () => {
+  const tracking = (remote: string, branch: string): PushTargetSpec => ({
+    remote,
+    branch,
+    isNew: false,
+    type: 'tracking',
+  });
+  const row = (over: Partial<PushRowFacts> = {}): PushRowFacts => ({
+    root: '/repos/app',
+    label: 'app',
+    source: branchSource('main'),
+    target: tracking('origin', 'main'),
+    checked: true,
+    ...over,
+  });
+
+  it('pushes each row to the target it opens with, with the footer as it opens', () => {
+    expect(pushWithoutDialog([row()], 'none')).toEqual({
+      kind: 'push',
+      result: {
+        repos: [
+          {
+            root: '/repos/app',
+            source: { kind: 'branch', presentation: 'main', revision: 'refs/heads/main', branch: 'main' },
+            target: { remote: 'origin', branch: 'main' },
+            setUpstream: false,
+          },
+        ],
+        tags: 'none',
+        runHooks: true,
+        force: false,
+      },
+    });
+  });
+
+  it('keeps the tag mode the last push used', () => {
+    for (const tags of ['all', 'follow'] as const) {
+      const plan = pushWithoutDialog([row()], tags);
+      expect(plan.kind === 'push' ? plan.result.tags : undefined).toBe(tags);
+    }
+  });
+
+  it('publishes a branch that tracks nothing: a new branch of its name, as the dialog offers', () => {
+    const source = branchSource('feature/x');
+    const target = defaultPushTarget(source, ctx())!;
+    expect(target).toEqual({ remote: 'origin', branch: 'feature/x', isNew: true, type: 'tracking' });
+    const plan = pushWithoutDialog([row({ source, target })], 'none');
+    expect(plan.kind).toBe('push');
+    if (plan.kind !== 'push') return;
+    expect(plan.result.repos[0]!.target).toEqual({ remote: 'origin', branch: 'feature/x' });
+    // `Set upstream` is the dialog's checkbox, and stays unticked: the new
+    // branch becomes the upstream on IntelliJ's own rule.
+    expect(plan.result.repos[0]!.setUpstream).toBe(false);
+    expect(setsUpstream(source, target, false, false)).toBe(true);
+  });
+
+  it('pushes a commit on a branch to that branch’s target: Push All up to Here', () => {
+    const source = revisionSource(SHA, 'main');
+    const plan = pushWithoutDialog([row({ source })], 'none');
+    expect(plan.kind).toBe('push');
+    if (plan.kind !== 'push') return;
+    expect(plan.result.repos[0]!.source).toEqual(source);
+    expect(pushRefspec(source, tracking('origin', 'main'))).toBe(`${SHA}:refs/heads/main`);
+  });
+
+  it('pushes several repositories in the order given', () => {
+    const plan = pushWithoutDialog(
+      [row({ root: '/repos/api', label: 'api' }), row({ root: '/repos/web', label: 'web', target: tracking('upstream', 'dev') })],
+      'none',
+    );
+    expect(plan.kind === 'push' ? plan.result.repos.map((r) => [r.root, r.target]) : []).toEqual([
+      ['/repos/api', { remote: 'origin', branch: 'main' }],
+      ['/repos/web', { remote: 'upstream', branch: 'dev' }],
+    ]);
+  });
+
+  it('opens the dialog when nothing says which repository to push', () => {
+    expect(pushWithoutDialog([], 'none')).toEqual({ kind: 'dialog', need: { kind: 'nothingChosen' } });
+  });
+
+  it('opens the dialog for an empty repository, one with no remote, and a commit on no branch', () => {
+    expect(pushWithoutDialog([row({ error: 'Empty repository' })], 'none')).toEqual({
+      kind: 'dialog',
+      need: { kind: 'emptyRepository', repo: 'app' },
+    });
+    const { target: _none, ...noTarget } = row();
+    expect(pushWithoutDialog([noTarget], 'none')).toEqual({
+      kind: 'dialog',
+      need: { kind: 'noRemote', repo: 'app' },
+    });
+    // A detached HEAD's default target is a made-up `detached` branch.
+    const detached = revisionSource(SHA);
+    expect(detached.kind).toBe('detached');
+    expect(
+      pushWithoutDialog([row({ source: detached, target: { remote: 'origin', branch: 'detached', isNew: true, type: 'tracking' } })], 'none'),
+    ).toEqual({ kind: 'dialog', need: { kind: 'noBranch', repo: 'app', commit: shortHash(SHA) } });
+  });
+
+  it('opens the dialog for a repository whose commits could not be listed: the dialog would leave it unticked', () => {
+    expect(pushWithoutDialog([row({ checked: false })], 'none')).toEqual({
+      kind: 'dialog',
+      need: { kind: 'commitsUnlisted', repo: 'app' },
+    });
+  });
+
+  it('pushes nothing when any repository asked for cannot be pushed, and names the first', () => {
+    const { target: _none, ...noTarget } = row({ root: '/repos/web', label: 'web' });
+    expect(
+      pushWithoutDialog([row({ root: '/repos/api', label: 'api' }), noTarget, row({ label: 'z', error: 'Empty repository' })], 'none'),
+    ).toEqual({ kind: 'dialog', need: { kind: 'noRemote', repo: 'web' } });
+  });
+
+  it('pushes to a protected branch as the dialog’s Push does: only Force Push is refused there', () => {
+    const plan = pushWithoutDialog([row({ target: tracking('origin', 'main') })], 'none');
+    expect(isBranchProtected('main', ['master', 'main'])).toBe(true);
+    expect(plan.kind === 'push' ? plan.result.force : undefined).toBe(false);
   });
 });

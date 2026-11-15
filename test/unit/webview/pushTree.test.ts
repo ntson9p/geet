@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pushWithoutDialog } from '../../../src/scm/dialogs/pushModel';
 import type { PushCommitDto, PushRepoDto } from '../../../src/shared/protocol';
 import {
   buildRows,
@@ -135,6 +136,42 @@ describe('pushing', () => {
   it('pushes the checked repositories that can be pushed', () => {
     const repos = [state(repo('/a')), state(repo('/b'), { checked: false }), state(repo('/c', { error: 'Empty repository' }))];
     expect(chosenRepos(repos).map((r) => r.dto.root)).toEqual(['/a']);
+  });
+
+  /**
+   * POST-P14cn: with `gittree.push.showDialog` off, the host pushes what this
+   * dialog would push had Push been pressed the moment it opened. The two are
+   * separate code, so the same rows must give the same repositories and
+   * targets: one tracking its upstream, one published to a new branch, one
+   * pushing a commit of Push All up to Here.
+   */
+  it('a Push without the dialog pushes what Push pressed at once would', () => {
+    const rows = [
+      repo('/a'),
+      repo('/b', {
+        source: { kind: 'branch', presentation: 'feature', revision: 'refs/heads/feature', branch: 'feature' },
+        target: { remote: 'origin', branch: 'feature', isNew: true, type: 'tracking' },
+        defaultTarget: { remote: 'origin', branch: 'feature', isNew: true, type: 'tracking' },
+        sourceTracks: false,
+      }),
+      repo('/c', {
+        source: { kind: 'revision', presentation: '1393301c', revision: '1393301c'.repeat(5), branch: 'main' },
+      }),
+    ];
+    const dialog = chosenRepos(rows.map((r) => repoStateOf(r)));
+    const plan = pushWithoutDialog(rows, 'none');
+    expect(plan.kind).toBe('push');
+    if (plan.kind !== 'push') return;
+    expect(plan.result.repos).toEqual(
+      dialog.map((r) => ({
+        root: r.dto.root,
+        source: r.dto.source,
+        target: { remote: r.target!.remote, branch: r.target!.branch },
+        setUpstream: false,
+      })),
+    );
+    // Run Git hooks starts ticked, and Force Push is never the default.
+    expect([plan.result.runHooks, plan.result.force]).toEqual([true, false]);
   });
 });
 

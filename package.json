@@ -659,6 +659,11 @@
             "default": true,
             "description": "%gittree.config.push.updateAllRepositoriesIfRejected.description%"
           },
+          "gittree.push.showDialog": {
+            "type": "boolean",
+            "default": true,
+            "description": "%gittree.config.push.showDialog.description%"
+          },
           "gittree.push.showDialogForCommitAndPush": {
             "type": "boolean",
             "default": true,

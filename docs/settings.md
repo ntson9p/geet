@@ -599,15 +599,21 @@ Update all repositories: when a push is rejected and you choose Merge or Rebase,
 
 - Type: `boolean` · Default: `true`
 
+### `gittree.push.showDialog`
+
+Show the Push dialog: every Push (Push…, a branch's Push…, Push All up to Here… and Commit and Push) opens the Push dialog, so you can review the commits and where they go before anything leaves your machine — as IntelliJ's Push does. Off pushes straight away what the dialog would have pushed: each branch to the branch it tracks, and a branch that tracks nothing to a new branch of its name, which it then tracks (Publish). The dialog still opens when a push cannot go ahead without it: a repository with no remote or no commits, a commit on no branch, or no repository chosen. The dialog's "Don't show this dialog again" turns this off.
+
+- Type: `boolean` · Default: `true`
+
 ### `gittree.push.showDialogForCommitAndPush`
 
-Show Push dialog for Commit and Push: once Commit and Push has committed, open the Push dialog for the repositories it committed, so you can review the commits and their target before anything leaves your machine — as IntelliJ does by default. Off pushes them straight away.
+Show Push dialog for Commit and Push: once Commit and Push has committed, open the Push dialog for the repositories it committed, so you can review the commits and their target before anything leaves your machine — as IntelliJ does by default. Off pushes them straight away. It counts only while gittree.push.showDialog is on: off, Commit and Push pushes straight away too.
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.push.tags`
 
-Which tags the Push dialog pushes alongside the branch.
+Which tags the Push dialog pushes alongside the branch — and a push without the dialog, with gittree.push.showDialog off. The dialog keeps its last choice here.
 
 - Type: `string` · Default: `"none"`
 - Values:

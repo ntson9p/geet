@@ -881,6 +881,16 @@ export interface PushDialogParamsDto {
   colors?: Record<string, string>;
   /** Issue links in the commit details. */
   issue?: { pattern: string; url: string };
+  /**
+   * POST-P14cn: `Don't show this dialog again`, ticked when the setting
+   * `gittree.push.showDialog` is off: every Push then pushes straight away.
+   */
+  dontShowAgain: boolean;
+  /**
+   * POST-P14cn: why the dialog opened for a Push that was to go straight
+   * away: a sentence the dialog shows at its top.
+   */
+  openedBecause?: string;
 }
 
 /** The outgoing commits for an edited target. */
@@ -905,6 +915,11 @@ export interface PushDialogResultDto {
   force: boolean;
   /** `Don't warn about this target`, ticked when confirming. */
   dontWarnForce?: { remote: string; branch: string };
+  /**
+   * POST-P14cn: `Don't show this dialog again`, as it was when Push was
+   * pressed. Absent changes nothing.
+   */
+  dontShowAgain?: boolean;
 }
 
 export type PushDefineRemoteResultDto =

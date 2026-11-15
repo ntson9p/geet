@@ -1727,6 +1727,287 @@ suite('P13 dialogs', () => {
         assert.strictEqual(reg.lastPushDialogRequest(), undefined, 'no dialog with the setting off');
         assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim(), 'the commit reached the remote');
       });
+
+      test('POST-P14cn: with gittree.push.showDialog off, Commit and Push pushes straight away too', async function () {
+        this.timeout(90_000);
+        // *Show Push dialog for Commit and Push* stays on: the general switch wins.
+        await reg.setPushDialogOn(false);
+        try {
+          await commitAndPushRepoC('P14cn commit and push, no dialog');
+        } finally {
+          await reg.setPushDialogOn(undefined);
+        }
+        assert.strictEqual(reg.lastPushDialogRequest(), undefined, 'no dialog with gittree.push.showDialog off');
+        assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim(), 'the commit reached the remote');
+      });
+    });
+
+    // ---- POST-P14cn · Push without the dialog ------------------------------------------
+
+    suite('POST-P14cn push without the dialog', () => {
+      const showDialog = (): boolean | undefined =>
+        vscode.workspace.getConfiguration('gittree').get<boolean>('push.showDialog');
+      const labelOf = (r: RepoHandle): string =>
+        repoLabels(core.repos.map((x) => x.root)).get(r.root) ?? path.basename(r.root);
+
+      /**
+       * `fn` with `gittree.push.showDialog` off, and the dialog's test seam on:
+       * a dialog that opens anyway records why and closes unanswered.
+       */
+      const withoutDialog = async <T>(fn: () => Thenable<T> | Promise<T>): Promise<T> => {
+        const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
+        process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+        await reg.setPushDialogOn(false);
+        try {
+          return await fn();
+        } finally {
+          await reg.setPushDialogOn(undefined);
+          if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
+          else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+        }
+      };
+
+      /** A branch made here, gone again: locally, its tracking ref, and on the remote. */
+      const dropBranch = (name: string): void => {
+        for (const step of [
+          () => git('branch', '-D', name),
+          () => git('update-ref', '-d', `refs/remotes/${REMOTE}/${name}`),
+          () => bare('update-ref', '-d', `refs/heads/${name}`),
+        ]) {
+          try {
+            step();
+          } catch {
+            /* that part never existed */
+          }
+        }
+      };
+
+      setup(async function () {
+        this.timeout(60_000);
+        // On the branch, level with the remote and clean, whatever the last test left.
+        git('checkout', '-q', branch);
+        git('fetch', REMOTE);
+        git('reset', '-q', '--hard', `${REMOTE}/${branch}`);
+        await repo.refresher.refreshNow();
+        await waitFor(
+          () =>
+            repo.model.snapshot.headRef === branch &&
+            !repo.model.snapshot.detached &&
+            repo.model.snapshot.upstream === `${REMOTE}/${branch}`,
+          20_000,
+        );
+        reg.clearLastPushDialogRequest();
+        reg.clearLastPushRejectedPrompt();
+      });
+
+      suiteSetup(async function () {
+        this.timeout(30_000);
+        // One repository's push is what these tests are about (see POST-P14af's).
+        await reg.setUpdateAllRepositoriesIfRejected(false);
+      });
+
+      suiteTeardown(async function () {
+        this.timeout(30_000);
+        await reg.setPushDialogOn(undefined);
+        await reg.setUpdateAllRepositoriesIfRejected(undefined);
+      });
+
+      test('POST-P14cn: the dialog is on by default', () => {
+        assert.strictEqual(showDialog(), true);
+      });
+
+      test('POST-P14cn: without the dialog, Push posts what the dialog would: its rows, as they open', async function () {
+        this.timeout(60_000);
+        localCommit('p13/p14cn-plan.txt', 'plan\n', 'P14cn plan');
+        await repo.refresher.refreshNow();
+        const request = { repos: core.repos, preselected: [repo], current: repo };
+        const params = await reg.buildPushParams(request);
+        const opened = params.repos.find((r) => r.root === repo.root)!;
+        assert.strictEqual(opened.checked, true);
+        assert.strictEqual(opened.commits.length, 1);
+        const plan = await reg.planPushWithoutDialog(request);
+        assert.deepStrictEqual(plan, {
+          kind: 'push',
+          result: {
+            repos: [
+              {
+                root: repo.root,
+                source: opened.source,
+                target: { remote: opened.target!.remote, branch: opened.target!.branch },
+                setUpstream: false,
+              },
+            ],
+            tags: params.tags,
+            runHooks: true,
+            force: false,
+          },
+        });
+        assert.deepStrictEqual(opened.target, { remote: REMOTE, branch, isNew: false, type: 'tracking' });
+      });
+
+      test('POST-P14cn: Push… pushes the branch to its upstream straight away', async function () {
+        this.timeout(90_000);
+        const mine = localCommit('p13/p14cn-a.txt', 'a\n', 'P14cn straight push');
+        await repo.refresher.refreshNow();
+        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root));
+        assert.strictEqual(reg.lastPushDialogOpened(), undefined, 'no dialog with gittree.push.showDialog off');
+        assert.strictEqual(remoteHead(), mine, 'the commit reached the remote');
+      });
+
+      test('POST-P14cn: a branch that tracks nothing is published, and tracks the new branch', async function () {
+        this.timeout(90_000);
+        const name = 'p14cn/publish';
+        git('checkout', '-q', '-b', name);
+        try {
+          const mine = localCommit('p13/p14cn-b.txt', 'b\n', 'P14cn publish');
+          await repo.refresher.refreshNow();
+          await waitFor(() => repo.model.snapshot.headRef === name, 20_000);
+          await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root));
+          assert.strictEqual(reg.lastPushDialogOpened(), undefined, 'publishing needs no dialog');
+          assert.strictEqual(remoteHead(name), mine, 'a new branch of its name on the remote');
+          assert.strictEqual(
+            git('rev-parse', '--abbrev-ref', `${name}@{upstream}`).trim(),
+            `${REMOTE}/${name}`,
+            'and the branch tracks it from now on',
+          );
+        } finally {
+          git('checkout', '-q', branch);
+          dropBranch(name);
+        }
+      });
+
+      test('POST-P14cn: a branch’s Push… pushes that branch, not the one checked out', async function () {
+        this.timeout(90_000);
+        const name = 'p14cn/side';
+        const before = remoteHead();
+        git('checkout', '-q', '-b', name);
+        let side = '';
+        try {
+          side = localCommit('p13/p14cn-c.txt', 'c\n', 'P14cn side');
+          git('checkout', '-q', branch);
+          await repo.refresher.refreshNow();
+          await waitFor(() => repo.model.snapshot.headRef === branch, 20_000);
+          const pushed = await withoutDialog(() =>
+            vscode.commands.executeCommand<boolean>('gittree.push.branch', [repo.root], name),
+          );
+          assert.strictEqual(pushed, true);
+          assert.strictEqual(reg.lastPushDialogOpened(), undefined);
+          assert.strictEqual(remoteHead(name), side);
+          assert.strictEqual(remoteHead(), before, 'the checked-out branch is left alone');
+        } finally {
+          git('checkout', '-q', branch);
+          dropBranch(name);
+        }
+      });
+
+      test('POST-P14cn: Push All up to Here pushes that commit and those before it, not the later ones', async function () {
+        this.timeout(90_000);
+        const first = localCommit('p13/p14cn-d1.txt', 'd1\n', 'P14cn up to here');
+        const second = localCommit('p13/p14cn-d2.txt', 'd2\n', 'P14cn after it');
+        await repo.refresher.refreshNow();
+        const pushed = await withoutDialog(() =>
+          vscode.commands.executeCommand<boolean>('gittree.push.upTo', repo.root, first),
+        );
+        assert.strictEqual(pushed, true);
+        assert.strictEqual(reg.lastPushDialogOpened(), undefined);
+        assert.strictEqual(remoteHead(), first);
+        assert.notStrictEqual(remoteHead(), second);
+      });
+
+      test('POST-P14cn: a commit on no branch opens the dialog, saying why', async function () {
+        this.timeout(90_000);
+        git('checkout', '-q', '--detach');
+        const loose = localCommit('p13/p14cn-e.txt', 'e\n', 'P14cn detached');
+        await repo.refresher.refreshNow();
+        // The snapshot names the commit the dialog would push: wait for this one.
+        await waitFor(
+          () => repo.model.snapshot.detached === true && repo.model.snapshot.headSha === loose,
+          20_000,
+        );
+        const before = remoteHead();
+        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root));
+        assert.strictEqual(
+          reg.lastPushDialogOpened()?.because,
+          `Shown because ${loose.slice(0, 8)} in ${labelOf(repo)} is on no branch: say which branch it goes to.`,
+        );
+        assert.deepStrictEqual(reg.lastPushDialogOpened()?.preselected, [repo.root]);
+        assert.strictEqual(remoteHead(), before, 'nothing pushed to a made-up branch');
+      });
+
+      test('POST-P14cn: a repository with no remote opens the dialog, for Define remote', async function () {
+        this.timeout(90_000);
+        const lonely = core.repos.find((r) => {
+          const snap = r.model.snapshot;
+          if (r === repo || snap.initial || snap.detached || snap.headRef === undefined) return false;
+          return gitWithRetry(r.root, ['remote']).trim().length === 0;
+        });
+        if (lonely === undefined) {
+          // Every other workspace repository has a remote at this point of the run.
+          this.skip();
+          return;
+        }
+        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', lonely.root));
+        assert.strictEqual(
+          reg.lastPushDialogOpened()?.because,
+          `Shown because ${labelOf(lonely)} has no remote to push to.`,
+        );
+      });
+
+      test('POST-P14cn: with several repositories and none to say which, the dialog opens to choose', async function () {
+        this.timeout(90_000);
+        if (core.repos.length < 2) {
+          this.skip();
+          return;
+        }
+        // No editor, so no repository the user is in.
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        await waitFor(() => vscode.window.activeTextEditor === undefined, 10_000);
+        const before = remoteHead();
+        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog'));
+        const opened = reg.lastPushDialogOpened();
+        assert.strictEqual(
+          opened?.because,
+          'Shown because nothing said which repository to push: tick the ones to push.',
+        );
+        assert.deepStrictEqual(opened?.preselected, []);
+        assert.strictEqual(remoteHead(), before);
+      });
+
+      test('POST-P14cn: Push with Don’t show this dialog again turns the dialog off; pressed unticked, back on', async function () {
+        this.timeout(120_000);
+        try {
+          localCommit('p13/p14cn-f.txt', 'f\n', 'P14cn dont show');
+          await repo.refresher.refreshNow();
+          const off = await reg.applyPushResult({ ...fromDialog(branch), dontShowAgain: true });
+          assert.match(off[0]!, /pushed/, off.join(' · '));
+          assert.strictEqual(showDialog(), false, 'ticked: every Push goes straight through');
+          // The dialog that opened anyway, pressed with the box unticked.
+          await reg.applyPushResult({ ...fromDialog(branch), dontShowAgain: false });
+          assert.strictEqual(showDialog(), true, 'unticked: the dialog is back');
+          // A payload without it changes nothing.
+          await reg.setPushDialogOn(false);
+          await reg.applyPushResult(fromDialog(branch));
+          assert.strictEqual(showDialog(), false);
+        } finally {
+          await reg.setPushDialogOn(undefined);
+        }
+        assert.strictEqual(showDialog(), true);
+      });
+
+      test('POST-P14cn: a push the remote turns away still asks Merge or Rebase, then pushes again', async function () {
+        this.timeout(120_000);
+        const theirs = teammate('p13/p14cn-theirs.txt', 'theirs\n', 'P14cn teammate');
+        const mine = localCommit('p13/p14cn-mine.txt', 'mine\n', 'P14cn mine');
+        await repo.refresher.refreshNow();
+        await withPushChoice('merge', () =>
+          withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root)),
+        );
+        assert.ok(reg.lastPushRejectedPrompt(), 'the Push Rejected question, as for any push');
+        const head = git('rev-parse', 'HEAD').trim();
+        assert.strictEqual(remoteHead(), head, 'pushed after the merge');
+        const parents = git('rev-list', '--parents', '-n', '1', 'HEAD').trim().split(' ').slice(1);
+        assert.deepStrictEqual(parents.sort(), [mine, theirs].sort());
+      });
     });
   });
 

@@ -6,8 +6,10 @@
  * commits selected on the left, with IntelliJ's toolbar — Show Diff · View
  * Options · Edit Source · Show Details … Expand All · Collapse All — and, for
  * a single selected commit, its details below. Footer: `? · [ ] Push tags:
- * [All ▾] · [x] Run Git hooks` (only when a pre-push hook exists) and
- * `[Push ▾] [Cancel]`, `Force Push` in the split.
+ * [All ▾] · [x] Run Git hooks` (only when a pre-push hook exists) · `[ ] Don't
+ * show this dialog again` (POST-P14cn: from then on every Push pushes straight
+ * away) and `[Push ▾] [Cancel]`, `Force Push` in the split. Opened for a Push
+ * that was to go straight away, it says why at its top.
  *
  * Clicking the target branch edits it (F2 does too; Enter applies, Escape
  * cancels); clicking the remote lists the remotes and `Define remote`. With
@@ -91,6 +93,13 @@ const DEFAULT_UI: PushDialogUiDto = { showDetails: true, groupByDirectory: true,
 
 const PROTECTED_SETTING_HINT = 'Configure protected branches in the setting gittree.protectedBranches';
 
+/** The tooltip of `Don't show this dialog again` (POST-P14cn). */
+const DONT_SHOW_HINT =
+  'From now on, Push pushes straight away what this dialog would push. ' +
+  'The dialog still opens when a push needs it: a repository with no remote or no commits, ' +
+  'a commit on no branch, or no repository chosen. ' +
+  'Turn it back on with the setting gittree.push.showDialog.';
+
 /** `Set upstream` counts only while it is shown: the target is not the upstream already. */
 function explicitUpstream(r: RepoState): boolean {
   if (!r.setUpstream || r.target === undefined) return false;
@@ -145,6 +154,7 @@ export function Push() {
   const [tagsOn, setTagsOn] = useState(false);
   const [tagsMode, setTagsMode] = useState<'all' | 'follow'>('all');
   const [runHooks, setRunHooks] = useState(true);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const [ui, setUi] = useState<PushDialogUiDto>(DEFAULT_UI);
   const [changeSets, setChangeSets] = useState<readonly RepoChanges[]>([]);
@@ -174,6 +184,7 @@ export function Push() {
     setUi(p.ui);
     setTagsOn(p.tags !== 'none');
     setTagsMode(p.tags === 'follow' ? 'follow' : 'all');
+    setDontShowAgain(p.dontShowAgain === true);
   }, [init]);
 
   const single = params?.single ?? true;
@@ -521,9 +532,10 @@ export function Push() {
         runHooks: effectiveHooks,
         force,
         ...(dontWarn !== undefined ? { dontWarnForce: dontWarn } : {}),
+        dontShowAgain,
       });
     },
-    [accept, chosen, effectiveHooks, pushAllowed, tags],
+    [accept, chosen, dontShowAgain, effectiveHooks, pushAllowed, tags],
   );
 
   const forcePush = useCallback(() => {
@@ -937,10 +949,26 @@ export function Push() {
               <span className="gt-checkbox-body">Run Git hooks</span>
             </label>
           ) : null}
+          <label className="gt-checkbox" title={DONT_SHOW_HINT}>
+            <input
+              type="checkbox"
+              data-testid="push-dont-show"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.currentTarget.checked)}
+            />
+            <span className="gt-checkbox-body">Don&apos;t show this dialog again</span>
+          </label>
         </>
       }
       className="gt-push-dialog"
     >
+      {params.openedBecause !== undefined ? (
+        <div className="gt-push-because" role="note" data-testid="push-opened-because">
+          <span className="codicon codicon-info" aria-hidden="true" />
+          <span>{params.openedBecause}</span>
+        </div>
+      ) : null}
+
       <SplitPane
         direction="horizontal"
         ratio={ui.treeRatio}

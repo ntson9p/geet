@@ -96,6 +96,28 @@
   border-bottom: 1px solid var(--vscode-panel-border, transparent);
 }
 
+/* POST-P14cn: why a Push that was to go straight away opened the dialog. */
+.gt-push-because {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.gt-push-because .codicon {
+  flex: 0 0 auto;
+  color: var(--vscode-notificationsInfoIcon-foreground, var(--vscode-foreground));
+}
+
+/* The footer's options wrap under one another in a narrow editor, rather than
+   pushing Push and Cancel out of the window. */
+.gt-push-dialog .gt-dialog-footer-left {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
 .gt-push-left,
 .gt-push-right {
   display: flex;

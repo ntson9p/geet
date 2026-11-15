@@ -26,9 +26,13 @@ import {
   applyPushResult,
   buildPushParams,
   clearLastPushDialogRequest,
+  isPushDialogOn,
   lastPushDialogOpened,
   lastPushDialogRequest,
+  planPushWithoutDialog,
   pushDialogHandlers,
+  pushDialogNeedText,
+  setPushDialogOn,
   setShowPushDialogForCommitAndPush,
   showPushDialog,
   showPushDialogForCommitAndPush,
@@ -154,6 +158,10 @@ export interface Phase13Registry {
   clearLastPushDialogRequest: typeof clearLastPushDialogRequest;
   /** IntelliJ's *Show Push dialog for Commit and Push*. */
   setShowPushDialogForCommitAndPush: typeof setShowPushDialogForCommitAndPush;
+  /** POST-P14cn: `gittree.push.showDialog`, what the footer's `Don't show this dialog again` writes. */
+  setPushDialogOn: typeof setPushDialogOn;
+  /** POST-P14cn: what a Push without the dialog would do for `request`, without doing it. */
+  planPushWithoutDialog: (request: PushDialogRequest) => ReturnType<typeof planPushWithoutDialog>;
   /** P13-T2 test seams. POST-P14ab: the question is a native modal now. */
   buildUpdatePrompt: (repo: RepoHandle) => Promise<UpdatePrompt | undefined>;
   /** POST-P14ae: the question and the run for a whole project. */
@@ -284,8 +292,9 @@ export function registerPhase13Dialogs(
   };
 
   // P13-T1: Push — IntelliJ's `VcsPushDialog`, which every Push of GitTree
-  // opens (POST-P14ao). `gittree.push` (P1) stays as the internal
-  // no-questions path that Sync and Commit and Push (dialog off) use.
+  // opens (POST-P14ao), unless `gittree.push.showDialog` is off (POST-P14cn).
+  // `gittree.push` (P1) stays registered, hidden from the palette, for a
+  // keybinding; GitTree itself no longer calls it. Sync pushes its own way.
   /** The commit's branch, as `GitPushUpToCommitAction` picks it. */
   const branchHolding = async (repo: RepoHandle, sha: string): Promise<string | undefined> => {
     const snap = repo.model.snapshot;
@@ -308,8 +317,8 @@ export function registerPhase13Dialogs(
       .map((l) => l.trim())
       .find((l) => l.length > 0);
   };
-  const openPush = (request: PushDialogRequest): Promise<boolean> =>
-    showPushDialog(pushDeps, request).catch((err: unknown) => {
+  const openPush = (request: PushDialogRequest, because?: string): Promise<boolean> =>
+    showPushDialog(pushDeps, request, because).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       trace(`push dialog failed: ${message}`);
       void vscode.window.showErrorMessage(
@@ -317,6 +326,44 @@ export function registerPhase13Dialogs(
       );
       return false;
     });
+  /**
+   * POST-P14cn: a Push as `gittree.push.showDialog` says. On, the dialog. Off,
+   * straight away: what the dialog would push had Push been pressed at once,
+   * reported as a push of the branch to its upstream is. The dialog opens
+   * after all, saying why, for a push that cannot go ahead without it. Resolves
+   * true when a push ran; with `waitForDialog` false (Commit and Push) it does
+   * not wait for a dialog to close, only for a push.
+   */
+  const pushAsSet = async (
+    request: PushDialogRequest,
+    options: { readonly dialog: boolean; readonly waitForDialog: boolean },
+  ): Promise<boolean> => {
+    const dialog = (because?: string): Promise<boolean> => {
+      const shown = openPush(request, because);
+      return options.waitForDialog ? shown : Promise.resolve(false);
+    };
+    if (options.dialog) return dialog();
+    try {
+      const plan = await planPushWithoutDialog(pushDeps, request);
+      if (plan === undefined) {
+        showInfo(vscode.l10n.t('There is no repository to push.'));
+        return false;
+      }
+      if (plan.kind === 'dialog') return await dialog(pushDialogNeedText(plan.need));
+      const outcomes = await applyPushResult(pushDeps, plan.result, {
+        presentFailure: (err) => presentGitError(context, core, err),
+      });
+      return outcomes.length > 0;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      trace(`push failed: ${message}`);
+      void vscode.window.showErrorMessage(vscode.l10n.t('Push failed: {0}', message));
+      return false;
+    }
+  };
+  /** Every Push but Commit and Push's: the dialog unless the setting is off. */
+  const push = (request: PushDialogRequest): Promise<boolean> =>
+    pushAsSet(request, { dialog: isPushDialogOn(), waitForDialog: true });
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.push.dialog', async (arg?: unknown) => {
       // POST-P14by: a list, the Repositories panel's `⋯` with some repositories
@@ -328,14 +375,14 @@ export function registerPhase13Dialogs(
           showInfo(vscode.l10n.t('Nothing to push: those repositories are no longer open.'));
           return;
         }
-        await openPush({ repos: core.repos, preselected: several, current: several[0]! });
+        await push({ repos: core.repos, preselected: several, current: several[0]! });
         return;
       }
       // IntelliJ's `Push…`: every repository listed; the one named — a
       // Repositories row — checked, else the one the user is in.
       const named = namedRepo(core, arg);
       const current = resolveRepo(core, arg);
-      await openPush({
+      await push({
         repos: core.repos,
         preselected: named !== undefined ? [named] : [],
         ...(current !== undefined ? { current } : {}),
@@ -343,7 +390,8 @@ export function registerPhase13Dialogs(
     }),
     // A branch's `Push…` (IntelliJ's `GitPushBranchAction`): that branch, in
     // the repositories named — one, or every one a common branch is in.
-    // Internal, called by the branch rows. Resolves once the dialog closes.
+    // Internal, called by the branch rows. Resolves once the dialog closes, or
+    // without the dialog once the push is done.
     vscode.commands.registerCommand(
       'gittree.push.branch',
       async (arg?: unknown, branchArg?: unknown): Promise<boolean> => {
@@ -354,7 +402,7 @@ export function registerPhase13Dialogs(
         if (repos.length === 0 || typeof branchArg !== 'string' || branchArg.length === 0) {
           return false;
         }
-        return openPush({ repos, preselected: repos, source: { kind: 'branch', branch: branchArg } });
+        return push({ repos, preselected: repos, source: { kind: 'branch', branch: branchArg } });
       },
     ),
     // `Push All up to Here…` (IntelliJ's `GitPushUpToCommitAction`): the commit
@@ -365,7 +413,7 @@ export function registerPhase13Dialogs(
         const repo = namedRepo(core, arg);
         if (!repo || typeof shaArg !== 'string' || shaArg.length === 0) return false;
         const branch = await branchHolding(repo, shaArg);
-        return openPush({
+        return push({
           repos: [repo],
           preselected: [repo],
           current: repo,
@@ -374,10 +422,10 @@ export function registerPhase13Dialogs(
       },
     ),
     // POST-P14af: a tracked branch pushed to its upstream, the IntelliJ way —
-    // `gittree.push` (so Commit and Push, and Sync) and a branch row's `Push…`
-    // come through here. Internal, as `gittree.update.run` is. Resolves to
-    // what happened, or `undefined` for a branch that tracks nothing, which
-    // the caller publishes its own way.
+    // `gittree.push` (so Sync) comes through here; every Push… opens the Push
+    // dialog, or pushes as it would (POST-P14cn). Internal, as
+    // `gittree.update.run` is. Resolves to what happened, or `undefined` for a
+    // branch that tracks nothing, which the caller publishes its own way.
     vscode.commands.registerCommand(
       'gittree.push.run',
       async (arg?: unknown, branchArg?: unknown): Promise<PushResult[] | undefined> => {
@@ -391,29 +439,26 @@ export function registerPhase13Dialogs(
     // POST-P14ah: `Commit and Push…` once its commits have landed — IntelliJ's
     // push-after-commit. With *Show Push dialog for Commit and Push* on (its
     // default) that is the Push dialog, for the repositories just committed;
-    // off, they are pushed straight away. Internal: the commit flow is the
-    // only caller, and hands over every repository it committed at once, so a
-    // commit spanning several opens one dialog, not one each.
+    // off — or with `gittree.push.showDialog` off (POST-P14cn) — they are
+    // pushed straight away, as a Push without the dialog pushes. Internal: the
+    // commit flow is the only caller, and hands over every repository it
+    // committed at once, so a commit spanning several opens one dialog, or
+    // runs one push, not one each.
     vscode.commands.registerCommand('gittree.push.afterCommit', async (arg?: unknown) => {
       const repos = (Array.isArray(arg) ? arg : [])
         .map((root: unknown) => namedRepo(core, root))
         .filter((r): r is RepoHandle => r !== undefined);
       if (repos.length === 0) return;
-      if (showPushDialogForCommitAndPush()) {
-        // Not awaited. The dialog is a tab the user may leave open while they
-        // read it, and the commit window stays busy — refusing the next
-        // commit — for as long as the commit call that got here is running.
-        // Every repository is listed, as IntelliJ lists them; the ones just
-        // committed are the ones checked.
-        void openPush({ repos: core.repos, preselected: repos, current: repos[0]! });
-        return;
-      }
-      // One repository at a time, as the push always ran here: a branch that
-      // tracks nothing is offered Publish, a tracked one goes through the
-      // Push Rejected flow when the remote has moved on.
-      for (const repo of repos) {
-        await vscode.commands.executeCommand('gittree.push', repo.root);
-      }
+      // A dialog is not waited for. It is a tab the user may leave open while
+      // they read it, and the commit window stays busy — refusing the next
+      // commit — for as long as the commit call that got here is running. A
+      // push straight away is waited for, as it always was here. Every
+      // repository is listed, as IntelliJ lists them; the ones just committed
+      // are the ones checked, and the ones pushed without the dialog.
+      await pushAsSet(
+        { repos: core.repos, preselected: repos, current: repos[0]! },
+        { dialog: isPushDialogOn() && showPushDialogForCommitAndPush(), waitForDialog: false },
+      );
     }),
   );
 
@@ -657,6 +702,8 @@ export function registerPhase13Dialogs(
     lastPushDialogOpened,
     clearLastPushDialogRequest,
     setShowPushDialogForCommitAndPush,
+    setPushDialogOn,
+    planPushWithoutDialog: (request) => planPushWithoutDialog(pushDeps, request),
     // The question as it would read against what was fetched last: the real
     // one is only ever built after a fetch. One repository's own, so titled by
     // it, as `showUpdateDialog` titles it (POST-P14bx).

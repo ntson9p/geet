@@ -8,6 +8,10 @@
  * Every Push of GitTree opens it, as every Push of IntelliJ does: `Push…`
  * (Ctrl+Shift+K) for the workspace, a branch's `Push…` for that branch, `Push
  * All up to Here…` for a commit, and `Commit and Push…` once its commits land.
+ * POST-P14cn: with `gittree.push.showDialog` off (its footer's `Don't show this
+ * dialog again`) each of them pushes straight away instead, what the dialog
+ * would push had Push been pressed at once, and the dialog opens only for a
+ * push that cannot go ahead without it (`pushModel.pushWithoutDialog`).
  *
  * The rules — default target, refspec, upstream, protected branches — are the
  * vscode-free `pushModel.ts`, shared with the webview half
@@ -58,17 +62,21 @@ import {
   outgoingRange,
   pushDialogTitle,
   pushRefspec,
+  pushWithoutDialog,
   remembersTarget,
   revisionSource,
   setsUpstream,
   typedTarget,
   type ForceTarget,
+  type PushDialogNeed,
   type PushSource,
   type PushTargetSpec,
+  type PushWithoutDialog,
   type RecentPushTarget,
   type TargetContext,
 } from './pushModel';
-import { pushAndReport, pushOutcomeLine, type PushTarget } from './pushRun';
+import type { PushTagsMode } from './pushArgs';
+import { pushAndReport, pushOutcomeLine, type PushReportOptions, type PushTarget } from './pushRun';
 import { showInfo } from '../../ui/notices';
 
 export interface PushDialogDeps {
@@ -327,23 +335,58 @@ async function buildRepoRow(
 /** Each listed repository's source, kept for the handlers of the open dialog. */
 export type PushSources = Map<string, PushSource>;
 
-export async function buildPushParams(
-  deps: PushDialogDeps,
-  request: PushDialogRequest,
-  sources: PushSources = new Map(),
-): Promise<PushDialogParamsDto> {
-  const { core } = deps;
-  const cfg = vscode.workspace.getConfiguration('gittree');
-  const labels = repoLabels(core.repos.map((r) => r.root));
+/**
+ * The repositories a dialog for `request` lists, in its order, each with what
+ * it pushes (one with nothing to push from is left out), and which of them it
+ * opens ticked. The dialog and a Push without it read the same answer.
+ */
+interface DialogRows {
+  readonly rows: ReadonlyArray<{ readonly repo: RepoHandle; readonly source: PushSource }>;
+  readonly single: boolean;
+  readonly ticked: (repo: RepoHandle) => boolean;
+}
+
+function dialogRows(request: PushDialogRequest): DialogRows {
   const byRoot = new Map(request.repos.map((r) => [r.root, r]));
   const ordered = sortRootsByLabel(request.repos.map((r) => r.root))
     .map((root) => byRoot.get(root))
     .filter((r): r is RepoHandle => r !== undefined);
-  const withSource = ordered.flatMap((repo) => {
+  const rows = ordered.flatMap((repo) => {
     const source = sourceFor(repo, request.source);
     return source !== undefined ? [{ repo, source }] : [];
   });
-  const single = withSource.length === 1;
+  const single = rows.length === 1;
+  const preselected = new Set(request.preselected.map((r) => r.root));
+  const current = request.current?.root;
+  return {
+    rows,
+    single,
+    ticked: (repo) =>
+      initiallyChecked(repo.root, {
+        single,
+        preselected,
+        ...(current !== undefined ? { current } : {}),
+      }),
+  };
+}
+
+/** `gittree.push.tags`, the tag mode the last push used: what the footer opens with. */
+function tagsSetting(): PushTagsMode {
+  const value = vscode.workspace.getConfiguration('gittree').get<string>('push.tags', 'none');
+  return value === 'all' || value === 'follow' ? value : 'none';
+}
+
+/** `because`: why a Push that was to go straight away opened the dialog instead (POST-P14cn). */
+export async function buildPushParams(
+  deps: PushDialogDeps,
+  request: PushDialogRequest,
+  sources: PushSources = new Map(),
+  because?: string,
+): Promise<PushDialogParamsDto> {
+  const { core } = deps;
+  const cfg = vscode.workspace.getConfiguration('gittree');
+  const labels = repoLabels(core.repos.map((r) => r.root));
+  const { rows: withSource, single, ticked } = dialogRows(request);
   const preselected = new Set(request.preselected.map((r) => r.root));
   const current = request.current?.root;
   const rows = await Promise.all(
@@ -354,17 +397,12 @@ export async function buildPushParams(
         repo,
         source,
         labels.get(repo.root) ?? path.basename(repo.root),
-        initiallyChecked(repo.root, {
-          single,
-          preselected,
-          ...(current !== undefined ? { current } : {}),
-        }),
+        ticked(repo),
         single,
       );
     }),
   );
   const hooks = await Promise.all(withSource.map(({ repo }) => hasPrePushHook(core, repo)));
-  const tagsSetting = cfg.get<string>('push.tags', 'none');
   // IntelliJ selects the current repository's row first when nobody named
   // any; otherwise the dialog selects the first checked row with commits.
   const highlight =
@@ -375,7 +413,7 @@ export async function buildPushParams(
     repos: rows,
     single,
     ...(highlight !== undefined ? { highlight } : {}),
-    tags: tagsSetting === 'all' || tagsSetting === 'follow' ? tagsSetting : 'none',
+    tags: tagsSetting(),
     showRunHooks: hooks.some((h) => h),
     showCommandLine: cfg.get<boolean>('dialogs.showCommandLine', true),
     forceIfIncludes: core.git.caps.forceIfIncludes,
@@ -384,7 +422,52 @@ export async function buildPushParams(
     ui: uiOf(deps.state),
     colors: statusColorOverrides(),
     ...(issue !== undefined ? { issue } : {}),
+    dontShowAgain: !isPushDialogOn(),
+    ...(because !== undefined ? { openedBecause: because } : {}),
   };
+}
+
+/**
+ * POST-P14cn: a Push with `gittree.push.showDialog` off. What the dialog would
+ * push had Push been pressed the moment it opened (`pushWithoutDialog`), read
+ * as the dialog reads it, for the repositories it would tick and no others.
+ * `undefined` when there is no repository to push at all.
+ */
+export async function planPushWithoutDialog(
+  deps: PushDialogDeps,
+  request: PushDialogRequest,
+): Promise<PushWithoutDialog | undefined> {
+  const { rows, single, ticked } = dialogRows(request);
+  if (rows.length === 0) return undefined;
+  const labels = repoLabels(deps.core.repos.map((r) => r.root));
+  const asked = await Promise.all(
+    rows
+      .filter(({ repo }) => ticked(repo))
+      .map(({ repo, source }) =>
+        buildRepoRow(deps, repo, source, labels.get(repo.root) ?? path.basename(repo.root), true, single),
+      ),
+  );
+  return pushWithoutDialog(asked, tagsSetting());
+}
+
+/** What the dialog says at its top when it opened for a Push that was to go straight away. */
+export function pushDialogNeedText(need: PushDialogNeed): string {
+  switch (need.kind) {
+    case 'nothingChosen':
+      return vscode.l10n.t('Shown because nothing said which repository to push: tick the ones to push.');
+    case 'emptyRepository':
+      return vscode.l10n.t('Shown because {0} has no commits yet.', need.repo);
+    case 'noRemote':
+      return vscode.l10n.t('Shown because {0} has no remote to push to.', need.repo);
+    case 'noBranch':
+      return vscode.l10n.t(
+        'Shown because {0} in {1} is on no branch: say which branch it goes to.',
+        need.commit,
+        need.repo,
+      );
+    case 'commitsUnlisted':
+      return vscode.l10n.t('Shown because the commits {0} would push could not be listed.', need.repo);
+  }
 }
 
 /** The log's issue-link configuration, so a commit's details read the same here. */
@@ -590,16 +673,32 @@ export function pushDialogHandlers(
  * Force Push was confirmed in the dialog already. Returns the per-repo
  * outcome lines, for tests; the user gets one notification (POST-P14af:
  * `pushRun.ts`, which also answers a rejected push with IntelliJ's Merge /
- * Rebase question).
+ * Rebase question). A Push without the dialog (POST-P14cn) comes through here
+ * too, with the payload the dialog would have posted, and `options` as a push
+ * of the branch to its upstream reports.
  */
 export async function applyPushResult(
   deps: PushDialogDeps,
   result: PushDialogResultDto,
+  options: PushReportOptions = {},
 ): Promise<string[]> {
   const { core } = deps;
   const outcomes: string[] = [];
   const plan: PushTarget[] = [];
   const remembered: Array<{ repo: RepoHandle; entry: RecentPushTarget }> = [];
+
+  // `Don't show this dialog again`, as IntelliJ keeps its checkbox: on Push,
+  // not on Cancel, and before the push runs.
+  if (result.dontShowAgain !== undefined && result.dontShowAgain === isPushDialogOn()) {
+    await setPushDialogOn(!result.dontShowAgain);
+    showInfo(
+      result.dontShowAgain
+        ? vscode.l10n.t(
+            'Push now pushes straight away, without the Push dialog. To see it again, turn on the setting gittree.push.showDialog.',
+          )
+        : vscode.l10n.t('The Push dialog opens for every push again.'),
+    );
+  }
 
   for (const row of result.repos) {
     // Canonical-key resolution with NO fallback — the P12-T2 lesson.
@@ -651,7 +750,7 @@ export async function applyPushResult(
     }
   }
 
-  const results = await pushAndReport(deps, plan);
+  const results = await pushAndReport(deps, plan, options);
   // IntelliJ remembers a target once the push to it went through.
   let recent = recentOf(deps.state);
   for (const r of results) {
@@ -667,9 +766,26 @@ export async function applyPushResult(
 }
 
 /**
+ * POST-P14cn: every Push opens this dialog, the default. Off (the footer's
+ * `Don't show this dialog again`), every Push pushes straight away, Commit and
+ * Push included, and the dialog opens only for a push that needs it.
+ */
+const SHOW_DIALOG = 'push.showDialog';
+
+export function isPushDialogOn(): boolean {
+  return vscode.workspace.getConfiguration('gittree').get<boolean>(SHOW_DIALOG, true);
+}
+
+/** What the checkbox writes; also a test seam, where `undefined` puts the default back. */
+export async function setPushDialogOn(value: boolean | undefined): Promise<void> {
+  await writeSetting('gittree', SHOW_DIALOG, value);
+}
+
+/**
  * IntelliJ's *Show Push dialog for Commit and Push* (POST-P14ah), on by
  * default as it is there: `Commit and Push…` opens this dialog for the
- * repositories it just committed. Off, it pushes them straight away.
+ * repositories it just committed. Off, it pushes them straight away. It counts
+ * only while `gittree.push.showDialog` is on: off, no Push opens the dialog.
  */
 const SHOW_FOR_COMMIT_AND_PUSH = 'push.showDialogForCommitAndPush';
 
@@ -689,6 +805,8 @@ export interface PushDialogOpened {
   readonly repos: readonly string[];
   readonly preselected: readonly string[];
   readonly source?: PushDialogRequest['source'];
+  /** Why a Push that was to go straight away opened it instead (POST-P14cn). */
+  readonly because?: string;
 }
 
 let lastRequest: PushDialogOpened | undefined;
@@ -708,10 +826,14 @@ export function clearLastPushDialogRequest(): void {
   lastRequest = undefined;
 }
 
-/** Opens the dialog; resolves true when at least one push ran. */
+/**
+ * Opens the dialog; resolves true when at least one push ran. `because`: why
+ * a Push that was to go straight away opens it instead, said at its top.
+ */
 export async function showPushDialog(
   deps: PushDialogDeps,
   request: PushDialogRequest,
+  because?: string,
 ): Promise<boolean> {
   lastRequest = {
     repos: request.repos.map((r) => r.root),
@@ -724,6 +846,7 @@ export async function showPushDialog(
           : []
     ).map((r) => r.root),
     ...(request.source !== undefined ? { source: request.source } : {}),
+    ...(because !== undefined ? { because } : {}),
   };
   // A webview dialog cannot be answered from an integration test:
   // `GITTREE_TEST_PUSH_DIALOG=cancel` closes it unanswered, as Escape would,
@@ -732,7 +855,7 @@ export async function showPushDialog(
   // by then, and a test restores the seam as soon as its command returns.
   const cancelledByTest = process.env['GITTREE_TEST_PUSH_DIALOG'] === 'cancel';
   const sources: PushSources = new Map();
-  const params = await buildPushParams(deps, request, sources);
+  const params = await buildPushParams(deps, request, sources, because);
   if (params.repos.length === 0) {
     showInfo(vscode.l10n.t('There is no repository to push.'));
     return false;

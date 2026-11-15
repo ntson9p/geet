@@ -11,6 +11,8 @@
  *   no such branch yet.
  */
 import { isValidRefName } from '../../core/git/refName';
+import type { PushDialogResultDto, PushRepoDto } from '../../shared/protocol';
+import type { PushTagsMode } from './pushArgs';
 import { pushSpecTargetRef } from './pushSpecParser';
 
 export type PushSourceKind = 'branch' | 'revision' | 'detached';
@@ -394,4 +396,67 @@ export function initiallyChecked(
 ): boolean {
   if (dialog.single || dialog.preselected.has(root)) return true;
   return dialog.preselected.size === 0 && dialog.current === root;
+}
+
+// ---- a Push without the dialog (POST-P14cn) ------------------------------------------
+
+/**
+ * Why a Push opens the dialog although `gittree.push.showDialog` is off: what
+ * the dialog would push by default cannot go ahead, and only the dialog can
+ * settle it. IntelliJ's Commit and Push opens its dialog the same way when it
+ * cannot push (`GitPushAfterCommitDialog.shouldShow`: `!canPush`).
+ */
+export type PushDialogNeed =
+  /** Several repositories, and nothing says which to push: none named, no editor's. */
+  | { readonly kind: 'nothingChosen' }
+  /** No commit yet, so nothing a push could send. */
+  | { readonly kind: 'emptyRepository'; readonly repo: string }
+  /** No remote: the dialog's `Define remote`. */
+  | { readonly kind: 'noRemote'; readonly repo: string }
+  /**
+   * A commit on no branch (a detached HEAD, or Push All up to Here of such a
+   * commit): the remote branch the dialog offers is a made-up name.
+   */
+  | { readonly kind: 'noBranch'; readonly repo: string; readonly commit: string }
+  /** Its commits could not be listed, and the dialog would leave it unticked. */
+  | { readonly kind: 'commitsUnlisted'; readonly repo: string };
+
+/** What a Push without the dialog reads of a row the dialog would open with. */
+export type PushRowFacts = Pick<PushRepoDto, 'root' | 'label' | 'source' | 'target' | 'error' | 'checked'>;
+
+export type PushWithoutDialog =
+  | { readonly kind: 'push'; readonly result: PushDialogResultDto }
+  | { readonly kind: 'dialog'; readonly need: PushDialogNeed };
+
+/**
+ * A Push without the dialog: what the dialog would post had Push been pressed
+ * the moment it opened. That is each repository it would open ticked, to the
+ * target it would open with, and the footer as it would open: the tag mode last
+ * used, `Run Git hooks` ticked, no force, no `Set upstream`. A branch that
+ * tracks nothing goes to a new branch of its own name and tracks it from then
+ * on: it is published.
+ *
+ * `asked` are the rows of the repositories the dialog would tick (in its
+ * order), built as the dialog builds them. A row it would still leave unticked
+ * is one whose commits could not be listed. The first of them that cannot be
+ * pushed as it stands says why the dialog opens instead.
+ */
+export function pushWithoutDialog(asked: readonly PushRowFacts[], tags: PushTagsMode): PushWithoutDialog {
+  if (asked.length === 0) return { kind: 'dialog', need: { kind: 'nothingChosen' } };
+  const repos: PushDialogResultDto['repos'] = [];
+  for (const row of asked) {
+    if (row.error !== undefined) return { kind: 'dialog', need: { kind: 'emptyRepository', repo: row.label } };
+    if (row.target === undefined) return { kind: 'dialog', need: { kind: 'noRemote', repo: row.label } };
+    if (row.source.kind === 'detached') {
+      return { kind: 'dialog', need: { kind: 'noBranch', repo: row.label, commit: row.source.presentation } };
+    }
+    if (!row.checked) return { kind: 'dialog', need: { kind: 'commitsUnlisted', repo: row.label } };
+    repos.push({
+      root: row.root,
+      source: row.source,
+      target: { remote: row.target.remote, branch: row.target.branch },
+      setUpstream: false,
+    });
+  }
+  return { kind: 'push', result: { repos, tags, runHooks: true, force: false } };
 }

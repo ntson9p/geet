@@ -596,8 +596,9 @@ export async function runCommitAcross(
 /**
  * "and Push", once the commits have landed (POST-P14ah): IntelliJ's
  * push-after-commit — the Push dialog for the repositories just committed,
- * or, with `gittree.push.showDialogForCommitAndPush` off, the push itself.
- * The push module decides which; the dialog is not waited for.
+ * or, with `gittree.push.showDialogForCommitAndPush` or `gittree.push.showDialog`
+ * off (POST-P14cn), the push itself. The push module decides which; the
+ * dialog is not waited for.
  */
 async function pushAfterCommit(repos: readonly RepoHandle[]): Promise<void> {
   if (repos.length === 0) return;

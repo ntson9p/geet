@@ -63,6 +63,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D46](#d46--the-commit-windows-counter-ticks-every-change-and-its-blank-space-has-a-menu) | The Commit window's counter is a box that ticks every change, and the list's blank space has a menu of its own | Deliberate (owner's request) |
 | [D47](#d47--date-format-is-in-the-logs-eye-menu) | The log's date format is chosen in its eye menu, not in a settings page; off Windows the "system" format is VS Code's display language's | Deliberate (owner's request); the second, a platform limit |
 | [D48](#d48--generate-commit-message-uses-a-model-vs-code-has) | Generate Commit Message is written by a language model VS Code has, chosen in GitTree; its button is in the message box's corner and its prompt in a setting | Platform (an extension brings no model); the rest deliberate |
+| [D49](#d49--every-push-can-go-without-the-push-dialog) | Every Push can push straight away, without the Push dialog (`Don't show this dialog again`, `gittree.push.showDialog`), not Commit and Push alone; the dialog still opens, saying why, when a push needs it | Deliberate (owner's request) |
 
 ---
 
@@ -1347,3 +1348,32 @@ Why: the owner asked whether GitTree could generate commit messages with AI (POS
 
 **Revisitable:** yes. The request is `src/commit/generate/prompt.ts`, what is read from git
 `collectChanges.ts`, the model and its failures `messageGenerator.ts`.
+
+## D49 · Every Push can go without the Push dialog
+
+**IntelliJ:** every Push opens the Push dialog (`VcsPushDialog`). Only Commit and Push can do
+without it: *Settings › Version Control › Git › Show Push dialog for Commit and Push*, and under it
+*Show Push dialog only when committing to protected branches*. The push-after-commit dialog's own
+checkbox, *For Commit and Push to non-protected branches, preview commits before push*, turns that
+second one on when unticked (`GitPushAfterCommitDialog.push`). Without the dialog it pushes what the
+dialog would, and opens it after all when the push is not possible or its target has commits the
+source lacks (`shouldShow`; the remote is asked first, `GitPushDivergenceDetector`).
+**GitTree:**
+
+| IntelliJ | GitTree | Why |
+| --- | --- | --- |
+| Push… always opens the dialog | Every Push dialog has `Don't show this dialog again` (`gittree.push.showDialog`). Ticked, Push…, a branch's Push…, Push All up to Here… and Commit and Push all push straight away, what the dialog would have pushed | The owner's request: some users do not want the list of commits every time, and want to push or publish at once |
+| Unticked after Commit and Push, the dialog still opens for a protected branch | Nothing singles out a protected branch | Asked for: push at once. A protected branch already refuses Force Push, the one push that rewrites it |
+| Opens anyway when the push is not possible | Opens anyway and says why at its top (*Shown because …*): a repository with no remote or no commits, a commit on no branch (its target would be a made-up `detached`), several repositories and nothing to say which | Each is settled in the dialog: Define remote, the target, the ticks |
+| Opens anyway when the target has diverged on the remote | Pushes; a push the remote rejects asks Merge or Rebase and pushes again (POST-P14af) | That question settles it without the dialog, and no remote is asked before the push |
+
+The box shows ticked in a dialog that opened anyway, and unticking it there (then Push) brings the
+dialog back for every push. It is kept only on Push and Force Push, as IntelliJ keeps its own.
+*Show Push dialog for Commit and Push* (`gittree.push.showDialogForCommitAndPush`) still turns the
+dialog off for Commit and Push alone, while this one is on.
+
+Why: the owner asked for a way to turn off the list of commits shown before a push, and to push
+or publish at once, perhaps by ticking a checkbox (POST-P14cn).
+
+**Revisitable:** yes. IntelliJ's protected-only variant would be a third value of
+`gittree.push.showDialog`; the rule is `pushWithoutDialog` in `src/scm/dialogs/pushModel.ts`.
