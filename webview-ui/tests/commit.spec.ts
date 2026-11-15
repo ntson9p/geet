@@ -2864,3 +2864,71 @@ test.describe('POST-P14cj Generate Commit Message', () => {
     expect(b.x + b.width).toBeLessThanOrEqual(170);
   });
 });
+
+/**
+ * POST-P14cl: the Amend row needs about 255 px (270 in this page). In a
+ * narrower sidebar — VS Code's goes down to 170 px — it ran past the window's
+ * edge and the gear was cut off. Now the counter and the gear take a second
+ * line together, at the right; a count too long even for that gives way first.
+ */
+test.describe('POST-P14cl the Amend row in a narrow sidebar', () => {
+  /** Each control's box in the row, and how far the row overflows. */
+  const geometry = (page: Page) =>
+    page.evaluate(() => {
+      const row = document.querySelector('.gt-commit-amend-row') as HTMLElement;
+      const box = (selector: string) => {
+        const r = (row.querySelector(selector) as HTMLElement).getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, mid: r.top + r.height / 2 };
+      };
+      const text = document.querySelector('[data-testid="commit-counter"]') as HTMLElement;
+      return {
+        view: window.innerWidth,
+        overflow: row.scrollWidth - row.clientWidth,
+        amend: box('.gt-checkbox'),
+        history: box('[aria-label="Commit message history"]'),
+        counter: box('[data-testid="commit-tick-all"]'),
+        gear: box('[aria-label="Commit options"]'),
+        counterCut: text.scrollWidth > text.clientWidth,
+      };
+    });
+
+  test('one line where there is room, as before', async ({ page }) => {
+    await page.setViewportSize({ width: 420, height: 600 });
+    await openCommit(page);
+    const g = await geometry(page);
+    expect(g.overflow).toBeLessThanOrEqual(0);
+    expect(Math.abs(g.gear.mid - g.amend.mid)).toBeLessThan(4);
+    expect(g.counter.right).toBeLessThanOrEqual(g.gear.left + 1);
+    expect(g.view - g.gear.right).toBeLessThan(16);
+  });
+
+  for (const width of [240, 170]) {
+    test(`at ${width} px the counter and the gear take a second line, inside the window`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 600 });
+      await openCommit(page);
+      const g = await geometry(page);
+      expect(g.overflow).toBeLessThanOrEqual(0);
+      expect(g.history.right).toBeLessThanOrEqual(g.view);
+      expect(g.gear.right).toBeLessThanOrEqual(g.view);
+      // Amend and its two buttons above; the counter and the gear below, together, at the right.
+      expect(g.counter.top).toBeGreaterThanOrEqual(g.amend.bottom - 2);
+      expect(Math.abs(g.counter.mid - g.gear.mid)).toBeLessThan(4);
+      expect(g.counter.right).toBeLessThanOrEqual(g.gear.left + 1);
+      expect(g.view - g.gear.right).toBeLessThan(16);
+      await expect(page.getByRole('button', { name: 'Commit options' })).toBeVisible();
+    });
+  }
+
+  test('a count too long even for its own line is cut short, never the gear', async ({ page }) => {
+    await page.setViewportSize({ width: 170, height: 600 });
+    await openCommit(page);
+    // As a repository with tens of thousands of changes would show it.
+    await page.evaluate(() => {
+      (document.querySelector('[data-testid="commit-counter"]') as HTMLElement).textContent = '12345 of 67890 files';
+    });
+    const g = await geometry(page);
+    expect(g.overflow).toBeLessThanOrEqual(0);
+    expect(g.gear.right).toBeLessThanOrEqual(g.view);
+    expect(g.counterCut).toBe(true);
+  });
+});

@@ -1424,46 +1424,50 @@ export function App() {
               disabled={activeRepo === undefined}
               onClick={(e) => void openMessageMenu(e.currentTarget, 'history')}
             />
-            {tickAll !== undefined ? (
-              // POST-P14cf: the counter is the tick-all box, drawn as the rows'
-              // boxes are: none, some or all of them ticked. A click ticks every
-              // change the list shows, or, all ticked, unticks them all.
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={tickAll.state === 'partial' ? 'mixed' : tickAll.state === 'checked'}
-                className="gt-commit-counter gt-commit-tick-all"
-                data-testid="commit-tick-all"
-                title={`${tickAll.state === 'checked' ? 'Untick' : 'Tick'} all ${fileCountLabel(tickAll.total)}`}
-                disabled={state.busy || tickAll.total === 0}
-                onClick={() => setAllChecked(tickAll.state !== 'checked')}
-              >
-                <TriCheckbox state={tickAll.state} disabled={state.busy || tickAll.total === 0} />
-                <span data-testid="commit-counter">
+            {/* POST-P14cl: the counter and the gear go together — on the row's
+                right, or, in a sidebar too narrow for one line, on a second. */}
+            <div className="gt-commit-amend-end">
+              {tickAll !== undefined ? (
+                // POST-P14cf: the counter is the tick-all box, drawn as the rows'
+                // boxes are: none, some or all of them ticked. A click ticks every
+                // change the list shows, or, all ticked, unticks them all.
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={tickAll.state === 'partial' ? 'mixed' : tickAll.state === 'checked'}
+                  className="gt-commit-counter gt-commit-tick-all"
+                  data-testid="commit-tick-all"
+                  title={`${tickAll.state === 'checked' ? 'Untick' : 'Tick'} all ${fileCountLabel(tickAll.total)}`}
+                  disabled={state.busy || tickAll.total === 0}
+                  onClick={() => setAllChecked(tickAll.state !== 'checked')}
+                >
+                  <TriCheckbox state={tickAll.state} disabled={state.busy || tickAll.total === 0} />
+                  <span data-testid="commit-counter">
+                    {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
+                  </span>
+                </button>
+              ) : (
+                <span className="gt-commit-counter" data-testid="commit-counter">
                   {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
+                  {state.paradigm === 'staging' ? ' staged' : ''}
                 </span>
-              </button>
-            ) : (
-              <span className="gt-commit-counter" data-testid="commit-counter">
-                {state.checkedCount} of {fileCountLabel(state.modifiedCount)}
-                {state.paradigm === 'staging' ? ' staged' : ''}
-              </span>
-            )}
-            <ToolbarButton
-              icon="gear"
-              label="Commit options"
-              disabled={commitRepo === undefined}
-              toggled={optionsOpen}
-              onClick={(e) => {
-                if (optionsOpen) {
-                  setOptionsOpen(false);
-                  return;
-                }
-                // Opened clear of the gear, which sits mid-window now.
-                setOptionsAt(popupPlacement(e.currentTarget.getBoundingClientRect(), window.innerHeight));
-                setOptionsOpen(true);
-              }}
-            />
+              )}
+              <ToolbarButton
+                icon="gear"
+                label="Commit options"
+                disabled={commitRepo === undefined}
+                toggled={optionsOpen}
+                onClick={(e) => {
+                  if (optionsOpen) {
+                    setOptionsOpen(false);
+                    return;
+                  }
+                  // Opened clear of the gear, which sits mid-window now.
+                  setOptionsAt(popupPlacement(e.currentTarget.getBoundingClientRect(), window.innerHeight));
+                  setOptionsOpen(true);
+                }}
+              />
+            </div>
           </div>
 
           <div className="gt-commit-message-slot" ref={slotRef}>

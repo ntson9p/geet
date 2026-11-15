@@ -1520,7 +1520,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private async pickDates(tab: string): Promise<{ ok: boolean }> {
     const session = this.sessions.get(tab);
     if (!session) return { ok: false };
-    const custom = vscode.l10n.t('Custom rangeâ€¦');
+    const custom = vscode.l10n.t('Custom range…');
     const presets: Array<{ label: string; from?: () => string }> = [
       { label: vscode.l10n.t('Today'), from: () => isoDaysAgo(0) },
       { label: vscode.l10n.t('Yesterday'), from: () => isoDaysAgo(1) },
@@ -1566,8 +1566,8 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private async pickPaths(tab: string): Promise<{ ok: boolean }> {
     const session = this.sessions.get(tab);
     if (!session) return { ok: false };
-    const browse = vscode.l10n.t('$(folder) Browseâ€¦');
-    const manual = vscode.l10n.t('$(edit) Enter path or globâ€¦');
+    const browse = vscode.l10n.t('$(folder) Browse…');
+    const manual = vscode.l10n.t('$(edit) Enter path or glob…');
     const picked = await vscode.window.showQuickPick([browse, manual], {
       placeHolder: vscode.l10n.t('Filter by path'),
     });

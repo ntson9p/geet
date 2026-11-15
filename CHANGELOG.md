@@ -6,6 +6,17 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — the Amend row in a narrow sidebar, and two smaller things
+
+- **The Commit window's Amend row fits a narrow sidebar.** Under about 255 px it ran past the
+  window's edge and cut the gear off, and at VS Code's narrowest the counter too. The counter
+  and the gear now take a second line together, at the right. A count too long even for that
+  is cut short, never the gear.
+- **The log's pickers read *Custom range…*, *Browse…* and *Enter path or glob…*.** Their `…`
+  showed garbled.
+- **The Rollback dialog rolls a long list back 200 files at a time**, as Roll Back… on a row
+  does, to stay under Windows' command-line limit.
+
 ### Fixed — a file whose name looks like a pattern no longer takes others with it
 
 - **A ticked `[id].tsx` is committed alone.** Git reads the paths it is given as patterns, and

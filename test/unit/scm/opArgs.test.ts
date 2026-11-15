@@ -417,4 +417,23 @@ describe('rollbackCommands', () => {
     expect(plan.restorePaths).toEqual(['[id].tsx', 'old/[id].tsx', 'a.txt']);
     expect(plan.deletePaths).toEqual(['[n].txt']);
   });
+
+  it('POST-P14cl: runs 200 paths a command, as the row\'s Roll Back… does', () => {
+    const restore = Array.from({ length: 450 }, (_, i) => ({ path: `src/f${i}.ts`, kind: 'restore' as const }));
+    const added = Array.from({ length: 201 }, (_, i) => ({ path: `new/n${i}.ts`, kind: 'added' as const }));
+    const commands = rollbackCommands(planRollback([...restore, { path: '[id].tsx', kind: 'restore' }, ...added], true));
+    expect(commands.map((c) => [c[0], c.length - c.indexOf('--') - 1])).toEqual([
+      ['restore', 200],
+      ['restore', 200],
+      ['restore', 51],
+      ['rm', 200],
+      ['rm', 1],
+    ]);
+    // Every path once, in order, each slice still literal where it needs to be.
+    const restored = commands.filter((c) => c[0] === 'restore').flatMap((c) => c.slice(c.indexOf('--') + 1));
+    expect(restored).toEqual([...restore.map((f) => f.path), ':(literal)[id].tsx']);
+    expect(commands.filter((c) => c[0] === 'rm').flatMap((c) => c.slice(c.indexOf('--') + 1))).toEqual(
+      added.map((f) => f.path),
+    );
+  });
 });

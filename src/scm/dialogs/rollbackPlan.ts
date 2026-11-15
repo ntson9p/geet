@@ -7,6 +7,7 @@
  * `[x] Delete local copies of added files` is a real switch there: untick it and
  * a newly added file is unstaged but stays on disk.
  */
+import { chunked } from '../../commit/changelists/moveChoices';
 import { literalPathspecs } from '../../core/git/pathspec';
 
 /** How rollback must treat one file — derived from its status, not its name. */
@@ -86,14 +87,16 @@ export function isEmptyRollbackPlan(plan: RollbackPlan): boolean {
  * Rollback's several commands, in order: what the host runs and the dim "will
  * run" line shows. The paths go as literal pathspecs (POST-P14ck): rolling
  * back `[id].tsx` as a pattern also threw away a changed `i.tsx`'s changes.
+ * POST-P14cl: 200 paths a command, as the row's Roll Back… runs them, so a
+ * long list stays under Windows' command-line limit.
  */
 export function rollbackCommands(plan: RollbackPlan): string[][] {
   const out: string[][] = [];
-  if (plan.restorePaths.length > 0) {
-    out.push(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...literalPathspecs(plan.restorePaths)]);
+  for (const slice of chunked(plan.restorePaths)) {
+    out.push(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...literalPathspecs(slice)]);
   }
-  if (plan.unstagePaths.length > 0) {
-    out.push(['rm', '--cached', '-q', '--', ...literalPathspecs(plan.unstagePaths)]);
+  for (const slice of chunked(plan.unstagePaths)) {
+    out.push(['rm', '--cached', '-q', '--', ...literalPathspecs(slice)]);
   }
   return out;
 }

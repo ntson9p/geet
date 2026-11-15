@@ -2268,7 +2268,7 @@ Before those four, two runs failed one check, the palette command. The second ti
 
 **Found on the way, and left alone:**
 - **A ticked file whose name is also a pattern commits more than was ticked.** `git commit --only -- '[id].tsx'`, as the changelist commit runs it, also commits a changed `i.tsx` beside it (run against real git: both files in the commit; with `--literal-pathspecs`, the one). `git add` and `git diff` read names the same way. The new reader passes `--literal-pathspecs`; the commit path does not. Not this task's: for the owner to decide. *Fixed in POST-P14ck, which also moved the reader to the per-path prefix.*
-- **The Amend row does not fit under 300 px**, with or without this change: at 250 px it runs 36 px over, and its gear is past the window's edge (measured in the mock page).
+- **The Amend row does not fit under 300 px**, with or without this change: at 250 px it runs 36 px over, and its gear is past the window's edge (measured in the mock page). *Fixed in POST-P14cl.*
 
 Gates: typecheck (root, webview, integration) and lint of every touched file clean; extension and webviews built.
 
@@ -2342,6 +2342,31 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration**, `literalPathspecs.test.ts` on repoC: a changelist commit and a Rollback of `p14ck/[id].tsx` through the real commands. It puts HEAD back (soft), removes its files and its changelist.
 
 Found on the way, left alone:
-- `src/log/logView.ts` has three mojibake labels: `Custom rangeâ€¦`, `$(folder) Browseâ€¦` and `$(edit) Enter path or globâ€¦` (UTF-8 `…` read as Windows-1252 and saved back). The Date ▾ and Paths ▾ pickers show them so.
+- `src/log/logView.ts` has three mojibake labels: `Custom rangeâ€¦`, `$(folder) Browseâ€¦` and `$(edit) Enter path or globâ€¦` (UTF-8 `…` read as Windows-1252 and saved back). The Date ▾ and Paths ▾ pickers show them so. *Fixed in POST-P14cl.*
 - IntelliJ hands git the paths bare too (`GitFileUtils.executeForPaths`: chunked arguments or `--pathspec-from-file`, neither literal), so it likely has the same behaviour. Read in its source, not tried.
-- The Rollback dialog runs one command for every file it lists, without the 200-path slices the row's Roll Back… uses; a long list may outgrow Windows' command line. Not tried.
+- The Rollback dialog runs one command for every file it lists, without the 200-path slices the row's Roll Back… uses; a long list may outgrow Windows' command line. Not tried. *Fixed in POST-P14cl.*
+
+POST-P14cl ✅ 2026-11-15 (branch `new-way-7`, then onto `new-way-8`): **The Amend row in a narrow sidebar, the garbled picker labels, and the Rollback dialog's long lists.** POST-P14cj and POST-P14ck reported three small findings. The owner asked for all three fixed: on `new-way-7`, where their code is, then onto `new-way-8`.
+
+**The Amend row fits a narrow sidebar.** The row holds Amend, the message-reuse arrow, the history clock, the tick-all counter and the gear: about 255 px, and VS Code's sidebar goes down to 170 px. It now wraps, with the counter and the gear as one group (`gt-commit-amend-end`, at the row's end). In a narrower sidebar the group takes a second line, still at the right. A count too long even for that is cut short (ellipsis), never the gear. Measured in a real VS Code 1.144.0 window (`scratchpad/lit/amend.cjs`), narrowing the sidebar step by step:
+
+| Sidebar | Before | After |
+| --- | --- | --- |
+| 298 px | one line, 282 of 282 px | the same |
+| 238 px | 32 px over: the gear past the edge | two lines, nothing over |
+| 178 px | 92 px over: the counter and the gear past it | two lines |
+| 167 px (VS Code's least) | 103 px over | two lines, the gear 8 px from the edge |
+
+The mock page (`scratchpad/lit/mockamend.cjs`) needs about 270 px and wraps from 260 px down; with a count of `12345 of 67890 files` at 160–170 px the count is cut and the gear stays in.
+
+**The pickers' labels.** `Custom range…`, `$(folder) Browse…` and `$(edit) Enter path or glob…` in `logView.ts` held a UTF-8 `…` read as Windows-1252 and saved back (`â€¦`). They hold `…` again (bytes `E2 80 A6`). Nothing else was garbled: `test/unit/docs/encoding.test.ts` now scans the source, the webviews' source, the manifest, its strings and the top-level documents (374 files) for such text.
+
+**The Rollback dialog's long lists.** `rollbackCommands` runs, and shows, 200 paths a command, as the row's Roll Back… slices its restore. Every path still goes once, in order, literal where it needs to be.
+
+Gates: typecheck (root, webview, integration) clean; lint of every touched file clean; extension and webviews built.
+
+Testing (written, **not run** at the time of the commit; the owner asked for a run of all three suites next):
+- **Unit:** `encoding.test.ts` (the scan, and that it would have caught the labels); `opArgs.test.ts` (451 restore and 201 unstage paths come out 200 + 200 + 51 and 200 + 1).
+- **Playwright** (`commit.spec.ts`, *POST-P14cl the Amend row in a narrow sidebar*, 4 tests): one line at 420 px; at 240 and 170 px the counter and the gear together on a second line, inside the window; a long count cut short, the gear in.
+
+Found on the way, left alone: the commit itself hands git every ticked path in one `git commit --only` (a commit cannot be sliced), and the changelist commit's intent-to-add of new files is not sliced either. A commit of thousands of files may meet the same limit. Git's `--pathspec-from-file` would avoid it. Not tried.

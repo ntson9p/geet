@@ -342,8 +342,12 @@
   padding: 2px 8px 8px;
 }
 
+/* POST-P14cl: the row needs about 255 px. In a narrower sidebar (VS Code's
+   goes down to 170 px) the counter and the gear take a second line, still at
+   the right, instead of running past the window's edge. */
 .gt-commit-amend-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -352,6 +356,28 @@
 .gt-commit-amend-row > .gt-checkbox {
   margin-right: 2px;
   white-space: nowrap;
+}
+
+/* The counter and the gear, as one: they wrap together, at the row's end. */
+.gt-commit-amend-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gt-commit-amend-end > .gt-toolbar-button {
+  flex-shrink: 0;
+}
+
+/* A count too long for even its own line: its words give way, never the gear. */
+.gt-commit-amend-end > .gt-commit-counter,
+.gt-commit-tick-all > [data-testid='commit-counter'] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gt-muted {
