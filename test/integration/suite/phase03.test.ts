@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { RepoHandle } from '../../../src/core/core';
+import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /** Phase 3 acceptance on workspace repoC (dedicated to this suite). */
@@ -87,6 +88,9 @@ suite('P3 commit lifecycle', () => {
     // Move the untracked brand-new.txt into the feature list too (add -N path).
     const feature = service.getLists().find((l) => l.name === 'Feature X')!;
     service.moveFiles(['brand-new.txt'], feature.id);
+    // A move keeps the tick (382bc9c), and an unversioned file starts unticked
+    // (P11-T3): ticked here, as the user would, so the commit takes it.
+    service.setChecked(['brand-new.txt'], true);
 
     messageBox.value = 'feature x commit';
     const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
@@ -162,13 +166,18 @@ suite('P3 commit lifecycle', () => {
     assert.ok(cached.includes('line 15 CHANGED'), 'second hunk missing');
     assert.ok(!cached.includes('line 28 CHANGED'), 'third hunk must stay unstaged');
 
-    // Unstage round-trip.
-    editor.selections = [new vscode.Selection(14, 0, 14, 5)];
+    // Unstage round-trip — from the staged diff's index side (HEAD ↔ Index),
+    // where unstaging selected lines has lived since bbe489a; in the working
+    // file the command only says so.
+    const indexEditor = await vscode.window.showTextDocument(makeRevUri(fsRoot, 'hunks.txt', ':0'));
+    indexEditor.selections = [new vscode.Selection(14, 0, 14, 5)];
     await vscode.commands.executeCommand('gittree.unstage.selectedRanges');
     const cached2 = git('diff', '--cached', '--', 'hunks.txt');
     assert.ok(cached2.includes('line 3 CHANGED'));
     assert.ok(!cached2.includes('line 15 CHANGED'), 'hunk 2 should be unstaged again');
     git('reset', '-q');
+    // The index side, then the file.
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
   });
 

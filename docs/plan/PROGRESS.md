@@ -2370,3 +2370,27 @@ Testing (written, **not run** at the time of the commit; the owner asked for a r
 - **Playwright** (`commit.spec.ts`, *POST-P14cl the Amend row in a narrow sidebar*, 4 tests): one line at 420 px; at 240 and 170 px the counter and the gear together on a second line, inside the window; a long count cut short, the gear in.
 
 Found on the way, left alone: the commit itself hands git every ticked path in one `git commit --only` (a commit cannot be sliced), and the changelist commit's intent-to-add of new files is not sliced either. A commit of thousands of files may meet the same limit. Git's `--pathspec-from-file` would avoid it. Not tried.
+
+POST-P14cm ✅ 2026-11-15 (run on `new-way-8`; test fixes on `new-way-7`, then onto `new-way-8`): **The three suites, run at the owner's request.** After POST-P14ck and POST-P14cl the owner asked for a run of the unit, Playwright and integration suites, which also had Generate Commit Message's tests (POST-P14cj) never run. All three ran on `new-way-8`, which holds everything.
+
+**Unit** (`npm run test:unit`): 2,324 of 2,331, in 151 s.
+- Six failures were load, as in POST-P14ci: five real-git tests at Vitest's 5 s default (`selectionCommit`, `allBranches`, `conflictKinds` ×2, `mergeCompute`), and GraphLayout's 100k commits in 559 ms against 400. Each passes run alone (`conflictKinds` twice).
+- One was real, and only on `new-way-8`: `notices.test.ts` found Generate Commit Message's three plain notices (AI turned off, the setting off, nothing ticked or staged) showing `showInformationMessage` themselves instead of `showInfo`. Fixed there (fcf44df).
+- Every new test passed: the 28 real-git path cases, the helper, the guard, the encoding scan.
+
+**Playwright** (scratch config on 5174, 2 workers): 520 passed, 1 failed, 3 skipped, in 9.1 min. The failure is POST-P14ci's perf budget again (median frame 21.9 ms against 17.5). Every new test passed: Generate Commit Message's 10, the Amend row's 4.
+
+**Integration** (VS Code 1.146.0, downloaded into `.vscode-test`, with the `VSCODE_*` and `ELECTRON_RUN_AS_NODE` variables of the owner's own VS Code taken out of the run's environment): 410 passing, 26 failing, in 21 min. Sorted:
+
+| Cause | Tests | What was done |
+| --- | --- | --- |
+| **Mine:** POST-P14ck's teardown ran `git rm --cached`, which refuses a file staged differently from both HEAD and the disk. It stopped and left `p14ck/` staged in repoC | its own `after all`; the multi-root suite's two *another suite left changes ticked* checks, and the test after them | unstages with `git reset`; every step runs whatever an earlier one did. Replayed against real git: HEAD and status back exactly |
+| **Stale:** the product changed on purpose; the test, written and not run, did not | phase02 Restore (the branch was never recreated before its second delete); phase04 File History opens on HEAD (POST-QA); phase11 the gear writes through `writeSetting`, so its cleanup must reset the user's value too; phase13 the Push dialog's `refs/heads/main:` refspec (b0845cd); phase14 `gittree.branchesTree` (87798ad) and `gittree.sectionBorder` (7dcaae0) missing from the closed lists; phase14branchmenu Update asks only when something is coming in (POST-P14aw); multi-root Group By saved in the user's settings; P3 T5 a move keeps the tick (382bc9c), so the test ticks the new file; P3 T4 lines are unstaged in the staged diff's index side (bbe489a); POST-P14ce narrowed, `targets` counts only what is shown, and the pick stays after a commit; sidebar sections T5–T9 (the Branches tree is the popup standing open since new-way-2; both trees behind `gittree.sidebar.extraViews` since 87798ad) | each test brought to the product, with the commit or entry that changed it |
+| **A leftover:** the test VS Code keeps its profile in `.vscode-test/user-data`; the first run's failing Group By test left `gittree.commit.groupBy: repository` there | the second run's Group By | the profile cleared; the test now resets both settings it can touch |
+| **Environment:** `C:\Users\Asus` is a git repository (an empty `git init`, branch `main`, made 2026-11-14 13:01 local, when this session was idle) | discovery ×4: a folder of checkouts under `%TEMP%` also finds the home repository | left alone: the owner's to remove or keep |
+| **Load** | P7's stash view refreshed in 535–541 ms against a 500 ms bound | left alone |
+| **For the owner** | POST-P14v: since 382bc9c a file added with Add to VCS lands in the default list *unticked* (a move keeps the tick, and an unversioned file starts unticked); the test says ticked | not changed: IntelliJ's commit dialog includes added files (`ScheduleForAdditionAction`: `browser.viewer.includeChanges` for a `CommitDialogChangesBrowser`), elsewhere it does not |
+
+Confirmed by runs of the changed suites alone (fresh profile): sidebar sections 9 of 9; P3 all but POST-P14v; multi-root's POST-P14ce test. The run of the whole suite after these fixes was on `new-way-8`.
+
+Also seen: with a repository in the home folder, discovery adds it for any folder opened under the home folder, and runs status over the whole home folder; VS Code's own Git asks first (`git.openRepositoryInParentFolders`). A product question, not changed.

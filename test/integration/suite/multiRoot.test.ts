@@ -553,12 +553,19 @@ suite('Multi-root commit', () => {
       await waitFor(() => headOf(repoE) !== beforeE, 60_000);
       assert.strictEqual(subjectOf(repoE), message, 'repoE used the message on screen');
       assert.strictEqual(headOf(repoD), beforeD, 'repoD is out of the list and must not commit');
-      await waitFor(() => notes.recent().some((n) => n.message.endsWith(`committed to ${labelOf(repoE)}: ${message}`)), 30_000);
+      const toldWhere = (): boolean =>
+        notes.recent().some((n) => n.message.endsWith(`committed to ${labelOf(repoE)}: ${message}`));
+      await waitFor(toldWhere, 30_000).catch(() => undefined);
+      assert.ok(toldWhere(), `told where it went; said: ${JSON.stringify(notes.recent().map((n) => n.message))}`);
       assert.strictEqual(reg.commitWindow.messageBoxFor(repoD).value, '', 'the box that held the message is emptied');
-      await waitFor(() => ourTargets().length === 1, 30_000);
+      // The pick stays (POST-P14ce), and narrowed the window counts only what it
+      // shows: repoE, with nothing ticked now. repoD's tick waits out of view.
+      await waitFor(() => ourTargets().length === 0, 30_000);
 
-      // Hand repoD back clean.
+      // Hand repoD back clean: shown again, it is the one thing to commit.
       inView().clear('elsewhere');
+      await waitFor(() => ourTargets().length === 1, 30_000);
+      assert.deepStrictEqual(ourTargets(), [labelOf(repoD)]);
       reg.commitWindow.messageBoxFor(repoD).value = 'pick cleanup of repoD';
       await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
       await waitFor(() => headOf(repoD) !== beforeD, 60_000);

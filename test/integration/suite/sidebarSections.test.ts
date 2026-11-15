@@ -6,15 +6,21 @@ import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup
 
 /**
  * The two sidebar sections POST-P14u added: Repositories, and the Branches
- * view that follows it.
+ * tree that follows it.
  *
  * What is worth testing here, rather than in the unit suites that already
- * cover the ordering and the folder nesting, is the wiring between them —
- * that focusing a row actually re-scopes the Branches view, that the Branches
- * view shows the *focused* repository and not whichever one the active editor
- * is in, and that its rows still carry the `contextValue`s the 21 shared menu
+ * cover the ordering and the folder nesting, is the wiring between them, and
+ * that the tree's rows still carry the `contextValue`s the 21 shared menu
  * clauses match. A tree whose rows silently stopped matching its own menus is
  * POST-P14d, and it fails nothing.
+ *
+ * Since new-way-2 the tree is the branches popup standing open
+ * (`branchHubView`): project-level — the project's verbs, every repository,
+ * then the refs they share — and the Repositories pick no longer filters it;
+ * it decides which repository opens first. Since 87798ad both trees sit behind
+ * `gittree.sidebar.extraViews` (the Branches section itself is a webview), so
+ * a test of the view, rather than of its provider, turns that on. Rewritten to
+ * that design at the integration suite's first run in a long while (POST-P14cm).
  */
 suite('POST-P14u sidebar sections', () => {
   /** The `phase02` registry, structurally — never `instanceof` across the bundle. */
@@ -29,19 +35,25 @@ suite('POST-P14u sidebar sections', () => {
     getChildren(element?: string): string[];
     getTreeItem(root: string): vscode.TreeItem;
   }
-  interface HubNodeShape {
-    kind: string;
-    id?: string;
-    name?: string;
-    repo?: RepoHandle;
-    ref?: { name: string; type: string; isHead: boolean };
-    label?: string;
-    verb?: { command: string };
+  /** `popupTree.TreeRow`, structurally. */
+  interface HubRowShape {
+    readonly id: string;
+    /** 'verb' | 'group' | 'repo' | 'ref' | 'common' | 'info' */
+    readonly kind: string;
+    readonly label: string;
+    readonly repoRoot?: string;
+    readonly ref?: { name: string; type: string; isHead: boolean };
+    readonly verb?: { command: string };
+    /** Set on a group row: 'local' | 'remote' | 'tag'. */
+    readonly section?: string;
+    /** Set on a folder row: the branch-name prefix it gathers. */
+    readonly prefix?: string;
   }
   interface HubShape {
+    /** The repository that opens first — the Repositories section's pick. */
     repo(): RepoHandle | undefined;
-    getChildren(node?: HubNodeShape): Promise<HubNodeShape[]>;
-    getTreeItem(node: HubNodeShape): vscode.TreeItem;
+    getChildren(row?: HubRowShape): Promise<HubRowShape[]>;
+    getTreeItem(row: HubRowShape): vscode.TreeItem;
     refresh(): void;
   }
   interface Phase02Shape {
@@ -68,19 +80,25 @@ suite('POST-P14u sidebar sections', () => {
     if (restore !== undefined) reg.scope.focus(restore);
   });
 
-  const sectionIds = async (): Promise<string[]> =>
-    (await reg.hub.getChildren()).map((n) => n.id ?? n.kind);
+  /** A repository's own row at the top level (the workspace has several). */
+  async function repoRow(root: string): Promise<HubRowShape> {
+    const row = (await reg.hub.getChildren()).find(
+      (r) => r.kind === 'repo' && r.repoRoot !== undefined && canonicalKey(r.repoRoot) === canonicalKey(root),
+    );
+    assert.ok(row, `the tree has a row for ${root}`);
+    return row;
+  }
 
-  /** Every branch row the hub draws, whatever section or folder it sits in. */
-  async function allBranchNodes(): Promise<HubNodeShape[]> {
-    const out: HubNodeShape[] = [];
-    const walk = async (node?: HubNodeShape): Promise<void> => {
-      for (const child of await reg.hub.getChildren(node)) {
-        if (child.kind === 'branch') out.push(child);
-        else if (child.kind === 'section' || child.kind === 'folder') await walk(child);
+  /** Every branch and tag row under a repository's row, whatever group or folder it sits in. */
+  async function refRowsOf(root: string): Promise<HubRowShape[]> {
+    const out: HubRowShape[] = [];
+    const walk = async (row: HubRowShape): Promise<void> => {
+      for (const child of await reg.hub.getChildren(row)) {
+        if (child.kind === 'ref') out.push(child);
+        else if (child.kind === 'group') await walk(child);
       }
     };
-    await walk(undefined);
+    await walk(await repoRow(root));
     return out;
   }
 
@@ -138,45 +156,73 @@ suite('POST-P14u sidebar sections', () => {
     assert.strictEqual(reg.repositories.getChildren().filter((r) => reg.scope.isFocused(r)).length, 1);
   });
 
-  test('T5 the Branches view shows only the focused repository’s refs', async () => {
+  test('T5 the Branches tree lists every repository, and opens the one focused first', async () => {
     const target = core.getRepo(workspaceRepoB())!;
     await vscode.commands.executeCommand('gittree.repositories.select', target.root);
     await waitFor(() => reg.scope.isFocused(target.root));
     reg.hub.refresh();
 
-    const nodes = await allBranchNodes();
-    assert.ok(nodes.length > 0, 'the focused repository has branches');
-    const mine = new Set(target.model.snapshot.refs.map((r) => r.name));
-    for (const node of nodes) {
-      assert.ok(mine.has(node.ref!.name), `${node.ref!.name} belongs to the focused repository`);
+    // Project-level, as the popup is: a row for every repository.
+    const repoRows = (await reg.hub.getChildren()).filter((r) => r.kind === 'repo');
+    assert.strictEqual(repoRows.length, core.repos.length, 'one row per repository, every one');
+    // The pick decides which one opens, and only that one.
+    for (const row of repoRows) {
+      const open = reg.hub.getTreeItem(row).collapsibleState === vscode.TreeItemCollapsibleState.Expanded;
       assert.strictEqual(
-        canonicalKey(node.repo!.root),
+        open,
+        canonicalKey(row.repoRoot!) === canonicalKey(target.root),
+        `${row.label} opens only when it is the repository picked`,
+      );
+    }
+
+    // Under its row, the repository's own refs, each carrying the repository
+    // its menu will act on.
+    const rows = await refRowsOf(target.root);
+    assert.ok(rows.length > 0, 'the focused repository has branches');
+    const mine = new Set(target.model.snapshot.refs.map((r) => r.name));
+    for (const row of rows) {
+      assert.ok(mine.has(row.ref!.name), `${row.ref!.name} belongs to the focused repository`);
+      assert.strictEqual(
+        canonicalKey(row.repoRoot!),
         canonicalKey(target.root),
         'every row carries the repository its menu will act on',
       );
     }
   });
 
-  test('T6 the first section is Actions, and each verb carries the focused root', async () => {
-    const ids = await sectionIds();
-    assert.strictEqual(ids[0], 'actions', `first section was ${String(ids[0])}`);
-    const verbs = await reg.hub.getChildren({ kind: 'actions' });
-    assert.ok(verbs.length >= 5, `the popup's verbs are all here (${verbs.length})`);
-    const root = reg.scope.current;
+  test('T6 the tree starts with the popup’s verbs, which act on the project; a repository’s own act on it', async () => {
+    const top = await reg.hub.getChildren();
+    assert.strictEqual(top[0]?.kind, 'verb', `the first row was ${String(top[0]?.id)}`);
+    const verbs = top.filter((r) => r.kind === 'verb');
+    assert.ok(verbs.length >= 3, `the popup's verbs are all here (${verbs.length})`);
     for (const verb of verbs) {
+      const item = reg.hub.getTreeItem(verb);
+      assert.strictEqual(item.command?.command, verb.verb!.command);
+      assert.strictEqual(
+        item.command?.arguments,
+        undefined,
+        'a project verb takes no argument, as the popup runs it: it spans every repository',
+      );
+    }
+    // A repository's own copy of a verb (New Branch… under its row) runs there.
+    const root = reg.scope.current!;
+    const scoped = (await reg.hub.getChildren(await repoRow(root))).filter((r) => r.kind === 'verb');
+    assert.ok(scoped.length > 0, 'a repository has its own copies of the branch verbs');
+    for (const verb of scoped) {
       const item = reg.hub.getTreeItem(verb);
       assert.strictEqual(item.command?.command, verb.verb!.command);
       assert.deepStrictEqual(
         item.command?.arguments,
-        [root],
-        'a verb in a view that names a repository must act on that repository',
+        [verb.repoRoot],
+        'a verb under a repository must act on that repository',
       );
+      assert.strictEqual(canonicalKey(verb.repoRoot!), canonicalKey(root));
     }
   });
 
   test('T7 branch rows carry the contextValues the shared menus match', async () => {
-    const nodes = await allBranchNodes();
-    const values = new Set(nodes.map((n) => String(reg.hub.getTreeItem(n).contextValue)));
+    const rows = await refRowsOf(reg.scope.current!);
+    const values = new Set(rows.map((r) => String(reg.hub.getTreeItem(r).contextValue)));
     assert.ok(values.size > 0);
     for (const value of values) {
       assert.match(
@@ -189,7 +235,7 @@ suite('POST-P14u sidebar sections', () => {
     // distinction POST-P14d found nine clauses silently excluding.
     const head = reg.hub.repo()!.model.snapshot.headRef;
     if (head !== undefined) {
-      const current = nodes.find((n) => n.ref!.isHead);
+      const current = rows.find((r) => r.ref!.isHead);
       assert.ok(current, `the checked-out branch ${head} has a row`);
       assert.match(String(reg.hub.getTreeItem(current).contextValue), /^branch:current(:|$)/u);
     }
@@ -205,17 +251,27 @@ suite('POST-P14u sidebar sections', () => {
      * it already takes. `reveal` is what proves that choice works: it round
      * trips the element through VS Code's own element↔handle map, which is the
      * part a provider-level test cannot reach.
+     *
+     * Since 87798ad the tree is shown only with gittree.sidebar.extraViews (and
+     * several repositories): turned on here, and back as it was after.
      */
-    await vscode.commands.executeCommand('gittree.repositories.focus');
-    await waitFor(() => reg.reposView.visible, 20_000);
+    const sidebar = vscode.workspace.getConfiguration('gittree.sidebar');
+    const saved = sidebar.inspect('extraViews');
+    await sidebar.update('extraViews', true, vscode.ConfigurationTarget.Global);
+    try {
+      await vscode.commands.executeCommand('gittree.repositories.focus');
+      await waitFor(() => reg.reposView.visible, 20_000);
 
-    const root = reg.scope.current!;
-    await reg.reposView.reveal(root, { select: true, focus: false });
-    assert.deepStrictEqual(
-      reg.reposView.selection,
-      [root],
-      'VS Code resolved the string element back to the row it stands for',
-    );
+      const root = reg.scope.current!;
+      await reg.reposView.reveal(root, { select: true, focus: false });
+      assert.deepStrictEqual(
+        reg.reposView.selection,
+        [root],
+        'VS Code resolved the string element back to the row it stands for',
+      );
+    } finally {
+      await sidebar.update('extraViews', saved?.globalValue, vscode.ConfigurationTarget.Global);
+    }
   });
 
   test('T9 a nested branch name is a real folder, which the popup cannot do (D5)', async () => {
@@ -227,13 +283,18 @@ suite('POST-P14u sidebar sections', () => {
       await waitFor(() => repo.model.snapshot.refs.some((r) => r.name === name), 10_000);
       reg.hub.refresh();
 
-      const local = (await reg.hub.getChildren()).find((s) => s.id === '@local')!;
+      // The repository's row, then its Local group, then folders: a folder row
+      // is a group with the prefix it gathers.
+      const local = (await reg.hub.getChildren(await repoRow(repo.root))).find(
+        (r) => r.kind === 'group' && r.section === 'local' && (r.prefix ?? '') === '',
+      );
+      assert.ok(local, 'the repository has a Local group');
       const top = await reg.hub.getChildren(local);
-      const p14u = top.find((n) => n.kind === 'folder' && n.name === 'p14u');
+      const p14u = top.find((r) => r.kind === 'group' && r.label === 'p14u');
       assert.ok(p14u, `a 'p14u' folder row, not a row called '${name}'`);
 
       const nested = (await reg.hub.getChildren(p14u)).find(
-        (n) => n.kind === 'folder' && n.name === 'nested',
+        (r) => r.kind === 'group' && r.label === 'nested',
       );
       assert.ok(nested, "'p14u' contains a 'nested' folder — the tree keeps nesting");
 
