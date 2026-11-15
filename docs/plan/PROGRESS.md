@@ -2395,4 +2395,6 @@ Confirmed by runs of the changed suites alone (fresh profile): sidebar sections 
 
 **After the fixes, the whole suite again on `new-way-8`** (fresh profile): **429 passing, 6 failing, 1 pending**, 20 min. The six are the ones above, and nothing else: discovery ×4 (the home repository), POST-P14v (the owner's question) and P7's bound (694 ms). POST-P14ck's suite passed 2 of 2, Generate Commit Message's 10 of 10.
 
+After the owner's two answers (the home repository removed; Add to VCS stays unticked, the test follows), the discovery suite and POST-P14v, run again (fresh profile): 11 of 11. Of the whole suite, only P7's 500 ms bound is left failing, under this laptop's load.
+
 Also seen: with a repository in the home folder, discovery adds it for any folder opened under the home folder, and runs status over the whole home folder; VS Code's own Git asks first (`git.openRepositoryInParentFolders`). A product question, not changed.
