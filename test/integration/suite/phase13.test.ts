@@ -1512,10 +1512,11 @@ suite('P13 dialogs', () => {
           prompt.detail,
         );
         assert.deepStrictEqual(prompt.buttons, ['Merge', 'Rebase']);
-        // What Merge runs: Update Project's commands, then the same push again.
+        // What Merge runs: Update Project's commands, then the same push again —
+        // the Push dialog's own refspec, the whole source ref (`pushRefspec`).
         assert.ok(
           prompt.detail.includes(
-            `Merge: git fetch --prune ${REMOTE} && git merge --autostash ${REMOTE}/${branch} && git push ${REMOTE} ${branch}:refs/heads/${branch}`,
+            `Merge: git fetch --prune ${REMOTE} && git merge --autostash ${REMOTE}/${branch} && git push ${REMOTE} refs/heads/${branch}:refs/heads/${branch}`,
           ),
           prompt.detail,
         );

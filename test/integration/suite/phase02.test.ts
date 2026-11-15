@@ -156,6 +156,10 @@ suite('P2 branches', () => {
     assert.deepStrictEqual(notes.recent(), [
       { kind: 'info', message: 'Deleted branch ops/renamed', actions: ['Restore'] },
     ]);
+    // Back as it was, to be deleted again — this time with Restore clicked.
+    // (The second delete used to find no branch to delete: the integration
+    // suite's first run since this was written, POST-P14cm.)
+    git('branch', 'ops/renamed', tip);
     await refresh();
     process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Restore';
     try {

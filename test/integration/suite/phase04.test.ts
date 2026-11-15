@@ -183,8 +183,12 @@ suite('P4 log & blame host', () => {
     await vscode.commands.executeCommand('gittree.showFileHistory', target);
     await waitFor(() => reg.logView.currentSession?.filter.follow === true, 15_000);
     const filter = reg.logView.currentSession!.filter;
+    // A plain name is passed as it is; one git would glob gets `:(literal)`
+    // (POST-P14ck, covered by the unit suites).
     assert.deepStrictEqual(filter.paths, ['README.md']);
-    assert.strictEqual(filter.refs, 'ALL');
+    // POST-QA: the current branch, as IntelliJ's History opens (Show All
+    // Branches off) — every branch read another branch's change as this one's.
+    assert.strictEqual(filter.refs, 'HEAD');
   });
 
   test('compare-in-log sets a range filter (P2-T5 upgrade)', async function () {

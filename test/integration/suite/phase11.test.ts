@@ -451,9 +451,12 @@ suite('P11 commit tool window', () => {
     } finally {
       await applyOption(store, repo, { kind: 'author', value: '' });
       await applyOption(store, repo, { kind: 'signoff', value: false });
-      await vscode.workspace
-        .getConfiguration('gittree.commit.checks')
-        .update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
+      // The gear writes where the user keeps a setting, else in their own
+      // settings (`writeSetting`, POST-QA): both go, or the next test starts
+      // with Run advanced checks after commit ticked.
+      const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
+      await checks.update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
+      await checks.update('deferAdvanced', undefined, vscode.ConfigurationTarget.Global);
     }
   });
 

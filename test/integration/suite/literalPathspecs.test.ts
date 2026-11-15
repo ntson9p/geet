@@ -57,13 +57,29 @@ suite('POST-P14ck a path that looks like a pattern', () => {
 
   suiteTeardown(async function () {
     this.timeout(60_000);
-    if (listId !== undefined && reg.changelistsFor(repo).getList(listId) !== undefined) {
-      reg.changelistsFor(repo).remove(listId);
-    }
-    git('reset', '-q', '--soft', before);
-    git('rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', DIR);
-    fs.rmSync(abs(DIR), { recursive: true, force: true });
+    // Every step runs, whatever an earlier one did: a step skipped here leaves
+    // repoC dirty for every suite after this one.
+    const errors: unknown[] = [];
+    const step = (run: () => void): void => {
+      try {
+        run();
+      } catch (err) {
+        errors.push(err);
+      }
+    };
+    step(() => {
+      if (listId !== undefined && reg.changelistsFor(repo).getList(listId) !== undefined) {
+        reg.changelistsFor(repo).remove(listId);
+      }
+    });
+    step(() => git('reset', '-q', '--soft', before));
+    // Out of the index again. Not `git rm --cached`: it refuses a file whose
+    // staged content differs from both HEAD and the disk, which is what is
+    // left here (`i.tsx` changed after the commit that is now undone).
+    step(() => git('reset', '-q', '--', DIR));
+    step(() => fs.rmSync(abs(DIR), { recursive: true, force: true }));
     await repo.refresher.refreshNow();
+    if (errors.length > 0) throw errors[0];
   });
 
   test('a changelist commit of a ticked [id].tsx commits that file alone', async function () {

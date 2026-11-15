@@ -444,19 +444,24 @@ suite('P14 branch menu parity', () => {
     this.timeout(150_000);
     await withCurrentBranch(async (base, reg13) => {
       // Answer the question Rebase, without ticking anything: the setting stays
-      // `ask`. Nothing is incoming yet, so the answer moves nothing.
-      await trackCurrentAt(base);
+      // `ask`. POST-P14aw: Update Project fetches first and asks only when
+      // something is coming in, so the upstream is a commit ahead; with no
+      // local work, the rebase just brings the branch up to it.
+      const first = commitOnto(base, 'p14bm: the upstream moves on once');
+      await trackCurrentAt(first);
       process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'rebase';
       const answered = await reg13.showUpdateDialog(repo);
       assert.ok(answered?.ok, answered?.message ?? 'no outcome');
+      assert.ok(reg13.lastUpdatePrompt() !== undefined, 'with something coming in, Update Project asks');
       assert.strictEqual(reg13.currentUpdateStrategy(), 'ask', 'nobody chose Don\'t Ask Again');
       assert.strictEqual(reg13.rememberedUpdateStrategy(), 'rebase');
+      assert.strictEqual(git('rev-parse', 'HEAD').trim(), first);
 
       // Now the upstream moves on while there is local work, so merge and
       // rebase would give different histories.
       process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'cancel';
       reg13.clearLastUpdatePrompt();
-      const ahead = commitOnto(base, "p14bm: the checked-out branch's upstream moves on");
+      const ahead = commitOnto(first, "p14bm: the checked-out branch's upstream moves on");
       fs.writeFileSync(path.join(repoRoot, 'p14bm-local.txt'), 'local work\n');
       git('add', '--', 'p14bm-local.txt');
       git(
@@ -485,8 +490,12 @@ suite('P14 branch menu parity', () => {
         );
       } finally {
         // Answer Merge again — IntelliJ's default — so later suites start clean.
-        // The branch is level with its upstream now, so this moves nothing.
+        // Asked only with something coming in (POST-P14aw): the upstream moves
+        // on once more, and the merge takes it in. `withCurrentBranch` puts the
+        // branch back afterwards.
         process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'merge';
+        const again = commitOnto(git('rev-parse', 'HEAD').trim(), 'p14bm: the upstream moves on again');
+        await trackCurrentAt(again);
         await reg13.showUpdateDialog(repo);
         assert.strictEqual(reg13.rememberedUpdateStrategy(), 'merge');
       }

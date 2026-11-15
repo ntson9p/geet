@@ -38,7 +38,11 @@ suite('P14 owning the SCM surface', () => {
     // it. `gittree.branches` is now the repository-scoped hub; the
     // all-repositories tree it replaced moved to `gittree.branchesLegacy`.
     'gittree.repositories',
+    // 87798ad: `gittree.branches` became the webview (two search fields a tree
+    // cannot hold); the tree that drew the same rows moved to
+    // `gittree.branchesTree`, behind gittree.sidebar.extraViews.
     'gittree.branches',
+    'gittree.branchesTree',
     'gittree.branchesLegacy',
     'gittree.worktrees',
     'gittree.compare',
@@ -354,6 +358,8 @@ suite('P14 owning the SCM surface', () => {
         'gittree.blame.foreground',
         'gittree.blame.uncommittedBackground',
         ...statusIds,
+        // 7dcaae0: the borders a drag resizes, drawn between side bar sections.
+        'gittree.sectionBorder',
       ],
       'every contributed colour is accounted for',
     );
