@@ -2,10 +2,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mockBranchesHostScript } from './mockBranchesHost';
 
 /**
- * The Repositories panel (new-way-4; once titled Branches), against the in-page
- * mock host: three repositories — `api`, `shared` (mid-rebase) and `web` — or
- * `web` alone. The branches sit under Recent, Local, Remote and Tags tabs, and
- * the panel opens on Recent.
+ * The Repositories and Branches panels (new-way-4; one panel, titled
+ * Repositories, until POST-P14co split it), against the in-page mock host:
+ * three repositories — `api`, `shared` (mid-rebase) and `web` — or `web` alone.
+ * A page is one panel: the Branches panel unless `role` says Repositories. The
+ * branches sit under Recent, Local, Remote and Tags tabs, and the panel opens
+ * on Recent. Two pages of one test are the two panels of one host.
  */
 
 interface PostedMsg {
@@ -14,10 +16,20 @@ interface PostedMsg {
   params?: Record<string, unknown>;
 }
 
-async function openPanel(
-  page: Page,
-  opts: { single?: boolean; holdFetch?: boolean; holdRun?: boolean; dots?: boolean } = {},
-): Promise<void> {
+type Role = 'repositories' | 'branches';
+
+interface PanelOptions {
+  single?: boolean;
+  holdFetch?: boolean;
+  holdRun?: boolean;
+  dots?: boolean;
+  /** Which panel the page is; the Branches panel by default. */
+  role?: Role;
+  /** The repositories the host kept picked when the page opens (POST-P14ce). */
+  scope?: string[];
+}
+
+async function openPanel(page: Page, opts: PanelOptions = {}): Promise<void> {
   await page.addInitScript((o) => {
     const w = window as unknown as Record<string, unknown>;
     if (o.single === true) w['__mockSingleRepo'] = true;
@@ -25,12 +37,33 @@ async function openPanel(
     if (o.holdRun === true) w['__mockHoldRun'] = true;
     // Repository Dots start on (they are off by default).
     if (o.dots === true) w['__mockDots'] = true;
+    if (o.role !== undefined) w['__mockRole'] = o.role;
+    if (o.scope !== undefined) w['__mockScope'] = o.scope;
   }, opts);
   await page.addInitScript(mockBranchesHostScript);
   await page.goto('/branches.html');
-  // The first row on show: a pane can start folded, its rows hidden.
   await expect(page.locator('[data-row-id]:visible').first()).toBeVisible();
 }
+
+/**
+ * Both panels, as VS Code shows them (POST-P14co): the Repositories panel in
+ * `page`, the Branches panel in a second page of the same browser, joined by
+ * the mock host as the two webviews are by the real one.
+ */
+async function openBoth(page: Page, opts: Omit<PanelOptions, 'role'> = {}): Promise<{ repos: Page; branches: Page }> {
+  const branches = await page.context().newPage();
+  await openPanel(page, { ...opts, role: 'repositories' });
+  await openPanel(branches, { ...opts, role: 'branches' });
+  return { repos: page, branches };
+}
+
+/** A pick made in another panel (or the Commit window), as the host passes it on. */
+async function pickElsewhere(page: Page, roots: string[]): Promise<void> {
+  await page.evaluate((r) => (window as unknown as { __mockPickElsewhere(r: string[]): void }).__mockPickElsewhere(r), roots);
+}
+
+/** What the Branches panel's filter says before anything is typed (POST-P14co: and what `@` does). */
+const filterIn = (what: string): string => `Filter branches in ${what} (type @ to pick repositories)`;
 
 async function requests(page: Page, method: string): Promise<Array<Record<string, unknown>>> {
   const all = (await page.evaluate(
@@ -61,7 +94,7 @@ test.describe('several repositories', () => {
   test('lists each repository with what it has checked out, and a banner for the one mid-rebase', async ({
     page,
   }) => {
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-label', 'api, on feature/login');
     await expect(row(page, `repo:${SHARED}`)).toHaveAttribute('aria-label', 'shared, on main');
     await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-label', 'web, on feature/login');
@@ -172,7 +205,7 @@ test.describe('several repositories', () => {
   test("a repository's menu opens with the ways of looking at it, Show in New Log Tab among them", async ({
     page,
   }) => {
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     await row(page, `repo:${WEB}`).click({ button: 'right' });
     const menu = page.getByRole('menu', { name: 'Actions for web' });
     await expect(menu).toBeVisible();
@@ -193,7 +226,7 @@ test.describe('several repositories', () => {
   test("a repository's own update says it is the repository's, from its menu and its button (POST-P14bx)", async ({
     page,
   }) => {
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     // Its menu: Update Repository… and Without Fetching, each run for that repository.
     await row(page, `repo:${WEB}`).click({ button: 'right' });
     const menu = page.getByRole('menu', { name: 'Actions for web' });
@@ -258,8 +291,9 @@ test.describe('several repositories', () => {
     await menu.getByRole('menuitem', { name: /^Commit…/u }).click();
     expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'commit', roots: [] } });
 
-    // One picked: that one, the words say so, and the keys, which run the project's, are gone.
-    await row(page, `repo:${WEB}`).click();
+    // One picked (in the Repositories panel): that one, the words say so, and the
+    // keys, which run the project's, are gone.
+    await pickElsewhere(page, [WEB]);
     expect(await firstRows()).toEqual([
       'Update Repository…',
       'Update Repository Without Fetching…',
@@ -272,8 +306,8 @@ test.describe('several repositories', () => {
     await menu.getByRole('menuitem', { name: 'Commit Repository…' }).click();
     expect(await lastRun()).toEqual({ run: { type: 'inView', verb: 'commit', roots: [WEB] } });
 
-    // Two of three: those two, which they used to leave for every repository.
-    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    // Two of three (a Ctrl+click there): those two, which they used to leave for every repository.
+    await pickElsewhere(page, [WEB, API]);
     expect(await firstRows()).toEqual([
       'Update 2 Repositories…',
       'Update 2 Repositories Without Fetching…',
@@ -299,39 +333,37 @@ test.describe('several repositories', () => {
     ]);
   });
 
-  test('clicking a repository narrows the list to it; the pill widens it again', async ({ page }) => {
-    await openPanel(page);
-    await showTab(page, 'Local');
-    await row(page, 'dir:local:refactor/').click();
-    await expect(row(page, 'br:local:local:refactor/types')).toBeVisible();
+  test('clicking a repository narrows the Branches panel to it; the pill there widens both again', async ({
+    page,
+  }) => {
+    const { repos, branches } = await openBoth(page);
+    await showTab(branches, 'Local');
+    await row(branches, 'dir:local:refactor/').click();
+    await expect(row(branches, 'br:local:local:refactor/types')).toBeVisible();
 
-    await row(page, `repo:${WEB}`).click();
-    await expect(page.getByLabel('Filter branches')).toHaveAttribute('placeholder', 'Filter branches in web');
-    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
-    await expect(row(page, 'br:local:local:refactor/types')).toHaveCount(0);
+    await row(repos, `repo:${WEB}`).click();
+    await expect(row(repos, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('web'));
+    await expect(row(branches, 'br:local:local:refactor/types')).toHaveCount(0);
     // One repository in view: no markers, and no switch for them.
-    await expect(page.locator('.gtp-markers')).toHaveCount(0);
-    await expect(page.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' })).toHaveCount(0);
+    await expect(branches.locator('.gtp-markers')).toHaveCount(0);
+    await expect(branches.locator('.gtp-toolbar').getByRole('button', { name: 'Repository Dots' })).toHaveCount(0);
 
     // Ctrl+click adds another.
-    await row(page, `repo:${SHARED}`).click({ modifiers: ['Control'] });
-    await expect(page.getByLabel('Filter branches')).toHaveAttribute(
-      'placeholder',
-      'Filter branches in 2 repositories',
-    );
-    await expect(row(page, 'br:local:local:refactor/types')).toBeVisible();
+    await row(repos, `repo:${SHARED}`).click({ modifiers: ['Control'] });
+    await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('2 repositories'));
+    await expect(row(branches, 'br:local:local:refactor/types')).toBeVisible();
 
-    await page.getByRole('button', { name: /^Narrowed to 2 repositories/u }).click();
-    await expect(page.getByLabel('Filter branches')).toHaveAttribute(
-      'placeholder',
-      'Filter branches in 3 repositories',
-    );
+    await branches.getByRole('button', { name: /^Narrowed to 2 repositories/u }).click();
+    await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('3 repositories'));
+    await expect(row(repos, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'false');
+    await expect(row(repos, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'false');
   });
 
   test('a second click shows every repository again, and the row looks as the others do (POST-P14bw)', async ({
     page,
   }) => {
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     const ACTIVE = 'rgb(4, 57, 94)';
     const INACTIVE = 'rgb(55, 55, 61)';
     const OUTLINE = 'rgb(0, 120, 212)';
@@ -368,10 +400,7 @@ test.describe('several repositories', () => {
 
     // The second click shows every repository again, and leaves the row as the others are.
     await row(page, `repo:${API}`).click();
-    await expect(page.getByLabel('Filter branches')).toHaveAttribute(
-      'placeholder',
-      'Filter branches in 3 repositories',
-    );
+    await expect.poll(async () => (await requests(page, 'branches/setScope')).map((p) => p['roots'])).toEqual([[API], []]);
     await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'false');
     await expect(row(page, `repo:${API}`)).toBeFocused();
     await pointerAway();
@@ -398,15 +427,16 @@ test.describe('several repositories', () => {
     expect((await look(SHARED)).background).toBe(ACTIVE);
     expect((await look(WEB)).background).toBe(NONE);
 
-    // With the focus elsewhere, the picked rows keep the inactive highlight, as VS Code's lists do.
-    await page.getByLabel('Filter branches').focus();
+    // With the focus elsewhere (the panel has nothing else to focus: VS Code
+    // has it), the picked rows keep the inactive highlight, as VS Code's lists do.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     expect((await look(API)).background).toBe(INACTIVE);
     expect((await look(SHARED)).background).toBe(INACTIVE);
     expect((await look(WEB)).background).toBe(NONE);
   });
 
   test("a repository's hover says what a click on it does (POST-P14bw)", async ({ page }) => {
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     const hint = async (root: string): Promise<string> =>
       ((await row(page, `repo:${root}`).locator('.gtp-repo').getAttribute('title')) ?? '').split('\n')[1] ?? '';
     // Every repository shown: a click (or a Ctrl+click) shows only this one.
@@ -422,7 +452,8 @@ test.describe('several repositories', () => {
     expect(await hint(SHARED)).toBe('Click to show only its branches · Ctrl+click to add it');
     // And it does: a click on one of the two shows that one alone.
     await row(page, `repo:${WEB}`).click();
-    await expect(page.getByLabel('Filter branches')).toHaveAttribute('placeholder', 'Filter branches in web');
+    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'false');
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
     expect(await hint(WEB)).toBe('Click to show every repository again');
   });
 
@@ -587,7 +618,7 @@ test.describe('several repositories', () => {
     await page.addInitScript(() => {
       (window as unknown as { __mockFetchMs: number }).__mockFetchMs = 2000;
     });
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     const web = row(page, `repo:${WEB}`);
     await web.hover();
     await web.getByRole('button', { name: 'Fetch' }).click();
@@ -636,9 +667,7 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
   });
 
   test('narrowed to some repositories, it says how many', async ({ page }) => {
-    await openPanel(page);
-    await row(page, `repo:${WEB}`).click();
-    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await openPanel(page, { scope: [WEB, API] });
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitem', { name: 'Checkout Branch in 2 Repositories…' }).click();
     const run = (await requests(page, 'branches/run')).at(-1)?.['run'] as { roots?: string[] } | undefined;
@@ -661,17 +690,14 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
   });
 
   test('narrowed to some repositories, it is still left out', async ({ page }) => {
-    await openPanel(page);
-    await row(page, `repo:${WEB}`).click();
-    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await openPanel(page, { scope: [WEB, API] });
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await expect(page.getByRole('menuitem', { name: 'Checkout Branch in 2 Repositories…' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' })).toHaveCount(0);
   });
 
   test('narrowed to one repository, More Actions has Checkout Tag or Revision, for that one', async ({ page }) => {
-    await openPanel(page);
-    await row(page, `repo:${API}`).click();
+    await openPanel(page, { scope: [API] });
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
@@ -1046,14 +1072,15 @@ test.describe('which repositories a branch is in (POST-P14bt)', () => {
     page,
   }) => {
     await openPanel(page);
-    await row(page, `repo:${WEB}`).click();
+    // Picked in the Repositories panel: web, then api with it.
+    await pickElsewhere(page, [WEB]);
     await page.getByLabel('Filter branches').fill('develop');
     const develop = row(page, 'br:local:local:develop');
     await expect(develop).toBeVisible();
     await expect(develop.locator('.gtp-where')).toHaveCount(0);
     await expect(develop).toHaveAttribute('aria-label', 'develop');
 
-    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
+    await pickElsewhere(page, [WEB, API]);
     await expect(words(page, 'br:local:local:develop')).toHaveText('in both');
     await expect(develop).toHaveAttribute('aria-label', 'develop, in both repositories');
   });
@@ -1415,287 +1442,304 @@ test.describe('the tabs over the branches', () => {
     await expect(tabButton(page, 'Recent')).toHaveAttribute('title', '0 recent branches');
   });
 
-  test('with several repositories, the tabs head the BRANCHES pane, under REPOSITORIES', async ({ page }) => {
+  test('with several repositories, the tabs head the Branches panel: its repositories are a panel of their own', async ({
+    page,
+  }) => {
     await openPanel(page);
     const order = await page.locator('[data-row-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
-    expect(order.indexOf('tabs')).toBeGreaterThan(order.indexOf(`repo:${WEB}`));
-    expect(order.indexOf('tabs')).toBeGreaterThan(order.indexOf(`op:${SHARED}`));
-    await expect(reposList(page).locator(`[data-row-id="repo:${WEB}"]`)).toBeVisible();
-    await expect(branchesList(page).locator('[data-row-id="tabs"]')).toBeVisible();
+    expect(order[0]).toBe('tabs');
+    expect(order.some((id) => id?.startsWith('repo:') === true || id?.startsWith('op:') === true)).toBe(false);
+    await expect(page.locator('#gtp-branches-list [data-row-id="tabs"]')).toBeVisible();
   });
 });
 
-/** The panes of a panel with several repositories (new-way-6). */
-const paneHeader = (page: Page, pane: 'repos' | 'branches'): Locator =>
-  page.locator(`.gtp-pane-header[data-pane="${pane}"]`);
-const reposList = (page: Page): Locator => page.locator('#gtp-repos-list');
-const branchesList = (page: Page): Locator => page.locator('#gtp-branches-list');
 async function vsState(page: Page): Promise<Record<string, unknown>> {
   return page.evaluate(
     () => ((window as unknown as { __mockVsState?: Record<string, unknown> }).__mockVsState ?? {}),
   );
 }
-/** Drags the divider between the panes `by` pixels, down for more REPOSITORIES. */
-async function dragDivider(page: Page, by: number): Promise<void> {
-  const box = (await page.locator('.gtp-sash').boundingBox())!;
-  const x = box.x + 40;
-  const y = box.y + box.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x, y + by, { steps: 6 });
-  await page.mouse.up();
-}
-const heightOf = async (l: Locator): Promise<number> => Math.round((await l.boundingBox())?.height ?? 0);
 
-test.describe('the REPOSITORIES and BRANCHES panes (new-way-6)', () => {
-  test('each pane has its header and a list that scrolls on its own', async ({ page }) => {
-    await page.setViewportSize({ width: 400, height: 420 });
-    await openPanel(page);
-    await expect(paneHeader(page, 'repos')).toContainText('Repositories');
-    await expect(paneHeader(page, 'repos').locator('.gtp-count')).toHaveText('3');
-    await expect(paneHeader(page, 'branches')).toContainText('Branches');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
-    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-controls', 'gtp-branches-list');
-    // No REPOSITORIES heading in a list any more: the pane's header is it.
-    await expect(row(page, 'sec:repos')).toHaveCount(0);
-
-    // Thirty more local branches: the branches scroll, the repositories stay put.
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __mockState: { repos: Array<{ locals: Array<Record<string, unknown>> }> };
-        __pushState: () => void;
-      };
-      for (let i = 1; i <= 30; i++) {
-        const name = `topic-${String(i).padStart(2, '0')}`;
-        w.__mockState.repos[2]!.locals.push({ name, sha: 'f'.repeat(40), date: 1_800_000_000 - i * 3600 });
-      }
-      w.__pushState();
-    });
-    await showTab(page, 'Local');
-    await branchesList(page).evaluate((el) => {
-      el.scrollTop = 300;
-    });
-    await expect(page.locator('.gtp-pinned')).toBeVisible();
-    expect(await reposList(page).evaluate((el) => el.scrollTop)).toBe(0);
-    await expect(row(page, `repo:${API}`)).toBeVisible();
+/**
+ * POST-P14co: the panel that was two panes is two panels. Each is a VS Code
+ * view, which folds, resizes and scrolls on its own; the pick is one for both.
+ */
+test.describe('the Repositories and Branches panels (POST-P14co)', () => {
+  test('the Repositories panel lists the repositories alone: no toolbar, no heading, no branch', async ({ page }) => {
+    await openPanel(page, { role: 'repositories' });
+    await expect(page.locator('.gtp-toolbar')).toHaveCount(0);
+    await expect(page.getByLabel('Filter branches')).toHaveCount(0);
+    const ids = await page.locator('[data-row-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
+    expect(ids).toEqual([`repo:${API}`, `repo:${SHARED}`, `op:${SHARED}`, `repo:${WEB}`]);
+    // Nothing in it counts or names the pick: VS Code's own header names the
+    // panel, the highlight the pick, and the Branches panel's pill widens it.
+    await row(page, `repo:${WEB}`).click();
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByText('Show all', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.gtp-count')).toHaveCount(0);
   });
 
-  test('a header folds its pane, the other takes the room, and the fold is kept', async ({ page }) => {
+  test('the Branches panel has the toolbar and the branches, and no repository', async ({ page }) => {
     await openPanel(page);
-    const before = await heightOf(branchesList(page));
-    await paneHeader(page, 'repos').click();
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
-    await expect(row(page, `repo:${WEB}`)).toBeHidden();
-    expect(await heightOf(branchesList(page))).toBeGreaterThan(before);
-    expect((await vsState(page))['toggled']).toEqual(['sec:repos']);
-    await paneHeader(page, 'repos').click();
-    await expect(row(page, `repo:${WEB}`)).toBeVisible();
-
-    // Folded, BRANCHES is its header at the foot of the panel, as a folded view is.
-    await paneHeader(page, 'branches').click();
-    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'false');
-    await expect(row(page, 'tabs')).toBeHidden();
-    const header = (await paneHeader(page, 'branches').boundingBox())!;
-    expect(Math.round(header.y + header.height)).toBe(page.viewportSize()!.height);
-    await expect(page.locator('.gtp-sash')).toHaveCount(0);
+    await expect(page.locator('.gtp-toolbar').getByLabel('Filter branches')).toBeVisible();
+    await expect(page.locator('[data-row-id^="repo:"]')).toHaveCount(0);
+    await expect(page.locator('[data-row-id^="op:"]')).toHaveCount(0);
+    await expect(page.locator('.gtp-edge')).toHaveCount(0);
   });
 
-  test('the panel starts again with the panes folded as they were left', async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as unknown as { __mockVsState: unknown }).__mockVsState = { toggled: ['sec:repos'] };
-    });
-    await openPanel(page);
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
-    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  test('the divider shares the height, stops at the last repository, and a double-click undoes it', async ({
+  test('a line along the Repositories panel’s foot marks the divider above the Branches panel (POST-P14bu)', async ({
     page,
   }) => {
-    await openPanel(page);
-    // Three repositories and a banner: 3 × 24 + 26, all of it, by default.
-    await expect.poll(() => heightOf(reposList(page))).toBe(98);
-    await dragDivider(page, -50);
-    await expect.poll(() => heightOf(reposList(page))).toBe(48);
-    await expect.poll(async () => (await vsState(page))['reposSize']).toBe(48);
-    // Past the last repository it goes no further.
-    await dragDivider(page, 500);
-    await expect.poll(() => heightOf(reposList(page))).toBe(98);
-    await expect.poll(async () => (await vsState(page))['reposSize']).toBe(98);
-    // A press that never moves is no resize.
-    const box = (await page.locator('.gtp-sash').boundingBox())!;
-    await page.mouse.click(box.x + 40, box.y + 2);
-    expect((await vsState(page))['reposSize']).toBe(98);
-    await page.mouse.dblclick(box.x + 40, box.y + 2);
-    await expect.poll(async () => (await vsState(page))['reposSize']).toBeUndefined();
-    await expect.poll(() => heightOf(reposList(page))).toBe(98);
-  });
-
-  test('a line marks the divider while it can be dragged, on the line between the panes (POST-P14bu)', async ({
-    page,
-  }) => {
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     await page.evaluate(() =>
       document.documentElement.style.setProperty('--vscode-gittree-sectionBorder', 'rgb(1, 2, 3)'),
     );
-    const sash = page.locator('.gtp-sash');
-    const topBorder = (pane: 'repos' | 'branches'): Promise<string> =>
-      paneHeader(page, pane).evaluate((el) => {
-        const s = getComputedStyle(el);
-        return `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`;
-      });
-    const headerTop = async (): Promise<number> => (await paneHeader(page, 'branches').boundingBox())!.y;
-    const sashMiddle = async (): Promise<number> => {
-      const box = (await sash.boundingBox())!;
-      return box.y + box.height / 2;
-    };
-
-    // The BRANCHES header's top border is the line, and the divider is grabbed across it.
-    expect(await topBorder('branches')).toBe('1px solid rgb(1, 2, 3)');
-    expect(await sashMiddle()).toBe(await headerTop());
-    // One line, in place of the theme's border, not over it: the colour is see-through, and a
-    // second line would add up to a stronger one. The divider draws none of its own, and the
-    // REPOSITORIES header, under the toolbar, none either.
-    expect(await sash.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('none');
-    expect(await topBorder('repos')).not.toContain('rgb(1, 2, 3)');
-
-    // It goes where the divider goes.
-    const before = await headerTop();
-    await dragDivider(page, -40);
-    await expect.poll(headerTop).toBe(before - 40);
-    expect(await sashMiddle()).toBe(await headerTop());
-
-    // A folded pane has no divider, and the BRANCHES header keeps the theme's own faint border.
-    await paneHeader(page, 'repos').click();
-    await expect(sash).toHaveCount(0);
-    expect(await topBorder('branches')).not.toContain('rgb(1, 2, 3)');
-    await paneHeader(page, 'repos').click();
-    await paneHeader(page, 'branches').click();
-    await expect(sash).toHaveCount(0);
-    expect(await topBorder('branches')).not.toContain('rgb(1, 2, 3)');
-    await paneHeader(page, 'branches').click();
-    await expect(sash).toHaveCount(1);
-    expect(await topBorder('branches')).toBe('1px solid rgb(1, 2, 3)');
+    const edge = await page.locator('.gtp-edge').evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        line: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+        bottom: Math.round(el.getBoundingClientRect().bottom),
+        events: s.pointerEvents,
+      };
+    });
+    // Along the very foot, where VS Code's divider is, and never in the way of its drag.
+    expect(edge).toEqual({ line: '2px solid rgb(1, 2, 3)', bottom: page.viewportSize()!.height, events: 'none' });
   });
 
-  test('twenty repositories take a share of the panel, and the branches keep the rest', async ({ page }) => {
-    await page.setViewportSize({ width: 400, height: 600 });
+  test('a pick the host kept shows in both: highlighted in one, named in the other', async ({ page }) => {
+    const { repos, branches } = await openBoth(page, { scope: [API] });
+    await expect(row(repos, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(row(repos, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'false');
+    await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('api'));
+    await expect(branches.getByRole('button', { name: /^Narrowed to api/u })).toBeVisible();
+  });
+
+  test('typing in the Repositories panel goes to the Branches panel’s filter; Ctrl+F too', async ({ page }) => {
+    const { repos, branches } = await openBoth(page);
+    await row(repos, `repo:${API}`).click();
+    await repos.keyboard.press('m');
+    expect((await requests(repos, 'branches/searchFor')).at(-1)).toEqual({ text: 'm' });
+    await expect(branches.getByLabel('Filter branches')).toHaveValue('m');
+    await expect(row(branches, 'sec:local')).toBeVisible();
+    await repos.keyboard.press('Control+f');
+    expect((await requests(repos, 'branches/searchFor')).at(-1)).toEqual({});
+    // The Repositories panel kept its own keyboard row.
+    await expect(row(repos, `repo:${API}`)).toBeFocused();
+  });
+
+  test('an @ typed in the Repositories panel opens the Branches panel’s picker', async ({ page }) => {
+    const { repos, branches } = await openBoth(page);
+    await row(repos, `repo:${API}`).click();
+    await repos.keyboard.press('@');
+    await expect(branches.getByTestId('repo-picker')).toBeVisible();
+    await expect(branches.getByLabel('Filter branches')).toHaveValue('@');
+  });
+
+  test("a repository's New Branch… opens the form in the Branches panel, for that repository", async ({ page }) => {
+    const { repos, branches } = await openBoth(page);
+    await row(repos, `repo:${WEB}`).click({ button: 'right' });
+    await repos.getByRole('menu', { name: 'Actions for web' }).getByRole('menuitem', { name: 'New Branch…' }).click();
+    expect((await requests(repos, 'branches/run')).at(-1)).toEqual({
+      run: { type: 'newBranch', from: 'HEAD', roots: [WEB] },
+    });
+    await expect(repos.getByRole('form', { name: 'New branch' })).toHaveCount(0);
+    const form = branches.getByRole('form', { name: 'New branch' });
+    await expect(form).toBeVisible();
+    await form.getByLabel('Branch name').fill('feature/from-repositories');
+    await form.getByRole('button', { name: 'Create' }).click();
+    expect((await requests(branches, 'branches/create')).at(-1)).toEqual({
+      name: 'feature/from-repositories',
+      from: 'HEAD',
+      roots: [WEB],
+      checkout: true,
+    });
+  });
+
+  test('Up from the top of the branches goes to the filter, and Escape there back to the row', async ({ page }) => {
+    await openPanel(page);
+    const filter = page.getByLabel('Filter branches');
+    await filter.press('ArrowDown');
+    await expect(row(page, 'tabs')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(filter).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(row(page, 'tabs')).toBeFocused();
+  });
+});
+
+/**
+ * POST-P14co: an `@` in the Branches panel's filter lists the repositories, a
+ * square box each. A tick picks: the side bar's one pick, which the pill names
+ * and the Repositories panel highlights. None ticked is every repository.
+ */
+test.describe('the @ in the filter picks repositories (POST-P14co)', () => {
+  const picker = (page: Page): Locator => page.getByTestId('repo-picker');
+  const pickerRow = (page: Page, name: string): Locator => picker(page).locator(`[data-picker-row="${name}"]`);
+  /** The list as it reads: `[x] api` for a ticked repository, `all` for All repositories. */
+  const ticks = (page: Page): Promise<string[]> =>
+    picker(page)
+      .locator('[role="option"]')
+      .evaluateAll((els) =>
+        els.map((e) => `${e.getAttribute('aria-selected') === 'true' ? '[x]' : '[ ]'} ${e.getAttribute('data-picker-row')}`),
+      );
+  const sentPicks = async (page: Page) => (await requests(page, 'branches/setScope')).map((p) => p['roots']);
+  async function typeInFilter(page: Page, text: string): Promise<Locator> {
+    const filter = page.getByLabel('Filter branches');
+    await filter.focus();
+    await page.keyboard.type(text);
+    return filter;
+  }
+
+  test('an @ lists every repository with a square box; with none picked, All repositories is the one ticked', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    const filter = page.getByLabel('Filter branches');
+    // The field says what an `@` does, and is the combobox of the list it opens.
+    await expect(filter).toHaveAttribute('placeholder', filterIn('3 repositories'));
+    await expect(filter).toHaveAttribute('role', 'combobox');
+    await expect(filter).toHaveAttribute('aria-expanded', 'false');
+    await typeInFilter(page, '@');
+    await expect(picker(page)).toBeVisible();
+    await expect(filter).toHaveAttribute('aria-expanded', 'true');
+    await expect(filter).toHaveAttribute('aria-controls', 'gtp-repo-picker');
+    await expect(picker(page).getByRole('listbox', { name: 'Repositories' })).toHaveAttribute(
+      'aria-multiselectable',
+      'true',
+    );
+    expect(await ticks(page)).toEqual(['[x] all', '[ ] api', '[ ] shared', '[ ] web']);
+    // Square boxes, VS Code's checkboxes: not the rows' round dots.
+    await expect(pickerRow(page, 'all').locator('.gt-tricheck')).toHaveAttribute('data-state', 'checked');
+    await expect(pickerRow(page, 'web').locator('.gt-tricheck')).toHaveAttribute('data-state', 'unchecked');
+    // Each repository with its colour and what it has checked out.
+    await expect(pickerRow(page, 'web')).toContainText('web');
+    await expect(pickerRow(page, 'web').locator('.gtp-picker-head')).toHaveText('feature/login');
+    // The first row is the highlighted one, and the field names it.
+    await expect(filter).toHaveAttribute('aria-activedescendant', 'gtp-repo-picker-0');
+    await expect(picker(page)).toContainText('Enter ticks and closes');
+    // The @ is no part of what the branches are filtered by: the tabs stay.
+    await expect(row(page, 'tabs')).toBeVisible();
+  });
+
+  test('what follows the @ narrows the list; Enter ticks the highlighted one and closes, taking the @ out', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    const filter = await typeInFilter(page, 'log @we');
+    expect(await ticks(page)).toEqual(['[ ] web']);
+    await expect(pickerRow(page, 'web').locator('.gtp-match')).toHaveText('we');
+    // What comes before the @ still filters the branches.
+    await expect(row(page, 'br:local:local:feature/login')).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(picker(page)).toHaveCount(0);
+    await expect(filter).toHaveValue('log ');
+    await expect(filter).toBeFocused();
+    expect(await sentPicks(page)).toEqual([[WEB]]);
+    await expect(page.getByRole('button', { name: /^Narrowed to web/u })).toBeVisible();
+    await expect(row(page, 'br:local:local:feature/login')).toBeVisible();
+  });
+
+  test('a click ticks and leaves the list open for the next; unticking the last shows every repository again', async ({
+    page,
+  }) => {
+    await openPanel(page);
+    await typeInFilter(page, '@');
+    await pickerRow(page, 'api').click();
+    await expect(picker(page)).toBeVisible();
+    expect(await ticks(page)).toEqual(['[ ] all', '[x] api', '[ ] shared', '[ ] web']);
+    await pickerRow(page, 'web').click();
+    expect(await ticks(page)).toEqual(['[ ] all', '[x] api', '[ ] shared', '[x] web']);
+    await expect(page.getByRole('button', { name: /^Narrowed to 2 repositories/u })).toBeVisible();
+    // The field kept the keyboard all along.
+    await expect(page.getByLabel('Filter branches')).toBeFocused();
+    await pickerRow(page, 'api').click();
+    await pickerRow(page, 'web').click();
+    expect(await ticks(page)).toEqual(['[x] all', '[ ] api', '[ ] shared', '[ ] web']);
+    expect(await sentPicks(page)).toEqual([[API], [API, WEB], [WEB], []]);
+  });
+
+  test('ticking every repository is no pick, and All repositories clears one', async ({ page }) => {
+    await openPanel(page, { scope: [API] });
+    await typeInFilter(page, '@');
+    expect(await ticks(page)).toEqual(['[ ] all', '[x] api', '[ ] shared', '[ ] web']);
+    await pickerRow(page, 'shared').click();
+    await pickerRow(page, 'web').click();
+    expect(await ticks(page)).toEqual(['[x] all', '[ ] api', '[ ] shared', '[ ] web']);
+    await pickerRow(page, 'web').click();
+    await pickerRow(page, 'all').click();
+    expect(await ticks(page)).toEqual(['[x] all', '[ ] api', '[ ] shared', '[ ] web']);
+    expect(await sentPicks(page)).toEqual([[API, SHARED], [], [WEB], []]);
+  });
+
+  test('the arrows move the highlight round the ends; Escape closes it and picks nothing', async ({ page }) => {
+    await openPanel(page);
+    const filter = await typeInFilter(page, '@');
+    await page.keyboard.press('ArrowDown');
+    await expect(pickerRow(page, 'api')).toHaveClass(/gtp-picker-active/u);
+    await expect(filter).toHaveAttribute('aria-activedescendant', 'gtp-repo-picker-1');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await expect(pickerRow(page, 'web')).toHaveClass(/gtp-picker-active/u);
+    await page.keyboard.press('Escape');
+    await expect(picker(page)).toHaveCount(0);
+    await expect(filter).toHaveValue('');
+    await expect(filter).toHaveAttribute('aria-expanded', 'false');
+    expect(await sentPicks(page)).toEqual([]);
+  });
+
+  test('leaving the field closes the list and takes the @ out, the filter before it kept', async ({ page }) => {
+    await openPanel(page);
+    const filter = await typeInFilter(page, 'feat @sh');
+    await expect(picker(page)).toBeVisible();
+    await filter.blur();
+    await expect(picker(page)).toHaveCount(0);
+    await expect(filter).toHaveValue('feat ');
+  });
+
+  test('an @ inside a word is searched for, as a branch name may hold one', async ({ page }) => {
+    await openPanel(page);
+    const filter = await typeInFilter(page, 'a@b');
+    await expect(picker(page)).toHaveCount(0);
+    await expect(filter).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page, 'hint:nomatch')).toContainText('No branch matches “a@b”');
+  });
+
+  test('a name with spaces: what follows the @ runs on over them', async ({ page }) => {
     await openPanel(page);
     await page.evaluate(() => {
       const w = window as unknown as {
         __mockState: { repos: Array<Record<string, unknown>> };
         __pushState: () => void;
       };
-      const base = w.__mockState.repos[0]!;
-      for (let i = 1; i <= 17; i++) {
-        w.__mockState.repos.push({ ...base, root: `/work/extra-${i}`, label: `extra-${i}` });
-      }
+      w.__mockState.repos.push({ ...w.__mockState.repos[0]!, root: '/work/local - Copy', label: 'local - Copy' });
       w.__pushState();
     });
-    await expect(paneHeader(page, 'repos').locator('.gtp-count')).toHaveText('20');
-    const repos = await heightOf(reposList(page));
-    const branches = await heightOf(branchesList(page));
-    // 40% of what the two lists share; the repositories scroll for the rest.
-    expect(repos).toBe(Math.round((repos + branches) * 0.4));
-    expect(await reposList(page).evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-    await expect(row(page, 'tabs')).toBeVisible();
-  });
-
-  test('the REPOSITORIES header names the repositories picked, folded or not, and Show all widens again', async ({
-    page,
-  }) => {
-    await openPanel(page);
-    const label = paneHeader(page, 'repos').locator('.gtp-pane-label');
-    await expect(label).toHaveCount(0);
-
-    await row(page, `repo:${WEB}`).click();
-    await expect(label).toHaveText('web');
-    await expect(label).toHaveAttribute('title', 'Showing the branches of web');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute(
-      'aria-label',
-      'Repositories, 3. Showing the branches of web',
-    );
-
-    // Ctrl+click adds one: each picked, in the panel's order.
-    await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
-    await expect(label.locator('.gtp-pane-repo')).toHaveText(['api', 'web']);
-
-    // Folded, the header still says which.
-    await paneHeader(page, 'repos').click();
-    await expect(row(page, `repo:${WEB}`)).toBeHidden();
-    await expect(label).toBeVisible();
-    await expect(label.locator('.gtp-pane-repo')).toHaveText(['api', 'web']);
-
-    // Show all widens the panel, and leaves the pane folded.
-    await paneHeader(page, 'repos').getByRole('button', { name: 'Show all' }).click();
-    await expect(label).toHaveCount(0);
-    await expect(page.getByLabel('Filter branches')).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  test('a narrow sidebar keeps the repository picked and lets Show all go', async ({ page }) => {
-    await page.setViewportSize({ width: 230, height: 500 });
-    await openPanel(page);
-    await row(page, `repo:${SHARED}`).click();
-    const header = paneHeader(page, 'repos');
-    await expect(header.locator('.gtp-pane-label')).toBeVisible();
-    await expect(header.getByRole('button', { name: 'Show all' })).toBeHidden();
-    // The filter's pill still widens it.
-    await expect(page.getByRole('button', { name: /^Narrowed to shared/u })).toBeVisible();
-  });
-
-  test('the keyboard goes from pane to pane through the headers', async ({ page }) => {
-    await openPanel(page);
-    await page.getByLabel('Filter branches').press('ArrowDown');
-    await expect(row(page, `repo:${API}`)).toBeFocused();
-    await page.keyboard.press('ArrowUp');
-    await expect(paneHeader(page, 'repos')).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(row(page, `repo:${API}`)).toBeFocused();
-    await page.keyboard.press('End');
-    await expect(row(page, `repo:${WEB}`)).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(paneHeader(page, 'branches')).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(row(page, 'tabs')).toBeFocused();
-    await page.keyboard.press('ArrowUp');
-    await expect(paneHeader(page, 'branches')).toBeFocused();
-    await page.keyboard.press('ArrowUp');
-    await expect(row(page, `repo:${WEB}`)).toBeFocused();
-
-    // On a header: Left folds, Right opens, Enter and Space toggle; past a folded pane, the next header.
-    await paneHeader(page, 'repos').focus();
-    await page.keyboard.press('ArrowLeft');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
-    await page.keyboard.press('ArrowDown');
-    await expect(paneHeader(page, 'branches')).toBeFocused();
-    await page.keyboard.press('ArrowUp');
-    await expect(paneHeader(page, 'repos')).toBeFocused();
-    await page.keyboard.press('ArrowRight');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
+    await typeInFilter(page, '@local - c');
+    expect(await ticks(page)).toEqual(['[ ] local - Copy']);
     await page.keyboard.press('Enter');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
-    await page.keyboard.press(' ');
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
-
-    // Typing on a header filters, as in the lists; Escape twice comes back to the row left.
-    await page.keyboard.press('m');
-    await expect(page.getByLabel('Filter branches')).toBeFocused();
-    await expect(page.getByLabel('Filter branches')).toHaveValue('m');
-    await page.keyboard.press('Escape');
-    await page.keyboard.press('Escape');
-    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    expect(await sentPicks(page)).toEqual([['/work/local - Copy']]);
+    await expect(page.getByRole('button', { name: /^Narrowed to local - Copy/u })).toBeVisible();
   });
 
-  test('a search opens a folded BRANCHES pane, for its matches are there', async ({ page }) => {
-    await openPanel(page);
-    await paneHeader(page, 'branches').click();
-    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'false');
-    await page.getByLabel('Filter branches').fill('log');
-    await expect(paneHeader(page, 'branches')).toHaveAttribute('aria-expanded', 'true');
-    await expect(row(page, 'br:local:local:feature/login')).toBeVisible();
-    // The repositories are not searched: their rows stay as they were.
-    await expect(row(page, `repo:${WEB}`)).toBeVisible();
+  test('with one repository there is nothing to pick: an @ is searched for', async ({ page }) => {
+    await openPanel(page, { single: true });
+    const filter = page.getByLabel('Filter branches');
+    await expect(filter).toHaveAttribute('placeholder', 'Filter branches');
+    await expect(filter).not.toHaveAttribute('role', 'combobox');
+    await typeInFilter(page, '@');
+    await expect(picker(page)).toHaveCount(0);
+    await expect(filter).toHaveValue('@');
+  });
+
+  test('a tick reaches the Repositories panel, and a Ctrl+click there shows as a tick', async ({ page }) => {
+    const { repos, branches } = await openBoth(page);
+    await typeInFilter(branches, '@web');
+    await branches.keyboard.press('Enter');
+    await expect(row(repos, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(row(repos, `repo:${API}`)).toHaveAttribute('aria-selected', 'false');
+    await row(repos, `repo:${API}`).click({ modifiers: ['Control'] });
+    await expect(branches.getByRole('button', { name: /^Narrowed to 2 repositories/u })).toBeVisible();
+    await typeInFilter(branches, '@');
+    expect(await ticks(branches)).toEqual(['[ ] all', '[x] api', '[ ] shared', '[x] web']);
   });
 });
 
@@ -1738,7 +1782,7 @@ test.describe('a narrow sidebar', () => {
 
   test("with several repositories, a repository's row on hover keeps only ⋯ too", async ({ page }) => {
     await page.setViewportSize({ width: 230, height: 600 });
-    await openPanel(page);
+    await openPanel(page, { role: 'repositories' });
     await page.addStyleTag({ content: VS_CODE_FONT });
     const api = row(page, `repo:${API}`);
     await api.hover();
@@ -1819,12 +1863,16 @@ test.describe('a narrow sidebar', () => {
 });
 
 test.describe('the pick is the host’s, which the Commit window follows (POST-P14ce)', () => {
-  /** The panel with the pick the host kept (`undefined`: nothing kept yet) and the panel's own old copy. */
-  async function openPicked(page: Page, opts: { kept?: string[]; old?: string[] } = {}): Promise<void> {
+  /**
+   * A panel with the pick the host kept (`undefined`: nothing kept yet) and the
+   * panel's own old copy; the Branches panel unless `role` says Repositories.
+   */
+  async function openPicked(page: Page, opts: { kept?: string[]; old?: string[]; role?: Role } = {}): Promise<void> {
     await page.addInitScript((o) => {
       const w = window as unknown as Record<string, unknown>;
       if (o.kept !== undefined) w['__mockScope'] = o.kept;
       if (o.old !== undefined) w['__mockVsState'] = { scope: o.old };
+      if (o.role !== undefined) w['__mockRole'] = o.role;
     }, opts);
     await page.addInitScript(mockBranchesHostScript);
     await page.goto('/branches.html');
@@ -1833,48 +1881,55 @@ test.describe('the pick is the host’s, which the Commit window follows (POST-P
   const filterField = (page: Page): Locator => page.getByLabel('Filter branches');
   const sentPicks = async (page: Page) => (await requests(page, 'branches/setScope')).map((p) => p['roots']);
 
-  test('a click, a Ctrl+click and the pill each tell the host the pick, at once in the panel', async ({ page }) => {
-    await openPicked(page);
+  test('a click and a Ctrl+click in the Repositories panel tell the host the pick, at once in the panel', async ({
+    page,
+  }) => {
+    await openPicked(page, { role: 'repositories' });
     await row(page, `repo:${WEB}`).click();
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in web');
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
     await row(page, `repo:${API}`).click({ modifiers: ['Control'] });
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 2 repositories');
+    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'false');
+    expect(await sentPicks(page)).toEqual([[WEB], [WEB, API]]);
+  });
+
+  test("the Branches panel's pill tells it too, at once in the panel", async ({ page }) => {
+    await openPicked(page, { kept: [WEB, API] });
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('2 repositories'));
     await page.getByRole('button', { name: /^Narrowed to 2 repositories/u }).click();
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
-    expect(await sentPicks(page)).toEqual([[WEB], [WEB, API], []]);
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('3 repositories'));
+    expect(await sentPicks(page)).toEqual([[]]);
   });
 
   test("a repository's menu tells it too: Show Only This Repository, then Show All Repositories", async ({ page }) => {
-    await openPicked(page);
+    await openPicked(page, { role: 'repositories' });
     await row(page, `repo:${SHARED}`).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Show Only This Repository' }).click();
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in shared');
+    await expect(row(page, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'true');
     await row(page, `repo:${SHARED}`).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Show All Repositories' }).click();
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
+    await expect(row(page, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'false');
     expect(await sentPicks(page)).toEqual([[SHARED], []]);
   });
 
-  test('the panel opens on the pick the host kept', async ({ page }) => {
-    await openPicked(page, { kept: [API] });
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in api');
-    await expect(row(page, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
-    expect(await sentPicks(page)).toEqual([]);
+  test('each panel opens on the pick the host kept', async ({ page }) => {
+    const { repos, branches } = await openBoth(page, { scope: [API] });
+    await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('api'));
+    await expect(row(repos, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+    expect(await sentPicks(repos)).toEqual([]);
+    expect(await sentPicks(branches)).toEqual([]);
   });
 
   test('a pick made in the Commit window comes in: its Show all widens the panel, its Show Only narrows it', async ({
     page,
   }) => {
     await openPicked(page, { kept: [WEB] });
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in web');
-    await page.evaluate(() => (window as unknown as { __mockPickElsewhere(r: string[]): void }).__mockPickElsewhere([]));
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in 3 repositories');
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('web'));
+    await pickElsewhere(page, []);
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('3 repositories'));
     // And its Show Only This Repository narrows it.
-    await page.evaluate(
-      (root) => (window as unknown as { __mockPickElsewhere(r: string[]): void }).__mockPickElsewhere([root]),
-      SHARED,
-    );
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in shared');
+    await pickElsewhere(page, [SHARED]);
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('shared'));
     // Nothing was asked of the host for it: the host made it.
     expect(await sentPicks(page)).toEqual([]);
   });
@@ -1884,7 +1939,7 @@ test.describe('the pick is the host’s, which the Commit window follows (POST-P
   }) => {
     await openPicked(page, { old: [SHARED] });
     expect((await requests(page, 'branches/init'))[0]).toEqual({ scope: [SHARED] });
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in shared');
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('shared'));
     // The panel's own state forgets it on its next save.
     await showTab(page, 'Local');
     await expect.poll(async () => (await vsState(page))['scope']).toBeUndefined();
@@ -1892,20 +1947,16 @@ test.describe('the pick is the host’s, which the Commit window follows (POST-P
 
   test("an old pick does not override the host's", async ({ page }) => {
     await openPicked(page, { kept: [API], old: [SHARED] });
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in api');
+    await expect(filterField(page)).toHaveAttribute('placeholder', filterIn('api'));
   });
 
-  test("a name on the Commit window's filter bar opens REPOSITORIES and puts the keyboard on its row; the pick stays", async ({
+  test("a name on the Commit window's filter bar puts the Repositories panel's keyboard on its row; the pick stays", async ({
     page,
   }) => {
-    await openPicked(page, { kept: [WEB] });
-    await paneHeader(page, 'repos').click();
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'false');
-    await expect(row(page, `repo:${WEB}`)).toBeHidden();
+    await openPicked(page, { kept: [WEB], role: 'repositories' });
     await page.evaluate((root) => (window as unknown as { __mockReveal(r: string): void }).__mockReveal(root), WEB);
-    await expect(paneHeader(page, 'repos')).toHaveAttribute('aria-expanded', 'true');
     await expect(row(page, `repo:${WEB}`)).toBeFocused();
-    await expect(filterField(page)).toHaveAttribute('placeholder', 'Filter branches in web');
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
     expect(await sentPicks(page)).toEqual([]);
   });
 });

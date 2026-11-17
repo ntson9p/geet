@@ -1,18 +1,25 @@
 /**
- * The Repositories panel (new-way-4; once titled Branches): the sidebar section
- * that answers, for every repository at once, "where am I, what is waiting, and
- * where can I go". The view's id is still `gittree.branches`, so a layout or a
- * keybinding made before the rename keeps working.
+ * The side bar's Repositories and Branches panels (new-way-4; one panel, titled
+ * Repositories, until POST-P14co split it in two): together they answer, for
+ * every repository at once, "where am I, what is waiting, and where can I go".
  *
- * **The host owns the facts; the webview owns the view.** This side builds one
+ * - **Repositories** (`gittree.repositoryList`): every repository with what it
+ *   has checked out, its counts, its buttons and its menu; a click picks it.
+ *   Only with several repositories (`gittree.multiRepo`).
+ * - **Branches** (`gittree.branches`, the old panel's id, so a layout or a
+ *   keybinding made before keeps working): the filter (whose `@` picks
+ *   repositories), New Branch and the rest of the toolbar, then the branches
+ *   under their tabs. With one repository it starts with its current branch.
+ *
+ * **The host owns the facts; the webviews own the view.** This side builds one
  * state object from the snapshots the status refresher keeps, plus the two
  * things that cost git — the recent branches (the reflog) and which branches
- * are merged — and pushes it whenever any repository moves. Filtering, folding
- * and the open card are the webview's: none of them needs git, so none of them
- * waits on a round trip. The repositories picked are kept here since POST-P14ce
- * (`reposInView.ts`), because the Commit window follows them: the webview
- * changes its copy at once and tells this side, which tells it in turn of a
- * pick made elsewhere.
+ * are merged — and pushes it to both panels whenever any repository moves.
+ * Filtering, folding and the open card are a page's: none of them needs git, so
+ * none of them waits on a round trip. The repositories picked are kept here
+ * since POST-P14ce (`reposInView.ts`), because the Commit window follows them:
+ * a page changes its copy at once and tells this side, which tells the other
+ * panel, and both of a pick made elsewhere.
  *
  * Actions come from the shared registry through `panelActions.ts`; a card's
  * extra facts (author, how the branch stands against HEAD) are read when the
@@ -29,8 +36,10 @@ import {
   type BranchPanelCreateDto,
   type BranchPanelCreateResultDto,
   type BranchPanelDetailsDto,
+  type BranchPanelInitialStateDto,
   type BranchPanelMenuItemDto,
   type BranchPanelRepoDetailsDto,
+  type BranchPanelRole,
   type BranchPanelRunDto,
   type BranchPanelSettingKey,
   type BranchPanelStateDto,
@@ -94,11 +103,36 @@ function scopeOf(raw: unknown): string[] | undefined {
   return roots.length > 0 ? roots : undefined;
 }
 
-export class BranchPanelProvider implements vscode.WebviewViewProvider {
-  static readonly viewType = 'gittree.branches';
+/** One of the two panels' pages, as this side holds it. */
+interface PanelPage {
+  readonly role: BranchPanelRole;
+  view: vscode.WebviewView | undefined;
+  rpc: WebviewRpcHost | undefined;
+  /** The webview has asked for its first state, so it is listening for events. */
+  ready: boolean;
+  /** What the webview should do once it is listening: a form asked for before it was. */
+  pending: Array<{ method: string; params: unknown }>;
+}
 
-  private view: vscode.WebviewView | undefined;
-  private rpc: WebviewRpcHost | undefined;
+function newPage(role: BranchPanelRole): PanelPage {
+  return { role, view: undefined, rpc: undefined, ready: false, pending: [] };
+}
+
+export class BranchPanelProvider {
+  /** The Branches panel: the old one-panel id, kept so layouts and keybindings carry over. */
+  static readonly viewType = 'gittree.branches';
+  /** POST-P14co: the Repositories panel. */
+  static readonly repositoriesViewType = 'gittree.repositoryList';
+
+  /** The view each panel is drawn in. */
+  static viewTypeOf(role: BranchPanelRole): string {
+    return role === 'repositories' ? BranchPanelProvider.repositoriesViewType : BranchPanelProvider.viewType;
+  }
+
+  private readonly pages: Readonly<Record<BranchPanelRole, PanelPage>> = {
+    repositories: newPage('repositories'),
+    branches: newPage('branches'),
+  };
   private readonly watches = new Map<string, vscode.Disposable>();
   private readonly subs: vscode.Disposable[] = [];
   /** Roots (canonical keys) with a fetch from this panel running. */
@@ -106,10 +140,6 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
   private fetchingAll = false;
   private pushTimer: ReturnType<typeof setTimeout> | undefined;
   private generation = 0;
-  /** The webview has asked for its first state, so it is listening for events. */
-  private ready = false;
-  /** What the webview should do once it is listening: a form asked for before it was. */
-  private pending: Array<{ method: string; params: unknown }> = [];
 
   private readonly recentCache = new Map<string, { key: string; names: readonly string[] }>();
   private readonly mergedCache = new Map<
@@ -127,12 +157,15 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       toDisposable(core.onDidAddRepo(() => this.onRepos())),
       toDisposable(core.onDidRemoveRepo(() => this.onRepos())),
       // POST-P14ce: a pick made elsewhere (the Commit window's Show all, Show
-      // Only This Repository). One the panel made it already shows. Before the
-      // webview listens, its first state carries the pick instead.
+      // Only This Repository; POST-P14co: the other panel). A panel already
+      // shows a pick it made itself. Before a page listens, its first state
+      // carries the pick instead.
       toDisposable(
         deps.reposInView.onDidChange((source) => {
-          if (source === 'panel' || !this.rpc || !this.ready) return;
-          this.rpc.notify(BRANCHES_METHODS.evtScope, { roots: deps.reposInView.picked });
+          for (const page of this.listening()) {
+            if (page.role === source) continue;
+            page.rpc?.notify(BRANCHES_METHODS.evtScope, { roots: deps.reposInView.picked });
+          }
         }),
       ),
       vscode.workspace.onDidChangeConfiguration((e) => {
@@ -176,10 +209,19 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // ---- the view ------------------------------------------------------------
+  // ---- the views -----------------------------------------------------------
 
-  resolveWebviewView(view: vscode.WebviewView): void {
-    this.view = view;
+  /**
+   * What VS Code calls to draw one of the two panels (POST-P14co). Both are the
+   * same webview app, told which panel it is by its page.
+   */
+  providerFor(role: BranchPanelRole): vscode.WebviewViewProvider {
+    return { resolveWebviewView: (view) => this.resolve(role, view) };
+  }
+
+  private resolve(role: BranchPanelRole, view: vscode.WebviewView): void {
+    const page = this.pages[role];
+    page.view = view;
     view.webview.options = {
       enableScripts: true,
       localResourceRoots: webviewResourceRoots(this.deps.context.extensionUri),
@@ -188,24 +230,28 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       app: 'branches',
       webview: view.webview,
       extensionUri: this.deps.context.extensionUri,
-      title: vscode.l10n.t('Repositories'),
+      title: role === 'repositories' ? vscode.l10n.t('Repositories') : vscode.l10n.t('Branches'),
+      initialState: { role } satisfies BranchPanelInitialStateDto,
     });
-    const rpc = new WebviewRpcHost(view.webview, (l) =>
-      this.deps.core.output.appendLine(`[branches] ${l}`),
-    );
-    this.rpc = rpc;
-    this.wire(rpc);
+    const rpc = new WebviewRpcHost(view.webview, (l) => this.deps.core.output.appendLine(`[${role}] ${l}`));
+    page.rpc = rpc;
+    this.wire(rpc, page);
     view.onDidDispose(() => {
       rpc.dispose();
-      this.rpc = undefined;
-      this.view = undefined;
-      this.ready = false;
+      page.rpc = undefined;
+      page.view = undefined;
+      page.ready = false;
     });
     view.onDidChangeVisibility(() => {
       if (!view.visible) return;
       rpc.rehydrate();
       this.schedulePush();
     });
+  }
+
+  /** The pages that have asked for their first state, and so hear events. */
+  private listening(): PanelPage[] {
+    return Object.values(this.pages).filter((page) => page.rpc !== undefined && page.ready);
   }
 
   private schedulePush(): void {
@@ -216,13 +262,15 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     }, PUSH_DEBOUNCE_MS);
   }
 
+  /** One state, built once, for every panel on screen; a hidden one gets it when it shows. */
   private async push(): Promise<void> {
-    if (!this.rpc || this.view?.visible !== true) return;
+    const shown = Object.values(this.pages).filter((page) => page.rpc !== undefined && page.view?.visible === true);
+    if (shown.length === 0) return;
     const mine = ++this.generation;
     const state = await this.buildState();
     // A newer build started while this one waited on git: it wins.
     if (mine !== this.generation) return;
-    this.rpc?.notify(BRANCHES_METHODS.evtState, state);
+    for (const page of shown) page.rpc?.notify(BRANCHES_METHODS.evtState, state);
   }
 
   // ---- state ---------------------------------------------------------------
@@ -423,20 +471,28 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
 
   // ---- gestures --------------------------------------------------------------
 
-  private wire(rpc: WebviewRpcHost): void {
+  private wire(rpc: WebviewRpcHost, page: PanelPage): void {
     rpc.on(BRANCHES_METHODS.init, async (params) => {
       // POST-P14ce: the pick the panel kept itself until now, adopted once.
       this.deps.reposInView.adoptLegacy((params as { scope?: unknown } | undefined)?.scope);
       const state = await this.buildState();
       // Asked for before the webview listened: deliver once it can hear —
       // after this answer, which is posted first.
-      this.ready = true;
-      const queued = this.pending;
-      this.pending = [];
+      page.ready = true;
+      const queued = page.pending;
+      page.pending = [];
       setTimeout(() => {
-        for (const { method, params } of queued) this.rpc?.notify(method, params);
+        for (const { method, params } of queued) page.rpc?.notify(method, params);
       }, 0);
       return state;
+    });
+
+    // POST-P14co: typing in the Repositories panel, which has no filter of its
+    // own: the Branches panel's filter takes it, as the one panel's did.
+    rpc.on(BRANCHES_METHODS.searchFor, async (params) => {
+      const text = (params as { text?: unknown } | undefined)?.text;
+      await this.focusFilter(typeof text === 'string' && text.length > 0 ? text : undefined);
+      return null;
     });
 
     rpc.on(BRANCHES_METHODS.details, async (params) => {
@@ -508,11 +564,12 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     });
 
     // POST-P14ce: a click, Ctrl+click, Show Only This Repository or Show all in
-    // the panel. Kept for the Commit window, which follows it; answered with the
+    // the panel; POST-P14co: the Branches panel's `@` picker and pill. Kept for
+    // the Commit window and the other panel, which follow it; answered with the
     // pick as kept (every open repository picked is none).
     rpc.on(BRANCHES_METHODS.setScope, (params) => {
       const roots = (params as { roots?: unknown } | undefined)?.roots;
-      if (Array.isArray(roots)) this.deps.reposInView.set(roots, 'panel');
+      if (Array.isArray(roots)) this.deps.reposInView.set(roots, page.role);
       return { roots: this.deps.reposInView.picked };
     });
   }
@@ -538,6 +595,13 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
       // Not awaited by the request: a fetch outlasts its timeout, and the row
       // shows its own progress.
       void this.fetchRepository(run.root);
+      return;
+    }
+    if (run.type === 'newBranch') {
+      // POST-P14co: asked in the Repositories panel (a repository's New
+      // Branch…), which has no form: the Branches panel's opens. The Branches
+      // panel opens its own without asking.
+      await this.openNewBranchForm(run.from, run.roots);
       return;
     }
     try {
@@ -606,34 +670,42 @@ export class BranchPanelProvider implements vscode.WebviewViewProvider {
     await this.deps.onDrop(repo, source.name, target.name);
   }
 
-  /** Opens the panel's New Branch form, from `from` in `roots` (the scope, when absent). */
+  /** Opens the Branches panel's New Branch form, from `from` in `roots` (the scope, when absent). */
   async openNewBranchForm(from?: string, roots?: readonly string[]): Promise<void> {
-    await this.notifyWhenListening(BRANCHES_METHODS.evtNewBranch, {
+    await this.notifyWhenListening('branches', BRANCHES_METHODS.evtNewBranch, {
       ...(from !== undefined ? { from } : {}),
       ...(roots !== undefined ? { roots } : {}),
     });
   }
 
-  /** Puts the cursor in the panel's filter field. */
-  async focusFilter(): Promise<void> {
-    await this.notifyWhenListening(BRANCHES_METHODS.evtFocusFilter, {});
+  /** Puts the cursor in the Branches panel's filter field, with `text` added (POST-P14co). */
+  async focusFilter(text?: string): Promise<void> {
+    await this.notifyWhenListening('branches', BRANCHES_METHODS.evtFocusFilter, text !== undefined ? { text } : {});
   }
 
   /**
-   * POST-P14ce: a name on the Commit window's filter bar. The panel comes into
-   * view with its REPOSITORIES pane open and the keyboard on that repository's
-   * row; what is picked stays as it is. (POST-P14cb's *Select in Repositories
-   * Panel*, which also picked it, is now *Show Only This Repository*, and picks
-   * without moving the keyboard.)
+   * POST-P14ce: a name on the Commit window's filter bar. The Repositories
+   * panel comes into view with the keyboard on that repository's row; what is
+   * picked stays as it is. (POST-P14cb's *Select in Repositories Panel*, which
+   * also picked it, is now *Show Only This Repository*, and picks without
+   * moving the keyboard.) The bar names repositories only while there are
+   * several, which is when the Repositories panel is there.
    */
   async revealRepository(root: string): Promise<void> {
-    await this.notifyWhenListening(BRANCHES_METHODS.evtRevealRepo, { root });
+    await this.notifyWhenListening('repositories', BRANCHES_METHODS.evtRevealRepo, { root });
   }
 
-  private async notifyWhenListening(method: string, params: unknown): Promise<void> {
-    await vscode.commands.executeCommand(`${BranchPanelProvider.viewType}.focus`);
-    if (this.rpc && this.ready) this.rpc.notify(method, params);
-    else this.pending.push({ method, params });
+  private async notifyWhenListening(role: BranchPanelRole, method: string, params: unknown): Promise<void> {
+    try {
+      await vscode.commands.executeCommand(`${BranchPanelProvider.viewTypeOf(role)}.focus`);
+    } catch (err) {
+      // A panel its `when` clause hides (Repositories, with one repository) has
+      // nothing to bring into view; whatever it was asked waits for it.
+      this.deps.core.output.appendLine(`[${role}] could not show the panel: ${String(err)}`);
+    }
+    const page = this.pages[role];
+    if (page.rpc && page.ready) page.rpc.notify(method, params);
+    else page.pending.push({ method, params });
   }
 
   dispose(): void {

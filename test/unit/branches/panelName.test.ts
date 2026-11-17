@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(__dirname, '../../..');
 const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
-  contributes: { views: Record<string, Array<{ id: string; name: string; icon?: string }>> };
+  contributes: { views: Record<string, Array<{ id: string; name: string; icon?: string; when?: string }>> };
 };
 const nls = JSON.parse(readFileSync(path.join(root, 'package.nls.json'), 'utf8')) as Record<string, string>;
 
@@ -14,24 +14,52 @@ const title = (name: string): string => {
 };
 const gittreeViews = manifest.contributes.views['gittree'] ?? [];
 
-describe('the sidebar panel once titled Branches', () => {
-  it('is Repositories now, under the id it always had, so layouts and keybindings keep working', () => {
+/**
+ * POST-P14co: the sidebar panel once titled Branches, then Repositories with a
+ * REPOSITORIES and a BRANCHES pane, is two panels: Repositories and Branches.
+ */
+describe('the Repositories and Branches panels', () => {
+  it('Branches keeps the id the one panel always had, so layouts and keybindings keep working', () => {
     const panel = gittreeViews.find((v) => v.id === 'gittree.branches');
+    expect(panel).toBeDefined();
+    expect(title(panel!.name)).toBe('Branches');
+    expect(panel!.icon).toBe('$(git-branch)');
+    expect(panel!.when).toBeUndefined();
+  });
+
+  it('Repositories is a panel of its own, right under the Commit window, shown only with several repositories', () => {
+    const ids = gittreeViews.map((v) => v.id);
+    const panel = gittreeViews.find((v) => v.id === 'gittree.repositoryList');
     expect(panel).toBeDefined();
     expect(title(panel!.name)).toBe('Repositories');
     expect(panel!.icon).toBe('$(repo)');
+    expect(panel!.when).toBe('gittree.multiRepo');
+    expect(ids.indexOf('gittree.repositoryList')).toBe(ids.indexOf('gittree.commit') + 1);
+    expect(ids.indexOf('gittree.repositoryList')).toBeLessThan(ids.indexOf('gittree.branches'));
   });
 
-  it('shares its title with no other GitTree view: the opt-in tree it replaced is Repositories (Tree)', () => {
+  it('share their titles with no other GitTree view: the opt-in trees are Repositories (Tree) and Branches (Tree)', () => {
     const titles = gittreeViews.map((v) => title(v.name));
     expect(new Set(titles).size).toBe(titles.length);
-    const tree = gittreeViews.find((v) => v.id === 'gittree.repositories');
-    expect(title(tree!.name)).toBe('Repositories (Tree)');
+    expect(title(gittreeViews.find((v) => v.id === 'gittree.repositories')!.name)).toBe('Repositories (Tree)');
+    expect(title(gittreeViews.find((v) => v.id === 'gittree.branchesTree')!.name)).toBe('Branches (Tree)');
   });
 
-  it('is never called the Branches panel or view in what a user reads', () => {
+  it("the branches' settings and commands name the Branches panel, where those branches are listed now", () => {
+    for (const key of [
+      'gittree.command.branches.newBranchInPanel.title',
+      'gittree.config.branches.groupByFolder.description',
+      'gittree.config.branches.showRepositoryDots.description',
+      'gittree.config.branches.showTags.description',
+    ]) {
+      expect(nls[key], key).toMatch(/\bBranches [Pp]anel\b/u);
+      expect(nls[key], key).not.toMatch(/\bRepositories [Pp]anel\b/u);
+    }
+  });
+
+  it('never calls a webview panel a "Branches view": the tree is Branches (Tree)', () => {
     const stale = Object.entries(nls)
-      .filter(([, text]) => /\bBranches (panel|Panel|view|View)\b/u.test(text))
+      .filter(([, text]) => /\bBranches (view|View)\b/u.test(text))
       .map(([key]) => key);
     expect(stale).toEqual([]);
   });

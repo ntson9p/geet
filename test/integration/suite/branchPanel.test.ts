@@ -884,4 +884,51 @@ suite('new-way-4 Branches panel', () => {
     });
     assert.strictEqual(trackedBy('gtp/tree-row'), '');
   });
+
+  // ---- POST-P14co · two panels --------------------------------------------------
+
+  test('POST-P14co: Repositories and Branches are two panels, the first only with several repositories', async function () {
+    this.timeout(60_000);
+    const ext = vscode.extensions.getExtension('gittree.gittree');
+    assert.ok(ext, 'extension gittree.gittree not found');
+    const views = (
+      ext.packageJSON as {
+        contributes: { views: Record<string, Array<{ id: string; type?: string; when?: string; name: string }>> };
+      }
+    ).contributes.views['gittree']!;
+    const ids = views.map((v) => v.id);
+    const repositories = views.find((v) => v.id === 'gittree.repositoryList');
+    const branches = views.find((v) => v.id === 'gittree.branches');
+    // Webviews both; the Repositories panel right under the Commit window,
+    // and only where there is more than one repository to list.
+    assert.deepStrictEqual(
+      { type: repositories?.type, when: repositories?.when, name: repositories?.name },
+      { type: 'webview', when: 'gittree.multiRepo', name: '%gittree.view.repositoryList.name%' },
+    );
+    assert.deepStrictEqual(
+      { type: branches?.type, when: branches?.when, name: branches?.name },
+      { type: 'webview', when: undefined, name: '%gittree.view.branches.name%' },
+    );
+    assert.strictEqual(ids.indexOf('gittree.repositoryList'), ids.indexOf('gittree.commit') + 1);
+    assert.ok(ids.indexOf('gittree.repositoryList') < ids.indexOf('gittree.branches'));
+    // The test workspace has several repositories: both panels come up.
+    assert.ok(core.repos.length > 1);
+    await vscode.commands.executeCommand('gittree.repositoryList.focus');
+    await vscode.commands.executeCommand('gittree.branches.focus');
+    // One state serves both, the same as before the split.
+    const state = await panel.buildState();
+    assert.ok(state.repos.some((r) => canonicalKey(r.root) === canonicalKey(repoD.root)));
+  });
+
+  test('POST-P14co: New Branch… asked in the Repositories panel runs nothing: the Branches panel opens its form', async function () {
+    this.timeout(60_000);
+    const before = repoD.model.snapshot.refs.filter((r) => r.type === 'head').map((r) => r.name);
+    await panel.run({ type: 'newBranch', from: 'HEAD', roots: [repoD.root] });
+    await refresh();
+    assert.deepStrictEqual(
+      repoD.model.snapshot.refs.filter((r) => r.type === 'head').map((r) => r.name),
+      before,
+      'the form makes the branch, once it is filled in',
+    );
+  });
 });

@@ -289,7 +289,8 @@ export function GroupRow({
 // Repositories
 // ---------------------------------------------------------------------------
 
-function headText(repo: BranchPanelRepoDto): string {
+/** What a repository has checked out, as its row says it; the `@` picker says the same (POST-P14co). */
+export function headText(repo: BranchPanelRepoDto): string {
   if (repo.unborn) return `${repo.head ?? 'main'} (no commits yet)`;
   if (repo.detached || repo.head === undefined) {
     return `detached at ${repo.headSha?.slice(0, 7) ?? 'HEAD'}`;

@@ -1,12 +1,13 @@
 /**
- * The Repositories panel's rows (once the Branches panel), from the host's
- * state and the panel's own view state (new-way-4). Pure: no React, no DOM, so
- * every rule is unit-tested.
+ * The Repositories and Branches panels' rows, from the host's state and a
+ * panel's own view state (new-way-4). Pure: no React, no DOM, so every rule
+ * is unit-tested.
  *
  * **Two lists, with several repositories** (new-way-6): the repositories' rows
- * and the branches' rows, each the list of a pane of its own (`paneLayout.ts`), so
- * twenty repositories no longer push the branches out of sight. With one
- * repository there is nothing to split: its current branch heads the one list.
+ * and the branches' rows. Each was a pane of one panel; since POST-P14co each
+ * is a panel of its own, so twenty repositories no longer push the branches
+ * out of sight. With one repository there is nothing to split: its current
+ * branch heads the one list, the Branches panel's.
  *
  * **One list for every repository.** A branch name is one row however many
  * repositories have it; the row says which of the repositories in view those
@@ -1097,6 +1098,10 @@ export function remoteOf(entry: BranchEntry): string {
 export function isPlausibleBranchName(name: string): boolean {
   return (
     name.length > 0 &&
+    // Git's own refusals (`check-ref-format`): `@` alone, which the filter's
+    // `@` (POST-P14co) makes a common thing to have typed, and `@{`.
+    name !== '@' &&
+    !name.includes('@{') &&
     !/[\s~^:?*[\\]/u.test(name) &&
     !name.startsWith('-') &&
     !name.startsWith('/') &&

@@ -6,6 +6,30 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — Repositories and Branches are two panels; `@` in the filter picks repositories
+
+- **The sidebar's Repositories panel is two panels**, under the Commit window: **Repositories**,
+  the repositories alone, and **Branches**, with the filter, the toolbar and the branches under
+  their tabs. They were two panes of one panel. VS Code now folds, resizes and scrolls each, and
+  keeps their sizes.
+- **The Repositories panel has no heading of its own**: no REPOSITORIES line, no count, no
+  *Show all*. VS Code's header names it, the highlighted rows are the pick, and the pill in the
+  Branches panel's filter widens it again. A line along its foot marks the divider above the
+  Branches panel, as under the Commit window.
+- **With one repository there is no Repositories panel**; the Branches panel starts with the
+  current branch, as the one panel did.
+- **Type `@` in the Branches panel's filter to pick repositories.** A list of the repositories
+  opens under the field, a square checkbox each; what you type after the `@` narrows it, spaces
+  and all (`@local - Copy`). Ticked is picked, and none ticked is every repository (*All
+  repositories*, its first row). It is the same pick as a click in the Repositories panel, so
+  that panel highlights it, the filter's pill names it, and the Commit window follows it.
+  `↓` `↑` move, `Enter` ticks and closes, a click ticks and leaves it open, `Escape` closes.
+  Closing takes the `@` text out of the filter; what you typed before it still filters the
+  branches. An `@` inside a word (`user@host`) is searched for as before.
+- **Typing in the Repositories panel** goes to the Branches panel's filter, which comes into view
+  with it. A repository's **New Branch…** opens the Branches panel's form.
+- The filter no longer offers **Create branch "@"**: git refuses that name, and `@{` too.
+
 ### Added — push without the Push dialog
 
 - **Don't show this dialog again**, in the Push dialog's footer, turns the dialog off

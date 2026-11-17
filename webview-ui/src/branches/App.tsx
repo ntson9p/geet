@@ -1,30 +1,32 @@
 /**
- * The Repositories panel (new-way-4; once titled Branches).
+ * The side bar's Repositories and Branches panels (new-way-4; one panel with
+ * two panes until POST-P14co made each a panel of its own). One app draws
+ * both, told which by its page (`ROLE`):
  *
- * Top to bottom: a toolbar (the filter, Fetch, New Branch, more); the New
- * Branch form while it is open; then, with several repositories, two panes
- * (new-way-6): REPOSITORIES, every repository with what it has checked out,
- * and BRANCHES, tabs over the branches — Recent (the starred and recently
- * used), Local, Remote and Tags, one kind at a time. Each pane folds at its
- * header and scrolls on its own, and the divider between them is dragged to
- * share the height; the REPOSITORIES header names the repositories picked,
- * folded or not. With one repository there is one list: its current branch,
- * then the tabs. The tabs stay at the top once the list scrolls past them,
- * and step aside while the filter searches every kind.
+ * - **Repositories**: every repository with what it has checked out, a banner
+ *   under one mid-operation. No toolbar and no header of its own: VS Code's is
+ *   the panel's. Typing there goes to the Branches panel's filter.
+ * - **Branches**: a toolbar (the filter, Fetch, Repository Dots, New Branch,
+ *   more); the New Branch form while it is open; then the tabs over the
+ *   branches — Recent (the starred and recently used), Local, Remote and Tags,
+ *   one kind at a time. With one repository, its current branch first. The
+ *   tabs stay at the top once the list scrolls past them, and step aside while
+ *   the filter searches every kind. An `@` in the filter opens a list of the
+ *   repositories to tick (`RepoPicker.tsx`; its rules, `repoPickerModel.ts`).
  *
  * **A click never changes anything.** Clicking a branch opens its card — the
  * last commit, where it stands against what it tracks and against what is
  * checked out, and the two or three actions its state calls for — and the
  * row's own buttons (on hover) and its menu (right-click, `⋯`) do the rest.
- * Clicking a repository narrows the list to it; Ctrl+click adds or removes
- * one; the scope's `×` widens it again.
+ * Clicking a repository narrows the branches to it; Ctrl+click adds or removes
+ * one; ticks under the filter's `@` do either; the scope's `×` widens it again.
  *
  * The host sends facts (`branches/state`); everything this file decides —
  * what is open, the filter — lives here, so none of it waits on a round trip.
  * The repositories picked (the scope) are the host's since POST-P14ce, because
  * the Commit window shows only theirs: a pick here changes this panel at once
- * and is told to the host (`branches/setScope`); one made elsewhere, the
- * Commit window's Show all, arrives (`branches/scope`).
+ * and is told to the host (`branches/setScope`); one made elsewhere — the
+ * other panel, the Commit window's Show all — arrives (`branches/scope`).
  */
 import {
   useCallback,
@@ -32,7 +34,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -44,9 +45,11 @@ import {
   type BranchPanelCreateDto,
   type BranchPanelCreateResultDto,
   type BranchPanelDetailsDto,
+  type BranchPanelInitialStateDto,
   type BranchPanelInViewVerb,
   type BranchPanelMenuItemDto,
   type BranchPanelRepoDto,
+  type BranchPanelRole,
   type BranchPanelRunDto,
   type BranchPanelSettingKey,
   type BranchPanelStateDto,
@@ -76,16 +79,8 @@ import {
 } from './model';
 import { NewBranchForm, type NewBranchRequest } from './NewBranchForm';
 import { PanelList, type PanelListHandle } from './PanelList';
-import { PaneHeader, Sash } from './Panes';
-import {
-  PANE_HEADER,
-  paneLayout,
-  paneOpen,
-  selectedRepos,
-  selectionTitle,
-  withPane,
-  type PaneId,
-} from './paneLayout';
+import { pickerRowId, REPO_PICKER_ID, RepoPicker } from './RepoPicker';
+import { mentionAt, pickerRows, pickToggled, withoutMention, type Mention, type PickerRow } from './repoPickerModel';
 import {
   BranchCard,
   BranchRow,
@@ -102,6 +97,16 @@ import {
 
 const rpc = new RpcClient();
 
+/**
+ * Which panel this page is (POST-P14co), as the host's page says: the
+ * Repositories panel, or the Branches panel (also a page that says nothing).
+ */
+const ROLE: BranchPanelRole =
+  (window as { __gittreeInitialState?: Partial<BranchPanelInitialStateDto> }).__gittreeInitialState?.role ===
+  'repositories'
+    ? 'repositories'
+    : 'branches';
+
 /** A fetch of every repository, or a checkout behind a dialog, can take minutes. */
 const LONG_MS = 10 * 60_000;
 /** Cards remembered; their facts cost git, and the panel re-asks when the refs move. */
@@ -117,12 +122,7 @@ interface Persisted {
   readonly toggled?: readonly string[];
   /** The branch tab picked, kept until another is. */
   readonly tab?: BranchTab;
-  /** The REPOSITORIES pane's height the divider was dragged to; none: the automatic one. */
-  readonly reposSize?: number;
 }
-
-/** The two lists of the panes; with one repository, `branches` is the one list. */
-type ListId = 'repos' | 'branches';
 
 const TAB_ORDER: readonly BranchTab[] = ['recent', 'local', 'remote', 'tags'];
 
@@ -191,7 +191,17 @@ export function App() {
   const saved = useMemo(() => (api.getState() as Persisted | undefined) ?? {}, [api]);
 
   const [state, setState] = useState<BranchPanelStateDto | null>(null);
+  /** The filter field's text, an `@` being typed included. */
   const [query, setQuery] = useState('');
+  /**
+   * POST-P14co: the `@` the filter's caret is after, while the filter has the
+   * keyboard and there are repositories to pick from: the picker is open.
+   */
+  const [mention, setMention] = useState<Mention | undefined>(undefined);
+  const mentionNow = useRef<Mention | undefined>(undefined);
+  mentionNow.current = mention;
+  /** The picker's highlighted row: what Enter ticks. */
+  const [pickerActive, setPickerActive] = useState(0);
   // POST-P14ce: the repositories picked, as the host keeps them (`pickScope`,
   // `adoptScope`). Empty until its first state, which the panel waits for anyway.
   const [scope, setScope] = useState<readonly string[]>([]);
@@ -216,17 +226,8 @@ export function App() {
     () => (groupsOpen !== undefined && groupsOpen.card === openCard ? groupsOpen.keys : NO_GROUPS),
     [groupsOpen, openCard],
   );
-  /** Each list's keyboard row, kept while the other list has the focus. */
-  const [repoFocusId, setRepoFocusId] = useState<string | undefined>(undefined);
-  const [branchFocusId, setBranchFocusId] = useState<string | undefined>(undefined);
-  /** The list the keyboard was in last: where Escape in the filter goes back to. */
-  const [lastList, setLastList] = useState<ListId | undefined>(undefined);
-  const [reposSize, setReposSize] = useState<number | undefined>(() =>
-    typeof saved.reposSize === 'number' && Number.isFinite(saved.reposSize) ? saved.reposSize : undefined,
-  );
-  /** The REPOSITORIES list's height while the divider is dragged; kept once it is let go. */
-  const [dragSize, setDragSize] = useState<number | undefined>(undefined);
-  const dragBase = useRef(0);
+  /** The list's keyboard row, kept while the filter has the focus. */
+  const [focusId, setFocusId] = useState<string | undefined>(undefined);
   const [details, setDetails] = useState<ReadonlyMap<string, BranchPanelDetailsDto>>(new Map());
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [form, setForm] = useState<NewBranchRequest | null>(null);
@@ -236,13 +237,9 @@ export function App() {
   const [fetching, trackFetch] = useBusy();
 
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const reposListRef = useRef<PanelListHandle | null>(null);
-  /** The BRANCHES pane's list, or with one repository the one list. */
-  const branchesListRef = useRef<PanelListHandle | null>(null);
-  const reposHeaderRef = useRef<HTMLDivElement | null>(null);
-  const branchesHeaderRef = useRef<HTMLDivElement | null>(null);
+  /** The panel's one list: the repositories, or the branches (with one repository, its current branch first). */
+  const listRef = useRef<PanelListHandle | null>(null);
   const [listHost, listSize] = useElementSize<HTMLDivElement>();
-  const [splitHost, splitSize] = useElementSize<HTMLDivElement>();
   const theme = useVsCodeTheme();
   const dark = theme === 'dark' || theme === 'high-contrast';
 
@@ -251,9 +248,8 @@ export function App() {
     api.setState({
       toggled: [...toggled],
       ...(tab !== undefined ? { tab } : {}),
-      ...(reposSize !== undefined ? { reposSize } : {}),
     } satisfies Persisted);
-  }, [api, reposSize, tab, toggled]);
+  }, [api, tab, toggled]);
 
   // The repositories in view, as the model works them out: what a card's facts are asked for in.
   const scopeRoots = useMemo(
@@ -265,9 +261,11 @@ export function App() {
     (entry: BranchEntry) => details.get(detailsKey(entry, scopeRoots)),
     [details, scopeRoots],
   );
+  /** What the branches are filtered by: the field's text, less an `@` being typed. */
+  const filterText = withoutMention(query, mention);
   const ui: PanelUiState = useMemo(
     () => ({
-      query,
+      query: filterText,
       scope,
       toggled,
       ...(openCard !== undefined ? { openCard } : {}),
@@ -275,21 +273,10 @@ export function App() {
       detailsOf,
       openGroups,
     }),
-    [detailsOf, openCard, openGroups, query, scope, tab, toggled],
+    [detailsOf, filterText, openCard, openGroups, scope, tab, toggled],
   );
   const model = useMemo(() => (state ? buildPanel(state, ui) : undefined), [state, ui]);
-  const searching = query.trim().length > 0;
-  const reposOpen = paneOpen(toggled, 'repos');
-  const branchesOpen = paneOpen(toggled, 'branches');
-
-  const setPane = useCallback((pane: PaneId, open: boolean) => {
-    setToggled((prev) => withPane(prev, pane, open));
-  }, []);
-
-  // A search's matches are in BRANCHES: a folded one opens to show them.
-  useEffect(() => {
-    if (searching) setPane('branches', true);
-  }, [searching, setPane]);
+  const searching = filterText.trim().length > 0;
 
   // The latest model, for handlers registered once.
   const modelRef = useRef(model);
@@ -310,14 +297,45 @@ export function App() {
     });
   }, []);
 
+  /**
+   * The filter takes the keyboard, with `text` typed on: a key pressed in the
+   * list, or (POST-P14co) one pressed in the Repositories panel, which has no
+   * filter of its own and hands it to this one through the host.
+   */
   const focusSearch = useCallback((text?: string) => {
+    if (ROLE === 'repositories') {
+      void rpc.request(BRANCHES_METHODS.searchFor, text !== undefined ? { text } : {}).catch(() => undefined);
+      return;
+    }
     const el = searchRef.current;
     if (!el) return;
-    if (text !== undefined) setQuery((q) => q + text);
+    if (text !== undefined) {
+      const value = el.value + text;
+      setQuery(value);
+      // An `@` typed on opens the picker, as one typed in the filter does.
+      setMention(modelRef.current?.multi === true ? mentionAt(value, value.length) : undefined);
+      setPickerActive(0);
+    }
     requestAnimationFrame(() => {
       el.focus();
       if (text === undefined) el.select();
+      else el.setSelectionRange(el.value.length, el.value.length);
     });
+  }, []);
+
+  /**
+   * The picker closed (POST-P14co): the `@` and what followed it leave the
+   * filter, which they were never part of, and the caret goes where the `@` was.
+   */
+  const closePicker = useCallback(() => {
+    const m = mentionNow.current;
+    if (m === undefined) return;
+    setMention(undefined);
+    setQuery((q) => withoutMention(q, m));
+    const el = searchRef.current;
+    if (el !== null && document.activeElement === el) {
+      requestAnimationFrame(() => el.setSelectionRange(m.start, m.start));
+    }
   }, []);
 
   // ---- the repositories picked (POST-P14ce) ---------------------------------
@@ -373,7 +391,11 @@ export function App() {
         ...(params.roots !== undefined ? { roots: params.roots } : {}),
       });
     });
-    const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, () => focusSearch());
+    // POST-P14co: with what was typed in the Repositories panel, when it came from there.
+    const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, (p) => {
+      const text = (p as { text?: unknown } | undefined)?.text;
+      focusSearch(typeof text === 'string' && text.length > 0 ? text : undefined);
+    });
     // POST-P14ce: a pick made elsewhere: the Commit window's Show all, or a
     // repository row's Show Only This Repository there.
     const offScope = rpc.onEvent(BRANCHES_METHODS.evtScope, (p) => {
@@ -404,8 +426,9 @@ export function App() {
     };
   }, [adoptScope, focusSearch, openForm, saved]);
 
-  // POST-P14ce: the REPOSITORIES pane open, and the keyboard on the row of the
-  // repository named on the Commit window's filter bar. What is picked stays.
+  // POST-P14ce: the keyboard on the row of the repository named on the Commit
+  // window's filter bar, in the Repositories panel the host has brought into
+  // view (POST-P14co). What is picked stays.
   const [revealRepo, setRevealRepo] = useState<{ readonly root: string } | undefined>(undefined);
   useEffect(() => {
     if (revealRepo === undefined || !state) return;
@@ -415,16 +438,15 @@ export function App() {
     const repo =
       state.repos.find((r) => r.root === revealRepo.root) ?? state.repos.find((r) => same(r.root, revealRepo.root));
     if (repo === undefined) return;
-    if (state.repos.length > 1) setPane('repos', true);
-    // Once the pane is open and its rows drawn.
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => reposListRef.current?.focusRow(`repo:${repo.root}`)),
-    );
-  }, [revealRepo, setPane, state]);
+    // Once the panel is in view and its rows drawn.
+    requestAnimationFrame(() => requestAnimationFrame(() => listRef.current?.focusRow(`repo:${repo.root}`)));
+  }, [revealRepo, state]);
 
   const run = useCallback(
     (what: BranchPanelRunDto) => {
-      if (what.type === 'newBranch') {
+      // The New Branch form is the Branches panel's; asked for in the
+      // Repositories panel, the host opens it there (POST-P14co).
+      if (what.type === 'newBranch' && ROLE === 'branches') {
         openForm({ from: what.from, roots: what.roots });
         return;
       }
@@ -574,6 +596,16 @@ export function App() {
       setOpenCard(undefined);
     },
     [pickScope, repoCount],
+  );
+
+  /** A tick in the `@` picker (POST-P14co): the same pick a click makes, one box at a time. */
+  const pickRow = useCallback(
+    (row: PickerRow) => {
+      if (!state) return;
+      pickScope(row.kind === 'all' ? [] : pickToggled(state.repos, scopeNow.current, row.repo.root));
+      setOpenCard(undefined);
+    },
+    [pickScope, state],
   );
 
   const openRepoMenu = useCallback(
@@ -747,7 +779,7 @@ export function App() {
    */
   const selectTab = useCallback((next: BranchTab) => {
     setTab(next);
-    branchesListRef.current?.focusRow(TABS_ID);
+    listRef.current?.focusRow(TABS_ID);
   }, []);
 
   const onQuick = useCallback(
@@ -907,81 +939,49 @@ export function App() {
     model.scopeRepos.length === 1
       ? (model.scopeRepos[0]?.label ?? '')
       : `${model.scopeRepos.length} repositories`;
+  // POST-P14co: what an `@` is for, at the end of what the field says before
+  // anything is typed, as VS Code's Quick Open says what its `:` and `@` do.
   const placeholder = !model.multi
     ? 'Filter branches'
     : narrowed
-      ? `Filter branches in ${scopeLabel}`
-      : `Filter branches in ${state.repos.length} repositories`;
+      ? `Filter branches in ${scopeLabel} (type @ to pick repositories)`
+      : `Filter branches in ${state.repos.length} repositories (type @ to pick repositories)`;
   const fetchBusy = fetching || state.fetchingAll;
   const firstBranchId = model.rows.find((r) => r.kind === 'branch')?.id;
 
-  // ---- the panes: two lists with several repositories, one with one -----------
-  const split = model.multi;
-  const listRows = (list: ListId): readonly PanelRow[] =>
-    !split ? model.rows : list === 'repos' ? model.repoRows : model.branchRows;
-  /**
-   * Puts the keyboard on a row of `list`: its first or last, else the one it
-   * had, else its first. False when the list is not there to take it: folded,
-   * empty, or (with one repository) the repositories' list that does not exist.
-   */
-  const focusList = (list: ListId, which?: 'first' | 'last'): boolean => {
-    if (!split && list === 'repos') return false;
-    if (split && !(list === 'repos' ? reposOpen : branchesOpen)) return false;
-    const rows = listRows(list);
-    const first = rows[0];
-    const last = rows[rows.length - 1];
-    if (first === undefined || last === undefined) return false;
-    const kept = list === 'repos' ? repoFocusId : branchFocusId;
-    const id =
-      which === 'first'
-        ? first.id
-        : which === 'last'
-          ? last.id
-          : kept !== undefined && rows.some((r) => r.id === kept)
-            ? kept
-            : first.id;
-    (list === 'repos' ? reposListRef : branchesListRef).current?.focusRow(id);
-    return true;
-  };
-  /** Down or Enter in the filter: back to the list the keyboard was in, else the first one open. */
-  const enterLists = (): void => {
-    if (lastList !== undefined && focusList(lastList)) return;
-    if (focusList('repos') || focusList('branches')) return;
-    reposHeaderRef.current?.focus();
-  };
-  /**
-   * A pane header's keys, as VS Code's: Enter and Space fold or open it, Left
-   * shuts it, Right opens it. Down goes into its list (or, past a folded
-   * REPOSITORIES, on to the BRANCHES header), Up from BRANCHES back to the last
-   * repository; typing filters, as it does in the lists.
-   */
-  const onHeaderKeyDown = (pane: PaneId, e: ReactKeyboardEvent<HTMLDivElement>): void => {
-    // Keys pressed on the header's own buttons are theirs.
-    if (e.target !== e.currentTarget) return;
-    const open = pane === 'repos' ? reposOpen : branchesOpen;
-    if (e.key === 'Enter' || e.key === ' ') setPane(pane, !open);
-    else if (e.key === 'ArrowLeft') setPane(pane, false);
-    else if (e.key === 'ArrowRight') setPane(pane, true);
-    else if (e.key === 'ArrowDown') {
-      if (!focusList(pane, 'first') && pane === 'repos') branchesHeaderRef.current?.focus();
-    } else if (e.key === 'ArrowUp') {
-      if (pane === 'branches' && !focusList('repos', 'last')) reposHeaderRef.current?.focus();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') focusSearch();
-    else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) focusSearch(e.key);
-    else return;
-    e.preventDefault();
+  // ---- the panel's one list (POST-P14co) -------------------------------------
+  // The Repositories panel lists the repositories; the Branches panel the tabs
+  // and the branches, after the current branch with one repository, which has
+  // no Repositories panel (its `when` is several).
+  const listRows: readonly PanelRow[] =
+    ROLE === 'repositories' ? model.repoRows : model.multi ? model.branchRows : model.rows;
+  /** Down or Enter in the filter: into the list, on the row the keyboard had, else the first. */
+  const enterList = (): void => {
+    const first = listRows[0];
+    if (first === undefined) return;
+    listRef.current?.focusRow(focusId !== undefined && listRows.some((r) => r.id === focusId) ? focusId : first.id);
   };
 
-  const reposContent = model.repoRows.reduce((sum, r) => sum + r.height, 0);
-  const wantedRepos = dragSize ?? reposSize;
-  const layout = paneLayout({
-    total: splitSize.height,
-    reposOpen,
-    branchesOpen,
-    reposContent,
-    ...(wantedRepos !== undefined ? { reposSize: wantedRepos } : {}),
-  });
-  const selected = selectedRepos(state.repos, model.scopeRepos);
+  // ---- the `@` picker (POST-P14co) ----------------------------------------------
+  const picker = mention !== undefined ? pickerRows(state.repos, scope, mention.query) : undefined;
+  const activeRow = picker !== undefined && picker.length > 0 ? Math.min(pickerActive, picker.length - 1) : -1;
+  /** The field's text and caret as they are now: what the picker opens, follows and closes on. */
+  const readFilter = (el: HTMLInputElement): void => {
+    const next = model.multi ? mentionAt(el.value, el.selectionStart) : undefined;
+    if (next?.query !== mention?.query || (next === undefined) !== (mention === undefined)) setPickerActive(0);
+    setQuery(el.value);
+    setMention(next);
+  };
+  /**
+   * The caret moved without typing: the picker's query is what lies between
+   * the `@` and the caret, and with the caret before the `@` it closes.
+   */
+  const followCaret = (el: HTMLInputElement): void => {
+    if (mention === undefined) return;
+    const next = mentionAt(el.value, el.selectionStart);
+    if (next === undefined || next.start !== mention.start) closePicker();
+    else if (next.end !== mention.end) setMention(next);
+  };
 
   /**
    * A row's buttons. `project`: the workspace's only repository, whose update is
@@ -1214,15 +1214,11 @@ export function App() {
     };
   };
 
-  /** What both lists share: the rows' drawing, words and gestures, and which row each keeps. */
-  const listProps = (list: ListId) => {
-    const onFocusId = (id: string): void => {
-      if (list === 'repos') setRepoFocusId(id);
-      else setBranchFocusId(id);
-      setLastList(list);
-    };
+  /** The list's rows' drawing, words and gestures, and the row the keyboard keeps. */
+  const listProps = () => {
+    const onFocusId = (id: string): void => setFocusId(id);
     return {
-      focusedId: list === 'repos' ? repoFocusId : branchFocusId,
+      focusedId: focusId,
       onFocusId,
       renderRow,
       rowClassName: (row: PanelRow) => `gtp-kind-${row.kind}`,
@@ -1248,6 +1244,47 @@ export function App() {
     };
   };
 
+  const menuView = menu ? (
+    <Menu
+      items={menu.items}
+      at={menu.at}
+      ariaLabel={menu.label}
+      onSelect={(id) => {
+        const act = menu.runs.get(id);
+        setMenu(null);
+        act?.();
+      }}
+      onClose={() => setMenu(null)}
+    />
+  ) : null;
+
+  // ---- the Repositories panel (POST-P14co): its list, and the line at its foot ----
+  if (ROLE === 'repositories') {
+    return (
+      <div className="gtp-root">
+        <div className="gtp-list-host" ref={listHost}>
+          {listSize.height > 0 ? (
+            <PanelList
+              ref={listRef}
+              id="gtp-repos-list"
+              rows={listRows}
+              height={listSize.height}
+              ariaLabel="Repositories"
+              {...listProps()}
+            />
+          ) : null}
+        </div>
+        {menuView}
+        {/* VS Code's divider between this panel and the Branches panel lies
+            along its foot: the line there says where to grab it, as the one
+            between the two panes did (POST-P14bu), and as the Commit view's does. */}
+        <div className="gtp-edge" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  // ---- the Branches panel: the toolbar, the form, the list -----------------------
+  const pickerOpen = picker !== undefined;
   return (
     <div className="gtp-root">
       <div className="gtp-toolbar">
@@ -1273,22 +1310,54 @@ export function App() {
             placeholder={placeholder}
             aria-label="Filter branches"
             spellCheck={false}
-            onChange={(e) => setQuery(e.currentTarget.value)}
+            // POST-P14co: with several repositories the field is a combobox,
+            // its `@` list the listbox it controls while open.
+            {...(model.multi
+              ? {
+                  role: 'combobox',
+                  'aria-expanded': pickerOpen,
+                  'aria-autocomplete': 'list' as const,
+                  ...(pickerOpen ? { 'aria-controls': REPO_PICKER_ID } : {}),
+                  ...(activeRow >= 0 ? { 'aria-activedescendant': pickerRowId(activeRow) } : {}),
+                }
+              : {})}
+            onChange={(e) => readFilter(e.currentTarget)}
+            onSelect={(e) => followCaret(e.currentTarget)}
+            onBlur={closePicker}
             onKeyDown={(e) => {
+              if (picker !== undefined) {
+                // The picker's keys while it is open; anything else is typed on into its query.
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  if (picker.length === 0) return;
+                  const step = e.key === 'ArrowDown' ? 1 : -1;
+                  setPickerActive((activeRow + step + picker.length) % picker.length);
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const row = picker[activeRow];
+                  if (row !== undefined) pickRow(row);
+                  closePicker();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  closePicker();
+                } else if (e.key === 'Tab') {
+                  closePicker();
+                }
+                return;
+              }
               if (e.key === 'Escape') {
                 e.preventDefault();
                 if (query.length > 0) setQuery('');
-                else if (lastList !== undefined) focusList(lastList);
+                else if (focusId !== undefined) enterList();
               } else if (e.key === 'ArrowDown' || e.key === 'Enter') {
                 if (!searching) {
                   e.preventDefault();
-                  enterLists();
+                  enterList();
                   return;
                 }
-                // The matches are in BRANCHES, which the search has opened.
                 if (firstBranchId === undefined) return;
                 e.preventDefault();
-                branchesListRef.current?.focusRow(firstBranchId);
+                listRef.current?.focusRow(firstBranchId);
                 if (e.key === 'Enter') setOpenCard(firstBranchId);
               }
             }}
@@ -1301,11 +1370,22 @@ export function App() {
               aria-label="Clear filter"
               onClick={() => {
                 setQuery('');
+                setMention(undefined);
                 searchRef.current?.focus();
               }}
             >
               <Codicon name="close" />
             </button>
+          ) : null}
+          {picker !== undefined ? (
+            <RepoPicker
+              rows={picker}
+              active={activeRow}
+              query={mention?.query ?? ''}
+              colorOf={colorOf}
+              onPick={pickRow}
+              onActive={setPickerActive}
+            />
           ) : null}
         </div>
         <button
@@ -1362,128 +1442,24 @@ export function App() {
           onClose={() => setForm(null)}
         />
       ) : null}
-      {split ? (
-        <div className={`gtp-split${dragSize !== undefined ? ' gtp-resizing' : ''}`} ref={splitHost}>
-          <PaneHeader
-            ref={reposHeaderRef}
-            pane="repos"
-            title="Repositories"
-            open={reposOpen}
-            count={state.repos.length}
-            controls="gtp-repos-list"
-            ariaLabel={`Repositories, ${state.repos.length}${selected.length > 0 ? `. ${selectionTitle(selected)}` : ''}`}
-            label={
-              selected.length > 0 ? (
-                <span className="gtp-pane-label" title={selectionTitle(selected)}>
-                  {selected.map((repo) => (
-                    <span key={repo.root} className="gtp-pane-repo">
-                      <span
-                        className="gtp-dot gtp-dot-on"
-                        style={{ '--gtp-repo': colorOf(repo) } as CSSProperties}
-                        aria-hidden="true"
-                      />
-                      {repo.label}
-                    </span>
-                  ))}
-                </span>
-              ) : undefined
-            }
-            actions={
-              selected.length > 0 ? (
-                <button type="button" className="gtp-link" title="Show every repository" onClick={() => pickScope([])}>
-                  Show all
-                </button>
-              ) : undefined
-            }
-            onToggle={() => setPane('repos', !reposOpen)}
-            onKeyDown={(e) => onHeaderKeyDown('repos', e)}
-          />
-          <div className={`gtp-pane-body${reposOpen ? '' : ' gtp-folded'}`} style={{ height: layout.reposBody }}>
-            {splitSize.height > 0 ? (
-              <PanelList
-                ref={reposListRef}
-                id="gtp-repos-list"
-                rows={model.repoRows}
-                height={layout.reposBody}
-                ariaLabel="Repositories"
-                onEdge={(direction) => (direction < 0 ? reposHeaderRef : branchesHeaderRef).current?.focus()}
-                {...listProps('repos')}
-              />
-            ) : null}
-          </div>
-          <PaneHeader
-            ref={branchesHeaderRef}
-            pane="branches"
-            title="Branches"
-            open={branchesOpen}
-            controls="gtp-branches-list"
+      <div className="gtp-list-host" ref={listHost}>
+        {listSize.height > 0 ? (
+          <PanelList
+            ref={listRef}
+            id="gtp-branches-list"
+            rows={listRows}
+            height={listSize.height}
             ariaLabel="Branches"
-            sashAbove={layout.sash}
-            onToggle={() => setPane('branches', !branchesOpen)}
-            onKeyDown={(e) => onHeaderKeyDown('branches', e)}
+            stickyId={TABS_ID}
+            onEdge={(direction) => {
+              // Up from the first row: the filter, which is over the list.
+              if (direction < 0) searchRef.current?.focus();
+            }}
+            {...listProps()}
           />
-          <div className={`gtp-pane-body${branchesOpen ? '' : ' gtp-folded'}`} style={{ height: layout.branchesBody }}>
-            {splitSize.height > 0 ? (
-              <PanelList
-                ref={branchesListRef}
-                id="gtp-branches-list"
-                rows={model.branchRows}
-                height={layout.branchesBody}
-                ariaLabel="Branches"
-                stickyId={TABS_ID}
-                onEdge={(direction) => {
-                  if (direction < 0) branchesHeaderRef.current?.focus();
-                }}
-                {...listProps('branches')}
-              />
-            ) : null}
-          </div>
-          {layout.sash ? (
-            <Sash
-              top={PANE_HEADER + layout.reposBody}
-              onStart={() => {
-                dragBase.current = layout.reposBody;
-              }}
-              onMove={(delta) => setDragSize(Math.max(0, dragBase.current + delta))}
-              onEnd={(moved) => {
-                // The size the divider came to rest at, within the panes' limits.
-                if (moved) setReposSize(layout.reposBody);
-                setDragSize(undefined);
-              }}
-              onReset={() => {
-                setDragSize(undefined);
-                setReposSize(undefined);
-              }}
-            />
-          ) : null}
-        </div>
-      ) : (
-        <div className="gtp-list-host" ref={listHost}>
-          {listSize.height > 0 ? (
-            <PanelList
-              ref={branchesListRef}
-              rows={model.rows}
-              height={listSize.height}
-              ariaLabel="Repositories"
-              stickyId={TABS_ID}
-              {...listProps('branches')}
-            />
-          ) : null}
-        </div>
-      )}
-      {menu ? (
-        <Menu
-          items={menu.items}
-          at={menu.at}
-          ariaLabel={menu.label}
-          onSelect={(id) => {
-            const act = menu.runs.get(id);
-            setMenu(null);
-            act?.();
-          }}
-          onClose={() => setMenu(null)}
-        />
-      ) : null}
+        ) : null}
+      </div>
+      {menuView}
     </div>
   );
 }

@@ -366,7 +366,7 @@ export function registerPhase13Dialogs(
     pushAsSet(request, { dialog: isPushDialogOn(), waitForDialog: true });
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.push.dialog', async (arg?: unknown) => {
-      // POST-P14by: a list, the Repositories panel's `⋯` with some repositories
+      // POST-P14by: a list, the Branches panel's `⋯` with some repositories
       // in view: every repository listed still, as IntelliJ's dialog lists them,
       // and those checked.
       const several = namedRepos(core, arg);
@@ -483,7 +483,7 @@ export function registerPhase13Dialogs(
   // directly once the user chooses Don't Ask Again.
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.update.dialog', async (arg?: unknown) => {
-      // POST-P14bx: a list of repositories, the Repositories panel's `⋯` with
+      // POST-P14bx: a list of repositories, the Branches panel's `⋯` with
       // some of them in view, updates those.
       const several = namedRepos(core, arg);
       if (several !== undefined) {

@@ -160,25 +160,25 @@ How many recent branches (by checkout frequency and recency) the Branches popup 
 
 ### `gittree.branches.showIncomingOutgoing`
 
-Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Repositories panel. Toggled from the popup's header and the panel's More Actions menu (the `⋯` button).
+Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Branches panel, and beside repositories in the Repositories panel. Toggled from the popup's header and the Branches panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.branches.showTags`
 
-List tags in the branches popup, as the Repositories panel's Tags tab, and as a Tags node in the Branches (Tree) view and the log's Branches pane. Toggled from the log's Branches Pane Settings menu (the gear button) and the panel's More Actions menu (the `⋯` button).
+List tags in the branches popup, as the Branches panel's Tags tab, and as a Tags node in the Branches (Tree) view and the log's Branches pane. Toggled from the log's Branches Pane Settings menu (the gear button) and the Branches panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.branches.groupByFolder`
 
-Group branches into folders on `/` in the Repositories panel (`feature/login` under `feature`). Toggled from the panel's More Actions menu (the `⋯` button).
+Group branches into folders on `/` in the Branches panel (`feature/login` under `feature`). Toggled from the panel's More Actions menu (the `⋯` button).
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.branches.showRepositoryDots`
 
-With several repositories in view, show a dot per repository on each branch row of the Repositories panel: filled where the branch is checked out, ringed where it exists, small where it does not. The dots take the place of the row's words for the same (in api, web; in all 20). A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command GitTree: Toggle Repository Dots.
+With several repositories in view, show a dot per repository on each branch row of the Branches panel: filled where the branch is checked out, ringed where it exists, small where it does not. The dots take the place of the row's words for the same (in api, web; in all 20). A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command GitTree: Toggle Repository Dots.
 
 - Type: `boolean` · Default: `false`
 

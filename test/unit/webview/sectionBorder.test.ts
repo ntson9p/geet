@@ -21,7 +21,7 @@ interface ColorContribution {
 const ID = 'gittree.sectionBorder';
 const manifest = JSON.parse(read('package.json')) as { contributes: { colors: ColorContribution[] } };
 const contribution = manifest.contributes.colors.find((c) => c.id === ID);
-/** The CSS that draws the lines: the Commit window's, and the Repositories panel's. */
+/** The CSS that draws the lines: the Commit window's, and the Repositories panel's foot (POST-P14co). */
 const STYLESHEETS = [
   ['webview-ui', 'src', 'commit', 'commit.css'],
   ['webview-ui', 'src', 'branches', 'branches.css'],
@@ -64,7 +64,10 @@ describe('the section border colour (POST-P14bu)', () => {
     expect(key).toBeDefined();
     const text = (JSON.parse(read('package.nls.json')) as Record<string, string>)[key!];
     expect(text).toContain('Commit view');
-    expect(text).toContain('BRANCHES');
+    // POST-P14co: the line over the BRANCHES pane is the one under the
+    // Repositories panel, now that each is a panel of its own.
+    expect(text).toContain('under the Repositories panel');
+    expect(text).not.toContain('BRANCHES');
     expect(text).toContain('diff preview');
     expect(text).toContain('Transparent hides');
   });

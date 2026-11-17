@@ -92,15 +92,26 @@ describe('ReposInView', () => {
     const { kept, view } = store([A, B, C]);
     const heard = vi.fn();
     view.onDidChange(heard);
-    view.set([B], 'panel');
+    view.set([B], 'repositories');
     expect(view.picked).toEqual([B]);
     expect(kept.value).toEqual([B]);
-    expect(heard).toHaveBeenCalledWith('panel');
+    expect(heard).toHaveBeenCalledWith('repositories');
     const now = view.snapshot();
     expect(now).toMatchObject({ narrowed: true, roots: [B] });
     expect(now.has(B)).toBe(true);
     expect(now.has(A)).toBe(false);
     expect(now.has('d:\\w\\WEB')).toBe(true);
+  });
+
+  it('says which panel made a pick: the other one is told of it (POST-P14co)', () => {
+    const { view } = store([A, B, C]);
+    const heard: string[] = [];
+    view.onDidChange((source) => heard.push(source));
+    // The Branches panel's `@` picker, then a click in the Repositories panel.
+    view.set([A, C], 'branches');
+    view.set([B], 'repositories');
+    view.clear('elsewhere');
+    expect(heard).toEqual(['branches', 'repositories', 'elsewhere']);
   });
 
   it('shows every repository again on Show all, from anywhere', () => {
@@ -118,21 +129,21 @@ describe('ReposInView', () => {
     const { kept, view } = store([A, B, C], [A]);
     const heard = vi.fn();
     view.onDidChange(heard);
-    view.set([A], 'panel');
+    view.set([A], 'repositories');
     expect(heard).not.toHaveBeenCalled();
     expect(kept.writes).toBe(0);
   });
 
   it('keeps every open repository picked as none', () => {
     const { kept, view } = store([A, B]);
-    view.set([A, B], 'panel');
+    view.set([A, B], 'branches');
     expect(view.picked).toEqual([]);
     expect(kept.value).toEqual([]);
   });
 
   it('survives a reload', () => {
     const first = store([A, B, C]);
-    first.view.set([C, A], 'panel');
+    first.view.set([C, A], 'branches');
     const again = new ReposInView(first.kept, () => [A, B, C], keyOf);
     expect(again.picked).toEqual([C, A]);
     expect(again.snapshot().roots).toEqual([A, C]);

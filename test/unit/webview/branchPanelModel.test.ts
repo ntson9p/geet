@@ -850,6 +850,9 @@ describe('ordering, buttons and words', () => {
     for (const bad of ['', 'has space', '-x', 'x/', 'x.', 'a..b', 'a~b', 'a:b']) {
       expect(isPlausibleBranchName(bad)).toBe(false);
     }
+    // POST-P14co: git refuses `@` alone and `@{`; an `@` elsewhere is a name like any.
+    for (const bad of ['@', 'a@{b', '@{u}']) expect(isPlausibleBranchName(bad), bad).toBe(false);
+    for (const good of ['user@feature', '@team/x']) expect(isPlausibleBranchName(good), good).toBe(true);
   });
 });
 

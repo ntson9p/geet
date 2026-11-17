@@ -34,6 +34,9 @@ suite('P14 owning the SCM surface', () => {
    */
   const EXPECTED_VIEWS = [
     'gittree.commit',
+    // POST-P14co: the Repositories panel, split from `gittree.branches`, which
+    // keeps the filter and the branches (and its id) as the Branches panel.
+    'gittree.repositoryList',
     // POST-P14u: the repository selector, and the Branches view that follows
     // it. `gittree.branches` is now the repository-scoped hub; the
     // all-repositories tree it replaced moved to `gittree.branchesLegacy`.

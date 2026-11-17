@@ -1,8 +1,13 @@
 /**
- * In-page mock host for the Branches panel (new-way-4): answers `branches/*`
- * as `branchPanel.ts` would, over a workspace of three repositories — `web`
- * and `api` sharing most branches, `shared` on its own — one of them in the
- * middle of a rebase.
+ * In-page mock host for the Repositories and Branches panels (new-way-4; one
+ * panel until POST-P14co): answers `branches/*` as `branchPanel.ts` would, over
+ * a workspace of three repositories — `web` and `api` sharing most branches,
+ * `shared` on its own — one of them in the middle of a rebase.
+ *
+ * POST-P14co: a page is one panel, `window.__mockRole` (`'repositories'`;
+ * anything else is the Branches panel). Two pages of one test are the two
+ * panels of one host: a pick made in either reaches the other, and so do
+ * typing and New Branch… in the Repositories panel (a BroadcastChannel).
  *
  * Opt-ins, set before the page loads:
  * - `window.__mockSingleRepo` — just `web`;
@@ -19,6 +24,9 @@
  */
 export const mockBranchesHostScript = `
 (() => {
+  // POST-P14co: which panel this page is, as the host's page tells it.
+  const role = window.__mockRole === 'repositories' ? 'repositories' : 'branches';
+  window.__gittreeInitialState = { role };
   const NOW = 1_800_000_000;
   const H = 3600, D = 86400;
   const sha = (n) => (n.toString(16).padStart(8, '0')).repeat(5);
@@ -108,6 +116,24 @@ export const mockBranchesHostScript = `
     keepScope(roots);
     post({ v: 1, id: 'evtscope', kind: 'evt', method: 'branches/scope', params: { roots: state.scope.slice() } });
   };
+
+  // POST-P14co: the other panel's page, as the host joins the two webviews.
+  const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gittree-mock-branches') : undefined;
+  const tell = (msg) => {
+    if (channel) channel.postMessage(msg);
+  };
+  if (channel) {
+    channel.onmessage = (e) => {
+      const m = e.data || {};
+      if (m.type === 'scope') {
+        window.__mockPickElsewhere(m.roots);
+      } else if (m.type === 'searchFor' && role === 'branches') {
+        post({ v: 1, id: 'evtfocus', kind: 'evt', method: 'branches/focusFilter', params: m.text ? { text: m.text } : {} });
+      } else if (m.type === 'newBranch' && role === 'branches') {
+        post({ v: 1, id: 'evtnew', kind: 'evt', method: 'branches/newBranch', params: { from: m.from, roots: m.roots } });
+      }
+    };
+  }
   window.__mockReveal = (root) =>
     post({ v: 1, id: 'evtreveal', kind: 'evt', method: 'branches/revealRepo', params: { root } });
 
@@ -148,6 +174,8 @@ export const mockBranchesHostScript = `
         ? { kind: 'item', label: 'Update Repository Without Fetching…', run: { type: 'command', command: 'gittree.update.repositoryWithoutFetch', root } }
         : { kind: 'item', label: 'Update Project Without Fetching…', run: { type: 'command', command: 'gittree.update.withoutFetch', root } },
       { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'gittree.fetch', root } },
+      { kind: 'separator' },
+      { kind: 'item', label: 'New Branch…', run: { type: 'newBranch', from: 'HEAD', roots: [root] } },
     ];
   };
 
@@ -165,8 +193,16 @@ export const mockBranchesHostScript = `
           res(JSON.parse(JSON.stringify(state)));
           break;
         case 'branches/setScope':
-          if (Array.isArray(p.roots)) keepScope(p.roots);
+          if (Array.isArray(p.roots)) {
+            keepScope(p.roots);
+            tell({ type: 'scope', roots: state.scope.slice() });
+          }
           res({ roots: state.scope.slice() });
+          break;
+        case 'branches/searchFor':
+          // Typed in the Repositories panel: the Branches panel's filter takes it.
+          tell({ type: 'searchFor', text: typeof p.text === 'string' ? p.text : '' });
+          res(null);
           break;
         case 'branches/details':
           res(details(p.target));
@@ -178,6 +214,8 @@ export const mockBranchesHostScript = `
           if (window.__mockHoldRun === true) window.__releaseRun = () => res(null);
           else res(null);
           const run = p.run || {};
+          // POST-P14co: New Branch… asked in the Repositories panel opens the Branches panel's form.
+          if (run.type === 'newBranch') tell({ type: 'newBranch', from: run.from, roots: run.roots });
           if (run.type === 'command' && run.command === 'gittree.fetch' && run.root) {
             const r = repoOf(run.root);
             r.fetching = true;
