@@ -120,7 +120,11 @@ a dirty worktree is refused with git's own reason.
 
 - git ≥ 2.36 recommended (older versions degrade gracefully; features that
   need newer git, like FSMonitor suggestions, gate themselves on capability).
-- VS Code ≥ 1.96. No accounts, no tokens, nothing leaves your machine.
+- VS Code ≥ 1.96. No accounts, no tokens, no telemetry: GitTree itself sends nothing anywhere.
+  Git talks to your remotes when you fetch, pull or push, and **Generate Commit Message**, if
+  you use it, sends the changes it describes to the language model you choose in VS Code.
+- GitTree runs only in folders you trust (it stays off in Restricted Mode), as VS Code's own
+  Git extension does: git can run programs a repository's own configuration names.
 
 ## Development
 
@@ -132,8 +136,14 @@ npm run watch             # esbuild watch → dist/extension.js  (F5 to debug)
 npm run check             # typecheck + lint + unit tests
 npm run test:integration  # @vscode/test-electron against fixture repos
 npm run test:perf         # §13 performance budgets (run in isolation)
-npm run package           # vsce package --pre-release
+npm run package           # vsce package: a pre-release for an odd minor version
 ```
 
 Build blueprint: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) and
-[docs/plan/](docs/plan/). Benchmarks: [docs/perf.md](docs/perf.md).
+[docs/plan/](docs/plan/). Benchmarks: [docs/perf.md](docs/perf.md). Releasing:
+[docs/releasing.md](docs/releasing.md).
+
+---
+
+GitTree is an independent project, not affiliated with or endorsed by JetBrains. IntelliJ IDEA
+is a trademark of JetBrains s.r.o.

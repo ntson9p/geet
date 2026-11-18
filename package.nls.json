@@ -1,4 +1,5 @@
 {
+  "gittree.capabilities.untrustedWorkspaces.description": "GitTree runs git, which can run programs a repository's own configuration names (hooks, core.fsmonitor). It stays off until you trust the folder.",
   "gittree.command.debug.showState.title": "Show Repository State (Debug)",
   "gittree.command.debug.webviewDemo.title": "Open Webview Demo (Debug)",
   "gittree.config.title": "GitTree",

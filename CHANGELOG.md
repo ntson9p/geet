@@ -6,6 +6,27 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-19
+
+The first release on the Visual Studio Marketplace, as a **pre-release** (an odd minor; see
+[docs/releasing.md](docs/releasing.md)). Everything below came after 0.0.1.
+
+### Changed — published on the Marketplace as `ntson9p.gittree`
+
+- **The extension's ID is `ntson9p.gittree`**; builds made before this one were
+  `gittree.gittree`. VS Code keeps an extension's data under its ID, so after moving from such a
+  build its changelists, commit message history and drafts start empty, and its shelved changes
+  and Local History stay in `…/User/globalStorage/gittree.gittree`. To keep them, copy that
+  folder's `shelf` and `history` into `…/User/globalStorage/ntson9p.gittree` with VS Code closed.
+- **GitTree stays off in Restricted Mode and in virtual workspaces**, as VS Code's own Git
+  extension does: git can run programs a repository's own configuration names (hooks,
+  `core.fsmonitor`), so it waits until you trust the folder. This is now declared in the
+  manifest, so VS Code says why on the extension's page.
+- **GitTree: Getting Started Walkthrough** opens the walkthrough under the new ID; it named the
+  old one.
+- The Marketplace description no longer lists code review, which was not built (see the
+  README).
+
 ### Changed — Update, Commit and Push are in the Repositories panel's `⋯`
 
 - **The Repositories panel has a `⋯` of its own**, after Fetch. It holds **Update Project…**,

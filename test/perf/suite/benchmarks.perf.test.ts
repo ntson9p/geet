@@ -18,6 +18,7 @@ import { GraphLayout } from '../../../src/log/graphLayout/layout';
 import { LogService, PAGE_SIZE } from '../../../src/log/logService';
 import { computeChanges } from '../../../src/scm/gutter/changeModel';
 import { activateGitTree } from '../../integration/setup';
+import { EXTENSION_ID } from '../../integration/extensionId';
 
 const NOISE = 1.15; // §13 budgets carry a 15% CI-noise tolerance
 const BUDGET = {
@@ -68,7 +69,7 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
 
   test('activation sync path ≤ 100 ms', async function () {
     this.timeout(30_000);
-    const ext = vscode.extensions.getExtension<GitTreeApi>('gittree.gittree');
+    const ext = vscode.extensions.getExtension<GitTreeApi>(EXTENSION_ID);
     assert.ok(ext, 'extension missing');
     const api = await ext.activate();
     const ms = api.perf?.activationSyncMs;

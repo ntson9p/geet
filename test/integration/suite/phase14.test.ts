@@ -10,6 +10,7 @@ import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../../../src/diff/diffSession';
 import type { RepoHandle } from '../../../src/core/core';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { EXTENSION_ID } from '../extensionId';
 
 /**
  * Phase 14 — owning the SCM surface. This suite guards the *structural*
@@ -20,7 +21,7 @@ import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup
  */
 suite('P14 owning the SCM surface', () => {
   function contributes(): Record<string, unknown> {
-    const ext = vscode.extensions.getExtension('gittree.gittree');
+    const ext = vscode.extensions.getExtension(EXTENSION_ID);
     assert.ok(ext, 'extension missing');
     const c = (ext.packageJSON as { contributes?: Record<string, unknown> }).contributes;
     assert.ok(c, 'no contributes block');

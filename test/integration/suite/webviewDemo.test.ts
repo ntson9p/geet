@@ -1,5 +1,6 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
+import { EXTENSION_ID } from '../extensionId';
 
 /**
  * P0-T9 host side: the demo command builds CSP'd HTML pointing at
@@ -8,7 +9,7 @@ import * as vscode from 'vscode';
 suite('P0-T9 webview host factory', () => {
   test('demo command opens a webview panel', async function () {
     this.timeout(30_000);
-    const ext = vscode.extensions.getExtension('gittree.gittree');
+    const ext = vscode.extensions.getExtension(EXTENSION_ID);
     assert.ok(ext);
     await ext.activate();
     await vscode.commands.executeCommand('gittree.debug.webviewDemo');

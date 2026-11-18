@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { canonicalKey, RepoDiscovery } from '../../../src/core/repoDiscovery';
 import type { GitTreeApi } from '../../../src/extension';
+import { EXTENSION_ID } from '../extensionId';
 
 /**
  * P0-T7 acceptance: the multi-root fixture workspace (two repos, wired in
@@ -13,7 +14,7 @@ import type { GitTreeApi } from '../../../src/extension';
  */
 suite('P0-T7 discovery, activation, ModeManager', () => {
   async function core() {
-    const ext = vscode.extensions.getExtension<GitTreeApi>('gittree.gittree');
+    const ext = vscode.extensions.getExtension<GitTreeApi>(EXTENSION_ID);
     assert.ok(ext, 'extension missing');
     const api = await ext.activate();
     const corePromise = api.getCore();

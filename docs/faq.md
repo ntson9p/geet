@@ -167,7 +167,7 @@ buttons, warnings and errors are always ordinary notifications.
 
 Snapshots are content-addressed, gzip-compressed blobs under VS Code's
 extension global storage
-(`…/User/globalStorage/gittree.gittree/localHistory/<repo-key>/`), one store
+(`…/User/globalStorage/ntson9p.gittree/history/<repo-key>/`), one store
 per repository identity. Nothing ever leaves your machine. Retention is
 controlled by `gittree.localHistory.{maxSizeMb,retentionDays,maxFileSizeKb}`
 (see [settings.md](settings.md)); GC enforces the size budget oldest-first,
@@ -176,8 +176,17 @@ and `GitTree: Clear All Local History` wipes a repo's store.
 ### Where does the shelf store patches?
 
 Outside `.git` on purpose (that is the point of shelving): under extension
-global storage, or a folder you pick via `gittree.shelf.path`. Deleting or
-re-initializing the repository leaves shelved patches intact.
+global storage (`…/User/globalStorage/ntson9p.gittree/shelf/`), or a folder you
+pick via `gittree.shelf.path`. Deleting or re-initializing the repository
+leaves shelved patches intact.
+
+### I used a GitTree build from before the Marketplace. Where did my shelf go?
+
+Builds before 0.1.0 were `gittree.gittree`; the Marketplace's is `ntson9p.gittree`, and VS
+Code keeps each extension's data under its ID. The old build's shelf and Local History are
+still in `…/User/globalStorage/gittree.gittree/`: with VS Code closed, copy its `shelf` and
+`history` folders into `…/User/globalStorage/ntson9p.gittree/`. Changelists, commit message
+history and drafts are kept by VS Code itself and do not carry over.
 
 ### The log is slow on a gigantic repository. What helps?
 

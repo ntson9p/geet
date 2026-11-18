@@ -21,6 +21,7 @@ import type { Phase04Registry } from '../../../src/log/register';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import { repoLabels } from '../../../src/core/util/repoLabels';
 import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
+import { EXTENSION_ID } from '../extensionId';
 
 /**
  * new-way-4 — the Branches panel's host, against two real repositories
@@ -889,8 +890,8 @@ suite('new-way-4 Branches panel', () => {
 
   test('POST-P14co: Repositories and Branches are two panels, the first only with several repositories', async function () {
     this.timeout(60_000);
-    const ext = vscode.extensions.getExtension('gittree.gittree');
-    assert.ok(ext, 'extension gittree.gittree not found');
+    const ext = vscode.extensions.getExtension(EXTENSION_ID);
+    assert.ok(ext, `extension ${EXTENSION_ID} not found`);
     const views = (
       ext.packageJSON as {
         contributes: { views: Record<string, Array<{ id: string; type?: string; when?: string; name: string }>> };

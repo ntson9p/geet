@@ -1,11 +1,14 @@
 /**
  * "What's new" notification (P10-T3 step 4): once per MINOR version bump,
  * setting-gated (`gittree.whatsNew.enabled`) and dismissible — any outcome
- * marks the minor as seen. "Show" opens CHANGELOG.md in VS Code's own
- * markdown preview (the reused renderer).
+ * marks the minor as seen. "Show" opens the changelog in VS Code's own
+ * markdown preview (the reused renderer): `changelog.md` in an installed
+ * extension, as vsce names it, `CHANGELOG.md` in a development host.
  */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { whatsNewDecision } from './whatsNewGate';
+import { changelogName, whatsNewDecision } from './whatsNewGate';
 
 const SEEN_KEY = 'gittree.whatsNew.seenMinor';
 
@@ -28,9 +31,9 @@ export async function maybeShowWhatsNew(context: vscode.ExtensionContext): Promi
     showChangelog,
   );
   if (choice === showChangelog) {
-    await vscode.commands.executeCommand(
-      'markdown.showPreview',
-      vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md'),
-    );
+    // `changelog.md` as installed, `CHANGELOG.md` in a development host (POST-P14cr).
+    const name = changelogName((n) => fs.existsSync(path.join(context.extensionUri.fsPath, n)));
+    if (name === undefined) return;
+    await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.joinPath(context.extensionUri, name));
   }
 }

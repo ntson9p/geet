@@ -1,9 +1,9 @@
 {
   "name": "gittree",
   "displayName": "GitTree",
-  "description": "IntelliJ-grade Git integration for VS Code: changelists, log graph, interactive rebase, 3-pane merge, shelve, code review, and local history.",
-  "version": "0.0.1",
-  "publisher": "gittree",
+  "description": "IntelliJ-grade Git integration for VS Code: changelists, log graph, interactive rebase, 3-pane merge, shelve, and local history.",
+  "version": "0.1.0",
+  "publisher": "ntson9p",
   "license": "MIT",
   "private": true,
   "icon": "media/icon.png",
@@ -13,10 +13,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gittree/git-tree-vsix.git"
+    "url": "https://github.com/ntson9p/git-tree.git"
+  },
+  "homepage": "https://github.com/ntson9p/git-tree#readme",
+  "bugs": {
+    "url": "https://github.com/ntson9p/git-tree/issues"
   },
   "engines": {
     "vscode": "^1.96.0"
+  },
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "%gittree.capabilities.untrustedWorkspaces.description%"
+    }
   },
   "categories": [
     "SCM Providers"
@@ -4255,7 +4266,7 @@
     "docs:settings": "node scripts/genSettingsDoc.mjs",
     "pretest:perf": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
     "test:perf": "node ./out/test/perf/runPerf.js",
-    "package": "vsce package --pre-release",
+    "package": "node scripts/package.mjs",
     "postpackage": "node scripts/checkBundleSize.mjs"
   },
   "devDependencies": {

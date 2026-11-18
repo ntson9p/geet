@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import type { Core } from '../core/core';
 import type { Telemetry } from '../core/telemetry';
 import { generatePlayground } from './playground';
+import { walkthroughId } from './walkthrough';
 import { maybeShowWhatsNew } from './whatsNew';
 
 export interface OnboardingDebugHooks {
@@ -23,7 +24,7 @@ export function registerOnboarding(
       telemetry?.featureFirstUse('walkthrough');
       return vscode.commands.executeCommand(
         'workbench.action.openWalkthrough',
-        'gittree.gittree#gittree.gettingStarted',
+        walkthroughId(context.extension.id),
         false,
       );
     }),
