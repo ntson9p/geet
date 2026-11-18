@@ -216,17 +216,29 @@ three questions, top to bottom.
   its chevron, or Enter) opens its card.
 * **Several repositories:** the **Repositories** panel, one row per repository in the order the
   user reads them, each with a coloured dot (its colour in the log's `Roots`), what it has
-  checked out, `↓ ↑` and changed files. Nothing else: no toolbar, no heading inside it, no
-  count; VS Code's own header names the panel. The branches are the **Branches** panel under it
-  (below).
+  checked out, `↓ ↑` and changed files. Over them, its own filter and **Fetch** (below); no
+  heading inside it, no count: VS Code's own header names the panel. The branches are the
+  **Branches** panel under it (below).
 * **Two panels, so VS Code folds, sizes and scrolls each** (POST-P14co): twenty repositories
   never push the branches out of sight, a panel folded stays folded, and VS Code keeps the
   sizes. They were two panes of one panel with a divider of their own (new-way-6).
   - **A line marks the divider between them**: a 2px line along the Repositories panel's foot,
     in `gittree.sectionBorder`, as under the Commit window (POST-P14bu).
-  - **Typing in the Repositories panel goes to the Branches panel's filter**, which comes into
-    view with what was typed, as typing in the one panel did; Ctrl+F too, and an `@` opens its
-    picker.
+* **The Repositories panel's filter** (POST-P14cp), at its top, lists only the repositories
+  whose names match what is typed: every word, anywhere in the name the panel shows, in either
+  case, matched letters marked. A banner (a rebase, a merge) goes with its repository; with
+  nothing matching, it says so. Typing on a repository's row, or Ctrl+F, goes to it.
+  - **It only filters the list.** What is picked, and so the Branches panel and the Commit
+    window, stays as it was: a picked repository the filter hides is still picked.
+  - **`Enter` shows the first match alone**, as a click on its row does, and puts the keyboard
+    on that row. A second `Enter` keeps it so (a second click would show every repository).
+    `↓` moves to the first match and picks nothing; `↑` from the top row goes back to the
+    filter; `Escape` clears it, and again goes back to the row.
+  - **Fetch** (every repository; it spins until done) is to the filter's right. It was in the
+    Branches panel's toolbar, where it stays with one repository, which has no Repositories
+    panel.
+  - A name on the Commit window's filter bar whose row the filter hides clears the filter, so
+    the row can take the keyboard.
 * Every repository row has **Update Repository…**, **Push…**, **Fetch** (that repository
   alone; it spins while it runs) and **`⋯`** on hover. Right-click or `⋯` gives the
   repository's menu, whose update is **Update Repository…** and **Update Repository Without
@@ -381,9 +393,10 @@ picked; at first, on Recent while anything is recent, else Local.
     branch or a tag has it too. The log draws one repository at a time (**D24**), so a branch
     several repositories have offers **Show in New Log Tab ›** naming each of them.
 * **Drag** a local branch onto another to merge or rebase (the branch trees' own prompt).
-* **The Branches panel's toolbar** (the one panel's, until POST-P14co): the filter, **Fetch** (every repository; spins until done), **Repository
-  Dots** (with several repositories in view; a two-by-two grid of dots, pressed while on),
-  **New Branch**, and **`⋯`**:
+* **The Branches panel's toolbar** (the one panel's, until POST-P14co): the filter, **Fetch**
+  with one repository (every repository; spins until done; with several it is beside the
+  Repositories panel's filter, POST-P14cp), **Repository Dots** (with several repositories in
+  view; a two-by-two grid of dots, pressed while on), **New Branch**, and **`⋯`**:
   - **Update, Update Without Fetching, Commit and Push act on what is in view** (POST-P14bx,
     POST-P14by), and say so:
     - with every repository shown, the project's: **Update Project…**, **Commit…**,
@@ -412,8 +425,8 @@ picked; at first, on Recent while anything is recent, else Local.
   stepping aside so as not to list a match twice. Every word must match; matched letters are
   marked; `Enter` opens the first match. When nothing matches it offers **Create branch
   "…"** (not for a name git refuses, `@` alone among them). Typing anywhere in the list starts
-  a search, in the Repositories panel too; clearing it brings the tabs back as they were. `↑`
-  from the top of the list goes back to the filter.
+  a search (in the Repositories panel, of the repositories: above); clearing it brings the tabs
+  back as they were. `↑` from the top of the list goes back to the filter.
 * **`@` in the filter picks repositories** (POST-P14co; with several repositories). An `@` at
   the start of the filter or after a space opens a list of every repository under the field,
   a square checkbox each, with its colour and what it has checked out; what follows the `@`

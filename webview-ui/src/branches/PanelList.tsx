@@ -1,6 +1,6 @@
 /**
- * A list of the Repositories panel — the REPOSITORIES or BRANCHES pane's, or
- * with one repository the panel's only one: windowed like `VirtualList`, but
+ * The list of the Repositories panel or of the Branches panel (each a pane of
+ * one panel until POST-P14co): windowed like `VirtualList`, but
  * with rows of their own heights — a branch with its card open is taller than
  * one without, a section header taller than a row — and with focus held by a row's **id**,
  * not its position. The panel's rows move under the cursor all the time (a
@@ -63,8 +63,8 @@ export interface PanelListProps<R extends ListRow> {
   readonly stickyId?: string;
   /**
    * Up on the first row, or Down on the last: the keyboard leaving the list,
-   * for what sits above or below it (a pane's header). Without it the arrows
-   * stop at the ends.
+   * for what sits above or below it (the panel's filter). Without it the
+   * arrows stop at the ends.
    */
   readonly onEdge?: (direction: -1 | 1) => void;
 }
@@ -164,8 +164,8 @@ function PanelListInner<R extends ListRow>(
       const drawn = host?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
       if (drawn) {
         // Drawn already: focus it now. Coming back to the row the list already
-        // keeps (from a pane's header, or Escape in the filter) changes no
-        // state, so no render would come along to do it.
+        // keeps (Escape in the filter) changes no state, so no render would
+        // come along to do it.
         pendingFocus.current = undefined;
         drawn.focus({ preventScroll: true });
         return;

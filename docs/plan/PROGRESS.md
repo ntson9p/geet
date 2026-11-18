@@ -2483,3 +2483,44 @@ Testing (written, **not run**, by the owner's standing instruction):
 Found on the way:
 - `docs/faq.md` said a repository picked in the panel does not change what Ctrl+K commits. That has been untrue since POST-P14ce; the entry says what the pick changes now.
 - Searching `@` offered **Create branch "@"**, a name git refuses (and `@{`); `isPlausibleBranchName` refuses both now.
+
+POST-P14cp ✅ 2026-11-18 (branch `split-panels`, after POST-P14co): **The Repositories panel filters its repositories by name, with Fetch beside the filter.** The owner asked for a search box at the top of the repository list in the Repositories panel, to search and filter the repositories by name, and for the *Fetch all repositories* button to move to its right.
+
+**Asked, and answered** (multiple choice, best first):
+
+| Question | Answer |
+| --- | --- |
+| What should the filter change besides the list? | **Only the repository list**: the pick, and so the Branches panel and the Commit window, stays as it was (not: the Branches panel follows the filter while it has text, a second pick beside the first) |
+| What does Enter do in it? | **Shows the first match alone**, as a click on its row does, the keyboard on that row; it never shows every repository again (not: only moves to the row) |
+
+Decided without asking: with one repository there is no Repositories panel, so Fetch stays in the Branches panel's toolbar; typing on a repository's row, and Ctrl+F there, go to the panel's own filter now (POST-P14co sent them to the Branches panel's, through `branches/searchFor`, which is gone).
+
+**What changed:**
+- **The model** (`model.ts`): `PanelUiState.repoQuery`, the Repositories panel's filter. `buildPanel` lists only the repositories whose label holds every word (`queryTokens` and `matchRanges`, as the branch filter does), each `repo` row with its `highlights`; a banner goes with its repository; with none, a hint row (`hint:repos`, *No repository matches "…"*). Nothing else reads it: the scope, the branch rows and one repository's head row are as they were.
+- **The Repositories panel** (`App.tsx`): a toolbar of its own, the filter (*Filter repositories*) and Fetch (*Fetch all repositories*, the Branches panel's button, now one `fetchButton` for both). `↓` goes to the first match; `Enter` shows it alone (`pickScope([root])`, unless it is the pick already) and puts the keyboard on its row; `Escape` clears, then goes back to the row; `↑` from the top row comes back. Typing on a row and Ctrl+F go to it (`focusSearch`, by panel). The row draws its name through `Name`, matched letters marked. A name on the Commit window's filter bar whose row the filter hides clears the filter first.
+- **The Branches panel's toolbar** has Fetch only with one repository.
+- **Gone:** `branches/searchFor` (protocol, host, mock) and the text `branches/focusFilter` carried for it; the Filter Branches command is what sends that event now.
+- **Words:** CHANGELOG (and POST-P14co's entry, whose typing bullet was no longer true), FEATURES, D34, keyboard, the FAQ (the fetch answer names the button). `PanelList.tsx`'s comments still spoke of panes.
+
+**Found on the way, in a commit of its own (it predates the branch):** matched letters on the selected row of a focused list were drawn in `list.highlightForeground`, which in a theme with a blue selection (Light+) is blue on blue: a contrast of 1.06, measured. They take `list.focusHighlightForeground` now, as VS Code's own lists draw them (4.66 in Light+). The Branches panel's search on `main` has the same rows, so that commit can be cherry-picked there.
+
+**Verified in a real VS Code 1.144.0 window** (`scratchpad/repofilter/drive.cjs`: Playwright over CDP, the real extension, three scratch repositories in a multi-root workspace, two with a bare origin on C:, then one alone), 24 of 24 checks:
+
+| Step | What happened |
+| --- | --- |
+| A | the side bar still reads Commit, Repositories, Branches; the Repositories panel's toolbar is *Filter repositories* and Fetch alone, Fetch to its right on its line, the rows under them, all three in view at VS Code's first size; the Branches panel's toolbar has no Fetch; the two toolbars alike (a 24px field, buttons 29.6 × 23.6) |
+| B | `we`: web alone, `we` marked; nothing picked (the Branches panel's placeholder still says 3 repositories); `wezz`: *No repository matches "wezz".*; Escape: the three back |
+| C | `sh` Enter: shared alone, highlighted, the keyboard on its row; the Branches panel's pill and the Commit window's bar say shared; a second Enter keeps it; the matched letters on that row read at 4.73 in Dark Modern, 4.66 in Light+ (1.06 in the plain highlight colour) and 4.69 in Light Modern (where the two colours are one) |
+| D | `web` ↓: the keyboard on web, nothing picked; ↑ back to the filter; Escape clears it, and again goes back to the row |
+| E | a key on a row lands in the Repositories panel's filter, the Branches panel's untouched; Ctrl+F on a row: the filter, its text selected |
+| F | Fetch turns, then stops; the trace shows `git fetch --prune` in the two repositories with a remote |
+| G | `api` hides web; web's name on the Commit window's bar clears the filter and puts the keyboard on web |
+| H | one repository: Commit and Branches only, and Fetch is the Branches panel toolbar's first button |
+
+The first run's light-theme check expected Light Modern to improve; its two colours are one, so the check now asks Light+ for the improvement and Light Modern only for a readable contrast.
+
+Gates: typecheck (root, webview, integration) clean; lint of every touched file clean; extension and webviews built.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `branchPanelModel.test.ts` (+7, *the Repositories panel's filter*): every word, either case, marked; empty or blank lists them all; a banner goes with its repository; the name, not the folder; none matching; nothing picked and no branch changed; one repository's head row untouched.
+- **Playwright** (`branches.spec.ts`, 101 → 112): *the Repositories panel's filter and Fetch (POST-P14cp)* (11: the toolbar's layout; typing, marks and ×; none matching; no pick; Enter and a second Enter; Enter among several picked; the picked row's colour; ↓ ↑ Escape; typing and Ctrl+F on a row; the Commit window's name; one repository's Fetch), one in *a narrow sidebar* (170px: the filter gives way, Fetch stays whole), and the colour fix's in *searching*. The two tests of typing handed to the Branches panel are gone; *Fetch all turns…* clicks the Repositories panel's button; the panels' first two tests check the new toolbars.

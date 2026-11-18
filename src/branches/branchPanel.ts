@@ -3,13 +3,16 @@
  * Repositories, until POST-P14co split it in two): together they answer, for
  * every repository at once, "where am I, what is waiting, and where can I go".
  *
- * - **Repositories** (`gittree.repositoryList`): every repository with what it
- *   has checked out, its counts, its buttons and its menu; a click picks it.
- *   Only with several repositories (`gittree.multiRepo`).
+ * - **Repositories** (`gittree.repositoryList`): a filter of them by name and
+ *   Fetch (every repository) beside it (POST-P14cp), then every repository the
+ *   filter matches, with what it has checked out, its counts, its buttons and
+ *   its menu; a click picks it. Only with several repositories
+ *   (`gittree.multiRepo`).
  * - **Branches** (`gittree.branches`, the old panel's id, so a layout or a
  *   keybinding made before keeps working): the filter (whose `@` picks
  *   repositories), New Branch and the rest of the toolbar, then the branches
- *   under their tabs. With one repository it starts with its current branch.
+ *   under their tabs. With one repository it starts with its current branch,
+ *   and its toolbar has Fetch.
  *
  * **The host owns the facts; the webviews own the view.** This side builds one
  * state object from the snapshots the status refresher keeps, plus the two
@@ -487,14 +490,6 @@ export class BranchPanelProvider {
       return state;
     });
 
-    // POST-P14co: typing in the Repositories panel, which has no filter of its
-    // own: the Branches panel's filter takes it, as the one panel's did.
-    rpc.on(BRANCHES_METHODS.searchFor, async (params) => {
-      const text = (params as { text?: unknown } | undefined)?.text;
-      await this.focusFilter(typeof text === 'string' && text.length > 0 ? text : undefined);
-      return null;
-    });
-
     rpc.on(BRANCHES_METHODS.details, async (params) => {
       const p = params as { target?: unknown; scope?: unknown } | undefined;
       return isTarget(p?.target) ? this.details(p.target, scopeOf(p.scope)) : { repos: [], buttons: [] };
@@ -631,7 +626,10 @@ export class BranchPanelProvider {
     }
   }
 
-  /** Every repository's fetch, as the toolbar's button does it. */
+  /**
+   * Every repository's fetch: the Fetch button's, beside the Repositories
+   * panel's filter (POST-P14cp), or with one repository in the Branches panel's toolbar.
+   */
   async fetchAll(): Promise<void> {
     if (this.fetchingAll) return;
     this.fetchingAll = true;
@@ -678,9 +676,9 @@ export class BranchPanelProvider {
     });
   }
 
-  /** Puts the cursor in the Branches panel's filter field, with `text` added (POST-P14co). */
-  async focusFilter(text?: string): Promise<void> {
-    await this.notifyWhenListening('branches', BRANCHES_METHODS.evtFocusFilter, text !== undefined ? { text } : {});
+  /** Puts the cursor in the Branches panel's filter field: the Filter Branches command. */
+  async focusFilter(): Promise<void> {
+    await this.notifyWhenListening('branches', BRANCHES_METHODS.evtFocusFilter, {});
   }
 
   /**

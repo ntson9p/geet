@@ -18,6 +18,7 @@ import {
   compareTags,
   entryKey,
   groupLabel,
+  HINT,
   isPlausibleBranchName,
   longAge,
   matchRanges,
@@ -600,6 +601,67 @@ describe('buildPanel: several repositories', () => {
     const lines = cardLines(main, { markers: true, scopeRepos: [api, web] });
     expect(lines.map((l) => l.kind)).toEqual(['commit', 'group', 'group']);
     expect(cardHeight(lines)).toBe(CARD_PAD + 3 * CARD_LINE + CARD_BUTTONS);
+  });
+});
+
+describe("buildPanel: the Repositories panel's filter (POST-P14cp)", () => {
+  const busy = repo('/busy', { head: 'main', operation: { kind: 'rebase', conflicts: 1 } });
+  const webApp = repo('/web-app', { head: 'main' });
+  const four = [api, busy, web, webApp];
+  const repoRowsOf = (repoQuery: string, extra: Partial<PanelUiState> = {}) =>
+    buildPanel(state(four), ui({ repoQuery, ...extra })).repoRows;
+  const marks = (rows: readonly PanelRow[]) => rows.map((r) => (r.kind === 'repo' ? r.highlights : undefined));
+
+  it('lists only the repositories whose names hold every word, the matched letters marked', () => {
+    const rows = repoRowsOf('web');
+    expect(ids(rows)).toEqual(['repo:/web', 'repo:/web-app']);
+    expect(marks(rows)).toEqual([[[0, 3]], [[0, 3]]]);
+    // Each word anywhere in the name, in any order and either case.
+    const both = repoRowsOf('APP web');
+    expect(ids(both)).toEqual(['repo:/web-app']);
+    expect(marks(both)).toEqual([[[0, 3], [4, 7]]]);
+  });
+
+  it('lists every repository, nothing marked, while the filter is empty or blank', () => {
+    expect(kinds(repoRowsOf(''))).toEqual(['repo', 'repo', 'operation', 'repo', 'repo']);
+    expect(ids(repoRowsOf('   '))).toEqual(ids(repoRowsOf('')));
+    expect(marks(repoRowsOf('')).filter((m) => m !== undefined && m.length > 0)).toEqual([]);
+  });
+
+  it('keeps a banner with its repository: shown with it, hidden with it', () => {
+    expect(ids(repoRowsOf('bus'))).toEqual(['repo:/busy', 'op:/busy']);
+    expect(ids(repoRowsOf('api'))).toEqual(['repo:/api']);
+  });
+
+  it('matches the name the panel shows, not the folder the repository is in', () => {
+    const lib = repo('/work/lib', { label: 'lib' });
+    expect(kinds(buildPanel(state([api, lib]), ui({ repoQuery: 'work' })).repoRows)).toEqual(['hint']);
+    expect(ids(buildPanel(state([api, lib]), ui({ repoQuery: 'LI' })).repoRows)).toEqual(['repo:/work/lib']);
+  });
+
+  it('says so when no name matches, and offers nothing to create', () => {
+    expect(repoRowsOf(' nope ')).toEqual([
+      { kind: 'hint', id: 'hint:repos', text: 'No repository matches “nope”.', height: HINT },
+    ]);
+  });
+
+  it('picks nothing and hides no branch: the pick, and so the branches, stay as they were', () => {
+    const picked = { scope: ['/api'], tab: 'local' as const };
+    const plain = buildPanel(state(four), ui(picked));
+    const filtered = buildPanel(state(four), ui({ ...picked, repoQuery: 'web' }));
+    // api, the one picked, is out of the list and still the one in view.
+    expect(ids(filtered.repoRows)).toEqual(['repo:/web', 'repo:/web-app']);
+    expect(filtered.scopeRepos.map((r) => r.root)).toEqual(['/api']);
+    expect(filtered.branchRows).toEqual(plain.branchRows);
+    // A row it lists still says whether it is picked.
+    expect(filtered.repoRows.map((r) => (r.kind === 'repo' ? [r.inScope, r.narrowed] : []))).toEqual([
+      [false, true],
+      [false, true],
+    ]);
+  });
+
+  it("leaves one repository's current branch, which heads the Branches panel, alone", () => {
+    expect(kinds(buildPanel(state([web]), ui({ repoQuery: 'zzz' })).repoRows)).toEqual(['head']);
   });
 });
 

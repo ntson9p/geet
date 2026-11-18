@@ -351,7 +351,10 @@ ${hint}`}>
         style={{ '--gtp-repo': color } as CSSProperties}
         aria-hidden="true"
       />
-      <span className="gtp-repo-name">{repo.label}</span>
+      <span className="gtp-repo-name">
+        {/* The Repositories panel's filter marks what it matched (POST-P14cp). */}
+        <Name prefix="" label={repo.label} highlights={row.highlights} />
+      </span>
       <span
         className="gtp-repo-head"
         title={

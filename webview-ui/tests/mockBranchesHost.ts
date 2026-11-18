@@ -6,8 +6,9 @@
  *
  * POST-P14co: a page is one panel, `window.__mockRole` (`'repositories'`;
  * anything else is the Branches panel). Two pages of one test are the two
- * panels of one host: a pick made in either reaches the other, and so do
- * typing and New Branch… in the Repositories panel (a BroadcastChannel).
+ * panels of one host: a pick made in either reaches the other, and so does
+ * New Branch… in the Repositories panel (a BroadcastChannel). Typing there
+ * stays there since POST-P14cp: the panel has a filter of its own.
  *
  * Opt-ins, set before the page loads:
  * - `window.__mockSingleRepo` — just `web`;
@@ -127,8 +128,6 @@ export const mockBranchesHostScript = `
       const m = e.data || {};
       if (m.type === 'scope') {
         window.__mockPickElsewhere(m.roots);
-      } else if (m.type === 'searchFor' && role === 'branches') {
-        post({ v: 1, id: 'evtfocus', kind: 'evt', method: 'branches/focusFilter', params: m.text ? { text: m.text } : {} });
       } else if (m.type === 'newBranch' && role === 'branches') {
         post({ v: 1, id: 'evtnew', kind: 'evt', method: 'branches/newBranch', params: { from: m.from, roots: m.roots } });
       }
@@ -198,11 +197,6 @@ export const mockBranchesHostScript = `
             tell({ type: 'scope', roots: state.scope.slice() });
           }
           res({ roots: state.scope.slice() });
-          break;
-        case 'branches/searchFor':
-          // Typed in the Repositories panel: the Branches panel's filter takes it.
-          tell({ type: 'searchFor', text: typeof p.text === 'string' ? p.text : '' });
-          res(null);
           break;
         case 'branches/details':
           res(details(p.target));

@@ -26,6 +26,10 @@
  * every kind holds its matches, as one flat list of whole names under a
  * heading, matched letters marked, and Recent steps aside so as not to list a
  * match twice.
+ *
+ * **The Repositories panel has a filter of its own** (POST-P14cp): it lists the
+ * repositories whose names match, letters marked, and nothing else. What is
+ * picked, and so the branches and the Commit window, stays as it was.
  */
 import type {
   BranchPanelDetailsDto,
@@ -298,6 +302,8 @@ export type PanelRow =
        * Picked among several, a click shows it alone (POST-P14bw).
        */
       readonly only: boolean;
+      /** Marked ranges of its name, for the Repositories panel's filter (POST-P14cp). */
+      readonly highlights: ReadonlyArray<readonly [number, number]>;
       readonly height: number;
     }
   | {
@@ -382,7 +388,13 @@ export interface TabCount {
 }
 
 export interface PanelUiState {
+  /** The Branches panel's filter: which branches are listed. */
   readonly query: string;
+  /**
+   * The Repositories panel's filter (POST-P14cp): which repositories are
+   * listed there. It picks none and hides no branch.
+   */
+  readonly repoQuery?: string;
   /** Roots the panel is narrowed to; empty means every repository. */
   readonly scope: readonly string[];
   /** Ids whose open state differs from their default. */
@@ -403,9 +415,10 @@ export interface PanelUiState {
 
 export interface PanelModel {
   /**
-   * Where you are: with several repositories, a row for each (and a banner
-   * under one mid-operation), the REPOSITORIES pane's list; with one, its
-   * current branch, the first rows of the one list.
+   * Where you are: with several repositories, a row for each whose name the
+   * Repositories panel's filter matches (and a banner under one mid-operation),
+   * that panel's list; with one, its current branch, the first rows of the
+   * Branches panel's list.
    */
   readonly repoRows: readonly PanelRow[];
   /** Where you can go: the tabs and the branches under them, or a search's matches. */
@@ -884,10 +897,14 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
   };
 
   // ---- Repositories, or the one repository's current branch ---------------
-  // Every repository's row, whether or not its pane is folded: the pane's
-  // header counts them and folds them; the rows are the list it shows.
+  // Every repository's row whose name holds each word of the Repositories
+  // panel's filter (POST-P14cp), with its banner. A repository the filter
+  // leaves out is still picked or not as it was: its branches stay as they are.
   if (multi) {
+    const repoTokens = queryTokens(ui.repoQuery ?? '');
     for (const repo of state.repos) {
+      const highlights = matchRanges(repo.label, repoTokens);
+      if (highlights === undefined) continue;
       repoRows.push({
         kind: 'repo',
         id: `repo:${repo.root}`,
@@ -895,11 +912,20 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         inScope: scopeRepos.includes(repo),
         narrowed,
         only: narrowed && scopeRepos.length === 1 && scopeRepos[0] === repo,
+        highlights,
         height: REPO,
       });
       if (repo.operation !== undefined) {
         repoRows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });
       }
+    }
+    if (repoRows.length === 0) {
+      repoRows.push({
+        kind: 'hint',
+        id: 'hint:repos',
+        text: `No repository matches “${(ui.repoQuery ?? '').trim()}”.`,
+        height: HINT,
+      });
     }
   } else {
     const repo = state.repos[0];

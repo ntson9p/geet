@@ -6,6 +6,23 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Added — a filter in the Repositories panel, with Fetch beside it
+
+- **The sidebar's Repositories panel has a filter at its top**: type part of a name and it lists
+  only the repositories whose names match, the matched letters marked. Each word may be anywhere
+  in the name, in either case. A banner (a rebase, a merge) goes with its repository; with
+  nothing matching, the panel says so. Typing on a repository's row, or `Ctrl+F`, goes to it.
+- **It only filters the list**: what is picked, and so the Branches panel and the Commit window,
+  stays as it was.
+- **`Enter` shows the first match alone**, as a click on its row does, and puts the keyboard on
+  that row; a second `Enter` keeps it so. `↓` moves to the first match without picking it, `↑`
+  from the top row goes back to the filter, and `Escape` clears it.
+- **Fetch (every repository) is to the filter's right**, no longer in the Branches panel's
+  toolbar. With one repository there is no Repositories panel, and Fetch stays in the Branches
+  panel's toolbar.
+- A name on the Commit window's filter bar whose row the filter hides clears the filter, so the
+  row can take the keyboard.
+
 ### Fixed — matched letters on the selected row, in light themes
 
 On the selected row of a focused list (the branch the keyboard is on in the Branches panel's
@@ -16,9 +33,9 @@ selection, such as Light+, they were blue on blue and all but invisible.
 ### Changed — Repositories and Branches are two panels; `@` in the filter picks repositories
 
 - **The sidebar's Repositories panel is two panels**, under the Commit window: **Repositories**,
-  the repositories alone, and **Branches**, with the filter, the toolbar and the branches under
-  their tabs. They were two panes of one panel. VS Code now folds, resizes and scrolls each, and
-  keeps their sizes.
+  the repositories with a filter of their own (above), and **Branches**, with its filter, the
+  toolbar and the branches under their tabs. They were two panes of one panel. VS Code now folds,
+  resizes and scrolls each, and keeps their sizes.
 - **The Repositories panel has no heading of its own**: no REPOSITORIES line, no count, no
   *Show all*. VS Code's header names it, the highlighted rows are the pick, and the pill in the
   Branches panel's filter widens it again. A line along its foot marks the divider above the
@@ -33,8 +50,7 @@ selection, such as Light+, they were blue on blue and all but invisible.
   `↓` `↑` move, `Enter` ticks and closes, a click ticks and leaves it open, `Escape` closes.
   Closing takes the `@` text out of the filter; what you typed before it still filters the
   branches. An `@` inside a word (`user@host`) is searched for as before.
-- **Typing in the Repositories panel** goes to the Branches panel's filter, which comes into view
-  with it. A repository's **New Branch…** opens the Branches panel's form.
+- A repository's **New Branch…**, in the Repositories panel, opens the Branches panel's form.
 - The filter no longer offers **Create branch "@"**: git refuses that name, and `@{` too.
 
 ### Added — push without the Push dialog

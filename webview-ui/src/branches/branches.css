@@ -45,6 +45,8 @@
 
 /* ---- toolbar ------------------------------------------------------------- */
 
+/* Each panel's: the Branches panel's filter and buttons, the Repositories
+   panel's filter and Fetch (POST-P14cp), drawn alike. */
 .gtp-toolbar {
   /* The `@` picker hangs from it, as wide as it is (POST-P14co). */
   position: relative;

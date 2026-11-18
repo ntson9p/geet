@@ -48,7 +48,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
 | [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, *Update all repositories* to a setting | No (API) |
 | [D33](#d33--console-and-worktrees-cannot-be-closed) | In the Git tool window only the extra Log tabs close; Console and Worktrees always stay | Deliberate (owner's decision) |
-| [D34](#d34--the-sidebars-repositories-and-branches-panels-are-gittrees-own-design) | The sidebar's Repositories and Branches panels are GitTree's own design: status first, one list for every repository under Recent / Local / Remote / Tags tabs, a card per branch, an `@` in the filter to pick repositories | Deliberate (owner's request) |
+| [D34](#d34--the-sidebars-repositories-and-branches-panels-are-gittrees-own-design) | The sidebar's Repositories and Branches panels are GitTree's own design: status first, one list for every repository under Recent / Local / Remote / Tags tabs, a card per branch, an `@` in the filter to pick repositories, a filter of the repositories by name | Deliberate (owner's request) |
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 | [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
@@ -967,20 +967,35 @@ REPOSITORIES, with the repositories picked named in the REPOSITORIES header (new
 VS Code view was offered and the owner chose panes, for that label: VS Code hides a view's header
 description while the view is collapsed, so the names would be missing exactly when the list is
 folded away. The owner later asked for two panels after all, with no label at all:
-* the **Repositories** panel lists the repositories and nothing else, with no toolbar, no heading
-  and no count. VS Code's header names the panel, the rows' highlight names the pick, and the
-  Branches panel's pill widens it; the owner chose this over a count in the header and over a
-  summary line;
-* the **Branches** panel has the toolbar (the filter, Fetch, Repository Dots, New Branch, `⋯`),
-  the form and the branches;
+* the **Repositories** panel lists the repositories, with no heading and no count. VS Code's
+  header names the panel, the rows' highlight names the pick, and the Branches panel's pill
+  widens it; the owner chose this over a count in the header and over a summary line. It had no
+  toolbar at first; then the owner asked for a filter of its own, by name, at its top, with the
+  Fetch button moved to the filter's right (POST-P14cp, below);
+* the **Branches** panel has the toolbar (the filter, Repository Dots, New Branch, `⋯`; Fetch
+  too with one repository, which has no Repositories panel), the form and the branches;
 * VS Code folds, sizes and scrolls each. Its divider between them is marked as the one under the
   Commit window is: a line along the Repositories panel's foot (POST-P14bu);
 * with one repository there is no Repositories panel (`when: gittree.multiRepo`): its current
   branch heads the Branches panel, as it headed the one list;
 * one pick for both, kept by the host (`reposInView.ts`), which tells each panel of a pick the
-  other made. Typing in the Repositories panel, which has no filter, goes to the Branches
-  panel's, as typing anywhere in the one panel did. A repository's New Branch… opens the
-  Branches panel's form.
+  other made. A repository's New Branch… opens the Branches panel's form. Typing in the
+  Repositories panel went to the Branches panel's filter while it had none of its own; it goes
+  to its own now.
+
+**The Repositories panel's filter** (POST-P14cp). The owner asked for a search box at the top of
+the repositories that filters them by name, and for Fetch (every repository) to move to its
+right. Like the panel itself, it is GitTree's own. Asked, the owner chose:
+* **it only filters the list**: what is picked, and so the Branches panel and the Commit window,
+  stays as it was, over a filter that also narrows the branches while it has text, which would
+  have been a second pick beside the first;
+* **`Enter` shows the first match alone**, as a click on its row does, with the keyboard on its
+  row, over Enter only moving there. It never shows every repository again, as a second click
+  does: a second `Enter` keeps it. `↓` only moves.
+
+Each word must be in the name (the one the panel shows, not its folder), in either case, as in
+the Branches panel's filter; matched letters are marked. With one repository there is no
+Repositories panel, so its Fetch stays in the Branches panel's toolbar.
 
 **`@` in the filter picks repositories** (POST-P14co). The owner asked for the Branches panel's
 filter to pick repositories when `@` is typed, from a dropdown of square checkboxes. IntelliJ's

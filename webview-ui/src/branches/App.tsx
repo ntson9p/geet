@@ -3,16 +3,19 @@
  * two panes until POST-P14co made each a panel of its own). One app draws
  * both, told which by its page (`ROLE`):
  *
- * - **Repositories**: every repository with what it has checked out, a banner
- *   under one mid-operation. No toolbar and no header of its own: VS Code's is
- *   the panel's. Typing there goes to the Branches panel's filter.
- * - **Branches**: a toolbar (the filter, Fetch, Repository Dots, New Branch,
- *   more); the New Branch form while it is open; then the tabs over the
- *   branches — Recent (the starred and recently used), Local, Remote and Tags,
- *   one kind at a time. With one repository, its current branch first. The
- *   tabs stay at the top once the list scrolls past them, and step aside while
- *   the filter searches every kind. An `@` in the filter opens a list of the
- *   repositories to tick (`RepoPicker.tsx`; its rules, `repoPickerModel.ts`).
+ * - **Repositories**: a filter of the repositories by name, with Fetch (every
+ *   repository) beside it (POST-P14cp); then every repository the filter
+ *   matches, with what it has checked out, a banner under one mid-operation.
+ *   No header of its own: VS Code's is the panel's. Typing there goes to its
+ *   filter, and Enter in the filter shows the first match alone.
+ * - **Branches**: a toolbar (the filter, Repository Dots, New Branch, more;
+ *   Fetch too with one repository, which has no Repositories panel); the New
+ *   Branch form while it is open; then the tabs over the branches — Recent
+ *   (the starred and recently used), Local, Remote and Tags, one kind at a
+ *   time. With one repository, its current branch first. The tabs stay at the
+ *   top once the list scrolls past them, and step aside while the filter
+ *   searches every kind. An `@` in the filter opens a list of the repositories
+ *   to tick (`RepoPicker.tsx`; its rules, `repoPickerModel.ts`).
  *
  * **A click never changes anything.** Clicking a branch opens its card — the
  * last commit, where it stands against what it tracks and against what is
@@ -22,7 +25,7 @@
  * one; ticks under the filter's `@` do either; the scope's `×` widens it again.
  *
  * The host sends facts (`branches/state`); everything this file decides —
- * what is open, the filter — lives here, so none of it waits on a round trip.
+ * what is open, the filters — lives here, so none of it waits on a round trip.
  * The repositories picked (the scope) are the host's since POST-P14ce, because
  * the Commit window shows only theirs: a pick here changes this panel at once
  * and is told to the host (`branches/setScope`); one made elsewhere — the
@@ -191,8 +194,13 @@ export function App() {
   const saved = useMemo(() => (api.getState() as Persisted | undefined) ?? {}, [api]);
 
   const [state, setState] = useState<BranchPanelStateDto | null>(null);
-  /** The filter field's text, an `@` being typed included. */
+  /** The Branches panel's filter field's text, an `@` being typed included. */
   const [query, setQuery] = useState('');
+  /**
+   * POST-P14cp: the Repositories panel's filter field's text: which repositories
+   * that panel lists. It picks nothing, so the branches stay as they are.
+   */
+  const [repoQuery, setRepoQuery] = useState('');
   /**
    * POST-P14co: the `@` the filter's caret is after, while the filter has the
    * keyboard and there are repositories to pick from: the picker is open.
@@ -237,6 +245,8 @@ export function App() {
   const [fetching, trackFetch] = useBusy();
 
   const searchRef = useRef<HTMLInputElement | null>(null);
+  /** The Repositories panel's filter field (POST-P14cp). */
+  const repoSearchRef = useRef<HTMLInputElement | null>(null);
   /** The panel's one list: the repositories, or the branches (with one repository, its current branch first). */
   const listRef = useRef<PanelListHandle | null>(null);
   const [listHost, listSize] = useElementSize<HTMLDivElement>();
@@ -266,6 +276,7 @@ export function App() {
   const ui: PanelUiState = useMemo(
     () => ({
       query: filterText,
+      repoQuery,
       scope,
       toggled,
       ...(openCard !== undefined ? { openCard } : {}),
@@ -273,7 +284,7 @@ export function App() {
       detailsOf,
       openGroups,
     }),
-    [detailsOf, filterText, openCard, openGroups, scope, tab, toggled],
+    [detailsOf, filterText, openCard, openGroups, repoQuery, scope, tab, toggled],
   );
   const model = useMemo(() => (state ? buildPanel(state, ui) : undefined), [state, ui]);
   const searching = filterText.trim().length > 0;
@@ -298,23 +309,22 @@ export function App() {
   }, []);
 
   /**
-   * The filter takes the keyboard, with `text` typed on: a key pressed in the
-   * list, or (POST-P14co) one pressed in the Repositories panel, which has no
-   * filter of its own and hands it to this one through the host.
+   * The panel's filter takes the keyboard, with `text` typed on: a key pressed
+   * in the list. The Repositories panel's filter is its own since POST-P14cp
+   * (POST-P14co handed it to the Branches panel's, which it then lacked).
    */
   const focusSearch = useCallback((text?: string) => {
-    if (ROLE === 'repositories') {
-      void rpc.request(BRANCHES_METHODS.searchFor, text !== undefined ? { text } : {}).catch(() => undefined);
-      return;
-    }
-    const el = searchRef.current;
+    const el = (ROLE === 'repositories' ? repoSearchRef : searchRef).current;
     if (!el) return;
     if (text !== undefined) {
       const value = el.value + text;
-      setQuery(value);
-      // An `@` typed on opens the picker, as one typed in the filter does.
-      setMention(modelRef.current?.multi === true ? mentionAt(value, value.length) : undefined);
-      setPickerActive(0);
+      if (ROLE === 'repositories') setRepoQuery(value);
+      else {
+        setQuery(value);
+        // An `@` typed on opens the picker, as one typed in the filter does.
+        setMention(modelRef.current?.multi === true ? mentionAt(value, value.length) : undefined);
+        setPickerActive(0);
+      }
     }
     requestAnimationFrame(() => {
       el.focus();
@@ -391,11 +401,8 @@ export function App() {
         ...(params.roots !== undefined ? { roots: params.roots } : {}),
       });
     });
-    // POST-P14co: with what was typed in the Repositories panel, when it came from there.
-    const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, (p) => {
-      const text = (p as { text?: unknown } | undefined)?.text;
-      focusSearch(typeof text === 'string' && text.length > 0 ? text : undefined);
-    });
+    // The Filter Branches command: the Branches panel's filter, which the host asks for.
+    const offFocus = rpc.onEvent(BRANCHES_METHODS.evtFocusFilter, () => focusSearch());
     // POST-P14ce: a pick made elsewhere: the Commit window's Show all, or a
     // repository row's Show Only This Repository there.
     const offScope = rpc.onEvent(BRANCHES_METHODS.evtScope, (p) => {
@@ -438,8 +445,11 @@ export function App() {
     const repo =
       state.repos.find((r) => r.root === revealRepo.root) ?? state.repos.find((r) => same(r.root, revealRepo.root));
     if (repo === undefined) return;
+    const id = `repo:${repo.root}`;
+    // POST-P14cp: a row the panel's filter hides comes back, the filter cleared.
+    if (modelRef.current?.repoRows.some((r) => r.id === id) === false) setRepoQuery('');
     // Once the panel is in view and its rows drawn.
-    requestAnimationFrame(() => requestAnimationFrame(() => listRef.current?.focusRow(`repo:${repo.root}`)));
+    requestAnimationFrame(() => requestAnimationFrame(() => listRef.current?.focusRow(id)));
   }, [revealRepo, state]);
 
   const run = useCallback(
@@ -1258,10 +1268,79 @@ export function App() {
     />
   ) : null;
 
-  // ---- the Repositories panel (POST-P14co): its list, and the line at its foot ----
+  // The Fetch button: every repository's fetch, turning until the host says it is done.
+  const fetchButton = (title: string) => (
+    <button
+      type="button"
+      className={`gt-toolbar-button${fetchBusy ? ' gt-busy' : ''}`}
+      title={title}
+      aria-label={title}
+      aria-busy={fetchBusy ? true : undefined}
+      onClick={fetchBusy ? undefined : fetchAll}
+    >
+      <Codicon name="sync" spin={fetchBusy} />
+    </button>
+  );
+
+  // ---- the Repositories panel (POST-P14co): its toolbar, its list, the line at its foot ----
   if (ROLE === 'repositories') {
+    const repoSearching = repoQuery.trim().length > 0;
+    const firstMatch = listRows.find((r) => r.kind === 'repo');
     return (
       <div className="gtp-root">
+        {/* POST-P14cp: a filter of the repositories by name, and Fetch for every
+            one beside it, moved here from the Branches panel's toolbar. */}
+        <div className="gtp-toolbar">
+          <div className="gtp-search">
+            <Codicon name="search" />
+            <input
+              ref={repoSearchRef}
+              className="gtp-search-input"
+              type="text"
+              value={repoQuery}
+              placeholder="Filter repositories"
+              aria-label="Filter repositories"
+              spellCheck={false}
+              onChange={(e) => setRepoQuery(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  if (repoQuery.length > 0) setRepoQuery('');
+                  else if (focusId !== undefined) enterList();
+                } else if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                  if (!repoSearching) {
+                    e.preventDefault();
+                    enterList();
+                    return;
+                  }
+                  if (firstMatch?.kind !== 'repo') return;
+                  e.preventDefault();
+                  listRef.current?.focusRow(firstMatch.id);
+                  // Enter shows the first match alone, as a click on its row
+                  // does, and never shows every repository again: a second
+                  // Enter keeps what the first picked. Down only moves.
+                  const only = [firstMatch.repo.root];
+                  if (e.key === 'Enter' && !sameRoots(scopeNow.current, only)) pickScope(only);
+                }
+              }}
+            />
+            {repoQuery.length > 0 ? (
+              <button
+                type="button"
+                className="gt-toolbar-button gtp-icon-button"
+                title="Clear (Escape)"
+                aria-label="Clear filter"
+                onClick={() => {
+                  setRepoQuery('');
+                  repoSearchRef.current?.focus();
+                }}
+              >
+                <Codicon name="close" />
+              </button>
+            ) : null}
+          </div>
+          {fetchButton('Fetch all repositories')}
+        </div>
         <div className="gtp-list-host" ref={listHost}>
           {listSize.height > 0 ? (
             <PanelList
@@ -1270,6 +1349,10 @@ export function App() {
               rows={listRows}
               height={listSize.height}
               ariaLabel="Repositories"
+              onEdge={(direction) => {
+                // Up from the first row: the filter, which is over the list.
+                if (direction < 0) repoSearchRef.current?.focus();
+              }}
               {...listProps()}
             />
           ) : null}
@@ -1388,16 +1471,9 @@ export function App() {
             />
           ) : null}
         </div>
-        <button
-          type="button"
-          className={`gt-toolbar-button${fetchBusy ? ' gt-busy' : ''}`}
-          title={state.repos.length > 1 ? 'Fetch all repositories' : 'Fetch'}
-          aria-label="Fetch"
-          aria-busy={fetchBusy ? true : undefined}
-          onClick={fetchBusy ? undefined : fetchAll}
-        >
-          <Codicon name="sync" spin={fetchBusy} />
-        </button>
+        {/* With several repositories, Fetch is beside the Repositories panel's
+            filter (POST-P14cp); one has no Repositories panel, and keeps it here. */}
+        {!model.multi ? fetchButton('Fetch') : null}
         {model.markers ? (
           <button
             type="button"

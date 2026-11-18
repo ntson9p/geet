@@ -2117,16 +2117,11 @@ export const BRANCHES_METHODS = {
   /** host → webview, to the Branches panel: open the New Branch form (`{ from?, roots? }`). */
   evtNewBranch: 'branches/newBranch',
   /**
-   * host → webview, to the Branches panel: put the cursor in the filter field;
-   * POST-P14co: `{ text? }`, what was typed in the Repositories panel, added to it.
+   * host → webview, to the Branches panel: put the cursor in the filter field.
+   * (POST-P14co's `branches/searchFor`, which brought typing in the Repositories
+   * panel here, went when that panel got a filter of its own, POST-P14cp.)
    */
   evtFocusFilter: 'branches/focusFilter',
-  /**
-   * webview → host (POST-P14co): typing, or Ctrl+F, in the Repositories panel,
-   * which has no filter of its own (`{ text? }`). The Branches panel comes into
-   * view with the cursor in its filter, and the text added to it.
-   */
-  searchFor: 'branches/searchFor',
   /**
    * webview → host (POST-P14ce): the repositories picked (`{ roots }`; none for
    * every one), which the Commit window follows. Answers the pick as kept

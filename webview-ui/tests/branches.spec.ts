@@ -631,8 +631,10 @@ test.describe('several repositories', () => {
   });
 
   test('Fetch all turns until the host says every repository is done', async ({ page }) => {
-    await openPanel(page, { holdFetch: true });
-    const fetch = page.locator('.gtp-toolbar').getByRole('button', { name: 'Fetch' });
+    // POST-P14cp: beside the Repositories panel's filter.
+    await openPanel(page, { role: 'repositories', holdFetch: true });
+    const fetch = page.locator('.gtp-toolbar').getByRole('button', { name: 'Fetch all repositories' });
+    await expect(fetch).toHaveAttribute('title', 'Fetch all repositories');
     await fetch.click();
     await expect(fetch).toHaveAttribute('aria-busy', 'true');
     await fetch.click();
@@ -1497,9 +1499,15 @@ async function vsState(page: Page): Promise<Record<string, unknown>> {
  * view, which folds, resizes and scrolls on its own; the pick is one for both.
  */
 test.describe('the Repositories and Branches panels (POST-P14co)', () => {
-  test('the Repositories panel lists the repositories alone: no toolbar, no heading, no branch', async ({ page }) => {
+  test('the Repositories panel lists the repositories under its filter and Fetch: no heading, no branch', async ({
+    page,
+  }) => {
     await openPanel(page, { role: 'repositories' });
-    await expect(page.locator('.gtp-toolbar')).toHaveCount(0);
+    // POST-P14cp: a toolbar of its own, its filter and Fetch, and nothing of the Branches panel's.
+    const toolbar = page.locator('.gtp-toolbar');
+    await expect(toolbar.getByRole('textbox')).toHaveAttribute('aria-label', 'Filter repositories');
+    await expect(toolbar.getByRole('button')).toHaveCount(1);
+    await expect(toolbar.getByRole('button')).toHaveAttribute('aria-label', 'Fetch all repositories');
     await expect(page.getByLabel('Filter branches')).toHaveCount(0);
     const ids = await page.locator('[data-row-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
     expect(ids).toEqual([`repo:${API}`, `repo:${SHARED}`, `op:${SHARED}`, `repo:${WEB}`]);
@@ -1514,6 +1522,9 @@ test.describe('the Repositories and Branches panels (POST-P14co)', () => {
   test('the Branches panel has the toolbar and the branches, and no repository', async ({ page }) => {
     await openPanel(page);
     await expect(page.locator('.gtp-toolbar').getByLabel('Filter branches')).toBeVisible();
+    // With several repositories, Fetch is beside the Repositories panel's filter (POST-P14cp).
+    await expect(page.locator('.gtp-toolbar').getByRole('button', { name: /fetch/iu })).toHaveCount(0);
+    await expect(page.getByLabel('Filter repositories')).toHaveCount(0);
     await expect(page.locator('[data-row-id^="repo:"]')).toHaveCount(0);
     await expect(page.locator('[data-row-id^="op:"]')).toHaveCount(0);
     await expect(page.locator('.gtp-edge')).toHaveCount(0);
@@ -1544,27 +1555,6 @@ test.describe('the Repositories and Branches panels (POST-P14co)', () => {
     await expect(row(repos, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'false');
     await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('api'));
     await expect(branches.getByRole('button', { name: /^Narrowed to api/u })).toBeVisible();
-  });
-
-  test('typing in the Repositories panel goes to the Branches panel’s filter; Ctrl+F too', async ({ page }) => {
-    const { repos, branches } = await openBoth(page);
-    await row(repos, `repo:${API}`).click();
-    await repos.keyboard.press('m');
-    expect((await requests(repos, 'branches/searchFor')).at(-1)).toEqual({ text: 'm' });
-    await expect(branches.getByLabel('Filter branches')).toHaveValue('m');
-    await expect(row(branches, 'sec:local')).toBeVisible();
-    await repos.keyboard.press('Control+f');
-    expect((await requests(repos, 'branches/searchFor')).at(-1)).toEqual({});
-    // The Repositories panel kept its own keyboard row.
-    await expect(row(repos, `repo:${API}`)).toBeFocused();
-  });
-
-  test('an @ typed in the Repositories panel opens the Branches panel’s picker', async ({ page }) => {
-    const { repos, branches } = await openBoth(page);
-    await row(repos, `repo:${API}`).click();
-    await repos.keyboard.press('@');
-    await expect(branches.getByTestId('repo-picker')).toBeVisible();
-    await expect(branches.getByLabel('Filter branches')).toHaveValue('@');
   });
 
   test("a repository's New Branch… opens the form in the Branches panel, for that repository", async ({ page }) => {
@@ -1776,8 +1766,224 @@ test.describe('the @ in the filter picks repositories (POST-P14co)', () => {
   });
 });
 
+/**
+ * POST-P14cp: the Repositories panel's own filter, by name, at the top of its
+ * list, with the Fetch button (every repository) moved there to its right. The
+ * filter lists; it picks nothing. Enter picks its first match, as a click does.
+ */
+test.describe("the Repositories panel's filter and Fetch (POST-P14cp)", () => {
+  const repoFilter = (page: Page): Locator => page.getByLabel('Filter repositories');
+  /** The rows the list draws, in order. */
+  const listed = (page: Page): Promise<Array<string | null>> =>
+    page.locator('[data-row-id]').evaluateAll((els) => els.map((e) => e.getAttribute('data-row-id')));
+  const sentPicks = async (page: Page) => (await requests(page, 'branches/setScope')).map((p) => p['roots']);
+  const reveal = (page: Page, root: string): Promise<void> =>
+    page.evaluate((r) => (window as unknown as { __mockReveal(r: string): void }).__mockReveal(r), root);
+
+  test('the filter heads the list, with Fetch to its right on the same line', async ({ page }) => {
+    await openPanel(page, { role: 'repositories' });
+    await expect(repoFilter(page)).toHaveAttribute('placeholder', 'Filter repositories');
+    const field = await page.locator('.gtp-toolbar .gtp-search').boundingBox();
+    const fetch = await page.locator('.gtp-toolbar').getByRole('button', { name: 'Fetch all repositories' }).boundingBox();
+    const first = await row(page, `repo:${API}`).boundingBox();
+    expect(fetch!.x).toBeGreaterThanOrEqual(field!.x + field!.width);
+    expect(Math.abs(fetch!.y + fetch!.height / 2 - (field!.y + field!.height / 2))).toBeLessThan(1.5);
+    expect(first!.y).toBeGreaterThanOrEqual(field!.y + field!.height);
+  });
+
+  test('typing lists the repositories whose names match, the letters marked; × clears it', async ({ page }) => {
+    await openPanel(page, { role: 'repositories' });
+    const filter = repoFilter(page);
+    // A word anywhere in the name, either case; a banner goes with its repository.
+    await filter.fill('E');
+    await expect.poll(() => listed(page)).toEqual([`repo:${SHARED}`, `op:${SHARED}`, `repo:${WEB}`]);
+    await expect(row(page, `repo:${WEB}`).locator('.gtp-match')).toHaveText('e');
+    await filter.fill('we');
+    await expect.poll(() => listed(page)).toEqual([`repo:${WEB}`]);
+    await expect(row(page, `repo:${WEB}`).locator('.gtp-match')).toHaveText('we');
+    // What a screen reader hears of the row is as it was.
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-label', 'web, on feature/login');
+    await page.locator('.gtp-toolbar').getByRole('button', { name: 'Clear filter' }).click();
+    await expect(filter).toHaveValue('');
+    await expect(filter).toBeFocused();
+    await expect.poll(() => listed(page)).toEqual([`repo:${API}`, `repo:${SHARED}`, `op:${SHARED}`, `repo:${WEB}`]);
+    await expect(page.locator('.gtp-match')).toHaveCount(0);
+  });
+
+  test('says so when no name matches', async ({ page }) => {
+    await openPanel(page, { role: 'repositories' });
+    await repoFilter(page).fill('zz');
+    await expect(row(page, 'hint:repos')).toHaveText('No repository matches “zz”.');
+    await expect(page.locator('[data-row-id^="repo:"]')).toHaveCount(0);
+    await expect(row(page, 'hint:repos').getByRole('button')).toHaveCount(0);
+  });
+
+  test('the filter picks nothing: what is picked, and the Branches panel, stay as they were', async ({ page }) => {
+    const { repos, branches } = await openBoth(page, { scope: [API] });
+    await repoFilter(repos).fill('web');
+    await expect(row(repos, `repo:${API}`)).toHaveCount(0);
+    // api, out of the list, is still the one picked.
+    await expect(branches.getByLabel('Filter branches')).toHaveAttribute('placeholder', filterIn('api'));
+    await expect(branches.getByLabel('Filter branches')).toHaveValue('');
+    expect(await sentPicks(repos)).toEqual([]);
+    await repoFilter(repos).fill('');
+    await expect(row(repos, `repo:${API}`)).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('Enter shows the first match alone and puts the keyboard on its row; a second Enter keeps it', async ({
+    page,
+  }) => {
+    const { repos, branches } = await openBoth(page);
+    const filter = repoFilter(repos);
+    await filter.fill('e');
+    await filter.press('Enter');
+    // shared is the first of shared and web.
+    await expect(row(repos, `repo:${SHARED}`)).toBeFocused();
+    await expect(row(repos, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'true');
+    expect(await sentPicks(repos)).toEqual([[SHARED]]);
+    await expect(branches.getByRole('button', { name: /^Narrowed to shared/u })).toBeVisible();
+    // The filter is as it was.
+    await expect(filter).toHaveValue('e');
+    // Again: it stays the one shown, where a second click would show every repository.
+    await filter.focus();
+    await filter.press('Enter');
+    await expect(row(repos, `repo:${SHARED}`)).toBeFocused();
+    await expect(row(repos, `repo:${SHARED}`)).toHaveAttribute('aria-selected', 'true');
+    expect(await sentPicks(repos)).toEqual([[SHARED]]);
+  });
+
+  test("the picked row's matched letters take VS Code's colour for a selection; the keyboard's row alone does not", async ({
+    page,
+  }) => {
+    await openPanel(page, { role: 'repositories' });
+    const HIGHLIGHT = 'rgb(0, 102, 191)';
+    const FOCUS_HIGHLIGHT = 'rgb(187, 231, 255)';
+    await page.evaluate(
+      ([plain, focus]) => {
+        const s = document.documentElement.style;
+        s.setProperty('--vscode-list-highlightForeground', plain!);
+        s.setProperty('--vscode-list-focusHighlightForeground', focus!);
+      },
+      [HIGHLIGHT, FOCUS_HIGHLIGHT],
+    );
+    const marked = (): Promise<string> =>
+      row(page, `repo:${WEB}`)
+        .locator('.gtp-match')
+        .evaluate((el) => getComputedStyle(el).color);
+    const filter = repoFilter(page);
+    await filter.fill('web');
+    // The keyboard on it, not picked: no selection behind it, so the plain colour.
+    await filter.press('ArrowDown');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    expect(await marked()).toBe(HIGHLIGHT);
+    // Picked, the keyboard on it: the selection behind it, so the focus colour.
+    await page.keyboard.press('ArrowUp');
+    await filter.press('Enter');
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    expect(await marked()).toBe(FOCUS_HIGHLIGHT);
+  });
+
+  test('Enter on a match among several picked shows it alone, as a click does', async ({ page }) => {
+    await openPanel(page, { role: 'repositories', scope: [API, WEB] });
+    await repoFilter(page).fill('web');
+    await repoFilter(page).press('Enter');
+    expect(await sentPicks(page)).toEqual([[WEB]]);
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('Down moves to the first match and picks nothing; Up comes back; Escape clears, then goes to the row', async ({
+    page,
+  }) => {
+    await openPanel(page, { role: 'repositories' });
+    const filter = repoFilter(page);
+    await filter.fill('web');
+    await filter.press('ArrowDown');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    await expect(row(page, `repo:${WEB}`)).toHaveAttribute('aria-selected', 'false');
+    expect(await sentPicks(page)).toEqual([]);
+    await page.keyboard.press('ArrowUp');
+    await expect(filter).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(filter).toHaveValue('');
+    await page.keyboard.press('Escape');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    // Nothing typed: Enter goes into the list and picks nothing either.
+    await filter.focus();
+    await filter.press('Enter');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    expect(await sentPicks(page)).toEqual([]);
+  });
+
+  test('typing in the list goes to the filter, Ctrl+F too; the Branches panel’s filter is left alone', async ({
+    page,
+  }) => {
+    const { repos, branches } = await openBoth(page);
+    await row(repos, `repo:${API}`).click();
+    await repos.keyboard.press('s');
+    const filter = repoFilter(repos);
+    await expect(filter).toBeFocused();
+    await expect(filter).toHaveValue('s');
+    await expect.poll(() => listed(repos)).toEqual([`repo:${SHARED}`, `op:${SHARED}`]);
+    await expect(branches.getByLabel('Filter branches')).toHaveValue('');
+    expect(await requests(repos, 'branches/searchFor')).toEqual([]);
+    await filter.press('ArrowDown');
+    await repos.keyboard.press('Control+f');
+    await expect(filter).toBeFocused();
+    // Selected, so what is typed next replaces it. An @ is searched for like
+    // any letter: the picker is the Branches panel's.
+    await repos.keyboard.press('@');
+    await expect(filter).toHaveValue('@');
+    await expect(row(repos, 'hint:repos')).toHaveText('No repository matches “@”.');
+    await expect(branches.getByTestId('repo-picker')).toHaveCount(0);
+  });
+
+  test("a name on the Commit window's bar clears a filter that hides its row, and keeps one that shows it", async ({
+    page,
+  }) => {
+    await openPanel(page, { role: 'repositories' });
+    const filter = repoFilter(page);
+    await filter.fill('web');
+    await reveal(page, WEB);
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    await expect(filter).toHaveValue('web');
+    await filter.fill('api');
+    await expect(row(page, `repo:${WEB}`)).toHaveCount(0);
+    await reveal(page, WEB);
+    await expect(filter).toHaveValue('');
+    await expect(row(page, `repo:${WEB}`)).toBeFocused();
+    expect(await sentPicks(page)).toEqual([]);
+  });
+
+  test('with one repository there is no Repositories panel: Fetch stays in the Branches panel’s toolbar', async ({
+    page,
+  }) => {
+    await openPanel(page, { single: true, holdFetch: true });
+    const fetch = page.locator('.gtp-toolbar').getByRole('button', { name: 'Fetch', exact: true });
+    await expect(fetch).toHaveAttribute('title', 'Fetch');
+    await fetch.click();
+    await expect(fetch).toHaveAttribute('aria-busy', 'true');
+    expect(await requests(page, 'branches/fetchAll')).toHaveLength(1);
+  });
+});
+
 test.describe('a narrow sidebar', () => {
   const visibleButtons = (l: Locator): Locator => l.locator('.gtp-row-buttons > button:visible');
+
+  test("the Repositories panel's filter gives way, and Fetch stays whole beside it (POST-P14cp)", async ({ page }) => {
+    // VS Code's narrowest side bar.
+    await page.setViewportSize({ width: 170, height: 400 });
+    await openPanel(page, { role: 'repositories' });
+    await page.addStyleTag({ content: VS_CODE_FONT });
+    const toolbar = page.locator('.gtp-toolbar');
+    const fetch = toolbar.getByRole('button', { name: 'Fetch all repositories' });
+    await expect(fetch).toBeVisible();
+    const bar = await toolbar.boundingBox();
+    const button = await fetch.boundingBox();
+    expect(button!.x + button!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
+    expect(button!.width).toBeGreaterThanOrEqual(20);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
 
   test('the current branch keeps its name, and what it tracks gives way first', async ({ page }) => {
     await page.setViewportSize({ width: 340, height: 600 });

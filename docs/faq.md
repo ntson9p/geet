@@ -54,10 +54,11 @@ integrated terminals when `gittree.terminalAuth` is on.
 
 **All of them, which is the default.** Fetch is a *project* operation in
 IntelliJ and in GitTree: the `$(sync)` button in the branches popup's header
-(click the branch in the status bar to open it), `GitTree: Fetch` from the
-command palette, `GitTree: Fetch All Repositories`, and `Fetch` in the VCS
-Operations Popup (`Alt+\``) all fetch **every** root in the workspace that has
-a remote. Roots without one are skipped rather than failed, one slow or
+(click the branch in the status bar to open it), the one beside the sidebar
+Repositories panel's filter (in the Branches panel's toolbar, with one
+repository), `GitTree: Fetch` from the command palette, `GitTree: Fetch All
+Repositories`, and `Fetch` in the VCS Operations Popup (`Alt+\``) all fetch
+**every** root in the workspace that has a remote. Roots without one are skipped rather than failed, one slow or
 unreachable remote never stops the others, and the whole fan-out reports once.
 
 **One of them** is for callers that know which they mean: `gittree.fetch` takes
@@ -135,7 +136,9 @@ scrolls on its own.
 **Picking repositories:** click one in the Repositories panel (`Ctrl+click` for several), or
 type `@` in the Branches panel's filter: a list of the repositories opens, a checkbox each, and
 what you type after the `@` narrows it. Both make the same pick. The filter's pill names it
-(`web ×`) and widens it again.
+(`web ×`) and widens it again. With many repositories, the filter at the top of the
+Repositories panel finds one by name, and `Enter` there shows only its branches (POST-P14cp);
+the filter alone picks nothing.
 
 Why it exists, when IntelliJ puts branches in the branch widget and the Git tool window:
 the status bar cannot be the way in. **Cursor has no status bar at all**, so the GitTree
