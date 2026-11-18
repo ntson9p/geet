@@ -3,8 +3,9 @@
  * Repositories, until POST-P14co split it in two): together they answer, for
  * every repository at once, "where am I, what is waiting, and where can I go".
  *
- * - **Repositories** (`gittree.repositoryList`): a filter of them by name and
- *   Fetch (every repository) beside it (POST-P14cp), then every repository the
+ * - **Repositories** (`gittree.repositoryList`): a filter of them by name, with
+ *   Fetch (every repository) beside it (POST-P14cp) and `⋯` (POST-P14cq: Update,
+ *   Commit and Push on the repositories in view), then every repository the
  *   filter matches, with what it has checked out, its counts, its buttons and
  *   its menu; a click picks it. Only with several repositories
  *   (`gittree.multiRepo`).
@@ -12,7 +13,7 @@
  *   keybinding made before keeps working): the filter (whose `@` picks
  *   repositories), New Branch and the rest of the toolbar, then the branches
  *   under their tabs. With one repository it starts with its current branch,
- *   and its toolbar has Fetch.
+ *   its toolbar has Fetch, and its `⋯` Update, Commit and Push.
  *
  * **The host owns the facts; the webviews own the view.** This side builds one
  * state object from the snapshots the status refresher keeps, plus the two

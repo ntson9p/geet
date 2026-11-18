@@ -29,6 +29,7 @@ import {
   relationText,
   remoteTwin,
   repoHint,
+  repositoryActionsPanel,
   ROW,
   scopeReposOf,
   SHORT_WHERE,
@@ -589,6 +590,22 @@ describe('buildPanel: several repositories', () => {
     });
     // The workspace's only repository is the project.
     expect(viewActions([web], [web])).toMatchObject({ roots: [], project: true, commit: 'Commit…', push: 'Push…' });
+  });
+
+  it('the actions on every repository in view are the Repositories panel’s whenever it is there (POST-P14cq)', () => {
+    // Fetch, and the ⋯'s Update, Commit and Push: with several repositories, the
+    // Repositories panel's, where the pick they act on is made…
+    expect(repositoryActionsPanel(2)).toBe('repositories');
+    expect(repositoryActionsPanel(20)).toBe('repositories');
+    // …and with one, which has no Repositories panel (`gittree.multiRepo`), or none
+    // yet, the Branches panel's: exactly one panel has them, never both or neither.
+    expect(repositoryActionsPanel(1)).toBe('branches');
+    expect(repositoryActionsPanel(0)).toBe('branches');
+    // The same line the model draws between one repository and several.
+    expect(repositoryActionsPanel(state([api, web]).repos.length)).toBe('repositories');
+    expect(buildPanel(state([api, web]), ui()).multi).toBe(true);
+    expect(repositoryActionsPanel(state([web]).repos.length)).toBe('branches');
+    expect(buildPanel(state([web]), ui()).multi).toBe(false);
   });
 
   it('a scope naming no open repository means every repository', () => {

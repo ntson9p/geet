@@ -37,6 +37,7 @@ import type {
   BranchPanelRefKind,
   BranchPanelRepoDetailsDto,
   BranchPanelRepoDto,
+  BranchPanelRole,
   BranchPanelStateDto,
   BranchPanelTargetDto,
 } from '../../../src/shared/protocol';
@@ -675,7 +676,21 @@ export function repoHint(row: Pick<Extract<PanelRow, { kind: 'repo' }>, 'inScope
     : 'Click to show only its branches · Ctrl+click to add it';
 }
 
-/** What the panel's `⋯` menu's Update, Commit and Push act on, and what each is called (`viewActions`). */
+/**
+ * Which panel has the actions on every repository in view (POST-P14cq): Fetch, beside
+ * its filter or in its toolbar (POST-P14cp), and Update, Update Without Fetching, Commit
+ * and Push, in its `⋯`. The Repositories panel's, where the repositories are and the pick
+ * those four act on is made, whenever there is one: with several repositories. One
+ * repository has no Repositories panel, so the Branches panel's.
+ */
+export function repositoryActionsPanel(repoCount: number): BranchPanelRole {
+  return repoCount > 1 ? 'repositories' : 'branches';
+}
+
+/**
+ * What a `⋯` menu's Update, Update Without Fetching, Commit and Push act on, and what each
+ * is called (`viewActions`): the menu of the panel `repositoryActionsPanel` names.
+ */
 export interface ViewActions {
   /** The repositories they act on; none for the project. */
   readonly roots: readonly string[];
@@ -692,7 +707,7 @@ export interface ViewActions {
 }
 
 /**
- * The `⋯` menu's Update (POST-P14bx), Commit and Push (POST-P14by) act on what is
+ * A `⋯` menu's Update (POST-P14bx), Commit and Push (POST-P14by) act on what is
  * in view. Every repository in view, the workspace's only one included, is the
  * project, as `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K` are: `Update Project…`,
  * `Commit…`, `Push…`. Some picked are those, and the items say so: `… Repository…`

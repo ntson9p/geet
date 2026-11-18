@@ -216,9 +216,9 @@ three questions, top to bottom.
   its chevron, or Enter) opens its card.
 * **Several repositories:** the **Repositories** panel, one row per repository in the order the
   user reads them, each with a coloured dot (its colour in the log's `Roots`), what it has
-  checked out, `↓ ↑` and changed files. Over them, its own filter and **Fetch** (below); no
-  heading inside it, no count: VS Code's own header names the panel. The branches are the
-  **Branches** panel under it (below).
+  checked out, `↓ ↑` and changed files. Over them, its own filter, **Fetch** and **`⋯`**
+  (below); no heading inside it, no count: VS Code's own header names the panel. The branches
+  are the **Branches** panel under it (below).
 * **Two panels, so VS Code folds, sizes and scrolls each** (POST-P14co): twenty repositories
   never push the branches out of sight, a panel folded stays folded, and VS Code keeps the
   sizes. They were two panes of one panel with a divider of their own (new-way-6).
@@ -237,6 +237,27 @@ three questions, top to bottom.
   - **Fetch** (every repository; it spins until done) is to the filter's right. It was in the
     Branches panel's toolbar, where it stays with one repository, which has no Repositories
     panel.
+  - **`⋯`** (POST-P14cq), last on the line, is the panel's own menu; a right-click in the
+    list's empty space (or on its *No repository matches*) opens it too, at the pointer:
+    - **Update, Update Without Fetching, Commit and Push act on what is in view**
+      (POST-P14bx, POST-P14by), and say so:
+      - with every repository shown, the project's: **Update Project…**, **Update Project
+        Without Fetching…**, **Commit…**, **Push…**, as `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K`
+        (the keys are shown beside them under the IntelliJ keymap, and only then);
+      - with one picked: **Update Repository…**, **Commit Repository…**, **Push
+        Repository…**;
+      - with two: **Update 2 Repositories…**, **Commit 2 Repositories…**, **Push 2
+        Repositories…**.
+
+      Commit commits what is ticked in those repositories, with the message typed in the
+      Commit window, one commit each; the Amend box applies only when its repository is among
+      them. Push opens the Push dialog with every repository listed and those ticked. They used
+      to act on the project with two of four picked, and on the one picked under the project's
+      words. They were the Branches panel's `⋯`'s until POST-P14cq: they act on the
+      repositories, here beside the highlighted rows they mean, and the Branches panel keeps
+      the work on branches. With one repository they stay there (below), as Fetch does;
+    - *Show*: **Incoming / Outgoing Counts**, the one switch that changes this panel's rows
+      (their `↓ ↑`). It is one setting with the Branches panel's, so either menu changes both.
   - A name on the Commit window's filter bar whose row the filter hides clears the filter, so
     the row can take the keyboard.
 * Every repository row has **Update Repository…**, **Push…**, **Fetch** (that repository
@@ -397,28 +418,18 @@ picked; at first, on Recent while anything is recent, else Local.
   with one repository (every repository; spins until done; with several it is beside the
   Repositories panel's filter, POST-P14cp), **Repository Dots** (with several repositories in
   view; a two-by-two grid of dots, pressed while on), **New Branch**, and **`⋯`**:
-  - **Update, Update Without Fetching, Commit and Push act on what is in view** (POST-P14bx,
-    POST-P14by), and say so:
-    - with every repository shown, the project's: **Update Project…**, **Commit…**,
-      **Push…**, as `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K` (the keys are shown beside them
-      under the IntelliJ keymap, and only then);
-    - with one picked: **Update Repository…**, **Commit Repository…**, **Push Repository…**;
-    - with two: **Update 2 Repositories…**, **Commit 2 Repositories…**, **Push 2
-      Repositories…**.
-
-    Commit commits what is ticked in those repositories, with the message typed in the Commit
-    window, one commit each; the Amend box applies only when its repository is among them.
-    Push opens the Push dialog with every repository listed and those ticked. They used to
-    act on the project with two of four picked, and on the one picked under the project's
-    words;
+  - with one repository only, first, **Update Project…**, **Update Project Without
+    Fetching…**, **Commit…** and **Push…**: that repository is the project, and there is no
+    Repositories panel to hold them. With several they are the Repositories panel's `⋯`'s
+    (above, POST-P14cq), a repository picked or not;
   - New Branch…, Checkout Tag or Revision… (only with one repository in view: with several,
     the `⋯` could not say which it would act on, and each repository's own menu has it),
     **Checkout Branch in All Repositories…** (with
     several repositories in view: every branch any of them has, local or remote, most widely
     held first, *4 of 5 repositories · local in api · from origin in web, docs and tools · not
     in infra*), **Clean Up Branches…**;
-  - *Show*: Tags, Incoming / Outgoing Counts, Repository Dots (with several repositories in
-    view), Group by Folder;
+  - *Show*: Tags, Incoming / Outgoing Counts (the Repositories panel's `⋯` has it too: one
+    setting), Repository Dots (with several repositories in view), Group by Folder;
   - Collapse All: every folder and remote of the tab on show, the ones opened by hand too.
 * **The filter** searches every kind at once, whatever tab is picked: the tabs step aside, and
   each kind's matches sit under a heading (*Local*, *Remote*, *Tags*) as whole names, Recent
@@ -1258,13 +1269,15 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   repository's own **Update Repository…** (its menu, in the Repositories panel and the
   Repositories (Tree) view, and its row's `↓`) updates just that one, fetched first the same
   way. **The question says what it updates** (POST-P14bx): *Update Project* for the project,
-  *Update api* for one repository's own, *Update 2 Repositories* for the Branches panel's
-  `⋯` with two picked; its progress, a failure and a cancelled run say the same. With one
-  repository in the workspace, every update is *Update Project*.
+  *Update api* for one repository's own, *Update 2 Repositories* for the Repositories panel's
+  `⋯` with two picked (the Branches panel's until POST-P14cq); its progress, a failure and a
+  cancelled run say the same. With one repository in the workspace, every update is *Update
+  Project*.
 * **Update Project Without Fetching…** (GitTree's own, no IntelliJ counterpart) is the same
   update without the fetch: each repository is merged or rebased onto its remote branch as it
   was **last fetched** — instant, and it works offline. It sits right under every update: the
-  Branches panel's `⋯` (following what is in view, as its update does), each repository's
+  Repositories panel's `⋯`, or with one repository the Branches panel's (following what is in
+  view, as its update does), each repository's
   menu (panel and sidebar, as **Update Repository Without Fetching…**), the Branches popup,
   the VCS Operations popup and the Command Palette; it has no key, but one can be bound to
   `gittree.update.withoutFetch`. The question is titled *Update Project Without Fetching*

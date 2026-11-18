@@ -160,7 +160,7 @@ How many recent branches (by checkout frequency and recency) the Branches popup 
 
 ### `gittree.branches.showIncomingOutgoing`
 
-Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Branches panel, and beside repositories in the Repositories panel. Toggled from the popup's header and the Branches panel's More Actions menu (the `⋯` button).
+Show incoming (↓) and outgoing (↑) commit counts beside branches in the branches popup and the Branches panel, and beside repositories in the Repositories panel. Toggled from the popup's header and the More Actions menu (the `⋯` button) of the Branches panel or the Repositories panel.
 
 - Type: `boolean` · Default: `true`
 

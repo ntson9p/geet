@@ -4,12 +4,16 @@
  * both, told which by its page (`ROLE`):
  *
  * - **Repositories**: a filter of the repositories by name, with Fetch (every
- *   repository) beside it (POST-P14cp); then every repository the filter
- *   matches, with what it has checked out, a banner under one mid-operation.
- *   No header of its own: VS Code's is the panel's. Typing there goes to its
- *   filter, and Enter in the filter shows the first match alone.
- * - **Branches**: a toolbar (the filter, Repository Dots, New Branch, more;
- *   Fetch too with one repository, which has no Repositories panel); the New
+ *   repository) beside it (POST-P14cp) and `⋯` (POST-P14cq: Update, Update
+ *   Without Fetching, Commit and Push on the repositories in view, and the
+ *   counts' switch; a right-click in the list's empty space opens it too); then
+ *   every repository the filter matches, with what it has checked out, a banner
+ *   under one mid-operation. No header of its own: VS Code's is the panel's.
+ *   Typing there goes to its filter, and Enter in the filter shows the first
+ *   match alone.
+ * - **Branches**: a toolbar (the filter, Repository Dots, New Branch, `⋯`;
+ *   with one repository, which has no Repositories panel, Fetch too, and
+ *   Update, Commit and Push at the top of the `⋯`); the New
  *   Branch form while it is open; then the tabs over the branches — Recent
  *   (the starred and recently used), Local, Remote and Tags, one kind at a
  *   time. With one repository, its current branch first. The tabs stay at the
@@ -68,6 +72,7 @@ import { laneColor } from '../log/GraphCanvas';
 import {
   buildPanel,
   collapsedAll,
+  repositoryActionsPanel,
   scopeReposOf,
   TABS_ID,
   tabsLabel,
@@ -79,6 +84,7 @@ import {
   type PanelRow,
   type PanelUiState,
   type QuickAction,
+  type ViewActions,
 } from './model';
 import { NewBranchForm, type NewBranchRequest } from './NewBranchForm';
 import { PanelList, type PanelListHandle } from './PanelList';
@@ -187,6 +193,45 @@ function rootsOf(raw: unknown): readonly string[] | undefined {
 
 function sameRoots(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((root, i) => root === b[i]);
+}
+
+/** Makes a `⋯` menu's items, keeping each one's action under its id until the menu says which was chosen. */
+type MenuItemMaker = (
+  id: string,
+  label: string,
+  act: () => void,
+  extra?: { icon?: string; accelerator?: string; checked?: boolean },
+) => MenuItem;
+
+function menuItemMaker(runs: Map<string, () => void>): MenuItemMaker {
+  return (id, label, act, extra = {}) => {
+    runs.set(id, act);
+    return { kind: 'item', id, label, ...extra };
+  };
+}
+
+/**
+ * Update, Update Without Fetching, Commit and Push, on what is in view (POST-P14bx,
+ * POST-P14by): the project, or the repositories picked, and their words say which.
+ * IntelliJ's keys are named only when its keymap binds them (POST-QA), and only on
+ * the project's, which are what the keys run. In the `⋯` of the panel
+ * `repositoryActionsPanel` names (POST-P14cq).
+ */
+function inViewItems(
+  item: MenuItemMaker,
+  inView: ViewActions,
+  keymap: boolean,
+  run: (what: BranchPanelRunDto) => void,
+): MenuItem[] {
+  const act = (verb: BranchPanelInViewVerb) => () => run({ type: 'inView', verb, roots: inView.roots });
+  const key = (accelerator: string) => (keymap && inView.project ? { accelerator } : {});
+  return [
+    item('update', inView.update, act('update'), { icon: 'arrow-down', ...key('Ctrl+T') }),
+    // From each remote branch as it was last fetched: instant, and offline.
+    item('updateWithoutFetch', inView.updateWithoutFetch, act('updateWithoutFetch')),
+    item('commit', inView.commit, act('commit'), { icon: 'git-commit', ...key('Ctrl+K') }),
+    item('push', inView.push, act('push'), { icon: 'arrow-up', ...key('Ctrl+Shift+K') }),
+  ];
 }
 
 export function App() {
@@ -672,31 +717,21 @@ export function App() {
     (at: { x: number; y: number }) => {
       if (!state || !model) return;
       const single = model.scopeRepos.length === 1 ? model.scopeRepos[0]?.root : undefined;
-      const keymap = state.intellijKeymap === true;
       const runs = new Map<string, () => void>();
-      const item = (
-        id: string,
-        label: string,
-        act: () => void,
-        extra: { icon?: string; accelerator?: string; checked?: boolean } = {},
-      ): MenuItem => {
-        runs.set(id, act);
-        return { kind: 'item', id, label, ...extra };
-      };
+      const item = menuItemMaker(runs);
       // POST-P14bx, POST-P14by: Update, Commit and Push act on what is in view,
-      // the project or the repositories picked.
-      const inView = viewActions(state.repos, model.scopeRepos);
-      const act = (verb: BranchPanelInViewVerb) => () => run({ type: 'inView', verb, roots: inView.roots });
-      // IntelliJ's keys, named only when its keymap binds them (POST-QA), and
-      // only on the project's actions, which are what the keys run.
-      const key = (accelerator: string) => (keymap && inView.project ? { accelerator } : {});
+      // the project or the repositories picked. POST-P14cq: with several
+      // repositories they are the Repositories panel's `⋯`'s, where that pick is
+      // made; one repository has no Repositories panel, and keeps them here.
+      const verbs: MenuItem[] =
+        repositoryActionsPanel(state.repos.length) === 'branches'
+          ? [
+              ...inViewItems(item, viewActions(state.repos, model.scopeRepos), state.intellijKeymap === true, run),
+              { kind: 'separator', id: 's1' },
+            ]
+          : [];
       const items: MenuItem[] = [
-        item('update', inView.update, act('update'), { icon: 'arrow-down', ...key('Ctrl+T') }),
-        // From each remote branch as it was last fetched: instant, and offline.
-        item('updateWithoutFetch', inView.updateWithoutFetch, act('updateWithoutFetch')),
-        item('commit', inView.commit, act('commit'), { icon: 'git-commit', ...key('Ctrl+K') }),
-        item('push', inView.push, act('push'), { icon: 'arrow-up', ...key('Ctrl+Shift+K') }),
-        { kind: 'separator', id: 's1' },
+        ...verbs,
         item('new', 'New Branch…', () => openForm({ from: 'HEAD' }), { icon: 'add' }),
         // One repository's checkout: offered here only while one is in view. With
         // several, this menu could not say which it would act on; each
@@ -723,6 +758,7 @@ export function App() {
         { kind: 'separator', id: 's2' },
         { kind: 'header', id: 'h1', label: 'Show' },
         item('tags', 'Tags', () => setSetting('showTags', !state.showTags), { checked: state.showTags }),
+        // The branches' counts and the repositories': the Repositories panel's `⋯` has it too.
         item('inout', 'Incoming / Outgoing Counts', () => setSetting('showIncomingOutgoing', !state.showInOut), {
           checked: state.showInOut,
         }),
@@ -752,6 +788,38 @@ export function App() {
       setMenu({ items, at, label: 'More actions', runs });
     },
     [model, openForm, run, runCommand, setSetting, state],
+  );
+
+  /**
+   * POST-P14cq: the Repositories panel's `⋯`, and a right-click in its list's empty
+   * space. Update, Update Without Fetching, Commit and Push on the repositories in
+   * view, the Branches panel's `⋯`'s until then: here, beside the highlighted rows
+   * they act on, their words (`Update 2 Repositories…`) explain themselves. Then
+   * the one Show switch that changes this panel's rows: the `↓ ↑` counts, the
+   * Branches panel's switch too, as it is one setting for both.
+   */
+  const openRepositoriesMenu = useCallback(
+    (at: { x: number; y: number }) => {
+      if (!state || !model) return;
+      const runs = new Map<string, () => void>();
+      const item = menuItemMaker(runs);
+      const verbs: MenuItem[] =
+        repositoryActionsPanel(state.repos.length) === 'repositories'
+          ? [
+              ...inViewItems(item, viewActions(state.repos, model.scopeRepos), state.intellijKeymap === true, run),
+              { kind: 'separator', id: 's1' },
+            ]
+          : [];
+      const items: MenuItem[] = [
+        ...verbs,
+        { kind: 'header', id: 'h1', label: 'Show' },
+        item('inout', 'Incoming / Outgoing Counts', () => setSetting('showIncomingOutgoing', !state.showInOut), {
+          checked: state.showInOut,
+        }),
+      ];
+      setMenu({ items, at, label: 'More actions', runs });
+    },
+    [model, run, setSetting, state],
   );
 
   // ---- gestures on rows ---------------------------------------------------------
@@ -859,8 +927,11 @@ export function App() {
       if (row.kind === 'branch') openBranchMenu(row.entry, at);
       else if (row.kind === 'repo') openRepoMenu(row.repo, at);
       else if (row.kind === 'head') openHeadMenu(row, at);
+      // POST-P14cq: the Repositories panel's "No repository matches" stands in for
+      // its rows, so it has what the list's empty space has: the panel's menu.
+      else if (row.kind === 'hint' && ROLE === 'repositories') openRepositoriesMenu(at);
     },
-    [openBranchMenu, openHeadMenu, openRepoMenu],
+    [openBranchMenu, openHeadMenu, openRepoMenu, openRepositoriesMenu],
   );
 
   const onRowKeyDown = useCallback(
@@ -1282,6 +1353,22 @@ export function App() {
     </button>
   );
 
+  // The `⋯` button, the last in a toolbar: its menu opens under its right edge.
+  const moreButton = (open: (at: { x: number; y: number }) => void) => (
+    <button
+      type="button"
+      className="gt-toolbar-button"
+      title="More Actions…"
+      aria-label="More Actions"
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        open({ x: r.right, y: r.bottom });
+      }}
+    >
+      <Codicon name="ellipsis" />
+    </button>
+  );
+
   // ---- the Repositories panel (POST-P14co): its toolbar, its list, the line at its foot ----
   if (ROLE === 'repositories') {
     const repoSearching = repoQuery.trim().length > 0;
@@ -1340,8 +1427,23 @@ export function App() {
             ) : null}
           </div>
           {fetchButton('Fetch all repositories')}
+          {/* POST-P14cq: the panel's own menu, Update, Commit and Push on the
+              repositories in view among it, from the Branches panel's `⋯`. */}
+          {moreButton(openRepositoriesMenu)}
         </div>
-        <div className="gtp-list-host" ref={listHost}>
+        <div
+          className="gtp-list-host"
+          ref={listHost}
+          // POST-P14cq: the list's empty space has the panel's menu, the `⋯`'s; a
+          // row has its own (its handler, before this one, opens it).
+          onContextMenu={(e) => {
+            if (e.target instanceof Element && e.target.closest('.gtp-row') !== null) return;
+            e.preventDefault();
+            const keyboard = e.button === -1 || (e.clientX === 0 && e.clientY === 0);
+            const box = e.currentTarget.getBoundingClientRect();
+            openRepositoriesMenu(keyboard ? { x: box.left + 24, y: box.top + 22 } : { x: e.clientX, y: e.clientY });
+          }}
+        >
           {listSize.height > 0 ? (
             <PanelList
               ref={listRef}
@@ -1473,7 +1575,7 @@ export function App() {
         </div>
         {/* With several repositories, Fetch is beside the Repositories panel's
             filter (POST-P14cp); one has no Repositories panel, and keeps it here. */}
-        {!model.multi ? fetchButton('Fetch') : null}
+        {repositoryActionsPanel(state.repos.length) === 'branches' ? fetchButton('Fetch') : null}
         {model.markers ? (
           <button
             type="button"
@@ -1495,18 +1597,7 @@ export function App() {
         >
           <Codicon name="add" />
         </button>
-        <button
-          type="button"
-          className="gt-toolbar-button"
-          title="More Actions…"
-          aria-label="More Actions"
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            openMoreMenu({ x: r.right, y: r.bottom });
-          }}
-        >
-          <Codicon name="ellipsis" />
-        </button>
+        {moreButton(openMoreMenu)}
       </div>
       {form !== null ? (
         <NewBranchForm

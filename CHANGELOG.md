@@ -6,6 +6,20 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Changed — Update, Commit and Push are in the Repositories panel's `⋯`
+
+- **The Repositories panel has a `⋯` of its own**, after Fetch. It holds **Update Project…**,
+  **Update Project Without Fetching…**, **Commit…** and **Push…**, which act on what is in view
+  and say so (*Update Repository…* with one picked, *Update 2 Repositories…* with two): they sit
+  beside the highlighted rows they mean. A right-click in the list's empty space opens the same
+  menu.
+- **The Branches panel's `⋯` no longer has them** with several repositories. It keeps New
+  Branch…, Checkout Branch in All Repositories…, Clean Up Branches…, its *Show* switches and
+  Collapse All. With one repository there is no Repositories panel: the four stay at the top of
+  the Branches panel's `⋯`, as Fetch stays in its toolbar.
+- **Incoming / Outgoing Counts** is in both menus: it is one setting, and it also shows the
+  repositories' `↓ ↑`.
+
 ### Added — a filter in the Repositories panel, with Fetch beside it
 
 - **The sidebar's Repositories panel has a filter at its top**: type part of a name and it lists

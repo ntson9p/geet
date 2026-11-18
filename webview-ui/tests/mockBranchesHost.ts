@@ -8,7 +8,9 @@
  * anything else is the Branches panel). Two pages of one test are the two
  * panels of one host: a pick made in either reaches the other, and so does
  * New Branch… in the Repositories panel (a BroadcastChannel). Typing there
- * stays there since POST-P14cp: the panel has a filter of its own.
+ * stays there since POST-P14cp: the panel has a filter of its own. A setting
+ * changed in either reaches the other too (POST-P14cq), as the host's one
+ * state reaches both panels.
  *
  * Opt-ins, set before the page loads:
  * - `window.__mockSingleRepo` — just `web`;
@@ -130,6 +132,9 @@ export const mockBranchesHostScript = `
         window.__mockPickElsewhere(m.roots);
       } else if (m.type === 'newBranch' && role === 'branches') {
         post({ v: 1, id: 'evtnew', kind: 'evt', method: 'branches/newBranch', params: { from: m.from, roots: m.roots } });
+      } else if (m.type === 'setting') {
+        state[m.key === 'showIncomingOutgoing' ? 'showInOut' : m.key] = m.value;
+        pushState();
       }
     };
   }
@@ -244,6 +249,8 @@ export const mockBranchesHostScript = `
           state[key] = p.value;
           res(null);
           pushState();
+          // The other panel's page hears it too: the host has one state for both.
+          tell({ type: 'setting', key: p.key, value: p.value });
           break;
         }
         case 'branches/fetchAll': {

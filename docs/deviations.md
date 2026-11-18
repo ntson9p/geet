@@ -813,8 +813,8 @@ branch* / *Rebase the current branch on top of incoming changes* as two radio bu
 `Don't show again`, `OK` / `Cancel`, and in some states `Reset to the Remote Branch`.
 **GitTree:** a native modal message box titled *Update Project*, or since POST-P14bx, when some
 repositories were named rather than the project, titled by them: *Update api* for a repository's
-own **Update Repository…**, *Update 2 Repositories* for the Branches panel's `⋯` (the Repositories panel's
-until POST-P14co) with two picked. With only one repository in the workspace it is always *Update Project*. Its text names
+own **Update Repository…**, *Update 2 Repositories* for the Repositories panel's `⋯` with two
+picked (the Branches panel's from POST-P14co until POST-P14cq, and before that the one panel's). With only one repository in the workspace it is always *Update Project*. Its text names
 what is being updated — `develop ← origin/develop · 3 to pull · 1 to push` — and, with
 `gittree.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
 `Merge`, `Rebase`, `Reset to the Remote Branch` and VS Code's own `Cancel`; pressing one is
@@ -971,9 +971,11 @@ folded away. The owner later asked for two panels after all, with no label at al
   header names the panel, the rows' highlight names the pick, and the Branches panel's pill
   widens it; the owner chose this over a count in the header and over a summary line. It had no
   toolbar at first; then the owner asked for a filter of its own, by name, at its top, with the
-  Fetch button moved to the filter's right (POST-P14cp, below);
+  Fetch button moved to the filter's right (POST-P14cp, below), and later for a `⋯` of its own
+  holding Update, Commit and Push (POST-P14cq, below);
 * the **Branches** panel has the toolbar (the filter, Repository Dots, New Branch, `⋯`; Fetch
-  too with one repository, which has no Repositories panel), the form and the branches;
+  too with one repository, which has no Repositories panel, and Update, Commit and Push in its
+  `⋯`), the form and the branches;
 * VS Code folds, sizes and scrolls each. Its divider between them is marked as the one under the
   Commit window is: a line along the Repositories panel's foot (POST-P14bu);
 * with one repository there is no Repositories panel (`when: gittree.multiRepo`): its current
@@ -996,6 +998,19 @@ right. Like the panel itself, it is GitTree's own. Asked, the owner chose:
 Each word must be in the name (the one the panel shows, not its folder), in either case, as in
 the Branches panel's filter; matched letters are marked. With one repository there is no
 Repositories panel, so its Fetch stays in the Branches panel's toolbar.
+
+**The Repositories panel's `⋯`** (POST-P14cq). The owner asked whether items of the Branches
+panel's `⋯` should move to a menu of the Repositories panel, and agreed to move the four that
+act on repositories: Update Project…, Update Project Without Fetching…, Commit… and Push…. They
+act on the repositories picked, and their words follow the pick (*Update 2 Repositories…*), so
+they are read best beside the highlighted rows they mean. The Branches panel's `⋯` keeps the
+work on branches (New Branch…, Checkout Branch in All Repositories…, Clean Up Branches…) and
+the switches for its list; Incoming / Outgoing Counts, one setting that also draws the
+repositories' `↓ ↑`, is in both menus. The new `⋯` sits after Fetch, and a right-click in the
+list's empty space opens it too. As with Fetch, one repository has no Repositories panel and
+keeps the four in the Branches panel's `⋯`: one rule (`repositoryActionsPanel`) decides both,
+so exactly one panel has them. IntelliJ has no such panel; its Branches popup has Update
+Project, Commit and Push at the top, and GitTree's popup keeps the four there, unchanged.
 
 **`@` in the filter picks repositories** (POST-P14co). The owner asked for the Branches panel's
 filter to pick repositories when `@` is typed, from a dropdown of square checkboxes. IntelliJ's
