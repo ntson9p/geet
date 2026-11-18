@@ -693,6 +693,17 @@
   font-weight: 600;
 }
 
+/* On the selected row of a focused list, matched letters take the colour VS
+   Code's own lists give them there, made to read on the selection: in a light
+   theme with a blue selection (Light+) the plain highlight was blue on blue. A
+   repository's row is selected while it is picked; the keyboard's row among
+   the repositories is not, as its background says (above). */
+.gtp-list:focus-within
+  :is(.gtp-row.gtp-focused:not(.gtp-kind-repo), .gtp-row.gtp-kind-repo[aria-selected='true'])
+  .gtp-match {
+  color: var(--vscode-list-focusHighlightForeground, var(--vscode-list-highlightForeground));
+}
+
 .gtp-is-current .gtp-name {
   font-weight: 600;
 }

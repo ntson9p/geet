@@ -6,6 +6,13 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+### Fixed — matched letters on the selected row, in light themes
+
+On the selected row of a focused list (the branch the keyboard is on in the Branches panel's
+search), matched letters are now drawn in VS Code's colour for them,
+`list.focusHighlightForeground`, as VS Code's own lists draw them. In a light theme with a blue
+selection, such as Light+, they were blue on blue and all but invisible.
+
 ### Changed — Repositories and Branches are two panels; `@` in the filter picks repositories
 
 - **The sidebar's Repositories panel is two panels**, under the Commit window: **Repositories**,

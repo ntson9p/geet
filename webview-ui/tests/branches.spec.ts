@@ -1015,6 +1015,39 @@ test.describe('searching', () => {
       'feature/brand-new',
     );
   });
+
+  test("the selected row's matched letters take VS Code's colour for a selection, while the list has the focus", async ({
+    page,
+  }) => {
+    await openPanel(page);
+    // Light+'s: a blue selection, on which the plain highlight's blue all but vanished.
+    const HIGHLIGHT = 'rgb(0, 102, 191)';
+    const FOCUS_HIGHLIGHT = 'rgb(187, 231, 255)';
+    await page.evaluate(
+      ([plain, focus]) => {
+        const s = document.documentElement.style;
+        s.setProperty('--vscode-list-activeSelectionBackground', 'rgb(0, 96, 192)');
+        s.setProperty('--vscode-list-highlightForeground', plain!);
+        s.setProperty('--vscode-list-focusHighlightForeground', focus!);
+      },
+      [HIGHLIGHT, FOCUS_HIGHLIGHT],
+    );
+    const marked = (id: string): Promise<string> =>
+      row(page, id)
+        .locator('.gtp-match')
+        .first()
+        .evaluate((el) => getComputedStyle(el).color);
+    const filter = page.getByLabel('Filter branches');
+    await filter.fill('main');
+    expect(await marked('br:local:local:main')).toBe(HIGHLIGHT);
+    await filter.press('ArrowDown');
+    await expect(row(page, 'br:local:local:main')).toBeFocused();
+    expect(await marked('br:local:local:main')).toBe(FOCUS_HIGHLIGHT);
+    // Every other row keeps the plain colour, and so does this one once the list loses the focus.
+    expect(await marked('br:remote:remote:origin/main')).toBe(HIGHLIGHT);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(await marked('br:local:local:main')).toBe(HIGHLIGHT);
+  });
 });
 
 test.describe('which repositories a branch is in (POST-P14bt)', () => {
