@@ -1975,7 +1975,7 @@ export interface BranchPanelDetailsDto {
 }
 
 /**
- * What the Repositories panel's `⋯` menu does to the repositories in view
+ * What the Branches panel's `⋯` menu (the Repositories panel's until POST-P14co) does to the repositories in view
  * (POST-P14by): Update Project, its Without Fetching, Commit, Push.
  */
 export type BranchPanelInViewVerb = 'update' | 'updateWithoutFetch' | 'commit' | 'push';
@@ -2069,6 +2069,22 @@ export const REPOSITORY_LOG_TAB_COMMAND = 'gittree.repositories.showInLog';
 /** Panel settings the webview can change; each is a `gittree.branches.*` setting. */
 export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder' | 'showRepositoryDots';
 
+/**
+ * POST-P14co: which of the two side-bar panels a page is. One webview app draws
+ * both, told which by its page (`window.__gittreeInitialState.role`):
+ * - `repositories`: the Repositories panel, every repository with what it has
+ *   checked out (`gittree.repositoryList`);
+ * - `branches`: the Branches panel, the filter and the branches under their
+ *   tabs (`gittree.branches`). With one repository it is the only one, and it
+ *   starts with that repository's current branch.
+ */
+export type BranchPanelRole = 'repositories' | 'branches';
+
+/** What a panel's page is told when it is built (`window.__gittreeInitialState`). */
+export interface BranchPanelInitialStateDto {
+  readonly role: BranchPanelRole;
+}
+
 export const BRANCHES_METHODS = {
   /**
    * webview → host: the first paint; answers a `BranchPanelStateDto`. POST-P14ce:
@@ -2098,9 +2114,13 @@ export const BRANCHES_METHODS = {
   fetchAll: 'branches/fetchAll',
   /** webview → host: one branch dropped onto another (`{ source, target }`). */
   drop: 'branches/drop',
-  /** host → webview: open the New Branch form (`{ from?, roots? }`). */
+  /** host → webview, to the Branches panel: open the New Branch form (`{ from?, roots? }`). */
   evtNewBranch: 'branches/newBranch',
-  /** host → webview: put the cursor in the filter field. */
+  /**
+   * host → webview, to the Branches panel: put the cursor in the filter field.
+   * (POST-P14co's `branches/searchFor`, which brought typing in the Repositories
+   * panel here, went when that panel got a filter of its own, POST-P14cp.)
+   */
   evtFocusFilter: 'branches/focusFilter',
   /**
    * webview → host (POST-P14ce): the repositories picked (`{ roots }`; none for
@@ -2109,13 +2129,14 @@ export const BRANCHES_METHODS = {
    */
   setScope: 'branches/setScope',
   /**
-   * host → webview (POST-P14ce): the pick changed elsewhere, the Commit window's
-   * Show all or Show Only This Repository (`{ roots }`).
+   * host → webview (POST-P14ce): the pick changed elsewhere: the other panel
+   * (POST-P14co), the Commit window's Show all or Show Only This Repository
+   * (`{ roots }`).
    */
   evtScope: 'branches/scope',
   /**
-   * host → webview (POST-P14ce): a name on the Commit window's filter bar: the
-   * REPOSITORIES pane open, with the keyboard on that repository's row
+   * host → webview, to the Repositories panel (POST-P14ce): a name on the
+   * Commit window's filter bar: the keyboard on that repository's row
    * (`{ root }`). The pick stays as it is.
    */
   evtRevealRepo: 'branches/revealRepo',

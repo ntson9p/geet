@@ -49,7 +49,7 @@ export interface Phase02Registry {
   /** Exposed so an integration test can drive the real view, not just the provider. */
   reposView: vscode.TreeView<string>;
   hub: BranchHubViewProvider;
-  /** new-way-4: the sidebar's Repositories panel (`gittree.branches`). */
+  /** new-way-4: the sidebar's Repositories and Branches panels (`gittree.repositoryList`, `gittree.branches`; one panel until POST-P14co). */
   panel: BranchPanelProvider;
   /** POST-P14ce: the repositories picked in that panel, which the Commit window lists and commits. */
   reposInView: ReposInView;
@@ -261,12 +261,13 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   context.subscriptions.push(new vscode.Disposable(() => narrowedSubs.forEach((sub) => sub.dispose())));
 
   /**
-   * The Repositories panel (new-way-4; once titled Branches): every repository's
-   * status, then its branches under Recent, Local, Remote and Tags tabs, a card
-   * per branch with the actions its state calls for. A webview, because what it
-   * draws — a branch's card under its row, the repository markers, the inline
-   * New Branch form — is more than a tree row can hold. The trees above draw the
-   * plain tree, one setting away.
+   * The Repositories and Branches panels (new-way-4; one panel until POST-P14co
+   * split it): every repository's status in one, picked with a click; its
+   * branches under Recent, Local, Remote and Tags tabs in the other, a card per
+   * branch with the actions its state calls for. Webviews, because what they
+   * draw — a branch's card under its row, the repository markers, the inline
+   * New Branch form, the `@` picker — is more than a tree row can hold. The
+   * trees draw the plain tree, one setting away.
    */
   const panel = new BranchPanelProvider({
     core,
@@ -279,9 +280,14 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   });
   context.subscriptions.push({ dispose: () => panel.dispose() });
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(BranchPanelProvider.viewType, panel, {
+    vscode.window.registerWebviewViewProvider(BranchPanelProvider.viewType, panel.providerFor('branches'), {
       webviewOptions: { retainContextWhenHidden: true },
     }),
+    vscode.window.registerWebviewViewProvider(
+      BranchPanelProvider.repositoriesViewType,
+      panel.providerFor('repositories'),
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
     vscode.commands.registerCommand('gittree.branches.newBranchInPanel', (from?: unknown, roots?: unknown) =>
       panel.openNewBranchForm(
         typeof from === 'string' ? from : undefined,
@@ -297,18 +303,18 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       const repo = named !== undefined ? core.getRepo(named) : undefined;
       if (repo) reposInView.set([repo.root], 'elsewhere');
     }),
-    // POST-P14ce: every repository in view again, in both panels: a repository
+    // POST-P14ce: every repository in view again, in every panel: a repository
     // row's menu when it is the one shown, and the Command Palette.
     vscode.commands.registerCommand('gittree.branches.showAllRepositories', () => reposInView.clear('elsewhere')),
-    // POST-P14ce: a name on the Commit window's filter bar: the panel in view,
-    // the keyboard on that repository's row, the pick as it is.
+    // POST-P14ce: a name on the Commit window's filter bar: the Repositories
+    // panel in view, the keyboard on that repository's row, the pick as it is.
     vscode.commands.registerCommand('gittree.branches.revealRepository', async (arg?: unknown) => {
       const named = typeof arg === 'string' ? arg : repoRootOf(arg);
       const repo = named !== undefined ? core.getRepo(named) : undefined;
       if (repo) await panel.revealRepository(repo.root);
     }),
-    // The panel's Repository Dots, from the palette or a key: the same setting
-    // its toolbar button and More Actions menu switch.
+    // The Branches panel's Repository Dots, from the palette or a key: the same
+    // setting its toolbar button and More Actions menu switch.
     vscode.commands.registerCommand('gittree.branches.toggleRepositoryDots', () => {
       const shown = vscode.workspace.getConfiguration('gittree.branches').get<boolean>('showRepositoryDots', false);
       return writeSetting('gittree.branches', 'showRepositoryDots', !shown);

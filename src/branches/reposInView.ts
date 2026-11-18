@@ -25,10 +25,12 @@ export interface ReposInViewMemento {
 }
 
 /**
- * Who changed the pick. The Repositories panel already shows a pick it made
- * itself; a pick made anywhere else it is told of.
+ * Who changed the pick: one of the side bar's two panels (POST-P14co: the
+ * Repositories panel's click, the Branches panel's `@` picker and pill), or
+ * anywhere else (the Commit window). A panel already shows a pick it made
+ * itself; one made anywhere else it is told of.
  */
-export type ReposInViewSource = 'panel' | 'elsewhere';
+export type ReposInViewSource = 'repositories' | 'branches' | 'elsewhere';
 
 /** What the repositories in view are at one moment. */
 export interface InViewSnapshot {

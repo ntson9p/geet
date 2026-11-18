@@ -1,12 +1,13 @@
 /**
- * The Repositories panel's rows (once the Branches panel), from the host's
- * state and the panel's own view state (new-way-4). Pure: no React, no DOM, so
- * every rule is unit-tested.
+ * The Repositories and Branches panels' rows, from the host's state and a
+ * panel's own view state (new-way-4). Pure: no React, no DOM, so every rule
+ * is unit-tested.
  *
  * **Two lists, with several repositories** (new-way-6): the repositories' rows
- * and the branches' rows, each the list of a pane of its own (`paneLayout.ts`), so
- * twenty repositories no longer push the branches out of sight. With one
- * repository there is nothing to split: its current branch heads the one list.
+ * and the branches' rows. Each was a pane of one panel; since POST-P14co each
+ * is a panel of its own, so twenty repositories no longer push the branches
+ * out of sight. With one repository there is nothing to split: its current
+ * branch heads the one list, the Branches panel's.
  *
  * **One list for every repository.** A branch name is one row however many
  * repositories have it; the row says which of the repositories in view those
@@ -25,6 +26,10 @@
  * every kind holds its matches, as one flat list of whole names under a
  * heading, matched letters marked, and Recent steps aside so as not to list a
  * match twice.
+ *
+ * **The Repositories panel has a filter of its own** (POST-P14cp): it lists the
+ * repositories whose names match, letters marked, and nothing else. What is
+ * picked, and so the branches and the Commit window, stays as it was.
  */
 import type {
   BranchPanelDetailsDto,
@@ -32,6 +37,7 @@ import type {
   BranchPanelRefKind,
   BranchPanelRepoDetailsDto,
   BranchPanelRepoDto,
+  BranchPanelRole,
   BranchPanelStateDto,
   BranchPanelTargetDto,
 } from '../../../src/shared/protocol';
@@ -297,6 +303,8 @@ export type PanelRow =
        * Picked among several, a click shows it alone (POST-P14bw).
        */
       readonly only: boolean;
+      /** Marked ranges of its name, for the Repositories panel's filter (POST-P14cp). */
+      readonly highlights: ReadonlyArray<readonly [number, number]>;
       readonly height: number;
     }
   | {
@@ -381,7 +389,13 @@ export interface TabCount {
 }
 
 export interface PanelUiState {
+  /** The Branches panel's filter: which branches are listed. */
   readonly query: string;
+  /**
+   * The Repositories panel's filter (POST-P14cp): which repositories are
+   * listed there. It picks none and hides no branch.
+   */
+  readonly repoQuery?: string;
   /** Roots the panel is narrowed to; empty means every repository. */
   readonly scope: readonly string[];
   /** Ids whose open state differs from their default. */
@@ -402,9 +416,10 @@ export interface PanelUiState {
 
 export interface PanelModel {
   /**
-   * Where you are: with several repositories, a row for each (and a banner
-   * under one mid-operation), the REPOSITORIES pane's list; with one, its
-   * current branch, the first rows of the one list.
+   * Where you are: with several repositories, a row for each whose name the
+   * Repositories panel's filter matches (and a banner under one mid-operation),
+   * that panel's list; with one, its current branch, the first rows of the
+   * Branches panel's list.
    */
   readonly repoRows: readonly PanelRow[];
   /** Where you can go: the tabs and the branches under them, or a search's matches. */
@@ -661,7 +676,21 @@ export function repoHint(row: Pick<Extract<PanelRow, { kind: 'repo' }>, 'inScope
     : 'Click to show only its branches · Ctrl+click to add it';
 }
 
-/** What the panel's `⋯` menu's Update, Commit and Push act on, and what each is called (`viewActions`). */
+/**
+ * Which panel has the actions on every repository in view (POST-P14cq): Fetch, beside
+ * its filter or in its toolbar (POST-P14cp), and Update, Update Without Fetching, Commit
+ * and Push, in its `⋯`. The Repositories panel's, where the repositories are and the pick
+ * those four act on is made, whenever there is one: with several repositories. One
+ * repository has no Repositories panel, so the Branches panel's.
+ */
+export function repositoryActionsPanel(repoCount: number): BranchPanelRole {
+  return repoCount > 1 ? 'repositories' : 'branches';
+}
+
+/**
+ * What a `⋯` menu's Update, Update Without Fetching, Commit and Push act on, and what each
+ * is called (`viewActions`): the menu of the panel `repositoryActionsPanel` names.
+ */
 export interface ViewActions {
   /** The repositories they act on; none for the project. */
   readonly roots: readonly string[];
@@ -678,7 +707,7 @@ export interface ViewActions {
 }
 
 /**
- * The `⋯` menu's Update (POST-P14bx), Commit and Push (POST-P14by) act on what is
+ * A `⋯` menu's Update (POST-P14bx), Commit and Push (POST-P14by) act on what is
  * in view. Every repository in view, the workspace's only one included, is the
  * project, as `Ctrl+T`, `Ctrl+K` and `Ctrl+Shift+K` are: `Update Project…`,
  * `Commit…`, `Push…`. Some picked are those, and the items say so: `… Repository…`
@@ -883,10 +912,14 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
   };
 
   // ---- Repositories, or the one repository's current branch ---------------
-  // Every repository's row, whether or not its pane is folded: the pane's
-  // header counts them and folds them; the rows are the list it shows.
+  // Every repository's row whose name holds each word of the Repositories
+  // panel's filter (POST-P14cp), with its banner. A repository the filter
+  // leaves out is still picked or not as it was: its branches stay as they are.
   if (multi) {
+    const repoTokens = queryTokens(ui.repoQuery ?? '');
     for (const repo of state.repos) {
+      const highlights = matchRanges(repo.label, repoTokens);
+      if (highlights === undefined) continue;
       repoRows.push({
         kind: 'repo',
         id: `repo:${repo.root}`,
@@ -894,11 +927,20 @@ export function buildPanel(state: BranchPanelStateDto, ui: PanelUiState): PanelM
         inScope: scopeRepos.includes(repo),
         narrowed,
         only: narrowed && scopeRepos.length === 1 && scopeRepos[0] === repo,
+        highlights,
         height: REPO,
       });
       if (repo.operation !== undefined) {
         repoRows.push({ kind: 'operation', id: `op:${repo.root}`, repo, height: OPERATION });
       }
+    }
+    if (repoRows.length === 0) {
+      repoRows.push({
+        kind: 'hint',
+        id: 'hint:repos',
+        text: `No repository matches “${(ui.repoQuery ?? '').trim()}”.`,
+        height: HINT,
+      });
     }
   } else {
     const repo = state.repos[0];
@@ -1097,6 +1139,10 @@ export function remoteOf(entry: BranchEntry): string {
 export function isPlausibleBranchName(name: string): boolean {
   return (
     name.length > 0 &&
+    // Git's own refusals (`check-ref-format`): `@` alone, which the filter's
+    // `@` (POST-P14co) makes a common thing to have typed, and `@{`.
+    name !== '@' &&
+    !name.includes('@{') &&
     !/[\s~^:?*[\\]/u.test(name) &&
     !name.startsWith('-') &&
     !name.startsWith('/') &&

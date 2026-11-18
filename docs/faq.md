@@ -54,10 +54,11 @@ integrated terminals when `gittree.terminalAuth` is on.
 
 **All of them, which is the default.** Fetch is a *project* operation in
 IntelliJ and in GitTree: the `$(sync)` button in the branches popup's header
-(click the branch in the status bar to open it), `GitTree: Fetch` from the
-command palette, `GitTree: Fetch All Repositories`, and `Fetch` in the VCS
-Operations Popup (`Alt+\``) all fetch **every** root in the workspace that has
-a remote. Roots without one are skipped rather than failed, one slow or
+(click the branch in the status bar to open it), the one beside the sidebar
+Repositories panel's filter (in the Branches panel's toolbar, with one
+repository), `GitTree: Fetch` from the command palette, `GitTree: Fetch All
+Repositories`, and `Fetch` in the VCS Operations Popup (`Alt+\``) all fetch
+**every** root in the workspace that has a remote. Roots without one are skipped rather than failed, one slow or
 unreachable remote never stops the others, and the whole fan-out reports once.
 
 **One of them** is for callers that know which they mean: `gittree.fetch` takes
@@ -118,18 +119,26 @@ removes them again — no reload either way.
 first attempt at this, which set them to `"visibility": "hidden"`: that is only a default for
 a profile that has never rendered the container, so an existing install kept showing them.)
 
-### What is the Repositories panel in the sidebar?
+### What are the Repositories and Branches panels in the sidebar?
 
-**Repositories** (titled *Branches* until it showed more than branches) answers three
-questions, top to bottom. *Where am I:* every repository with what it has checked out, how
-far that is from its upstream and how many files are changed; with one repository, its
-current branch. *Where can I go:* the branches, under **Recent**, **Local**, **Remote** and
-**Tags** tabs, one list at a time. *What can I do:* a click opens a branch's card, with the
-actions its state calls for; right-click has the rest. See FEATURES and D34.
+**Repositories** and **Branches**, under the Commit window, answer three questions. *Where am
+I:* the Repositories panel lists every repository with what it has checked out, how far that is
+from its upstream and how many files are changed. With one repository there is no Repositories
+panel: the Branches panel starts with its current branch. *Where can I go:* the Branches panel
+lists the branches under **Recent**, **Local**, **Remote** and **Tags** tabs, one list at a time.
+*What can I do:* a click opens a branch's card, with the actions its state calls for; right-click
+has the rest. See FEATURES and D34.
 
-With several repositories the first two are panes, **REPOSITORIES** and **BRANCHES**: each
-folds at its header and scrolls on its own, and the line between them is dragged to share the
-height. The REPOSITORIES header names the repositories you picked, even folded.
+They were one panel, *Repositories*, with a REPOSITORIES and a BRANCHES pane, until POST-P14co
+(and before that it was titled *Branches*). As two of VS Code's views, each folds, resizes and
+scrolls on its own.
+
+**Picking repositories:** click one in the Repositories panel (`Ctrl+click` for several), or
+type `@` in the Branches panel's filter: a list of the repositories opens, a checkbox each, and
+what you type after the `@` narrows it. Both make the same pick. The filter's pill names it
+(`web ×`) and widens it again. With many repositories, the filter at the top of the
+Repositories panel finds one by name, and `Enter` there shows only its branches (POST-P14cp);
+the filter alone picks nothing.
 
 Why it exists, when IntelliJ puts branches in the branch widget and the Git tool window:
 the status bar cannot be the way in. **Cursor has no status bar at all**, so the GitTree
@@ -137,15 +146,12 @@ button does not exist there — and a VS Code user who has just installed the ex
 in the sidebar, not at a widget two entries from the one the built-in Git extension draws.
 Both surfaces still work exactly as before; this is a third way in, not a replacement.
 
-**What clicking a repository does *not* do:** it narrows the panel to that repository's
-branches, and what its rows act on, but it does not change what `Ctrl+K`, `Ctrl+T` or Push
-act on. Those still resolve their repository from the active editor, as they always have —
-the same split VS Code has (its Source Control selection filters that view; the status-bar
-branch follows the editor) and IntelliJ has (the log has a root filter; the branch widget
-follows the editor). The filter field names the repositories shown (`web ×`), so there is
-never a question which one it means.
+**What the pick changes:** the Branches panel lists the branches of the repositories picked, and
+its rows act on those; the Commit window lists and commits only them, and says so in a bar over
+its list (POST-P14ce). `Ctrl+T` (Update Project) and `Ctrl+Shift+K` (Push…) find their
+repositories as they always have: the project, and the active editor's repository.
 
-The trees the panel replaced are still available under `gittree.sidebar.extraViews`:
+The trees the panels replaced are still available under `gittree.sidebar.extraViews`:
 **Repositories (Tree)**, **Branches (Tree)** and **Branches (All Repositories)**.
 
 ### A GitTree message went away before I read it. Where is it?

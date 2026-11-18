@@ -2,7 +2,7 @@
  * Which repository a commit across several repositories amends, or lets speak
  * when at most one has anything ticked (POST-P14by). Pure and vscode-free, so
  * every case is unit-tested: `runCommitAcross` can be narrowed to the
- * repositories asked for (the Repositories panel's `⋯` with some of them in
+ * repositories asked for (the Branches panel's `⋯` with some of them in
  * view), and the repository the message was typed against, whose Amend box the
  * Commit window shows, may lie outside them.
  */

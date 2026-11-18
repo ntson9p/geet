@@ -2431,3 +2431,131 @@ Testing (written, **not run**, by the owner's standing instruction):
 - **Integration** (`phase13.test.ts`): *POST-P14cn push without the dialog* (11) on repoC and its bare remote: on by default; the plan is the dialog's rows; Push… pushes; Publish, tracking the new branch; a branch's Push… pushes that branch alone; Push All up to Here stops at that commit; a detached commit and a repository with no remote open the dialog and say why; with no editor and several repositories it opens to choose; the box turns the setting off, back on, and a payload without it changes nothing; a rejected push still asks Merge or Rebase. And in POST-P14af's suite: Commit and Push with only the general switch off pushes straight away.
 
 Found on the way: `gittree.push` (P1, hidden from the palette) is no longer called by GitTree itself. Commit and Push without the dialog was its last caller. It stays registered for anyone's keybinding, still asking *Publish it?* and then pushing to `origin`. Sync never reaches that question: its pull fails first on a branch with no upstream.
+
+POST-P14co ✅ 2026-11-18 (branch `split-panels`, from `main`): **The Repositories panel split in two, and `@` in the filter picks repositories.** The owner asked for the sidebar as Commit, then a Repositories panel listing the repositories with no label and no search box, then a Branches panel of its own with the search box and the branches. Typing `@abc` in the search box should open a dropdown of repositories with square checkboxes. Everything else should work and look as before.
+
+**Asked, and answered** (multiple choice, best first):
+
+| Question | Answer |
+| --- | --- |
+| Do the `@` picker and a click in the Repositories panel make the same pick (which the Commit window follows, POST-P14ce)? | **One shared pick** |
+| What does a ticked box mean? | **Ticked = picked; none ticked is every repository** (not boxes that say what is shown, which made one of twenty nineteen unticks) |
+| What replaces the REPOSITORIES line's count and *Show all*? | **Nothing**: no count, no *Show all*; the pill in the Branches filter widens, the rows' highlight shows the pick |
+| Where to commit? | **A new branch, `split-panels`, from `main`** |
+
+Decided without asking, as today's behaviour: the whole toolbar row (filter, Fetch, Repository Dots, New Branch, `⋯`) moves to the Branches panel; with one repository there is no Repositories panel and the Branches panel starts with the current branch; VS Code's own view headers do the folding and resizing.
+
+**What changed:**
+- **Two views.** `gittree.branches` (keeping its id, so layouts and keybindings carry over) is now *Branches*. The new `gittree.repositoryList` *Repositories* sits right under the Commit window, `when: gittree.multiRepo`. Both draw the same webview app, told which panel it is by its page (`window.__gittreeInitialState.role`, `BranchPanelRole`).
+- **The host** (`branchPanel.ts`) keeps one state, its caches and its actions for both: `providerFor(role)`, a page per panel, one state built per push for every panel on screen. A pick is told to the other panel, never back to the one that made it (`ReposInViewSource` now names `repositories`, `branches` or `elsewhere`). New Branch, the filter's focus and the text typed go to the Branches panel; a name on the Commit window's bar goes to the Repositories panel. A panel its `when` hides (Repositories, with one repository) is no error.
+- **The Repositories panel** lists only the repository rows and their banners: no toolbar, no heading, no count. A line along its foot marks VS Code's divider above the Branches panel, as under the Commit window (`.gtp-edge`, POST-P14bu). Typing or Ctrl+F there goes to the Branches filter (`branches/searchFor`); a repository's New Branch… opens the Branches panel's form.
+- **The Branches panel** has the toolbar, the form, then the tabs and branches, with the current branch first when there is one repository. `↑` from the top of the list goes to the filter, and Escape in an empty filter back to the row.
+- **The `@` picker** (`repoPickerModel.ts`, pure; `RepoPicker.tsx`):
+  - An `@` at the start or after a space opens a list under the field, as wide as the toolbar, in the suggest widget's colours. It has a square checkbox each (`TriCheckbox`), the repository's colour and what it has checked out.
+  - What follows the `@` narrows the list, with matched letters marked; spaces count, so `@local - Copy` works. *All repositories* comes first while nothing is typed.
+  - Enter ticks the highlighted row and closes the list; a click ticks and keeps it open; Escape, Tab or a blur closes it, taking the `@` text out. What was typed before the `@` still filters the branches.
+  - The field is a combobox (`aria-expanded`, `aria-controls`, `aria-activedescendant`) of a multi-select listbox.
+  - An `@` inside a word, or with one repository, is searched for as before. The placeholder ends *(type @ to pick repositories)*, as VS Code's Quick Open says what its `:` and `@` do.
+- **Gone:** the panes (`Panes.tsx`, `paneLayout.ts`, their CSS and `branchPanes.test.ts`), the inner divider, the REPOSITORIES header's names and *Show all*, and the headers' keyboard.
+- **Words:** the view names; *New Branch (Branches Panel)*; the four branch settings and `gittree.sectionBorder` say the Branches panel and *under the Repositories panel*. Code comments about the `⋯` menu now name the Branches panel.
+
+**Verified in a real VS Code 1.144.0 window** (`scratchpad/split/drive.cjs`: Playwright over CDP, the real extension, three scratch repositories in a multi-root workspace, then one alone), 20 of 20 checks:
+
+| Step | What happened |
+| --- | --- |
+| A | the side bar reads Commit, Repositories, Branches; Repositories holds the three repository rows and nothing else; Branches the toolbar, then the tabs, no repository row; the placeholder; the line along Repositories' foot (1.6px at 125%, device pixels; the theme's colour; at the very foot) |
+| B | a click on web: the Branches pill says web, the row is highlighted, the Commit window's bar names web |
+| C | `@`: the list, web ticked; drawn inside the panel over the list; a click on api ticks it, the pill says 2 repositories, the list stays, Repositories highlights api; Escape closes with the filter empty; `feat @sh` Enter: shared ticked, which with the others is every repository, so no pick, and the filter keeps `feat ` |
+| D | a key in Repositories lands in the Branches filter |
+| E | a repository's New Branch… opens the form in Branches |
+| F | a name on the Commit window's bar puts the Repositories panel's keyboard on its row |
+| G | one repository: the side bar reads Commit, Branches; the current branch first; `@` is searched for |
+
+The first drive found the list as narrow as the field, its key hint cut off: it now spans the toolbar.
+
+Gates: typecheck (root, webview, integration) clean; lint of every touched file clean; extension and webviews built.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `repoPickerModel.test.ts` (18): the mention (start, after a space, not in a word, before the caret, over spaces, the last one, a missing or out-of-range caret), the filter without it, the rows (All repositories, ticks, a closed pick, narrowing and marks, nothing matching), the next pick (from none, add, remove, the last unticked, the last ticked, a closed pick). `reposInView.test.ts` (+1, which panel made a pick; the source renamed). `panelName.test.ts` rewritten (5: the two panels' names, icons, `when` and order; titles unique; the branch settings name the Branches panel). `branchPanelModel.test.ts` (`@` and `@{` are no branch names). `sectionBorder.test.ts` and `commitWindowMenus.test.ts` follow.
+- **Playwright** (`branches.spec.ts`, 92 → 101): a page is one panel (`role`), two pages of one test the two panels of one host (`openBoth`; the mock joins them with a BroadcastChannel). New: *the Repositories and Branches panels (POST-P14co)* (8) and *the @ in the filter picks repositories (POST-P14co)* (10). The pane tests (10) are gone; the tests that clicked a repository row and then read the branches open the right page, or take the pick from the other panel (`pickElsewhere`) or as the host kept it (`scope`). Placeholders are `filterIn(…)`.
+- **Integration:** `branchPanel.test.ts` (+2: the two panels as contributed and both coming up; a New Branch run from Repositories makes nothing); `phase14.test.ts`'s view list.
+
+Found on the way:
+- `docs/faq.md` said a repository picked in the panel does not change what Ctrl+K commits. That has been untrue since POST-P14ce; the entry says what the pick changes now.
+- Searching `@` offered **Create branch "@"**, a name git refuses (and `@{`); `isPlausibleBranchName` refuses both now.
+
+POST-P14cp ✅ 2026-11-18 (branch `split-panels`, after POST-P14co): **The Repositories panel filters its repositories by name, with Fetch beside the filter.** The owner asked for a search box at the top of the repository list in the Repositories panel, to search and filter the repositories by name, and for the *Fetch all repositories* button to move to its right.
+
+**Asked, and answered** (multiple choice, best first):
+
+| Question | Answer |
+| --- | --- |
+| What should the filter change besides the list? | **Only the repository list**: the pick, and so the Branches panel and the Commit window, stays as it was (not: the Branches panel follows the filter while it has text, a second pick beside the first) |
+| What does Enter do in it? | **Shows the first match alone**, as a click on its row does, the keyboard on that row; it never shows every repository again (not: only moves to the row) |
+
+Decided without asking: with one repository there is no Repositories panel, so Fetch stays in the Branches panel's toolbar; typing on a repository's row, and Ctrl+F there, go to the panel's own filter now (POST-P14co sent them to the Branches panel's, through `branches/searchFor`, which is gone).
+
+**What changed:**
+- **The model** (`model.ts`): `PanelUiState.repoQuery`, the Repositories panel's filter. `buildPanel` lists only the repositories whose label holds every word (`queryTokens` and `matchRanges`, as the branch filter does), each `repo` row with its `highlights`; a banner goes with its repository; with none, a hint row (`hint:repos`, *No repository matches "…"*). Nothing else reads it: the scope, the branch rows and one repository's head row are as they were.
+- **The Repositories panel** (`App.tsx`): a toolbar of its own, the filter (*Filter repositories*) and Fetch (*Fetch all repositories*, the Branches panel's button, now one `fetchButton` for both). `↓` goes to the first match; `Enter` shows it alone (`pickScope([root])`, unless it is the pick already) and puts the keyboard on its row; `Escape` clears, then goes back to the row; `↑` from the top row comes back. Typing on a row and Ctrl+F go to it (`focusSearch`, by panel). The row draws its name through `Name`, matched letters marked. A name on the Commit window's filter bar whose row the filter hides clears the filter first.
+- **The Branches panel's toolbar** has Fetch only with one repository.
+- **Gone:** `branches/searchFor` (protocol, host, mock) and the text `branches/focusFilter` carried for it; the Filter Branches command is what sends that event now.
+- **Words:** CHANGELOG (and POST-P14co's entry, whose typing bullet was no longer true), FEATURES, D34, keyboard, the FAQ (the fetch answer names the button). `PanelList.tsx`'s comments still spoke of panes.
+
+**Found on the way, in a commit of its own (it predates the branch):** matched letters on the selected row of a focused list were drawn in `list.highlightForeground`, which in a theme with a blue selection (Light+) is blue on blue: a contrast of 1.06, measured. They take `list.focusHighlightForeground` now, as VS Code's own lists draw them (4.66 in Light+). The Branches panel's search on `main` has the same rows, so that commit can be cherry-picked there.
+
+**Verified in a real VS Code 1.144.0 window** (`scratchpad/repofilter/drive.cjs`: Playwright over CDP, the real extension, three scratch repositories in a multi-root workspace, two with a bare origin on C:, then one alone), 24 of 24 checks:
+
+| Step | What happened |
+| --- | --- |
+| A | the side bar still reads Commit, Repositories, Branches; the Repositories panel's toolbar is *Filter repositories* and Fetch alone, Fetch to its right on its line, the rows under them, all three in view at VS Code's first size; the Branches panel's toolbar has no Fetch; the two toolbars alike (a 24px field, buttons 29.6 × 23.6) |
+| B | `we`: web alone, `we` marked; nothing picked (the Branches panel's placeholder still says 3 repositories); `wezz`: *No repository matches "wezz".*; Escape: the three back |
+| C | `sh` Enter: shared alone, highlighted, the keyboard on its row; the Branches panel's pill and the Commit window's bar say shared; a second Enter keeps it; the matched letters on that row read at 4.73 in Dark Modern, 4.66 in Light+ (1.06 in the plain highlight colour) and 4.69 in Light Modern (where the two colours are one) |
+| D | `web` ↓: the keyboard on web, nothing picked; ↑ back to the filter; Escape clears it, and again goes back to the row |
+| E | a key on a row lands in the Repositories panel's filter, the Branches panel's untouched; Ctrl+F on a row: the filter, its text selected |
+| F | Fetch turns, then stops; the trace shows `git fetch --prune` in the two repositories with a remote |
+| G | `api` hides web; web's name on the Commit window's bar clears the filter and puts the keyboard on web |
+| H | one repository: Commit and Branches only, and Fetch is the Branches panel toolbar's first button |
+
+The first run's light-theme check expected Light Modern to improve; its two colours are one, so the check now asks Light+ for the improvement and Light Modern only for a readable contrast.
+
+Gates: typecheck (root, webview, integration) clean; lint of every touched file clean; extension and webviews built.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `branchPanelModel.test.ts` (+7, *the Repositories panel's filter*): every word, either case, marked; empty or blank lists them all; a banner goes with its repository; the name, not the folder; none matching; nothing picked and no branch changed; one repository's head row untouched.
+- **Playwright** (`branches.spec.ts`, 101 → 112): *the Repositories panel's filter and Fetch (POST-P14cp)* (11: the toolbar's layout; typing, marks and ×; none matching; no pick; Enter and a second Enter; Enter among several picked; the picked row's colour; ↓ ↑ Escape; typing and Ctrl+F on a row; the Commit window's name; one repository's Fetch), one in *a narrow sidebar* (170px: the filter gives way, Fetch stays whole), and the colour fix's in *searching*. The two tests of typing handed to the Branches panel are gone; *Fetch all turns…* clicks the Repositories panel's button; the panels' first two tests check the new toolbars.
+
+POST-P14cq ✅ 2026-11-19 (branch `split-panels`, after POST-P14cp): **Update, Commit and Push move to the Repositories panel's own `⋯`.** The owner asked whether some items of the Branches panel's `⋯` should move to a new menu of the Repositories panel, which, and why. Recommended, and agreed ("Yes, please implement carefully"): the four that act on repositories, Update Project…, Update Project Without Fetching…, Commit… and Push…, move to a `⋯` after the Repositories panel's Fetch, which a right-click in its list's empty space opens too. The Branches panel's `⋯` keeps the work on branches (New Branch…, Checkout Branch in All Repositories…, Clean Up Branches…) and its list's switches. Incoming / Outgoing Counts, one setting that also draws the repositories' `↓ ↑`, is in both. Why: the four's words follow the pick made in the Repositories panel (*Update 2 Repositories…*), so they read best beside the highlighted rows they mean, and it finishes what POST-P14cp began with Fetch.
+
+Decided with the recommendation: one repository has no Repositories panel, so the four stay at the top of the Branches panel's `⋯`, as Fetch stays in its toolbar. Decided without asking: the Repositories panel's *No repository matches* row opens the panel's menu (it stands in for the rows); with several repositories the Branches panel's `⋯` leaves the four out whether a repository is picked or not (the rule is the workspace's count, not the pick's).
+
+**What changed:**
+- **The model** (`model.ts`): `repositoryActionsPanel(repoCount)`, the one rule for which panel has the actions on every repository in view: the Repositories panel with several repositories, else the Branches panel. The Branches toolbar's Fetch follows it too (it read `!model.multi`, the same line).
+- **The panels** (`App.tsx`): `inViewItems` builds Update, Without Fetching, Commit and Push once for both menus (`menuItemMaker` keeps each item's action, as each menu did inline); `openRepositoriesMenu` is the Repositories panel's menu (the four when that panel has them, then *Show* › Incoming / Outgoing Counts); `openMoreMenu` has the four only when the Branches panel has them; one `moreButton` draws both `⋯`. The Repositories panel's list opens the menu on a right-click outside any row (at the pointer; from the keyboard, at the list's corner), and `openRowMenu` sends its hint row there.
+- **No host change:** `branches/run` (`inView`) and `branches/setting` were wired the same for both pages already.
+- **Words:** CHANGELOG, FEATURES (the Repositories panel's `⋯`, the Branches panel's toolbar, Update Project and Without Fetching), D34 and D30, the setting's description (and `docs/settings.md`, regenerated), the comments at the head of `App.tsx` and `branchPanel.ts`.
+
+**Verified in a real VS Code 1.144.0 window** (`scratchpad/menu/drive.cjs` in session 8c37feb4: Playwright over CDP, the real extension, three scratch repositories in a multi-root workspace, api and web with a bare origin on C:, web one behind and two ahead, then one repository alone), 19 of 19 checks:
+
+| Step | What happened |
+| --- | --- |
+| A | the Repositories panel's toolbar reads *Filter repositories*, Fetch, ⋯ (*More Actions…*), on one line; its ⋯ is the Branches panel's in size (29.6 × 23.6) |
+| B0 | at VS Code's first size the panel is 120px tall: the 112px menu stays inside it, over the toolbar, and scrolls, Update Project… in view at its top (as every GitTree menu does: it never runs off its panel) |
+| B | the divider dragged down: Update Project…, Update Project Without Fetching…, Commit…, Push…, a rule, *Show*, ✓ Incoming / Outgoing Counts, under the button |
+| C | the Branches panel's ⋯: New Branch…, Checkout Branch in All Repositories…, Clean Up Branches…, then *Show* (Tags, the counts, Repository Dots, Group by Folder) and Collapse All; no Update, Commit or Push |
+| D | web clicked: *Update Repository…* … *Push Repository…*; api Ctrl+clicked in: *… 2 Repositories…* |
+| E | *Push 2 Repositories…*: the Push dialog, api and web ticked, shared not. Every repository shown again, *Update Project Without Fetching…*: its question (*Nothing is fetched first…*, web 1 to pull · 2 to push), cancelled |
+| F | unticked in the Repositories panel's ⋯: the repositories' `↓ ↑` (2) and those in the Branches panel's Local tab (1) all go, and that panel's ⋯ shows it unticked; ticked there, all come back, and the Repositories panel's ⋯ says so |
+| G | a right-click under the rows: the panel's menu at the pointer, and no VS Code menu; low at the right, kept inside the panel exactly where `placeMenu` stands it; on web's row, only web's own menu |
+| H | a click in the editor area closes it |
+| I | `zz`: a right-click on *No repository matches* opens it |
+| J | Tab from the filter: Fetch, then ⋯; Enter opens the menu with the keyboard in it; Escape gives ⋯ its focus back |
+| K | one repository: no Repositories panel; the Branches panel's ⋯ starts with the four, a rule, New Branch… |
+
+The first runs failed checks of the driver's own making, each read before the driver changed: a panel at VS Code's first size has almost no room under its rows (the driver now drags the dividers, and checks the kept-inside case by `placeMenu`'s formula instead of expecting the pointer), and the Branches panel opened on Recent, whose one branch has nothing to count (it now shows Local). In one run the first menu did not open; the driver now retries and logs each retry, and the three runs after it needed none.
+
+Gates: typecheck (root, webview) clean; lint of every touched file clean; extension and webviews built.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `branchPanelModel.test.ts` (+1): `repositoryActionsPanel`, the Repositories panel with several repositories, the Branches panel with one or none, the same line as `buildPanel`'s `multi`.
+- **Playwright** (`branches.spec.ts`, 112 → 118): *the Repositories panel's ⋯ (POST-P14cq)* (6: its rows with several repositories, under the button, Commit run; the Branches panel's ⋯ without them, every repository shown or one picked; the counts switch shared by both panels' rows; a right-click in the empty space at the pointer, and on a row its own menu; on *No repository matches*; blur closes it). Changed: the in-view test runs in the Repositories panel, picking by clicks on its rows, and ends with Push; *Update Project Without Fetching is the project* opens the Repositories panel; one repository's ⋯ checks its first six rows, Push and the rule among them; the Repositories panel's toolbar tests (its buttons, the layout, 170px) know its ⋯. The mock host passes a setting changed in one panel's page to the other, as the host's one state reaches both.

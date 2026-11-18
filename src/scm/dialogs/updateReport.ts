@@ -40,7 +40,7 @@ export function standing(branch: string, upstream: string, behind: number, ahead
 /**
  * What an update was asked to cover (POST-P14bx). `project`: every repository, as
  * `Ctrl+T` and `Update Project…` are. `named`: the repositories a repository's own
- * menu or button, or the Repositories panel's `⋯` with some repositories in view,
+ * menu or button, or the Branches panel's `⋯` with some repositories in view,
  * named.
  */
 export type UpdateCovers = 'project' | 'named';

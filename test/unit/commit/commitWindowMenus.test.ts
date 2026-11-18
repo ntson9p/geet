@@ -462,7 +462,9 @@ describe('Ctrl+Enter in the message box (POST-P14bs)', () => {
       .flat()
       .filter((v) => v.type === 'webview')
       .map((v) => v.id);
-    expect(webviews).toEqual(expect.arrayContaining(['gittree.commit', 'gittree.log', 'gittree.branches']));
+    expect(webviews).toEqual(
+      expect.arrayContaining(['gittree.commit', 'gittree.log', 'gittree.repositoryList', 'gittree.branches']),
+    );
     const viewsNamed = (when: string): string[] =>
       [...when.matchAll(/focusedView\s*==\s*'?([\w.-]+)'?/gu)].map((m) => m[1]!);
     expect(keys.filter((k) => viewsNamed(k.when ?? '').some((id) => webviews.includes(id)))).toEqual([]);

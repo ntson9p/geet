@@ -48,7 +48,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
 | [D32](#d32--push-rejected-asks-with-a-message-box-its-checkboxes-move-out-of-it) | A rejected push asks Merge or Rebase with a native message box; `Remember…` moves to the result, *Update all repositories* to a setting | No (API) |
 | [D33](#d33--console-and-worktrees-cannot-be-closed) | In the Git tool window only the extra Log tabs close; Console and Worktrees always stay | Deliberate (owner's decision) |
-| [D34](#d34--the-sidebars-repositories-panel-is-gittrees-own-design) | The sidebar's Repositories panel is GitTree's own design: status first, one list for every repository under Recent / Local / Remote / Tags tabs, a card per branch | Deliberate (owner's request) |
+| [D34](#d34--the-sidebars-repositories-and-branches-panels-are-gittrees-own-design) | The sidebar's Repositories and Branches panels are GitTree's own design: status first, one list for every repository under Recent / Local / Remote / Tags tabs, a card per branch, an `@` in the filter to pick repositories, a filter of the repositories by name | Deliberate (owner's request) |
 | [D35](#d35--a-new-branch-tracks-nothing-by-default-and-stop-tracking-is-a-menu-row) | A new branch tracks a remote branch only when it takes its name, and Stop Tracking is a menu row rather than a checkbox in Rename | Deliberate (owner's report) |
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 | [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
@@ -814,7 +814,7 @@ branch* / *Rebase the current branch on top of incoming changes* as two radio bu
 **GitTree:** a native modal message box titled *Update Project*, or since POST-P14bx, when some
 repositories were named rather than the project, titled by them: *Update api* for a repository's
 own **Update Repository…**, *Update 2 Repositories* for the Repositories panel's `⋯` with two
-picked. With only one repository in the workspace it is always *Update Project*. Its text names
+picked (the Branches panel's from POST-P14co until POST-P14cq, and before that the one panel's). With only one repository in the workspace it is always *Update Project*. Its text names
 what is being updated — `develop ← origin/develop · 3 to pull · 1 to push` — and, with
 `gittree.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
 `Merge`, `Rebase`, `Reset to the Remote Branch` and VS Code's own `Cancel`; pressing one is
@@ -933,14 +933,15 @@ it offers nothing GitTree's strip lacks.
 
 **Revisitable:** yes, if a reopen route is added (the VCS Operations Popup is the natural one).
 
-## D34 · The sidebar's Repositories panel is GitTree's own design
+## D34 · The sidebar's Repositories and Branches panels are GitTree's own design
 
 **IntelliJ:** branches live in the branch widget's popup (transient, search-first, a submenu per
 branch) and in the Git tool window's Branches pane (a tree that filters the log). There is no
 standing panel that combines every repository's state with its branches.
-**GitTree:** the sidebar's Repositories section (`gittree.branches`, titled Branches until
-POST-P14bb) is a panel designed for VS Code's sidebar:
-* every repository's status first;
+**GitTree:** two panels designed for VS Code's sidebar, the **Repositories** panel
+(`gittree.repositoryList`) and the **Branches** panel (`gittree.branches`). They were one panel
+until POST-P14co, titled Branches until POST-P14bb and Repositories after:
+* every repository's status first, in the Repositories panel (with several repositories);
 * then one list of branches for all of them, under **Recent**, **Local**, **Remote** and
   **Tags** tabs;
 * a card per branch with the actions its state calls for;
@@ -954,20 +955,74 @@ a dropdown with four short choices, all in sight and a click away. They stay at 
 the list scrolls past them, and step aside while the filter searches every kind, as the popup's
 search does.
 
-**Repositories, not Branches**, since what it shows first is each repository: the word VS Code's
-own Source Control uses for the same list. The opt-in tree it replaced (D29) is *Repositories
-(Tree)*, so no two views share a title.
+**Repositories, then Branches.** The one panel was titled Repositories, since what it showed
+first was each repository: the word VS Code's own Source Control uses for the same list. Split,
+each panel is titled by what it lists. The opt-in trees (D29) are *Repositories (Tree)* and
+*Branches (Tree)*, so no two views share a title.
 
-**Two panes inside the view, not two views** (new-way-6). With several repositories, the
-repositories and the branches were one list, and twenty repositories pushed the branches to the
-foot of the panel. The owner asked for BRANCHES as a pane of its own, folding and resizing like
-REPOSITORIES, with the repositories picked named in the REPOSITORIES header. A second VS Code view
-was offered and the owner chose panes, for the label: VS Code hides a view's header description
-while the view is collapsed, and a webview view has no header to write on until it has been
-opened since the window loaded, so the name would be missing exactly when the list is folded
-away. The panes are drawn as VS Code draws views (22px headers, the side bar's section header
-colours, a sash between them), keep their folds and size, and with one repository there is
-nothing to split: its current branch heads the one list, as before.
+**Two views, once two panes** (POST-P14co). With several repositories, the repositories and the
+branches were one list at first, and twenty repositories pushed the branches to the foot of the
+panel. The owner then asked for BRANCHES as a pane of its own, folding and resizing like
+REPOSITORIES, with the repositories picked named in the REPOSITORIES header (new-way-6). A second
+VS Code view was offered and the owner chose panes, for that label: VS Code hides a view's header
+description while the view is collapsed, so the names would be missing exactly when the list is
+folded away. The owner later asked for two panels after all, with no label at all:
+* the **Repositories** panel lists the repositories, with no heading and no count. VS Code's
+  header names the panel, the rows' highlight names the pick, and the Branches panel's pill
+  widens it; the owner chose this over a count in the header and over a summary line. It had no
+  toolbar at first; then the owner asked for a filter of its own, by name, at its top, with the
+  Fetch button moved to the filter's right (POST-P14cp, below), and later for a `⋯` of its own
+  holding Update, Commit and Push (POST-P14cq, below);
+* the **Branches** panel has the toolbar (the filter, Repository Dots, New Branch, `⋯`; Fetch
+  too with one repository, which has no Repositories panel, and Update, Commit and Push in its
+  `⋯`), the form and the branches;
+* VS Code folds, sizes and scrolls each. Its divider between them is marked as the one under the
+  Commit window is: a line along the Repositories panel's foot (POST-P14bu);
+* with one repository there is no Repositories panel (`when: gittree.multiRepo`): its current
+  branch heads the Branches panel, as it headed the one list;
+* one pick for both, kept by the host (`reposInView.ts`), which tells each panel of a pick the
+  other made. A repository's New Branch… opens the Branches panel's form. Typing in the
+  Repositories panel went to the Branches panel's filter while it had none of its own; it goes
+  to its own now.
+
+**The Repositories panel's filter** (POST-P14cp). The owner asked for a search box at the top of
+the repositories that filters them by name, and for Fetch (every repository) to move to its
+right. Like the panel itself, it is GitTree's own. Asked, the owner chose:
+* **it only filters the list**: what is picked, and so the Branches panel and the Commit window,
+  stays as it was, over a filter that also narrows the branches while it has text, which would
+  have been a second pick beside the first;
+* **`Enter` shows the first match alone**, as a click on its row does, with the keyboard on its
+  row, over Enter only moving there. It never shows every repository again, as a second click
+  does: a second `Enter` keeps it. `↓` only moves.
+
+Each word must be in the name (the one the panel shows, not its folder), in either case, as in
+the Branches panel's filter; matched letters are marked. With one repository there is no
+Repositories panel, so its Fetch stays in the Branches panel's toolbar.
+
+**The Repositories panel's `⋯`** (POST-P14cq). The owner asked whether items of the Branches
+panel's `⋯` should move to a menu of the Repositories panel, and agreed to move the four that
+act on repositories: Update Project…, Update Project Without Fetching…, Commit… and Push…. They
+act on the repositories picked, and their words follow the pick (*Update 2 Repositories…*), so
+they are read best beside the highlighted rows they mean. The Branches panel's `⋯` keeps the
+work on branches (New Branch…, Checkout Branch in All Repositories…, Clean Up Branches…) and
+the switches for its list; Incoming / Outgoing Counts, one setting that also draws the
+repositories' `↓ ↑`, is in both menus. The new `⋯` sits after Fetch, and a right-click in the
+list's empty space opens it too. As with Fetch, one repository has no Repositories panel and
+keeps the four in the Branches panel's `⋯`: one rule (`repositoryActionsPanel`) decides both,
+so exactly one panel has them. IntelliJ has no such panel; its Branches popup has Update
+Project, Commit and Push at the top, and GitTree's popup keeps the four there, unchanged.
+
+**`@` in the filter picks repositories** (POST-P14co). The owner asked for the Branches panel's
+filter to pick repositories when `@` is typed, from a dropdown of square checkboxes. IntelliJ's
+branch popup and branches tree have no such picker: their search finds branches, not
+repositories. An `@` at the start or after a space
+opens a list of the repositories; what follows narrows it by name. A tick is the same pick as a
+click in the Repositories panel. **Ticked is picked, and none ticked is every repository**: the
+owner chose this over boxes that say what is shown, which made showing one of twenty a matter of
+nineteen unticks. *All repositories*, the first row, goes back to every one. Enter ticks the
+highlighted row and closes the list, so `@api⏎@web⏎` picks two; a click ticks and leaves it open.
+Closing takes the `@` and its words out of the filter. An `@` inside a word is searched for,
+as before, and so is any `@` with one repository.
 
 **Where each branch is, in words** (POST-P14bt). IntelliJ's Branches tree, when it is not grouped
 by repository, writes after a branch that only some repositories have their names in grey,
@@ -1241,7 +1296,7 @@ narrows it. Which roots a commit reaches is decided by the changes ticked.
 
 | IntelliJ | GitTree | Why |
 | --- | --- | --- |
-| Every root's changes are listed | Only the repositories picked: a click on a repository in the Repositories panel, Ctrl+click for several, *Show Only This Repository*. None picked: every one | The owner's request: pick a repository, see and commit just its changes |
+| Every root's changes are listed | Only the repositories picked: a click on a repository in the Repositories panel, Ctrl+click for several, *Show Only This Repository*, or a tick under the Branches panel's `@` (POST-P14co). None picked: every one | The owner's request: pick a repository, see and commit just its changes |
 | — | A bar over the list names the repositories shown, counts the changes left out (as a warning when some are ticked), and has **Show all**; a name brings the Repositories panel up on its row | The pick has to be seen where commits are made, with that panel folded away too |
 | Commit commits every ticked change | Commit, Commit and Push…, Ctrl+Enter and *Commit* from the Command Palette (Ctrl+K) commit only the repositories shown. Ticks out of view are kept, and committed once shown | What you see is what you commit |
 | One commit message | The message box stays the one of the repository being edited, which may be one left out; Amend, its ▾ list, the options and Shelve act on one the list shows | A message typed before narrowing must not disappear; an Amend must amend a repository being committed |

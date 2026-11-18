@@ -127,24 +127,27 @@ arrows move within):
 | Middle-click (tab strip) | close an extra Log tab |
 | Drag / double-click (a column's left border) | resize a column / fit it to its content again. Pointer-only: a width is cosmetic, and the columns themselves are switched from Presentation Settings ▸ Columns (keyboard-reachable) or the `gittree.log.columns.*` settings |
 
-**Repositories panel (`gittree.branches` view, once titled Branches)**
+**Repositories and Branches panels (`gittree.repositoryList` and `gittree.branches`; one panel until POST-P14co)**
 
 | Key | Action |
 | --- | --- |
-| `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through the rows of a pane |
-| `↑` / `↓` (at a pane's first or last row) | on to the pane's header, or past the last repository to the BRANCHES header (several repositories) |
-| `Enter` / `Space` / `←` / `→` (on a pane header) | fold or open the REPOSITORIES or BRANCHES pane; `←` folds, `→` opens; `↓` goes into its list |
+| `↑` / `↓` / `PageUp` / `PageDown` / `Home` / `End` | move through the panel's rows |
+| `↑` (at the top of either panel's list) | back to its filter |
 | `←` / `→` (on the tabs) | switch between Recent, Local, Remote and Tags, round the ends |
 | `→` / `←` | open / close a remote or a folder; on a branch, open / close its card |
 | `Enter` / `Space` | open or close a folder, or a branch's card (a click only selects a branch; a double-click or its chevron opens the card); on a repository, show only its branches (`Ctrl+Enter`: add it to what is shown) |
 | `Escape` (card open) | close the branch's card, the row keeping the focus |
-| Drag / double-click (the line between the panes) | share the height between REPOSITORIES and BRANCHES / go back to the automatic share. Pointer-only, as VS Code's own dividers are; the headers fold and open from the keyboard |
 | `Tab` (card open) | into the card's buttons |
 | `Shift+F10` / context-menu key | the focused row's menu |
 | `F2` / `Delete` | rename / delete the focused local branch (one repository) |
-| any letter, `Ctrl+F` | start filtering (on a pane header too) |
-| `↓` / `Enter` / `Escape` (filter) | into the list / open the first match / clear the filter, then back to the row left |
+| any letter, `Ctrl+F` | start filtering, in the panel's own filter: the repositories in the Repositories panel (POST-P14cp), the branches in the Branches panel |
+| `↓` / `Enter` / `Escape` (Branches panel's filter) | into the list / open the first match / clear the filter, then back to the row left |
+| `↓` / `Enter` / `Escape` (Repositories panel's filter) | to the first match / show the first match alone, the keyboard on its row (a second `Enter` keeps it so) / clear the filter, then back to the row left |
+| `@` (filter, several repositories) | open the list of repositories to pick, narrowed by what follows (POST-P14co) |
+| `↓` / `↑` / `Enter` / `Escape` (`@` list open) | move the highlighted repository, round the ends / tick it and close the list / close it; a click ticks and leaves it open |
 | `Enter` / `Escape` (New Branch form) | create / cancel |
+
+The panels fold, resize and move as VS Code's views do, with VS Code's own keys.
 
 **Push dialog**
 

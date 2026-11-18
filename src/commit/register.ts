@@ -207,7 +207,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // is ticked", which in a multi-root workspace may span repositories — those
   // the Commit window lists (POST-P14ce).
   register('gittree.commit', async (repoRoot) => {
-    // POST-P14by: a list, the Repositories panel's `⋯` with some repositories in
+    // POST-P14by: a list, the Branches panel's `⋯` with some repositories in
     // view: what is ticked in those, with the message typed in the Commit window
     // (whichever repository it is bound to), one commit per repository.
     if (Array.isArray(repoRoot)) {

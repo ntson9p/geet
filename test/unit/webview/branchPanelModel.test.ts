@@ -18,6 +18,7 @@ import {
   compareTags,
   entryKey,
   groupLabel,
+  HINT,
   isPlausibleBranchName,
   longAge,
   matchRanges,
@@ -28,6 +29,7 @@ import {
   relationText,
   remoteTwin,
   repoHint,
+  repositoryActionsPanel,
   ROW,
   scopeReposOf,
   SHORT_WHERE,
@@ -590,6 +592,22 @@ describe('buildPanel: several repositories', () => {
     expect(viewActions([web], [web])).toMatchObject({ roots: [], project: true, commit: 'Commit…', push: 'Push…' });
   });
 
+  it('the actions on every repository in view are the Repositories panel’s whenever it is there (POST-P14cq)', () => {
+    // Fetch, and the ⋯'s Update, Commit and Push: with several repositories, the
+    // Repositories panel's, where the pick they act on is made…
+    expect(repositoryActionsPanel(2)).toBe('repositories');
+    expect(repositoryActionsPanel(20)).toBe('repositories');
+    // …and with one, which has no Repositories panel (`gittree.multiRepo`), or none
+    // yet, the Branches panel's: exactly one panel has them, never both or neither.
+    expect(repositoryActionsPanel(1)).toBe('branches');
+    expect(repositoryActionsPanel(0)).toBe('branches');
+    // The same line the model draws between one repository and several.
+    expect(repositoryActionsPanel(state([api, web]).repos.length)).toBe('repositories');
+    expect(buildPanel(state([api, web]), ui()).multi).toBe(true);
+    expect(repositoryActionsPanel(state([web]).repos.length)).toBe('branches');
+    expect(buildPanel(state([web]), ui()).multi).toBe(false);
+  });
+
   it('a scope naming no open repository means every repository', () => {
     expect(scopeReposOf([api, web], ['/gone']).map((r) => r.root)).toEqual(['/api', '/web']);
   });
@@ -600,6 +618,67 @@ describe('buildPanel: several repositories', () => {
     const lines = cardLines(main, { markers: true, scopeRepos: [api, web] });
     expect(lines.map((l) => l.kind)).toEqual(['commit', 'group', 'group']);
     expect(cardHeight(lines)).toBe(CARD_PAD + 3 * CARD_LINE + CARD_BUTTONS);
+  });
+});
+
+describe("buildPanel: the Repositories panel's filter (POST-P14cp)", () => {
+  const busy = repo('/busy', { head: 'main', operation: { kind: 'rebase', conflicts: 1 } });
+  const webApp = repo('/web-app', { head: 'main' });
+  const four = [api, busy, web, webApp];
+  const repoRowsOf = (repoQuery: string, extra: Partial<PanelUiState> = {}) =>
+    buildPanel(state(four), ui({ repoQuery, ...extra })).repoRows;
+  const marks = (rows: readonly PanelRow[]) => rows.map((r) => (r.kind === 'repo' ? r.highlights : undefined));
+
+  it('lists only the repositories whose names hold every word, the matched letters marked', () => {
+    const rows = repoRowsOf('web');
+    expect(ids(rows)).toEqual(['repo:/web', 'repo:/web-app']);
+    expect(marks(rows)).toEqual([[[0, 3]], [[0, 3]]]);
+    // Each word anywhere in the name, in any order and either case.
+    const both = repoRowsOf('APP web');
+    expect(ids(both)).toEqual(['repo:/web-app']);
+    expect(marks(both)).toEqual([[[0, 3], [4, 7]]]);
+  });
+
+  it('lists every repository, nothing marked, while the filter is empty or blank', () => {
+    expect(kinds(repoRowsOf(''))).toEqual(['repo', 'repo', 'operation', 'repo', 'repo']);
+    expect(ids(repoRowsOf('   '))).toEqual(ids(repoRowsOf('')));
+    expect(marks(repoRowsOf('')).filter((m) => m !== undefined && m.length > 0)).toEqual([]);
+  });
+
+  it('keeps a banner with its repository: shown with it, hidden with it', () => {
+    expect(ids(repoRowsOf('bus'))).toEqual(['repo:/busy', 'op:/busy']);
+    expect(ids(repoRowsOf('api'))).toEqual(['repo:/api']);
+  });
+
+  it('matches the name the panel shows, not the folder the repository is in', () => {
+    const lib = repo('/work/lib', { label: 'lib' });
+    expect(kinds(buildPanel(state([api, lib]), ui({ repoQuery: 'work' })).repoRows)).toEqual(['hint']);
+    expect(ids(buildPanel(state([api, lib]), ui({ repoQuery: 'LI' })).repoRows)).toEqual(['repo:/work/lib']);
+  });
+
+  it('says so when no name matches, and offers nothing to create', () => {
+    expect(repoRowsOf(' nope ')).toEqual([
+      { kind: 'hint', id: 'hint:repos', text: 'No repository matches “nope”.', height: HINT },
+    ]);
+  });
+
+  it('picks nothing and hides no branch: the pick, and so the branches, stay as they were', () => {
+    const picked = { scope: ['/api'], tab: 'local' as const };
+    const plain = buildPanel(state(four), ui(picked));
+    const filtered = buildPanel(state(four), ui({ ...picked, repoQuery: 'web' }));
+    // api, the one picked, is out of the list and still the one in view.
+    expect(ids(filtered.repoRows)).toEqual(['repo:/web', 'repo:/web-app']);
+    expect(filtered.scopeRepos.map((r) => r.root)).toEqual(['/api']);
+    expect(filtered.branchRows).toEqual(plain.branchRows);
+    // A row it lists still says whether it is picked.
+    expect(filtered.repoRows.map((r) => (r.kind === 'repo' ? [r.inScope, r.narrowed] : []))).toEqual([
+      [false, true],
+      [false, true],
+    ]);
+  });
+
+  it("leaves one repository's current branch, which heads the Branches panel, alone", () => {
+    expect(kinds(buildPanel(state([web]), ui({ repoQuery: 'zzz' })).repoRows)).toEqual(['head']);
   });
 });
 
@@ -850,6 +929,9 @@ describe('ordering, buttons and words', () => {
     for (const bad of ['', 'has space', '-x', 'x/', 'x.', 'a..b', 'a~b', 'a:b']) {
       expect(isPlausibleBranchName(bad)).toBe(false);
     }
+    // POST-P14co: git refuses `@` alone and `@{`; an `@` elsewhere is a name like any.
+    for (const bad of ['@', 'a@{b', '@{u}']) expect(isPlausibleBranchName(bad), bad).toBe(false);
+    for (const good of ['user@feature', '@team/x']) expect(isPlausibleBranchName(good), good).toBe(true);
   });
 });
 

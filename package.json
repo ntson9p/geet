@@ -4134,6 +4134,15 @@
           "initialSize": 3
         },
         {
+          "id": "gittree.repositoryList",
+          "name": "%gittree.view.repositoryList.name%",
+          "contextualTitle": "GitTree",
+          "icon": "$(repo)",
+          "type": "webview",
+          "initialSize": 1,
+          "when": "gittree.multiRepo"
+        },
+        {
           "id": "gittree.repositories",
           "name": "%gittree.view.repositories.name%",
           "contextualTitle": "GitTree",
@@ -4145,7 +4154,7 @@
           "id": "gittree.branches",
           "name": "%gittree.view.branches.name%",
           "contextualTitle": "GitTree",
-          "icon": "$(repo)",
+          "icon": "$(git-branch)",
           "type": "webview",
           "initialSize": 2
         },

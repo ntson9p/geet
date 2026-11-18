@@ -399,7 +399,7 @@ export async function runCommitFlow(
  * anything ticked takes part.
  *
  * `options.roots` (POST-P14by) narrows it to those repositories, by canonical
- * root, whatever list is ticked: the Repositories panel's `⋯` with some of them
+ * root, whatever list is ticked: the Branches panel's `⋯` with some of them
  * in view, and since POST-P14ce the Commit window's own Commit, Commit and
  * Push and Ctrl+K while its list is narrowed to them. `messageRepo` may lie
  * outside them; the message the user typed is still the one used, and its
