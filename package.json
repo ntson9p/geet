@@ -37,7 +37,15 @@
     "scm",
     "changelists",
     "rebase",
-    "merge"
+    "merge",
+    "log",
+    "graph",
+    "branches",
+    "blame",
+    "shelve",
+    "stash",
+    "history",
+    "intellij"
   ],
   "main": "./dist/extension.js",
   "workspaces": [
@@ -4267,7 +4275,8 @@
     "pretest:perf": "node esbuild.mjs && npm run build:webviews && tsc -p tsconfig.integration.json",
     "test:perf": "node ./out/test/perf/runPerf.js",
     "package": "node scripts/package.mjs",
-    "postpackage": "node scripts/checkBundleSize.mjs"
+    "postpackage": "node scripts/checkBundleSize.mjs",
+    "screenshots": "node scripts/screenshots/capture.mjs"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

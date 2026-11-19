@@ -26,6 +26,11 @@ The first release on the Visual Studio Marketplace, as a **pre-release** (an odd
   old one.
 - The Marketplace description no longer lists code review, which was not built (see the
   README).
+- **The README shows GitTree at work**: eight screenshots of a real VS Code — the Commit
+  window, the Log, the branches popup, interactive rebase, Push, the three-pane merge and blame
+  — in place of two pictures of the webviews alone. `npm run screenshots` takes them again
+  ([docs/screenshots.md](docs/screenshots.md)); they are not in the VSIX, which is smaller for
+  it.
 
 ### Changed — Update, Commit and Push are in the Repositories panel's `⋯`
 
