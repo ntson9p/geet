@@ -2657,3 +2657,17 @@ Testing (written, **not run**, by the owner's standing instruction):
   - Changed: the name and display name; the lock's name as well as its version; the ID scan knows `ntson9p.geet`.
 - Also changed: `walkthrough.test.ts` (`ntson9p.geet`); `screenshots.test.ts` (the work folder and its marker).
 - **Elsewhere:** 59 more unit, integration, perf and Playwright files say Geet where they said GitTree.
+
+POST-P14cu ✅ 2026-11-21 (branch `marketplace`): **Help and Report Issue open the real repository.** Found while checking the rename. They went to `github.com/gittree/git-tree-vsix`, the placeholder repository POST-P14cr replaced in the manifest but not in `src/core/errorUx.ts`. That covers an error message's **Help** and **Report Issue** buttons, and *Geet: Report Issue (Sanitized)*. Both addresses (`DOCS_BASE`, `NEW_ISSUE_BASE`) are now on `github.com/ntson9p/git-tree`, and a CHANGELOG `[0.1.0]` bullet says so. It has its own commit: it finishes POST-P14cr's work and is not part of the rename.
+
+**Checked:** the repackaged VSIX's compiled code has both addresses and no placeholder. Every Help link's file and heading exist.
+
+Gates: typecheck (root, webview, integration) clean; lint of the touched files clean.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `errorUx.test.ts` (+3):
+  - Report Issue opens a new issue under package.json's `bugs.url`;
+  - Help opens the docs under its `repository`, on `main`;
+  - every Help link names a file in `docs/` and a heading in it, by GitHub's anchor rule.
+  - The new-issue link's test expects the new address.
+- **Integration:** `phase10.test.ts` expects the new address.

@@ -27,6 +27,9 @@ The first release on the Visual Studio Marketplace, as a **pre-release** (an odd
   manifest, so VS Code says why on the extension's page.
 - **Geet: Getting Started Walkthrough** opens the walkthrough under the new ID; it named the
   old one.
+- **An error message's Help and Report Issue buttons**, and **Geet: Report Issue
+  (Sanitized)**, open this project's GitHub pages; they went to a placeholder address that
+  does not exist.
 - The Marketplace description no longer lists code review, which was not built (see the
   README).
 - **The README shows Geet at work**: eight screenshots of a real VS Code — the Commit

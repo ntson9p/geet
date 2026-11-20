@@ -235,7 +235,7 @@ suite('P10 telemetry & error UX', () => {
 
   test('T4: pre-filled issue URL carries environment but no raw paths', async () => {
     const url = reg.buildIssueUrl('auth');
-    assert.ok(url.startsWith('https://github.com/gittree/git-tree-vsix/issues/new?'));
+    assert.ok(url.startsWith('https://github.com/ntson9p/git-tree/issues/new?'));
     const decoded = decodeURIComponent(url).replaceAll('+', ' ');
     assert.ok(decoded.includes('error kind: auth'));
     assert.ok(decoded.includes('Geet: '));

@@ -11,7 +11,11 @@
 import { createHash } from 'node:crypto';
 import type { GitErrorKind } from './git/errors';
 
-export const DOCS_BASE = 'https://github.com/gittree/git-tree-vsix/blob/main/docs';
+/**
+ * The repository's docs on GitHub. Like {@link NEW_ISSUE_BASE}, held by a unit test to
+ * package.json's `repository`, and each link below to a heading that exists.
+ */
+export const DOCS_BASE = 'https://github.com/ntson9p/git-tree/blob/main/docs';
 
 /** Every GitErrorKind has a docs anchor — the compiler enforces coverage. */
 export const ERROR_DOCS: Record<GitErrorKind, string> = {
@@ -24,7 +28,8 @@ export const ERROR_DOCS: Record<GitErrorKind, string> = {
   'unknown': `${DOCS_BASE}/faq.md`,
 };
 
-const NEW_ISSUE_BASE = 'https://github.com/gittree/git-tree-vsix/issues/new';
+/** package.json's `bugs.url`, then `/new`. */
+export const NEW_ISSUE_BASE = 'https://github.com/ntson9p/git-tree/issues/new';
 
 /** Windows drive paths, UNC paths, POSIX absolute paths, ~-relative paths. */
 const PATH_RE = /(?:[A-Za-z]:[\\/]|\\\\|\/(?!\/)|~[\\/])[^\s'"`|<>]*/g;
