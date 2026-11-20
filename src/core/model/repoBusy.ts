@@ -1,6 +1,6 @@
 /**
  * Whether a repository can take a branch operation now (POST-P14ax), and why
- * not, in the words every GitTree summary uses for it. vscode-free, so the rule
+ * not, in the words every Geet summary uses for it. vscode-free, so the rule
  * is unit-tested.
  *
  * A merge or rebase in progress is one reason. Conflicts with no operation

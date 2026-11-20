@@ -161,7 +161,7 @@ export function typedTarget(ctx: TargetContext, remote: string, branch: string):
   return { remote, branch, isNew: !exists(ctx, remote, branch), type: 'custom' };
 }
 
-/** IntelliJ lists at most this many outgoing commits for a new branch; GitTree for any. */
+/** IntelliJ lists at most this many outgoing commits for a new branch; Geet for any. */
 export const MAX_OUTGOING_COMMITS = 1000;
 
 /**

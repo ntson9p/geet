@@ -1,5 +1,5 @@
 /**
- * Which repository the GitTree sidebar's Repositories and Branches sections
+ * Which repository the Geet sidebar's Repositories and Branches sections
  * are showing (POST-P14u).
  *
  * **This is a view filter, not a mode.** It scopes those two sections and

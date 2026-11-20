@@ -37,21 +37,21 @@ const settings = Object.assign({}, ...manifest.contributes.configuration.map((s)
 
 const GENERATE = 'gittree.commit.generateMessage';
 const CHOOSE = 'gittree.commit.chooseMessageModel';
-/** Offered while GitTree's setting is on and VS Code's AI features are not off. */
+/** Offered while Geet's setting is on and VS Code's AI features are not off. */
 const WHEN = 'config.gittree.commit.messageGeneration.enabled && !config.chat.disableAIFeatures';
 
 describe('Generate Commit Message, in the manifest', () => {
   it('has its command, named as VS Code names Copilot’s own, with the sparkle', () => {
     const command = manifest.contributes.commands.find((c) => c.command === GENERATE);
     expect(text(command?.title)).toBe('Generate Commit Message');
-    expect(command?.category).toBe('GitTree');
+    expect(command?.category).toBe('Geet');
     expect(command?.icon).toBe('$(sparkle)');
   });
 
   it('has a command to choose the model again', () => {
     const command = manifest.contributes.commands.find((c) => c.command === CHOOSE);
     expect(text(command?.title)).toBe('Choose the Model for Commit Messages…');
-    expect(command?.category).toBe('GitTree');
+    expect(command?.category).toBe('Geet');
   });
 
   it('offers both in the palette only while the setting is on and VS Code’s AI features are not off', () => {

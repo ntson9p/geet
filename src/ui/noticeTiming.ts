@@ -1,5 +1,5 @@
 /**
- * How long GitTree's plain notices stay on screen (new-way-6). Pure, so every
+ * How long Geet's plain notices stay on screen (new-way-6). Pure, so every
  * rule is unit-tested; `notices.ts` shows them.
  *
  * VS Code hides an extension's information toast after 10 seconds (15 before
@@ -7,7 +7,7 @@
  * again when it gets there late, and never hides a toast under the pointer, so
  * *Fetch successful* could sit in the corner for a minute. An extension can
  * neither set that time nor take one toast down. A notice with nothing to
- * click is shown instead as a progress notification that GitTree ends on its
+ * click is shown instead as a progress notification that Geet ends on its
  * own clock: `gittree.notifications.durationSeconds` while VS Code is in
  * front, a little longer for a long one.
  */

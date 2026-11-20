@@ -1,7 +1,7 @@
 /**
  * Move to Another Changelist…'s choices (IntelliJ's `ChangeListChooser` in
  * `MoveChangesToAnotherListAction`), for files that may span several
- * repositories. GitTree keeps a changelist per repository (D23) and the
+ * repositories. Geet keeps a changelist per repository (D23) and the
  * Commit window merges them by name, the default list by being the default;
  * the picker merges the same way, so one choice is one row of the tree.
  * Free of `vscode`, so the merging is unit-tested.

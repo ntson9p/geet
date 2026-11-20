@@ -1,5 +1,5 @@
 /**
- * The one registry of GitTree's dialogs (P13-T4 step 6). P13-T7's VCS
+ * The one registry of Geet's dialogs (P13-T4 step 6). P13-T7's VCS
  * Operations Popup enumerates *this* rather than a hand-maintained list, so a
  * dialog added later cannot silently go missing from the hub — the gap analysis
  * §1 blames exactly that kind of hand-kept inventory for the parity drift.

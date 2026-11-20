@@ -1,5 +1,5 @@
 /**
- * POST-QA F6: GitTree: Pull says how to reconcile when git's config does not,
+ * POST-QA F6: Geet: Pull says how to reconcile when git's config does not,
  * and stays out of the way when it does.
  */
 import { afterEach, describe, expect, it } from 'vitest';
@@ -26,7 +26,7 @@ describe('pullStrategyArgs', () => {
   it('merges explicitly when nothing is configured', async () => {
     const r = repo();
     // Asked through the same executor: a machine-wide pull.rebase (Git for
-    // Windows' installer writes one) decides before GitTree would.
+    // Windows' installer writes one) decides before Geet would.
     const machine = await git.exec(r.root, ['config', '--get-regexp', '^pull\\.'], { allowNonZeroExit: true });
     const expected = machine.stdout.trim().length > 0 ? [] : ['--no-rebase'];
     expect(await pullStrategyArgs(git, r.root, 'main')).toEqual(expected);

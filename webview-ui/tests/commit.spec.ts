@@ -807,7 +807,7 @@ test.describe('P11-T5 commit options gear popup', () => {
   });
 
   test('every check starts unticked, and the fields beside them greyed', async ({ page }) => {
-    // POST-P14bg (D38): IntelliJ ticks Analyze code and Check TODO; GitTree ticks none.
+    // POST-P14bg (D38): IntelliJ ticks Analyze code and Check TODO; Geet ticks none.
     await openOptions(page);
     for (const id of ['reformat', 'optimizeImports', 'cleanup', 'analyze', 'todo']) {
       await expect(page.getByTestId(`opt-${id}`), id).not.toBeChecked();
@@ -876,7 +876,7 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
       'color',
       'rgb(255, 136, 0)',
     );
-    // …while untracked stays on GitTree's own theme colour.
+    // …while untracked stays on Geet's own theme colour.
     const untrackedStyle = await row(page, '2.txt')
       .locator('.gt-tree-name')
       .getAttribute('style');

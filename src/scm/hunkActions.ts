@@ -116,7 +116,7 @@ export function registerHunkActions(context: vscode.ExtensionContext, core: Core
     }),
 
     vscode.commands.registerCommand('gittree.hunk.openCommitView', async () => {
-      // P14-T1: GitTree's views moved out of VS Code's SCM container into our
+      // P14-T1: Geet's views moved out of VS Code's SCM container into our
       // own; reveal the container so whichever commit surface is visible shows.
       await vscode.commands.executeCommand('workbench.view.extension.gittree');
     }),

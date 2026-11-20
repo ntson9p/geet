@@ -7,15 +7,16 @@ import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import * as vscode from 'vscode';
 import type { Core } from '../../src/core/core';
-import type { GitTreeApi } from '../../src/extension';
+import type { GeetApi } from '../../src/extension';
+import { EXTENSION_ID } from './extensionId';
 
 let cached: Core | undefined;
 
-/** Activates GitTree and resolves the initialized Core (discovery complete). */
-export async function activateGitTree(): Promise<Core> {
+/** Activates Geet and resolves the initialized Core (discovery complete). */
+export async function activateGeet(): Promise<Core> {
   if (cached) return cached;
-  const ext = vscode.extensions.getExtension<GitTreeApi>('gittree.gittree');
-  assert.ok(ext, 'extension gittree.gittree not found');
+  const ext = vscode.extensions.getExtension<GeetApi>(EXTENSION_ID);
+  assert.ok(ext, `extension ${EXTENSION_ID} not found`);
   const api = await ext.activate();
   const corePromise = api.getCore();
   assert.ok(corePromise, 'getCore() hook unavailable — GITTREE_TEST not set?');

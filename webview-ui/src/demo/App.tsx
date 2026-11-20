@@ -1,7 +1,7 @@
 /**
  * P0-T9 demo app: exercises every kit piece — theme variables, codicons,
  * Toolbar/FilterChip, VirtualList @100k rows, RPC echo, state persistence,
- * data-vscode-context. Opened by "GitTree: Open Webview Demo (Debug)".
+ * data-vscode-context. Opened by "Geet: Open Webview Demo (Debug)".
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEMO_METHODS } from '../../../src/shared/protocol';

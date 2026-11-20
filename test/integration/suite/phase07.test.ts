@@ -17,7 +17,7 @@ import type {
   CommitStashFileDto,
   CommitStashStateDto,
 } from '../../../src/shared/protocol';
-import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
 
 interface Phase07RegistryShape {
   getStashService(repoRoot: string): StashService | undefined;
@@ -66,7 +66,7 @@ suite('P7 stash & shelve — StashService', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(workspaceRepoB())!;
     assert.ok(repo, 'repoB not discovered');
     repoRoot = repo.root;
@@ -324,7 +324,7 @@ suite('P7 stash & shelve — StashService', () => {
     for (const child of children) {
       const item = reg07.stashViewProvider.getTreeItem(child);
       assert.strictEqual(item.command?.command, 'vscode.diff');
-      // POST-P14cd: GitTree's own address, marked with what the stash did to
+      // POST-P14cd: Geet's own address, marked with what the stash did to
       // the file, so no other extension marks the row with its status now.
       if (child.kind === 'file') {
         assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
@@ -392,7 +392,7 @@ suite('P7 stash & shelve — ShelfStore', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     repo = core.repoForPath(workspaceRepoB())!;
     assert.ok(repo, 'repoB not discovered');
     repoRoot = repo.root;
@@ -610,7 +610,7 @@ suite('P7 stash & shelve — Shelf UI', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(workspaceRepoB())!;
     repoRoot = repo.root;
     ui = core.debugRegistry.get('phase07') as Phase07ShelfUiShape;
@@ -776,7 +776,7 @@ suite('P7 stash & shelve — Unshelve engine', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     repo = core.repoForPath(workspaceRepoB())!;
     assert.ok(repo, 'repoB not discovered');
     repoRoot = repo.root;

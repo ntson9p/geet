@@ -246,7 +246,7 @@ describe('GitExecutorImpl and GIT_LITERAL_PATHSPECS', () => {
 describe('resolveGitCandidates', () => {
   it('orders the setting first, then PATH, then well-known locations', () => {
     // P14-T5 removed the built-in `git.path` fallback that used to sit between
-    // `gittree.gitPath` and PATH — GitTree reads no `git.*` configuration.
+    // `gittree.gitPath` and PATH — Geet reads no `git.*` configuration.
     const c = resolveGitCandidates({
       gittreeGitPath: 'X:\\custom\\git.exe',
       platform: 'win32',

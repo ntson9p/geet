@@ -10,7 +10,7 @@ import {
 } from '../../fixtures/fixtureRepo';
 import { detectInProgressOp } from '../../../src/core/model/inProgressOp';
 import { parseStatusV2 } from '../../../src/core/git/parsers/statusV2';
-import { activateGitTree, workspaceRepoA } from '../setup';
+import { activateGeet, workspaceRepoA } from '../setup';
 
 /**
  * P0-T10: the fixture builder and canned histories, exercised on the CI
@@ -24,7 +24,7 @@ suite('P0-T10 test harness & fixture repos', () => {
 
   test('sample acceptance: activate → model has HEAD', async function () {
     this.timeout(30_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const repo = core.repoForPath(workspaceRepoA());
     assert.ok(repo, 'workspace repoA not discovered');
     assert.match(repo.model.snapshot.headSha ?? '', /^[0-9a-f]{40}$/);

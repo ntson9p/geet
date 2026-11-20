@@ -84,7 +84,7 @@ function literalVariable(
  * The argv to run in this environment. With `GIT_LITERAL_PATHSPECS` on, git
  * reads every pathspec literally on its own and turns magic off as well, so
  * `:(literal)` would become part of the name: the prefix comes off again.
- * Only after `--`, where GitTree's pathspecs always are — a commit message or
+ * Only after `--`, where Geet's pathspecs always are — a commit message or
  * a stash's name before it is never touched.
  */
 export function pathspecsForEnvironment(

@@ -1,6 +1,6 @@
 /**
  * Merge · Rebase · Reset · Rollback dialogs, host halves (P13-T3, gap analysis
- * S4). These four are the biggest power-user gap in the audit: GitTree could
+ * S4). These four are the biggest power-user gap in the audit: Geet could
  * run all four operations, but every real git flag behind them was unreachable.
  *
  * Each dialog follows the shape T1/T2 settled on — a vscode-free argv builder

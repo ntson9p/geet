@@ -30,7 +30,7 @@ import {
 
 /**
  * P13-T3 accept: "argv assembly per option matrix (one test per flag, plus
- * mutually exclusive pairs rejected)". These are the flags S4 says GitTree
+ * mutually exclusive pairs rejected)". These are the flags S4 says Geet
  * hides entirely today, so every one of them gets its own assertion.
  */
 

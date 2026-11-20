@@ -32,7 +32,7 @@ describe('the model the setting names', () => {
     expect(modelKey(GPT)).toBe('copilot/gpt-4.1');
   });
 
-  it('is found by what GitTree writes, whatever its case and the spaces around it', () => {
+  it('is found by what Geet writes, whatever its case and the spaces around it', () => {
     expect(findModel(ALL, 'copilot/gpt-4.1')).toBe(GPT);
     expect(findModel(ALL, ' Copilot/GPT-4.1 ')).toBe(GPT);
   });

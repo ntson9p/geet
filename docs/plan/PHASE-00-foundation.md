@@ -1,6 +1,6 @@
 # Phase 0 — Foundation & Infrastructure
 
-**Goal:** Everything later phases build on: git execution, parsing, repository model, operation queue, watchers, coexistence mode, credentials, webview platform, and the test harness. No user-visible Git features yet (a hidden "GitTree: Show Repository State" debug command is the only surface).
+**Goal:** Everything later phases build on: git execution, parsing, repository model, operation queue, watchers, coexistence mode, credentials, webview platform, and the test harness. No user-visible Git features yet (a hidden "Geet: Show Repository State" debug command is the only surface).
 
 **Depends on:** nothing. **Blocks:** every other phase.
 
@@ -28,7 +28,7 @@
 2. `exec`/`stream` per §8 contract. Spawn env: `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0` when `noOptionalLocks`, `LC_ALL=C` **only** for commands we parse structurally, askpass vars (T8). Base args: `-c core.quotepath=false -c color.ui=false`.
 3. `stream` frames on NUL or LF (caller picks); backpressure by pausing stdout; cancellation kills process tree (`taskkill /T /F` on win).
 4. `classifyStderr()` → `GitError.kind` for: index.lock, `would be overwritten by checkout`, `CONFLICT`, auth prompts/`terminal prompts disabled`, `non-fast-forward`, `no upstream`.
-5. Structured trace logging to OutputChannel "GitTree" (argv, duration, exit code; never contents/secrets).
+5. Structured trace logging to OutputChannel "Geet" (argv, duration, exit code; never contents/secrets).
 **Accept:** unit tests for classification table; integration test runs `git version`, `git status` on fixture; cancellation kills mid-`git log` stream on all OSes.
 
 ### P0-T3 · Porcelain parsers
@@ -75,7 +75,7 @@
 **Output files:** `src/core/modeManager.ts`, `src/core/repoDiscovery.ts`, additions to `extension.ts`.
 **Steps:**
 1. Discover repos: workspace folders + parent-walk (`git rev-parse --show-toplevel`), `onDidChangeWorkspaceFolders`; handle nested repos (outermost wins unless both open).
-2. ModeManager: state machine {unset → prompt-once → takeover|companion}; takeover writes `git.enabled: false` (workspace) **after** modal consent (buttons: "Use GitTree" / "Keep both" / "Later"); exposes `mode` + `onDidChangeMode`; persists in `workspaceState`.
+2. ModeManager: state machine {unset → prompt-once → takeover|companion}; takeover writes `git.enabled: false` (workspace) **after** modal consent (buttons: "Use Geet" / "Keep both" / "Later"); exposes `mode` + `onDidChangeMode`; persists in `workspaceState`.
 3. Debug command `gittree.debug.showState` dumps model JSON to an untitled doc.
 **Accept:** multi-root fixture discovers 2 repos; consent flow writes setting only on accept; declining leaves built-in untouched and sets companion.
 
@@ -110,7 +110,7 @@
 ---
 
 ## Contributions added this phase
-`gittree.debug.showState` command (hidden from palette via `when: config.gittree.trace`), OutputChannel "GitTree". Nothing else user-visible.
+`gittree.debug.showState` command (hidden from palette via `when: config.gittree.trace`), OutputChannel "Geet". Nothing else user-visible.
 
 ## Parity checklist
 - [x] Infrastructure only — no FEATURES.md items land here, but §4 master invariants (queue, watcher, suppression, retry) all demonstrably work. (Queue serialization + lock retry: `test/unit/core/ops/operationQueue.test.ts`; watcher → refresher → model incl. suppression: `test/unit/core/ops/statusRefresher.test.ts` + `test/integration/suite/watchRefresh.test.ts`.)

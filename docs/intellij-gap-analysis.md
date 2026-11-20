@@ -1,4 +1,4 @@
-# GitTree vs. IntelliJ IDEA Git — gap analysis
+# Geet vs. IntelliJ IDEA Git — gap analysis
 
 Investigation date: 2026-08-20. Compared against JetBrains' own IntelliJ IDEA
 documentation (sources at the bottom), twelve reference screenshots of a live
@@ -18,7 +18,7 @@ Legend: **✅** IntelliJ-equivalent · **🟡** present but different form / par
 
 ## 0. The one-paragraph answer
 
-**Original finding (2026-08-20).** GitTree was at 100% parity with
+**Original finding (2026-08-20).** Geet was at 100% parity with
 [FEATURES.md](../FEATURES.md) — and that was the problem. `FEATURES.md` was an ~8-section
 summary of IntelliJ's Git integration, not its feature surface; JetBrains' own docs describe
 roughly **6–8× more**. Worse, almost every feature that *was* specified got built in **VS Code
@@ -59,7 +59,7 @@ Concretely, from JetBrains' Log tab docs alone: IntelliJ's Log tab has **4 panes
 an 11-item Branches toolbar, an 18-item Branches context menu, an 11-item Commits
 toolbar, 11 presentation/highlight options, a **28-item** commit context menu, a
 5-item Changed Files toolbar and a 12-item Changed Files context menu.
-GitTree's log is a single panel webview with a filter bar, a graph, and a details
+Geet's log is a single panel webview with a filter bar, a graph, and a details
 panel, and about 12 context-menu actions.
 
 ---
@@ -69,7 +69,7 @@ panel, and about 12 context-menu actions.
 This section matters more than any individual missing feature. These are the
 container-level decisions that set the product's character.
 
-| # | IntelliJ | GitTree before Tier 1 | Status after Tier 1 |
+| # | IntelliJ | Geet before Tier 1 | Status after Tier 1 |
 | --- | --- | --- | --- |
 | S1 | **Commit tool window** (`Alt+0`): one panel with file tree, large message editor, toolbar, gear options, and an inline diff preview | VS Code SCM sidebar plus the **native SCM input box**; options scattered across `scm/title` menus and the command palette | **CLOSED (P11).** One `gittree.commit` tool window: `Commit \| Shelf` tabs, toolbar strip, tri-state change tree, message editor, options gear. `commit.window: "native"` restores the old surface. |
 | S2 | **Git tool window** (`Alt+9`): 4 synchronized panes — Branches, Commits, Changed Files, Commit Details — plus Console / History / Repository / Update Info tabs | One webview in the bottom **panel**: filter bar + graph rows + details panel | **CLOSED (P12).** Bottom-docked `gittree-panel` webview with `Log \| Console` tabs and four panes — Branches, Commits, Changed Files, Commit Details — in nested persisted splitters, each with its own toolbar. |
@@ -80,7 +80,7 @@ container-level decisions that set the product's character.
 | S7 | **Files Merged with Conflicts** dialog: per-file *Accept Yours / Accept Theirs / Merge…*, plus resolve-all-simple | `gittree.conflicts` **tree view** in the SCM container with equivalent actions | **CLOSED (P13-T8).** `Files Merged with Conflicts` dialog gate once per session; the `gittree.conflicts` tree view retained as the persistent surface. |
 | S8 | VCS widget sits in the **top-left main toolbar** (New UI) as `<project> ▾  ⑂ <branch> ▾`, with incoming (blue) / outgoing (green) arrows | Bottom **status bar** item with ahead/behind counts | **ACCEPTED DEVIATION (D4).** VS Code has no top-toolbar surface; the widget stays in the status bar. |
 | S9 | **File status colors**: 15 named statuses with per-theme colors, customizable on a settings page; directories with modified descendants highlighted | VS Code `FileDecorationProvider` badges | **PARTIAL (P11-T8, D6).** Status colors derive from the theme's own `gitDecoration-*` variables with per-status user overrides; IntelliJ's 15-status settings page has no analogue. |
-| S10 | **Console tab** in the tool window showing every executed git command and its output | One `GitTree` output channel | **CLOSED (P12-T8).** `Console` tab beside `Log`, a redacted 2 000-entry ring of every executed git command. Read-only by design (D10). |
+| S10 | **Console tab** in the tool window showing every executed git command and its output | One `Geet` output channel | **CLOSED (P12-T8).** `Console` tab beside `Log`, a redacted 2 000-entry ring of every executed git command. Read-only by design (D10). |
 | S11 | **Checkbox inclusion model everywhere**: tri-state checkboxes on the Changes group, on every **folder** node, on every file — *and on every individual change inside the diff* (`2 differences, 0 included`). What you commit is what is ticked. | Partly present, and the parts that are missing are the load-bearing ones. `changelistsView.ts` does put `TreeItemCheckboxState` on changelist and file rows — but (a) there are **no folder nodes at all** (`getChildren` returns files straight off the list; the directory is a dim suffix), (b) `TreeItemCheckboxState` has **no partial state**, so a half-ticked list renders unticked (`changelistsView.ts:113`), (c) **unversioned files get no checkbox** (`:159`), so an untracked file cannot be included by ticking it, and (d) there is no per-change checkbox anywhere | **CLOSED (P11-T2/T3).** Tri-state checkboxes on group, folder and file rows, and per-change include checkboxes with `N differences, M included`. |
 | S12 | Every tree node carries a **file-count badge** (`Changes 2 files`, `api 4 files`), in the commit window, the push dialog and the log's Changed Files pane | Present on changelist and Unversioned nodes (`changelistsView.ts:107`); absent on folder nodes (there are none) and in the log's Changed Files list | **CLOSED (P11-T8, P12-T3).** File-count badges on every folder row, in the commit window, the push dialog and the log's Changed Files pane. |
 | S13 | **Two tool windows with tabs**: Commit (left) holds `Commit \| Shelf`; Git (bottom) holds `Log \| Console`. Related surfaces are tabs in one window | **Seven separate tree views stacked in the SCM container** (changelists, branches, compare, localHistory, conflicts, stashes, shelf) plus one log webview in the panel | **CLOSED (P11-T2/T6, P12-T1).** Two tool windows with tabs; the standalone trees remain available for the surfaces that still warrant one. |
@@ -124,7 +124,7 @@ the "shape" acceptance criterion for any rework.
 +------------------------------------------+
 ```
 
-The dock position is **left, vertical** — which is where GitTree already puts its
+The dock position is **left, vertical** — which is where Geet already puts its
 SCM view. The gap is content, not placement.
 
 ### Diff opened *from* the commit window
@@ -288,7 +288,7 @@ buttons.
 +---------------------------------------------------------+
 ```
 
-Two of these are plain git features GitTree simply lacks: **`Author:`** (`--author=`)
+Two of these are plain git features Geet simply lacks: **`Author:`** (`--author=`)
 and **`Sign-off commit`** (`-s`). `Run advanced checks after a commit is done` is a
 real behaviour switch — checks move from gating to reporting. The rest
 (copyright, malicious dependencies, Run Configuration, `Upload files to`) are
@@ -325,7 +325,7 @@ and the amend row reads `[ ] Amend  last commit v  (clock)`.
 
 A dialog that is also a diff viewer and also a commit-message editor. The
 per-change checkboxes are the same inclusion model as the commit window, which is
-why **partial shelve** works in IntelliJ and cannot work in GitTree today.
+why **partial shelve** works in IntelliJ and cannot work in Geet today.
 
 ### Branch row `>` submenu — expanded (on `feature/f1-1`, current branch `master`)
 
@@ -354,7 +354,7 @@ why **partial shelve** works in IntelliJ and cannot work in GitTree today.
 Eleven actions per branch, with the *other* branch's name interpolated into the
 label so the direction of every operation is unambiguous
 (`Rebase 'master' onto 'feature/f1-1'` vs `Merge 'feature/f1-1' into 'master'`).
-GitTree's rows have none of this. Two items are whole missing capabilities:
+Geet's rows have none of this. Two items are whole missing capabilities:
 `New Worktree from 'X'…` (no worktree commands exist) and
 `Checkout and Rebase onto '<cur>'` (a compound action). And
 `Merge 'X' into '<cur>'` is the one that today is reachable **only** by dragging a
@@ -366,7 +366,7 @@ row in the branches tree.
 
 ### 3.1 Editor integration, gutter and blame
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Gutter change markers (green/blue/grey) | QuickDiffProvider, `gittree.quickDiff.base` | ✅ |
 | Click marker opens a floating toolbar popup | Peek diff plus hunk commands | 🟡 no floating toolbar |
@@ -392,7 +392,7 @@ row in the branches tree.
 
 ### 3.2 Branch management
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Search / speed-search in popup | QuickPick filter | ✅ |
 | Categories: Current / Recent / Local / Remote | Separator sections | ✅ |
@@ -428,7 +428,7 @@ row in the branches tree.
 
 ### 3.3 Commit lifecycle
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Changelists paradigm | `ChangelistService` | ✅ |
 | Staging-area paradigm | staging view | ✅ |
@@ -474,7 +474,7 @@ row in the branches tree.
 
 ### 3.4 Log and history
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Four panes (Branches / Commits / Changed Files / Commit Details) | P12-T1 four panes in nested persisted splitters | ✅ |
 | Color-coded topological graph | `GraphCanvas`, 100k commits at 60fps | ✅ |
@@ -487,14 +487,14 @@ row in the branches tree.
 | Text search plus Regex plus Match Case | search box with toggles | ✅ |
 | **Go to Hash / Branch / Tag** (`Ctrl+F`) | P12-T4 `log.goTo`; a commit the current filter excludes is reported with `Show All Branches` rather than silently ignored | ✅ |
 | **Enable Git Log Indexing** | — | ❌ |
-| **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | The eye button's menu, `Show` · **Graph** (GitTree's own, 2026-11-07) · **Compact References View** · **Tag Names** · **References on the Left** · **Columns ▸ Author · Hash · Date**, with IntelliJ's defaults (added 2026-11-01). The Date column writes `YYYY/MM/DD HH:mm` (**D40**). Root Names, Long Edges and Commit Timestamp are still absent. *Corrected 2026-10-31:* this row read "P12-T5 presentation menu, two toggles omitted", but P12-T5 shipped no such menu | 🟡 no Root Names / Long Edges / Commit Timestamp |
+| **Presentation Settings**: Compact References View, Tag Names, Long Edges, Commit Timestamp, References on the Left, Show Root Names, column customization | The eye button's menu, `Show` · **Graph** (Geet's own, 2026-11-07) · **Compact References View** · **Tag Names** · **References on the Left** · **Columns ▸ Author · Hash · Date**, with IntelliJ's defaults (added 2026-11-01). The Date column writes `YYYY/MM/DD HH:mm` (**D40**). Root Names, Long Edges and Commit Timestamp are still absent. *Corrected 2026-10-31:* this row read "P12-T5 presentation menu, two toggles omitted", but P12-T5 shipped no such menu | 🟡 no Root Names / Long Edges / Commit Timestamp |
 | Commit table: Subject (graph + labels at its end) · **Author** · **Date** · Hash (hidden by default), no header, borders drag to resize and double-click to fit; Author `*` when someone else committed; IntelliJ's ref labels (stacked coloured tag icon, grey name, `GitRefManager` grouping, Detached HEAD) | The same columns and rules, ported from `VcsLogDefaultColumn`, `GraphCommitCellRenderer`, `LabelPainter`, `GitRefManager` and `VcsUserUtil`; widths kept per tab. *Added 2026-11-01*; reordering columns is not offered | ✅ |
 | **Highlight**: My Commits, Merge Commits, Current Branch, Not Cherry-Picked | The toolbar's *Highlight my commits* toggle. *Corrected 2026-10-31:* this row read ✅ for a "P12-T5 highlight menu" that was never built; the other three are absent | 🟡 My Commits only |
 | **Show All Affected Files** (`Alt+Shift+A`) and Paths Affected in Revision dialog | P12-T3 Changed Files pane + `log.showAllAffected` | ✅ |
 | Go to Parent / Child Commit (left/right arrows) | P12-T7 `log.goToParent` / `log.goToChild`, through the same reporting reveal | ✅ |
 | Multi-repo: one graph merging every root | one root at a time, chosen under `Paths ▾ · Roots` and held (**D24**) | 🟡 |
 | Multi-repo root colour stripe / root names | swatch + name in `Paths ▾ · Roots` and in the panel title; no per-row stripe, there being one root per graph | 🟡 |
-| Refresh — the button, and the automatic one on any VCS change | `log.refresh`, plus a debounced re-page on `model.onDidChange` (`refs`/HEAD only), deferred while the panel is hidden. The list comes back where `SelectionSnapshot` puts it: on top it stays on top, so a new commit is the first row; otherwise the first selected row on screen, or the top row, keeps its offset to the pixel (2026-11-07). Watcher events reach the model within a second however busy the workspace, and one from outside right after a GitTree operation is no longer dropped as its own | ✅ |
+| Refresh — the button, and the automatic one on any VCS change | `log.refresh`, plus a debounced re-page on `model.onDidChange` (`refs`/HEAD only), deferred while the panel is hidden. The list comes back where `SelectionSnapshot` puts it: on top it stays on top, so a new commit is the first row; otherwise the first selected row on screen, or the top row, keeps its offset to the pixel (2026-11-07). Watcher events reach the model within a second however busy the workspace, and one from outside right after a Geet operation is no longer dropped as its own | ✅ |
 | **Open Another Log Tab** (`+` beside the tabs): a new Log tab matching the current filters; tabs titled by their filter (`Log: 2026.1`), closed with `×` or Close Tab / Close Other Tabs / Close All Tabs | `+` after the last tab; one session per tab, restored lazily after a restart; File History, Compare with Current and Show in Log open (or reuse) a tab of their own instead of refiltering yours. *Added 2026-11-01; not in the 2026-08 inventory.* Console and Worktrees stay open (**D33**) | ✅ |
 | Copy Revision Number | `log.copySha` | ✅ |
 | New Branch / New Tag from commit | `createBranchHere` / `createTagHere` | ✅ |
@@ -522,7 +522,7 @@ row in the branches tree.
 
 ### 3.5 Merge and conflict resolution
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Files Merged with Conflicts dialog | P13-T8 dialog gate (once per session) + the retained `gittree.conflicts` view | ✅ |
 | Per-file Accept Yours / Accept Theirs / Merge… | `merge.acceptYoursFile` / `acceptTheirsFile` / `merge.open` | ✅ |
@@ -545,7 +545,7 @@ row in the branches tree.
 
 ### 3.6 Stash and shelve
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Stash tab: Create Stash / Apply / Pop / Drop / Clear | full `gittree.stash.*`, in the POST-P14l `Stash` tab of the commit window | ✅ |
 | Unstash **as new branch** | `stash.branch` | ✅ |
@@ -567,7 +567,7 @@ row in the branches tree.
 
 ### 3.7 Remote synchronization
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Fetch | `gittree.fetch` (`--prune`) | ✅ |
 | Fetch is a **project** operation — one button, every root | POST-P14o: `gittree.fetch` with no argument, `gittree.fetch.all`, and the branches-popup header button all fan out across every root with a remote; an explicit root still fetches only that one. Was a silent guess at the active editor's repository | ✅ |
@@ -590,7 +590,7 @@ row in the branches tree.
 
 ### 3.8 History rewriting
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Interactive Rebase dialog: reorderable rows, per-commit action | `rebaseView` webview with drag-and-drop | ✅ **strength** |
 | Actions: Pick / Reword / Squash (plus Fixup) / Drop | all five | ✅ |
@@ -614,7 +614,7 @@ row in the branches tree.
 `git format-patch` and `git am` never appear in `src/`. The internal
 `core/patch/` module builds patches for staging and the shelf only.
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Create Patch from Local Changes | P12-T6 `gittree.patch.create` | ✅ |
 | Create Patch from a commit (log) | P12-T6 `gittree.log.createPatch` | ✅ |
@@ -628,7 +628,7 @@ row in the branches tree.
 
 ### 3.10 Repository setup, worktrees, submodules
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Clone Repository dialog | P13-T4 `gittree.clone.dialog` | ✅ |
 | Create Git Repository / Enable Version Control Integration | `git init` exists only in the playground generator | ❌ |
@@ -648,11 +648,11 @@ row in the branches tree.
 ### 3.11 Local History
 
 IntelliJ's Local History is **save-centric** (every save, refactoring, test run);
-GitTree's is **git-operation-centric** (snapshots around destructive operations),
+Geet's is **git-operation-centric** (snapshots around destructive operations),
 with save snapshots off by default (`localHistory.snapshotOnSave: false`). These
 are different products solving overlapping problems.
 
-| IntelliJ | GitTree | |
+| IntelliJ | Geet | |
 | --- | --- | --- |
 | Show History for file / folder / project | `history.show` / `showForPath` | ✅ |
 | Records **every save** automatically | opt-in, default off | 🟡 |
@@ -669,7 +669,7 @@ are different products solving overlapping problems.
 
 ### 3.12 Settings
 
-GitTree has 38 settings. IntelliJ's Version Control settings span **Git, Commit,
+Geet has 38 settings. IntelliJ's Version Control settings span **Git, Commit,
 Changelists, Confirmation, Shelf, File Status Colors, Background, Issue
 Navigation, Diff & Merge** pages. Notable absences: *Test* button for the git
 executable ❌, Configure GPG Key ❌, Protected branches ❌, Update method ❌, Clean
@@ -686,7 +686,7 @@ Changes, merge from the IDE, timeline with CI status — **skipped by decision**
 
 ---
 
-## 4. Where GitTree matches or beats IntelliJ
+## 4. Where Geet matches or beats IntelliJ
 
 Worth protecting during any rework:
 

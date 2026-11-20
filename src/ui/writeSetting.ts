@@ -1,5 +1,5 @@
 /**
- * Writes a GitTree (or VS Code) option the way `settingScope` decides: where
+ * Writes a Geet (or VS Code) option the way `settingScope` decides: where
  * the user already keeps it, else in their own settings — never a new value in
  * the repository's `.vscode/settings.json` — and not at all when it would not
  * change (POST-QA).

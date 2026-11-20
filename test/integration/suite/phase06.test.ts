@@ -8,7 +8,7 @@ import { makeMergeUri } from '../../../src/core/vdocs/mergeFs';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import type { ConflictsViewProvider } from '../../../src/merge/conflictsView';
 import type { TriEditorManager } from '../../../src/merge/triEditor';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 interface Phase06RegistryShape {
   getSession(repoRoot: string): ConflictSession | undefined;
@@ -33,7 +33,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(workspaceRepoC())!;
     assert.ok(repo, 'repoC not discovered');
     repoRoot = repo.root;
@@ -130,7 +130,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     // The view renders one row per conflicted file.
     const rows = reg.viewProvider.getChildren();
     assert.strictEqual(rows.length, 3);
-    // POST-P14cd: each under GitTree's own address, marked `!` by GitTree.
+    // POST-P14cd: each under Geet's own address, marked `!` by Geet.
     for (const row of rows) {
       const item = reg.viewProvider.getTreeItem(row);
       assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
@@ -651,7 +651,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
   test('POST-QA: a resolved merge commits from the Commit window while its session holds the lane', async function () {
     this.timeout(120_000);
-    const p3 = (await activateGitTree()).debugRegistry.get('phase03') as Phase03Registry;
+    const p3 = (await activateGeet()).debugRegistry.get('phase03') as Phase03Registry;
     if (p3.paradigm.paradigm !== 'changelists') this.skip();
     const session = await buildTwoBlockConflict('cwmerge', 'p6cw.txt');
     const ours = git('rev-parse', 'HEAD').trim();

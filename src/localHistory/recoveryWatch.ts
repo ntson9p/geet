@@ -49,7 +49,7 @@ export class RecoveryWatch implements vscode.Disposable {
         if (this.hintShown.has(capKey)) return;
         this.hintShown.add(capKey);
         void vscode.window.setStatusBarMessage(
-          vscode.l10n.t('$(history) Local History snapshot saved — GitTree: Show Local History'),
+          vscode.l10n.t('$(history) Local History snapshot saved — Geet: Show Local History'),
           5000,
         );
       }),

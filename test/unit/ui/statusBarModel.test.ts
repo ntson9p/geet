@@ -20,7 +20,7 @@ import {
  *
  * **Identity.** The compact button used VS Code's own `$(git-branch)` glyph,
  * unlabelled, beside VS Code's own branch widget — so it read as a duplicate
- * of that widget instead of as GitTree.
+ * of that widget instead of as Geet.
  */
 
 const snap = (over: Partial<RepoSnapshot> = {}): RepoSnapshot => ({
@@ -74,7 +74,7 @@ describe('renderStatusBarText — button mode', () => {
       false,
       'button',
     );
-    expect(clean).toBe('$(list-tree) GitTree $(chevron-down)');
+    expect(clean).toBe('$(list-tree) Geet $(chevron-down)');
     expect(diverged).toBe(clean);
     expect(detached).toBe(clean);
   });
@@ -84,22 +84,22 @@ describe('renderStatusBarText — button mode', () => {
     const fetching = renderStatusBarText(snap(), true, 'button');
     // Only the mark swaps. The label and the chevron hold their position, so
     // there is no reflow at all — which is what makes the spinner look smooth.
-    expect(fetching).toBe('$(sync~spin) GitTree $(chevron-down)');
+    expect(fetching).toBe('$(sync~spin) Geet $(chevron-down)');
     // Same glyph count: one icon plus the chevron.
     expect(fetching.match(/\$\(/gu)?.length).toBe(idle.match(/\$\(/gu)?.length);
-    expect(fetching).toContain(' GitTree ');
+    expect(fetching).toContain(' Geet ');
     expect(fetching).toContain('$(chevron-down)');
   });
 
   /**
    * POST-P14t. The button was `$(git-branch)$(chevron-down)` — VS Code's own
    * branch glyph, unlabelled, two entries from VS Code's own branch widget. It
-   * read as a duplicate of that widget rather than as GitTree, and gave someone
+   * read as a duplicate of that widget rather than as Geet, and gave someone
    * who had just installed the extension nothing to aim at.
    */
   it('says whose button it is, in the product name and not a git glyph', () => {
     const text = renderStatusBarText(snap(), false, 'button');
-    expect(text).toContain('GitTree');
+    expect(text).toContain('Geet');
     // The mark must not be one of the glyphs already in this strip — ours was
     // literally the same codicon as the widget beside it.
     expect(text).not.toContain('$(git-branch)');
@@ -123,7 +123,7 @@ describe('renderStatusBarText — the growth rule', () => {
   it('grows for an in-progress operation, in both modes', () => {
     const s = snap({ inProgressOp: { kind: 'rebase-apply', step: 2, total: 5 } as never });
     expect(renderStatusBarText(s, false, 'button')).toBe(
-      '$(list-tree) GitTree $(chevron-down) $(warning) REBASING 2/5',
+      '$(list-tree) Geet $(chevron-down) $(warning) REBASING 2/5',
     );
     expect(renderStatusBarText(s, false, 'full')).toContain('$(warning) REBASING 2/5');
   });
@@ -131,7 +131,7 @@ describe('renderStatusBarText — the growth rule', () => {
   it('grows for conflicts, and caps that count too', () => {
     const many = snap({ statusEntries: Array.from({ length: 400 }, (_, i) => unmerged(`f${i}`)) });
     expect(renderStatusBarText(many, false, 'button')).toBe(
-      '$(list-tree) GitTree $(chevron-down) $(error) 99+',
+      '$(list-tree) Geet $(chevron-down) $(error) 99+',
     );
   });
 
@@ -146,7 +146,7 @@ describe('renderStatusBarText — the growth rule', () => {
       upstreamGone: true,
       statusEntries: [{ kind: 'modified', path: 'a.ts' } as unknown as StatusEntry],
     });
-    expect(renderStatusBarText(noisy, false, 'button')).toBe('$(list-tree) GitTree $(chevron-down)');
+    expect(renderStatusBarText(noisy, false, 'button')).toBe('$(list-tree) Geet $(chevron-down)');
   });
 });
 

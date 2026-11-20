@@ -167,7 +167,7 @@ function readSetting(): UpdateStrategySetting {
  * The strategy an update uses when nobody is asked: the setting when it names
  * one, else the last answer to the question, else Merge — IntelliJ's default.
  *
- * IntelliJ keeps two things apart here and GitTree used to fold them into one
+ * IntelliJ keeps two things apart here and Geet used to fold them into one
  * setting: *which* strategy (saved on every OK) and *whether to ask* (`Don't
  * show again`). Keeping the answer even while the question is still asked is
  * what lets an update that asks nothing — a branch row's `Update` — do what
@@ -484,7 +484,7 @@ async function revParse(core: Core, repo: RepoHandle, ref: string): Promise<stri
 /** What failed, worded for the user: git's reason rather than its exit code. */
 function failureOf(err: unknown): string {
   if (err instanceof GitError) {
-    // GitTree's own words when git never ran: a step cancelled before it began.
+    // Geet's own words when git never ran: a step cancelled before it began.
     return err.exitCode < 0 ? err.message : describeGitFailure(err.details);
   }
   const text = err instanceof Error ? err.message : String(err);
@@ -576,8 +576,8 @@ export async function scopeAsLastFetched(
 
 /**
  * When `repo` last fetched, as far as can be told (POST-P14bm): `FETCH_HEAD`,
- * which every `git fetch` and `git pull` rewrites — GitTree's, the terminal's,
- * another tool's — or GitTree's own note of its last fetch, whichever is later.
+ * which every `git fetch` and `git pull` rewrites — Geet's, the terminal's,
+ * another tool's — or Geet's own note of its last fetch, whichever is later.
  * `FETCH_HEAD` is kept by the worktree that fetched, so a linked worktree looks
  * in the main one's too. It is the repository's last fetch of any remote, not
  * necessarily the upstream's: near enough for "how stale is this". Undefined
@@ -1554,10 +1554,10 @@ async function rememberDontAskAgain(strategy: UpdateStrategy): Promise<void> {
   showInfo(
     strategy === 'rebase'
       ? vscode.l10n.t(
-          'Update Project will rebase without asking. Change this with "GitTree: Update Project Strategy…".',
+          'Update Project will rebase without asking. Change this with "Geet: Update Project Strategy…".',
         )
       : vscode.l10n.t(
-          'Update Project will merge without asking. Change this with "GitTree: Update Project Strategy…".',
+          'Update Project will merge without asking. Change this with "Geet: Update Project Strategy…".',
         ),
   );
 }

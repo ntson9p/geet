@@ -1,5 +1,5 @@
 /**
- * new-way-6: GitTree's plain notices leave on GitTree's own clock. The owner
+ * new-way-6: Geet's plain notices leave on Geet's own clock. The owner
  * found VS Code's ten seconds too long for *Fetch successful*: more while
  * VS Code is away or the pointer rests on the toast, which can look endless.
  */

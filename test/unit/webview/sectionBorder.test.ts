@@ -1,5 +1,5 @@
 /**
- * POST-P14bu: the borders in GitTree's side bar that a drag resizes are drawn as
+ * POST-P14bu: the borders in Geet's side bar that a drag resizes are drawn as
  * a line, in the theme colour `gittree.sectionBorder`. These pin the colour's
  * contribution and the name the webviews read it under; what the lines look
  * like, and where, is the Playwright suites' (commit.spec.ts, branches.spec.ts).

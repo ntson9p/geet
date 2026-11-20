@@ -1,14 +1,15 @@
-# GitTree settings
+# Geet settings
 
 <!-- GENERATED FILE — do not edit by hand. Derived from package.json
      `contributes.configuration`; regenerate with `npm run docs:settings`.
      test/unit/docs/settingsDoc.test.ts fails when this file is stale. -->
 
-All settings live under the `gittree.` namespace. GitTree owns its own
-views, change bars and commit window, so nothing here depends on — or
-changes — the built-in Git extension.
+All settings live under the `gittree.` namespace: Geet was called GitTree
+before 0.1.0, and its settings kept the name. Geet owns its own views,
+change bars and commit window, so nothing here depends on — or changes —
+the built-in Git extension.
 
-## GitTree
+## Geet
 
 ### `gittree.gitPath`
 
@@ -19,7 +20,7 @@ Path to the git executable. Falls back to the built-in `git.path` setting, then 
 
 ### `gittree.trace`
 
-Log every git invocation (argv, duration, exit code — never file contents) to the "GitTree" output channel, and reveal debug commands.
+Log every git invocation (argv, duration, exit code — never file contents) to the "Geet" output channel, and reveal debug commands.
 
 - Type: `boolean` · Default: `false`
 
@@ -38,13 +39,13 @@ Folder names the repository search never descends into. Matched against the fold
 
 ### `gittree.decorations.fileExplorer`
 
-Show GitTree's status colours and letter badges on files wherever VS Code shows a file's decorations: the Explorer, editor tabs, breadcrumbs and VS Code's own Source Control view. Off by default: VS Code's built-in Git extension draws the same, and with both, every badge shows twice (U, U). Turn it on if you disable the built-in Git extension.
+Show Geet's status colours and letter badges on files wherever VS Code shows a file's decorations: the Explorer, editor tabs, breadcrumbs and VS Code's own Source Control view. Off by default: VS Code's built-in Git extension draws the same, and with both, every badge shows twice (U, U). Turn it on if you disable the built-in Git extension.
 
 - Type: `boolean` · Default: `false`
 
 ### `gittree.terminalAuth`
 
-Export GitTree's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code.
+Export Geet's git credential helper (GIT_ASKPASS) into integrated terminals so command-line git prompts are answered by VS Code.
 
 - Type: `boolean` · Default: `false`
 - Scope: `window`
@@ -57,41 +58,41 @@ Enable the optional IntelliJ-flavored keybinding set (Ctrl+K commit, Ctrl+Shift+
 
 ### `gittree.whatsNew.enabled`
 
-Show a one-time notification with the changelog when GitTree updates to a new minor version.
+Show a one-time notification with the changelog when Geet updates to a new minor version.
 
 - Type: `boolean` · Default: `true`
 
 ### `gittree.telemetry.enabled`
 
-Allow GitTree usage telemetry (activation timing, operation duration buckets, error kinds — never repository names, paths, shas or content). Both this AND VS Code's telemetry.telemetryLevel must allow. No telemetry backend is currently configured, so nothing is transmitted either way.
+Allow Geet usage telemetry (activation timing, operation duration buckets, error kinds — never repository names, paths, shas or content). Both this AND VS Code's telemetry.telemetryLevel must allow. No telemetry backend is currently configured, so nothing is transmitted either way.
 
 - Type: `boolean` · Default: `false`
 
 ### `gittree.sidebar.extraViews`
 
-Show the Repositories (Tree), Branches (Tree), Worktrees, Local History and Stashes tree views in the GitTree sidebar. Off by default: the Repositories panel lists the repositories itself, and IntelliJ keeps the other surfaces in the Git tool window, the branches popup and the Stash tab.
+Show the Repositories (Tree), Branches (Tree), Worktrees, Local History and Stashes tree views in the Geet sidebar. Off by default: the Repositories panel lists the repositories itself, and IntelliJ keeps the other surfaces in the Git tool window, the branches popup and the Stash tab.
 
 - Type: `boolean` · Default: `false`
 
 ### `gittree.statusBar`
 
-Shape of the GitTree status-bar widget. VS Code’s built-in Git extension already shows a branch name and ahead/behind counts, so by default GitTree contributes a compact button that opens the branches popup rather than a second readout beside it.
+Shape of the Geet status-bar widget. VS Code’s built-in Git extension already shows a branch name and ahead/behind counts, so by default Geet contributes a compact button that opens the branches popup rather than a second readout beside it.
 
 - Type: `string` · Default: `"auto"`
 - Values:
   - `auto` — A compact button while the built-in Git extension is drawing its own branch readout; the full widget when it is absent or disabled.
-  - `button` — Always the compact button: a constant-width GitTree button that opens the branches popup. Branch, upstream and exact counts are in its tooltip.
+  - `button` — Always the compact button: a constant-width Geet button that opens the branches popup. Branch, upstream and exact counts are in its tooltip.
   - `full` — Always the full widget: branch name plus ahead/behind counts, capped at 99+ the way IntelliJ caps its own. Duplicates the built-in Git widget if that one is also shown.
-  - `off` — No GitTree status-bar widget at all.
+  - `off` — No Geet status-bar widget at all.
 
 ### `gittree.notifications.durationSeconds`
 
-How many seconds GitTree's messages with nothing to click ("Fetch successful", "Checked out main") stay on screen, counted while VS Code is in front; a long one gets a little longer, up to twice this. VS Code cannot hide a notification on a timer and still keep it in the Notifications list (the bell in the status bar), so these leave no entry there: the "GitTree" output keeps a copy. 0 shows them as ordinary notifications instead, which VS Code hides after about 10 seconds and keeps in that list. Messages with buttons, warnings and errors are always ordinary notifications.
+How many seconds Geet's messages with nothing to click ("Fetch successful", "Checked out main") stay on screen, counted while VS Code is in front; a long one gets a little longer, up to twice this. VS Code cannot hide a notification on a timer and still keep it in the Notifications list (the bell in the status bar), so these leave no entry there: the "Geet" output keeps a copy. 0 shows them as ordinary notifications instead, which VS Code hides after about 10 seconds and keeps in that list. Messages with buttons, warnings and errors are always ordinary notifications.
 
 - Type: `number` · Default: `5`
 - Minimum: `0`
 
-## GitTree Source Control
+## Geet Source Control
 
 ### `gittree.quickDiff.base`
 
@@ -112,13 +113,13 @@ In a diff opened from a list of files, such as a commit's Changed Files, Next Ch
 
 ### `gittree.changeBars.enabled`
 
-Draw GitTree's change bars beside changed lines, at the text's edge. Off by default: VS Code's built-in Git draws its own in the gutter, and with both every changed line has two. GitTree's change actions work either way, at the cursor: `GitTree: Show Change Actions` (`Ctrl+Alt+G H`). Turn it on if you disable the built-in Git extension, or VS Code's own bars (`scm.diffDecorations`).
+Draw Geet's change bars beside changed lines, at the text's edge. Off by default: VS Code's built-in Git draws its own in the gutter, and with both every changed line has two. Geet's change actions work either way, at the cursor: `Geet: Show Change Actions` (`Ctrl+Alt+G H`). Turn it on if you disable the built-in Git extension, or VS Code's own bars (`scm.diffDecorations`).
 
 - Type: `boolean` · Default: `false`
 
 ### `gittree.changeBars.base`
 
-What GitTree measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).
+What Geet measures its change bars against: the index (bars show unstaged edits, as in IntelliJ) or HEAD (bars show every uncommitted edit).
 
 - Type: `string` · Default: `"index"`
 - Values:
@@ -134,7 +135,7 @@ Files longer than this get no change bars. The line diff is quadratic in the wor
 
 ### `gittree.changeBars.hoverActions`
 
-Hovering a changed line shows its previous text with Rollback, Stage and Commit View links. Off by default: IntelliJ shows nothing on hover, and the popup sits on top of the language server's own hover on exactly the lines you are editing. The same actions are always one key away at the cursor with `GitTree: Show Change Actions` (`Ctrl+Alt+G H`).
+Hovering a changed line shows its previous text with Rollback, Stage and Commit View links. Off by default: IntelliJ shows nothing on hover, and the popup sits on top of the language server's own hover on exactly the lines you are editing. The same actions are always one key away at the cursor with `Geet: Show Change Actions` (`Ctrl+Alt+G H`).
 
 - Type: `boolean` · Default: `false`
 
@@ -178,7 +179,7 @@ Group branches into folders on `/` in the Branches panel (`feature/login` under 
 
 ### `gittree.branches.showRepositoryDots`
 
-With several repositories in view, show a dot per repository on each branch row of the Branches panel: filled where the branch is checked out, ringed where it exists, small where it does not. The dots take the place of the row's words for the same (in api, web; in all 20). A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command GitTree: Toggle Repository Dots.
+With several repositories in view, show a dot per repository on each branch row of the Branches panel: filled where the branch is checked out, ringed where it exists, small where it does not. The dots take the place of the row's words for the same (in api, web; in all 20). A branch's card lists the same per repository either way. Toggled from the panel's toolbar (the dots button), its More Actions menu (the `⋯` button), and the command Geet: Toggle Repository Dots.
 
 - Type: `boolean` · Default: `false`
 
@@ -207,7 +208,7 @@ After a successful history rewrite on a branch with an upstream: offer Push --fo
   - `ask`
   - `never`
 
-## GitTree Merge
+## Geet Merge
 
 ### `gittree.merge.resultMode`
 
@@ -230,7 +231,7 @@ Magic Wand: when one side changed only whitespace, take the substantive side aut
 
 - Type: `boolean` · Default: `true`
 
-## GitTree: Stash
+## Geet: Stash
 
 ### `gittree.stash.includeUntrackedDefault`
 
@@ -244,7 +245,7 @@ Show stashes inside the Shelf tab instead of their own Stash tab (IntelliJ: "Com
 
 - Type: `boolean` · Default: `false`
 
-## GitTree: Shelf
+## Geet: Shelf
 
 ### `gittree.shelf.path`
 
@@ -258,45 +259,45 @@ List shelved changes that were already unshelved but kept (IntelliJ's greyed ent
 
 - Type: `boolean` · Default: `false`
 
-## GitTree: File Status Colors
+## Geet: File Status Colors
 
 ### `gittree.colors.added`
 
-Override for added files in GitTree's own views (hex like #81b88b or a CSS color name). Empty follows the theme's gitDecoration colors.
+Override for added files in Geet's own views (hex like #81b88b or a CSS color name). Empty follows the theme's gitDecoration colors.
 
 - Type: `string` · Default: `""`
 
 ### `gittree.colors.modified`
 
-Override for modified files in GitTree's own views. Empty follows the theme.
+Override for modified files in Geet's own views. Empty follows the theme.
 
 - Type: `string` · Default: `""`
 
 ### `gittree.colors.deleted`
 
-Override for deleted files in GitTree's own views. Empty follows the theme.
+Override for deleted files in Geet's own views. Empty follows the theme.
 
 - Type: `string` · Default: `""`
 
 ### `gittree.colors.renamed`
 
-Override for renamed files in GitTree's own views. Empty follows the theme.
+Override for renamed files in Geet's own views. Empty follows the theme.
 
 - Type: `string` · Default: `""`
 
 ### `gittree.colors.untracked`
 
-Override for untracked files in GitTree's own views. Empty follows the theme.
+Override for untracked files in Geet's own views. Empty follows the theme.
 
 - Type: `string` · Default: `""`
 
 ### `gittree.colors.conflicted`
 
-Override for conflicted files in GitTree's own views. Empty follows the theme.
+Override for conflicted files in Geet's own views. Empty follows the theme.
 
 - Type: `string` · Default: `""`
 
-## GitTree Commit
+## Geet Commit
 
 ### `gittree.commit.paradigm`
 
@@ -403,11 +404,11 @@ The language model that writes commit messages, as vendor/id (for example copilo
 
 ### `gittree.commit.messageGeneration.instructions`
 
-Your own instructions for generated commit messages, which come before GitTree's where they differ: a format, a language, a length. $GIT_BRANCH_NAME stands for the current branch, as in IntelliJ.
+Your own instructions for generated commit messages, which come before Geet's where they differ: a format, a language, a length. $GIT_BRANCH_NAME stands for the current branch, as in IntelliJ.
 
 - Type: `string` · Default: `""`
 
-## GitTree Log & Blame
+## Geet Log & Blame
 
 ### `gittree.log.sort`
 
@@ -528,7 +529,7 @@ Blame column format. Placeholders: ${author|N}, ${date|relative}, ${sha|N}.
 
 - Type: `string` · Default: `"${author|12} ${date|relative} ${sha|7}"`
 
-## GitTree Local History
+## Geet Local History
 
 ### `gittree.localHistory.enabled`
 
@@ -569,7 +570,7 @@ Record a labeled snapshot when a build/test task finishes, so states like "after
 
 - Type: `boolean` · Default: `true`
 
-## GitTree: Dialogs
+## Geet: Dialogs
 
 ### `gittree.update.strategy`
 
@@ -583,7 +584,7 @@ What Ctrl+T (Update Project) does. "Ask every time" asks Merge or Rebase and off
 
 ### `gittree.dialogs.showCommandLine`
 
-Show the dim "will run: git …" line in GitTree's dialogs, so the flags behind each option stay legible.
+Show the dim "will run: git …" line in Geet's dialogs, so the flags behind each option stay legible.
 
 - Type: `boolean` · Default: `true`
 

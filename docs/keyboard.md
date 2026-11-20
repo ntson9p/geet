@@ -1,6 +1,6 @@
-# GitTree keyboard reference & accessibility audit (P10-T2)
+# Geet keyboard reference & accessibility audit (P10-T2)
 
-Everything GitTree can do with a mouse can be done from the keyboard. This
+Everything Geet can do with a mouse can be done from the keyboard. This
 document is the complete key reference, the optional IntelliJ keymap, the
 manual accessibility audit checklist, and the recorded keyboard-only
 walkthrough required by the P10-T2 acceptance criteria.
@@ -29,7 +29,7 @@ The `Ctrl+Alt+G …` bindings are chords (press `Ctrl+Alt+G`, release, then
 the second key) so they cannot collide with VS Code defaults.
 
 Commands without a default binding are still keyboard-reachable via the
-Command Palette (`Ctrl+Shift+P` → type "GitTree"). Mouse-only affordances all
+Command Palette (`Ctrl+Shift+P` → type "Geet"). Mouse-only affordances all
 have command equivalents:
 
 - **Hunk staging**: the diff-editor CodeLens "Stage hunk ≫" equals selecting
@@ -46,7 +46,7 @@ have command equivalents:
 Set `"gittree.keymap.intellij": true` to enable an IntelliJ-IDEA-flavored
 binding set (all gated on the setting — off by default):
 
-| Key | IntelliJ action | GitTree command |
+| Key | IntelliJ action | Geet command |
 | --- | --- | --- |
 | `Ctrl+K` (`Cmd+K`) | Commit… | `gittree.commit` — what the Commit window lists: with repositories picked in the Repositories panel, those alone (POST-P14ce, D45) |
 | `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `gittree.push.dialog` |
@@ -56,7 +56,7 @@ binding set (all gated on the setting — off by default):
 | `Ctrl+Alt+N` (`Cmd+Alt+N`) | New Branch… | `gittree.branch.new` |
 | `F2` | Rename branch (in the Repositories view) | `gittree.branches.rename` |
 | `Ctrl+Alt+Z` (`Cmd+Alt+Z`) | Rollback | `gittree.rollbackFile` (active file) |
-| `F7` / `Shift+F7` | Next / Previous Difference | `gittree.diff.nextChange` / `prevChange` (GitTree diffs only) |
+| `F7` / `Shift+F7` | Next / Previous Difference | `gittree.diff.nextChange` / `prevChange` (Geet diffs only) |
 
 **Known conflicts when enabled** (deliberate — this is what "IntelliJ
 flavor" means; disable the setting to restore the defaults):
@@ -83,8 +83,8 @@ Both open the P13 dialogs rather than acting silently, matching IntelliJ. The
 no-questions `gittree.pull` is still in the palette; the no-questions push is not
 since POST-P14ao — IntelliJ has no Push without its dialog — and
 `Ctrl+T` becomes a direct action once you choose *Don't Ask Again* on an update's
-result (restore the question with **GitTree: Update Project Strategy…**).
-**GitTree: Update Project Without Fetching…** (`gittree.update.withoutFetch`) has no
+result (restore the question with **Geet: Update Project Strategy…**).
+**Geet: Update Project Without Fetching…** (`gittree.update.withoutFetch`) has no
 default key; bind one if you use it often. A repository's own update, **Update
 Repository…** (`gittree.update.repository`) and **Update Repository Without Fetching…**
 (`gittree.update.repositoryWithoutFetch`), is on its menu and not in the palette. A key
@@ -227,13 +227,13 @@ sanity-spot-checks on the log list). "Clone" is exercised as `git init` +
 fixture commits since this project performs no remote operations
 (see PHASE-10 Deviations).
 
-1. **Open repo** — `Ctrl+K Ctrl+O` → type path → `Enter`. GitTree activates;
+1. **Open repo** — `Ctrl+K Ctrl+O` → type path → `Enter`. Geet activates;
    SCM view reachable via `Ctrl+Shift+G`.
-2. **Branch** — `Ctrl+Shift+P` → "GitTree: New Branch" → name → `Enter`.
+2. **Branch** — `Ctrl+Shift+P` → "Geet: New Branch" → name → `Enter`.
    Status bar updates announced.
 3. **Edit** — open file (`Ctrl+P`), edit, save. Dirty badge appears in SCM.
 4. **Resolve conflict** — merge a conflicting fixture branch (palette →
-   "GitTree: Checkout", then merge); conflict editor opens via the SCM item
+   "Geet: Checkout", then merge); conflict editor opens via the SCM item
    (`Ctrl+Shift+G`, arrows, `Enter`); `F7` to first conflict, `Alt+Enter`
    accepts the focused side, `Shift+F7` back to verify, `Ctrl+Alt+Enter`
    applies the result.
@@ -244,7 +244,7 @@ fixture commits since this project performs no remote operations
    type to filter; `Tab` to the list; arrows/`PageDown` navigate (screen
    reader reads "commit <subject> by <author>…"); `Enter` opens details;
    `Ctrl+C` copies the revision.
-7. **Rebase** — palette → "GitTree: Interactive Rebase…" → pick base via
+7. **Rebase** — palette → "Geet: Interactive Rebase…" → pick base via
    quick-pick; in the editor: arrows to a row, `r` + `Enter` to reword,
    `Alt+↓` to reorder, `Tab` to Start, `Enter`. Progress announced via the
    live-region log.

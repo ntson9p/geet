@@ -11,7 +11,7 @@ import { zipChanges } from '../../../src/log/zipChanges';
 import { applyPatchFile } from '../../../src/rewrite/patch/applyPatch';
 import { createPatchText, createPatchToFile } from '../../../src/rewrite/patch/createPatch';
 import { LOG_METHODS } from '../../../src/shared/protocol';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
  * P12 Git tool window — host half. The four-pane layout, pane cycling and
@@ -32,12 +32,12 @@ suite('P12 git tool window', () => {
     fs.writeFileSync(p, content);
   };
 
-  let coreRef: Awaited<ReturnType<typeof activateGitTree>>;
+  let coreRef: Awaited<ReturnType<typeof activateGeet>>;
 
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
-    const core = await activateGitTree();
+    const core = await activateGeet();
     coreRef = core;
     reg = core.debugRegistry.get('phase04') as Phase04Registry;
     p2 = core.debugRegistry.get('phase02') as Phase02Registry;
@@ -255,7 +255,7 @@ suite('P12 git tool window', () => {
     const config = vscode.workspace.getConfiguration('gittree.log');
     const preset = {
       name: 'p12 preset',
-      filter: { sort: 'topo' as const, refs: 'HEAD' as const, authors: ['GitTree Test'] },
+      filter: { sort: 'topo' as const, refs: 'HEAD' as const, authors: ['Geet Test'] },
     };
     try {
       await config.update('filterPresets', [preset], vscode.ConfigurationTarget.Workspace);
@@ -265,7 +265,7 @@ suite('P12 git tool window', () => {
       await reg.logView.setFilter(preset.filter, repoRoot);
       await waitFor(() => {
         const f = reg.logView.currentSession?.filter;
-        return f !== undefined && JSON.stringify(f.authors) === JSON.stringify(['GitTree Test']);
+        return f !== undefined && JSON.stringify(f.authors) === JSON.stringify(['Geet Test']);
       }, 20_000);
       const stored = vscode.workspace
         .getConfiguration('gittree.log')

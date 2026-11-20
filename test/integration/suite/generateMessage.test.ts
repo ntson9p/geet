@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, waitFor, workspaceRepoC } from '../setup';
 
 /**
  * POST-P14cj: Generate Commit Message, in a real extension host. The model is
@@ -89,7 +89,7 @@ suite('POST-P14cj Generate Commit Message', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
     reg = core.debugRegistry.get('phase03') as Phase03Registry;

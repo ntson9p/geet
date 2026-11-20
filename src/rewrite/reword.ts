@@ -196,7 +196,7 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
     const seeded = process.env['GITTREE_TEST_REWORD_MESSAGE'];
     if (seeded !== undefined) return seeded.length > 0 ? seeded : undefined;
 
-    // GitTree's own language, built-in Git's grammar: `git-commit` brought
+    // Geet's own language, built-in Git's grammar: `git-commit` brought
     // built-in Git's floating Commit and Discard along, which act on its own
     // commit editor, not this one (POST-QA).
     const doc = await vscode.workspace.openTextDocument({

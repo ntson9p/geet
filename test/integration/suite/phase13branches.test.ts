@@ -15,7 +15,7 @@ import {
   folderOf,
   HUB_VERBS,
 } from '../../../src/branches/branchesPopup';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 /**
  * P13-T5 — the branches popup as an action hub. The QuickPick itself cannot be
@@ -35,7 +35,7 @@ suite('P13 branches hub', () => {
   suiteSetup(async function () {
     this.timeout(90_000);
     repoRoot = workspaceRepoB();
-    core = await activateGitTree();
+    core = await activateGeet();
     p2 = core.debugRegistry.get('phase02') as Phase02Registry;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(p2 && repo, 'phase02 registry or repo missing');
@@ -100,7 +100,7 @@ suite('P13 branches hub', () => {
     // §2A's exact list, in order.
     assert.deepStrictEqual(HUB_VERBS.map((v) => v.label), [
       'Update Project…',
-      // POST-P14bm: GitTree's own, right under the one it varies.
+      // POST-P14bm: Geet's own, right under the one it varies.
       'Update Project Without Fetching…',
       'Commit…',
       'Push…',

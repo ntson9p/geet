@@ -51,7 +51,7 @@ export function setBranchesOpenHandler(handler: BranchesOpenHandler): void {
 /**
  * The repository a sync command acts on: the one it names, the active
  * editor's, the only one — else the user picks (POST-QA F6). It used to fall
- * back to the first repository, so in a multi-root workspace GitTree: Push
+ * back to the first repository, so in a multi-root workspace Geet: Push
  * could push one the user was not looking at.
  */
 function pickRepo(core: Core, repoRoot: unknown): Promise<RepoHandle | undefined> {
@@ -415,7 +415,7 @@ export function registerSyncOps(
     // POST-QA F2: what the Push dialog refuses, this refuses too.
     if (upstream !== undefined && isBranchProtected(remoteBranchName(upstream), protectedBranches())) {
       void vscode.window.showWarningMessage(
-        vscode.l10n.t('{0} is a protected branch: GitTree does not force-push it.', upstream),
+        vscode.l10n.t('{0} is a protected branch: Geet does not force-push it.', upstream),
       );
       return;
     }

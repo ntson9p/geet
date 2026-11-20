@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { RepoHandle } from '../../../src/core/core';
 import type { Phase04Registry } from '../../../src/log/register';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 /** Phase 4 host-side acceptance (webview internals covered by Playwright). */
 suite('P4 log & blame host', () => {
@@ -19,7 +19,7 @@ suite('P4 log & blame host', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoA();
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(repoRoot)!;
     fsRoot = repo.root;
     reg = core.debugRegistry.get('phase04') as Phase04Registry;
@@ -136,13 +136,13 @@ suite('P4 log & blame host', () => {
     );
   });
 
-  test('a commit made from outside just after a GitTree operation reaches the model and the log', async function () {
+  test('a commit made from outside just after a Geet operation reaches the model and the log', async function () {
     this.timeout(60_000);
     await vscode.commands.executeCommand('gittree.log.focus');
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
     const headBefore = git('rev-parse', 'HEAD').trim();
     const rowsBefore = reg.logView.currentSession!.rowCount;
-    // A GitTree operation: for a second after it ends, the queue calls every
+    // A Geet operation: for a second after it ends, the queue calls every
     // watcher event ours.
     await repo.queue.enqueue({
       label: 'p4 probe operation',

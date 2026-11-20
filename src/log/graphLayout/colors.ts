@@ -22,7 +22,7 @@ export class ColorAllocator {
 export const GRAPH_HUES = [210, 30, 120, 275, 0, 170, 55, 320, 90, 240, 15, 145];
 
 /**
- * Each repository's palette slot, the colour that marks it wherever GitTree
+ * Each repository's palette slot, the colour that marks it wherever Geet
  * tells repositories apart: the log's `Roots`, the Repositories panel and the
  * Commit window's repository rows. One rule, so a repository is the same colour
  * in all three: roots in path order, the slots handed out in turn.

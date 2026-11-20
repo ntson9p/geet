@@ -18,7 +18,7 @@ function makeTempRepo(): string {
   };
   run('init');
   run('config', 'user.email', 'test@gittree.dev');
-  run('config', 'user.name', 'GitTree Test');
+  run('config', 'user.name', 'Geet Test');
   run('config', 'commit.gpgsign', 'false');
   for (let i = 1; i <= 3; i++) {
     fs.writeFileSync(path.join(dir, 'file.txt'), `content ${i}\n`);

@@ -1,126 +1,156 @@
-# GitTree
+# Geet for Git
 
-IntelliJ-grade Git integration for VS Code: a real commit tool window with
-tri-state checkboxes and per-change inclusion, a four-pane Git tool window
-over a 100k-commit graph, a branches popup that is an action hub, dialogs
-that expose the actual git flags and show you the command before it runs,
-a true 3-pane merge editor with a real editor in the result pane,
-IntelliJ-style shelve, worktree management, and an operation-scoped
-Local History failsafe.
+**IntelliJ-style Git for VS Code.** Changelists and a real Commit window, a Git
+log with a fast commit graph, a branches popup that is an action hub,
+interactive rebase, a three-pane merge editor, shelve and Local History, for
+one repository or many at once.
 
-![GitTree log tool window](media/screens/log.png)
+![Geet in VS Code: the Commit window with three changelists, the diff of an uncommitted change, and the Log with its commit graph](docs/images/hero.png)
 
-## Quick start
+Geet brings its own views, so it neither needs nor touches VS Code's
+built-in Git extension: leave that one on or turn it off, Geet works the
+same.
 
-1. Install GitTree and open any git repository.
-2. Open the **GitTree** container in the activity bar. There is nothing to
-   configure and no mode to pick: GitTree brings its own views, commit window,
-   change bars and diff controls, so it neither needs nor touches the built-in
-   Git extension. Leave that one enabled or disable it — GitTree behaves the
-   same either way.
-3. Run **GitTree: Getting Started Walkthrough** — it can generate a
-   disposable [playground repository](docs/faq.md) to practice a commit, a
-   conflict resolution and the log without touching your real projects.
+> **Pre-release.** 0.1 is Geet's first public build. Try it on your
+> projects, and [tell us what breaks](https://github.com/ntson9p/git-tree/issues).
 
-New to GitTree from the built-in extension? See
-[docs/migration-from-builtin.md](docs/migration-from-builtin.md). Full
-keyboard reference (including the optional IntelliJ keymap):
+## Highlights
+
+- **Changelists and partial commits.** Sort your changes into named
+  changelists, tick the files, or single changes inside a file, that go into a
+  commit, and commit to several repositories in one go.
+- **The Log you know from IntelliJ.** Branches, commits, changed files and
+  details side by side, over a commit graph that stays fast at 100,000
+  commits, with filters by branch, user, date and path.
+- **Branches.** One popup and one panel for all your repositories: incoming
+  and outgoing commits, folders and favorites, and every branch's own menu.
+- **Interactive rebase** in an editor: reorder, pick, reword, squash, fixup or
+  drop.
+- **A three-pane merge editor**: yours, the result, theirs, with the result a
+  real editor.
+- **Dialogs that show the command.** Push, Merge, Rebase, Reset, Cherry-Pick,
+  Stash and the rest expose git's real options and show the exact command
+  they will run.
+- **Safety nets.** Shelve changes outside `.git`, and get a Local History
+  snapshot before every operation that rewrites your files.
+
+## A tour
+
+### The Commit window
+
+Changes are grouped by changelist, then by repository. Tick what goes into the
+commit; with the diff preview on, tick or untick each change of a file. Here
+the forgotten `console.log` stays out of the commit, and the local proxy
+settings never go in at all.
+
+![The Commit window: changelists across two repositories, a file with three of its four changes ticked, and the diff preview with the console.log change unticked](docs/images/commit.png)
+
+### The Log
+
+IntelliJ's Git tool window, in VS Code's panel: Branches, Commits, Changed
+Files and Commit Details. Right-click a commit for what you can do with it:
+cherry-pick, revert, reset (Keep included), rebase interactively from it,
+fixup or squash into it, push up to it, start a branch or a tag there.
+
+![The Log: the branches pane, the commit graph with branches and tags, the files the selected commit changed, and its details](docs/images/log.png)
+
+### Branches
+
+The branches popup starts with the actions (Update Project, Commit, Push, New
+Branch), then lists every repository's branches with their incoming (↓) and
+outgoing (↑) commits, and the branches your repositories have in common. Each
+branch's `›` menu has the rest: checkout, merge into the current branch,
+rebase, compare, push, rename and delete. When your changes are in the way of
+a checkout, Smart Checkout offers to stash, check out and unstash.
+
+<img src="docs/images/branches.png" width="634" alt="The branches popup: actions first, then the api, shared and web repositories with their outgoing commits, web's branch folders, and the branches the repositories share">
+
+### Interactive rebase
+
+Tidy a branch before you push it: drag commits into a new order, and pick,
+reword, squash, fixup or drop each one. Nothing runs until you press Start
+Rebasing.
+
+![The interactive rebase editor: four commits, two of them folded into the one before as fixups](docs/images/rebase.png)
+
+### Push
+
+Push several repositories at once: every commit that will go, the files each
+one changes, and the exact `git push` command for each repository.
+
+![The Push dialog: commits of two repositories, the files and message of the selected commit, and the two git push commands it will run](docs/images/push.png)
+
+### Three-pane merge
+
+When a merge stops on conflicts, Geet lists the files and opens each one in
+three editors: yours, the result and theirs. Accept a side, both, or neither
+for each conflict, apply every change that does not conflict in one go, and
+edit the result as you edit any other file.
+
+![The three-pane merge editor: yours on the left, the result in the middle, theirs on the right, with two conflicts and their accept actions](docs/images/merge.png)
+
+### Blame
+
+Annotate a file with who changed each line and when, shaded by age, with
+uncommitted lines marked, and jump from any line to its commit in the Log.
+
+![Blame beside the code: three authors, the age of each line, and an uncommitted line](docs/images/blame.png)
+
+### And more
+
+- **Shelf and stash.** Shelved changes live outside `.git`, so they survive
+  deleting the repository; unshelve some files of a shelf, import and export
+  patches. Stash and unstash with git's own options.
+- **Local History.** A snapshot before every reset, rebase, checkout over your
+  changes, stash, shelve or rollback, restored byte for byte.
+- **Worktrees.** List, add, open, lock, unlock, remove and prune them.
+- **Generate Commit Message** with the language model you choose in VS Code,
+  such as GitHub Copilot's.
+- **Console.** Every git command Geet runs, with secrets redacted.
+- **VCS Operations Popup** (`` Alt+` ``): every action that applies right now.
+- **An IntelliJ keymap**, if you want one: `gittree.keymap.intellij`.
+
+## Getting started
+
+1. Install Geet and open a folder with a git repository, or a folder of
+   several.
+2. Open **Geet** in the activity bar for the Commit window and the
+   Repositories and Branches panels; the Log is in the panel (**Geet: Focus
+   on Log View**).
+3. To practise first, run **Geet: Getting Started Walkthrough**: it can make
+   a throwaway [playground repository](docs/faq.md) with a commit, a conflict
+   and a log to try things on.
+
+Coming from VS Code's built-in Git? Read
+[docs/migration-from-builtin.md](docs/migration-from-builtin.md). Every key:
 [docs/keyboard.md](docs/keyboard.md). Every setting:
-[docs/settings.md](docs/settings.md).
+[docs/settings.md](docs/settings.md). Questions: [docs/faq.md](docs/faq.md).
 
-## Feature parity with IntelliJ IDEA Ultimate
+## How close is it to IntelliJ IDEA?
 
-Scored against [FEATURES.md](FEATURES.md) — rewritten in 2026-08 so that **every item carries a
-*shape* criterion** (which container, which toolbar, which menu) alongside its behaviour, after
-a review found the previous spec described capabilities without containers. The line-by-line
-audit is [docs/parity-audit.md](docs/parity-audit.md); the measured inventory is
-[docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md); divergences kept on purpose are
-registered once in [docs/deviations.md](docs/deviations.md).
+Geet is measured line by line against IntelliJ IDEA Ultimate's Git
+features ([FEATURES.md](FEATURES.md)), where each item has to work the same and
+sit in the same kind of place: a tool window, a popup, a dialog. Of the 230
+items, **118 are at parity, 33 partly there and 79 not yet**. The audit is
+[docs/parity-audit.md](docs/parity-audit.md), the inventory
+[docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md), and the
+differences kept on purpose are in [docs/deviations.md](docs/deviations.md).
+GitHub and GitLab pull-request review was left out on purpose
+([why](docs/plan/PHASE-08-provider-integrations.md)); pushing to and pulling
+from any remote, self-hosted ones included, works as usual.
 
-Measured over that inventory: **118 at parity · 33 partial · 79 absent** (from 75 / 36 / 122
-before the 2026-08 rebuild). ✅ below means shape *and* behaviour; 🟡 means it works but sits in
-a different kind of surface, and each one is a registered deviation.
+## Requirements and privacy
 
-### 1 · Editor integration 🟡
-
-Gutter line tracking with hunk stage/unstage/revert and show-diff in the change popup;
-toggleable blame with author/date/sha, an age heat-map and click-through to the log;
-status-bar branch widget opening the branches popup. *Partial: the hunk popup is VS Code's,
-and the widget is in the status bar rather than a top toolbar.*
-
-### 2 · Branch management ✅
-
-The branches popup is an **action hub**: top-level verbs (Update Project, Commit, Push, New
-Branch, Checkout Tag or Revision) before any branch, sections for Current/Favorites/Recent/
-Local/Remote/Tags, **folder rows** that drill in with a `‹ Back` row while typing searches flat
-across every level, a header gear and incoming/outgoing toggle, and a `›` **submenu per row**
-carrying the full reference list — including `Merge 'X' into '<current>'`, which before this
-rebuild was reachable only by dragging. **Smart Checkout** intercepts a blocked checkout and
-offers stash → checkout → unstash.
-
-### 3 · Commit lifecycle ✅
-
-One **commit tool window** with `Commit | Shelf` tabs, a toolbar strip, folder rows with
-**tri-state checkboxes**, per-change include checkboxes with `N differences, M included`, a
-real message editor with history and templates, and an options gear (author, sign-off, deferred
-checks). Both paradigms — **changelists** and **staging** — switchable at any time.
-
-### 4 · Log & history ✅
-
-A bottom **GitTree** panel, IntelliJ's Git tool window, with `Log | Console` tabs and **four panes** — Branches (with its
-own icon rail), Commits, Changed Files, Commit Details — in persisted splitters. Graph proven
-at 100k commits, Graph Options (By Commit Date, **Topologically**/IntelliSort, First Parent, No Merges), intersecting filters, regex search, go-to-hash, and
-the full commit context menu (interactive rebase, fixup/squash, push-all-up-to-here, reset
-including **Keep**, show repository at revision). The **Console** tab records every git command
-run, with secrets redacted.
-
-### 5 · 3-way merge resolution ✅
-
-A **`Files Merged with Conflicts`** gate, then Yours/Result/Theirs panes where the result is a
-real editor (IntelliSense, your keybindings). `Apply non-conflicting changes` as **Left · All ·
-Right**, a live `No changes. N conflicts.` counter, per-side **Show Details**, explicit
-Accept Yours/Theirs, chevron accepts, F7 navigation, byte-exact CRLF handling.
-
-![Interactive rebase editor](media/screens/rebase.png)
-
-### 6 · Stash & shelve ✅
-
-Full stash GUI plus **dialogs** exposing the real flags (`--keep-index`, `--include-untracked`,
-`--all`, `--staged`) and an Unstash dialog with pop/reinstate-index, a target changelist and an
-inline diff of the file *inside* the stash. IntelliJ-style **shelf**: patches stored *outside*
-`.git`, so they survive repo deletion, with partial shelve and import/export.
-
-### 7 · GitHub/GitLab review ⏭️ skipped by decision
-
-The provider-integration phase (PR list, in-IDE review, timeline) was deliberately not built —
-it requires live provider accounts this project does not use. Rationale:
-[docs/plan/PHASE-08-provider-integrations.md](docs/plan/PHASE-08-provider-integrations.md).
-Git-protocol work against any remote (including self-hosted) is unaffected.
-
-### 8 · Local History failsafe ✅
-
-Automatic snapshots before every destructive operation (reset, rebase, checkout-with-changes,
-stash/shelve-with-remove, rollback, …) plus optional save-time snapshots; byte-exact restore
-with its own undo, file and commit recovery from the reflog, size/age-budgeted GC.
-
-### 9 · Dialogs, popups and the action hub ✅
-
-Eleven **option-bearing dialogs** — Push, Merge, Rebase, Reset, Rollback, Cherry-Pick,
-Stash, Unstash, Apply Patch, Clone, Manage Remotes — on IntelliJ's *Modify options* pattern: a compact form plus a dropdown of the real git flags, with contradictory
-combinations rejected *with reasons*. **Every dialog shows the exact command it will run.**
-`` Alt+` `` opens the **VCS Operations Popup**, listing every action applicable right now.
-
-### 10 · Worktrees ✅
-
-A Worktrees view (path, branch, locked/prunable) with Open · Remove · Lock · Unlock · Prune,
-and a **New Worktree** dialog with three branch modes and a sibling default location. Removing
-a dirty worktree is refused with git's own reason.
-
-## Requirements
-
-- git ≥ 2.36 recommended (older versions degrade gracefully; features that
-  need newer git, like FSMonitor suggestions, gate themselves on capability).
-- VS Code ≥ 1.96. No accounts, no tokens, nothing leaves your machine.
+- git 2.36 or newer is recommended. Older versions work; the few features that
+  need a newer git turn themselves off.
+- VS Code 1.96 or newer.
+- No accounts, no tokens, no telemetry: Geet itself sends nothing anywhere.
+  Git talks to your remotes when you fetch, pull or push, and **Generate Commit
+  Message**, if you use it, sends the changes it describes to the language
+  model you choose in VS Code.
+- Geet runs only in folders you trust (it stays off in Restricted Mode), as
+  VS Code's own Git extension does: git can run programs a repository's own
+  configuration names.
 
 ## Development
 
@@ -132,8 +162,17 @@ npm run watch             # esbuild watch → dist/extension.js  (F5 to debug)
 npm run check             # typecheck + lint + unit tests
 npm run test:integration  # @vscode/test-electron against fixture repos
 npm run test:perf         # §13 performance budgets (run in isolation)
-npm run package           # vsce package --pre-release
+npm run package           # vsce package: a pre-release for an odd minor version
+npm run screenshots       # this README's images, taken again in a real VS Code
 ```
 
 Build blueprint: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) and
-[docs/plan/](docs/plan/). Benchmarks: [docs/perf.md](docs/perf.md).
+[docs/plan/](docs/plan/). Benchmarks: [docs/perf.md](docs/perf.md). Releasing:
+[docs/releasing.md](docs/releasing.md). Screenshots:
+[docs/screenshots.md](docs/screenshots.md).
+
+---
+
+Geet is an independent project, not affiliated with or endorsed by JetBrains. IntelliJ IDEA
+is a trademark of JetBrains s.r.o. Geet is also not affiliated with or endorsed by the Git
+project; Git is a trademark of Software Freedom Conservancy.

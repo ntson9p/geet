@@ -1,6 +1,6 @@
 /**
  * Worktree argv (P13-T6), vscode-free so the option matrix is unit-testable.
- * §3.10: GitTree resolved worktree paths internally but had no create/remove
+ * §3.10: Geet resolved worktree paths internally but had no create/remove
  * commands at all — these are the write half.
  */
 

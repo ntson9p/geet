@@ -5,7 +5,7 @@
  * IntelliJ's Fetch is a **project** operation: the one button in the branches
  * popup header fetches every root, and there is no per-root fetch gesture at
  * all — fetch only moves `refs/remotes` and `FETCH_HEAD`, so scoping it buys
- * nothing and costs a decision. GitTree follows that, which makes three rules
+ * nothing and costs a decision. Geet follows that, which makes three rules
  * matter here:
  *
  *   - **one slow root must not hide the others.** A failure is recorded and the

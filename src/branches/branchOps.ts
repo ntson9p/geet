@@ -55,7 +55,7 @@ export class BranchOps {
    * Remote branch → tracking local, **without asking for a name**.
    *
    * IntelliJ's `Checkout` on a remote branch creates the local branch named
-   * after it and switches to it, in one gesture. GitTree used to open an input
+   * after it and switches to it, in one gesture. Geet used to open an input
    * box pre-filled with that very name, so the overwhelmingly common answer was
    * to press Enter on a name the user had not chosen and did not need to see.
    * The name is still reachable when it is actually wanted: `New Branch from
@@ -534,7 +534,7 @@ export class BranchOps {
    * method, and only `Update Project…` puts the question. Picking a branch
    * and `Update` already said what to do.
    *
-   * Any other branch cannot be integrated without checking it out, so GitTree
+   * Any other branch cannot be integrated without checking it out, so Geet
    * does what IntelliJ does and moves the ref in place, fast-forward only. The
    * refusal is git's own (see `updateBranchArgs.ts`); a diverged branch is
    * reported with its counts rather than rewritten, because the user cannot

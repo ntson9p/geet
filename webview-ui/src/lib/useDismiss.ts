@@ -1,5 +1,5 @@
 /**
- * When a GitTree popup closes because the user went elsewhere: a menu
+ * When a Geet popup closes because the user went elsewhere: a menu
  * (`Menu.tsx`), the Commit window's options popup, a Log filter panel. They
  * close as VS Code's own context menus do, on a mousedown outside them or on
  * their window's `blur` (VS Code's `contextMenuHandler.ts`).

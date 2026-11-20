@@ -1,7 +1,7 @@
 /**
  * Cherry-pick · Stash · Unstash · Apply Patch · Clone · Manage Remotes, host
  * halves (P13-T4). `Manage Remotes` is the one with no predecessor at all —
- * there was no remote-management command in GitTree before this.
+ * there was no remote-management command in Geet before this.
  *
  * Same split as T1–T3: a vscode-free argv builder both halves import,
  * `buildXParams` for the open, `applyXResult` for the accept.

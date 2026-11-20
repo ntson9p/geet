@@ -14,7 +14,7 @@ import type { Core, RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { Phase04Registry } from '../../../src/log/register';
 import type { Phase13Registry } from '../../../src/scm/dialogs/register';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 /**
  * The four rows the Branches context menu was missing next to IntelliJ's —
@@ -45,7 +45,7 @@ suite('P14 branch menu parity', () => {
   const commitOnto = (parent: string, message: string): string =>
     git(
       '-c',
-      'user.name=GitTree Test',
+      'user.name=Geet Test',
       '-c',
       'user.email=test@example.invalid',
       'commit-tree',
@@ -101,7 +101,7 @@ suite('P14 branch menu parity', () => {
   suiteSetup(async function () {
     this.timeout(120_000);
     repoRoot = workspaceRepoB();
-    core = await activateGitTree();
+    core = await activateGeet();
     p2 = core.debugRegistry.get('phase02') as Phase02Registry;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(p2 && repo, 'phase02 registry or repo missing');
@@ -466,7 +466,7 @@ suite('P14 branch menu parity', () => {
       git('add', '--', 'p14bm-local.txt');
       git(
         '-c',
-        'user.name=GitTree Test',
+        'user.name=Geet Test',
         '-c',
         'user.email=test@example.invalid',
         'commit',

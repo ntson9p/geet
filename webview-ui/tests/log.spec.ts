@@ -1795,14 +1795,14 @@ test.describe('P4-T3/T4 log webview', () => {
     await page.getByRole('button', { name: 'Presentation Settings' }).click();
     const menu = page.getByRole('menu', { name: 'Presentation Settings' });
     await expect(menu.getByRole('menuitemcheckbox')).toHaveText([
-      // POST-P14bh: GitTree's own row, first under Show.
+      // POST-P14bh: Geet's own row, first under Show.
       'Graph',
       'Compact References View',
       'Tag Names',
       'References on the Left',
     ]);
     await expect(menu.getByRole('menuitem', { name: 'Columns' })).toBeVisible();
-    // POST-P14cg: GitTree's own, after Columns.
+    // POST-P14cg: Geet's own, after Columns.
     await expect(menu.getByRole('menuitem', { name: 'Date Format' })).toBeVisible();
     const compact = page.getByRole('menuitemcheckbox', { name: 'Compact References View' });
     await expect(compact).toHaveAttribute('aria-checked', 'true');

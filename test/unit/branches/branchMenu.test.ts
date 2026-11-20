@@ -250,11 +250,11 @@ describe('the Repositories row context menu', () => {
     String(m.when ?? '').includes('view == gittree.repositories'),
   );
 
-  it('covers the same ground as VS Code’s own repository ⋯ menu, in GitTree’s words', () => {
+  it('covers the same ground as VS Code’s own repository ⋯ menu, in Geet’s words', () => {
     // VS Code's `scm/repository` is Pull · Push · Clone · Checkout to… · Fetch,
     // then Commit/Changes/Pull-Push/Branch/Remote/Stash/Tags submenus, then
     // Show Git Output. This is the same ground named the way the rest of
-    // GitTree names it: an update rather than Pull. Update Repository, not
+    // Geet names it: an update rather than Pull. Update Repository, not
     // Update Project (POST-P14bx): it updates this repository, and Update
     // Project is every repository everywhere else.
     expect(

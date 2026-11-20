@@ -33,7 +33,7 @@ interface Selection {
  */
 export type GroupId = 'merge' | 'staged' | 'changes' | 'untracked';
 
-export class GitTreeResourceState {
+export class GeetResourceState {
   constructor(
     readonly repoRoot: string,
     readonly entry: StatusEntry,
@@ -133,7 +133,7 @@ async function runGit(
   });
 }
 
-export async function openDiffForResource(core: Core, state: GitTreeResourceState): Promise<void> {
+export async function openDiffForResource(core: Core, state: GeetResourceState): Promise<void> {
   const repo = core.getRepo(state.repoRoot);
   if (!repo) return;
   const entry = state.entry;
@@ -171,7 +171,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
   };
 
   register('gittree.openDiff', async (...args) => {
-    const state = args.find((a): a is GitTreeResourceState => a instanceof GitTreeResourceState);
+    const state = args.find((a): a is GeetResourceState => a instanceof GeetResourceState);
     if (state) {
       await openDiffForResource(core, state);
       return;
@@ -181,7 +181,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (!sel || sel.entries.length === 0) return;
     await openDiffForResource(
       core,
-      new GitTreeResourceState(sel.repo.root, sel.entries[0]!, 'changes'),
+      new GeetResourceState(sel.repo.root, sel.entries[0]!, 'changes'),
     );
   });
 
@@ -196,7 +196,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
 
   register('gittree.openFile', async (...args) => {
     const sel = normalize(core, args);
-    const state = args.find((a): a is GitTreeResourceState => a instanceof GitTreeResourceState);
+    const state = args.find((a): a is GeetResourceState => a instanceof GeetResourceState);
     const target = state
       ? vscode.Uri.file(path.join(state.repoRoot, state.entry.path))
       : sel && sel.entries.length > 0

@@ -85,7 +85,7 @@ describe('P14-T6 unset git.enabled migration', () => {
 
   it('only ever clears the override — it cannot set git.enabled to a value', async () => {
     // `clearBuiltinGitEnabled` takes no arguments by design: there is no way
-    // for this module to write `true` or `false`, only to remove what GitTree
+    // for this module to write `true` or `false`, only to remove what Geet
     // itself put there. Assert the contract through behaviour rather than
     // arity, so the test survives a signature tidy-up.
     const h = harness({ [MODE_STATE_KEY]: 'takeover' });

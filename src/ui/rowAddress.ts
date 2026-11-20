@@ -1,5 +1,5 @@
 /**
- * POST-P14cd: the address a row of GitTree's own tree views gives VS Code when
+ * POST-P14cd: the address a row of Geet's own tree views gives VS Code when
  * the row stands for a file or a folder: Stashes, Local History, Conflicts and
  * Worktrees.
  *
@@ -7,7 +7,7 @@
  * every extension that marks files marks the row too. VS Code's built-in Git
  * did, with the file's status now, which says nothing about a stash or a
  * snapshot: of two files a stash changed, the one edited since got an `M`, the
- * other nothing. Under GitTree's own scheme only GitTree marks these rows, with
+ * other nothing. Under Geet's own scheme only Geet marks these rows, with
  * what is true of them: what the stash did to the file, a conflict's `!`.
  * Local History and Worktrees rows carry no mark.
  *
@@ -25,10 +25,10 @@ export type RowView = 'stash' | 'history' | 'conflict' | 'worktree';
 
 export const ROW_VIEWS: readonly RowView[] = ['stash', 'history', 'conflict', 'worktree'];
 
-/** What GitTree marks a row with: the row's own status, in its view's terms. */
+/** What Geet marks a row with: the row's own status, in its view's terms. */
 export type RowMark = 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
 
-/** A mark's letter, as VS Code's views write it, and its colour: one of GitTree's `gittree.color.*`. */
+/** A mark's letter, as VS Code's views write it, and its colour: one of Geet's `gittree.color.*`. */
 export interface RowLook {
   readonly letter: string;
   readonly color: string;
@@ -76,7 +76,7 @@ function isRowMark(value: string): value is RowMark {
 
 /**
  * The mark an address asks for, with the view it is in; `undefined` for any
- * other scheme, a view that is not GitTree's, or an address with no mark.
+ * other scheme, a view that is not Geet's, or an address with no mark.
  */
 export function rowMarkOf(
   scheme: string,

@@ -52,7 +52,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
       onStoreFailure: (err) => {
         void vscode.window.showWarningMessage(
           vscode.l10n.t(
-            'GitTree could not write a Local History snapshot ({0}). Git operations continue without the safety net.',
+            'Geet could not write a Local History snapshot ({0}). Git operations continue without the safety net.',
             err instanceof Error ? err.message : String(err),
           ),
         );
@@ -61,7 +61,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
         void vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Window,
-            title: vscode.l10n.t('GitTree: snapshotting {0} files…', count),
+            title: vscode.l10n.t('Geet: snapshotting {0} files…', count),
           },
           () => new Promise((r) => setTimeout(r, 500)),
         );

@@ -1,8 +1,8 @@
 /**
- * POST-P14cc: GitTree's change bars are not drawn until asked for. VS Code's
+ * POST-P14cc: Geet's change bars are not drawn until asked for. VS Code's
  * built-in Git draws its own on the same changed lines by default, so with both
  * every changed line had two bars, and they could disagree on its kind.
- * GitTree's change actions read the computed changes, not the bars.
+ * Geet's change actions read the computed changes, not the bars.
  */
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -19,7 +19,7 @@ const setting = manifest.contributes.configuration
   .map((section) => section.properties[`gittree.${CHANGE_BARS_SETTING}`])
   .find((s) => s !== undefined);
 
-describe('GitTree change bars (POST-P14cc)', () => {
+describe('Geet change bars (POST-P14cc)', () => {
   it('are off by default, in the code as in package.json', () => {
     expect(CHANGE_BARS_SETTING).toBe('changeBars.enabled');
     expect(CHANGE_BARS_DEFAULT).toBe(false);

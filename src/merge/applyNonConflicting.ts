@@ -1,6 +1,6 @@
 /**
  * Apply non-conflicting changes — Left · All · Right (P13-T8, gap analysis
- * §3.5). IntelliJ's merge toolbar offers **three** actions; GitTree's magic
+ * §3.5). IntelliJ's merge toolbar offers **three** actions; Geet's magic
  * wand implemented only the "All" one, so a user who wanted just their own
  * side's safe changes had no way to ask for it.
  *

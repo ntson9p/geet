@@ -7,7 +7,7 @@ import { makeSnapUri } from '../../../src/core/vdocs/snapFs';
 import type { DestructionEvent, RecoveryWatch } from '../../../src/localHistory/recoveryWatch';
 import type { HistoryNode, LocalHistoryViewProvider, RestoreUx } from '../../../src/localHistory/restoreUx';
 import type { SnapshotManifest, SnapshotStore } from '../../../src/localHistory/snapshotStore';
-import { activateGitTree, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, withAutoConfirm, workspaceRepoB } from '../setup';
 
 interface Phase09RegistryShape {
   getStore(repoRoot: string): SnapshotStore | undefined;
@@ -50,7 +50,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(workspaceRepoB())!;
     assert.ok(repo, 'repoB not discovered');
     // Windows: the env var may be an 8.3 short path; the store computes
@@ -164,7 +164,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
       for (const snap of reg.viewProvider.getChildren(day)) {
         if (snap.kind === 'snapshot') {
           labels.push(snap.manifest.label);
-          // POST-P14cd: a snapshot's files carry GitTree's own address, unmarked:
+          // POST-P14cd: a snapshot's files carry Geet's own address, unmarked:
           // the file now is not the snapshot's.
           for (const file of reg.viewProvider.getChildren(snap)) {
             if (file.kind !== 'file') continue;

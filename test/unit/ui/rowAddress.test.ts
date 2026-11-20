@@ -1,8 +1,8 @@
 /**
- * POST-P14cd: the rows of GitTree's own tree views that stand for a file or a
- * folder (Stashes, Local History, Conflicts, Worktrees) carry GitTree's own
+ * POST-P14cd: the rows of Geet's own tree views that stand for a file or a
+ * folder (Stashes, Local History, Conflicts, Worktrees) carry Geet's own
  * address, so that no other extension marks them: VS Code's built-in Git
- * marked a stashed file with its status now. GitTree marks them with what is
+ * marked a stashed file with its status now. Geet marks them with what is
  * true of the row. What VS Code draws is the integration suites' and a real
  * window's; this is the address and the marks.
  */
@@ -22,7 +22,7 @@ const root = path.resolve(__dirname, '../../..');
 const read = (...p: string[]): string => readFileSync(path.join(root, ...p), 'utf8');
 
 describe("a row's address", () => {
-  it('is GitTree’s scheme, the view as its authority, the file’s path, and the mark as its query', () => {
+  it('is Geet’s scheme, the view as its authority, the file’s path, and the mark as its query', () => {
     expect(rowAddress('stash', '/c:/repos/api/src/a.ts', 'modified')).toEqual({
       scheme: 'gittree-row',
       authority: 'stash',
@@ -47,8 +47,8 @@ describe("a row's address", () => {
   });
 });
 
-describe('the marks GitTree draws', () => {
-  it("are VS Code's letters, in GitTree's status colours", () => {
+describe('the marks Geet draws', () => {
+  it("are VS Code's letters, in Geet's status colours", () => {
     expect(ROW_MARKS.map((m) => [m, rowLook(m).letter, rowLook(m).color])).toEqual([
       ['added', 'A', 'gittree.color.added'],
       ['modified', 'M', 'gittree.color.modified'],
@@ -59,7 +59,7 @@ describe('the marks GitTree draws', () => {
     ]);
   });
 
-  it('use colours GitTree contributes, so they follow the theme with or without the built-in Git extension', () => {
+  it('use colours Geet contributes, so they follow the theme with or without the built-in Git extension', () => {
     const manifest = JSON.parse(read('package.json')) as { contributes: { colors: Array<{ id: string }> } };
     const ids = new Set(manifest.contributes.colors.map((c) => c.id));
     for (const mark of ROW_MARKS) expect(ids.has(rowLook(mark).color)).toBe(true);
@@ -94,7 +94,7 @@ describe('the marks GitTree draws', () => {
   });
 });
 
-describe("GitTree's own tree views", () => {
+describe("Geet's own tree views", () => {
   const VIEWS = [
     { file: ['src', 'stash', 'stashView.ts'], call: "rowUri('stash', fullPath, node.file.status)" },
     { file: ['src', 'localHistory', 'restoreUx.ts'], call: "rowUri('history', fullPath)" },
@@ -102,7 +102,7 @@ describe("GitTree's own tree views", () => {
     { file: ['src', 'branches', 'worktrees.ts'], call: "rowUri('worktree', info.path)" },
   ] as const;
 
-  it("give their file and folder rows GitTree's address, with the mark that is true of the row", () => {
+  it("give their file and folder rows Geet's address, with the mark that is true of the row", () => {
     for (const view of VIEWS) expect(read(...view.file)).toContain(`item.resourceUri = ${view.call};`);
   });
 
@@ -122,7 +122,7 @@ describe("GitTree's own tree views", () => {
     );
   });
 
-  it("leave no tree row anywhere in GitTree with a file: address, which another extension would mark", () => {
+  it("leave no tree row anywhere in Geet with a file: address, which another extension would mark", () => {
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const name of readdirSync(dir)) {

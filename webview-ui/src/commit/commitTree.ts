@@ -5,11 +5,11 @@
  *
  * **The same changelist across repositories is ONE row.** IntelliJ's changelist
  * is a project-level object: one `Changes` node holding every VCS root, with
- * repository rows beneath it. GitTree stores a changelist per repository, so
+ * repository rows beneath it. Geet stores a changelist per repository, so
  * this is where the two are reconciled — the storage stays per repo, the tree
  * reads as IntelliJ's.
  *
- * **Or repositories first** (`gittree.commit.groupBy: repository`, GitTree's
+ * **Or repositories first** (`gittree.commit.groupBy: repository`, Geet's
  * own, D37): one row per repository with changes, its own changelists beneath.
  * Only a workspace of several repositories has the choice; one repository has
  * no repository rows to arrange.

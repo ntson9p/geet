@@ -116,7 +116,7 @@ export function groupRefs(
   opts: { readonly compact: boolean; readonly showTagNames: boolean },
 ): RefGroup[] {
   if (chips.length === 0) return [];
-  // HEAD is its own ref in IntelliJ. GitTree's rows say so as `isHeadTarget`
+  // HEAD is its own ref in IntelliJ. Geet's rows say so as `isHeadTarget`
   // on the branch it points at, or as a bare `HEAD` when it points at none.
   const detached = chips.some((c) => c.type === 'head');
   const headRefs: LabelRef[] =

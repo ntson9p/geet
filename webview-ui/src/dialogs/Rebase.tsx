@@ -142,7 +142,7 @@ export function Rebase() {
             />
             {options.interactive ? (
               <div className="gt-muted gt-op-note" data-testid="rebase-interactive-note">
-                Opens GitTree’s interactive rebase editor instead of git’s terminal editor.
+                Opens Geet’s interactive rebase editor instead of git’s terminal editor.
               </div>
             ) : null}
           </>

@@ -1,6 +1,6 @@
 /**
- * POST-P14cd: the addresses of GitTree's own tree rows (`rowAddress.ts`) as VS
- * Code URIs, and the letters and colours GitTree marks them with, which VS Code
+ * POST-P14cd: the addresses of Geet's own tree rows (`rowAddress.ts`) as VS
+ * Code URIs, and the letters and colours Geet marks them with, which VS Code
  * takes only from a file decoration. Only rows under `gittree-row` with a mark
  * get one: a stash's file, what the stash did to it; a conflicted file, `!`.
  */

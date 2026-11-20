@@ -1,15 +1,15 @@
 /**
- * Phase 14-T7: GitTree's own controls on GitTree's diffs, and the cross-file
+ * Phase 14-T7: Geet's own controls on Geet's diffs, and the cross-file
  * change navigation IntelliJ has and VS Code does not.
  *
  * This is Route A of `docs/deviations.md` D1: the native diff editor is kept —
  * it brings syntax highlighting, find, go-to-definition, the accessible diff
  * viewer and large-file performance that a webview renderer would lose — and
- * GitTree dresses it instead of replacing it.
+ * Geet dresses it instead of replacing it.
  *
  * VS Code's own ↑ ↓ buttons and `Alt+F5` are the ones that do this. An extension
  * cannot remove a core menu item, but the button only runs a command, and the
- * registry hands a command to whoever registered it last. So GitTree registers
+ * registry hands a command to whoever registered it last. So Geet registers
  * those two ids while one of its diffs is on screen, and only then: every other
  * diff in the window never comes through here.
  */
@@ -266,7 +266,7 @@ export function registerDiffControls(
   // ---- What the two sides hold ----------------------------------------------
 
   /**
-   * GitTree's own idea of the changes, which only ever predicts: VS Code decides
+   * Geet's own idea of the changes, which only ever predicts: VS Code decides
    * where they are, and it is asked before anything irreversible. The prediction
    * spares the view a wrap to the top of the file just to learn there is nothing
    * further. Presses stay on a few files for a while, so a few are kept.

@@ -1,33 +1,33 @@
-# GitTree FAQ
+# Geet FAQ
 
-### Does GitTree replace the built-in Git extension?
+### Does Geet replace the built-in Git extension?
 
-No, and it no longer asks you to choose. GitTree has its own activity-bar
+No, and it no longer asks you to choose. Geet has its own activity-bar
 container, its own commit window, its own change bars and its own diff
 controls, so it does not compete with the built-in Git extension for anything.
-Leave that extension on or turn it off — GitTree behaves the same either way.
+Leave that extension on or turn it off — Geet behaves the same either way.
 
-Specifically, GitTree registers no Source Control provider, contributes nothing
+Specifically, Geet registers no Source Control provider, contributes nothing
 to VS Code's Source Control menus, and reads no `git.*` setting.
 
 Earlier versions asked once per workspace and, if you chose "takeover", wrote
 `git.enabled: false` into that workspace. That is gone. If your workspace still
-carries that setting, GitTree removes it on first launch and tells you it did.
+carries that setting, Geet removes it on first launch and tells you it did.
 See [migration-from-builtin.md](migration-from-builtin.md).
 
-GitTree's own file badges (`gittree.decorations.fileExplorer`) are off by default.
+Geet's own file badges (`gittree.decorations.fileExplorer`) are off by default.
 VS Code shows an extension's file badges in all of its views, its own Source
 Control view included, so with both extensions running they showed every badge
 twice (`U, U`). Turn the setting on if you disable the built-in Git extension.
 
-So are GitTree's change bars (`gittree.changeBars.enabled`): the built-in
+So are Geet's change bars (`gittree.changeBars.enabled`): the built-in
 extension draws its own beside the same lines, and with both every changed line
-had two. GitTree's change actions work without them (`Ctrl+Alt+G H` at the
+had two. Geet's change actions work without them (`Ctrl+Alt+G H` at the
 cursor). Turn them on if you disable the built-in extension.
 
 ### GPG signing on Windows doesn't prompt / hangs — what now?
 
-GitTree runs git non-interactively, so gpg must be able to prompt on its own:
+Geet runs git non-interactively, so gpg must be able to prompt on its own:
 
 1. Install Gpg4win and tell git about it:
    `git config --global gpg.program "C:\Program Files (x86)\GnuPG\bin\gpg.exe"`.
@@ -35,7 +35,7 @@ GitTree runs git non-interactively, so gpg must be able to prompt on its own:
    pinentry-qt/pinentry-w32 by default — a console pinentry cannot appear from
    a GUI process).
 3. Test outside VS Code first: `echo test | gpg --clearsign`. If that prompts
-   and succeeds, the GitTree sign toggle (the seal icon in the commit UI)
+   and succeeds, the Geet sign toggle (the seal icon in the commit UI)
    will too.
 4. Long-running agents time out; `gpgconf --kill gpg-agent` resets a stuck one.
 
@@ -46,17 +46,17 @@ the provider-integration phase was skipped by project decision (rationale and
 an implementation guide for future contributors live in
 `docs/plan/PHASE-08-provider-integrations.md`). Everything git-protocol-level
 (clone/fetch/push over HTTPS/SSH, including self-hosted remotes) works
-normally — GitTree talks to git, not to provider APIs. Credential prompts are
-answered through VS Code via GitTree's askpass bridge, which also covers
+normally — Geet talks to git, not to provider APIs. Credential prompts are
+answered through VS Code via Geet's askpass bridge, which also covers
 integrated terminals when `gittree.terminalAuth` is on.
 
 ### How do I fetch — all repositories, or just one?
 
 **All of them, which is the default.** Fetch is a *project* operation in
-IntelliJ and in GitTree: the `$(sync)` button in the branches popup's header
+IntelliJ and in Geet: the `$(sync)` button in the branches popup's header
 (click the branch in the status bar to open it), the one beside the sidebar
 Repositories panel's filter (in the Branches panel's toolbar, with one
-repository), `GitTree: Fetch` from the command palette, `GitTree: Fetch All
+repository), `Geet: Fetch` from the command palette, `Geet: Fetch All
 Repositories`, and `Fetch` in the VCS Operations Popup (`Alt+\``) all fetch
 **every** root in the workspace that has a remote. Roots without one are skipped rather than failed, one slow or
 unreachable remote never stops the others, and the whole fan-out reports once.
@@ -91,7 +91,7 @@ at the first repository that refuses rather than half-applying.
 
 Operations that need an answer from you — New Branch, Rename, Delete, New
 Worktree — are offered inside a repository rather than across all of them,
-because GitTree asks for that answer per repository and you would be asked
+because Geet asks for that answer per repository and you would be asked
 once for each. See D27 in [deviations.md](deviations.md).
 
 A single-repository workspace sees none of this: the popup opens exactly as
@@ -108,11 +108,11 @@ They moved to where IntelliJ keeps them, so the sidebar shows the commit window 
 * **Stashes** — the **Stash** tab of the commit window, beside `Commit` and `Shelf`. Setting
   `gittree.stash.combineWithShelf` folds it into the Shelf tab, which is IntelliJ's
   *Combine stashes and shelves in one tab*.
-* **Local History** — `GitTree: Show Local History`, which opens the view on demand. This is
+* **Local History** — `Geet: Show Local History`, which opens the view on demand. This is
   what IntelliJ's `Show History` does.
 
 The old panes still exist. To bring all four back, turn on **`gittree.sidebar.extraViews`**
-(Settings → Extensions → GitTree). They reappear as collapsed sections, and turning it off
+(Settings → Extensions → Geet). They reappear as collapsed sections, and turning it off
 removes them again — no reload either way.
 
 (Ticking them under the sidebar's ⋯ → **Views** menu does *not* work, and neither did the
@@ -141,7 +141,7 @@ Repositories panel finds one by name, and `Enter` there shows only its branches 
 the filter alone picks nothing.
 
 Why it exists, when IntelliJ puts branches in the branch widget and the Git tool window:
-the status bar cannot be the way in. **Cursor has no status bar at all**, so the GitTree
+the status bar cannot be the way in. **Cursor has no status bar at all**, so the Geet
 button does not exist there — and a VS Code user who has just installed the extension looks
 in the sidebar, not at a widget two entries from the one the built-in Git extension draws.
 Both surfaces still work exactly as before; this is a third way in, not a replacement.
@@ -154,9 +154,9 @@ repositories as they always have: the project, and the active editor's repositor
 The trees the panels replaced are still available under `gittree.sidebar.extraViews`:
 **Repositories (Tree)**, **Branches (Tree)** and **Branches (All Repositories)**.
 
-### A GitTree message went away before I read it. Where is it?
+### A Geet message went away before I read it. Where is it?
 
-In the **GitTree** output (View › Output, then *GitTree*), as `[notice] 13:27:54 Checked out
+In the **Geet** output (View › Output, then *Geet*), as `[notice] 13:27:54 Checked out
 develop`. A message with nothing to click, such as *Fetch successful* or *Nothing to stash.*,
 stays 5 seconds while VS Code is in front, and VS Code cannot keep a notification it hides on a
 timer in its Notifications list. Set `gittree.notifications.durationSeconds` to keep them up
@@ -167,21 +167,36 @@ buttons, warnings and errors are always ordinary notifications.
 
 Snapshots are content-addressed, gzip-compressed blobs under VS Code's
 extension global storage
-(`…/User/globalStorage/gittree.gittree/localHistory/<repo-key>/`), one store
+(`…/User/globalStorage/ntson9p.geet/history/<repo-key>/`), one store
 per repository identity. Nothing ever leaves your machine. Retention is
 controlled by `gittree.localHistory.{maxSizeMb,retentionDays,maxFileSizeKb}`
 (see [settings.md](settings.md)); GC enforces the size budget oldest-first,
-and `GitTree: Clear All Local History` wipes a repo's store.
+and `Geet: Clear All Local History` wipes a repo's store.
 
 ### Where does the shelf store patches?
 
 Outside `.git` on purpose (that is the point of shelving): under extension
-global storage, or a folder you pick via `gittree.shelf.path`. Deleting or
-re-initializing the repository leaves shelved patches intact.
+global storage (`…/User/globalStorage/ntson9p.geet/shelf/`), or a folder you
+pick via `gittree.shelf.path`. Deleting or re-initializing the repository
+leaves shelved patches intact.
+
+### Why do Geet's settings and commands start with `gittree.`?
+
+Geet was called GitTree before 0.1.0. Its settings (`gittree.localHistory.maxSizeMb`), command
+IDs and keybindings kept that prefix, so a setup made then still works; the names you see —
+the views, the Command Palette's *Geet: …* entries, the messages — say Geet.
+
+### I used GitTree, Geet's name before the Marketplace. Where did my shelf go?
+
+Builds before 0.1.0 were `gittree.gittree`; the Marketplace's is `ntson9p.geet`, and VS
+Code keeps each extension's data under its ID. The old build's shelf and Local History are
+still in `…/User/globalStorage/gittree.gittree/`: with VS Code closed, copy its `shelf` and
+`history` folders into `…/User/globalStorage/ntson9p.geet/`. Changelists, commit message
+history and drafts are kept by VS Code itself and do not carry over.
 
 ### The log is slow on a gigantic repository. What helps?
 
-On repos above ~50k tracked files GitTree offers (once) to enable git's
+On repos above ~50k tracked files Geet offers (once) to enable git's
 built-in FSMonitor and untracked cache — the two biggest `git status`
 accelerators (needs git ≥ 2.37). Commit-graph maintenance runs automatically,
 once a day per repository, in the background: it starts a minute after the
@@ -190,7 +205,7 @@ Benchmarks and the tuning playbook are in [perf.md](perf.md).
 
 ### Why does the extension ask for nothing at install time?
 
-GitTree needs no account, no token and no telemetry backend. Anonymous usage
+Geet needs no account, no token and no telemetry backend. Anonymous usage
 telemetry has an off-by-default local wrapper honoring both
 `telemetry.telemetryLevel` and `gittree.telemetry.enabled`, and there is no
 server configured to receive it.

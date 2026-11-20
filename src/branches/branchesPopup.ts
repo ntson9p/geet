@@ -337,7 +337,7 @@ export function repoRowDescription(repo: RepoRow, showInOut: boolean): string {
  * The project level: the verbs, then one row per repository, then the refs
  * every root shares. This is the shape IntelliJ shows in a multi-root project,
  * and the reason it matters is not decoration — it is that **the repository is
- * visible and selectable rather than inferred**. GitTree's popup used to be
+ * visible and selectable rather than inferred**. Geet's popup used to be
  * bound to whichever root `pickRepo` guessed from the active editor and never
  * named it, so a scoped action could land in a repository the user was not
  * looking at with nothing on screen to say so.
@@ -415,7 +415,7 @@ export function buildProjectPopupItems(input: ProjectPopupInput): BranchItem[] {
  * What is deliberately **not** here is everything that would prompt once per
  * root — `newFrom`, `rename`, `delete`, `deleteOnRemote`, `newWorktree` — or
  * open a view per root (`compareWithCurrent`, `diffWithWorkingTree`). IntelliJ
- * asks once and applies to all; GitTree's `BranchOps` takes its input inside
+ * asks once and applies to all; Geet's `BranchOps` takes its input inside
  * the per-repository call, so offering them here would mean seven dialogs.
  * They stay reachable by drilling into a repository. Recorded as D27.
  */

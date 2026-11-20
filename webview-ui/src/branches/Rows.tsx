@@ -221,7 +221,7 @@ const CARD_FITS: readonly CardFit[] = ['full', 'lead', 'icons', 'tight'];
 
 /**
  * Recent, Local, Remote and Tags: which kind of branch the list below shows,
- * styled as GitTree's other tab strips. The row is what the keyboard reaches
+ * styled as Geet's other tab strips. The row is what the keyboard reaches
  * (Left and Right switch, as on a tab strip); the tabs themselves are for the
  * pointer, and a press on one leaves focus where it was until the click lands.
  */

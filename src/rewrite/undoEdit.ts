@@ -6,7 +6,7 @@
  * commits are already on a protected remote branch, and done with
  * `git reset --keep` — which moves HEAD back and updates the files the edit
  * changed, and refuses rather than overwrite a local change to one of them.
- * GitTree had `reset --hard`, which threw away every uncommitted change in the
+ * Geet had `reset --hard`, which threw away every uncommitted change in the
  * working tree, and checked nothing, so an Undo clicked later from the
  * notification centre also discarded the commits made since.
  *

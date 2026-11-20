@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
  * POST-P14ck in the real extension: a ticked `[id].tsx` is committed alone,
@@ -40,7 +40,7 @@ suite('POST-P14ck a path that looks like a pattern', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
     reg = core.debugRegistry.get('phase03') as Phase03Registry;

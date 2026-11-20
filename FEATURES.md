@@ -1,11 +1,11 @@
-**What this document is.** The parity contract for GitTree, rewritten (P13-T9) against
+**What this document is.** The parity contract for Geet, rewritten (P13-T9) against
 JetBrains' documentation and the reference layouts transcribed in
 [docs/intellij-gap-analysis.md](docs/intellij-gap-analysis.md) §2A.
 
 The version before 2026-08-20 specified *capabilities* without the *containers* they live in,
 and an audit passed against it while the product looked nothing like IntelliJ — the root cause
 identified in the gap analysis §1. **Every item below therefore carries a shape criterion —
-which container, which toolbar, which menu — next to what it does**, and states what GitTree
+which container, which toolbar, which menu — next to what it does**, and states what Geet
 ships. Accepted divergences are named here and registered once in
 [docs/deviations.md](docs/deviations.md); anything not listed there is a gap, not a deviation.
 
@@ -17,7 +17,7 @@ ships. Accepted divergences are named here and registered once in
 
 * **IntelliJ:** color bars in the left gutter — green added, blue modified, grey deleted —
   with a floating inline diff on click carrying Rollback / Show Diff / Copy actions.
-* **GitTree:** **its own** bars, painted with `TextEditorDecorationType` against the index (or
+* **Geet:** **its own** bars, painted with `TextEditorDecorationType` against the index (or
   HEAD — `gittree.changeBars.base`), plus matching overview-ruler marks. P14-T3 replaced the
   `SourceControl.quickDiffProvider` route, which died with the SourceControl itself. Colours
   are `editorGutter.*`, a VS Code **core** token, so they theme correctly whether or not the
@@ -37,7 +37,7 @@ ships. Accepted divergences are named here and registered once in
 
 * **IntelliJ:** the Differences Viewer's own toolbar, and — the part that matters daily — at
   the last change of a file the next-change button offers to continue into the *next file*.
-* **GitTree:** its own controls on its own diffs (`isInDiffEditor && gittree.diff.active`):
+* **Geet:** its own controls on its own diffs (`isInDiffEditor && gittree.diff.active`):
   **← → file · side-by-side/inline · ignore whitespace · collapse unchanged**, with
   `Shift+Alt+←`/`→` for the files and `F7`/`Shift+F7` for the changes under the IntelliJ keymap.
 * **Cross-file navigation, on VS Code's own ↑ ↓ and `Alt+F5`:** the list you clicked from *is* the
@@ -115,7 +115,7 @@ When an operation you started finishes, a notification says what it did, in Inte
   - **Delete** says *Deleted branch x* (adding *Unmerged commits were discarded* when it had to
     force), with **Restore**, which puts the branch back at its old tip, tracking what it
     tracked, and **Delete Tracked Branch** while it tracked one. These two buttons replace
-    the question GitTree used to ask after a delete.
+    the question Geet used to ask after a delete.
 * **Log:** *Created tag v1*, *Checked out 1393301c* and *Reset successful*. **Edit Commit
   Message** says *Commit message changed*, with **Undo**, which works while nothing has
   happened to the branch since. **Undo Commit** says *Undo commit successful*.
@@ -134,7 +134,7 @@ When an operation you started finishes, a notification says what it did, in Inte
   same wording as above.
 
 **How long they stay** (new-way-6). A notice with nothing to click leaves after 5 seconds
-(`gittree.notifications.durationSeconds`), and so do GitTree's other plain information
+(`gittree.notifications.durationSeconds`), and so do Geet's other plain information
 messages: *Nothing to stash.*, *No changes to commit.*. A long one gets a second for every
 four words past ten, up to twice the setting.
 
@@ -142,7 +142,7 @@ four words past ten, up to twice the setting.
   waits for you, and finishes what is left of its time when you are back, as IntelliJ's
   balloons do. VS Code's own toasts stay 10 seconds, more while the pointer rests on them.
 * VS Code cannot hide a notification on a timer and still keep it in the Notifications list
-  (the bell), so these leave no entry there. The **GitTree** output keeps a copy:
+  (the bell), so these leave no entry there. The **Geet** output keeps a copy:
   `[notice] 13:27:54 Checked out develop`.
 * Such a notice has no `×`: VS Code draws none while a timed notification runs. `Escape` hides
   it, and VS Code then shows its words in the status bar until the time is up.
@@ -170,7 +170,7 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
   `Checkout Tag or Revision…`. With several repositories, `Checkout Tag or Revision…` gives
   way to `Checkout Branch in All Repositories…`: it checks out in one repository, and the top
   level could not say which. Each repository's own verbs keep it, and so does a search
-  confined to one repository. From the Command Palette with several repositories, **GitTree:
+  confined to one repository. From the Command Palette with several repositories, **Geet:
   Checkout Tag or Revision…** asks which repository first, the one with the open file listed
   first and marked, so `Enter` takes it. They carry
   search keywords, so typing `merge` finds an action and not only branches. The keys are
@@ -199,10 +199,10 @@ clearing stashes, and renaming or deleting shelved changes, stay quiet for the s
   actually touch (`Checkout in 5 of 7 repositories`) and stopping at the first refusal.
 * **Deviation:** drill-in rather than in-place collapse — `QuickPick` cannot render a
   collapsible tree (D5); and the all-roots set is the operations needing no per-root input,
-  since GitTree's take their input inside the per-repository call (D27).
+  since Geet's take their input inside the per-repository call (D27).
 ### The sidebar's Repositories and Branches panels (shape + behaviour)
 
-Under the Commit window, two panels of GitTree's own design, not the popup standing open
+Under the Commit window, two panels of Geet's own design, not the popup standing open
 (D34): **Repositories** (`gittree.repositoryList`), with several repositories, and
 **Branches** (`gittree.branches`). Until POST-P14co they were one panel titled
 *Repositories*, with a REPOSITORIES and a BRANCHES pane; before that, one titled *Branches*.
@@ -322,7 +322,7 @@ picked; at first, on Recent while anything is recent, else Local.
   repository in view on each row in place of those words: filled where the branch is checked
   out, ringed where it exists, small where it does not. They are switched by the toolbar's dots
   button (shown pressed while they are on), by `⋯` › *Show* › **Repository Dots**, and by
-  **GitTree: Toggle Repository Dots**. Either way a branch's card lists the repositories,
+  **Geet: Toggle Repository Dots**. Either way a branch's card lists the repositories,
   grouped by what they say about it.
 * **A repository's menu** (right-click, or its `⋯`) opens with the ways of looking at it:
   **Show Only This Repository** and **Show in New Log Tab**, its history at HEAD in a Log tab of
@@ -338,7 +338,7 @@ picked; at first, on Recent while anything is recent, else Local.
   - **The Commit window follows it** (POST-P14ce): it lists only the repositories picked, says
     so in a bar over its list with *Show all*, and commits only them
     ([D45](docs/deviations.md#d45--the-repositories-panels-pick-narrows-the-commit-window)). The
-    pick is kept for the workspace by GitTree, not by the panel, so either one changes it.
+    pick is kept for the workspace by Geet, not by the panel, so either one changes it.
   - **Clicking the repository shown alone again shows every repository again.** Clicking one
     of several picked shows it alone. Each row's hover says what its click will do.
   - **A picked repository's row is highlighted, every picked one alike, and only while it is
@@ -396,18 +396,18 @@ picked; at first, on Recent while anything is recent, else Local.
     One Repository ›** row, so twenty repositories do not bury the actions (new-way-6).
     IntelliJ's own menu has no such list: its actions run in every repository, and one
     repository's are in that repository's part of the popup;
-  - **a menu never runs off the panel.** A GitTree menu is drawn inside its webview, so past the
+  - **a menu never runs off the panel.** A Geet menu is drawn inside its webview, so past the
     webview's height it scrolls, the arrow keys bringing the row they reach into view, and past
     its width the labels end in `…`. A row the pointer has not moved onto, because the menu
     opened beneath it or scrolled under it, does not take the keyboard's place. This holds for
-    every GitTree menu: the log's, the Commit window's and the dialogs' too.
+    every Geet menu: the log's, the Commit window's and the dialogs' too.
   - **Checkout reaches every repository in view that has the branch, on a remote too.**
     `release/2.0` may be a local branch in one repository and only `origin/release/2.0` in
     three more: its row offers **Checkout in 4 of 5 repositories**, the local branch where
     there is one and a new one tracking the remote branch where not. A remote row does the
     same. A repository with no such branch stays where it is, and one in the middle of a merge
     or with conflicts to resolve is skipped; the result says which.
-  - **Show in New Log Tab** opens the branch's graph in a Log tab of its own in the GitTree panel
+  - **Show in New Log Tab** opens the branch's graph in a Log tab of its own in the Geet panel
     (`Log: release/2.0`), so the tabs already open keep their filters; a tab already showing it
     comes forward instead. It leads the group that looks at a branch, after the checkout group
     and beside **Compare with `'main'`** and **Show Diff with Working Tree**, and a remote
@@ -509,7 +509,7 @@ checked-out branch it runs Update Project's fetch-and-integrate **without asking
 branch `Update` uses the saved update method, and only `Update Project…` puts the question — with
 the remembered strategy: `gittree.update.strategy`, else the last answer to that question, else
 Merge. On any other branch git cannot integrate without a checkout, so
-GitTree fast-forwards the ref in place — `git fetch . <upstream>:<branch>`, which git performs
+Geet fast-forwards the ref in place — `git fetch . <upstream>:<branch>`, which git performs
 only when it is a genuine fast-forward. A diverged branch is reported with its counts, never
 rewritten.
 
@@ -539,7 +539,7 @@ never offered.
   `branch.autoSetupMerge` says. **Deviation:** git and IntelliJ both make `mine` track
   `origin/develop`, after which its push lands on `develop` (D35).
 * **Smart Checkout:** a checkout blocked by local changes is intercepted, not just reported —
-  GitTree offers stash → checkout → unstash (`gittree.smartCheckout.behavior`), routing any
+  Geet offers stash → checkout → unstash (`gittree.smartCheckout.behavior`), routing any
   resulting conflicts into the merge flow.
 * **Compare with Current** opens a Log tab of its own, `Compare: main and feature/x`, holding both
   branches' commits, marked ◀ and ▶, under a line that says how many each has alone. Each commit has
@@ -563,7 +563,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
 ### The window itself (shape)
 
 * **One tool window**, not stacked sidebar trees: webview view `gittree.commit`, placed
-  **first in the GitTree activity-bar container** (P14-T1), holding tabs `Commit | Shelf`, a
+  **first in the Geet activity-bar container** (P14-T1), holding tabs `Commit | Shelf`, a
   toolbar strip, the change tree, and a bottom block (amend row · message editor · action
   buttons · options gear) — all in a single panel. There is no SCM input box to hide: P14-T4
   deleted the `vscode.scm` SourceControl entirely.
@@ -643,7 +643,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   `M of N changes`. Excluding the last change unticks the file. Stale selections (the file
   moved) fall back to whole-file, loudly — renumbered hunks are never committed.
 * **Density:** `N files` badge on every group and folder node; status-colored file **names**
-  and icons (GitTree's own `gittree.color.*` theme colours, `gittree.colors.<status>`  overrides); a folder
+  and icons (Geet's own `gittree.color.*` theme colours, `gittree.colors.<status>`  overrides); a folder
   whose descendants share one status wears it, mixed folders read as modified.
 * **Multi-root: one `Changes`, one `Unversioned Files`, repository rows beneath** — IntelliJ's
   shape. The same changelist in several repositories is a single row; repositories with nothing
@@ -678,7 +678,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
     a repository to its first list. Each grouping keeps its own folders open or shut, opens
     everything the first time it is shown, and Collapse all shuts only its own. A repository or
     list row that appears later appears open.
-  - Saved in `gittree.commit.groupBy` (your settings, or the workspace's if you keep it there); also from the palette, *GitTree: Group
+  - Saved in `gittree.commit.groupBy` (your settings, or the workspace's if you keep it there); also from the palette, *Geet: Group
     Changes by Repository* and *by Changelist*. With one repository both look the same, and
     neither the eye nor the commands are offered.
   - Nothing else changes: the counter, the message, Amend and *Commit to 2 repositories* work on
@@ -737,7 +737,7 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
   their message can be reused; the 🕘 clock opens the 50-entry **message history** dropdown
   (first line + relative time) in place.
 * Soft subject hint: a right-aligned counter past 72 characters; never blocks.
-* **Generate Commit Message**: the ✨ in the box's top right corner, or *GitTree: Generate
+* **Generate Commit Message**: the ✨ in the box's top right corner, or *Geet: Generate
   Commit Message* in the palette. IntelliJ's *Generate Commit Message with AI Assistant*: a
   language model writes the message for what **Commit** would commit
   ([D48](docs/deviations.md#d48--generate-commit-message-uses-a-model-vs-code-has)).
@@ -746,10 +746,10 @@ next to what it does. Reference layouts: `docs/intellij-gap-analysis.md` §2A.
     the last commit's own changes and message as well, since the new message is the message
     of both.
   - *Which model:* one VS Code has: GitHub Copilot's once you are signed in, or any added
-    under *Chat: Manage Language Models*. With several, GitTree asks the first time and keeps
-    the answer in `gittree.commit.messageGeneration.model`; *GitTree: Choose the Model for
-    Commit Messages…* changes it. VS Code asks your consent the first time GitTree uses
-    Copilot's models. With no model, GitTree says what gives VS Code one.
+    under *Chat: Manage Language Models*. With several, Geet asks the first time and keeps
+    the answer in `gittree.commit.messageGeneration.model`; *Geet: Choose the Model for
+    Commit Messages…* changes it. VS Code asks your consent the first time Geet uses
+    Copilot's models. With no model, Geet says what gives VS Code one.
   - *What is sent, and only on your click:* the diffs of those changes, the repository's name
     and branch, and the subjects of its last ten commits, whose style the message follows. A
     large diff is cut short; a binary file is only named.
@@ -824,7 +824,7 @@ docked bottom, tabs `Log | Console`").
 
 ### The window itself (shape)
 
-* **One bottom-docked tool window**, IntelliJ's Git tool window, titled **GitTree** after the
+* **One bottom-docked tool window**, IntelliJ's Git tool window, titled **Geet** after the
   extension: webview view `gittree.log` in the `gittree-panel` panel container, holding tabs
   **`Log | Console | Worktrees`** (active tab persisted),
   simultaneously visible with the left-docked Commit window and the editor.
@@ -883,7 +883,7 @@ docked bottom, tabs `Log | Console`").
   Branches popup, the sidebar's Branches panel (its Tags tab) and the branch trees drop
   their tags with it; the `Branch ▾`
   filter keeps offering them. IntelliJ's menu also has the single-click action and
-  `Group By Directory`; GitTree lists neither (a click always filters; branches always
+  `Group By Directory`; Geet lists neither (a click always filters; branches always
   group by directory).
 * **Selecting a ref filters the Commits pane** through the filter model (Ctrl adds;
   `HEAD (Current)` restores). Branch rows have a native context menu (checkout, new from,
@@ -904,7 +904,7 @@ docked bottom, tabs `Log | Console`").
   **Date** reads `2026/09/05 15:07` by default — year first, two digits each, a 24-hour
   clock, the same in every language (owner's choice;
   [D40](docs/deviations.md#d40--the-date-column-writes-yyyymmdd-hhmm)).
-  **`Presentation Settings ▸ Date Format`** (GitTree's own row,
+  **`Presentation Settings ▸ Date Format`** (Geet's own row,
   [D47](docs/deviations.md#d47--date-format-is-in-the-logs-eye-menu)) offers three choices,
   each with a sample of today at 14:19:
   - **Year First**: the default above.
@@ -964,14 +964,14 @@ docked bottom, tabs `Log | Console`").
   **Options:** **First Parent** follows only each merge's first parent and, as in IntelliJ,
   takes the sort's place (no sort is ticked; picking one ends it, unticking it brings the
   sort back); **No Merges** hides merge commits and adds `--no-merges` to the tab's title.
-  GitTree hides those merges itself rather than through git, so the line from a merge's
+  Geet hides those merges itself rather than through git, so the line from a merge's
   child runs on into its first parent instead of dangling, and the merged branch shows as a
   tip. A dot on the button marks anything but By Commit Date with no option ticked. Each tab
   keeps its own; Reset all filters keeps the sort and First Parent and drops No Merges.
 * Right toolbar: refresh · **Presentation Settings** (eye) · **Go to Hash/Branch/Tag** ·
   Show Details (folds the right column) · Highlight my commits.
 * **Presentation Settings ▾ · Show**, IntelliJ's rows in IntelliJ's order and defaults, all
-  IDE-wide settings, after one of GitTree's own:
+  IDE-wide settings, after one of Geet's own:
   - **Graph** (`gittree.log.showGraph`, on): the coloured lanes and commit dots. Off, the
     rows are the message, its labels and the columns alone, the message at the row's edge.
   - **Compact References View** (`gittree.log.compactReferences`, on): all of a commit's
@@ -989,7 +989,7 @@ docked bottom, tabs `Log | Console`").
   its `Highlight` group are not in the menu; *Highlight my commits* is the toolbar toggle
   above.
 * **The graph also refreshes itself.** Any history change — a commit, amend, checkout,
-  merge, rebase, reset or pull, from GitTree, the built-in Git extension or a terminal —
+  merge, rebase, reset or pull, from Geet, the built-in Git extension or a terminal —
   re-pages the graph without the button. *Shape:* the rows rebuild in place and the list
   comes back as IntelliJ's does: **scrolled to the top, it stays at the top**, so a commit
   just made is the first row on screen; scrolled down, the first selected row on screen (or
@@ -997,9 +997,9 @@ docked bottom, tabs `Log | Console`").
   its Changed Files and Commit Details panes, and no frame shows the rows shifted on the way.
   Coalesced across a burst (a rebase moves refs once per step) and deferred entirely while
   the panel is hidden, so a closed log costs no git. A dirty worktree alone never re-pages it.
-  A change made outside GitTree reaches the log within about a second even while something
+  A change made outside Geet reaches the log within about a second even while something
   keeps writing files in the workspace (a dev server's log, a test run), and one made right
-  after a GitTree operation is not mistaken for that operation's own.
+  after a Geet operation is not mistaken for that operation's own.
 
 ### `Paths ▾` and the repository on show
 
@@ -1086,7 +1086,7 @@ greys Revert, Drop and Squash Commits.
   `fixup!`/`squash!` of a selected commit giving only its body) in the Accept/Cancel commit
   editor. Both check IntelliJ's conditions — every commit on the current branch, no merge
   between the oldest and HEAD, not the initial commit — say which one failed, confirm before
-  rewriting commits already on the upstream (GitTree's published guard, where IntelliJ refuses
+  rewriting commits already on the upstream (Geet's published guard, where IntelliJ refuses
   a protected branch), and offer **Undo** afterwards. As in IntelliJ, Undo works while HEAD is
   still where the edit left it and its commits are not on a protected remote branch; it moves
   the branch back with `git reset --keep`, so every local change stays, and refuses rather
@@ -1133,7 +1133,7 @@ greys Revert, Drop and Squash Commits.
   commit?* · **Commit Anyway**). While a conflict is left nothing commits: *Cannot commit
   changes due to unresolved conflicts.*
 * The **`gittree.conflicts` tree view remains** the persistent surface for ongoing work —
-  IntelliJ gates on the modal and keeps a view; so does GitTree.
+  IntelliJ gates on the modal and keeps a view; so does Geet.
 
 ### The tri-editor (shape)
 
@@ -1207,7 +1207,7 @@ greys Revert, Drop and Squash Commits.
 ## 7. Deep Provider Integrations (GitHub / GitLab)
 
 **Not implemented, by owner decision — this is a standing project constraint, not a gap.**
-GitTree performs no remote-account actions of any kind: no sign-in, no pull-request tool
+Geet performs no remote-account actions of any kind: no sign-in, no pull-request tool
 window, no in-IDE review, no CI status. Phase 8 was skipped deliberately. `Clone…` accepts a
 URL and does not enumerate a provider's repositories. Registered as D11.
 
@@ -1236,12 +1236,12 @@ URL and does not enumerate a provider's repositories. Registered as D11.
 
 ## 9. Dialogs, Popups and the Action Hub
 
-IntelliJ drives its Git operations through **option-bearing dialogs**; before P13 GitTree stood
+IntelliJ drives its Git operations through **option-bearing dialogs**; before P13 Geet stood
 25 of them up as QuickPick/InputBox chains that hid every real flag.
 
 * **Shape shared by all of them:** a focus-trapped editor-area panel (D2) with a title row, a
   scrollable body, and a footer carrying `?` on the left and the actions on the right. Where
-  IntelliJ shows *Modify options*, GitTree shows the same: a compact primary form plus a
+  IntelliJ shows *Modify options*, Geet shows the same: a compact primary form plus a
   dropdown of the actual git flags, each ticked option revealing its control — and un-ticking
   one **turns the flag off**, so a flag the user cannot see never survives into the command.
   Contradictory combinations are reported **with reasons** and disable the action.
@@ -1273,7 +1273,7 @@ IntelliJ drives its Git operations through **option-bearing dialogs**; before P1
   `⋯` with two picked (the Branches panel's until POST-P14cq); its progress, a failure and a
   cancelled run say the same. With one repository in the workspace, every update is *Update
   Project*.
-* **Update Project Without Fetching…** (GitTree's own, no IntelliJ counterpart) is the same
+* **Update Project Without Fetching…** (Geet's own, no IntelliJ counterpart) is the same
   update without the fetch: each repository is merged or rebased onto its remote branch as it
   was **last fetched** — instant, and it works offline. It sits right under every update: the
   Repositories panel's `⋯`, or with one repository the Branches panel's (following what is in

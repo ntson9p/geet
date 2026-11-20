@@ -1,5 +1,5 @@
 /**
- * POST-QA: GitTree writes an option where the user already keeps it, else in
+ * POST-QA: Geet writes an option where the user already keeps it, else in
  * their own settings — never a new value in the repository's
  * `.vscode/settings.json` — and not at all when it would not change.
  */

@@ -1,6 +1,6 @@
 /**
  * Structured git-command ring (P12-T8): every executor run — argv, exit code,
- * duration, output head — for the Console tab. The `GitTree` output channel
+ * duration, output head — for the Console tab. The `Geet` output channel
  * stays as-is; this is a structured mirror, capped at 2000 entries.
  *
  * Redaction is mandatory and happens BEFORE anything enters the buffer:

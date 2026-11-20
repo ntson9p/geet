@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, workspaceRepoA } from '../setup';
+import { activateGeet, gitWithRetry, workspaceRepoA } from '../setup';
 
 interface Phase10RegistryShape {
   offerPlaybook(repoRoot: string): Promise<void>;
@@ -25,7 +25,7 @@ suite('P10 hardening — large-repo playbook', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     repo = core.repoForPath(workspaceRepoA())!;
     assert.ok(repo, 'repoA not discovered');
     reg = core.debugRegistry.get('phase10') as Phase10RegistryShape;
@@ -85,7 +85,7 @@ suite('P10 onboarding — playground generator', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     reg = core.debugRegistry.get('phase10') as Phase10RegistryShape;
     assert.ok(reg, 'phase10 registry missing');
   });
@@ -174,7 +174,7 @@ suite('P10 telemetry & error UX', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     repo = core.repoForPath(workspaceRepoA())!;
     reg = core.debugRegistry.get('phase10') as Phase10RegistryShape;
     assert.ok(typeof reg.telemetryEvents === 'function', 'T4 registry hooks missing');
@@ -235,10 +235,10 @@ suite('P10 telemetry & error UX', () => {
 
   test('T4: pre-filled issue URL carries environment but no raw paths', async () => {
     const url = reg.buildIssueUrl('auth');
-    assert.ok(url.startsWith('https://github.com/gittree/git-tree-vsix/issues/new?'));
+    assert.ok(url.startsWith('https://github.com/ntson9p/git-tree/issues/new?'));
     const decoded = decodeURIComponent(url).replaceAll('+', ' ');
     assert.ok(decoded.includes('error kind: auth'));
-    assert.ok(decoded.includes('GitTree: '));
+    assert.ok(decoded.includes('Geet: '));
     assert.ok(decoded.includes('capabilities: '));
     // The trace tail references workspace repos by absolute path — all of
     // that must have been hashed away.

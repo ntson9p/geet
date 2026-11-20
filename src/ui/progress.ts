@@ -28,9 +28,9 @@ export function vscodeProgressAdapter(): ProgressAdapter {
     );
 
     // P14-T4: `ProgressLocation.SourceControl` renders inside VS Code's Source
-    // Control view, which GitTree no longer contributes a provider to — the
+    // Control view, which Geet no longer contributes a provider to — the
     // spinner would have nowhere to appear. `Window` puts it in the status bar,
-    // beside GitTree's own branch and sync items.
+    // beside Geet's own branch and sync items.
     void vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: info.label },
       () => uiPromise,

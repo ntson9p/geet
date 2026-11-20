@@ -20,7 +20,7 @@ import {
 import * as vscode from 'vscode';
 import { repoLabels } from '../../../src/core/util/repoLabels';
 import {
-  activateGitTree,
+  activateGeet,
   gitWithRetry,
   waitFor,
   withAutoConfirm,
@@ -65,7 +65,7 @@ suite('P13 dialogs', () => {
   suiteSetup(async function () {
     this.timeout(90_000);
     repoRoot = workspaceRepoC();
-    core = await activateGitTree();
+    core = await activateGeet();
     reg = core.debugRegistry.get('phase13') as Phase13Registry;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(reg && repo, 'phase13 registry or repo missing');
@@ -2932,7 +2932,7 @@ suite('P13 dialogs', () => {
       assert.ok(mainNode, 'the main worktree should have a row');
       const item = reg.worktrees.provider.getTreeItem(mainNode);
       assert.strictEqual(item.label, branch);
-      // POST-P14cd: GitTree's own address, unmarked: no extension marks the row
+      // POST-P14cd: Geet's own address, unmarked: no extension marks the row
       // as the folder on disk.
       assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
       assert.strictEqual(item.resourceUri?.authority, 'worktree');

@@ -5,7 +5,7 @@
  *
  * P14-T4 removed the per-repo `vscode.scm` SourceControl — the last reference
  * to the SCM framework anywhere in `src/`. What it carried has its own home
- * now: the change bars are GitTree-painted (T3), the status bar owns its
+ * now: the change bars are Geet-painted (T3), the status bar owns its
  * items, the count is a view badge, and the commit message lives in the commit
  * tool window.
  */
@@ -33,13 +33,13 @@ import { setNoticeLog } from '../ui/notices';
 export interface Phase01Registry {
   statusBars: Map<string, StatusBarController>;
   revProvider: RevContentProvider;
-  /** P14-T3 — GitTree's own change bars; the test seam for what is painted. */
+  /** P14-T3 — Geet's own change bars; the test seam for what is painted. */
   changeBars: ChangeBarsController;
   /**
    * What the status bar believes it is showing. "The widget is gone" has four
    * distinguishable causes and no way to tell them apart from the outside:
    * discovery dropped the repository (`repos` empty), the controller was
-   * unregistered (`bars` empty), GitTree hid it (`visible: false`), or VS Code
+   * unregistered (`bars` empty), Geet hid it (`visible: false`), or VS Code
    * is not rendering an item we did show (`visible: true` and still invisible —
    * status-bar crowding, or an entry the user hid from the status bar's own
    * context menu). `gittree.debug.showState` prints this.
@@ -60,7 +60,7 @@ export interface StatusBarDiagnostics {
   bars: Array<{ key: string; visible: boolean; titles: string[] }>;
   /**
    * What the host last pushed to the status bar, and under which ids. The
-   * earlier diagnostics could not tell "GitTree is showing it" from "the entry
+   * earlier diagnostics could not tell "Geet is showing it" from "the entry
    * still exists", because per-repository items shared one id and any of them
    * could dispose the shared entry (see `ui/statusBar.ts`). A repeated id here
    * is that bug, visible.
@@ -91,7 +91,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
    * deliberately cannot see is a user who hid those entries from the status
    * bar's own right-click menu — VS Code exposes no API for that — so `auto`
    * leaves them on the compact button and the setting is their way out. It is
-   * a read; GitTree never writes `git.enabled` (see `unsetGitEnabled`).
+   * a read; Geet never writes `git.enabled` (see `unsetGitEnabled`).
    */
   const builtInGitPresent = (): boolean => {
     if (vscode.extensions.getExtension('vscode.git') === undefined) return false;
@@ -220,8 +220,8 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   // gittree.commit + acceptInputCommand are owned by Phase 3 (commitFlow),
   // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
-  // POST-P14cd: the marks on GitTree's own Stashes and Conflicts rows, which
-  // carry GitTree's own addresses so that nothing else marks them.
+  // POST-P14cd: the marks on Geet's own Stashes and Conflicts rows, which
+  // carry Geet's own addresses so that nothing else marks them.
   registerRowDecorations(context);
 
   const statusBarDiagnostics = (): StatusBarDiagnostics => ({
@@ -249,7 +249,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   // POST-P14ap: what the completion notifications said, for the integration tests.
   core.debugRegistry.set('notifications', notificationsRegistry);
   // new-way-6: a notice that leaves on a timer has no entry in the notification
-  // centre; GitTree's output keeps it.
+  // centre; Geet's output keeps it.
   setNoticeLog((line) => core.output.appendLine(line));
   context.subscriptions.push({ dispose: () => setNoticeLog(undefined) });
   return registry;

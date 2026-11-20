@@ -14,7 +14,7 @@
 /** One repository, as far as checking a branch out in it needs to know. */
 export interface RepoRefState {
   readonly root: string;
-  /** What GitTree calls it everywhere. */
+  /** What Geet calls it everywhere. */
   readonly label: string;
   /** The checked-out branch; undefined when HEAD is detached. */
   readonly head: string | undefined;

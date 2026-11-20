@@ -208,7 +208,7 @@ export function registerChangePopup(
   /**
    * POST-P14aa: the provider exists only while the setting is on. Registered
    * and disposed rather than consulted inside `provideHover`, so "off" means
-   * VS Code never calls GitTree on a hover at all — not a call per hover that
+   * VS Code never calls Geet on a hover at all — not a call per hover that
    * answers nothing. The listener makes the toggle live: no reload, and the
    * very next hover reflects it.
    */

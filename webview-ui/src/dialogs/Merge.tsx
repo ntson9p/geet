@@ -1,6 +1,6 @@
 /**
  * Merge dialog (P13-T3) — the "Modify options" shape: a ref picker plus the
- * real git flags S4 says GitTree hides today (`--no-ff`, `--ff-only`,
+ * real git flags S4 says Geet hides today (`--no-ff`, `--ff-only`,
  * `--squash`, `--no-commit`, `--allow-unrelated-histories`, strategy and
  * strategy-option, custom message), with a dim "will run" line underneath.
  */

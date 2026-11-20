@@ -196,7 +196,7 @@ worktree and shelf untouched.
 **Depends:** T1 · **Complexity:** S
 **Output files:** `webview-ui/src/lib/status.ts`, `src/ui/statusColors.ts`, `docs/settings.md` (regenerated).
 **Steps:**
-1. `N files` badge on **every** group and folder node (S12). GitTree already shows counts on
+1. `N files` badge on **every** group and folder node (S12). Geet already shows counts on
    changelist nodes (`changelistsView.ts:107`) — the gap is folder nodes, which did not exist.
 2. Map IntelliJ's file-status palette onto theme colors with a `gittree.colors.<status>`
    override block; keep the P10-T2 color-blind-safe variant wired.
@@ -341,7 +341,7 @@ View `gittree.commit` (webview, `scm` container). Commands
   reverse cannot match a worktree that still holds the excluded changes, so the
   `apply --check --reverse` gate runs over the whole-file sections only; partial removal is the
   deterministic residue write above, sealed by the same `patchSha256`.
-- **P11-T8 — `gittree.colors.<status>` overrides color GitTree's own webview surfaces** (commit
+- **P11-T8 — `gittree.colors.<status>` overrides color Geet's own webview surfaces** (commit
   window, Shelf tab, Shelve dialog). The native tree views keep the theme's `gitDecoration-*`
   colors: VS Code offers no per-extension override of decoration colors, and those same theme
   tokens are the defaults inside the webviews, so the two agree unless the user explicitly

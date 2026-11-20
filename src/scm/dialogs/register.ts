@@ -291,10 +291,10 @@ export function registerPhase13Dialogs(
     });
   };
 
-  // P13-T1: Push — IntelliJ's `VcsPushDialog`, which every Push of GitTree
+  // P13-T1: Push — IntelliJ's `VcsPushDialog`, which every Push of Geet
   // opens (POST-P14ao), unless `gittree.push.showDialog` is off (POST-P14cn).
   // `gittree.push` (P1) stays registered, hidden from the palette, for a
-  // keybinding; GitTree itself no longer calls it. Sync pushes its own way.
+  // keybinding; Geet itself no longer calls it. Sync pushes its own way.
   /** The commit's branch, as `GitPushUpToCommitAction` picks it. */
   const branchHolding = async (repo: RepoHandle, sha: string): Promise<string | undefined> => {
     const snap = repo.model.snapshot;

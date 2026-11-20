@@ -1,13 +1,13 @@
 /**
- * GitTree's plain notices (new-way-6): an information message with nothing to
+ * Geet's plain notices (new-way-6): an information message with nothing to
  * click — *Fetch successful*, *Checked out main*, *Nothing to stash.* — shown
  * for `gittree.notifications.durationSeconds` while VS Code is in front, then
- * gone. `noticeTiming.ts` says how long, and why GitTree keeps the time
+ * gone. `noticeTiming.ts` says how long, and why Geet keeps the time
  * itself rather than leave it to VS Code.
  *
  * The price: VS Code cannot hide a notification on a timer and keep it in the
  * notification centre, and a progress notification leaves when it ends. So a
- * notice shown this way is written to GitTree's output instead (`setNoticeLog`).
+ * notice shown this way is written to Geet's output instead (`setNoticeLog`).
  * Setting the time to 0 shows ordinary notifications again, which VS Code
  * hides on its own and keeps in the centre.
  *
@@ -37,7 +37,7 @@ function durationSeconds(): number {
 }
 
 /**
- * Says `message`, an information message with no buttons: what GitTree says
+ * Says `message`, an information message with no buttons: what Geet says
  * when something you did is done, or had nothing to do. Not awaited: there is
  * nothing to answer.
  */

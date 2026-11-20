@@ -12,7 +12,7 @@ import { canonicalKey } from '../../../src/core/repoDiscovery';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { Phase04Registry } from '../../../src/log/register';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 interface Phase02RegistryShape {
   refServices: Map<string, RefService>;
@@ -39,7 +39,7 @@ suite('P2 branches', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoB();
-    core = await activateGitTree();
+    core = await activateGeet();
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoB not discovered');
     reg = core.debugRegistry.get('phase02') as Phase02RegistryShape;
@@ -120,7 +120,7 @@ suite('P2 branches', () => {
   test('T3: new branch / rename / delete / force-delete flows', async function () {
     this.timeout(60_000);
     // POST-P14ap: each one ends with IntelliJ's notification.
-    const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
+    const notes = (await activateGeet()).debugRegistry.get('notifications') as NotificationsRegistry;
     const said = (): string[] => notes.recent().map((n) => n.message);
     notes.clear();
     // New branch (input via test seam), created without checkout.
@@ -200,7 +200,7 @@ suite('P2 branches', () => {
     write('tracked.txt', 'dirty local edit\n'); // blocks checkout
     await refresh();
 
-    const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
+    const notes = (await activateGeet()).debugRegistry.get('notifications') as NotificationsRegistry;
     notes.clear();
     process.env['GITTREE_TEST_SMART_CHOICE'] = 'smart';
     try {
@@ -237,7 +237,7 @@ suite('P2 branches', () => {
 
   test('T4: force checkout discards but snapshots first', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     write('tracked.txt', 'will be discarded\n');
     await refresh();
     await waitFor(() => repo.model.snapshot.statusEntries.some((e) => e.path === 'tracked.txt'), 15_000);

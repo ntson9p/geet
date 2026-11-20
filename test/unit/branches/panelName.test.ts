@@ -38,7 +38,7 @@ describe('the Repositories and Branches panels', () => {
     expect(ids.indexOf('gittree.repositoryList')).toBeLessThan(ids.indexOf('gittree.branches'));
   });
 
-  it('share their titles with no other GitTree view: the opt-in trees are Repositories (Tree) and Branches (Tree)', () => {
+  it('share their titles with no other Geet view: the opt-in trees are Repositories (Tree) and Branches (Tree)', () => {
     const titles = gittreeViews.map((v) => title(v.name));
     expect(new Set(titles).size).toBe(titles.length);
     expect(title(gittreeViews.find((v) => v.id === 'gittree.repositories')!.name)).toBe('Repositories (Tree)');

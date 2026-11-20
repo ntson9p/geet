@@ -344,7 +344,7 @@
   box-shadow: var(--vscode-scrollbar-shadow, transparent) 0 6px 6px -6px;
 }
 
-/* GitTree's tab strips (`gt-tab`), as the Commit window's Commit | Shelf | Stash. */
+/* Geet's tab strips (`gt-tab`), as the Commit window's Commit | Shelf | Stash. */
 .gtp-tabs {
   display: flex;
   align-items: flex-end;

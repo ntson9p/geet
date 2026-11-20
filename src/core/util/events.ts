@@ -27,7 +27,7 @@ export class Emitter<T> implements Disposable {
         l(e);
       } catch (err) {
         // A misbehaving listener must not break other subscribers.
-        console.error('GitTree: event listener threw', err);
+        console.error('Geet: event listener threw', err);
       }
     }
   }
@@ -60,7 +60,7 @@ export class DisposableStore implements Disposable {
       try {
         items[i]?.dispose();
       } catch (err) {
-        console.error('GitTree: dispose threw', err);
+        console.error('Geet: dispose threw', err);
       }
     }
   }

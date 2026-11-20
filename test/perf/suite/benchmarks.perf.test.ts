@@ -10,14 +10,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
-import type { GitTreeApi } from '../../../src/extension';
+import type { GeetApi } from '../../../src/extension';
 import { SNAPSHOT_LABELS } from '../../../src/localHistory/hooks';
 import { BlameService } from '../../../src/log/blame/blameService';
 import type { Phase04Registry } from '../../../src/log/register';
 import { GraphLayout } from '../../../src/log/graphLayout/layout';
 import { LogService, PAGE_SIZE } from '../../../src/log/logService';
 import { computeChanges } from '../../../src/scm/gutter/changeModel';
-import { activateGitTree } from '../../integration/setup';
+import { activateGeet } from '../../integration/setup';
+import { EXTENSION_ID } from '../../integration/extensionId';
 
 const NOISE = 1.15; // §13 budgets carry a 15% CI-noise tolerance
 const BUDGET = {
@@ -51,7 +52,7 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
 
   suiteSetup(async function () {
     this.timeout(120_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     const logRoot = process.env['GITTREE_PERF_REPO_LOG'];
     const statusRoot = process.env['GITTREE_PERF_REPO_STATUS'];
     assert.ok(logRoot && statusRoot, 'perf fixture env missing');
@@ -68,7 +69,7 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
 
   test('activation sync path ≤ 100 ms', async function () {
     this.timeout(30_000);
-    const ext = vscode.extensions.getExtension<GitTreeApi>('gittree.gittree');
+    const ext = vscode.extensions.getExtension<GeetApi>(EXTENSION_ID);
     assert.ok(ext, 'extension missing');
     const api = await ext.activate();
     const ms = api.perf?.activationSyncMs;

@@ -1,9 +1,9 @@
 /**
- * Where a GitTree option is written (POST-QA): never into the repository.
+ * Where a Geet option is written (POST-QA): never into the repository.
  *
  * In a single-folder workspace, VS Code's *Workspace* settings are the
  * folder's own `.vscode/settings.json`, a file in the user's repository that
- * teams commit and share. GitTree wrote its remembered choices there — the
+ * teams commit and share. Geet wrote its remembered choices there — the
  * Push dialog's tag mode on every push, the commit paradigm, view toggles, the
  * diff editor's whitespace option — so a plain push left a new untracked file
  * behind, or changed a shared one.

@@ -1,7 +1,7 @@
 /**
  * Clone argv (P13-T4), vscode-free so the option matrix is unit-testable.
  *
- * The dialog is URL-entry only: GitTree has no account integrations and cannot
+ * The dialog is URL-entry only: Geet has no account integrations and cannot
  * enumerate a provider's repositories (deviation D11, a standing project
  * constraint rather than an API limit).
  */

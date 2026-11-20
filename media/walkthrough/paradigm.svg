@@ -16,5 +16,5 @@
   <text x="222" y="177" font-size="10" fill="#888">~ notes.md</text>
   <path d="M290 128v-4" stroke="#e69f00" stroke-width="2"/>
   <text x="200" y="245" text-anchor="middle" font-size="13" fill="#888">Hunk- and line-level staging in both styles</text>
-  <text x="200" y="266" text-anchor="middle" font-size="12" fill="#888">Switch anytime — GitTree keeps your groups</text>
+  <text x="200" y="266" text-anchor="middle" font-size="12" fill="#888">Switch anytime — Geet keeps your groups</text>
 </svg>
