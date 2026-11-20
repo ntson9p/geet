@@ -63,7 +63,7 @@ export function BranchesPane({
   );
 
   // IntelliJ's menu also holds the single-click action and Group By Directory.
-  // Only what GitTree does is listed: a click filters the log, and branches
+  // Only what Geet does is listed: a click filters the log, and branches
   // always group by directory.
   const settingsItems: MenuItem[] = [
     { kind: 'item', id: 'showTags', label: 'Show Tags', checked: showTags },

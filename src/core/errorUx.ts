@@ -52,12 +52,12 @@ export function buildIssueBody(info: IssueInfo): string {
     .join(', ');
   const tail = info.traceTail.slice(-25).map((l) => hashPaths(l));
   return [
-    '<!-- Pre-filled by GitTree: paths are hashed; please describe what you did. -->',
+    '<!-- Pre-filled by Geet: paths are hashed; please describe what you did. -->',
     '## What happened',
     '',
     '',
     '## Environment',
-    `- GitTree: ${info.extensionVersion}`,
+    `- Geet: ${info.extensionVersion}`,
     `- VS Code: ${info.vscodeVersion}`,
     `- OS: ${info.os}`,
     `- git: ${info.gitVersion}`,

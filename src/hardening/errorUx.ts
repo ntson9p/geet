@@ -15,7 +15,7 @@ export function errorCopy(kind: GitErrorKind): string {
   switch (kind) {
     case 'index-lock':
       return vscode.l10n.t(
-        'Git\'s index is locked by another process. GitTree retries automatically — if this persists, close other git tools or remove .git/index.lock.',
+        'Git\'s index is locked by another process. Geet retries automatically — if this persists, close other git tools or remove .git/index.lock.',
       );
     case 'would-overwrite-checkout':
       return vscode.l10n.t(
@@ -39,7 +39,7 @@ export function errorCopy(kind: GitErrorKind): string {
       );
     case 'unknown':
       return vscode.l10n.t(
-        'A git operation failed. The GitTree output channel has the full command and error text.',
+        'A git operation failed. The Geet output channel has the full command and error text.',
       );
   }
 }

@@ -3,7 +3,7 @@
  *
  * Two gates must BOTH allow before anything reaches the sender: VS Code's own
  * telemetry level (`envEnabled`, from vscode.env.isTelemetryEnabled) and
- * GitTree's `gittree.telemetry.enabled` (default OFF).
+ * Geet's `gittree.telemetry.enabled` (default OFF).
  *
  * The schema below is the complete event allowlist. The serializer drops
  * unknown events, strips unknown keys, and rejects any string value that
@@ -78,7 +78,7 @@ export function sanitizeEvent(
 export interface TelemetryDeps {
   /** VS Code's global telemetry consent (telemetry.telemetryLevel). */
   envEnabled(): boolean;
-  /** GitTree's own opt-in (`gittree.telemetry.enabled`, default false). */
+  /** Geet's own opt-in (`gittree.telemetry.enabled`, default false). */
   settingEnabled(): boolean;
   sender: TelemetrySender;
   trace?(line: string): void;

@@ -51,7 +51,7 @@ function decorationFor(entry: StatusEntry): vscode.FileDecoration {
   return deco;
 }
 
-export class GitTreeFileDecorationProvider implements vscode.FileDecorationProvider {
+export class GeetFileDecorationProvider implements vscode.FileDecorationProvider {
   private readonly _onDidChange = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
   readonly onDidChangeFileDecorations = this._onDidChange.event;
   private readonly subs: Array<{ dispose(): void }> = [];
@@ -94,28 +94,28 @@ export class GitTreeFileDecorationProvider implements vscode.FileDecorationProvi
 
 /**
  * P14-T6: registered only while `gittree.decorations.fileExplorer` is on. The
- * old gate was the takeover/companion mode — GitTree skipped explorer
+ * old gate was the takeover/companion mode — Geet skipped explorer
  * decorations in companion mode so it would not double up with the built-in
- * git extension's. That is now a plain user setting: GitTree does not change
+ * git extension's. That is now a plain user setting: Geet does not change
  * its own behaviour based on what another extension is doing (D22).
  *
  * POST-P14bz: off by default. A decoration is VS Code's, not a view's: no API
  * keeps it out of VS Code's own Source Control view, its Explorer or its tabs,
  * and VS Code joins two providers' badges for one file (`U, U`). With the
- * built-in Git extension running, as it does by default, GitTree's badges were
- * a second copy of its own in every one of them. Off, GitTree adds nothing to
+ * built-in Git extension running, as it does by default, Geet's badges were
+ * a second copy of its own in every one of them. Off, Geet adds nothing to
  * VS Code's views; someone who disables the built-in extension turns it on.
  */
 export function wireFileDecorations(context: vscode.ExtensionContext, core: Core): void {
   let registration: vscode.Disposable | undefined;
-  let provider: GitTreeFileDecorationProvider | undefined;
+  let provider: GeetFileDecorationProvider | undefined;
 
   const apply = (): void => {
     const wantOn = vscode.workspace
       .getConfiguration('gittree')
       .get<boolean>('decorations.fileExplorer', EXPLORER_DECORATIONS_DEFAULT);
     if (wantOn && !registration) {
-      provider = new GitTreeFileDecorationProvider(core);
+      provider = new GeetFileDecorationProvider(core);
       registration = vscode.Disposable.from(
         vscode.window.registerFileDecorationProvider(provider),
         provider,

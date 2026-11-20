@@ -31,7 +31,7 @@ const nls = JSON.parse(readFileSync(path.join(root, 'package.nls.json'), 'utf8')
 /**
  * The menus VS Code has, from `menusExtensionPoint.ts` at 1.96.0, the oldest we
  * support. It drops any other key from a manifest without a word, which is how
- * GitTree's diff arrows sat under `editor/title/navigation`, passing their tests
+ * Geet's diff arrows sat under `editor/title/navigation`, passing their tests
  * and never once on screen.
  */
 const VSCODE_MENUS = new Set([
@@ -135,7 +135,7 @@ describe("the diff toolbar's file arrows", () => {
     expect(fileArrows.map((e) => e.group)).toEqual(['navigation@12', 'navigation@13']);
   });
 
-  it('show on GitTree diffs only', () => {
+  it('show on Geet diffs only', () => {
     for (const e of fileArrows) expect(e.when).toBe('isInDiffEditor && gittree.diff.active');
   });
 

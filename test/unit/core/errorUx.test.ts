@@ -50,7 +50,7 @@ describe('hashPaths', () => {
 describe('buildIssueBody / newIssueUrl', () => {
   it('keeps versions, caps and kinds; hashes every path in the trace tail', () => {
     const body = buildIssueBody(info({ errorKind: 'auth' }));
-    expect(body).toContain('GitTree: 0.0.1');
+    expect(body).toContain('Geet: 0.0.1');
     expect(body).toContain('git: 2.28.0.windows.1');
     expect(body).toContain('fsmonitor=false');
     expect(body).toContain('error kind: auth');

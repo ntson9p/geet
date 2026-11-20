@@ -41,7 +41,7 @@ export const PRESENTATION_SETTINGS: Readonly<Record<PresentationKey, Presentatio
   showAuthorColumn: { section: 'gittree.log', key: 'columns.author', scope: 'global' },
   showDateColumn: { section: 'gittree.log', key: 'columns.date', scope: 'global' },
   showHashColumn: { section: 'gittree.log', key: 'columns.hash', scope: 'global' },
-  // GitTree's own, kept with the columns it sits beside.
+  // Geet's own, kept with the columns it sits beside.
   showGraph: { section: 'gittree.log', key: 'showGraph', scope: 'global' },
 };
 

@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import { isConflicted, isStaged, isUnstaged, isUntracked } from '../../../src/core/model/statusEntry';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 /**
  * Phase 1 acceptance: SCM groups, rev provider, file ops, commit MVP,
@@ -64,7 +64,7 @@ suite('P1 core SCM', () => {
   const fileArg = (rel: string) => ({ repoRoot, relPath: rel });
 
   async function barOf(root: string) {
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase01') as Phase01RegistryShape | undefined;
     assert.ok(reg, 'phase01 registry missing — registerPhase01 not run?');
     const bar = reg.statusBars.get(canonicalKey(root));
@@ -73,11 +73,11 @@ suite('P1 core SCM', () => {
   }
 
   async function refresh(): Promise<void> {
-    const core = await activateGitTree();
+    const core = await activateGeet();
     await core.repoForPath(repoRoot)!.refresher.refreshNow();
   }
 
-  let coreCache: Awaited<ReturnType<typeof activateGitTree>> | undefined;
+  let coreCache: Awaited<ReturnType<typeof activateGeet>> | undefined;
   const paradigmOf = (): string | undefined =>
     (coreCache?.debugRegistry.get('phase03') as { paradigm: { paradigm: string } } | undefined)
       ?.paradigm.paradigm;
@@ -85,7 +85,7 @@ suite('P1 core SCM', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoA();
-    coreCache = await activateGitTree();
+    coreCache = await activateGeet();
 
     // Phase 3's changelists paradigm is the default; this suite asserts on
     // staged/unstaged classification, so run it in staging mode.
@@ -133,7 +133,7 @@ suite('P1 core SCM', () => {
     // this classification. P14-T4 moved the count badge itself onto the commit
     // view, where the phase14 suite asserts it — what belongs here is that the
     // classification totals what the badge would show.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const entriesOf = () => core.repoForPath(repoRoot)!.model.snapshot.statusEntries;
     const kinds = () => {
       const e = entriesOf().filter((x) => x.kind !== 'ignored');
@@ -171,7 +171,7 @@ suite('P1 core SCM', () => {
 
   test('T2: gittree-rev provider serves index and HEAD content', async function () {
     this.timeout(30_000);
-    await activateGitTree();
+    await activateGeet();
     write('t2-index.txt', 'index only\n');
     git('add', 't2-index.txt');
 
@@ -198,7 +198,7 @@ suite('P1 core SCM', () => {
     // P14-T2: the arguments are the commit window's {repoRoot, relPath} context
     // now that the SCM resource states are gone — the same path a right-click
     // in the change tree takes.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const entry = (rel: string) =>
       core.repoForPath(repoRoot)!.model.snapshot.statusEntries.find((e) => e.path === rel);
 
@@ -246,7 +246,7 @@ suite('P1 core SCM', () => {
 
   test('POST-P14w: Add to .gitignore writes the nearest ignore file', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const entry = (rel: string) =>
       core.repoForPath(repoRoot)!.model.snapshot.statusEntries.find((e) => e.path === rel);
     const pkgDir = path.join(repoRoot, 'pkg');
@@ -293,7 +293,7 @@ suite('P1 core SCM', () => {
 
   test('POST-P14bq: Reveal in File Explorer shows the row it was opened on', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reveals = core.debugRegistry.get('revealInOS') as
       | {
           supported: boolean;
@@ -350,7 +350,7 @@ suite('P1 core SCM', () => {
     this.timeout(60_000);
     // P14-T2: the SCM input box is gone; the commit window's message box is the
     // one place a message lives, and the same commands read it.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase03') as {
       messageBoxFor: (r: ReturnType<typeof core.repoForPath>) => { value: string };
     };
@@ -400,7 +400,7 @@ suite('P1 core SCM', () => {
 
   test('T5: status bar reflects divergence and sync round-trips', async function () {
     this.timeout(120_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const repo = core.repoForPath(repoRoot)!;
     const bar = await barOf(repoRoot);
 
@@ -453,7 +453,7 @@ suite('P1 core SCM', () => {
 
     // And in the default mode it costs a fixed width and says none of it.
     const button = bar.titles[0] ?? '';
-    assert.strictEqual(button, '$(list-tree) GitTree $(chevron-down)', `button: ${button}`);
+    assert.strictEqual(button, '$(list-tree) Geet $(chevron-down)', `button: ${button}`);
     const tip = bar.tooltips[0] ?? '';
     assert.ok(tip.includes('2 behind'), `tooltip must carry the exact counts: ${tip}`);
     assert.ok(tip.includes('1 ahead'), `tooltip must carry the exact counts: ${tip}`);
@@ -473,7 +473,7 @@ suite('P1 core SCM', () => {
 
   test('T5: detached HEAD renders short sha in the widget', async function () {
     this.timeout(30_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const repo = core.repoForPath(repoRoot)!;
     const bar = await barOf(repoRoot);
     const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();

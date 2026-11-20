@@ -1,6 +1,6 @@
 /**
  * Parser for `git worktree list --porcelain` (P13-T6, gap analysis §3.10).
- * GitTree already resolves worktree paths internally through `commondir`, but
+ * Geet already resolves worktree paths internally through `commondir`, but
  * had no way to list, create or remove one — this is the read half.
  *
  * The porcelain format is a blank-line-separated record per worktree, each a

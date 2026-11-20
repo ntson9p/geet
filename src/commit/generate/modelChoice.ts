@@ -1,10 +1,10 @@
 /**
  * Which language model writes the commit message (POST-P14cj). VS Code lists
  * the models (`vscode.lm.selectChatModels`): Copilot's once signed in, and any
- * another extension or a key of the user's own adds. GitTree asks once which
+ * another extension or a key of the user's own adds. Geet asks once which
  * to use and keeps the answer in `gittree.commit.messageGeneration.model`.
  *
- * Pure, on the few fields GitTree reads of a model, so it is unit-tested.
+ * Pure, on the few fields Geet reads of a model, so it is unit-tested.
  */
 
 export interface ModelInfo {
@@ -21,7 +21,7 @@ export function modelKey(model: Pick<ModelInfo, 'vendor' | 'id'>): string {
 }
 
 /**
- * The model `wanted` names: by `vendor/id` as GitTree writes it, else by id or
+ * The model `wanted` names: by `vendor/id` as Geet writes it, else by id or
  * family alone, or `vendor/family`, as someone typing the setting might.
  * Nothing when it is gone: models are retired, and plans change.
  */

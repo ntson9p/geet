@@ -219,7 +219,7 @@ describe('cross-file change navigation (P14-T7)', () => {
       expect(nothingHiddenAhead(block, 'prev', { first: 25, last: 50 })).toBe(false);
     });
 
-    it('does when GitTree could not tell, or cannot see the view', () => {
+    it('does when Geet could not tell, or cannot see the view', () => {
       expect(nothingHiddenAhead(undefined, 'next', { first: 0, last: 30 })).toBe(false);
       expect(nothingHiddenAhead(CHANGES, 'next', undefined)).toBe(false);
     });

@@ -1,7 +1,9 @@
-# Releasing GitTree
+# Releasing Geet
 
-GitTree is published to the Visual Studio Marketplace as **`ntson9p.gittree`** (publisher
-`ntson9p`), from **github.com/ntson9p/git-tree**. The pipeline is
+Geet is published to the Visual Studio Marketplace as **Geet for Git**, `ntson9p.geet`
+(publisher `ntson9p`), from **github.com/ntson9p/git-tree**. The Marketplace takes a display
+name only once, ignoring spaces and case: "GitTree", the name before, was refused because of
+an older "Git Tree". The pipeline is
 [.github/workflows/release.yml](../.github/workflows/release.yml): pushing a `v*` tag tests,
 packages and publishes. It was authored in P10-T5 and readied for its first run in POST-P14cr;
 the [one-time set-up](#one-time-set-up) below must be done before it can publish.
@@ -25,7 +27,7 @@ The Marketplace takes each version once, as one channel or the other, and only
 ## Packaging
 
 `npm run package` (`scripts/package.mjs`) runs `vsce package`, with `--pre-release` for an odd
-minor and without it for an even one, and writes `gittree-<version>.vsix` to the project's root.
+minor and without it for an even one, and writes `geet-<version>.vsix` to the project's root.
 It builds first (`vscode:prepublish`: the extension and the webviews), and the bundle budget is
 checked after. To try a VSIX before publishing it, install it in VS Code: *Extensions: Install
 from VSIX…*.
@@ -113,7 +115,7 @@ Every release adds a `## [x.y.z] — YYYY-MM-DD` section at the top of
    (`galleryBanner`), the README's screenshots and links.
 
 **Publishing by hand** (without the workflow, e.g. the first time): `npm run package`, then
-`npx vsce publish --pre-release --packagePath gittree-0.1.0.vsix` for a pre-release
+`npx vsce publish --pre-release --packagePath geet-0.1.0.vsix` for a pre-release
 (`--pre-release` makes vsce refuse a VSIX not packaged as one), or without `--pre-release` for
 a stable version. vsce takes the token from `-p <token>`, the `VSCE_PAT` environment variable,
 or `npx vsce login ntson9p`. Push the matching tag afterwards, so the repository records what

@@ -5,7 +5,7 @@
 /**
  * The changelog's names in the extension's folder, first the one to try (POST-P14cr).
  * vsce packages CHANGELOG.md as `changelog.md` (README.md as `readme.md`), so on a
- * case-sensitive file system (Linux) an installed GitTree has no `CHANGELOG.md`, and
+ * case-sensitive file system (Linux) an installed Geet has no `CHANGELOG.md`, and
  * "What's New" opened a preview of nothing. A development host runs from the
  * repository, where the name is `CHANGELOG.md`.
  */

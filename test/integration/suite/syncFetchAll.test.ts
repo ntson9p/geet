@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
 
 /**
  * POST-P14o — Fetch is project-wide, as IntelliJ's is.
@@ -73,7 +73,7 @@ suite('POST-P14o fetch across roots', () => {
 
   suiteSetup(async function () {
     this.timeout(120_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     d = wire(workspaceRepoD(), 'p14m-d');
     e = wire(workspaceRepoE(), 'p14m-e');
     assert.ok(d.repo && e.repo, 'repoD/repoE not discovered');

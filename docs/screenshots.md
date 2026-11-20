@@ -1,7 +1,7 @@
 # Screenshots
 
 The README's images are taken by a script, so they can be taken again whenever
-GitTree's look changes:
+Geet's look changes:
 
 ```sh
 npm run screenshots
@@ -14,7 +14,7 @@ to `main`: the Marketplace page shows the copies on GitHub's default branch.
 
 ## What it does
 
-1. **Builds GitTree** as it ships: `node esbuild.mjs --production` and the
+1. **Builds Geet** as it ships: `node esbuild.mjs --production` and the
    webviews (`npm run build:webviews`).
 2. **Builds a demo workspace** (`scripts/screenshots/demo.mjs`): *pantry*, a
    made-up meal-planning app kept in three repositories, `web`, `api` and
@@ -29,7 +29,7 @@ to `main`: the Marketplace page shows the copies on GitHub's default branch.
    pixels, whatever your screen, so the images are sharp on high-DPI screens.
 4. **Plays the scenes** (`scripts/screenshots/scenes.mjs`) through the Chrome
    DevTools protocol, as a person would: commands from the Command Palette,
-   clicks and right-clicks in GitTree's views. Each scene writes its image to
+   clicks and right-clicks in Geet's views. Each scene writes its image to
    `docs/images/`.
 5. **Closes VS Code** and deletes the demo and the profile.
 
@@ -40,8 +40,8 @@ to `main`: the Marketplace page shows the copies on GitHub's default branch.
 | `--keep` | Keeps the demo and the VS Code profile, to look at afterwards. |
 | `--work <folder>` | Where the demo and the profile go. |
 
-The work folder is `C:\gittree-screenshots` on Windows and
-`<temp>/gittree-screenshots` elsewhere. GitTree shows a repository's full
+The work folder is `C:\geet-screenshots` on Windows and
+`<temp>/geet-screenshots` elsewhere. Geet shows a repository's full
 path in places (the Log's Changed Files), and on Windows the temp folder is
 under your user folder, whose name would then be in the images. The script
 deletes only a folder it made itself (it leaves a marker file in it), and
@@ -55,7 +55,7 @@ folder: `failed-<scene>.png` in it shows the window at the failure, and
 
 | Image | Scene | What it shows |
 | --- | --- | --- |
-| `hero.png` | `hero` | The whole window: the Commit window with three changelists, GitTree's diff of an uncommitted change, and the Log. |
+| `hero.png` | `hero` | The whole window: the Commit window with three changelists, Geet's diff of an uncommitted change, and the Log. |
 | `commit.png` | `commit` | The Commit window, wide: changelists across two repositories, and the diff preview with one change of a file left out. |
 | `log.png` | `log` | The Log, maximized: branches, the graph of every branch, a commit's files and details. |
 | `branches.png` | `branches` | The branches popup for the `web` repository. |
@@ -71,7 +71,7 @@ folder: `failed-<scene>.png` in it shows the window at the failure, and
   on disk, through git's `url.<base>.insteadOf`).
 - Git runs with no system or global configuration of yours: VS Code is started
   with `GIT_CONFIG_NOSYSTEM=1` and `GIT_CONFIG_GLOBAL` pointing at the demo's
-  own `gitconfig`, so your name, e-mail address and aliases never reach GitTree.
+  own `gitconfig`, so your name, e-mail address and aliases never reach Geet.
 - VS Code runs with a profile of its own: none of your settings, extensions or
   accounts.
 - Paths start at the work folder above, never at your user folder.
@@ -80,7 +80,7 @@ Look at the images before committing them all the same.
 
 ## What changes between runs
 
-On the same computer, nothing, unless GitTree or the scenes changed: an image
+On the same computer, nothing, unless Geet or the scenes changed: an image
 that comes out the same is written byte for byte the same. Three things can
 differ elsewhere or later:
 

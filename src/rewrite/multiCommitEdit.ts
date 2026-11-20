@@ -7,7 +7,7 @@
  * The checks are IntelliJ's (`GitCommitEditingActionBase`): every selected
  * commit in the current branch, no merge between the oldest of them and HEAD,
  * not the initial commit. Commits already on the upstream are asked about,
- * which is GitTree's published guard (P5), where IntelliJ refuses commits on a
+ * which is Geet's published guard (P5), where IntelliJ refuses commits on a
  * protected branch.
  */
 import * as vscode from 'vscode';

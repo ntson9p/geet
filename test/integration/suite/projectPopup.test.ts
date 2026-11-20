@@ -20,7 +20,7 @@ import {
 } from '../../../src/branches/branchesPopup';
 import type { NotificationsRegistry } from '../../../src/ui/notify';
 import { repoLabels } from '../../../src/core/util/repoLabels';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } from '../setup';
 
 /**
  * POST-P14p — the branches popup's **project level**, which a multi-root
@@ -45,7 +45,7 @@ suite('POST-P14p project-level branches popup', () => {
 
   suiteSetup(async function () {
     this.timeout(90_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     p2 = core.debugRegistry.get('phase02') as Phase02Registry;
     repoD = core.repoForPath(workspaceRepoD())!;
     repoE = core.repoForPath(workspaceRepoE())!;

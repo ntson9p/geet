@@ -172,17 +172,17 @@ describe('the scenes and the demo agree', () => {
 });
 
 describe('the work folder', () => {
-  it('is outside the user folder on Windows: GitTree shows full paths, and the images would name the user', () => {
+  it('is outside the user folder on Windows: Geet shows full paths, and the images would name the user', () => {
     expect(defaultWorkFolder('win32', { SystemDrive: 'C:' }, 'C:\\Users\\someone\\AppData\\Local\\Temp')).toBe(
-      'C:\\gittree-screenshots',
+      'C:\\geet-screenshots',
     );
-    expect(defaultWorkFolder('win32', { SystemDrive: 'D:' }, 'D:\\temp')).toBe('D:\\gittree-screenshots');
-    expect(defaultWorkFolder('win32', {}, 'C:\\temp')).toBe('C:\\gittree-screenshots');
+    expect(defaultWorkFolder('win32', { SystemDrive: 'D:' }, 'D:\\temp')).toBe('D:\\geet-screenshots');
+    expect(defaultWorkFolder('win32', {}, 'C:\\temp')).toBe('C:\\geet-screenshots');
   });
 
   it('is in the temp folder elsewhere, whose path names nobody', () => {
-    expect(defaultWorkFolder('linux', {}, '/tmp')).toBe('/tmp/gittree-screenshots');
-    expect(defaultWorkFolder('darwin', {}, '/var/folders/xy/T')).toBe('/var/folders/xy/T/gittree-screenshots');
+    expect(defaultWorkFolder('linux', {}, '/tmp')).toBe('/tmp/geet-screenshots');
+    expect(defaultWorkFolder('darwin', {}, '/var/folders/xy/T')).toBe('/var/folders/xy/T/geet-screenshots');
   });
 });
 
@@ -200,7 +200,7 @@ describe('clearDemoFolder', () => {
   it('deletes a demo folder an earlier run made', () => {
     const dir = path.join(tmp(), 'demo');
     mkdirSync(path.join(dir, 'pantry'), { recursive: true });
-    writeFileSync(path.join(dir, '.gittree-screenshots'), '');
+    writeFileSync(path.join(dir, '.geet-screenshots'), '');
     clearDemoFolder(dir);
     expect(existsSync(dir)).toBe(false);
   });

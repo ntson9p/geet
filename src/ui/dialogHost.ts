@@ -1,5 +1,5 @@
 /**
- * dialogHost (P11-T1): the one place a GitTree "dialog" is opened. P11-P13
+ * dialogHost (P11-T1): the one place a Geet "dialog" is opened. P11-P13
  * route Push, Merge, Rebase, Reset, Rollback, Shelve, Cherry-pick, Apply
  * Patch, Clone and Manage Remotes through here, replacing the QuickPick/InputBox
  * chains that stand in for IntelliJ's option-bearing dialogs today (gap
@@ -40,7 +40,7 @@ export interface DialogOptions<TParams> {
   handlers?: Record<string, (params: unknown) => unknown>;
   /** Optional docs target for the footer's `?`. */
   onHelp?: () => void;
-  /** Diagnostics sink — wired to the GitTree output channel by callers. */
+  /** Diagnostics sink — wired to the Geet output channel by callers. */
   trace?: (line: string) => void;
   viewColumn?: vscode.ViewColumn;
 }

@@ -115,16 +115,16 @@ async function layout(d, l) {
  */
 export async function prepare(d) {
   const { page } = d;
-  await page.locator('.activitybar .action-item a[aria-label^="GitTree"]').first().waitFor({ timeout: 90000 });
+  await page.locator('.activitybar .action-item a[aria-label^="Geet"]').first().waitFor({ timeout: 90000 });
   await d.dismissOverlays();
   // Notifications would sit in the images: an unfocused window never times them out.
   await d.command('Notifications: Toggle Do Not Disturb Mode');
-  await d.command('GitTree: Focus on Commit View');
+  await d.command('Geet: Focus on Commit View');
   const cw = commitWindow(d, await d.frame('[data-testid="commit-tree"]'));
   await cw.waitForRows();
 
   for (const list of CHANGELISTS) {
-    await d.command('GitTree: New Changelist…');
+    await d.command('Geet: New Changelist…');
     await d.answer(list.name);
     await d.answer(''); // no comment
   }
@@ -161,7 +161,7 @@ export async function prepare(d) {
   await typeMessage(d, cw);
 
   // The Log: web, the repository with the most history, and every branch in it.
-  await d.command('GitTree: Focus on Log View');
+  await d.command('Geet: Focus on Log View');
   const log = logTab(await d.frame('[data-testid="log-tab-log"] [data-gt-row]'));
   await d.clickRaw(log.tab.locator('[data-testid="filter-paths"]'));
   await d.clickRaw(log.frame.locator('[data-testid="filter-paths-panel"] input[data-testid="filter-root-web"]'));
@@ -176,7 +176,7 @@ export async function prepare(d) {
 }
 
 /**
- * Types the commit message, the subject line in view. GitTree keeps a draft per
+ * Types the commit message, the subject line in view. Geet keeps a draft per
  * repository (the active editor's), so a scene that opens an editor types it again.
  */
 async function typeMessage(/** @type {Driver} */ d, /** @type {ReturnType<typeof commitWindow>} */ cw) {
@@ -218,13 +218,13 @@ export const SCENES = [
     files: ['hero.png'],
     async run(d) {
       await layout(d, { width: 1440, height: 900, sidebar: 380, panel: 480 });
-      await d.command('GitTree: Focus on Commit View');
+      await d.command('Geet: Focus on Commit View');
       await d.setViewExpanded('Repositories', true);
       await d.setViewExpanded('Branches', true);
       // Room for the three changelists: VS Code's first split gives the Commit window less.
       await d.dragViewEdge('Repositories', 548);
       const cw = commitWindow(d, await d.frame('[data-testid="commit-tree"]'));
-      // GitTree's diff of the coupon change, from its row's own menu.
+      // Geet's diff of the coupon change, from its row's own menu.
       const totals = cw.file('web', 'src/cart/totals.ts');
       await cw.reveal(totals);
       await d.clickRaw(totals.locator('.gt-tree-name'), { button: 'right' });
@@ -254,7 +254,7 @@ export const SCENES = [
     async run(d) {
       await layout(d, { width: 1280, height: 860, sidebar: 960, panel: false });
       await d.command('View: Close All Editors');
-      await d.command('GitTree: Focus on Commit View');
+      await d.command('Geet: Focus on Commit View');
       await d.setViewExpanded('Repositories', false);
       await d.setViewExpanded('Branches', false);
       const cw = commitWindow(d, await d.frame('[data-testid="commit-tree"]'));
@@ -314,7 +314,7 @@ export const SCENES = [
       // Tall, so VS Code's logo in the empty editor area stays well below the popup.
       await layout(d, { width: 1280, height: 1400, sidebar: false, panel: false });
       await d.command('View: Close All Editors');
-      await d.command('GitTree: Checkout Branch…');
+      await d.command('Geet: Checkout Branch…');
       await d.pick('web');
       const popup = d.page.locator('.quick-input-widget');
       await popup.waitFor({ state: 'visible', timeout: 10000 });
@@ -365,7 +365,7 @@ export const SCENES = [
     async run(d) {
       await layout(d, { width: 1280, height: 700, sidebar: false, panel: false });
       await d.command('View: Close All Editors');
-      await d.command('GitTree: Push…');
+      await d.command('Geet: Push…');
       const dialog = await d.frame('[data-testid="push-commits"]');
       for (const repo of ['api', 'web']) {
         const tick = dialog.locator(`input[data-testid="push-repo-${repo}"]`);
@@ -396,7 +396,7 @@ export const SCENES = [
       } catch {
         // It stops on the conflict, as it should.
       }
-      // GitTree notices the conflict and opens "Files Merged with Conflicts" by itself.
+      // Geet notices the conflict and opens "Files Merged with Conflicts" by itself.
       const dialog = await d.frame('[data-testid="conflicts-list"]');
       await d.clickRaw(dialog.getByRole('button', { name: 'Merge…' }));
       await d.page.locator('.tab', { hasText: 'money (Theirs).ts' }).first().waitFor({ timeout: 20000 });
@@ -421,7 +421,7 @@ export const SCENES = [
       await d.command('View: Close All Editors');
       await d.quickOpen('web/src/cart/totals.ts');
       await d.page.locator('.monaco-editor .view-lines').first().waitFor({ timeout: 15000 });
-      await d.command('GitTree: Annotate with Git Blame');
+      await d.command('Geet: Annotate with Git Blame');
       // Where three people and the uncommitted coupon change meet: lineTotal and its neighbours.
       await d.keys('Control+G');
       await d.answer(':38');
@@ -431,7 +431,7 @@ export const SCENES = [
       await d.shot('blame.png', await d.partBox('.part.editor'));
     },
     async cleanUp(d) {
-      await d.command('GitTree: Annotate with Git Blame').catch(() => undefined);
+      await d.command('Geet: Annotate with Git Blame').catch(() => undefined);
     },
   },
 ];

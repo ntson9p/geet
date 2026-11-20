@@ -1,5 +1,5 @@
 // GIT_ASKPASS shim (master §4 credentials): forwards git's prompt to the
-// GitTree extension over a token-authenticated named pipe / unix socket and
+// Geet extension over a token-authenticated named pipe / unix socket and
 // prints the answer on stdout. Runs under the VS Code Electron binary with
 // ELECTRON_RUN_AS_NODE=1 (or plain node). No dependencies, CJS on purpose.
 'use strict';

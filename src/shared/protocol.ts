@@ -154,7 +154,7 @@ export interface CommitGroupDto {
  *   them; with one repository, at the top.
  * - `changelist`: IntelliJ's changelists at the top, each repository's share
  *   beneath them.
- * - `repository`: GitTree's own repositories at the top, their changelists
+ * - `repository`: Geet's own repositories at the top, their changelists
  *   beneath (D37).
  * One repository has no repository rows to arrange, so `changelist` and
  * `repository` read the same with one.
@@ -278,7 +278,7 @@ export interface CommitStateDto {
   error?: string;
   /**
    * P11-T8: `gittree.colors.<status>` overrides (validated host-side). Absent
-   * statuses fall back to GitTree's own `gittree.color.*` theme colors (P14-T5).
+   * statuses fall back to Geet's own `gittree.color.*` theme colors (P14-T5).
    */
   colors?: Record<string, string>;
   /** `gittree.log.graphPalette`, which the repositories' colours follow, as the log's do. */
@@ -368,7 +368,7 @@ export const COMMIT_METHODS = {
   stashAction: 'commit/stashAction',
   /** View Options › Group By: `CommitSetGroupByParamsDto`, saved for the workspace. */
   setGroupBy: 'commit/setGroupBy',
-  /** POST-QA: the failure banner's Show Output — the GitTree output channel. */
+  /** POST-QA: the failure banner's Show Output — the Geet output channel. */
   showOutput: 'commit/showOutput',
   /** POST-QA: the failure banner's ✕. */
   dismissError: 'commit/dismissError',
@@ -1389,7 +1389,7 @@ export interface LogPresentationDto {
 }
 
 /**
- * The Date column's formats. `YYYY/MM/DD HH:mm` is GitTree's own (D40).
+ * The Date column's formats. `YYYY/MM/DD HH:mm` is Geet's own (D40).
  * `pretty` is IntelliJ's log as it ships (`DateFormatUtil.formatPrettyDateTime`):
  * `5 minutes ago`, `Today 2:19 PM`, `Yesterday 2:19 PM`, and older dates in the
  * system's short date and time. `locale` is that short date and time always,
@@ -1416,7 +1416,7 @@ export interface SystemDatesDto {
 }
 
 /**
- * The filter dropdowns' looks. `compact` is GitTree's own (D39): smaller, each
+ * The filter dropdowns' looks. `compact` is Geet's own (D39): smaller, each
  * value cut short; `full` is the look before it, every value written out.
  */
 export const LOG_FILTER_CHIPS = ['compact', 'full'] as const;
@@ -1429,7 +1429,7 @@ export type LogPresentationToggle = {
 
 /**
  * What a view draws before the host has said otherwise: IntelliJ's own
- * defaults, except the two GitTree chose for itself — the date format (D40)
+ * defaults, except the two Geet chose for itself — the date format (D40)
  * and the compact filter dropdowns (D39).
  */
 export const DEFAULT_LOG_PRESENTATION: LogPresentationDto = {
@@ -1870,7 +1870,7 @@ export interface BranchPanelOperationDto {
 
 export interface BranchPanelRepoDto {
   readonly root: string;
-  /** The name every GitTree surface uses for this root. */
+  /** The name every Geet surface uses for this root. */
   readonly label: string;
   /** Palette slot: the colour the log's `Roots` gives the same repository. */
   readonly colorIdx: number;
@@ -1887,7 +1887,7 @@ export interface BranchPanelRepoDto {
   /** Changed files, staged or not, untracked included. */
   readonly changes: number;
   readonly operation?: BranchPanelOperationDto;
-  /** A fetch GitTree started is running here. */
+  /** A fetch Geet started is running here. */
   readonly fetching: boolean;
   readonly locals: readonly BranchPanelRefDto[];
   readonly remotes: readonly BranchPanelRefDto[];
@@ -1991,7 +1991,7 @@ export type BranchPanelRunDto =
       readonly root?: string;
     }
   | {
-      /** A GitTree command, given the repository's root (or nothing: every root). */
+      /** A Geet command, given the repository's root (or nothing: every root). */
       readonly type: 'command';
       readonly command: string;
       readonly root?: string;

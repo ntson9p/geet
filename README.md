@@ -1,17 +1,17 @@
-# GitTree
+# Geet for Git
 
 **IntelliJ-style Git for VS Code.** Changelists and a real Commit window, a Git
 log with a fast commit graph, a branches popup that is an action hub,
 interactive rebase, a three-pane merge editor, shelve and Local History, for
 one repository or many at once.
 
-![GitTree in VS Code: the Commit window with three changelists, the diff of an uncommitted change, and the Log with its commit graph](docs/images/hero.png)
+![Geet in VS Code: the Commit window with three changelists, the diff of an uncommitted change, and the Log with its commit graph](docs/images/hero.png)
 
-GitTree brings its own views, so it neither needs nor touches VS Code's
-built-in Git extension: leave that one on or turn it off, GitTree works the
+Geet brings its own views, so it neither needs nor touches VS Code's
+built-in Git extension: leave that one on or turn it off, Geet works the
 same.
 
-> **Pre-release.** 0.1 is GitTree's first public build. Try it on your
+> **Pre-release.** 0.1 is Geet's first public build. Try it on your
 > projects, and [tell us what breaks](https://github.com/ntson9p/git-tree/issues).
 
 ## Highlights
@@ -82,7 +82,7 @@ one changes, and the exact `git push` command for each repository.
 
 ### Three-pane merge
 
-When a merge stops on conflicts, GitTree lists the files and opens each one in
+When a merge stops on conflicts, Geet lists the files and opens each one in
 three editors: yours, the result and theirs. Accept a side, both, or neither
 for each conflict, apply every change that does not conflict in one go, and
 edit the result as you edit any other file.
@@ -106,18 +106,18 @@ uncommitted lines marked, and jump from any line to its commit in the Log.
 - **Worktrees.** List, add, open, lock, unlock, remove and prune them.
 - **Generate Commit Message** with the language model you choose in VS Code,
   such as GitHub Copilot's.
-- **Console.** Every git command GitTree runs, with secrets redacted.
+- **Console.** Every git command Geet runs, with secrets redacted.
 - **VCS Operations Popup** (`` Alt+` ``): every action that applies right now.
 - **An IntelliJ keymap**, if you want one: `gittree.keymap.intellij`.
 
 ## Getting started
 
-1. Install GitTree and open a folder with a git repository, or a folder of
+1. Install Geet and open a folder with a git repository, or a folder of
    several.
-2. Open **GitTree** in the activity bar for the Commit window and the
-   Repositories and Branches panels; the Log is in the panel (**GitTree: Focus
+2. Open **Geet** in the activity bar for the Commit window and the
+   Repositories and Branches panels; the Log is in the panel (**Geet: Focus
    on Log View**).
-3. To practise first, run **GitTree: Getting Started Walkthrough**: it can make
+3. To practise first, run **Geet: Getting Started Walkthrough**: it can make
    a throwaway [playground repository](docs/faq.md) with a commit, a conflict
    and a log to try things on.
 
@@ -128,7 +128,7 @@ Coming from VS Code's built-in Git? Read
 
 ## How close is it to IntelliJ IDEA?
 
-GitTree is measured line by line against IntelliJ IDEA Ultimate's Git
+Geet is measured line by line against IntelliJ IDEA Ultimate's Git
 features ([FEATURES.md](FEATURES.md)), where each item has to work the same and
 sit in the same kind of place: a tool window, a popup, a dialog. Of the 230
 items, **118 are at parity, 33 partly there and 79 not yet**. The audit is
@@ -144,11 +144,11 @@ from any remote, self-hosted ones included, works as usual.
 - git 2.36 or newer is recommended. Older versions work; the few features that
   need a newer git turn themselves off.
 - VS Code 1.96 or newer.
-- No accounts, no tokens, no telemetry: GitTree itself sends nothing anywhere.
+- No accounts, no tokens, no telemetry: Geet itself sends nothing anywhere.
   Git talks to your remotes when you fetch, pull or push, and **Generate Commit
   Message**, if you use it, sends the changes it describes to the language
   model you choose in VS Code.
-- GitTree runs only in folders you trust (it stays off in Restricted Mode), as
+- Geet runs only in folders you trust (it stays off in Restricted Mode), as
   VS Code's own Git extension does: git can run programs a repository's own
   configuration names.
 
@@ -173,5 +173,6 @@ Build blueprint: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) and
 
 ---
 
-GitTree is an independent project, not affiliated with or endorsed by JetBrains. IntelliJ IDEA
-is a trademark of JetBrains s.r.o.
+Geet is an independent project, not affiliated with or endorsed by JetBrains. IntelliJ IDEA
+is a trademark of JetBrains s.r.o. Geet is also not affiliated with or endorsed by the Git
+project; Git is a trademark of Software Freedom Conservancy.

@@ -7,11 +7,11 @@ import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { countMerge, mergeStatusText } from '../../../src/merge/applyNonConflicting';
 import type { ConflictSession } from '../../../src/merge/conflictSession';
 import type { TriEditorManager } from '../../../src/merge/triEditor';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /**
  * P13-T8 · §3.5 + S7. `Apply non-conflicting changes` is three actions in
- * IntelliJ; GitTree's wand only ever implemented "All". These drive the real
+ * IntelliJ; Geet's wand only ever implemented "All". These drive the real
  * tri-editor over a real conflicted file, and the S7 gate over a real session.
  */
 suite('P13 merge parity', () => {
@@ -58,7 +58,7 @@ suite('P13 merge parity', () => {
   suiteSetup(async function () {
     this.timeout(90_000);
     repoRoot = workspaceRepoC();
-    core = await activateGitTree();
+    core = await activateGeet();
     reg = core.debugRegistry.get('phase13') as Phase13Registry;
     const p6 = core.debugRegistry.get('phase06') as {
       triEditors: TriEditorManager;

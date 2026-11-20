@@ -1,7 +1,7 @@
 /**
  * Reset dialog argv (P13-T3), vscode-free so the mode matrix is unit-testable.
  *
- * `keep` is git's fourth mode and was missing from every GitTree surface before
+ * `keep` is git's fourth mode and was missing from every Geet surface before
  * P12-T7.6: it moves HEAD like `--hard` but **refuses** rather than discarding
  * local changes. The dialog offers it explicitly because "hard, but safe" is
  * what most users actually want.

@@ -5,7 +5,7 @@
  *
  * What this replaces: VS Code's diff editor wraps to the top of the *same*
  * file when you run off the end, because a diff editor knows only two
- * documents and has no concept of a file sequence. GitTree opens the diffs, so
+ * documents and has no concept of a file sequence. Geet opens the diffs, so
  * it holds the sequence — that is the whole reason this is possible here and
  * not there.
  *
@@ -19,7 +19,7 @@
  * VS Code decides where the changes are: the highlights on screen are its own,
  * and its navigation is the only thing that lands exactly on them. It can only
  * be asked by moving the cursor, though, and at a boundary that means a wrap to
- * the top of the file, which shows. So GitTree's own diff answers first
+ * the top of the file, which shows. So Geet's own diff answers first
  * (`predict`): when it says nothing lies ahead, the press announces the boundary
  * without touching the view. Before actually leaving the file VS Code gets the
  * last word, because a wrong prediction must never skip a change, unless all it
@@ -40,7 +40,7 @@ export type BoundaryAction =
   | { readonly kind: 'end' };
 
 /**
- * What GitTree's own diff expects ahead of the cursor. `unknown` is a pair of
+ * What Geet's own diff expects ahead of the cursor. `unknown` is a pair of
  * files too far apart for it to answer, where only VS Code can.
  */
 export type Prediction = 'more' | 'none' | 'unknown';
@@ -55,7 +55,7 @@ export interface PressInput {
 
 /**
  * Whether "nothing ahead" can stand without VS Code's word. The two diffs agree on
- * which lines differ, so all it could add is a split of GitTree's last change into
+ * which lines differ, so all it could add is a split of Geet's last change into
  * two, and a change on screen cannot be walked past unseen. Asking would wrap the
  * view to the top of the file on the way out, so it is worth not asking.
  */
@@ -133,7 +133,7 @@ function comparable(text: string, ignoreTrimWhitespace: boolean): string {
 }
 
 /**
- * The changes between two texts as GitTree's own diff sees them, or `undefined`
+ * The changes between two texts as Geet's own diff sees them, or `undefined`
  * when the texts are too far apart for it to be exact: it would answer with one
  * block from the first change to the last, and "nothing after this one" would be
  * wrong for everything in between.
@@ -172,7 +172,7 @@ export function predict(
 }
 
 /**
- * The line a crossing lands on as far as GitTree's own diff can tell, so that the
+ * The line a crossing lands on as far as Geet's own diff can tell, so that the
  * file opens there rather than at its top. VS Code's navigation still has the
  * last word on it.
  */

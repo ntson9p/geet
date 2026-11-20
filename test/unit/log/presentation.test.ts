@@ -231,7 +231,7 @@ describe('the settings behind them', () => {
       showDateColumn: true,
       showHashColumn: false,
       showGraph: true,
-      // GitTree's own, the owner's choice (D40, D39): IntelliJ has the locale's
+      // Geet's own, the owner's choice (D40, D39): IntelliJ has the locale's
       // date and every filter value written out.
       dateFormat: 'YYYY/MM/DD HH:mm',
       filterChips: 'compact',

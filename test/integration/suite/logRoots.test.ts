@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Phase04Registry } from '../../../src/log/register';
 import type { Core, RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoA, workspaceRepoB } from '../setup';
 
 /**
  * `Paths ▾ · Roots`, and the repository the log renders.
@@ -33,7 +33,7 @@ suite('Log roots & path filter', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     reg = core.debugRegistry.get('phase04') as Phase04Registry;
     assert.ok(reg, 'phase04 registry missing');
     repoA = core.repoForPath(workspaceRepoA())!;
@@ -100,7 +100,7 @@ suite('Log roots & path filter', () => {
         refs: [branchA],
         paths: ['src'],
         follow: true,
-        authors: ['GitTree Test'],
+        authors: ['Geet Test'],
         dateRange: { from: '2000-01-01' },
         text: { q: 'initial', regex: false, matchCase: false },
       },
@@ -119,7 +119,7 @@ suite('Log roots & path filter', () => {
     // its roots change. A name repoB lacks is left out of the read instead.
     assert.deepStrictEqual(after.refs, [branchA], 'the Branch selection survives the switch');
     // Nothing about an author or a date is repo-relative, so nothing is lost.
-    assert.deepStrictEqual(after.authors, ['GitTree Test']);
+    assert.deepStrictEqual(after.authors, ['Geet Test']);
     assert.deepStrictEqual(after.dateRange, { from: '2000-01-01' });
     assert.strictEqual(after.text?.q, 'initial');
     assert.strictEqual(after.sort, 'date');

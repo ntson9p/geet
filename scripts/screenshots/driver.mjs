@@ -1,6 +1,6 @@
 /**
  * What the scenes (scenes.mjs) do to the scratch VS Code: run a command from
- * the Command Palette, answer a quick pick or an input box, find a GitTree
+ * the Command Palette, answer a quick pick or an input box, find a Geet
  * webview, size the side bar and the panel, run git in a demo repository, and
  * save an image.
  *
@@ -102,7 +102,7 @@ export function createDriver(o) {
     sleep,
     dismissOverlays,
 
-    /** Runs a command by its palette label, such as `GitTree: Focus on Commit View`. */
+    /** Runs a command by its palette label, such as `Geet: Focus on Commit View`. */
     async command(label) {
       await openQuickInput();
       await typeQuick(`>${label}`);

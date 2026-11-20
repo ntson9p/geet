@@ -17,7 +17,7 @@ suite('P0-T9 webview host factory', () => {
     const findDemoTab = (): vscode.Tab | undefined =>
       vscode.window.tabGroups.all
         .flatMap((g) => g.tabs)
-        .find((t) => t.input instanceof vscode.TabInputWebview && t.label === 'GitTree Webview Demo');
+        .find((t) => t.input instanceof vscode.TabInputWebview && t.label === 'Geet Webview Demo');
     const deadline = Date.now() + 5000;
     while (!findDemoTab() && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 50));

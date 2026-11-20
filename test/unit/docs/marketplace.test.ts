@@ -1,6 +1,7 @@
 /**
  * POST-P14cr: what the Marketplace listing and the published extension rest on,
- * held so a later edit cannot quietly undo it.
+ * held so a later edit cannot quietly undo it. POST-P14ct: the name, Geet (GitTree
+ * before: the Marketplace already had a "Git Tree").
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -29,9 +30,11 @@ const nls = JSON.parse(read('package.nls.json')) as Record<string, string>;
 const REPO = 'https://github.com/ntson9p/git-tree';
 
 describe('the Marketplace manifest', () => {
-  it('is published as ntson9p.gittree', () => {
+  it('is published as ntson9p.geet, listed as "Geet for Git"', () => {
     expect(pkg.publisher).toBe('ntson9p');
-    expect(pkg.name).toBe('gittree');
+    expect(pkg.name).toBe('geet');
+    // Git's trademark policy allows "[Product Name] for Git"; "Git" inside a word it does not.
+    expect(pkg.displayName).toBe('Geet for Git');
   });
 
   it('names the real repository: vsce points the README’s links and images there', () => {
@@ -61,15 +64,55 @@ describe('the Marketplace manifest', () => {
     expect(bytes.subarray(1, 4).toString('latin1')).toBe('PNG');
   });
 
-  it("package-lock.json's own version is package.json's", () => {
-    const lock = JSON.parse(read('package-lock.json')) as { version: string; packages: Record<string, { version?: string }> };
+  it("package-lock.json's own name and version are package.json's", () => {
+    const lock = JSON.parse(read('package-lock.json')) as {
+      name: string;
+      version: string;
+      packages: Record<string, { name?: string; version?: string }>;
+    };
+    expect(lock.name).toBe(pkg.name);
+    expect(lock.packages['']?.name).toBe(pkg.name);
     expect(lock.version).toBe(pkg.version);
     expect(lock.packages['']?.version).toBe(pkg.version);
   });
 });
 
+describe('the old name, GitTree, is nowhere a user sees it', () => {
+  // The CHANGELOG, the FAQ and the settings doc say it on purpose: they tell an old
+  // build's user what became of it. Nothing else may.
+  const files = (dir: string, pattern: RegExp): string[] =>
+    readdirSync(path.join(root, dir)).flatMap((name) => {
+      const rel = path.join(dir, name);
+      return statSync(path.join(root, rel)).isDirectory() ? files(rel, pattern) : pattern.test(name) ? [rel] : [];
+    });
+
+  it('not in the manifest, the code, the webviews, the images, the README or the licence', () => {
+    const seen = [
+      'package.json',
+      'package.nls.json',
+      'README.md',
+      'LICENSE',
+      ...files('src', /\.ts$/u),
+      ...files(path.join('webview-ui', 'src'), /\.(tsx?|css)$/u),
+      ...readdirSync(path.join(root, 'webview-ui')).filter((n) => n.endsWith('.html')).map((n) => path.join('webview-ui', n)),
+      ...files('media', /\.(svg|json)$/u),
+      ...files('shims', /./u),
+    ];
+    const found = seen.filter((rel) => /Git ?Tree/u.test(read(rel)));
+    expect(found).toEqual([]);
+    expect(seen.length).toBeGreaterThan(100);
+  });
+
+  it('the Command Palette says Geet: every command with a category has Geet’s', () => {
+    const commands = (JSON.parse(read('package.json')) as { contributes: { commands: Array<{ category?: string }> } })
+      .contributes.commands;
+    const categories = new Set(commands.flatMap((c) => (c.category === undefined ? [] : [c.category])));
+    expect([...categories]).toEqual(['Geet']);
+  });
+});
+
 describe('the extension ID is never written into the code', () => {
-  // It is `<publisher>.gittree`; a literal one broke the walkthrough when the publisher changed.
+  // It is `<publisher>.<name>`; a literal one broke the walkthrough when the publisher changed.
   const sources = (dir: string): string[] =>
     readdirSync(dir).flatMap((name) => {
       const full = path.join(dir, name);
@@ -78,7 +121,7 @@ describe('the extension ID is never written into the code', () => {
 
   it('no source file names one, old or new', () => {
     const found = [...sources(path.join(root, 'src')), ...sources(path.join(root, 'webview-ui', 'src'))]
-      .filter((file) => /\b(gittree|ntson9p)\.gittree\b/u.test(readFileSync(file, 'utf8')))
+      .filter((file) => /\b(gittree\.gittree|ntson9p\.gittree|ntson9p\.geet)\b/u.test(readFileSync(file, 'utf8')))
       .map((file) => path.relative(root, file));
     expect(found).toEqual([]);
   });
@@ -92,7 +135,12 @@ describe('the README, as the Marketplace page', () => {
     expect(readme).toMatch(/Generate Commit Message/u);
   });
 
-  it('says GitTree is not affiliated with JetBrains', () => {
+  it('says Geet is not affiliated with JetBrains', () => {
     expect(readme).toMatch(/not affiliated with or endorsed by JetBrains/u);
+  });
+
+  it('is titled "Geet for Git", and says Geet is not the Git project’s', () => {
+    expect(readme.split('\n')[0]).toBe('# Geet for Git');
+    expect(readme).toMatch(/not affiliated with or endorsed by the Git project/u);
   });
 });

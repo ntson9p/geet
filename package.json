@@ -1,6 +1,6 @@
 {
-  "name": "gittree",
-  "displayName": "GitTree",
+  "name": "geet",
+  "displayName": "Geet for Git",
   "description": "IntelliJ-grade Git integration for VS Code: changelists, log graph, interactive rebase, 3-pane merge, shelve, and local history.",
   "version": "0.1.0",
   "publisher": "ntson9p",
@@ -60,7 +60,7 @@
       {
         "id": "gittree-commit-message",
         "aliases": [
-          "Commit Message (GitTree)"
+          "Commit Message (Geet)"
         ],
         "configuration": "./media/syntaxes/commit-message.language-configuration.json"
       }
@@ -873,178 +873,178 @@
       {
         "command": "gittree.debug.showState",
         "title": "%gittree.command.debug.showState.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.debug.webviewDemo",
         "title": "%gittree.command.debug.webviewDemo.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.openDiff",
         "title": "%gittree.command.openDiff.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(compare-changes)"
       },
       {
         "command": "gittree.commit.openChanges",
         "title": "%gittree.command.openDiff.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.stage",
         "title": "%gittree.command.commit.stage.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(add)"
       },
       {
         "command": "gittree.commit.unstage",
         "title": "%gittree.command.commit.unstage.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(remove)"
       },
       {
         "command": "gittree.commit.tickAll",
         "title": "%gittree.command.commit.tickAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.untickAll",
         "title": "%gittree.command.commit.untickAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.stageAll",
         "title": "%gittree.command.commit.stageAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.unstageAll",
         "title": "%gittree.command.commit.unstageAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.expandAll",
         "title": "%gittree.command.commit.expandAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.collapseAll",
         "title": "%gittree.command.commit.collapseAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.openDiffHead",
         "title": "%gittree.command.openDiffHead.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.openFile",
         "title": "%gittree.command.openFile.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(go-to-file)"
       },
       {
         "command": "gittree.revealFileInOS.windows",
         "title": "%gittree.command.revealFileInOS.windows.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.revealFileInOS.mac",
         "title": "%gittree.command.revealFileInOS.mac.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.revealFileInOS.linux",
         "title": "%gittree.command.revealFileInOS.linux.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.add",
         "title": "%gittree.command.add.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(plus)"
       },
       {
         "command": "gittree.unstage",
         "title": "%gittree.command.unstage.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(remove)"
       },
       {
         "command": "gittree.addToVcs",
         "title": "%gittree.command.addToVcs.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(plus)"
       },
       {
         "command": "gittree.gitignore.add",
         "title": "%gittree.command.gitignoreAdd.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(eye-closed)"
       },
       {
         "command": "gittree.rollbackFile",
         "title": "%gittree.command.rollbackFile.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(discard)"
       },
       {
         "command": "gittree.cleanUntracked",
         "title": "%gittree.command.cleanUntracked.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.refresh",
         "title": "%gittree.command.refresh.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(refresh)"
       },
       {
         "command": "gittree.fetch",
         "title": "%gittree.command.fetch.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.fetch.all",
         "title": "%gittree.command.fetch.all.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.pull",
         "title": "%gittree.command.pull.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.push",
         "title": "%gittree.command.push.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.pushForceWithLease",
         "title": "%gittree.command.pushForceWithLease.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.sync",
         "title": "%gittree.command.sync.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit",
         "title": "%gittree.command.commit.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(check)"
       },
       {
         "command": "gittree.commitAmend",
         "title": "%gittree.command.commitAmend.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branches.open",
         "title": "%gittree.command.branches.open.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.hunk.rollback",
@@ -1064,7 +1064,7 @@
       {
         "command": "gittree.branches.new",
         "title": "%gittree.command.branches.new.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(add)"
       },
       {
@@ -1108,12 +1108,12 @@
       {
         "command": "gittree.branches.compareWithCurrent",
         "title": "%gittree.command.branches.compareWithCurrent.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branches.diffWithWorkingTree",
         "title": "%gittree.command.branches.diffWithWorkingTree.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.compare.showFilesDiff",
@@ -1145,77 +1145,77 @@
       {
         "command": "gittree.commitAndPush",
         "title": "%gittree.command.commitAndPush.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.switchParadigm",
         "title": "%gittree.command.commit.switchParadigm.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.groupByRepository",
         "title": "%gittree.command.commit.groupByRepository.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.groupByChangelist",
         "title": "%gittree.command.commit.groupByChangelist.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.groupByNone",
         "title": "%gittree.command.commit.groupByNone.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.toggleGroupByDirectory",
         "title": "%gittree.command.commit.toggleGroupByDirectory.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.toggleAmend",
         "title": "%gittree.command.commit.toggleAmend.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(edit)"
       },
       {
         "command": "gittree.commit.toggleSign",
         "title": "%gittree.command.commit.toggleSign.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(verified)"
       },
       {
         "command": "gittree.commit.showMessageHistory",
         "title": "%gittree.command.commit.showMessageHistory.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(history)"
       },
       {
         "command": "gittree.commit.generateMessage",
         "title": "%gittree.command.commit.generateMessage.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(sparkle)"
       },
       {
         "command": "gittree.commit.chooseMessageModel",
         "title": "%gittree.command.commit.chooseMessageModel.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.fromMessageBox",
         "title": "%gittree.command.commit.fromMessageBox.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.commit.configureChecks",
         "title": "%gittree.command.commit.configureChecks.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(settings-gear)"
       },
       {
         "command": "gittree.changelist.new",
         "title": "%gittree.command.changelist.new.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(add)"
       },
       {
@@ -1242,17 +1242,17 @@
       {
         "command": "gittree.stage.selectedRanges",
         "title": "%gittree.command.stage.selectedRanges.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.unstage.selectedRanges",
         "title": "%gittree.command.unstage.selectedRanges.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.revert.selectedRanges",
         "title": "%gittree.command.revert.selectedRanges.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.stageAll",
@@ -1275,13 +1275,13 @@
       {
         "command": "gittree.log.refresh",
         "title": "%gittree.command.log.refresh.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(refresh)"
       },
       {
         "command": "gittree.log.revealCommit",
         "title": "%gittree.command.log.revealCommit.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.log.copySha",
@@ -1321,17 +1321,17 @@
       {
         "command": "gittree.log.setFilter",
         "title": "%gittree.command.log.setFilter.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.log.focusFilter",
         "title": "%gittree.command.log.focusFilter.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.blame.toggle",
         "title": "%gittree.command.blame.toggle.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.blame.showDiff",
@@ -1340,84 +1340,84 @@
       {
         "command": "gittree.blame.revealCursorCommit",
         "title": "%gittree.command.blame.revealCursorCommit.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.showFileHistory",
         "title": "%gittree.command.showFileHistory.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(history)"
       },
       {
         "command": "gittree.branches.compareInLog",
         "title": "%gittree.command.branches.compareInLog.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branches.cleanup",
         "title": "%gittree.command.branches.cleanup.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(trash)"
       },
       {
         "command": "gittree.branches.checkoutEverywhere",
         "title": "%gittree.command.branches.checkoutEverywhere.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(arrow-swap)"
       },
       {
         "command": "gittree.branches.showInLog",
         "title": "%gittree.command.branches.showInLog.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.repositories.showInLog",
         "title": "%gittree.command.repositories.showInLog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(git-commit)"
       },
       {
         "command": "gittree.branches.selectRepository",
         "title": "%gittree.command.branches.selectRepository.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branches.showAllRepositories",
         "title": "%gittree.command.branches.showAllRepositories.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branches.revealRepository",
         "title": "%gittree.command.branches.revealRepository.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branches.newBranchInPanel",
         "title": "%gittree.command.branches.newBranchInPanel.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(add)"
       },
       {
         "command": "gittree.branches.filterPanel",
         "title": "%gittree.command.branches.filterPanel.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(search)"
       },
       {
         "command": "gittree.branches.toggleRepositoryDots",
         "title": "%gittree.command.branches.toggleRepositoryDots.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.history.show",
         "title": "%gittree.command.history.show.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(history)"
       },
       {
         "command": "gittree.history.showForPath",
         "title": "%gittree.command.history.showForPath.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.history.compareSnapshot",
@@ -1445,12 +1445,12 @@
       {
         "command": "gittree.history.clearAll",
         "title": "%gittree.command.history.clearAll.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.history.gcNow",
         "title": "%gittree.command.history.gcNow.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.history.clearFilter",
@@ -1460,32 +1460,32 @@
       {
         "command": "gittree.history.recoverCommit",
         "title": "%gittree.command.history.recoverCommit.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.rebase.continue",
         "title": "%gittree.command.rebase.continue.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.rebase.skip",
         "title": "%gittree.command.rebase.skip.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.rebase.abort",
         "title": "%gittree.command.rebase.abort.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.rebase.actions",
         "title": "%gittree.command.rebase.actions.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.rebase.interactive",
         "title": "%gittree.command.rebase.interactive.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.rebase.row.resetAction",
@@ -1498,7 +1498,7 @@
       {
         "command": "gittree.commit.undo",
         "title": "%gittree.command.commit.undo.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "enablement": "!gittree.notHead"
       },
       {
@@ -1576,7 +1576,7 @@
       {
         "command": "gittree.conflicts.resolve",
         "title": "%gittree.command.conflicts.resolve.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(git-merge)"
       },
       {
@@ -1773,7 +1773,7 @@
       {
         "command": "gittree.patch.apply",
         "title": "%gittree.command.patch.apply.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.log.createPatch",
@@ -1819,7 +1819,7 @@
       {
         "command": "gittree.log.console.clear",
         "title": "%gittree.command.log.console.clear.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.log.branch.checkout",
@@ -1864,114 +1864,114 @@
       {
         "command": "gittree.openWalkthrough",
         "title": "%gittree.command.openWalkthrough.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.generatePlayground",
         "title": "%gittree.command.generatePlayground.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.reportIssue",
         "title": "%gittree.command.reportIssue.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.push.dialog",
         "title": "%gittree.command.push.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(repo-push)"
       },
       {
         "command": "gittree.update.dialog",
         "title": "%gittree.command.update.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(sync)"
       },
       {
         "command": "gittree.update.withoutFetch",
         "title": "%gittree.command.update.withoutFetch.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(sync)"
       },
       {
         "command": "gittree.update.repository",
         "title": "%gittree.command.update.repository.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(sync)"
       },
       {
         "command": "gittree.update.repositoryWithoutFetch",
         "title": "%gittree.command.update.repositoryWithoutFetch.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(sync)"
       },
       {
         "command": "gittree.update.configure",
         "title": "%gittree.command.update.configure.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(gear)"
       },
       {
         "command": "gittree.merge.dialog",
         "title": "%gittree.command.merge.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(git-merge)"
       },
       {
         "command": "gittree.rebase.dialog",
         "title": "%gittree.command.rebase.dialog.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.reset.dialog",
         "title": "%gittree.command.reset.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(discard)"
       },
       {
         "command": "gittree.rollback.dialog",
         "title": "%gittree.command.rollback.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(discard)"
       },
       {
         "command": "gittree.cherryPick.dialog",
         "title": "%gittree.command.cherryPick.dialog.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.stash.dialog",
         "title": "%gittree.command.stash.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(archive)"
       },
       {
         "command": "gittree.unstash.dialog",
         "title": "%gittree.command.unstash.dialog.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.patch.applyDialog",
         "title": "%gittree.command.patch.applyDialog.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.clone.dialog",
         "title": "%gittree.command.clone.dialog.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(repo-clone)"
       },
       {
         "command": "gittree.remotes.manage",
         "title": "%gittree.command.remotes.manage.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(remote)"
       },
       {
         "command": "gittree.worktree.add",
         "title": "%gittree.command.worktree.add.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(add)"
       },
       {
@@ -1996,7 +1996,7 @@
       {
         "command": "gittree.worktree.prune",
         "title": "%gittree.command.worktree.prune.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(clear-all)"
       },
       {
@@ -2007,43 +2007,43 @@
       {
         "command": "gittree.branch.mergeIntoCurrent",
         "title": "%gittree.command.branch.mergeIntoCurrent.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(git-merge)"
       },
       {
         "command": "gittree.branch.checkoutAndRebase",
         "title": "%gittree.command.branch.checkoutAndRebase.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.rebaseCurrentOnto",
         "title": "%gittree.command.branch.rebaseCurrentOnto.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.newWorktree",
         "title": "%gittree.command.branch.newWorktree.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.pullIntoCurrent",
         "title": "%gittree.command.branch.pullIntoCurrent.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.pullIntoCurrentRebase",
         "title": "%gittree.command.branch.pullIntoCurrentRebase.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.update",
         "title": "%gittree.command.branch.update.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.stopTracking",
         "title": "%gittree.command.branch.stopTracking.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.tracked.checkout",
@@ -2088,78 +2088,78 @@
       {
         "command": "gittree.branch.deleteOnRemote",
         "title": "%gittree.command.branch.deleteOnRemote.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.branch.new",
         "title": "%gittree.command.branch.new.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(add)"
       },
       {
         "command": "gittree.branches.checkoutRevision",
         "title": "%gittree.command.branches.checkoutRevision.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.operationsPopup",
         "title": "%gittree.command.operationsPopup.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(list-unordered)"
       },
       {
         "command": "gittree.change.showActions",
         "title": "%gittree.command.change.showActions.title%",
-        "category": "GitTree"
+        "category": "Geet"
       },
       {
         "command": "gittree.diff.nextChange",
         "title": "%gittree.command.diff.nextChange.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(arrow-down)"
       },
       {
         "command": "gittree.diff.prevChange",
         "title": "%gittree.command.diff.prevChange.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(arrow-up)"
       },
       {
         "command": "gittree.diff.prevFile",
         "title": "%gittree.command.diff.prevFile.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(arrow-left)",
         "enablement": "gittree.diff.hasPrevFile"
       },
       {
         "command": "gittree.diff.nextFile",
         "title": "%gittree.command.diff.nextFile.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(arrow-right)",
         "enablement": "gittree.diff.hasNextFile"
       },
       {
         "command": "gittree.diff.toggleSideBySide",
         "title": "%gittree.command.diff.toggleSideBySide.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(editor-layout)"
       },
       {
         "command": "gittree.diff.toggleIgnoreWhitespace",
         "title": "%gittree.command.diff.toggleIgnoreWhitespace.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(whitespace)"
       },
       {
         "command": "gittree.diff.toggleCollapseUnchanged",
         "title": "%gittree.command.diff.toggleCollapseUnchanged.title%",
-        "category": "GitTree",
+        "category": "Geet",
         "icon": "$(fold)"
       },
       {
         "command": "gittree.repositories.select",
         "title": "%gittree.command.repositories.select.title%",
-        "category": "GitTree"
+        "category": "Geet"
       }
     ],
     "submenus": [
@@ -4148,14 +4148,14 @@
           "id": "gittree.commit",
           "type": "webview",
           "name": "%gittree.view.commit.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(check-all)",
           "initialSize": 3
         },
         {
           "id": "gittree.repositoryList",
           "name": "%gittree.view.repositoryList.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(repo)",
           "type": "webview",
           "initialSize": 1,
@@ -4164,7 +4164,7 @@
         {
           "id": "gittree.repositories",
           "name": "%gittree.view.repositories.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(list-tree)",
           "visibility": "collapsed",
           "when": "gittree.multiRepo && config.gittree.sidebar.extraViews"
@@ -4172,7 +4172,7 @@
         {
           "id": "gittree.branches",
           "name": "%gittree.view.branches.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(git-branch)",
           "type": "webview",
           "initialSize": 2
@@ -4180,7 +4180,7 @@
         {
           "id": "gittree.branchesTree",
           "name": "%gittree.view.branchesTree.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(list-tree)",
           "when": "config.gittree.sidebar.extraViews",
           "visibility": "collapsed"
@@ -4188,7 +4188,7 @@
         {
           "id": "gittree.branchesLegacy",
           "name": "%gittree.view.branchesLegacy.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(git-branch)",
           "visibility": "collapsed",
           "when": "config.gittree.sidebar.extraViews"
@@ -4196,7 +4196,7 @@
         {
           "id": "gittree.worktrees",
           "name": "%gittree.view.worktrees.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(repo-forked)",
           "visibility": "collapsed",
           "when": "config.gittree.sidebar.extraViews"
@@ -4204,7 +4204,7 @@
         {
           "id": "gittree.compare",
           "name": "%gittree.view.compare.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(diff)",
           "visibility": "hidden",
           "when": "gittree.compare.active"
@@ -4212,7 +4212,7 @@
         {
           "id": "gittree.localHistory",
           "name": "%gittree.view.localHistory.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(history)",
           "visibility": "collapsed",
           "when": "config.gittree.sidebar.extraViews || gittree.localHistory.active"
@@ -4220,14 +4220,14 @@
         {
           "id": "gittree.conflicts",
           "name": "%gittree.view.conflicts.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(git-merge)",
           "when": "gittree.hasConflicts"
         },
         {
           "id": "gittree.stashes",
           "name": "%gittree.view.stashes.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(archive)",
           "visibility": "collapsed",
           "when": "config.gittree.sidebar.extraViews"
@@ -4235,7 +4235,7 @@
         {
           "id": "gittree.revTree",
           "name": "%gittree.view.revTree.name%",
-          "contextualTitle": "GitTree",
+          "contextualTitle": "Geet",
           "icon": "$(history)",
           "when": "gittree.revTree.active"
         }

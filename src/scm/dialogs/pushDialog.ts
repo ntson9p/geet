@@ -5,7 +5,7 @@
  * the accepted result into real `git push` invocations through each
  * repository's operation queue.
  *
- * Every Push of GitTree opens it, as every Push of IntelliJ does: `Push…`
+ * Every Push of Geet opens it, as every Push of IntelliJ does: `Push…`
  * (Ctrl+Shift+K) for the workspace, a branch's `Push…` for that branch, `Push
  * All up to Here…` for a commit, and `Commit and Push…` once its commits land.
  * POST-P14cn: with `gittree.push.showDialog` off (its footer's `Don't show this

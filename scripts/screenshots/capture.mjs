@@ -12,8 +12,8 @@
  *   npm run screenshots -- --no-build         use dist/ as it is
  *   npm run screenshots -- --keep             leave VS Code's profile and the demo for a look
  *   npm run screenshots -- --work <folder>    where the demo and the profile go (default:
- *                                             C:\gittree-screenshots on Windows, so no path
- *                                             in the images names you; <temp>/gittree-screenshots
+ *                                             C:\geet-screenshots on Windows, so no path
+ *                                             in the images names you; <temp>/geet-screenshots
  *                                             elsewhere)
  *
  * An image that comes out the same is written byte for byte the same, so git

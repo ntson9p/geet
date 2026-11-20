@@ -35,7 +35,7 @@ export const REMOTE_BASE = 'https://git.example.com/pantry/';
 export const WORKSPACE_NAME = 'pantry';
 
 /** A file in a folder this module made, so it only ever deletes its own. */
-const MARKER = '.gittree-screenshots';
+const MARKER = '.geet-screenshots';
 
 /**
  * The environment every git call of the demo runs with, VS Code's included:
@@ -110,7 +110,7 @@ export function gitDate(when, who) {
 }
 
 /**
- * Where the demo (and the scratch VS Code's profile) go by default. GitTree
+ * Where the demo (and the scratch VS Code's profile) go by default. Geet
  * shows a repository's full path in places, such as the Log's Changed Files,
  * so on Windows the demo goes to the root of the system drive: under the user
  * folder, the user's name would be in the images. Elsewhere the temp folder's
@@ -121,8 +121,8 @@ export function gitDate(when, who) {
  * @param {string} [tmp]
  */
 export function defaultWorkFolder(platform = process.platform, env = process.env, tmp = os.tmpdir()) {
-  if (platform === 'win32') return path.win32.join(`${env['SystemDrive'] ?? 'C:'}\\`, 'gittree-screenshots');
-  return path.posix.join(tmp, 'gittree-screenshots');
+  if (platform === 'win32') return path.win32.join(`${env['SystemDrive'] ?? 'C:'}\\`, 'geet-screenshots');
+  return path.posix.join(tmp, 'geet-screenshots');
 }
 
 /**

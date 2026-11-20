@@ -7,7 +7,7 @@ import type { NotificationsRegistry } from '../../../src/ui/notify';
 import type { Phase03Registry } from '../../../src/commit/register';
 import type { RepoHandle } from '../../../src/core/core';
 import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 
 /** Phase 3 acceptance on workspace repoC (dedicated to this suite). */
 suite('P3 commit lifecycle', () => {
@@ -31,7 +31,7 @@ suite('P3 commit lifecycle', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
     fsRoot = repo.root;
@@ -93,7 +93,7 @@ suite('P3 commit lifecycle', () => {
     service.setChecked(['brand-new.txt'], true);
 
     messageBox.value = 'feature x commit';
-    const notes = (await activateGitTree()).debugRegistry.get('notifications') as NotificationsRegistry;
+    const notes = (await activateGeet()).debugRegistry.get('notifications') as NotificationsRegistry;
     notes.clear();
     process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
     try {

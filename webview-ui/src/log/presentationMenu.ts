@@ -1,8 +1,8 @@
 /**
  * The Commits pane's `Presentation Settings ▾` (the eye), in IntelliJ's order:
  * `Show` · Compact References View · Tag Names · References on the Left ·
- * Columns ▸ Author · Hash · Date — after GitTree's own `Graph`, which IntelliJ
- * has no row for, and before GitTree's own `Date Format ▸` (POST-P14cg), which
+ * Columns ▸ Author · Hash · Date — after Geet's own `Graph`, which IntelliJ
+ * has no row for, and before Geet's own `Date Format ▸` (POST-P14cg), which
  * IntelliJ keeps in its Settings (Appearance & Behavior › System Settings ›
  * Date Formats). IntelliJ's other rows — Root Names, Long Edges, Commit
  * Timestamp and the Highlight group — are left out: a checkbox that changes
@@ -56,7 +56,7 @@ const TOGGLES: Readonly<Record<string, LogPresentationToggle>> = {
 const DATE_FORMAT_ROW = 'dateFormat:';
 
 /**
- * Presentation Settings ▸ Date Format, in this order (POST-P14cg): GitTree's
+ * Presentation Settings ▸ Date Format, in this order (POST-P14cg): Geet's
  * own default, IntelliJ's log as it ships, and the system's date and time
  * (IntelliJ's with "Use pretty formatting" off).
  */

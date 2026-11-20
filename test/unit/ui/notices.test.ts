@@ -1,5 +1,5 @@
 /**
- * new-way-6: GitTree's information messages with nothing to click go through
+ * new-way-6: Geet's information messages with nothing to click go through
  * `showInfo` (src/ui/notices.ts), which shows them for
  * `gittree.notifications.durationSeconds` while VS Code is in front. That
  * module is vscode-bound, so this reads the sources and the manifest.
@@ -63,7 +63,7 @@ const ORDINARY: Record<string, string> = {
   'merge/resolutionActions.ts': "the merge editor's Show Details: text asked for, kept as long as VS Code keeps it",
 };
 
-describe('GitTree’s information messages with nothing to click', () => {
+describe('Geet’s information messages with nothing to click', () => {
   it('all go through showInfo, but for the few kept ordinary on purpose', () => {
     const files = [...new Set(plainInformationMessages().map((w) => w.slice(0, w.lastIndexOf(':'))))].sort();
     expect(files).toEqual(Object.keys(ORDINARY).sort());
@@ -76,7 +76,7 @@ describe('GitTree’s information messages with nothing to click', () => {
     expect(notify).toMatch(/vscode\.window\.showWarningMessage\(message, \.\.\.titles\)/u);
   });
 
-  it('are written to the GitTree output, since they leave no entry in the Notifications list', () => {
+  it('are written to the Geet output, since they leave no entry in the Notifications list', () => {
     const register = readFileSync(path.join(src, 'scm', 'register.ts'), 'utf8');
     expect(register).toMatch(/setNoticeLog\(\(line\) => core\.output\.appendLine\(line\)\)/u);
   });
@@ -91,7 +91,7 @@ describe('gittree.notifications.durationSeconds', () => {
   const setting = section?.properties['gittree.notifications.durationSeconds'];
 
   it('is a number of seconds, five by default, from 0 to a minute, among the general settings', () => {
-    expect(nls[section!.title.slice(1, -1)]).toBe('GitTree');
+    expect(nls[section!.title.slice(1, -1)]).toBe('Geet');
     expect(setting).toMatchObject({
       type: 'number',
       default: DEFAULT_NOTICE_SECONDS,
@@ -103,7 +103,7 @@ describe('gittree.notifications.durationSeconds', () => {
   it('says what 0 does, and where a notice that left can still be read', () => {
     const description = nls[String(setting!['description']).slice(1, -1)] ?? '';
     expect(description).toMatch(/\b0 shows them as ordinary notifications\b/u);
-    expect(description).toMatch(/the "GitTree" output keeps a copy/u);
+    expect(description).toMatch(/the "Geet" output keeps a copy/u);
     expect(description).toMatch(/Notifications list/u);
     expect(description).toMatch(/Messages with buttons, warnings and errors are always ordinary notifications/u);
   });

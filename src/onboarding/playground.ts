@@ -12,9 +12,9 @@ import type { Core } from '../core/core';
 
 const DIR_NAME = 'gittree-playground';
 
-const README = `# GitTree Playground
+const README = `# Geet Playground
 
-A disposable repository for learning GitTree. Nothing here touches your real
+A disposable repository for learning Geet. Nothing here touches your real
 projects — delete this folder when you're done.
 
 ## Try it
@@ -63,7 +63,7 @@ const GREETING_POLISH = GREETING_V2.replace(
 
 const NOTES_V1 = `# Notes
 
-- Playground created by GitTree.
+- Playground created by Geet.
 `;
 
 const NOTES_PENDING = `${NOTES_V1}- TODO: commit me — I am your first commit.
@@ -89,7 +89,7 @@ export async function generatePlayground(core: Core): Promise<string | undefined
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
-      title: vscode.l10n.t('Choose where to create the GitTree playground'),
+      title: vscode.l10n.t('Choose where to create the Geet playground'),
       openLabel: vscode.l10n.t('Create Playground Here'),
     });
     if (!parent || parent.length === 0) return undefined;
@@ -116,7 +116,7 @@ export async function generatePlayground(core: Core): Promise<string | undefined
   await run(['init']);
   // Identity is repo-local so the playground works without global git config;
   // `checkout -b` (not `init -b`) keeps git 2.28 compatibility.
-  await run(['config', 'user.name', 'GitTree Playground']);
+  await run(['config', 'user.name', 'Geet Playground']);
   await run(['config', 'user.email', 'playground@gittree.invalid']);
   await run(['checkout', '-b', 'main']);
 
@@ -150,7 +150,7 @@ export async function generatePlayground(core: Core): Promise<string | undefined
   if (seeded === undefined) {
     const open = vscode.l10n.t('Add to Workspace');
     const choice = await vscode.window.showInformationMessage(
-      vscode.l10n.t('GitTree playground created. Add it to this workspace to continue the walkthrough?'),
+      vscode.l10n.t('Geet playground created. Add it to this workspace to continue the walkthrough?'),
       open,
     );
     if (choice === open) {

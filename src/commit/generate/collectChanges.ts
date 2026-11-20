@@ -50,7 +50,7 @@ const slash = (p: string): string => p.replace(/\\/g, '/');
 /**
  * `--no-ext-diff`: the text git writes, not a diff tool's window. The paths
  * after `--` go as literal pathspecs, so a ticked `[id].tsx` is that file, not
- * a pattern — through `literalPathspecs`, as every other git call GitTree
+ * a pattern — through `literalPathspecs`, as every other git call Geet
  * makes (POST-P14ck), and not git's global `--literal-pathspecs`, which git
  * hands on to whatever it runs.
  */

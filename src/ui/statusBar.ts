@@ -40,7 +40,7 @@
  *
  * The shape itself (POST-P14r) is unchanged and still right: VS Code's
  * built-in Git extension already draws a branch readout, so ours is an action
- * — `$(list-tree) GitTree $(chevron-down)`, constant width, opening the
+ * — `$(list-tree) Geet $(chevron-down)`, constant width, opening the
  * branches popup — growing only for what the built-in widget does not show.
  * POST-P14t gave it the product's name, because an unlabelled `$(git-branch)`
  * beside the built-in widget's own `$(git-branch)` was read as a duplicate of
@@ -133,19 +133,19 @@ interface ItemSpec {
 /**
  * Index-matched to the commands a controller builds. The rebase row has its own
  * id rather than inheriting slot 1 from the deleted sync item — a user who had
- * hidden "GitTree Sync" would otherwise find the rebase controls hidden too.
+ * hidden "Geet Sync" would otherwise find the rebase controls hidden too.
  *
  * There is exactly one of each for the whole extension. Anything that creates a
  * second item with one of these ids is not adding a second widget, it is taking
  * a co-owner of the first one's entry — see the file header.
  */
 const ITEM_SPECS: readonly ItemSpec[] = [
-  { id: 'gittree.status.0', name: 'GitTree Branch' },
-  { id: 'gittree.status.rebase', name: 'GitTree Rebase' },
+  { id: 'gittree.status.0', name: 'Geet Branch' },
+  { id: 'gittree.status.rebase', name: 'Geet Rebase' },
 ];
 
 /**
- * The single owner of GitTree's status-bar entries.
+ * The single owner of Geet's status-bar entries.
  *
  * One host per extension, not per repository: a `StatusBarItem`'s id is the key
  * VS Code routes by, so items are a property of the *slot*, never of the
@@ -182,10 +182,10 @@ export class StatusBarHost implements vscode.Disposable {
       );
       // `name` is what the status bar's own right-click "Manage" menu lists,
       // and that menu is how a user hides an entry — permanently, in a way no
-      // `show()` of ours can undo. Every item calling itself "GitTree" made
+      // `show()` of ours can undo. Every item calling itself "Geet" made
       // that menu unreadable: you could not tell which row was the branch
       // widget, nor see that it was the one switched off.
-      item.name = spec?.name ?? `GitTree ${index}`;
+      item.name = spec?.name ?? `Geet ${index}`;
       this.items[index] = item;
     }
     return item;

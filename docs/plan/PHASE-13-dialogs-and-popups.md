@@ -61,7 +61,7 @@ recoverable via P9.
 **Output files:** `webview-ui/src/dialogs/{Merge,Rebase,Reset,Rollback}.tsx`, `src/scm/dialogs/*.ts`.
 **Steps:**
 1. All four adopt IntelliJ's **"Modify options"** pattern: a compact primary form plus an
-   options list that reveals real flags. This is S4, the biggest power-user gap — GitTree
+   options list that reveals real flags. This is S4, the biggest power-user gap — Geet
    currently hides these flags entirely.
 2. **Merge:** branch/ref picker; options `--no-ff`, `--ff-only`, `--squash`, `--no-commit`,
    `--allow-unrelated-histories`, strategy + strategy-option (`ours`/`theirs`/
@@ -177,7 +177,7 @@ appears that would immediately fail its own precondition.
 **Steps:**
 1. The tri-editor is a genuine strength (three real editors → full LSP) and stays. The gaps are
    in its toolbar, per §2A: `Apply non-conflicting changes:` is **three** actions —
-   `Left`, `All`, `Right` — where GitTree's magic wand implements only `All`.
+   `Left`, `All`, `Right` — where Geet's magic wand implements only `All`.
 2. Add a live status string in the toolbar: `No changes. N conflicts.` / `N changes, M conflicts.`
 3. Per-side `Show Details` revealing the revision behind each pane (hash, author, date).
 4. `Accept Left` / `Accept Right` as explicit footer actions alongside the existing

@@ -5,7 +5,7 @@
  * branch feature* — with the follow-up actions IntelliJ puts on it (`Restore`,
  * `Undo`, …).
  *
- * Before this, many GitTree operations finished in silence: the status-bar
+ * Before this, many Geet operations finished in silence: the status-bar
  * spinner stopped and nothing said whether anything had happened. Background
  * work the user did not start (auto-fetch, refreshes) stays silent, as it is
  * in IntelliJ.
@@ -117,7 +117,7 @@ function show(
     void runAction(picked);
     return;
   }
-  // Nothing to click: a notice that leaves on GitTree's clock (new-way-6).
+  // Nothing to click: a notice that leaves on Geet's clock (new-way-6).
   if (kind === 'info' && actions.length === 0) {
     showInfo(message);
     return;

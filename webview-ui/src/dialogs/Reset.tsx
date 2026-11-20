@@ -1,7 +1,7 @@
 /**
  * Reset dialog (P13-T3) — a revision field (ref picker *or* a raw
  * hash/`HEAD~2` expression) and the four-mode radio `Soft · Mixed · Hard ·
- * Keep`. `Keep` was missing from every GitTree surface before P12-T7.6 and is
+ * Keep`. `Keep` was missing from every Geet surface before P12-T7.6 and is
  * the mode most users actually want: it moves HEAD like `--hard` but refuses
  * rather than discarding local changes.
  *

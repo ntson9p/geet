@@ -6,7 +6,7 @@
  * IntelliJ never leaves "the remote moved on" as an error for the user to go
  * and fix. It asks Merge or Rebase — with the update method used last time as
  * the default — updates exactly as Update Project would, and pushes again.
- * GitTree used to stop at "Pull (or fetch and rebase) before pushing", or,
+ * Geet used to stop at "Pull (or fetch and rebase) before pushing", or,
  * from the Push dialog, at "Push failed: To <url>": the first line of git's
  * output, which names the remote and not the problem.
  *
@@ -714,7 +714,7 @@ export function pushOutcomeLine(r: PushResult): string {
 
 export interface PushReportOptions {
   /**
-   * One push that failed for a reason GitTree classifies — authentication, a
+   * One push that failed for a reason Geet classifies — authentication, a
    * locked index — goes to the P10-T4 error dialog with its Help and Report
    * Issue, rather than to a one-line notification.
    */

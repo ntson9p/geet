@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { canonicalKey, RepoDiscovery } from '../../../src/core/repoDiscovery';
-import type { GitTreeApi } from '../../../src/extension';
+import type { GeetApi } from '../../../src/extension';
 import { EXTENSION_ID } from '../extensionId';
 
 /**
@@ -14,7 +14,7 @@ import { EXTENSION_ID } from '../extensionId';
  */
 suite('P0-T7 discovery, activation, ModeManager', () => {
   async function core() {
-    const ext = vscode.extensions.getExtension<GitTreeApi>(EXTENSION_ID);
+    const ext = vscode.extensions.getExtension<GeetApi>(EXTENSION_ID);
     assert.ok(ext, 'extension missing');
     const api = await ext.activate();
     const corePromise = api.getCore();
@@ -61,7 +61,7 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     await core();
     // P14-T6 deleted the consent machinery entirely, so this is now an
     // unconditional guarantee rather than a property of the "unset" mode:
-    // nothing in GitTree writes `git.enabled` except the one-shot migration
+    // nothing in Geet writes `git.enabled` except the one-shot migration
     // that REMOVES an override this extension wrote earlier, and this
     // workspace never had one.
     const inspected = vscode.workspace.getConfiguration('git').inspect<boolean>('enabled');

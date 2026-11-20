@@ -2,7 +2,7 @@ import * as assert from 'node:assert';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
 
 /**
  * The two sidebar sections POST-P14u added: Repositories, and the Branches
@@ -68,7 +68,7 @@ suite('POST-P14u sidebar sections', () => {
   let restore: string | undefined;
 
   suiteSetup(async () => {
-    core = await activateGitTree();
+    core = await activateGeet();
     reg = core.debugRegistry.get('phase02') as Phase02Shape;
     assert.ok(reg?.scope, 'phase02 registry exposes the sidebar scope');
     restore = reg.scope.current;

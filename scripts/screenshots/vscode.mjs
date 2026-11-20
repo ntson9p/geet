@@ -23,8 +23,8 @@ export const VIEWPORT = { width: 1440, height: 900, scale: 2 };
 
 /**
  * The scratch profile's settings: a fixed theme, no welcome pages, tips,
- * update checks or AI prompts, VS Code's own Git off (GitTree then shows its
- * full status-bar widget), and GitTree's Commit window grouped by changelist.
+ * update checks or AI prompts, VS Code's own Git off (Geet then shows its
+ * full status-bar widget), and Geet's Commit window grouped by changelist.
  */
 export const SETTINGS = {
   'workbench.colorTheme': 'Default Dark Modern',

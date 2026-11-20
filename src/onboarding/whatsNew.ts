@@ -27,7 +27,7 @@ export async function maybeShowWhatsNew(context: vscode.ExtensionContext): Promi
 
   const showChangelog = vscode.l10n.t("What's New");
   const choice = await vscode.window.showInformationMessage(
-    vscode.l10n.t('GitTree updated to {0}.', version),
+    vscode.l10n.t('Geet updated to {0}.', version),
     showChangelog,
   );
   if (choice === showChangelog) {

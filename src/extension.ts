@@ -15,7 +15,7 @@ import { DEMO_METHODS } from './shared/protocol';
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/webviewHost';
 
 /**
- * GitTree entry point. Kept intentionally thin (master plan §7): P0-T7 builds
+ * Geet entry point. Kept intentionally thin (master plan §7): P0-T7 builds
  * the Core (executor, model, queue, watchers) and every later
  * phase appends exactly one `registerPhaseXX(context, core)` call below its
  * marker — this file is append-only (§0.6).
@@ -23,14 +23,14 @@ import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from './ui/web
 
 let corePromise: Promise<Core | undefined> | undefined;
 
-export interface GitTreeApi {
+export interface GeetApi {
   /** Test-only hook (P0-T10): resolves once discovery completed. */
   getCore(): Promise<Core | undefined> | undefined;
   /** P10-T1: duration of activate()'s synchronous path, for the perf harness. */
   perf?: { activationSyncMs: number };
 }
 
-export function activate(context: vscode.ExtensionContext): GitTreeApi {
+export function activate(context: vscode.ExtensionContext): GeetApi {
   const activationStart = performance.now();
   // P10-T4: shared with registerPhases (async, runs after the sync path) so
   // the activation telemetry event reports the real sync-path duration.
@@ -91,7 +91,7 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('gittree.debug.showState', async () => {
       const core = await corePromise;
-      // The status-bar block leads: "the GitTree branch widget is gone" is the
+      // The status-bar block leads: "the Geet branch widget is gone" is the
       // report this command gets opened for, and it is the only part of the
       // state that cannot be inferred from the repositories below it.
       const statusBar = core
@@ -125,7 +125,7 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('gittree.debug.webviewDemo', () => {
       const panel = vscode.window.createWebviewPanel(
         'gittree.demo',
-        vscode.l10n.t('GitTree Webview Demo'),
+        vscode.l10n.t('Geet Webview Demo'),
         vscode.ViewColumn.Active,
         {
           enableScripts: true,
@@ -148,7 +148,7 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
         app: 'demo',
         webview: panel.webview,
         extensionUri: context.extensionUri,
-        title: vscode.l10n.t('GitTree Webview Demo'),
+        title: vscode.l10n.t('Geet Webview Demo'),
       });
     }),
   );

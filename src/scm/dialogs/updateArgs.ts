@@ -3,7 +3,7 @@
  * and the question's command lines are built from the same source the host
  * runs.
  *
- * IntelliJ's Update Project is fetch-then-integrate, and GitTree runs it that
+ * IntelliJ's Update Project is fetch-then-integrate, and Geet runs it that
  * way rather than as a bare `git pull`, for two reasons:
  *   - the radio is authoritative. `git pull` obeys `pull.rebase` config, so a
  *     user who picked "Merge" could silently get a rebase; an explicit

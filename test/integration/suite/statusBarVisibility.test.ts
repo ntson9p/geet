@@ -5,13 +5,13 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core } from '../../../src/core/core';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
-import { activateGitTree, waitFor, workspaceRepoA } from '../setup';
+import { activateGeet, waitFor, workspaceRepoA } from '../setup';
 
 /**
  * The status-bar widget against a changing repository set.
  *
  * Reported symptom: "sometimes, after taking some actions on the Branch popup,
- * the GitTree branch button disappears". Root cause: a bar's visibility is
+ * the Geet branch button disappears". Root cause: a bar's visibility is
  * `activeRepoKey() === key`, and `activeRepoKey` reads the live handle set —
  * `repoForUri` resolves against it, and the fallback is `core.repos[0]` — but
  * only `onDidChangeActiveTextEditor` ever re-evaluated it. When the repository
@@ -100,7 +100,7 @@ suite('status bar visibility follows the repository set', () => {
 
   suiteSetup(async function () {
     this.timeout(120_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     const reg = core.debugRegistry.get('phase01') as Phase01Shape | undefined;
     assert.ok(reg, 'phase01 registry missing — registerPhase01 not run?');
     phase01 = reg;
@@ -128,7 +128,7 @@ suite('status bar visibility follows the repository set', () => {
     // for us; the baseline has to be the `core.repos[0]` fallback. Closing
     // fires the editor event, but only if something was open — the explicit
     // sweep makes the *starting point* deterministic. Nothing after this
-    // nudges anything: the assertions below are about what GitTree does on
+    // nudges anything: the assertions below are about what Geet does on
     // its own.
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     for (const bar of bars.values()) bar.update();
@@ -201,7 +201,7 @@ suite('status bar visibility follows the repository set', () => {
    * Nothing downstream of the violation is observable from in here: `visible`
    * stayed true and `titles` stayed right while the entry was gone, which is
    * exactly why it survived two rounds of tests. So the assertion is the
-   * contract itself, on the ids GitTree actually holds.
+   * contract itself, on the ids Geet actually holds.
    */
   test('one status-bar item per slot, never one per repository', function () {
     this.timeout(60_000);
@@ -338,7 +338,7 @@ suite('status bar visibility follows the repository set', () => {
       // Default is `auto`, and this window always has the built-in Git
       // extension, so the compact button is what `auto` must resolve to.
       await cfg().update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
-      await waitFor(() => bar.titles[0] === '$(list-tree) GitTree $(chevron-down)', 20_000);
+      await waitFor(() => bar.titles[0] === '$(list-tree) Geet $(chevron-down)', 20_000);
       assert.ok(bar.visible, 'the button must be showing');
       assert.ok(
         (bar.tooltips[0] ?? '').includes('Click for branches and actions'),
@@ -357,7 +357,7 @@ suite('status bar visibility follows the repository set', () => {
       assert.strictEqual(bar.titles.join(''), '', `off must render nothing: ${bar.titles.join()}`);
     } finally {
       await cfg().update('statusBar', undefined, vscode.ConfigurationTarget.Workspace);
-      await waitFor(() => bar.titles[0] === '$(list-tree) GitTree $(chevron-down)', 20_000);
+      await waitFor(() => bar.titles[0] === '$(list-tree) Geet $(chevron-down)', 20_000);
     }
   });
 });

@@ -97,7 +97,7 @@ graph selection.
    custom range), `Paths` (picker + free text, multiple).
 3. Right-side toolbar icons: refresh, `Go to Hash/Branch/Tag`, `Show Details` toggle,
    `Highlight my commits`, `Collapse linear branches`, `Show long edges`, and preset
-   save/restore (`Saved filters ▾`) — IntelliJ persists filter sets and GitTree does not.
+   save/restore (`Saved filters ▾`) — IntelliJ persists filter sets and Geet does not.
 4. All filters compose into a single `logFilter.ts` argv build; every filter is reflected in the
    URL-ish view state so reload restores the exact query.
 **Accept:** unit — argv assembly for each filter and every combination of regex/match-case;
@@ -124,7 +124,7 @@ without leaving `.rej` litter unaccounted for; binary-content patch round-trips 
 **Depends:** T4, T6 · **Complexity:** M
 **Output files:** `src/log/commitActions.ts` (extended), `src/core/vdocs/revTreeFs.ts`.
 **Steps:**
-1. Add the items the reference menu has and GitTree lacks:
+1. Add the items the reference menu has and Geet lacks:
    `Create Patch…` (T6) · `Fixup` · `Squash Into` · `Push All up to Here` ·
    `Branches ›` submenu · `Go to Parent Commit` / `Go to Child Commit` ·
    `Show Repository at Revision`.
@@ -151,7 +151,7 @@ changes, matching `git reset --keep` semantics.
 **Output files:** `webview-ui/src/log/ConsolePane.tsx`, `src/core/git/commandLog.ts`.
 **Steps:**
 1. Ring buffer (2 000 entries) fed from the executor's trace hook: timestamp, `git` argv,
-   exit code, duration, and stderr/stdout head. The `GitTree` output channel stays as-is;
+   exit code, duration, and stderr/stdout head. The `Geet` output channel stays as-is;
    this is a structured mirror, not a replacement.
 2. Rendering: one collapsible entry per command, failures pre-expanded and colored,
    filter box, `Copy command`, `Copy output`, `Clear`.

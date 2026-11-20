@@ -24,15 +24,16 @@ function fmtDefault(def) {
 /** @returns {string} the complete markdown document. */
 export function generateSettingsDoc(pkg, strings) {
   const lines = [
-    '# GitTree settings',
+    '# Geet settings',
     '',
     '<!-- GENERATED FILE — do not edit by hand. Derived from package.json',
     '     `contributes.configuration`; regenerate with `npm run docs:settings`.',
     '     test/unit/docs/settingsDoc.test.ts fails when this file is stale. -->',
     '',
-    'All settings live under the `gittree.` namespace. GitTree owns its own',
-    'views, change bars and commit window, so nothing here depends on — or',
-    'changes — the built-in Git extension.',
+    'All settings live under the `gittree.` namespace: Geet was called GitTree',
+    'before 0.1.0, and its settings kept the name. Geet owns its own views,',
+    'change bars and commit window, so nothing here depends on — or changes —',
+    'the built-in Git extension.',
     '',
   ];
   for (const section of pkg.contributes.configuration) {

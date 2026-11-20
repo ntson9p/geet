@@ -15,7 +15,7 @@ import type { PushSafetyService } from '../../../src/rewrite/pushSafety';
 import type { RevertCherryPickService } from '../../../src/rewrite/revertCherryPick';
 import type { RewordService } from '../../../src/rewrite/reword';
 import type { UndoDropService } from '../../../src/rewrite/undoDrop';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoA } from '../setup';
 
 interface Phase05RegistryShape {
   getEngine(repoRoot: string): RebaseEngine | undefined;
@@ -77,7 +77,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     repo = core.repoForPath(workspaceRepoA())!;
     assert.ok(repo, 'repoA not discovered');
     repoRoot = repo.root;
@@ -351,7 +351,7 @@ suite('P5 history rewriting — rebase engine', () => {
     const preHeadTree = git('rev-parse', 'HEAD^{tree}').trim();
     const [treeA] = trees(base);
 
-    const view = (await activateGitTree()).debugRegistry.get('phase05') as Phase05RegistryShape;
+    const view = (await activateGeet()).debugRegistry.get('phase05') as Phase05RegistryShape;
     const controller = view.rebaseView;
     const opened = await controller.open(repo, a);
     assert.strictEqual(opened, true, 'dialog should open');
@@ -395,7 +395,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T3: undo commit files paths into a named changelist and prefills the input', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     const p3 = core.debugRegistry.get('phase03') as Phase03Shape;
     // The P3 suite leaves the window on the staging paradigm; undo's
@@ -461,7 +461,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T3: drop of a mid commit preserves descendant content and is undoable in-session', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     const base = onBranch('dropcmd');
     commit('p5a.txt', 'a1\n', 'A');
@@ -490,7 +490,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T3: undo and drop refuse published commits unless forced', async function () {
     this.timeout(90_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('published');
     const a = commit('p5a.txt', 'a\n', 'A published');
@@ -536,7 +536,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T4: revert of a merge commit uses -m 1 and undoes the merged branch', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('revmerge');
     commit('p5m.txt', 'mainline\n', 'M base');
@@ -563,7 +563,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T4: multi-pick with a mid-sequence conflict → skip → completes the rest', async function () {
     this.timeout(90_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     // Source branch: three picks, the middle one conflicting with the target.
     onBranch('picksrc');
@@ -601,7 +601,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T4: recordOrigin setting adds the -x trailer', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('picksrc2');
     commit('p5seed2.txt', 'seed\n', 'seed2');
@@ -627,7 +627,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T5: reword mid-history rewrites only messages (tree ids unchanged across the range)', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     const base = onBranch('reword2');
     commit('p5a.txt', 'a\n', 'A');
@@ -649,7 +649,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T5: reword of HEAD amends the message only — staged changes stay staged', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('rewordhead');
     const head = commit('p5a.txt', 'a\n', 'A head original');
@@ -689,7 +689,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('POST-P14ap: Undo on Commit message changed puts the commit back as it was', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('rewordundo');
     const head = commit('p5u.txt', 'u\n', 'U original message');
@@ -710,7 +710,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T6: rewrite on a published branch offers force-with-lease and it updates the remote', async function () {
     this.timeout(90_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('pushsafety');
     // Mid-history commit: its reword runs through the engine, whose
@@ -761,7 +761,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
   test('T6: a stale lease refuses the force push and the remote stays intact', async function () {
     this.timeout(90_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('stalelease');
     commit('p5a.txt', 'a\n', 'A');

@@ -1,7 +1,7 @@
 /**
- * POST-P14cr: GitTree: Getting Started Walkthrough opens the walkthrough of the
- * extension that is running, whatever its publisher. It named `gittree.gittree`,
- * which the Marketplace's `ntson9p.gittree` is not.
+ * POST-P14cr: Geet: Getting Started Walkthrough opens the walkthrough of the
+ * extension that is running, whatever its publisher and name. It named
+ * `gittree.gittree`, which the Marketplace's `ntson9p.geet` is not.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,8 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../../../package.js
 
 describe('walkthroughId', () => {
   it('is the extension ID, then # and the walkthrough package.json contributes', () => {
-    expect(walkthroughId('ntson9p.gittree')).toBe('ntson9p.gittree#gittree.gettingStarted');
+    // The walkthrough's own id keeps its `gittree.` prefix, as every contributed ID does.
+    expect(walkthroughId('ntson9p.geet')).toBe('ntson9p.geet#gittree.gettingStarted');
     expect(walkthroughId('someone.gittree')).toBe('someone.gittree#gittree.gettingStarted');
   });
 

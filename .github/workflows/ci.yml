@@ -111,5 +111,5 @@ jobs:
       - run: npm run package
       - uses: actions/upload-artifact@v4
         with:
-          name: gittree-vsix
+          name: geet-vsix
           path: '*.vsix'

@@ -3,7 +3,7 @@
  * unlock / prune, plus the `gittree.worktrees` tree view and the New Worktree
  * dialog's host half.
  *
- * Before this, GitTree resolved worktree paths internally (`commondir`) but had
+ * Before this, Geet resolved worktree paths internally (`commondir`) but had
  * no management UI and no commands at all — which is also why the reference
  * branch submenu's `New Worktree from 'X'…` could not exist.
  */
@@ -197,7 +197,7 @@ export class WorktreesViewProvider implements vscode.TreeDataProvider<WorktreeNo
       : (info.branch ?? vscode.l10n.t('detached at {0}', (info.head ?? '').slice(0, 7)));
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
     item.description = info.path;
-    // POST-P14cd: GitTree's own address, unmarked: no other extension marks
+    // POST-P14cd: Geet's own address, unmarked: no other extension marks
     // the row as the folder on disk.
     item.resourceUri = rowUri('worktree', info.path);
     item.iconPath = new vscode.ThemeIcon(

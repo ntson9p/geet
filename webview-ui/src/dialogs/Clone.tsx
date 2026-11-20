@@ -1,7 +1,7 @@
 /**
  * Clone dialog (P13-T4): URL + directory + `[ ] Recursive submodules`,
  * `--depth` and `--branch`, with the destination validated as empty *before*
- * the button is pressed. URL entry only — GitTree has no provider integrations
+ * the button is pressed. URL entry only — Geet has no provider integrations
  * to enumerate repositories from (deviation D11).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';

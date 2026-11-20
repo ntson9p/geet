@@ -67,7 +67,7 @@ export interface GitExecutor {
 export interface ExecutorInit {
   gitPath: string;
   version: string;
-  /** Structured trace sink (OutputChannel "GitTree" in production). */
+  /** Structured trace sink (OutputChannel "Geet" in production). */
   trace?: (line: string) => void;
   /** P12-T8: structured per-run record for the Console tab's ring buffer. */
   onDidRun?: (run: {
@@ -357,7 +357,7 @@ export function killTree(child: ChildProcessWithoutNullStreams): void {
 export interface GitLocatorSettings {
   /**
    * `gittree.gitPath`. P14-T5 removed the built-in `git.path` fallback that
-   * used to sit between this and PATH — GitTree reads no `git.*` configuration.
+   * used to sit between this and PATH — Geet reads no `git.*` configuration.
    */
   gittreeGitPath?: string;
   platform?: NodeJS.Platform;

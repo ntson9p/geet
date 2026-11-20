@@ -5,7 +5,7 @@
  * Two things this file is responsible for, and it is worth keeping them apart.
  *
  * **Footprint.** `$(arrow-down) 26050 $(arrow-up) 10893` had nothing bounding
- * either side, in a fixed-width strip where GitTree's entries sit at the
+ * either side, in a fixed-width strip where Geet's entries sit at the
  * low-priority end. That is a real cost and the caps here are the answer to it.
  * It was *not* the cause of the "branch button disappears" report, whatever an
  * earlier version of this comment claimed — that was a shared `StatusBarItem`
@@ -14,7 +14,7 @@
  * **Identity.** The compact button was an unlabelled `$(git-branch)` sitting
  * beside the built-in Git extension's own `$(git-branch)` — the same glyph,
  * two entries apart. It read as a duplicate of VS Code's widget rather than as
- * GitTree, and told someone who had just installed the extension nothing about
+ * Geet, and told someone who had just installed the extension nothing about
  * where to click. So the button carries the product's name and a mark that is
  * deliberately not git's. `full` keeps `$(git-branch)`: there the widget *is*
  * the branch readout, the branch name is the label, and nothing else is
@@ -33,7 +33,7 @@ import { isConflicted } from '../core/model/statusEntry';
 export const BRAND_ICON = '$(list-tree)';
 
 /** Never localized, never abbreviated: it is the product's name. */
-export const BRAND_LABEL = 'GitTree';
+export const BRAND_LABEL = 'Geet';
 
 /** What the user asked for. `auto` resolves against the built-in Git extension. */
 export type StatusBarMode = 'auto' | 'button' | 'full' | 'off';

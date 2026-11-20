@@ -3,9 +3,9 @@
  *
  * In a multi-root workspace, commands run from the palette used either to
  * refuse ("Open a repository first." with three repositories open) or to act
- * on the first repository found, silently: GitTree: Push could push a
+ * on the first repository found, silently: Geet: Push could push a
  * repository the user was not looking at. IntelliJ's Merge, Rebase, Reset,
- * Pull and Stash dialogs carry a *Git Root* chooser for this; GitTree's
+ * Pull and Stash dialogs carry a *Git Root* chooser for this; Geet's
  * dialogs do not, so the choice is asked first.
  *
  * The order is the one every caller already used — the repository the command

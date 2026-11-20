@@ -3,12 +3,12 @@
  *
  * Until P14, consenting to "takeover" wrote `"git.enabled": false` into the
  * workspace settings so the built-in Git extension would stop competing for
- * VS Code's SCM surfaces. GitTree no longer wants those surfaces, so the
+ * VS Code's SCM surfaces. Geet no longer wants those surfaces, so the
  * override has no purpose — and deleting `ModeManager` without undoing it
  * would strand those workspaces with the built-in extension permanently off
  * and nothing left in the codebase that knows why.
  *
- * This is the ONLY `git.*` write GitTree still performs, it exists solely to
+ * This is the ONLY `git.*` write Geet still performs, it exists solely to
  * undo an earlier one of its own, and it is deleted along with this module a
  * release later. It never sets `git.enabled` to a value — only removes the
  * override, so a user who set `false` themselves at a different scope keeps it.
@@ -29,7 +29,7 @@ export interface MementoLike {
 export interface UnsetGitEnabledDeps {
   workspaceState: MementoLike;
   /**
-   * Removes GitTree's workspace `git.enabled` override. Injected rather than
+   * Removes Geet's workspace `git.enabled` override. Injected rather than
    * called directly so the state machine is unit-testable without a window.
    */
   clearBuiltinGitEnabled(): Promise<void>;
@@ -59,7 +59,7 @@ export async function migrateUnsetGitEnabled(
   await deps.workspaceState.update(MIGRATION_DONE_KEY, true);
   deps.trace?.('takeover migration: git.enabled override removed');
   deps.notify(
-    'GitTree no longer needs the built-in Git extension disabled — it has its own views, ' +
+    'Geet no longer needs the built-in Git extension disabled — it has its own views, ' +
       'change bars and commit window now. The "git.enabled" override this workspace was ' +
       'carrying has been removed.',
   );

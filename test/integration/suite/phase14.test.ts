@@ -9,7 +9,7 @@ import type { Phase01Registry } from '../../../src/scm/register';
 import { makeRevUri } from '../../../src/core/vdocs/revContentProvider';
 import type { DiffEntry, DiffSessionRegistry } from '../../../src/diff/diffSession';
 import type { RepoHandle } from '../../../src/core/core';
-import { activateGitTree, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
+import { activateGeet, gitWithRetry, waitFor, workspaceRepoC } from '../setup';
 import { EXTENSION_ID } from '../extensionId';
 
 /**
@@ -29,7 +29,7 @@ suite('P14 owning the SCM surface', () => {
   }
 
   /**
-   * Views GitTree contributes to its own container, in manifest order.
+   * Views Geet contributes to its own container, in manifest order.
    * T2 removed `gittree.changelists` and `gittree.shelf`: the commit window's
    * change tree and Shelf tab supersede them.
    */
@@ -66,18 +66,18 @@ suite('P14 owning the SCM surface', () => {
     assert.ok(ours.icon.endsWith('.svg'), `activitybar icons must be an SVG path, got ${ours.icon}`);
   });
 
-  test('T1: every view lives in the GitTree container, none in VS Code\'s scm container', () => {
+  test('T1: every view lives in the Geet container, none in VS Code\'s scm container', () => {
     const views = contributes()['views'] as Record<string, Array<{ id: string }>>;
     assert.ok(views['gittree'], 'no views contributed to the gittree container');
     assert.strictEqual(
       views['scm'],
       undefined,
-      'GitTree still contributes views to VS Code\'s Source Control container',
+      'Geet still contributes views to VS Code\'s Source Control container',
     );
     assert.deepStrictEqual(
       views['gittree'].map((v) => v.id),
       EXPECTED_VIEWS,
-      'GitTree container view set or order changed',
+      'Geet container view set or order changed',
     );
     // The Git tool window stays in the panel — that is the §2A shape.
     assert.deepStrictEqual((views['gittree-panel'] ?? []).map((v) => v.id), ['gittree.log']);
@@ -128,7 +128,7 @@ suite('P14 owning the SCM surface', () => {
      * Two views open unconditionally, and only two. The commit window IS the
      * sidebar; POST-P14u added the Branches view beside it, because the status
      * bar cannot be the way in — Cursor has no status bar at all, and a user
-     * who has just installed GitTree has to find branches somewhere.
+     * who has just installed Geet has to find branches somewhere.
      */
     const UNCONDITIONAL = ['gittree.commit', 'gittree.branches'];
     for (const id of UNCONDITIONAL) assert.strictEqual(byId.get(id)?.when, undefined, id);
@@ -147,7 +147,7 @@ suite('P14 owning the SCM surface', () => {
     // a profile that has ALREADY persisted the pane as visible. Turn the setting
     // on, reveal the pane for real, then turn it off — a `when` clause has to
     // win over the persisted state, which a visibility default never does.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const stashView = (core.debugRegistry.get('phase07') as { stashView: vscode.TreeView<unknown> })
       .stashView;
     const cfg = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree');
@@ -184,7 +184,7 @@ suite('P14 owning the SCM surface', () => {
     // contributed, so `Show Local History` would have become a no-op. It arms
     // `gittree.localHistory.active` first — IntelliJ's own model, where
     // `Show History` opens the window rather than leaving it standing open.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const view = (core.debugRegistry.get('phase09') as { view: vscode.TreeView<unknown> }).view;
     assert.strictEqual(
       vscode.workspace.getConfiguration('gittree').get<boolean>('sidebar.extraViews', false),
@@ -241,7 +241,7 @@ suite('P14 owning the SCM surface', () => {
 
   test('T2: changelist commands accept the commit window context shape', async function () {
     this.timeout(60_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase03') as Phase03Registry;
     assert.ok(reg, 'phase03 registry missing');
     const repo = core.repoForPath(workspaceRepoC());
@@ -292,12 +292,12 @@ suite('P14 owning the SCM surface', () => {
     assert.deepStrictEqual(
       Object.keys(menus).filter((k) => k.startsWith('scm')),
       [],
-      'GitTree still contributes to VS Code SCM menus',
+      'Geet still contributes to VS Code SCM menus',
     );
 
     // The registry is the runtime half of the same claim: nothing hands out a
     // SourceControl any more, so nothing can be holding one.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const p1 = core.debugRegistry.get('phase01') as Record<string, unknown>;
     assert.ok(p1, 'phase01 registry missing');
     assert.strictEqual(p1['sourceControls'], undefined, 'phase01 still exposes SourceControls');
@@ -307,7 +307,7 @@ suite('P14 owning the SCM surface', () => {
 
   test('T4: the commit view badge carries the pending-change count', async function () {
     this.timeout(90_000);
-    const core = await activateGitTree();
+    const core = await activateGeet();
     const reg = core.debugRegistry.get('phase03') as Phase03Registry;
     const repo = core.repoForPath(workspaceRepoC())!;
     const root = repo.root;
@@ -328,7 +328,7 @@ suite('P14 owning the SCM surface', () => {
     await repo.refresher.refreshNow();
   });
 
-  test('T5: GitTree owns its status colours and the last unstable API is gone', () => {
+  test('T5: Geet owns its status colours and the last unstable API is gone', () => {
     const c = contributes();
     const colors = (c['colors'] ?? []) as Array<{
       id: string;
@@ -347,7 +347,7 @@ suite('P14 owning the SCM surface', () => {
     assert.deepStrictEqual(
       ids.filter((id) => id.startsWith('gittree.color.')),
       statusIds,
-      'GitTree must contribute its own status colours',
+      'Geet must contribute its own status colours',
     );
     // The palette as a whole stays a closed set: a new contributed colour is
     // public surface and has to be added here deliberately.
@@ -413,7 +413,7 @@ suite('P14 owning the SCM surface', () => {
     assert.strictEqual(inspected?.globalValue, undefined, 'git.enabled must not be written globally');
 
     // And the core no longer carries a mode at all.
-    const core = await activateGitTree();
+    const core = await activateGeet();
     assert.strictEqual(
       (core as unknown as Record<string, unknown>)['mode'],
       undefined,
@@ -439,7 +439,7 @@ suite('P14 owning the SCM surface', () => {
 
     suiteSetup(async function () {
       this.timeout(90_000);
-      const core = await activateGitTree();
+      const core = await activateGeet();
       repoRoot = workspaceRepoC();
       fsRoot = core.repoForPath(repoRoot)!.root;
       reg = core.debugRegistry.get('phase14') as typeof reg;
@@ -526,7 +526,7 @@ suite('P14 owning the SCM surface', () => {
 
     /**
      * What VS Code's toolbar button and `Alt+F5` do: run the command by id from
-     * the workbench, which is what has to land on GitTree's registration. Calling
+     * the workbench, which is what has to land on Geet's registration. Calling
      * it from here would stay inside the extension host and prove nothing.
      */
     const pressNative = async (direction: 'next' | 'previous'): Promise<void> => {
@@ -697,7 +697,7 @@ suite('P14 owning the SCM surface', () => {
       this.timeout(120_000);
       const names = ['p14g1.txt', 'p14g2.txt'];
       const { head, cleanup } = commitWalk(names);
-      const log = ((await activateGitTree()).debugRegistry.get('phase04') as Phase04Registry).logView;
+      const log = ((await activateGeet()).debugRegistry.get('phase04') as Phase04Registry).logView;
       await vscode.commands.executeCommand('gittree.log.focus');
       await waitFor(() => log.currentSession !== undefined, 30_000);
       const before = log.logTabs.tabs;
@@ -804,7 +804,7 @@ suite('P14 owning the SCM surface', () => {
       cleanup();
     });
 
-    test('a diff GitTree did not open still wraps, untouched', async function () {
+    test('a diff Geet did not open still wraps, untouched', async function () {
       this.timeout(120_000);
       const { head, cleanup } = commitWalk(['p14u1.txt']);
       await vscode.commands.executeCommand(
@@ -858,7 +858,7 @@ suite('P14 owning the SCM surface', () => {
       });
 
       suiteSetup(async () => {
-        const core = await activateGitTree();
+        const core = await activateGeet();
         repo = core.repoForPath(repoRoot)!;
         commitWindow = (core.debugRegistry.get('phase03') as Phase03Registry).commitWindow;
       });
@@ -996,7 +996,7 @@ suite('P14 owning the SCM surface', () => {
       };
 
       suiteSetup(async () => {
-        const core = await activateGitTree();
+        const core = await activateGeet();
         repo = core.repoForPath(repoRoot)!;
         compare = (core.debugRegistry.get('phase02') as { compare: CompareService }).compare;
       });
@@ -1144,7 +1144,7 @@ suite('P14 owning the SCM surface', () => {
       });
     });
 
-    test('the diff toolbar controls are scoped to GitTree diffs', () => {
+    test('the diff toolbar controls are scoped to Geet diffs', () => {
       const menus = contributes()['menus'] as Record<string, Array<{ command?: string; when?: string }>>;
       const ours = (menus['editor/title'] ?? []).filter((e) =>
         String(e.command ?? '').startsWith('gittree.diff.'),
@@ -1152,19 +1152,19 @@ suite('P14 owning the SCM surface', () => {
       assert.strictEqual(ours.length, 5, 'expected 2 file arrows + 3 view toggles');
       for (const e of ours) {
         // Unscoped, these would appear on every diff in the window, including
-        // ones GitTree knows nothing about.
+        // ones Geet knows nothing about.
         assert.match(String(e.when), /isInDiffEditor/u);
         assert.match(String(e.when), /gittree\.diff\.active/u);
       }
     });
   });
 
-  // ---- T3: GitTree's own change bars ---------------------------------------
+  // ---- T3: Geet's own change bars ---------------------------------------
 
   suite('T3 change bars', () => {
     let repoRoot: string;
     let fsRoot: string;
-    let repo: ReturnType<Awaited<ReturnType<typeof activateGitTree>>['repoForPath']>;
+    let repo: ReturnType<Awaited<ReturnType<typeof activateGeet>>['repoForPath']>;
     let bars: Phase01Registry['changeBars'];
     const git = (...args: string[]): string => gitWithRetry(repoRoot, args);
     const abs = (rel: string): string => path.join(fsRoot, rel);
@@ -1241,7 +1241,7 @@ suite('P14 owning the SCM surface', () => {
 
     suiteSetup(async function () {
       this.timeout(60_000);
-      const core = await activateGitTree();
+      const core = await activateGeet();
       repoRoot = workspaceRepoC();
       repo = core.repoForPath(repoRoot);
       fsRoot = repo!.root;
@@ -1374,7 +1374,7 @@ suite('P14 owning the SCM surface', () => {
         const deadline = Date.now() + 10_000;
         while ((await ours(line)) !== want) {
           if (Date.now() > deadline) {
-            throw new Error(`GitTree hover on line ${line} never became ${String(want)}`);
+            throw new Error(`Geet hover on line ${line} never became ${String(want)}`);
           }
           await new Promise((r) => setTimeout(r, 100));
         }
@@ -1388,7 +1388,7 @@ suite('P14 owning the SCM surface', () => {
 
         await setHoverActions(true);
         await settles(3, true);
-        assert.strictEqual(await ours(8), false, 'GitTree hovered a line with no change');
+        assert.strictEqual(await ours(8), false, 'Geet hovered a line with no change');
 
         // Turning it back off takes effect without a reload.
         await setHoverActions(false);

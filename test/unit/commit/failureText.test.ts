@@ -19,7 +19,7 @@ describe('failureText (POST-QA)', () => {
     const many = Array.from({ length: FAILURE_LINES + 3 }, (_, i) => `line ${i + 1}`).join('\n');
     const text = failureText(hook(many));
     expect(text.split('\n')).toHaveLength(FAILURE_LINES + 1);
-    expect(text).toMatch(/… 3 more lines in the GitTree output$/u);
+    expect(text).toMatch(/… 3 more lines in the Geet output$/u);
   });
 
   it('falls back to the message without stderr, and takes any error', () => {

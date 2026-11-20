@@ -116,7 +116,7 @@ export class StashViewProvider implements vscode.TreeDataProvider<StashNode> {
     const dir = path.posix.dirname(node.file.path);
     const description = dir === '.' ? node.file.status : `${dir} · ${node.file.status}`;
     item.description = description;
-    // POST-P14cd: GitTree's own address, marked with what the stash did to the
+    // POST-P14cd: Geet's own address, marked with what the stash did to the
     // file. A `file:` one let VS Code's Git mark the row with the file's status
     // now, which says nothing about the stash.
     const fullPath = path.join(node.repo.root, node.file.path);

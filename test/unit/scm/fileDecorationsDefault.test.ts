@@ -1,8 +1,8 @@
 /**
- * POST-P14bz: GitTree's file decorations are off until asked for. VS Code shows
+ * POST-P14bz: Geet's file decorations are off until asked for. VS Code shows
  * every extension's decorations in every view, its own Source Control view
  * included, and joins two badges for one file: with the built-in Git extension
- * running, GitTree's doubled every letter there (`U, U`).
+ * running, Geet's doubled every letter there (`U, U`).
  */
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -18,7 +18,7 @@ const setting = manifest.contributes.configuration
   .map((section) => section.properties['gittree.decorations.fileExplorer'])
   .find((s) => s !== undefined);
 
-describe('GitTree file decorations (POST-P14bz)', () => {
+describe('Geet file decorations (POST-P14bz)', () => {
   it('are off by default, in the code as in package.json', () => {
     expect(EXPLORER_DECORATIONS_DEFAULT).toBe(false);
     expect(setting?.type).toBe('boolean');

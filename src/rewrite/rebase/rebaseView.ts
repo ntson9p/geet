@@ -69,7 +69,7 @@ export class RebaseViewController implements vscode.Disposable {
     if (await engine.hasMergesInRange(base)) {
       void vscode.window.showErrorMessage(
         vscode.l10n.t(
-          'The selected range contains merge commits. GitTree cannot rebase merges yet — rebase from a commit after the merge instead.',
+          'The selected range contains merge commits. Geet cannot rebase merges yet — rebase from a commit after the merge instead.',
         ),
       );
       return false;

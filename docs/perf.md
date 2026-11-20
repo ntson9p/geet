@@ -22,7 +22,7 @@ the recorded evidence is the local runs below.
 ## Results — 2026-08-24, Windows 11, local — **Phase 14 close** (P14-T8)
 
 Phase 14 removed the SCM provider and replaced VS Code's quick diff with
-GitTree-painted change bars, so the one new budget is the recompute that
+Geet-painted change bars, so the one new budget is the recompute that
 replaced it. It is the term the `gittree.changeBars.maxFileLines` cutoff exists
 to bound, measured on the pure function — the decoration apply is O(changes)
 and never the cost.
@@ -131,7 +131,7 @@ Notes:
 ## Startup audit (P10-T1 step 3)
 
 - `activate()` does nothing but kick off `createCore()` asynchronously and
-  register the debug command — measured sync path 2.6 ms (`GitTreeApi.perf`).
+  register the debug command — measured sync path 2.6 ms (`GeetApi.perf`).
 - Webviews are code-split per app by the Vite multi-entry build
   (`dist/webviews/<app>/`); the log app loads nothing until its view resolves.
 - Large-repo playbook: repos with > 50k tracked files (capability-gated on git ≥

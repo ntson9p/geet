@@ -3,7 +3,7 @@
  *
  * VS Code's diff editor knows two documents and nothing else, which is exactly
  * why its "next change" wraps to the top of the same file when you run off the
- * end. GitTree opens the diffs, so it knows the *sequence* they belong to — a
+ * end. Geet opens the diffs, so it knows the *sequence* they belong to — a
  * commit's changed files, a comparison, a stash's contents. Registering that
  * sequence here is the entire trick behind cross-file navigation.
  *
@@ -78,7 +78,7 @@ export class DiffSessionRegistry implements vscode.Disposable {
   private shownAt = 0;
 
   constructor() {
-    // The toolbar controls are scoped to GitTree's own diffs, so the context
+    // The toolbar controls are scoped to Geet's own diffs, so the context
     // keys have to follow the active tab rather than the last command.
     this.subs.push(
       vscode.window.tabGroups.onDidChangeTabs(() => this.sync()),

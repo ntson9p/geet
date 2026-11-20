@@ -1,5 +1,5 @@
 // GIT_SEQUENCE_EDITOR shim (P5-T1): git invokes it with the path of the
-// generated rebase todo file; we replace that file with the plan GitTree
+// generated rebase todo file; we replace that file with the plan Geet
 // serialized up front. The plan file path is baked into the editor command
 // string, so argv is [node, shim, planfile, todofile]. Runs under the
 // VS Code Electron binary with ELECTRON_RUN_AS_NODE=1 (or plain node).

@@ -1,5 +1,5 @@
 /**
- * POST-P14ck guard: every path GitTree puts after a `--` goes as a literal
+ * POST-P14ck guard: every path Geet puts after a `--` goes as a literal
  * pathspec, or is no pathspec at all. Git read a ticked `[id].tsx` as a
  * pattern that also names `i.tsx` and `d.tsx` — committing them, rolling
  * their changes back, deleting them — and nothing said so. A new call site

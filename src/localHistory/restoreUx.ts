@@ -125,7 +125,7 @@ export class LocalHistoryViewProvider implements vscode.TreeDataProvider<History
           title: vscode.l10n.t('Open Timeline'),
         };
         item.tooltip = vscode.l10n.t(
-          "VS Code's built-in Timeline records every save per file. GitTree records repo-wide snapshots around git operations.",
+          "VS Code's built-in Timeline records every save per file. Geet records repo-wide snapshots around git operations.",
         );
         item.contextValue = 'lh:bridge';
         return item;
@@ -174,7 +174,7 @@ export class LocalHistoryViewProvider implements vscode.TreeDataProvider<History
             ? ''
             : dir;
         item.description = description;
-        // POST-P14cd: GitTree's own address, unmarked: a snapshot's file is not
+        // POST-P14cd: Geet's own address, unmarked: a snapshot's file is not
         // the file now, whose status VS Code's Git marked a `file:` row with.
         // It keeps the file's name, which the icon theme reads (`ThemeIcon.File`).
         const fullPath = path.join(node.repo.root, node.relPath);

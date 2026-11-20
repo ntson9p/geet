@@ -2,7 +2,7 @@
  * File-status palette (P11-T8): IntelliJ's status colors mapped onto VS Code
  * theme colors, with per-status user overrides (`gittree.colors.<status>`).
  *
- * P14-T5: the defaults are GitTree's own `gittree.color.*` contributions, not
+ * P14-T5: the defaults are Geet's own `gittree.color.*` contributions, not
  * the built-in git extension's `gitDecoration-*` tokens — those belong to that
  * extension and go blank when a user disables it. Ours ship the same values, so
  * the change is invisible to anyone who liked the old colors, and they still

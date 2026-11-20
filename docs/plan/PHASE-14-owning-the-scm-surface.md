@@ -1,10 +1,10 @@
 # Phase 14 — Owning the SCM Surface (Tier 1)
 
-**Goal:** remove GitTree's remaining dependence on VS Code's SCM framework and on the built-in
-Git extension's UI surfaces. GitTree stops registering a `vscode.scm` SourceControl, stops
+**Goal:** remove Geet's remaining dependence on VS Code's SCM framework and on the built-in
+Git extension's UI surfaces. Geet stops registering a `vscode.scm` SourceControl, stops
 contributing to `scm/*` menus, stops hosting its views inside VS Code's Source Control
 container, stops reading or writing another extension's configuration, and paints its own
-change bars and change popup. Route A of `docs/deviations.md` D1 lands with it: GitTree-owned
+change bars and change popup. Route A of `docs/deviations.md` D1 lands with it: Geet-owned
 controls on its own diffs, including IntelliJ's cross-file change navigation.
 
 **Depends on:** P11 (commit tool window — the replacement for the native commit surface),
@@ -13,16 +13,16 @@ P1-T3 (`core/patch` — `lineDiff` / `patchBuilder` supply the hunk math for own
 **Exit criteria:** `vscode.scm` appears nowhere in `src/`; `package.json` contributes zero
 `scm/*` menu entries and hosts zero views in the `scm` container; no code path reads or writes
 `git.*` configuration — with one deliberate, temporary exception, the T6.1 migration that
-*removes* GitTree's own earlier `git.enabled` override and is itself deleted a release later;
-change bars, the change popup and diff navigation are GitTree's own; enabling or disabling the
-built-in Git extension changes nothing about how GitTree behaves.
+*removes* Geet's own earlier `git.enabled` override and is itself deleted a release later;
+change bars, the change popup and diff navigation are Geet's own; enabling or disabling the
+built-in Git extension changes nothing about how Geet behaves.
 
 > **Supersedes master §3 in full.** `IMPLEMENTATION_PLAN.md` §3 ("Coexistence with the built-in
 > Git extension") defines Takeover/Companion and makes writing `git.enabled: false` into the
-> user's workspace the price of a native-looking install. That decision assumed GitTree needed
+> user's workspace the price of a native-looking install. That decision assumed Geet needed
 > VS Code's SCM chrome to look native. P11–P13 removed the need: the commit surface, the log,
-> the dialogs and the popups are all GitTree-owned already. What survives of §3 is a consent
-> modal that mutates a third party's settings to win a UI slot GitTree no longer wants. This
+> the dialogs and the popups are all Geet-owned already. What survives of §3 is a consent
+> modal that mutates a third party's settings to win a UI slot Geet no longer wants. This
 > phase deletes both the mechanism and the reason for it.
 >
 > **Master §6's "reuse the native diff editor" decision is kept.** T7 dresses it (Route A);
@@ -50,7 +50,7 @@ width fidelity and because the glyph margin is the breakpoint lane.
 
 Recorded in passing, not a Phase 14 task: **VS Code's built-in git extension serves no quick
 diff and no file decorations for repositories under a Windows 8.3 short path** (it still shows
-the branch in the status bar, so the failure is silent). GitTree is already immune —
+the branch in the status bar, so the failure is silent). Geet is already immune —
 `src/core/util/paths.ts` canonicalizes both sides. Worth a line in the parity audit as an area
 where owning the implementation is strictly better.
 
@@ -58,7 +58,7 @@ where owning the implementation is strictly better.
 
 ## Tasks
 
-### P14-T1 · GitTree activity-bar container
+### P14-T1 · Geet activity-bar container
 **Depends:** — · **Complexity:** S
 **Output files:** `package.json`, `package.nls.json`, `media/gittree-activitybar.svg`.
 **Steps:**
@@ -73,7 +73,7 @@ where owning the implementation is strictly better.
 3. `gittree.log` stays in the `gittree-panel` panel container — Git tool window at the bottom is
    the §2A shape and is already correct.
 4. Walkthrough steps, `docs/keyboard.md` and the readme that say "Source Control sidebar" are
-   re-pointed at the GitTree container.
+   re-pointed at the Geet container.
 **Accept:** integration — all ten views resolve and render from the new container (extend the
 existing view-registration assertions); no view resolves in the `scm` container; the badge and
 `view/title` toolbars of `gittree.branches` and `gittree.stashes` are unchanged from P12/P13
@@ -155,9 +155,9 @@ p95 < 50 ms on a 5 000-line file.
 **Output files:** deleted `src/scm/sourceControl.ts`, `src/scm/quickDiff.ts`; rewritten
 `src/ui/statusBar.ts`, `src/scm/register.ts`; `package.json`.
 **Steps:**
-1. Delete `GitTreeSourceControl` and `GitTreeQuickDiffProvider`/`wireQuickDiff`. This is the last
-   `vscode.scm` reference; after it GitTree no longer appears in VS Code's Source Control view at
-   all — today, even a stripped SourceControl would leave a "GitTree" provider header row, since
+1. Delete `GeetSourceControl` and `GeetQuickDiffProvider`/`wireQuickDiff`. This is the last
+   `vscode.scm` reference; after it Geet no longer appears in VS Code's Source Control view at
+   all — today, even a stripped SourceControl would leave a "Geet" provider header row, since
    the 1.96 API has no `visible`/`hidden` on `SourceControl`.
 2. Status bar: `renderStatusBar()` is already pure and unit-tested — keep it, and swap the sink
    from `SourceControl.statusBarCommands` to `window.createStatusBarItem`
@@ -172,7 +172,7 @@ p95 < 50 ms on a 5 000-line file.
 **Accept:** `grep -r "vscode\.scm\|SourceControl" src/` returns nothing; integration — the status
 bar shows branch and ahead/behind and its commands still dispatch; the commit view carries the
 change count as a badge; `Ctrl+Enter` in the commit window commits; VS Code's Source Control view
-contains no GitTree entry with the built-in git extension enabled.
+contains no Geet entry with the built-in git extension enabled.
 
 ### P14-T5 · Own theme colors; drop the last built-in-git couplings
 **Depends:** P14-T3 · **Complexity:** S
@@ -183,12 +183,12 @@ contains no GitTree entry with the built-in git extension enabled.
 **Steps:**
 1. Contribute `gittree.color.{added,modified,deleted,untracked,ignored,conflicted}` with defaults
    taken from the current `gitDecoration.*` values, and repoint all ~18 `ThemeColor` call sites.
-   Today those IDs are contributed by the built-in git extension: disable it and GitTree's tree
+   Today those IDs are contributed by the built-in git extension: disable it and Geet's tree
    rows fall back to plain foreground. This also makes the P11-T8 `gittree.colors.*` webview
    overrides and the native tree views read from one source.
 2. Delete `src/merge/nativeBridge.ts`, the `gittree.merge.ui` setting's `native` value and the
    phase06 test that pins it. `_open.mergeEditor` is an internal underscore-prefixed command and
-   the only genuinely unstable API GitTree touches; `triEditor` has been the default throughout
+   the only genuinely unstable API Geet touches; `triEditor` has been the default throughout
    and the bridge already falls back to it silently.
 3. Remove the `git.path` read at `src/core/core.ts:260` **and** the `builtinGitPath` option it
    feeds — `GitExecutorSettings.builtinGitPath` (`src/core/git/executor.ts:344`) and its
@@ -196,7 +196,7 @@ contains no GitTree entry with the built-in git extension enabled.
    is harmless — but "we never read `git.*`" is a cleaner and more auditable rule than "we read
    one key". `gittree.gitPath`, `PATH` and the well-known install paths remain as candidates;
    the migration note in T8 tells affected users to set `gittree.gitPath`.
-4. `gittree.changeBars.base` (from T4.5) is documented as GitTree's own concept rather than a
+4. `gittree.changeBars.base` (from T4.5) is documented as Geet's own concept rather than a
    mirror of VS Code's quick-diff base.
 **Accept:** unit — every status kind maps to a `gittree.color.*` ID and none to `gitDecoration.*`;
 integration — with the built-in git extension disabled, tree rows still render status colors (the
@@ -214,12 +214,12 @@ resolves its git binary with no `git.path` set.
    permanently off and nothing left that knows why. On first activation after upgrade: if
    `workspaceState[MODE_STATE_KEY] === 'takeover'`, run the `git.enabled` update from
    `core.ts:302-306` **once** with `undefined` to remove the workspace override, clear
-   `MODE_STATE_KEY`, and show a **non-modal** notification explaining that GitTree no longer
+   `MODE_STATE_KEY`, and show a **non-modal** notification explaining that Geet no longer
    needs the built-in extension disabled. This is the one and only surviving `git.*` write, it
    exists solely to undo a previous one, and it is deleted with the migration a release later.
    Idempotent; records completion under its own workspaceState key.
-2. Delete `ModeManager`, `GitTreeMode`, `ConsentChoice`, the consent modal, the `gittree.mode`
-   setting and every `effectiveMode` branch. GitTree stops writing to another extension's
+2. Delete `ModeManager`, `GeetMode`, `ConsentChoice`, the consent modal, the `gittree.mode`
+   setting and every `effectiveMode` branch. Geet stops writing to another extension's
    configuration entirely.
 3. One reason to suppress a surface survives: with the built-in git extension enabled, **explorer
    file decorations** would double. Replace the mode machinery with a single boolean
@@ -229,7 +229,7 @@ resolves its git binary with no `git.path` set.
    observation, not a dependency. Change bars do **not** need this: ours sit at the content edge
    and VS Code's in its own lane, so the two are distinguishable rather than overlapping — but
    the setting also covers them for users who want exactly one.
-4. `gittree.commit.paradigm`, `gittree.changeBars.*` and every other GitTree setting are
+4. `gittree.commit.paradigm`, `gittree.changeBars.*` and every other Geet setting are
    untouched.
 **Accept:** unit — the migration is idempotent, no-ops when the mode was never `takeover`, and
 never writes `git.enabled` to any value other than "removed"; integration — a workspace seeded
@@ -242,10 +242,10 @@ notification shown once; `grep -r "git\.enabled\|gittree\.mode" src/` returns on
 `src/scm/fileOps.ts` and the other 16 `vscode.diff` call sites (registration only),
 `package.json`.
 **Steps:**
-1. `diffSession.ts` — a registry of the diffs GitTree opens. Every existing `vscode.diff` /
+1. `diffSession.ts` — a registry of the diffs Geet opens. Every existing `vscode.diff` /
    `vscode.changes` call site registers `{files: [...], index, base, title, origin}` at open
    time. **This is the whole feature**: VS Code wraps to the top of the same file because a diff
-   editor knows only two documents and has no concept of a file sequence. GitTree already holds
+   editor knows only two documents and has no concept of a file sequence. Geet already holds
    the sequence — the commit's changed-file list, the compare result, the stash contents.
    Identity comes from `TabInputTextDiff.original`/`.modified` off the active tab, so the
    session is recovered from the editor rather than tracked by hand.
@@ -261,18 +261,18 @@ notification shown once; `grep -r "git\.enabled\|gittree\.mode" src/` returns on
    mechanism), not a notification. At the last change of the last file the hint says so and the
    second press is a no-op rather than a wrap.
 3. `diffControls.ts` + `editor/title/navigation` contributions scoped
-   `when: isInDiffEditor && gittree.diff.active`, contributing GitTree's own `↑`/`↓` plus the
+   `when: isInDiffEditor && gittree.diff.active`, contributing Geet's own `↑`/`↓` plus the
    Route A controls D1 enumerates as reachable: side-by-side/inline toggle
    (`diffEditor.renderSideBySide`), ignore-whitespace (`diffEditor.ignoreTrimWhitespace`), and
    collapse-unchanged (`diffEditor.hideUnchangedRegions.enabled`) — written at workspace scope so
    they behave as view options rather than hidden preferences.
 4. Keybindings `F7` / `Shift+F7` (IntelliJ's), gated on `config.gittree.keymap.intellij` and
-   `when`-scoped to a GitTree diff so the core `F7` word-highlight binding is untouched
+   `when`-scoped to a Geet diff so the core `F7` word-highlight binding is untouched
    elsewhere; `Alt+F5`-style users keep VS Code's own arrows, which remain (D20).
 **Accept:** unit — the navigation state machine (next-within-file, arm, cross-file, last-change
 terminal, disarm on timeout, disarm on cursor move) as a pure table-driven test; integration —
 opening a 3-file commit diff and pressing next repeatedly walks every change of every file in
-order and stops at the end; the arm state expires; the controls appear only on GitTree diffs and
+order and stops at the end; the arm state expires; the controls appear only on Geet diffs and
 not on an unrelated `vscode.diff`; toggling ignore-whitespace re-renders without losing the
 cursor.
 
@@ -282,18 +282,18 @@ cursor.
 `docs/parity-audit.md`, `docs/deviations.md`, `docs/migration-from-builtin.md`, `docs/faq.md`,
 `docs/keyboard.md`, `docs/perf.md`, `readme.md`, `CHANGELOG.md`, `docs/plan/PROGRESS.md`.
 **Steps:**
-1. `IMPLEMENTATION_PLAN.md` §3 is replaced by a short statement that GitTree no longer coexists
+1. `IMPLEMENTATION_PLAN.md` §3 is replaced by a short statement that Geet no longer coexists
    *by negotiation* — it simply does not compete for the built-in extension's surfaces. The old
    Takeover/Companion table is kept in place as struck-through history, because PROGRESS.md and
    six phase docs reference it and silently deleting it would orphan them.
 2. `docs/migration-from-builtin.md` and `docs/faq.md` are rewritten around the new answer: you no
    longer have to choose, nothing is disabled on your behalf, and here is what changed if you had
    takeover on. Document the `git.path` removal (T5.3) and the `gittree.quickDiff.base` rename.
-3. `FEATURES.md` shape criteria updated for the surfaces that moved: the container is GitTree's
-   own, change bars and the change popup are GitTree's, diff navigation is GitTree's.
+3. `FEATURES.md` shape criteria updated for the surfaces that moved: the container is Geet's
+   own, change bars and the change popup are Geet's, diff navigation is Geet's.
 4. `docs/deviations.md`: **D1 is downgraded, not closed** — Route A shipped, Route B still gated;
    restate what remains. Add **D18–D21** (below). D4 is unaffected. Remove nothing.
-5. `docs/parity-audit.md` re-scored; record the 8.3-short-path finding as an area where GitTree's
+5. `docs/parity-audit.md` re-scored; record the 8.3-short-path finding as an area where Geet's
    implementation is strictly more correct than the built-in extension's.
 6. `docs/perf.md` gains the T3 change-bar budget and its measured run.
 **Accept:** no document still describes Takeover/Companion as current behaviour; `docs:settings`
@@ -317,24 +317,24 @@ Keybindings `ctrl+enter` (commit, `focusedView == gittree.commit`), `F7`/`Shift+
 all 34 `scm/*` menu entries; the mode consent modal.
 
 ## Parity checklist
-- [x] No `vscode.scm` SourceControl is registered; GitTree does not appear in VS Code's Source Control view *(P14-T4; `sourceControl.ts` and `quickDiff.ts` deleted, zero `scm/*` contributions remain)*
-- [x] All views live in GitTree's own activity-bar container, not VS Code's `scm` container *(P14-T1; view IDs unchanged, so every `when` clause and registration survived — the two `workbench.view.scm` call sites in `hunkActions.ts` and `merge/lifecycle.ts` were the only functional fallout)*
+- [x] No `vscode.scm` SourceControl is registered; Geet does not appear in VS Code's Source Control view *(P14-T4; `sourceControl.ts` and `quickDiff.ts` deleted, zero `scm/*` contributions remain)*
+- [x] All views live in Geet's own activity-bar container, not VS Code's `scm` container *(P14-T1; view IDs unchanged, so every `when` clause and registration survived — the two `workbench.view.scm` call sites in `hunkActions.ts` and `merge/lifecycle.ts` were the only functional fallout)*
 - [x] Zero `scm/*` menu contributions *(P14-T2b removed 31 of 34; `scm/change/title` is deliberately held to T4, which removes the quick-diff provider those three actions belong to — deleting them earlier would leave a live peek widget with a dead toolbar)*
-- [x] GitTree reads no `git.*` configuration and writes none, except the one-shot migration that removes its own earlier override; no consent modal *(P14-T5 dropped the `git.path` read; P14-T6 deleted ModeManager, the consent modal and `gittree.mode`)*
+- [x] Geet reads no `git.*` configuration and writes none, except the one-shot migration that removes its own earlier override; no consent modal *(P14-T5 dropped the `git.path` read; P14-T6 deleted ModeManager, the consent modal and `gittree.mode`)*
 - [x] Existing takeover workspaces are migrated back and told why *(P14-T6.1; clears only, never sets a value, and is not marked done unless the write succeeded)*
-- [x] Change bars are GitTree-painted and work with the built-in extension enabled or disabled *(P14-T3; `editorGutter.*` is a VS Code core colour, so the bars theme correctly with the built-in git extension disabled)*
+- [x] Change bars are Geet-painted and work with the built-in extension enabled or disabled *(P14-T3; `editorGutter.*` is a VS Code core colour, so the bars theme correctly with the built-in git extension disabled)*
 - [x] The change popup replaces the native peek with Rollback / Stage / Show Diff / navigate *(P14-T3.3; hover + `ctrl+alt+g h`, because no decoration exposes a click handler — D19)*
 - [x] Status colors come from `gittree.color.*` and survive the built-in extension being disabled *(P14-T5.1; 7 colours, a default per theme variant, values matching what the built-in extension shipped)*
 - [x] No internal (underscore-prefixed) VS Code command is called anywhere *(P14-T5.2; `nativeBridge.ts` and the `gittree.merge.ui` setting deleted with it)*
-- [x] D1 Route A: GitTree's own controls on GitTree's diffs *(P14-T7.3; 2 arrows + 3 view toggles, all scoped to `gittree.diff.active` so they never appear on a diff GitTree did not open)*
+- [x] D1 Route A: Geet's own controls on Geet's diffs *(P14-T7.3; 2 arrows + 3 view toggles, all scoped to `gittree.diff.active` so they never appear on a diff Geet did not open)*
 - [x] Cross-file change navigation with IntelliJ's two-stage "press again for the next file" hint *(P14-T7.2; walked end to end over a real 3-file commit diff, and asserted never to wrap)*
 
 ## Outcome (P14-T8, 2026-08-24) — **PHASE 14 CLOSED**
 
 Every checklist item above is ticked. `vscode.scm` appears nowhere in `src/` outside a comment
 describing its removal; `contributes.menus` has zero `scm/*` keys; the ten views live in
-GitTree's own activity-bar container (two of them retired as superseded); the change bars,
-change popup, status colours and diff controls are GitTree's own; and the only `git.*` write
+Geet's own activity-bar container (two of them retired as superseded); the change bars,
+change popup, status colours and diff controls are Geet's own; and the only `git.*` write
 left is the one-shot migration that removes an override this extension wrote earlier.
 
 **Shipped across eight commits** (T2 and T2a were split so no commit ever carried the
@@ -342,7 +342,7 @@ regression the split existed to avoid):
 
 | Task | Commit | What |
 |---|---|---|
-| T1 | `4bc49d3` | GitTree activity-bar container |
+| T1 | `4bc49d3` | Geet activity-bar container |
 | T2a | `66ca8f7` | Commit-window native context menus (added *before* the deletion) |
 | T2b | `5e7a166` | Retire the native commit surface |
 | T3 | `389ccf2` | Own change bars and change popup |
@@ -373,7 +373,7 @@ own new code:
 - `rewrite/undoDrop.ts`, `merge/lifecycle.ts` and `ui/progress.ts` were all still reaching a
   SourceControl that no longer existed, through `debugRegistry.get(...) as Shape` casts that
   typecheck cannot see through. Two would have been silent no-ops (a lost commit-message
-  prefill in each); the third put the operation spinner in a view GitTree no longer contributes
+  prefill in each); the third put the operation spinner in a view Geet no longer contributes
   to. **The registry-cast pattern converts refactor breakage into silent runtime no-ops** —
   worth knowing before the next structural change.
 - `ChangeBarsController.apply()` could clear a fresher result with a staler one, because two
@@ -402,11 +402,11 @@ own new code:
   at a location. IntelliJ's popup is reproduced in content (previous text + actions), not in
   trigger. *Revisitable: no.*
 - **D20 · VS Code's built-in next/prev-change arrows remain in the diff toolbar beside
-  GitTree's.** Extensions cannot unregister core menu items; ours sort ahead of them, and users
+  Geet's.** Extensions cannot unregister core menu items; ours sort ahead of them, and users
   can hide the built-ins from the toolbar context menu. *Revisitable: only via Route B, which
   would replace the editor entirely.*
 - **D21 · Change-bar anchoring may differ from VS Code's by one line on ambiguous boundaries.**
-  GitTree computes its own hunks; where an insertion sits between two blank lines the anchor is
+  Geet computes its own hunks; where an insertion sits between two blank lines the anchor is
   genuinely ambiguous and the two algorithms may choose differently. Both are correct diffs.
   *Revisitable: no (inherent to owning the diff).*
 - **D1 is downgraded, not closed.** Route A ships here; the Differences Viewer's own renderer

@@ -65,7 +65,7 @@ export class ConflictsViewProvider implements vscode.TreeDataProvider<ConflictNo
     const dir = path.posix.dirname(node.path);
     item.description = dir === '.' ? kindLabel(node.kind) : `${dir} · ${kindLabel(node.kind)}`;
     item.tooltip = vscode.l10n.t('{0} — {1} ({2})', node.path, kindLabel(node.kind), node.session.source);
-    // POST-P14cd: GitTree's own address, marked `!` by GitTree rather than by
+    // POST-P14cd: Geet's own address, marked `!` by Geet rather than by
     // whichever extension marks files on disk.
     item.resourceUri = rowUri('conflict', path.join(node.session.repo.root, node.path), 'conflicted');
     item.iconPath = new vscode.ThemeIcon(

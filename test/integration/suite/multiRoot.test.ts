@@ -11,7 +11,7 @@ import type { Phase13Registry } from '../../../src/scm/dialogs/register';
 import { rootColorIndices } from '../../../src/log/graphLayout/colors';
 import type { BranchPanelStateDto } from '../../../src/shared/protocol';
 import {
-  activateGitTree,
+  activateGeet,
   gitWithRetry,
   waitFor,
   withAutoConfirm,
@@ -105,7 +105,7 @@ suite('Multi-root commit', () => {
 
   suiteSetup(async function () {
     this.timeout(60_000);
-    core = await activateGitTree();
+    core = await activateGeet();
     reg = core.debugRegistry.get('phase03') as Phase03Registry;
     assert.ok(reg, 'phase03 registry missing');
     repoD = core.repoForPath(workspaceRepoD())!;

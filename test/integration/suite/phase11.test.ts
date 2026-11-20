@@ -17,7 +17,7 @@ import type { LineChange } from '../../../src/core/patch/patchBuilder';
 import { canonicalKey } from '../../../src/core/repoDiscovery';
 import { COMMIT_METHODS } from '../../../src/shared/protocol';
 import {
-  activateGitTree,
+  activateGeet,
   gitWithRetry,
   waitFor,
   workspaceRepoC,
@@ -61,7 +61,7 @@ suite('P11 commit tool window', () => {
   suiteSetup(async function () {
     this.timeout(60_000);
     repoRoot = workspaceRepoC();
-    const core = await activateGitTree();
+    const core = await activateGeet();
     coreRef = core;
     repo = core.repoForPath(repoRoot)!;
     assert.ok(repo, 'repoC not discovered');
@@ -86,7 +86,7 @@ suite('P11 commit tool window', () => {
   // box to assert is hidden. The phase14 suite asserts the stronger fact: no
   // SourceControl is registered at all.
 
-  test('T2: the view actually resolves in the GitTree container', async function () {
+  test('T2: the view actually resolves in the Geet container', async function () {
     this.timeout(30_000);
     // Registration alone proves nothing — a WebviewViewProvider only resolves
     // when its view becomes visible, and that is the one seam the mocked

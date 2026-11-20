@@ -1,5 +1,5 @@
 # Release pipeline (P10-T5; readied for its first run in POST-P14cr). It
-# publishes to the Visual Studio Marketplace as `ntson9p.gittree`, from
+# publishes to the Visual Studio Marketplace as `ntson9p.geet`, from
 # github.com/ntson9p/git-tree; docs/releasing.md has the one-time set-up
 # (publisher, the VSCE_PAT secret, the two environments) and a release's steps.
 #
@@ -123,7 +123,7 @@ jobs:
       - run: npm run package
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: gittree-vsix
+          name: geet-vsix
           path: '*.vsix'
 
   publish-prerelease:
@@ -144,7 +144,7 @@ jobs:
       # The VSIX the package job built and checked, not a second build.
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: gittree-vsix
+          name: geet-vsix
           path: vsix
       - name: vsce publish (pre-release)
         env:
@@ -169,7 +169,7 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: gittree-vsix
+          name: geet-vsix
           path: vsix
       # Before publishing: a missing section stops the release here.
       - name: Extract changelog section
@@ -183,5 +183,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" vsix/*.vsix \
-            --title "GitTree ${{ needs.verify.outputs.version }}" \
+            --title "Geet ${{ needs.verify.outputs.version }}" \
             --notes-file release-notes.md

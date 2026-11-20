@@ -4,7 +4,7 @@
  * line only — "lint: notes.md line 3: trailing whitespace", dropping the rest
  * and the summary — and never said which repository refused. Now it shows the
  * hook's own lines, a dozen at most, the repository first when there are
- * several, and points at the GitTree output for the rest. vscode-free.
+ * several, and points at the Geet output for the rest. vscode-free.
  */
 
 /** The parts of a `GitError` this needs; structural so tests need no git. */
@@ -34,7 +34,7 @@ export function failureText(err: unknown, repoLabel?: string): string {
     if (lines.length === 0) return `${prefix}${err.message}`;
     const shown = lines.slice(0, FAILURE_LINES).join('\n');
     const more = lines.length - FAILURE_LINES;
-    return `${prefix}${shown}${more > 0 ? `\n… ${more} more line${more === 1 ? '' : 's'} in the GitTree output` : ''}`;
+    return `${prefix}${shown}${more > 0 ? `\n… ${more} more line${more === 1 ? '' : 's'} in the Geet output` : ''}`;
   }
   return `${prefix}${err instanceof Error ? err.message : String(err)}`;
 }

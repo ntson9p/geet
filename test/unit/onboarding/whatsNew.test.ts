@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CHANGELOG_NAMES, changelogName, whatsNewDecision } from '../../../src/onboarding/whatsNewGate';
 
 describe('changelogName (POST-P14cr)', () => {
-  it('an installed GitTree has changelog.md, as vsce packages it: that one', () => {
+  it('an installed Geet has changelog.md, as vsce packages it: that one', () => {
     // On Linux the folder has no CHANGELOG.md at all, and the preview was of nothing.
     expect(changelogName((n) => n === 'changelog.md')).toBe('changelog.md');
   });

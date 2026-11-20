@@ -5,7 +5,7 @@
  *
  * The model is one VS Code already has (`vscode.lm`, the Language Model API):
  * Copilot's once the user is signed in, or any that another extension or a key
- * of their own adds under *Chat: Manage Language Models*. GitTree holds no key
+ * of their own adds under *Chat: Manage Language Models*. Geet holds no key
  * and talks to no service itself. VS Code asks the user's consent the first
  * time an extension uses Copilot's models, which is why a model is only ever
  * asked for here, on a click or a command, and never when a view opens.
@@ -240,7 +240,7 @@ export class MessageGenerator {
         const known = new Set(await vscode.commands.getCommands(true));
         const access = vscode.l10n.t('Manage Access');
         const choice = await vscode.window.showWarningMessage(
-          vscode.l10n.t('GitTree was not allowed to use {0}, so no commit message was written.', model.name),
+          vscode.l10n.t('Geet was not allowed to use {0}, so no commit message was written.', model.name),
           ...(known.has(MANAGE_ACCESS) ? [access] : []),
         );
         if (choice === access) await vscode.commands.executeCommand(MANAGE_ACCESS);
@@ -304,7 +304,7 @@ export class MessageGenerator {
     const nothing: GenerateResult = { kind: 'nothing' };
     // The button and the palette's entry are gone while either is off; a key
     // bound to the command, or another extension, can still ask.
-    // Plain notices, timed as GitTree's others are (`showInfo`).
+    // Plain notices, timed as Geet's others are (`showInfo`).
     if (aiDisabledInVsCode()) {
       showInfo(
         vscode.l10n.t('AI features are turned off in VS Code (chat.disableAIFeatures), so no commit message was written.'),
@@ -376,7 +376,7 @@ export class MessageGenerator {
         [vscode.LanguageModelChatMessage.User(prompt.rules), vscode.LanguageModelChatMessage.User(prompt.request)],
         {
           justification: vscode.l10n.t(
-            'GitTree sends the changes you are about to commit to this model, which writes the commit message.',
+            'Geet sends the changes you are about to commit to this model, which writes the commit message.',
           ),
         },
         token,

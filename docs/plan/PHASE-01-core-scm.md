@@ -3,7 +3,7 @@
 **Goal:** FEATURES.md §1 (gutter annotations except blame, VCS status widget) plus the baseline SCM provider and everyday operations (open diff, rollback, commit MVP, fetch/pull/push) that make the extension usable before P3 lands the full commit lifecycle.
 
 **Depends on:** P0 complete.
-**Exit criteria:** with `git.enabled: false`, a user can see change bars, peek+rollback hunks, view status groups, commit, pull/push, and see branch + ahead/behind in the status bar — entirely through GitTree.
+**Exit criteria:** with `git.enabled: false`, a user can see change bars, peek+rollback hunks, view status groups, commit, pull/push, and see branch + ahead/behind in the status bar — entirely through Geet.
 
 ---
 
@@ -13,7 +13,7 @@
 **Depends:** P0-T4/T5/T6 · **Complexity:** M
 **Output files:** `src/scm/sourceControl.ts`, `src/scm/resourceDecorations.ts`, `registerPhase01`.
 **Steps:**
-1. `scm.createSourceControl('gittree', 'GitTree', rootUri)` per repo; `count` = changed files; `inputBox.placeholder` with branch name.
+1. `scm.createSourceControl('gittree', 'Geet', rootUri)` per repo; `count` = changed files; `inputBox.placeholder` with branch name.
 2. Groups (baseline, P3 refines): `merge` (unmerged, hideWhenEmpty), `staged` (index), `changes` (worktree), `untracked`. Map porcelain-v2 entries → `SourceControlResourceState` with light/dark icons, strike-through for deletions, faded for ignored, tooltips, `contextValue` (`file:modified`, `file:untracked`, …) for menu `when` clauses.
 3. Click command per resource = open diff (T4). Group context menus: stage all / unstage all / rollback group.
 4. Respect ModeManager (companion mode: still register — SCM is our primary surface — but see T2/T6 skips).
@@ -70,7 +70,7 @@
 ---
 
 ## Contributions added this phase
-SCM provider "GitTree"; commands `gittree.{openDiff,openDiffHead,add,unstage,rollbackFile,cleanUntracked,refresh,openFile,fetch,pull,push,pushForceWithLease,sync,commit}`; hunk commands + `scm/change/title` menu; `scm/title`, `scm/resourceState/context`, `scm/resourceGroup/context` menus; file decoration provider; status-bar items via `statusBarCommands`.
+SCM provider "Geet"; commands `gittree.{openDiff,openDiffHead,add,unstage,rollbackFile,cleanUntracked,refresh,openFile,fetch,pull,push,pushForceWithLease,sync,commit}`; hunk commands + `scm/change/title` menu; `scm/title`, `scm/resourceState/context`, `scm/resourceGroup/context` menus; file decoration provider; status-bar items via `statusBarCommands`.
 
 ## Parity checklist (FEATURES.md §1)
 - [x] Green/blue/grey gutter bars for added/modified/deleted lines (native quick diff over `gittree-rev:` index/HEAD base; takeover-mode only per §3)

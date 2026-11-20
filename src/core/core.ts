@@ -299,7 +299,7 @@ export class Core implements vscode.Disposable {
 }
 
 export async function createCore(context: vscode.ExtensionContext): Promise<Core | undefined> {
-  const output = vscode.window.createOutputChannel('GitTree');
+  const output = vscode.window.createOutputChannel('Geet');
   context.subscriptions.push(output);
   const traceEnabled = (): boolean =>
     vscode.workspace.getConfiguration('gittree').get<boolean>('trace', false);
@@ -329,7 +329,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
     const collection = context.environmentVariableCollection;
     collection.clear();
     if (enabled && askpass) {
-      collection.description = vscode.l10n.t('GitTree git authentication');
+      collection.description = vscode.l10n.t('Geet git authentication');
       for (const [key, value] of Object.entries(askpass.env)) {
         collection.replace(key, value);
       }
@@ -345,7 +345,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   const cfg = vscode.workspace.getConfiguration();
   // P14-T5: the built-in extension's `git.path` is no longer consulted. It was
   // only ever a convenience fallback and reading a *setting* is harmless, but
-  // "GitTree reads no `git.*` configuration" is a rule that can be checked;
+  // "Geet reads no `git.*` configuration" is a rule that can be checked;
   // "reads exactly one key" is not.
   // P12-T8: every git run lands (redacted) in the Console tab's ring. The
   // limit is read once at activation — resizing a ring live has churn for no
@@ -365,14 +365,14 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   if (!executor) {
     void vscode.window.showErrorMessage(
       vscode.l10n.t(
-        'GitTree could not find a git installation. Set "gittree.gitPath" or install git.',
+        'Geet could not find a git installation. Set "gittree.gitPath" or install git.',
       ),
     );
     return undefined;
   }
-  output.appendLine(`[exec] GitTree using git ${executor.version} at ${executor.gitPath}`);
+  output.appendLine(`[exec] Geet using git ${executor.version} at ${executor.gitPath}`);
 
-  // P14-T6: the coexistence state machine is gone. GitTree no longer competes
+  // P14-T6: the coexistence state machine is gone. Geet no longer competes
   // for VS Code's SCM surfaces, so there is nothing to negotiate — but a
   // workspace that consented to takeover still carries the `git.enabled: false`
   // this extension wrote, and that has to be handed back.

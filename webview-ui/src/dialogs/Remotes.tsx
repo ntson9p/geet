@@ -1,6 +1,6 @@
 /**
  * Manage Remotes dialog (P13-T4) — absent entirely before this: there was no
- * remote-management command in GitTree at all. A table of name / fetch URL /
+ * remote-management command in Geet at all. A table of name / fetch URL /
  * push URL with add, edit, remove and `git remote prune`.
  *
  * Operations apply immediately over RPC rather than batching into an OK, which

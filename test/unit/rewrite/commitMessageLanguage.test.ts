@@ -1,5 +1,5 @@
 /**
- * POST-QA: the reword editor's language is GitTree's own, so built-in Git's
+ * POST-QA: the reword editor's language is Geet's own, so built-in Git's
  * Commit and Discard (`editorLangId == git-commit`) stay out of it, while its
  * highlighting is built-in Git's grammar, included.
  */

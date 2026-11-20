@@ -1,6 +1,6 @@
-# GitTree — Master Implementation Blueprint
+# Geet — Master Implementation Blueprint
 
-**Goal:** A VS Code extension ("GitTree", id `gittree`) with 100% feature and UX parity with IntelliJ IDEA Ultimate's Git integration, per [FEATURES.md](FEATURES.md).
+**Goal:** A VS Code extension ("Geet", id `gittree`) with 100% feature and UX parity with IntelliJ IDEA Ultimate's Git integration, per [FEATURES.md](FEATURES.md).
 **Audience:** Autonomous AI coding agents. This file is binding for every task. Per-phase task specs live in [docs/plan/](docs/plan/).
 **Generated:** 2026-07-11 · Source spec: FEATURES.md @ commit `1a87412`.
 
@@ -21,7 +21,7 @@
 
 ## 1. Product summary & non-goals
 
-GitTree replaces the built-in Git experience with an IntelliJ-grade one: changelists **and** staging paradigms, a graph log tool window, drag-and-drop interactive rebase, a true 3-pane merge editor with full IntelliSense in the result pane, shelve, deep GitHub/GitLab review, and an operation-scoped Local History failsafe.
+Geet replaces the built-in Git experience with an IntelliJ-grade one: changelists **and** staging paradigms, a graph log tool window, drag-and-drop interactive rebase, a true 3-pane merge editor with full IntelliSense in the result pane, shelve, deep GitHub/GitLab review, and an operation-scoped Local History failsafe.
 
 **Non-goals (v1):** SVN/Hg/Perforce, submodule management beyond listing, JetBrains "Analyze Code" depth beyond LSP diagnostics (we gate on `vscode.languages.getDiagnostics`), Code With Me-style collaboration, worktree management UI.
 
@@ -61,16 +61,16 @@ GitTree replaces the built-in Git experience with an IntelliJ-grade one: changel
 
 ## 3. Coexistence with the built-in Git extension
 
-> **SUPERSEDED by Phase 14** (`docs/plan/PHASE-14-owning-the-scm-surface.md`). GitTree no
+> **SUPERSEDED by Phase 14** (`docs/plan/PHASE-14-owning-the-scm-surface.md`). Geet no
 > longer coexists *by negotiation*: it does not compete for the built-in extension's surfaces,
 > so there is nothing to negotiate. The mode machinery below is gone — `ModeManager`, the
 > consent modal and the `gittree.mode` setting were deleted in P14-T6, and a one-shot migration
 > removes the `git.enabled` override from any workspace that had consented to takeover.
 >
-> **What holds now:** GitTree registers no `vscode.scm` SourceControl, contributes no `scm/*`
+> **What holds now:** Geet registers no `vscode.scm` SourceControl, contributes no `scm/*`
 > menus, hosts its views in its own activity-bar container, paints its own change bars, and
 > reads no `git.*` configuration. Enabling or disabling the built-in Git extension changes
-> nothing about how GitTree behaves. The single remaining overlap — explorer file decorations,
+> nothing about how Geet behaves. The single remaining overlap — explorer file decorations,
 > which both extensions can badge — is a plain user setting, `gittree.decorations.fileExplorer`
 > (deviation D22).
 >
@@ -81,10 +81,10 @@ GitTree replaces the built-in Git experience with an IntelliJ-grade one: changel
 
 | ~~Mode~~ | ~~Behavior~~ | ~~When~~ |
 |---|---|---|
-| ~~**Takeover** (recommended default)~~ | ~~One-time consent modal explains the change, then writes `git.enabled: false` to workspace settings. GitTree provides all SCM UI.~~ | ~~User accepts onboarding prompt.~~ |
-| ~~**Companion**~~ | ~~Built-in git stays on. GitTree does **not** register its `QuickDiffProvider` or `FileDecorationProvider`; its SourceControl hosts only the changelist/commit UI.~~ | ~~User declines, or until they opt in.~~ |
+| ~~**Takeover** (recommended default)~~ | ~~One-time consent modal explains the change, then writes `git.enabled: false` to workspace settings. Geet provides all SCM UI.~~ | ~~User accepts onboarding prompt.~~ |
+| ~~**Companion**~~ | ~~Built-in git stays on. Geet does **not** register its `QuickDiffProvider` or `FileDecorationProvider`; its SourceControl hosts only the changelist/commit UI.~~ | ~~User declines, or until they opt in.~~ |
 
-~~Notes: never flip `git.enabled` without explicit consent (Marketplace policy + trust). Read the user's `git.path` setting first when locating the git binary.~~ The `git.path` fallback was also removed in P14-T5: GitTree resolves the binary from `gittree.gitPath`, `PATH` and well-known install locations only.
+~~Notes: never flip `git.enabled` without explicit consent (Marketplace policy + trust). Read the user's `git.path` setting first when locating the git binary.~~ The `git.path` fallback was also removed in P14-T5: Geet resolves the binary from `gittree.gitPath`, `PATH` and well-known install locations only.
 
 ---
 
@@ -326,7 +326,7 @@ type Msg =
 
 ## 10. Engineering standards
 
-- **Errors:** all git failures normalize to `GitError`; one `ErrorHandler` maps kinds to UX (e.g. `would-overwrite-checkout` → Smart Checkout modal; `auth` → sign-in flow) with "Show Log" button → OutputChannel "GitTree" (`gittree.trace` verbose setting logs full argv + timing, never file contents or secrets).
+- **Errors:** all git failures normalize to `GitError`; one `ErrorHandler` maps kinds to UX (e.g. `would-overwrite-checkout` → Smart Checkout modal; `auth` → sign-in flow) with "Show Log" button → OutputChannel "Geet" (`gittree.trace` verbose setting logs full argv + timing, never file contents or secrets).
 - **Safety:** destructive ops declare `isDestructive` (checkout-dirty, reset, rebase, drop, stash pop/drop, unshelve-with-remove, rollback, clean, branch -D) → P9 snapshot + confirmation modal listing affected files. Patch application validates target paths stay inside the repo root.
 - **Secrets** only in `SecretStorage`; provider tokens least-scope; no PII in logs/telemetry (telemetry is opt-in, respects `telemetry.telemetryLevel`, P10).
 - **Lint gates:** `@typescript-eslint/no-floating-promises`, no `any` in `src/shared`, disposables registered into per-feature `DisposableStore`s.

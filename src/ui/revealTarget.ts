@@ -16,7 +16,7 @@ import * as path from 'node:path';
 /** The first VS Code whose `revealFileInOS` reaches a WSL window's files (microsoft/vscode#299492). */
 export const WSL_REVEAL_SINCE = '1.113.0';
 
-/** The window GitTree runs in, as `vscode.env` and `vscode.version` describe it. */
+/** The window Geet runs in, as `vscode.env` and `vscode.version` describe it. */
 export interface RevealHost {
   /** VS Code desktop rather than VS Code for the Web, which has no OS file manager to open. */
   readonly desktop: boolean;

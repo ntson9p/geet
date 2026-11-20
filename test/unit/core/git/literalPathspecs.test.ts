@@ -1,8 +1,8 @@
 /**
- * POST-P14ck against real git: every command GitTree hands ticked or picked
+ * POST-P14ck against real git: every command Geet hands ticked or picked
  * paths to, with `[id].tsx` beside a changed `i.tsx` and `d.tsx` — the names
  * git also matches `[id].tsx` to when it reads it as a pattern. Each case runs
- * the argv GitTree builds, through GitTree's own builders where it has them,
+ * the argv Geet builds, through Geet's own builders where it has them,
  * and checks that git touched `[id].tsx` alone. Before the fix every one of
  * them also took the other two: committed them, rolled their changes back,
  * deleted them from disk, resolved their conflicts.

@@ -8,8 +8,9 @@ export const WALKTHROUGH = 'gittree.gettingStarted';
 
 /**
  * The extension ID is the running one's, never written down: it is
- * `<publisher>.gittree`, and the publisher changed for the Marketplace
- * (`gittree` → `ntson9p`, POST-P14cr), which left the old literal opening nothing.
+ * `<publisher>.<name>`, and both changed for the Marketplace (`gittree.gittree`
+ * → `ntson9p.gittree`, POST-P14cr, → `ntson9p.geet`, POST-P14ct), which left the
+ * old literal opening nothing.
  */
 export function walkthroughId(extensionId: string): string {
   return `${extensionId}#${WALKTHROUGH}`;

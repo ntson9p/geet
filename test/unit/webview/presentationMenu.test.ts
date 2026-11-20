@@ -16,13 +16,13 @@ describe("presentationItems (IntelliJ's Presentation Settings ▾)", () => {
     const rows = presentationItems(DEFAULT_LOG_PRESENTATION);
     expect(rows.map((r) => r.label)).toEqual([
       'Show',
-      // POST-P14bh: GitTree's own row, first under Show.
+      // POST-P14bh: Geet's own row, first under Show.
       'Graph',
       'Compact References View',
       'Tag Names',
       'References on the Left',
       'Columns',
-      // POST-P14cg: GitTree's own; IntelliJ keeps its date formats in Settings.
+      // POST-P14cg: Geet's own; IntelliJ keeps its date formats in Settings.
       'Date Format',
     ]);
     const columns = rows[5]!;
