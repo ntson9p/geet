@@ -29,7 +29,7 @@ export const mockBranchesHostScript = `
 (() => {
   // POST-P14co: which panel this page is, as the host's page tells it.
   const role = window.__mockRole === 'repositories' ? 'repositories' : 'branches';
-  window.__gittreeInitialState = { role };
+  window.__geetInitialState = { role };
   const NOW = 1_800_000_000;
   const H = 3600, D = 86400;
   const sha = (n) => (n.toString(16).padStart(8, '0')).repeat(5);
@@ -93,7 +93,7 @@ export const mockBranchesHostScript = `
   const state = {
     repos: window.__mockSingleRepo === true ? [web] : [api, shared, web],
     showTags: true, showInOut: true, groupByFolder: true, fetchingAll: false, now: NOW, palette: 'default',
-    // Off, as gittree.branches.showRepositoryDots is by default; opt in with window.__mockDots.
+    // Off, as geet.branches.showRepositoryDots is by default; opt in with window.__mockDots.
     showRepositoryDots: window.__mockDots === true,
   };
   if (window.__mockNoOperation === true) delete shared.operation;
@@ -121,7 +121,7 @@ export const mockBranchesHostScript = `
   };
 
   // POST-P14co: the other panel's page, as the host joins the two webviews.
-  const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gittree-mock-branches') : undefined;
+  const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('geet-mock-branches') : undefined;
   const tell = (msg) => {
     if (channel) channel.postMessage(msg);
   };
@@ -169,15 +169,15 @@ export const mockBranchesHostScript = `
   const repoMenu = (root) => {
     const several = state.repos.length > 1;
     return [
-      { kind: 'item', label: 'Show in New Log Tab', run: { type: 'command', command: 'gittree.repositories.showInLog', root } },
+      { kind: 'item', label: 'Show in New Log Tab', run: { type: 'command', command: 'geet.repositories.showInLog', root } },
       { kind: 'separator' },
       several
-        ? { kind: 'item', label: 'Update Repository…', run: { type: 'command', command: 'gittree.update.repository', root } }
-        : { kind: 'item', label: 'Update Project…', run: { type: 'command', command: 'gittree.update.dialog', root } },
+        ? { kind: 'item', label: 'Update Repository…', run: { type: 'command', command: 'geet.update.repository', root } }
+        : { kind: 'item', label: 'Update Project…', run: { type: 'command', command: 'geet.update.dialog', root } },
       several
-        ? { kind: 'item', label: 'Update Repository Without Fetching…', run: { type: 'command', command: 'gittree.update.repositoryWithoutFetch', root } }
-        : { kind: 'item', label: 'Update Project Without Fetching…', run: { type: 'command', command: 'gittree.update.withoutFetch', root } },
-      { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'gittree.fetch', root } },
+        ? { kind: 'item', label: 'Update Repository Without Fetching…', run: { type: 'command', command: 'geet.update.repositoryWithoutFetch', root } }
+        : { kind: 'item', label: 'Update Project Without Fetching…', run: { type: 'command', command: 'geet.update.withoutFetch', root } },
+      { kind: 'item', label: 'Fetch', run: { type: 'command', command: 'geet.fetch', root } },
       { kind: 'separator' },
       { kind: 'item', label: 'New Branch…', run: { type: 'newBranch', from: 'HEAD', roots: [root] } },
     ];
@@ -215,7 +215,7 @@ export const mockBranchesHostScript = `
           const run = p.run || {};
           // POST-P14co: New Branch… asked in the Repositories panel opens the Branches panel's form.
           if (run.type === 'newBranch') tell({ type: 'newBranch', from: run.from, roots: run.roots });
-          if (run.type === 'command' && run.command === 'gittree.fetch' && run.root) {
+          if (run.type === 'command' && run.command === 'geet.fetch' && run.root) {
             const r = repoOf(run.root);
             r.fetching = true;
             pushState();

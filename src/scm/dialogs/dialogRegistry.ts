@@ -66,7 +66,7 @@ const needsRepo = (ctx: DialogContext): boolean => ctx.hasRepo;
 
 export const DIALOG_REGISTRY: readonly DialogEntry[] = [
   {
-    command: 'gittree.update.dialog',
+    command: 'geet.update.dialog',
     label: 'Update Project…',
     group: 'sync',
     accelerator: 'Ctrl+T',
@@ -78,7 +78,7 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
   },
   {
     // POST-P14bm: the same, from each remote branch as it was last fetched.
-    command: 'gittree.update.withoutFetch',
+    command: 'geet.update.withoutFetch',
     label: 'Update Project Without Fetching…',
     group: 'sync',
     icon: 'sync',
@@ -86,7 +86,7 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
     applies: (ctx) => ctx.hasRepo && ctx.hasUpstream,
   },
   {
-    command: 'gittree.push.dialog',
+    command: 'geet.push.dialog',
     label: 'Push…',
     group: 'sync',
     accelerator: 'Ctrl+Shift+K',
@@ -94,7 +94,7 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
     applies: (ctx) => ctx.hasRepo && ctx.hasRemote,
   },
   {
-    command: 'gittree.commit',
+    command: 'geet.commit',
     label: 'Commit…',
     group: 'changes',
     accelerator: 'Ctrl+K',
@@ -102,27 +102,27 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
     applies: (ctx) => ctx.hasRepo && ctx.dirty,
   },
   {
-    command: 'gittree.merge.dialog',
+    command: 'geet.merge.dialog',
     label: 'Merge…',
     group: 'branch',
     icon: 'git-merge',
     applies: needsRepo,
   },
   {
-    command: 'gittree.rebase.dialog',
+    command: 'geet.rebase.dialog',
     label: 'Rebase…',
     group: 'branch',
     applies: needsRepo,
   },
   {
-    command: 'gittree.reset.dialog',
+    command: 'geet.reset.dialog',
     label: 'Reset…',
     group: 'history',
     icon: 'discard',
     applies: needsRepo,
   },
   {
-    command: 'gittree.rollback.dialog',
+    command: 'geet.rollback.dialog',
     label: 'Rollback…',
     group: 'changes',
     accelerator: 'Ctrl+Alt+Z',
@@ -130,45 +130,45 @@ export const DIALOG_REGISTRY: readonly DialogEntry[] = [
     applies: (ctx) => ctx.hasRepo && ctx.dirty,
   },
   {
-    command: 'gittree.cherryPick.dialog',
+    command: 'geet.cherryPick.dialog',
     label: 'Cherry-Pick…',
     group: 'history',
     applies: needsRepo,
   },
   {
-    command: 'gittree.stash.dialog',
+    command: 'geet.stash.dialog',
     label: 'Stash Changes…',
     group: 'changes',
     applies: (ctx) => ctx.hasRepo && ctx.dirty,
   },
   {
-    command: 'gittree.unstash.dialog',
+    command: 'geet.unstash.dialog',
     label: 'Unstash Changes…',
     group: 'changes',
     applies: (ctx) => ctx.hasRepo && ctx.hasStash,
   },
   {
-    command: 'gittree.shelve.dialog',
+    command: 'geet.shelve.dialog',
     label: 'Shelve Changes…',
     group: 'changes',
     icon: 'archive',
     applies: (ctx) => ctx.hasRepo && ctx.dirty,
   },
   {
-    command: 'gittree.patch.applyDialog',
+    command: 'geet.patch.applyDialog',
     label: 'Apply Patch…',
     group: 'changes',
     applies: needsRepo,
   },
   {
-    command: 'gittree.remotes.manage',
+    command: 'geet.remotes.manage',
     label: 'Manage Remotes…',
     group: 'setup',
     icon: 'remote',
     applies: needsRepo,
   },
   {
-    command: 'gittree.clone.dialog',
+    command: 'geet.clone.dialog',
     label: 'Clone…',
     group: 'setup',
     icon: 'repo-clone',

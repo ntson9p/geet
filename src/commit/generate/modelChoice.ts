@@ -2,7 +2,7 @@
  * Which language model writes the commit message (POST-P14cj). VS Code lists
  * the models (`vscode.lm.selectChatModels`): Copilot's once signed in, and any
  * another extension or a key of the user's own adds. Geet asks once which
- * to use and keeps the answer in `gittree.commit.messageGeneration.model`.
+ * to use and keeps the answer in `geet.commit.messageGeneration.model`.
  *
  * Pure, on the few fields Geet reads of a model, so it is unit-tested.
  */

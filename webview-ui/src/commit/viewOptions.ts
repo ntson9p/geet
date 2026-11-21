@@ -14,9 +14,9 @@ import type { CommitGroupBy } from '../../../src/shared/protocol';
 
 /** What the menu shows the state of. */
 export interface ViewOptionsState {
-  /** `gittree.commit.groupBy` as set: `none` is changelists off. */
+  /** `geet.commit.groupBy` as set: `none` is changelists off. */
   readonly groupBy: CommitGroupBy;
-  /** `gittree.commit.groupByDirectory`: folder rows. */
+  /** `geet.commit.groupByDirectory`: folder rows. */
   readonly directory: boolean;
   /** Several repositories, where the order of changelists and repositories means something. */
   readonly multiRepo: boolean;

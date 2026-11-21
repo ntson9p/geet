@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 function bare(): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-literal-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-literal-' });
   repos.push(repo);
   return repo;
 }
@@ -365,7 +365,7 @@ describe('the environment and hooks', () => {
 
 describe('the shelf', () => {
   function store(r: FixtureRepo): ShelfStore {
-    const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-shelf-literal-'));
+    const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-shelf-literal-'));
     dirs.push(storeDir);
     return new ShelfStore({
       storeDir,

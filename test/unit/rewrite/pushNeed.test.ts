@@ -18,7 +18,7 @@ afterEach(() => {
  * teammate commit further. The remote-tracking ref stands in for a fetch.
  */
 function setup(incoming: boolean): { repo: FixtureRepo; pushed: string; local: string } {
-  const repo = FixtureRepo.create({ prefix: 'gittree-pushneed-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-pushneed-' });
   repos.push(repo);
   repo.commit('base', { 'a.txt': 'a\n' });
   const pushed = repo.commit('pushed', { 'b.txt': 'b\n' });

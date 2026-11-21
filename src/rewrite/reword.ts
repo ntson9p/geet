@@ -33,7 +33,7 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
   constructor(private readonly engineFor: (repo: RepoHandle) => RebaseEngine | undefined) {
     this.subs.push(
       vscode.languages.registerCodeLensProvider({ scheme: 'untitled' }, this),
-      vscode.commands.registerCommand('gittree.reword.accept', async (uri: unknown) => {
+      vscode.commands.registerCommand('geet.reword.accept', async (uri: unknown) => {
         const key = String(uri);
         const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === key);
         const entry = this.pending.get(key);
@@ -43,7 +43,7 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
           await this.closeEditor(doc);
         }
       }),
-      vscode.commands.registerCommand('gittree.reword.cancel', async (uri: unknown) => {
+      vscode.commands.registerCommand('geet.reword.cancel', async (uri: unknown) => {
         const key = String(uri);
         const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === key);
         const entry = this.pending.get(key);
@@ -69,12 +69,12 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
     const top = new vscode.Range(0, 0, 0, 0);
     return [
       new vscode.CodeLens(top, {
-        command: 'gittree.reword.accept',
+        command: 'geet.reword.accept',
         title: vscode.l10n.t('$(check) Accept: {0}', entry.acceptTitle),
         arguments: [doc.uri.toString()],
       }),
       new vscode.CodeLens(top, {
-        command: 'gittree.reword.cancel',
+        command: 'geet.reword.cancel',
         title: vscode.l10n.t('$(close) Cancel'),
         arguments: [doc.uri.toString()],
       }),
@@ -193,7 +193,7 @@ export class RewordService implements vscode.CodeLensProvider, vscode.Disposable
    * `Squashed Commit Message` dialog does.
    */
   async promptMessage(original: string, acceptTitle: string, status?: string): Promise<string | undefined> {
-    const seeded = process.env['GITTREE_TEST_REWORD_MESSAGE'];
+    const seeded = process.env['GEET_TEST_REWORD_MESSAGE'];
     if (seeded !== undefined) return seeded.length > 0 ? seeded : undefined;
 
     // Geet's own language, built-in Git's grammar: `git-commit` brought

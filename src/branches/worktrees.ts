@@ -1,6 +1,6 @@
 /**
  * Worktree management (P13-T6, gap analysis §3.10): list / add / remove / lock /
- * unlock / prune, plus the `gittree.worktrees` tree view and the New Worktree
+ * unlock / prune, plus the `geet.worktrees` tree view and the New Worktree
  * dialog's host half.
  *
  * Before this, Geet resolved worktree paths internally (`commondir`) but had
@@ -210,14 +210,14 @@ export class WorktreesViewProvider implements vscode.TreeDataProvider<WorktreeNo
     item.tooltip = [info.path, ...badges].join('\n');
     // Context values drive the row menu: the main worktree cannot be removed.
     item.contextValue = [
-      'gittree.worktree',
+      'geet.worktree',
       info.isMain ? 'main' : 'linked',
       info.locked ? 'locked' : 'unlocked',
       info.prunable ? 'prunable' : 'present',
     ].join('.');
     if (!info.bare) {
       item.command = {
-        command: 'gittree.worktree.open',
+        command: 'geet.worktree.open',
         title: vscode.l10n.t('Open Worktree'),
         arguments: [node],
       };
@@ -276,7 +276,7 @@ export function buildNewWorktreeParams(
     seedBranchIsHead: branch.length > 0 && branch === snap.headRef,
     defaultPath: defaultWorktreePath(repo.root, branch),
     showCommandLine: vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('dialogs.showCommandLine', true),
   };
 }
@@ -339,7 +339,7 @@ export function registerWorktrees(
   deps: WorktreeDialogDeps,
 ): WorktreeRegistry {
   const provider = new WorktreesViewProvider(core);
-  const view = vscode.window.createTreeView('gittree.worktrees', {
+  const view = vscode.window.createTreeView('geet.worktrees', {
     treeDataProvider: provider,
     showCollapseAll: false,
   });
@@ -375,21 +375,21 @@ export function registerWorktrees(
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.worktree.add', async (arg?: unknown, repoRoot?: unknown) => {
+    vscode.commands.registerCommand('geet.worktree.add', async (arg?: unknown, repoRoot?: unknown) => {
       const repo = await chosenRepo(arg, repoRoot);
       if (!repo) return;
       const branch = typeof arg === 'string' ? arg : undefined;
       await showNewWorktreeDialog(deps, repo, branch);
       provider.refresh();
     }),
-    vscode.commands.registerCommand('gittree.worktree.open', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.worktree.open', async (arg?: unknown) => {
       const info = infoOf(arg);
       if (!info) return;
       await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(info.path), {
         forceNewWindow: true,
       });
     }),
-    vscode.commands.registerCommand('gittree.worktree.remove', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.worktree.remove', async (arg?: unknown) => {
       const repo = repoOf(arg);
       const info = infoOf(arg);
       if (!repo || !info) return;
@@ -407,7 +407,7 @@ export function registerWorktrees(
       if (!ok) return;
       report(await serviceFor(repo).remove(info.path));
     }),
-    vscode.commands.registerCommand('gittree.worktree.lock', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.worktree.lock', async (arg?: unknown) => {
       const repo = repoOf(arg);
       const info = infoOf(arg);
       if (!repo || !info) return;
@@ -418,18 +418,18 @@ export function registerWorktrees(
       if (reason === undefined) return;
       report(await serviceFor(repo).lock(info.path, reason));
     }),
-    vscode.commands.registerCommand('gittree.worktree.unlock', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.worktree.unlock', async (arg?: unknown) => {
       const repo = repoOf(arg);
       const info = infoOf(arg);
       if (!repo || !info) return;
       report(await serviceFor(repo).unlock(info.path));
     }),
-    vscode.commands.registerCommand('gittree.worktree.prune', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.worktree.prune', async (arg?: unknown) => {
       const repo = await chosenRepo(arg);
       if (!repo) return;
       report(await serviceFor(repo).prune());
     }),
-    vscode.commands.registerCommand('gittree.worktrees.refresh', () => provider.refresh()),
+    vscode.commands.registerCommand('geet.worktrees.refresh', () => provider.refresh()),
   );
 
   // Ref changes can create or retire a worktree's branch — keep the view honest.

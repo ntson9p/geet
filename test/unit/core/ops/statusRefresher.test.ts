@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 function realRepo(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-refresh-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-refresh-'));
   cleanups.push(() => {
     try {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });

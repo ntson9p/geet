@@ -5,4 +5,4 @@
  * buttons (`editorLangId == git-commit`), which act on built-in Git's own
  * commit editor, not this one. vscode-free.
  */
-export const COMMIT_MESSAGE_LANGUAGE = 'gittree-commit-message';
+export const COMMIT_MESSAGE_LANGUAGE = 'geet-commit-message';

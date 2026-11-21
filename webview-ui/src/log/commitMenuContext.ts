@@ -3,17 +3,17 @@
  * the commits it acts on, and the keys `package.json`'s `webview/context`
  * entries read to follow IntelliJ's menu for a selection —
  *
- * - `gittree.commitCount`: how many commits; `Compare Versions` shows at 2.
- * - `gittree.multiCommit`: set from 2 on. Single-commit actions IntelliJ hides
+ * - `geet.commitCount`: how many commits; `Compare Versions` shows at 2.
+ * - `geet.multiCommit`: set from 2 on. Single-commit actions IntelliJ hides
  *   (`Checkout`, `Compare with Local`, `Undo Commit`, `Edit Commit Message…`,
  *   `Fixup…`, `Squash Into…`, `Interactively Rebase from Here…`, the branch
  *   group) go; the ones it greys out (`Show Repository at Revision`, `Reset
  *   Current Branch to Here…`, `Push All up to Here`, `New Branch…`, `New Tag…`,
  *   `Go to Child/Parent Commit`) stay disabled; `Revert Commits`, `Drop
  *   Commits` and `Squash Commits…` take the plural places.
- * - `gittree.mergeSelected`: one of them is a merge, which IntelliJ will not
+ * - `geet.mergeSelected`: one of them is a merge, which IntelliJ will not
  *   revert, drop or squash.
- * - `gittree.notHead`: the one commit is not HEAD. IntelliJ's `Undo Commit…`
+ * - `geet.notHead`: the one commit is not HEAD. IntelliJ's `Undo Commit…`
  *   stays in the menu, greyed out, for any commit but the branch's last
  *   (POST-QA: it was offered, then refused). Negated in `enablement`, so the
  *   palette, where no row says anything, keeps it.
@@ -46,10 +46,10 @@ export function commitMenuContext(
     webviewSection: 'commit',
     sha: row.sha,
     shas,
-    'gittree.commitCount': shas.length,
-    ...(shas.length > 1 ? { 'gittree.multiCommit': true } : {}),
-    ...(merge ? { 'gittree.mergeSelected': true } : {}),
-    ...(shas.length === 1 && isHeadRow(row) === false ? { 'gittree.notHead': true } : {}),
+    'geet.commitCount': shas.length,
+    ...(shas.length > 1 ? { 'geet.multiCommit': true } : {}),
+    ...(merge ? { 'geet.mergeSelected': true } : {}),
+    ...(shas.length === 1 && isHeadRow(row) === false ? { 'geet.notHead': true } : {}),
     preventDefaultContextMenuItems: true,
   };
 }

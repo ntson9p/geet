@@ -5,10 +5,10 @@
  * to open a diff peek at a location, so the bar itself cannot be the trigger
  * (deviation D19). Two invocations stand in, and between them they cover the
  * mouse and the keyboard:
- *   - `gittree.change.showActions`, keybound, acting at the cursor — always on;
+ *   - `geet.change.showActions`, keybound, acting at the cursor — always on;
  *   - a `HoverProvider` scoped to changed lines only, rendering the previous
  *     text plus actions — IntelliJ's popup reproduced in content. **Opt-in**
- *     (`gittree.changeBars.hoverActions`, POST-P14aa): IntelliJ shows nothing
+ *     (`geet.changeBars.hoverActions`, POST-P14aa): IntelliJ shows nothing
  *     on hover, and a widget that opens whenever the pointer crosses an edited
  *     line stacks on top of the language server's own hover on exactly the
  *     lines being worked on.
@@ -54,11 +54,11 @@ function link(title: string, command: string, ref: ChangeRef): string {
   return `[${title}](command:${command}?${encodeURIComponent(JSON.stringify(ref))})`;
 }
 
-/** The setting that turns the hover on, relative to the `gittree` section. */
+/** The setting that turns the hover on, relative to the `geet` section. */
 export const HOVER_ACTIONS_SETTING = 'changeBars.hoverActions';
 
 function hoverActionsEnabled(): boolean {
-  return vscode.workspace.getConfiguration('gittree').get<boolean>(HOVER_ACTIONS_SETTING, false);
+  return vscode.workspace.getConfiguration('geet').get<boolean>(HOVER_ACTIONS_SETTING, false);
 }
 
 export function registerChangePopup(
@@ -114,20 +114,20 @@ export function registerChangePopup(
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.change.rollback', (ref) =>
-      dispatch('gittree.hunk.rollback', ref),
+    vscode.commands.registerCommand('geet.change.rollback', (ref) =>
+      dispatch('geet.hunk.rollback', ref),
     ),
-    vscode.commands.registerCommand('gittree.change.stage', (ref) =>
-      dispatch('gittree.hunk.stage', ref),
+    vscode.commands.registerCommand('geet.change.stage', (ref) =>
+      dispatch('geet.hunk.stage', ref),
     ),
-    vscode.commands.registerCommand('gittree.change.openCommitView', (ref) =>
-      dispatch('gittree.hunk.openCommitView', ref),
+    vscode.commands.registerCommand('geet.change.openCommitView', (ref) =>
+      dispatch('geet.hunk.openCommitView', ref),
     ),
-    vscode.commands.registerCommand('gittree.change.next', (ref) => reveal(ref, 'next')),
-    vscode.commands.registerCommand('gittree.change.prev', (ref) => reveal(ref, 'prev')),
+    vscode.commands.registerCommand('geet.change.next', (ref) => reveal(ref, 'next')),
+    vscode.commands.registerCommand('geet.change.prev', (ref) => reveal(ref, 'prev')),
 
     // Keyboard entry point: act on the change under the cursor.
-    vscode.commands.registerCommand('gittree.change.showActions', async () => {
+    vscode.commands.registerCommand('geet.change.showActions', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
       const doc = bars.changesFor(editor.document.uri);
@@ -188,15 +188,15 @@ export function registerChangePopup(
       }
 
       const actions = [
-        link(vscode.l10n.t('$(discard) Rollback'), 'gittree.change.rollback', ref),
-        link(vscode.l10n.t('$(add) Stage'), 'gittree.change.stage', ref),
-        link(vscode.l10n.t('$(git-commit) Commit View'), 'gittree.change.openCommitView', ref),
+        link(vscode.l10n.t('$(discard) Rollback'), 'geet.change.rollback', ref),
+        link(vscode.l10n.t('$(add) Stage'), 'geet.change.stage', ref),
+        link(vscode.l10n.t('$(git-commit) Commit View'), 'geet.change.openCommitView', ref),
       ];
       if (prevChange(doc.changes, change.startLine)) {
-        actions.push(link('$(arrow-up)', 'gittree.change.prev', ref));
+        actions.push(link('$(arrow-up)', 'geet.change.prev', ref));
       }
       if (nextChange(doc.changes, change.endLine)) {
-        actions.push(link('$(arrow-down)', 'gittree.change.next', ref));
+        actions.push(link('$(arrow-down)', 'geet.change.next', ref));
       }
       md.appendMarkdown(actions.join(' · '));
 
@@ -225,7 +225,7 @@ export function registerChangePopup(
   syncHover();
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration(`gittree.${HOVER_ACTIONS_SETTING}`)) syncHover();
+      if (e.affectsConfiguration(`geet.${HOVER_ACTIONS_SETTING}`)) syncHover();
     }),
     // Whatever is registered at deactivation goes with the extension.
     {

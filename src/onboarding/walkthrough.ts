@@ -4,7 +4,7 @@
  */
 
 /** `contributes.walkthroughs[0].id` in package.json. */
-export const WALKTHROUGH = 'gittree.gettingStarted';
+export const WALKTHROUGH = 'geet.gettingStarted';
 
 /**
  * The extension ID is the running one's, never written down: it is

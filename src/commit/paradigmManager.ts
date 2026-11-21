@@ -1,6 +1,6 @@
 /**
- * ParadigmManager (P3-T1): owns gittree.commit.paradigm and the
- * `gittree.paradigm` context key every commit-UI `when` clause hangs off.
+ * ParadigmManager (P3-T1): owns geet.commit.paradigm and the
+ * `geet.paradigm` context key every commit-UI `when` clause hangs off.
  * Switching staging→changelists unstages everything (changelists ignore the
  * index) after a modal confirm.
  */
@@ -23,7 +23,7 @@ export class ParadigmManager implements vscode.Disposable {
     void this.applyContext();
     this.subs.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.commit.paradigm')) {
+        if (e.affectsConfiguration('geet.commit.paradigm')) {
           const next = this.read();
           if (next !== this.current) {
             this.current = next;
@@ -41,16 +41,16 @@ export class ParadigmManager implements vscode.Disposable {
 
   private read(): CommitParadigm {
     const v = vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<string>('commit.paradigm', 'changelists');
     return v === 'staging' ? 'staging' : 'changelists';
   }
 
   private async applyContext(): Promise<void> {
-    await vscode.commands.executeCommand('setContext', 'gittree.paradigm', this.current);
+    await vscode.commands.executeCommand('setContext', 'geet.paradigm', this.current);
   }
 
-  /** `gittree.commit.switchParadigm` — flips the setting with side effects. */
+  /** `geet.commit.switchParadigm` — flips the setting with side effects. */
   async switch(): Promise<void> {
     const target: CommitParadigm = this.current === 'changelists' ? 'staging' : 'changelists';
     if (target === 'changelists') {
@@ -78,7 +78,7 @@ export class ParadigmManager implements vscode.Disposable {
         }
       }
     }
-    await writeSetting('gittree', 'commit.paradigm', target);
+    await writeSetting('geet', 'commit.paradigm', target);
     // The config listener fires the change; ensure prompt UI update even if
     // the workspace value matches the global default.
     if (this.read() === target && this.current !== target) {

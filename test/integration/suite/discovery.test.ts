@@ -18,7 +18,7 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     assert.ok(ext, 'extension missing');
     const api = await ext.activate();
     const corePromise = api.getCore();
-    assert.ok(corePromise, 'test hook getCore() unavailable — GITTREE_TEST not set?');
+    assert.ok(corePromise, 'test hook getCore() unavailable — GEET_TEST not set?');
     const c = await corePromise;
     assert.ok(c, 'core failed to initialize (git missing?)');
     return c;
@@ -29,8 +29,8 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     const c = await core();
     assert.strictEqual(c.repos.length, 5, `expected 5 repos, got ${c.repos.map((r) => r.root).join(', ')}`);
     const keys = c.repos.map((r) => canonicalKey(r.root));
-    const repoA = process.env['GITTREE_TEST_REPO_A'];
-    const repoB = process.env['GITTREE_TEST_REPO_B'];
+    const repoA = process.env['GEET_TEST_REPO_A'];
+    const repoB = process.env['GEET_TEST_REPO_B'];
     assert.ok(repoA && repoB, 'runner did not export fixture repo paths');
     assert.ok(keys.includes(canonicalKey(repoA)), `repoA missing from ${keys.join(', ')}`);
     assert.ok(keys.includes(canonicalKey(repoB)), `repoB missing from ${keys.join(', ')}`);
@@ -82,7 +82,7 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
 
     suiteSetup(function () {
       this.timeout(60_000);
-      parent = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-scan-'));
+      parent = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-scan-'));
       for (const name of ['alpha', 'beta', 'gamma']) {
         const repo = path.join(parent, name);
         fs.mkdirSync(repo);
@@ -169,16 +169,16 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
     test('are governed by settings that are actually registered', () => {
       // Core reads these two keys; a typo in either package.json id would
       // silently fall back to the `get` default and never be tunable.
-      const cfg = vscode.workspace.getConfiguration('gittree');
+      const cfg = vscode.workspace.getConfiguration('geet');
       assert.strictEqual(
         cfg.inspect<number>('repositoryScan.maxDepth')?.defaultValue,
         1,
-        'gittree.repositoryScan.maxDepth is not contributed with default 1',
+        'geet.repositoryScan.maxDepth is not contributed with default 1',
       );
       assert.deepStrictEqual(
         cfg.inspect<string[]>('repositoryScan.ignoredFolders')?.defaultValue,
         ['node_modules'],
-        'gittree.repositoryScan.ignoredFolders is not contributed with the expected default',
+        'geet.repositoryScan.ignoredFolders is not contributed with the expected default',
       );
     });
 
@@ -195,7 +195,7 @@ suite('P0-T7 discovery, activation, ModeManager', () => {
   test('debug command dumps repository state as JSON', async function () {
     this.timeout(30_000);
     await core();
-    await vscode.commands.executeCommand('gittree.debug.showState');
+    await vscode.commands.executeCommand('geet.debug.showState');
     const doc = vscode.window.activeTextEditor?.document;
     assert.ok(doc, 'no active editor after debug command');
     const parsed = JSON.parse(doc.getText()) as {

@@ -105,7 +105,7 @@ test.describe('several repositories', () => {
     await expect(banner.getByRole('status')).toContainText('Rebasing 2/5 · 2 conflicts');
     await banner.getByRole('button', { name: 'Continue' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.rebase.continue', root: SHARED },
+      run: { type: 'command', command: 'geet.rebase.continue', root: SHARED },
     });
   });
 
@@ -219,7 +219,7 @@ test.describe('several repositories', () => {
 
     await menu.getByRole('menuitem', { name: 'Show in New Log Tab' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.repositories.showInLog', root: WEB },
+      run: { type: 'command', command: 'geet.repositories.showInLog', root: WEB },
     });
   });
 
@@ -233,12 +233,12 @@ test.describe('several repositories', () => {
     await expect(menu.getByRole('menuitem', { name: 'Update Project…' })).toHaveCount(0);
     await menu.getByRole('menuitem', { name: 'Update Repository Without Fetching…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.update.repositoryWithoutFetch', root: WEB },
+      run: { type: 'command', command: 'geet.update.repositoryWithoutFetch', root: WEB },
     });
     await row(page, `repo:${WEB}`).click({ button: 'right' });
     await page.getByRole('menu', { name: 'Actions for web' }).getByRole('menuitem', { name: 'Update Repository…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.update.repository', root: WEB },
+      run: { type: 'command', command: 'geet.update.repository', root: WEB },
     });
 
     // Its row's ↓ button.
@@ -247,7 +247,7 @@ test.describe('several repositories', () => {
     await expect(web.getByRole('button', { name: 'Update Project…' })).toHaveCount(0);
     await web.getByRole('button', { name: 'Update Repository…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.update.repository', root: WEB },
+      run: { type: 'command', command: 'geet.update.repository', root: WEB },
     });
   });
 
@@ -629,7 +629,7 @@ test.describe('several repositories', () => {
     await web.hover();
     await web.getByRole('button', { name: 'Fetch' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.fetch', root: WEB },
+      run: { type: 'command', command: 'geet.fetch', root: WEB },
     });
     await expect(web).toHaveAttribute('aria-label', /fetching$/u);
     await expect(web.locator('.gt-spin')).toHaveCount(1);
@@ -709,7 +709,7 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.branches.checkoutRevision', root: API },
+      run: { type: 'command', command: 'geet.branches.checkoutRevision', root: API },
     });
   });
 
@@ -718,7 +718,7 @@ test.describe('one branch in every repository (POST-P14ax)', () => {
     await page.locator('.gtp-toolbar').getByRole('button', { name: 'More Actions' }).click();
     await page.getByRole('menuitem', { name: 'Checkout Tag or Revision…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.branches.checkoutRevision', root: WEB },
+      run: { type: 'command', command: 'geet.branches.checkoutRevision', root: WEB },
     });
   });
 
@@ -1309,14 +1309,14 @@ test.describe('one repository', () => {
     await expect(head.getByRole('button', { name: 'Update Repository…' })).toHaveCount(0);
     await head.getByRole('button', { name: 'Update Project…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.update.dialog', root: WEB },
+      run: { type: 'command', command: 'geet.update.dialog', root: WEB },
     });
     await head.click({ button: 'right' });
     const menu = page.getByRole('menu', { name: 'Actions for web' });
     await expect(menu.getByRole('menuitem', { name: 'Update Repository…' })).toHaveCount(0);
     await menu.getByRole('menuitem', { name: 'Update Project Without Fetching…' }).click();
     expect((await requests(page, 'branches/run')).at(-1)).toEqual({
-      run: { type: 'command', command: 'gittree.update.withoutFetch', root: WEB },
+      run: { type: 'command', command: 'geet.update.withoutFetch', root: WEB },
     });
   });
 
@@ -1554,7 +1554,7 @@ test.describe('the Repositories and Branches panels (POST-P14co)', () => {
   }) => {
     await openPanel(page, { role: 'repositories' });
     await page.evaluate(() =>
-      document.documentElement.style.setProperty('--vscode-gittree-sectionBorder', 'rgb(1, 2, 3)'),
+      document.documentElement.style.setProperty('--vscode-geet-sectionBorder', 'rgb(1, 2, 3)'),
     );
     const edge = await page.locator('.gtp-edge').evaluate((el) => {
       const s = getComputedStyle(el);

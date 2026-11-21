@@ -1,7 +1,7 @@
 /**
  * Analyze check (P3-T7 step 4): save targets, wait for diagnostics to
  * quiesce (1.2 s silence, 10 s cap), then gate on collected diagnostics at or
- * above gittree.commit.checks.analyzeSeverity. Non-blocking (IntelliJ lets
+ * above geet.commit.checks.analyzeSeverity. Non-blocking (IntelliJ lets
  * you commit anyway); Review opens the Problems view + first offender.
  */
 import * as vscode from 'vscode';
@@ -12,7 +12,7 @@ const QUIESCE_CAP_MS = 10_000;
 
 function severityFloor(): vscode.DiagnosticSeverity {
   const v = vscode.workspace
-    .getConfiguration('gittree.commit.checks')
+    .getConfiguration('geet.commit.checks')
     .get<string>('analyzeSeverity', 'error');
   return v === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
 }

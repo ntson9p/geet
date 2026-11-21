@@ -1,6 +1,6 @@
 /**
  * Shelf tab bridge (P11-T6): serves the commit window's `Shelf` tab and routes
- * its actions through the SAME `gittree.shelf.*` commands the tree view uses —
+ * its actions through the SAME `geet.shelf.*` commands the tree view uses —
  * one implementation, two surfaces, so they cannot produce different
  * `shelfStore` states. The bridge is attached by the phase-07 register layer
  * (the stores are built there, after phase 03); until it is attached, the
@@ -41,7 +41,7 @@ export class ShelfBridge implements vscode.Disposable {
     this.subs.push(
       new vscode.Disposable(() => addSub.dispose()),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.shelf.showUnshelved')) this._onDidChange.fire();
+        if (e.affectsConfiguration('geet.shelf.showUnshelved')) this._onDidChange.fire();
       }),
     );
   }
@@ -90,37 +90,37 @@ export class ShelfBridge implements vscode.Disposable {
         : undefined;
     switch (params.action) {
       case 'unshelve':
-        await vscode.commands.executeCommand('gittree.shelf.unshelve', arg);
+        await vscode.commands.executeCommand('geet.shelf.unshelve', arg);
         return;
       case 'unshelveSilently':
-        await vscode.commands.executeCommand('gittree.shelf.unshelveSilently', arg);
+        await vscode.commands.executeCommand('geet.shelf.unshelveSilently', arg);
         return;
       case 'unshelveFiles':
-        await vscode.commands.executeCommand('gittree.shelf.unshelvePartial', arg);
+        await vscode.commands.executeCommand('geet.shelf.unshelvePartial', arg);
         return;
       case 'compareWithLocal':
-        await vscode.commands.executeCommand('gittree.shelf.compareWithLocal', arg);
+        await vscode.commands.executeCommand('geet.shelf.compareWithLocal', arg);
         return;
       case 'openDiff':
-        await vscode.commands.executeCommand('gittree.shelf.openShelvedDiff', arg);
+        await vscode.commands.executeCommand('geet.shelf.openShelvedDiff', arg);
         return;
       case 'showPatch':
-        await vscode.commands.executeCommand('gittree.shelf.showPatch', arg);
+        await vscode.commands.executeCommand('geet.shelf.showPatch', arg);
         return;
       case 'export':
-        await vscode.commands.executeCommand('gittree.shelf.export', arg);
+        await vscode.commands.executeCommand('geet.shelf.export', arg);
         return;
       case 'rename':
-        await vscode.commands.executeCommand('gittree.shelf.rename', arg);
+        await vscode.commands.executeCommand('geet.shelf.rename', arg);
         return;
       case 'delete':
-        await vscode.commands.executeCommand('gittree.shelf.delete', arg);
+        await vscode.commands.executeCommand('geet.shelf.delete', arg);
         return;
       case 'import':
-        await vscode.commands.executeCommand('gittree.shelf.import');
+        await vscode.commands.executeCommand('geet.shelf.import');
         return;
       case 'toggleShowUnshelved':
-        await vscode.commands.executeCommand('gittree.shelf.showUnshelved');
+        await vscode.commands.executeCommand('geet.shelf.showUnshelved');
         return;
     }
   }

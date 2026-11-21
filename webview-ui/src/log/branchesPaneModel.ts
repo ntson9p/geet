@@ -3,7 +3,7 @@
  * `HEAD (Current)` → `Local` (favorites first) → `Remote` per remote → `Tags`.
  * Pure, so what each toggle shows or hides is testable without a page:
  * favorites-only and the search box narrow it; `Branches Pane Settings · Show
- * Tags` (`gittree.branches.showTags`) drops the `Tags` node altogether.
+ * Tags` (`geet.branches.showTags`) drops the `Tags` node altogether.
  */
 import type { LogBranchesDto } from '../../../src/shared/protocol';
 import { buildTree, type TreeDirNode, type TreeNode } from '../lib/treeModel';

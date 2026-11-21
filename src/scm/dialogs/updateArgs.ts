@@ -21,7 +21,7 @@ import { formatGitCommands } from './commandLine';
 
 export type UpdateStrategy = 'merge' | 'rebase';
 
-/** How `gittree.update.strategy` is stored: `ask` keeps the question. */
+/** How `geet.update.strategy` is stored: `ask` keeps the question. */
 export type UpdateStrategySetting = 'ask' | UpdateStrategy;
 
 /** One button of the Update Project question. */
@@ -31,7 +31,7 @@ export function normalizeStrategySetting(raw: string | undefined): UpdateStrateg
   return raw === 'merge' || raw === 'rebase' ? raw : 'ask';
 }
 
-/** The fetch half — always pruned, matching the P1 `gittree.fetch` behaviour. */
+/** The fetch half — always pruned, matching the P1 `geet.fetch` behaviour. */
 export function buildUpdateFetchArgs(remote?: string): string[] {
   return remote !== undefined && remote.length > 0
     ? ['fetch', '--prune', remote]

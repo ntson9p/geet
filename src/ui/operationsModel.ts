@@ -92,7 +92,7 @@ export function inProgressItems(ctx: OpsContext): OpsItem[] {
           : 'Merge';
   const items: OpsItem[] = [
     {
-      command: isRebase ? 'gittree.rebase.continue' : 'gittree.merge.continueOp',
+      command: isRebase ? 'geet.rebase.continue' : 'geet.merge.continueOp',
       label: `Continue ${pretty}`,
       group: 'inProgress',
       icon: 'debug-continue',
@@ -100,14 +100,14 @@ export function inProgressItems(ctx: OpsContext): OpsItem[] {
   ];
   if (isRebase) {
     items.push({
-      command: 'gittree.rebase.skip',
+      command: 'geet.rebase.skip',
       label: 'Skip Current Commit',
       group: 'inProgress',
       icon: 'debug-step-over',
     });
   }
   items.push({
-    command: isRebase ? 'gittree.rebase.abort' : 'gittree.merge.abortOp',
+    command: isRebase ? 'geet.rebase.abort' : 'geet.merge.abortOp',
     label: `Abort ${pretty}`,
     group: 'inProgress',
     icon: 'discard',
@@ -119,11 +119,11 @@ export function inProgressItems(ctx: OpsContext): OpsItem[] {
 export function diffItems(ctx: OpsContext): OpsItem[] {
   if (!ctx.diffEditorFocused) return [];
   return [
-    { command: 'gittree.stageHunk', label: 'Stage Hunk', group: 'diff', icon: 'diff-added' },
-    { command: 'gittree.unstageHunk', label: 'Unstage Hunk', group: 'diff', icon: 'diff-removed' },
-    { command: 'gittree.revertHunk', label: 'Revert Hunk', group: 'diff', icon: 'discard' },
+    { command: 'geet.stageHunk', label: 'Stage Hunk', group: 'diff', icon: 'diff-added' },
+    { command: 'geet.unstageHunk', label: 'Unstage Hunk', group: 'diff', icon: 'diff-removed' },
+    { command: 'geet.revertHunk', label: 'Revert Hunk', group: 'diff', icon: 'discard' },
     {
-      command: 'gittree.merge.nextConflict',
+      command: 'geet.merge.nextConflict',
       label: 'Next Difference',
       group: 'diff',
       icon: 'arrow-down',
@@ -134,7 +134,7 @@ export function diffItems(ctx: OpsContext): OpsItem[] {
 /**
  * Fetch — absent from this popup until POST-P14o, because the enumeration reads
  * `dialogRegistry` and fetch has no dialog. It is project-wide (IntelliJ's is),
- * so it dispatches `gittree.fetch.all` with an explicit empty argument list:
+ * so it dispatches `geet.fetch.all` with an explicit empty argument list:
  * the popup otherwise passes the active root and would scope it back down.
  */
 export function syncItems(ctx: OpsContext): OpsItem[] {
@@ -142,7 +142,7 @@ export function syncItems(ctx: OpsContext): OpsItem[] {
   const many = (ctx.repoCount ?? 1) > 1;
   return [
     {
-      command: 'gittree.fetch.all',
+      command: 'geet.fetch.all',
       label: many ? 'Fetch All Repositories' : 'Fetch',
       group: 'sync',
       icon: 'sync',
@@ -155,11 +155,11 @@ export function syncItems(ctx: OpsContext): OpsItem[] {
 export function commitItems(ctx: OpsContext): OpsItem[] {
   if (!ctx.commitSelected) return [];
   return [
-    { command: 'gittree.log.checkoutRevision', label: 'Checkout Revision', group: 'commit' },
-    { command: 'gittree.log.createBranchHere', label: 'New Branch Here…', group: 'commit' },
-    { command: 'gittree.log.createTagHere', label: 'New Tag Here…', group: 'commit' },
-    { command: 'gittree.log.copySha', label: 'Copy Revision Number', group: 'commit' },
-    { command: 'gittree.log.compareWithLocal', label: 'Compare with Local', group: 'commit' },
+    { command: 'geet.log.checkoutRevision', label: 'Checkout Revision', group: 'commit' },
+    { command: 'geet.log.createBranchHere', label: 'New Branch Here…', group: 'commit' },
+    { command: 'geet.log.createTagHere', label: 'New Tag Here…', group: 'commit' },
+    { command: 'geet.log.copySha', label: 'Copy Revision Number', group: 'commit' },
+    { command: 'geet.log.compareWithLocal', label: 'Compare with Local', group: 'commit' },
   ];
 }
 

@@ -37,7 +37,7 @@ const submenuLabels = new Map(
 );
 
 const entries = pkg.contributes.menus['view/item/context']!.filter((m) =>
-  String(m.when ?? '').includes('view == gittree.branches'),
+  String(m.when ?? '').includes('view == geet.branches'),
 );
 
 /** The `viewItem <op> <value>` half of a when clause, as VS Code reads it. */
@@ -177,7 +177,7 @@ describe('the Branches tree context menu', () => {
 });
 
 describe('the Tracked Branch submenu', () => {
-  const rows = pkg.contributes.menus['gittree.branches.trackedSubmenu'] ?? [];
+  const rows = pkg.contributes.menus['geet.branches.trackedSubmenu'] ?? [];
 
   it('is the remote-branch action set, aimed at the upstream', () => {
     const labels = rows
@@ -210,9 +210,9 @@ describe('the Tracked Branch submenu', () => {
 });
 
 /**
- * POST-P14u split the one branch tree into two: `gittree.branches` is the
- * repository-scoped hub the sidebar shows, `gittree.branchesLegacy` the
- * all-repositories tree behind `gittree.sidebar.extraViews`. Both draw branch
+ * POST-P14u split the one branch tree into two: `geet.branches` is the
+ * repository-scoped hub the sidebar shows, `geet.branchesLegacy` the
+ * all-repositories tree behind `geet.sidebar.extraViews`. Both draw branch
  * rows, both label them with `branchActions.branchContextValue`, and a clause
  * that named only one of them would hand the same ref two different menus —
  * the defect at the top of this file, one level up.
@@ -221,8 +221,8 @@ describe('both branch trees', () => {
   it('share every row, so neither is missing what the other offers', () => {
     expect(entries.length).toBeGreaterThan(0);
     for (const e of entries) {
-      expect(e.when).toContain('view == gittree.branchesTree');
-      expect(e.when).toContain('view == gittree.branchesLegacy');
+      expect(e.when).toContain('view == geet.branchesTree');
+      expect(e.when).toContain('view == geet.branchesLegacy');
     }
   });
 });
@@ -231,15 +231,15 @@ describe("the log's Branches pane menu", () => {
   const rows = pkg.contributes.menus['webview/context'] ?? [];
 
   it('offers Stop Tracking only on a row that says it tracks something', () => {
-    const stop = rows.find((r) => r.command === 'gittree.log.branch.stopTracking');
+    const stop = rows.find((r) => r.command === 'geet.log.branch.stopTracking');
     expect(stop?.when).toContain("webviewSection == 'logBranch'");
     // The key `BranchesPane.tsx` puts in the row's `data-vscode-context`.
-    expect(stop?.when).toContain('gittree.branchTracked');
+    expect(stop?.when).toContain('geet.branchTracked');
   });
 
   it('keeps the row out of the command palette, where it would name no branch', () => {
     const hidden = (pkg.contributes.menus['commandPalette'] ?? []).filter((m) => m.when === 'false');
-    for (const command of ['gittree.log.branch.stopTracking', 'gittree.branch.stopTracking']) {
+    for (const command of ['geet.log.branch.stopTracking', 'geet.branch.stopTracking']) {
       expect(hidden.some((m) => m.command === command)).toBe(true);
     }
   });
@@ -247,7 +247,7 @@ describe("the log's Branches pane menu", () => {
 
 describe('the Repositories row context menu', () => {
   const repoEntries = pkg.contributes.menus['view/item/context']!.filter((m) =>
-    String(m.when ?? '').includes('view == gittree.repositories'),
+    String(m.when ?? '').includes('view == geet.repositories'),
   );
 
   it('covers the same ground as VS Code’s own repository ⋯ menu, in Geet’s words', () => {
@@ -282,18 +282,18 @@ describe('the Repositories row context menu', () => {
     // the repository the row stands for. A command that ignored its first
     // argument would silently act on whichever repository the editor is in.
     const repoScoped = new Set([
-      'gittree.repositories.showInLog',
-      'gittree.update.repository',
-      'gittree.update.repositoryWithoutFetch',
-      'gittree.push.dialog',
-      'gittree.fetch',
-      'gittree.commit',
-      'gittree.branches.open',
-      'gittree.branch.new',
-      'gittree.branches.checkoutRevision',
-      'gittree.stash.dialog',
-      'gittree.unstash.dialog',
-      'gittree.remotes.manage',
+      'geet.repositories.showInLog',
+      'geet.update.repository',
+      'geet.update.repositoryWithoutFetch',
+      'geet.push.dialog',
+      'geet.fetch',
+      'geet.commit',
+      'geet.branches.open',
+      'geet.branch.new',
+      'geet.branches.checkoutRevision',
+      'geet.stash.dialog',
+      'geet.unstash.dialog',
+      'geet.remotes.manage',
     ]);
     for (const e of repoEntries) expect(repoScoped.has(e.command!)).toBe(true);
   });
@@ -304,14 +304,14 @@ describe('the Repositories row context menu', () => {
     const hidden = new Set(
       (pkg.contributes.menus['commandPalette'] ?? []).filter((m) => m.when === 'false').map((m) => m.command),
     );
-    for (const command of ['gittree.update.repository', 'gittree.update.repositoryWithoutFetch']) {
+    for (const command of ['geet.update.repository', 'geet.update.repositoryWithoutFetch']) {
       expect(titles.has(command), command).toBe(true);
       expect(hidden.has(command), command).toBe(true);
     }
-    expect(titles.get('gittree.update.repository')).toBe('Update Repository…');
-    expect(titles.get('gittree.update.repositoryWithoutFetch')).toBe('Update Repository Without Fetching…');
+    expect(titles.get('geet.update.repository')).toBe('Update Repository…');
+    expect(titles.get('geet.update.repositoryWithoutFetch')).toBe('Update Repository Without Fetching…');
     // The project's stay in it.
-    for (const command of ['gittree.update.dialog', 'gittree.update.withoutFetch']) {
+    for (const command of ['geet.update.dialog', 'geet.update.withoutFetch']) {
       expect(hidden.has(command), command).toBe(false);
     }
   });

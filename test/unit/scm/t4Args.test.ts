@@ -349,25 +349,25 @@ describe('DIALOG_REGISTRY', () => {
 
   it('offers only Clone with no repository open', () => {
     expect(applicableDialogs(EMPTY_DIALOG_CONTEXT).map((d) => d.command)).toEqual([
-      'gittree.clone.dialog',
+      'geet.clone.dialog',
     ]);
   });
 
   it('gates the change dialogs on a dirty worktree', () => {
     const clean = applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true });
-    expect(clean.map((d) => d.command)).not.toContain('gittree.stash.dialog');
-    expect(clean.map((d) => d.command)).not.toContain('gittree.rollback.dialog');
+    expect(clean.map((d) => d.command)).not.toContain('geet.stash.dialog');
+    expect(clean.map((d) => d.command)).not.toContain('geet.rollback.dialog');
 
     const dirty = applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true, dirty: true });
-    expect(dirty.map((d) => d.command)).toContain('gittree.stash.dialog');
-    expect(dirty.map((d) => d.command)).toContain('gittree.rollback.dialog');
-    expect(dirty.map((d) => d.command)).toContain('gittree.commit');
+    expect(dirty.map((d) => d.command)).toContain('geet.stash.dialog');
+    expect(dirty.map((d) => d.command)).toContain('geet.rollback.dialog');
+    expect(dirty.map((d) => d.command)).toContain('geet.commit');
   });
 
   it('gates Push on a remote and Update on an upstream', () => {
     const bare = applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true });
-    expect(bare.map((d) => d.command)).not.toContain('gittree.push.dialog');
-    expect(bare.map((d) => d.command)).not.toContain('gittree.update.dialog');
+    expect(bare.map((d) => d.command)).not.toContain('geet.push.dialog');
+    expect(bare.map((d) => d.command)).not.toContain('geet.update.dialog');
 
     const wired = applicableDialogs({
       ...EMPTY_DIALOG_CONTEXT,
@@ -375,37 +375,37 @@ describe('DIALOG_REGISTRY', () => {
       hasRemote: true,
       hasUpstream: true,
     });
-    expect(wired.map((d) => d.command)).toContain('gittree.push.dialog');
-    expect(wired.map((d) => d.command)).toContain('gittree.update.dialog');
+    expect(wired.map((d) => d.command)).toContain('geet.push.dialog');
+    expect(wired.map((d) => d.command)).toContain('geet.update.dialog');
   });
 
   it('POST-P14bm: offers Update Project Without Fetching where Update Project is, right after it', () => {
     const bare = applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true, hasRemote: true });
-    expect(bare.map((d) => d.command)).not.toContain('gittree.update.withoutFetch');
+    expect(bare.map((d) => d.command)).not.toContain('geet.update.withoutFetch');
     const wired = applicableDialogs({
       ...EMPTY_DIALOG_CONTEXT,
       hasRepo: true,
       hasRemote: true,
       hasUpstream: true,
     }).map((d) => d.command);
-    expect(wired.indexOf('gittree.update.withoutFetch')).toBe(wired.indexOf('gittree.update.dialog') + 1);
+    expect(wired.indexOf('geet.update.withoutFetch')).toBe(wired.indexOf('geet.update.dialog') + 1);
     // The project, as Update Project is: never scoped down to the popup's repository.
-    expect(DIALOG_REGISTRY.find((d) => d.command === 'gittree.update.withoutFetch')?.args).toEqual([]);
+    expect(DIALOG_REGISTRY.find((d) => d.command === 'geet.update.withoutFetch')?.args).toEqual([]);
   });
 
   it('offers Unstash only when a stash exists', () => {
     expect(
       applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true }).map((d) => d.command),
-    ).not.toContain('gittree.unstash.dialog');
+    ).not.toContain('geet.unstash.dialog');
     expect(
       applicableDialogs({ ...EMPTY_DIALOG_CONTEXT, hasRepo: true, hasStash: true }).map(
         (d) => d.command,
       ),
-    ).toContain('gittree.unstash.dialog');
+    ).toContain('geet.unstash.dialog');
   });
 
   it('finds an entry by command id', () => {
-    expect(findDialog('gittree.push.dialog')?.label).toBe('Push…');
-    expect(findDialog('gittree.nope')).toBeUndefined();
+    expect(findDialog('geet.push.dialog')?.label).toBe('Push…');
+    expect(findDialog('geet.nope')).toBeUndefined();
   });
 });

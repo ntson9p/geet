@@ -53,7 +53,7 @@ function parseArgs(core: Core, args: unknown[]): HunkArgs | undefined {
 
 export function registerHunkActions(context: vscode.ExtensionContext, core: Core): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.hunk.rollback', async (...args: unknown[]) => {
+    vscode.commands.registerCommand('geet.hunk.rollback', async (...args: unknown[]) => {
       const parsed = parseArgs(core, args);
       if (!parsed) return;
       const doc = await vscode.workspace.openTextDocument(parsed.uri);
@@ -86,7 +86,7 @@ export function registerHunkActions(context: vscode.ExtensionContext, core: Core
       });
     }),
 
-    vscode.commands.registerCommand('gittree.hunk.stage', async (...args: unknown[]) => {
+    vscode.commands.registerCommand('geet.hunk.stage', async (...args: unknown[]) => {
       const parsed = parseArgs(core, args);
       if (!parsed) return;
       const doc = await vscode.workspace.openTextDocument(parsed.uri);
@@ -115,10 +115,10 @@ export function registerHunkActions(context: vscode.ExtensionContext, core: Core
       reportStageOutcome(outcome);
     }),
 
-    vscode.commands.registerCommand('gittree.hunk.openCommitView', async () => {
+    vscode.commands.registerCommand('geet.hunk.openCommitView', async () => {
       // P14-T1: Geet's views moved out of VS Code's SCM container into our
       // own; reveal the container so whichever commit surface is visible shows.
-      await vscode.commands.executeCommand('workbench.view.extension.gittree');
+      await vscode.commands.executeCommand('workbench.view.extension.geet');
     }),
   );
 }

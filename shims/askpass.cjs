@@ -5,13 +5,13 @@
 'use strict';
 const net = require('net');
 
-const pipe = process.env.GITTREE_ASKPASS_PIPE;
-const token = process.env.GITTREE_ASKPASS_TOKEN;
+const pipe = process.env.GEET_ASKPASS_PIPE;
+const token = process.env.GEET_ASKPASS_TOKEN;
 // git invokes: <askpass> 'Username for <https://host>: '
 const prompt = process.argv[process.argv.length - 1] || '';
 
 if (!pipe || !token) {
-  process.stderr.write('gittree-askpass: missing pipe/token env\n');
+  process.stderr.write('geet-askpass: missing pipe/token env\n');
   process.exit(1);
 }
 
@@ -24,7 +24,7 @@ let done = false;
 const fail = (msg) => {
   if (done) return;
   done = true;
-  if (msg) process.stderr.write('gittree-askpass: ' + msg + '\n');
+  if (msg) process.stderr.write('geet-askpass: ' + msg + '\n');
   try {
     socket.destroy();
   } catch {}

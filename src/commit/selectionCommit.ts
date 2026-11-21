@@ -17,7 +17,7 @@ export interface SelectionPatch {
 }
 
 /** The scratch index's name in the git dir. */
-export const SCRATCH_INDEX = 'gittree-partial-index';
+export const SCRATCH_INDEX = 'geet-partial-index';
 
 /**
  * Commits HEAD plus the ticked files and parts of files, and nothing else.

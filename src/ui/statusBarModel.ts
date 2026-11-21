@@ -25,7 +25,7 @@ import { isConflicted } from '../core/model/statusEntry';
 
 /**
  * The brand slot. A stock codicon for now — `contributes.icons` would let this
- * be `media/gittree-mark.svg` as a font glyph, which is the only way an SVG can
+ * be `media/geet-mark.svg` as a font glyph, which is the only way an SVG can
  * reach status-bar text. `$(list-tree)` is chosen for what it is *not*:
  * `$(git-branch)`, `$(source-control)` and `$(git-commit)` all already appear
  * in this strip, drawn by VS Code or by us.

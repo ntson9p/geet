@@ -22,7 +22,7 @@ suite('POST-P14cj Generate Commit Message', () => {
   let repo: RepoHandle;
   let reg: Phase03Registry;
   const REL = 'p14cj/discount.ts';
-  const SECTION = 'gittree.commit.messageGeneration';
+  const SECTION = 'geet.commit.messageGeneration';
 
   /** What each stand-in was sent: the texts of the request's messages. */
   const sent: Array<{ model: string; messages: string[] }> = [];
@@ -139,8 +139,8 @@ suite('POST-P14cj Generate Commit Message', () => {
 
   test('both commands are registered', async () => {
     const commands = await vscode.commands.getCommands(true);
-    assert.ok(commands.includes('gittree.commit.generateMessage'));
-    assert.ok(commands.includes('gittree.commit.chooseMessageModel'));
+    assert.ok(commands.includes('geet.commit.generateMessage'));
+    assert.ok(commands.includes('geet.commit.chooseMessageModel'));
   });
 
   test('writes the message for what is ticked into the box, out of the fence the model wrapped it in', async function () {
@@ -241,7 +241,7 @@ suite('POST-P14cj Generate Commit Message', () => {
     assert.ok(boxRepo, 'no repository for the message box');
     const before = reg.messageBoxFor(boxRepo).value;
     try {
-      await vscode.commands.executeCommand('gittree.commit.generateMessage');
+      await vscode.commands.executeCommand('geet.commit.generateMessage');
       assert.strictEqual(sent.length, 1);
       assert.strictEqual(reg.messageBoxFor(boxRepo).value, 'feat: by the command');
     } finally {

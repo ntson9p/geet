@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const HOST = `
 (() => {
-  window.__gittreeInitialState = { dialog: 'conflicts' };
+  window.__geetInitialState = { dialog: 'conflicts' };
   const PARAMS = {
     repoRoot: 'D:/repos/demo',
     repoLabel: 'demo',

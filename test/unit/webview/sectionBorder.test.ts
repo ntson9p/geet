@@ -1,6 +1,6 @@
 /**
  * POST-P14bu: the borders in Geet's side bar that a drag resizes are drawn as
- * a line, in the theme colour `gittree.sectionBorder`. These pin the colour's
+ * a line, in the theme colour `geet.sectionBorder`. These pin the colour's
  * contribution and the name the webviews read it under; what the lines look
  * like, and where, is the Playwright suites' (commit.spec.ts, branches.spec.ts).
  */
@@ -18,7 +18,7 @@ interface ColorContribution {
   readonly defaults: Record<'light' | 'dark' | 'highContrast' | 'highContrastLight', string>;
 }
 
-const ID = 'gittree.sectionBorder';
+const ID = 'geet.sectionBorder';
 const manifest = JSON.parse(read('package.json')) as { contributes: { colors: ColorContribution[] } };
 const contribution = manifest.contributes.colors.find((c) => c.id === ID);
 /** The CSS that draws the lines: the Commit window's, and the Repositories panel's foot (POST-P14co). */
@@ -74,11 +74,11 @@ describe('the section border colour (POST-P14bu)', () => {
 
   it('is read in the webviews under the name VS Code gives it: the first dot, the only one, a dash', () => {
     // VS Code replaces only the first dot of an id (see `themeColor`); one dot leaves a plain name.
-    const name = '--vscode-gittree-sectionBorder';
+    const name = '--vscode-geet-sectionBorder';
     expect(themeColor(ID, 'x')).toBe(`var(${name}, var(${name}, x))`);
     for (const sheet of STYLESHEETS) {
       const css = read(...sheet);
-      const uses = css.match(/--vscode-gittree-section[\w.\\-]*/gu) ?? [];
+      const uses = css.match(/--vscode-geet-section[\w.\\-]*/gu) ?? [];
       expect(uses.length, sheet.join('/')).toBeGreaterThan(0);
       expect(new Set(uses), sheet.join('/')).toEqual(new Set([name]));
     }
@@ -87,11 +87,11 @@ describe('the section border colour (POST-P14bu)', () => {
   it('draws each line as a border, which forced colours keep, with a fallback where VS Code sets no colour', () => {
     for (const sheet of STYLESHEETS) {
       const css = read(...sheet);
-      const declarations = [...css.matchAll(/^[ \t]*([\w-]+):([^;\n]*--vscode-gittree-sectionBorder[^;\n]*);/gmu)];
+      const declarations = [...css.matchAll(/^[ \t]*([\w-]+):([^;\n]*--vscode-geet-sectionBorder[^;\n]*);/gmu)];
       expect(declarations.length, sheet.join('/')).toBeGreaterThan(0);
       for (const [, property, value] of declarations) {
         expect(['border-top', 'border-top-color'], `${sheet.join('/')}: ${property}`).toContain(property);
-        expect(value, `${sheet.join('/')}: ${property}`).toContain('var(--vscode-gittree-sectionBorder, ');
+        expect(value, `${sheet.join('/')}: ${property}`).toContain('var(--vscode-geet-sectionBorder, ');
       }
     }
   });

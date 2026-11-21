@@ -12,18 +12,18 @@ any of them in Keyboard Shortcuts):
 
 | Key | Command | Where |
 | --- | --- | --- |
-| `Ctrl+Up` (`Cmd+Up`) | `gittree.commit.showMessageHistory` | commit tool window message editor |
-| `Ctrl+Enter` (`Cmd+Enter`) | `gittree.commit.fromMessageBox` | commit tool window's message box (`gittree.commitMessageFocus`) — commits as the Commit button does, as VS Code's Source Control box takes the key (POST-P14bs). Not in the change tree: the owner's choice, where IntelliJ takes it anywhere in its Commit window (D42). The window commits, not the host: the box sends its message on a 250 ms debounce, and the button's path sends it first |
-| `Shift+Alt+R` (`⌥⌘R` on macOS, `Ctrl+Alt+R` on Linux) | `gittree.revealFileInOS.windows` / `.mac` / `.linux` | commit tool window's change tree (`gittree.commitTreeFocus`) — the keyboard's file or folder row in the system's file manager (VS Code's own key for Reveal in File Explorer; POST-P14bq). On Windows the tree answers `Shift+Alt+R` itself: passed on to VS Code from a webview, Alt+R also opens the Run menu |
-| `Ctrl+Alt+Enter` | `gittree.stage.selectedRanges` | diff editor — stages the selected lines/hunk |
-| `F7` / `Shift+F7` | `gittree.merge.nextConflict` / `prevConflict` | merge tri-editor |
+| `Ctrl+Up` (`Cmd+Up`) | `geet.commit.showMessageHistory` | commit tool window message editor |
+| `Ctrl+Enter` (`Cmd+Enter`) | `geet.commit.fromMessageBox` | commit tool window's message box (`geet.commitMessageFocus`) — commits as the Commit button does, as VS Code's Source Control box takes the key (POST-P14bs). Not in the change tree: the owner's choice, where IntelliJ takes it anywhere in its Commit window (D42). The window commits, not the host: the box sends its message on a 250 ms debounce, and the button's path sends it first |
+| `Shift+Alt+R` (`⌥⌘R` on macOS, `Ctrl+Alt+R` on Linux) | `geet.revealFileInOS.windows` / `.mac` / `.linux` | commit tool window's change tree (`geet.commitTreeFocus`) — the keyboard's file or folder row in the system's file manager (VS Code's own key for Reveal in File Explorer; POST-P14bq). On Windows the tree answers `Shift+Alt+R` itself: passed on to VS Code from a webview, Alt+R also opens the Run menu |
+| `Ctrl+Alt+Enter` | `geet.stage.selectedRanges` | diff editor — stages the selected lines/hunk |
+| `F7` / `Shift+F7` | `geet.merge.nextConflict` / `prevConflict` | merge tri-editor |
 | `Alt+F5` / `Shift+Alt+F5` | VS Code's own Next / Previous Change | any diff. On a diff from a list of files they carry on into the next or previous file (see below) |
-| `Shift+Alt+→` / `Shift+Alt+←` (`Cmd+Shift+Alt+→` / `←`) | `gittree.diff.nextFile` / `prevFile` | a diff from a list of files |
-| `Alt+Enter` | `gittree.merge.acceptFocusedSide` | merge tri-editor — chevron accept |
-| `Ctrl+Alt+Enter` | `gittree.merge.apply` | merge tri-editor (outside diff editors) |
-| `Ctrl+Alt+G F` (`Cmd+Alt+G F`) | `gittree.log.focusFilter` | anywhere — reveals the log and focuses its search box |
-| `Ctrl+Alt+G B` (`Cmd+Alt+G B`) | `gittree.blame.toggle` | text editor — toggle blame annotations |
-| `Ctrl+Alt+G H` (`Cmd+Alt+G H`) | `gittree.change.showActions` | text editor — actions for the change under the cursor (P14-T3) |
+| `Shift+Alt+→` / `Shift+Alt+←` (`Cmd+Shift+Alt+→` / `←`) | `geet.diff.nextFile` / `prevFile` | a diff from a list of files |
+| `Alt+Enter` | `geet.merge.acceptFocusedSide` | merge tri-editor — chevron accept |
+| `Ctrl+Alt+Enter` | `geet.merge.apply` | merge tri-editor (outside diff editors) |
+| `Ctrl+Alt+G F` (`Cmd+Alt+G F`) | `geet.log.focusFilter` | anywhere — reveals the log and focuses its search box |
+| `Ctrl+Alt+G B` (`Cmd+Alt+G B`) | `geet.blame.toggle` | text editor — toggle blame annotations |
+| `Ctrl+Alt+G H` (`Cmd+Alt+G H`) | `geet.change.showActions` | text editor — actions for the change under the cursor (P14-T3) |
 
 The `Ctrl+Alt+G …` bindings are chords (press `Ctrl+Alt+G`, release, then
 the second key) so they cannot collide with VS Code defaults.
@@ -34,29 +34,29 @@ have command equivalents:
 
 - **Hunk staging**: the diff-editor CodeLens "Stage hunk ≫" equals selecting
   the hunk's lines and pressing `Ctrl+Alt+Enter`
-  (`gittree.stage.selectedRanges`).
-- **Blame gutter click** equals `gittree.blame.showDiff` /
-  `gittree.blame.revealCursorCommit` from the palette.
+  (`geet.stage.selectedRanges`).
+- **Blame gutter click** equals `geet.blame.showDiff` /
+  `geet.blame.revealCursorCommit` from the palette.
 - **Log toolbar chips** (Branch/User/Date/Path pickers) are buttons in the
-  webview tab order; `gittree.log.setFilter` also accepts a filter via the
+  webview tab order; `geet.log.setFilter` also accepts a filter via the
   extension API.
 
-## Optional IntelliJ keymap (`gittree.keymap.intellij`)
+## Optional IntelliJ keymap (`geet.keymap.intellij`)
 
-Set `"gittree.keymap.intellij": true` to enable an IntelliJ-IDEA-flavored
+Set `"geet.keymap.intellij": true` to enable an IntelliJ-IDEA-flavored
 binding set (all gated on the setting — off by default):
 
 | Key | IntelliJ action | Geet command |
 | --- | --- | --- |
-| `Ctrl+K` (`Cmd+K`) | Commit… | `gittree.commit` — what the Commit window lists: with repositories picked in the Repositories panel, those alone (POST-P14ce, D45) |
-| `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `gittree.push.dialog` |
-| `Ctrl+T` (`Cmd+T`) | Update Project | `gittree.update.dialog` |
-| `Alt+9` (`Cmd+9`) | Git tool window | `gittree.log.focus` |
-| ``Alt+` `` (`Ctrl+V`) | VCS Operations Popup | `gittree.operationsPopup` |
-| `Ctrl+Alt+N` (`Cmd+Alt+N`) | New Branch… | `gittree.branch.new` |
-| `F2` | Rename branch (in the Repositories view) | `gittree.branches.rename` |
-| `Ctrl+Alt+Z` (`Cmd+Alt+Z`) | Rollback | `gittree.rollbackFile` (active file) |
-| `F7` / `Shift+F7` | Next / Previous Difference | `gittree.diff.nextChange` / `prevChange` (Geet diffs only) |
+| `Ctrl+K` (`Cmd+K`) | Commit… | `geet.commit` — what the Commit window lists: with repositories picked in the Repositories panel, those alone (POST-P14ce, D45) |
+| `Ctrl+Shift+K` (`Cmd+Shift+K`) | Push… | `geet.push.dialog` |
+| `Ctrl+T` (`Cmd+T`) | Update Project | `geet.update.dialog` |
+| `Alt+9` (`Cmd+9`) | Git tool window | `geet.log.focus` |
+| ``Alt+` `` (`Ctrl+V`) | VCS Operations Popup | `geet.operationsPopup` |
+| `Ctrl+Alt+N` (`Cmd+Alt+N`) | New Branch… | `geet.branch.new` |
+| `F2` | Rename branch (in the Repositories view) | `geet.branches.rename` |
+| `Ctrl+Alt+Z` (`Cmd+Alt+Z`) | Rollback | `geet.rollbackFile` (active file) |
+| `F7` / `Shift+F7` | Next / Previous Difference | `geet.diff.nextChange` / `prevChange` (Geet diffs only) |
 
 **Known conflicts when enabled** (deliberate — this is what "IntelliJ
 flavor" means; disable the setting to restore the defaults):
@@ -69,7 +69,7 @@ flavor" means; disable the setting to restore the defaults):
 - `F7`/`Shift+F7` are shared with the merge tri-editor (same IntelliJ
   meaning: next/previous difference) and with VS Code's *Go to Next Symbol
   Highlight*. Each binding is `when`-scoped — the diff one requires
-  `gittree.diff.active`, the merge one `gittree.merge.triEditorActive` — so
+  `geet.diff.active`, the merge one `geet.merge.triEditorActive` — so
   only one is ever live, and neither fires in an ordinary editor.
 
 **Walking a commit:** in a diff opened from a list of files, VS Code's own ↓
@@ -77,17 +77,17 @@ button and `Alt+F5`, like `F7` here, walk into the next file IntelliJ-style. The
 first press at the last change shows *Press again to go to the next file* and
 which file that is, the second press goes there, and the end of the last file
 stops rather than wrapping (deviation D20). Every other diff keeps VS Code's
-behaviour, and `gittree.diff.goToNextFileAfterLastChange` turns this off.
+behaviour, and `geet.diff.goToNextFileAfterLastChange` turns this off.
 
 Both open the P13 dialogs rather than acting silently, matching IntelliJ. The
-no-questions `gittree.pull` is still in the palette; the no-questions push is not
+no-questions `geet.pull` is still in the palette; the no-questions push is not
 since POST-P14ao — IntelliJ has no Push without its dialog — and
 `Ctrl+T` becomes a direct action once you choose *Don't Ask Again* on an update's
 result (restore the question with **Geet: Update Project Strategy…**).
-**Geet: Update Project Without Fetching…** (`gittree.update.withoutFetch`) has no
+**Geet: Update Project Without Fetching…** (`geet.update.withoutFetch`) has no
 default key; bind one if you use it often. A repository's own update, **Update
-Repository…** (`gittree.update.repository`) and **Update Repository Without Fetching…**
-(`gittree.update.repositoryWithoutFetch`), is on its menu and not in the palette. A key
+Repository…** (`geet.update.repository`) and **Update Repository Without Fetching…**
+(`geet.update.repositoryWithoutFetch`), is on its menu and not in the palette. A key
 bound to one asks which repository, the open file's first.
 
 ## Webview-internal keys
@@ -95,7 +95,7 @@ bound to one asks which repository, the open file's first.
 The log and rebase webviews implement roving-tabindex lists (one `Tab` stop;
 arrows move within):
 
-**Commit window (`gittree.commit` view)**
+**Commit window (`geet.commit` view)**
 
 | Key | Action |
 | --- | --- |
@@ -109,7 +109,7 @@ arrows move within):
 | `Enter` / `Space` (divider) | back to the box's first 3 lines, as a double-click does |
 | `Enter` (the ▾ beside Commit) | its menu: Commit, Commit and Push… |
 
-**Git log (`gittree.log` view)**
+**Git log (`geet.log` view)**
 
 | Key | Action |
 | --- | --- |
@@ -125,9 +125,9 @@ arrows move within):
 | `←` / `→` / `Home` / `End` (tab strip) | move between Log, Console, Worktrees and the extra Log tabs |
 | `Shift+F10` / context-menu key (tab strip) | the tab menu: Close Tab · Close Other Tabs · Close All Tabs — the keyboard's way to close a tab |
 | Middle-click (tab strip) | close an extra Log tab |
-| Drag / double-click (a column's left border) | resize a column / fit it to its content again. Pointer-only: a width is cosmetic, and the columns themselves are switched from Presentation Settings ▸ Columns (keyboard-reachable) or the `gittree.log.columns.*` settings |
+| Drag / double-click (a column's left border) | resize a column / fit it to its content again. Pointer-only: a width is cosmetic, and the columns themselves are switched from Presentation Settings ▸ Columns (keyboard-reachable) or the `geet.log.columns.*` settings |
 
-**Repositories and Branches panels (`gittree.repositoryList` and `gittree.branches`; one panel until POST-P14co)**
+**Repositories and Branches panels (`geet.repositoryList` and `geet.branches`; one panel until POST-P14co)**
 
 | Key | Action |
 | --- | --- |
@@ -200,7 +200,7 @@ editor navigation applies.
   colors so Windows High Contrast themes stay legible.
 - **Reduced motion**: `prefers-reduced-motion: reduce` disables all webview
   transitions/animations and forces instant scrolling.
-- **Color-blind-safe graph**: `"gittree.log.graphPalette": "colorBlind"`
+- **Color-blind-safe graph**: `"geet.log.graphPalette": "colorBlind"`
   switches the commit graph and ref chips to the Okabe–Ito palette
   (distinguishable under deutan/protan/tritan vision), with separate
   light/dark ramps for contrast. Applies live on settings change.
@@ -218,7 +218,7 @@ editor navigation applies.
 - [x] `prefers-reduced-motion` respected (no webview animations remain)
 - [x] Color-blind-safe palette setting end-to-end (setting → host → canvas + chips, live update)
 - [x] Every mouse affordance has a command-palette route; no mouse-only feature found in the audit
-- [x] IntelliJ keymap set shipped behind `gittree.keymap.intellij`
+- [x] IntelliJ keymap set shipped behind `geet.keymap.intellij`
 
 ## Keyboard-only walkthrough (test notes, 2026-07-16)
 

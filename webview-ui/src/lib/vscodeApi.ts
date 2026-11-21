@@ -11,7 +11,7 @@ export interface VsCodeApi {
 declare global {
   interface Window {
     acquireVsCodeApi?: () => VsCodeApi;
-    __gittreeInitialState?: unknown;
+    __geetInitialState?: unknown;
   }
 }
 
@@ -29,5 +29,5 @@ export function getVsCodeApi(): VsCodeApi {
 
 /** Initial state injected by the host HTML factory (webviewHost.ts). */
 export function getInitialState<T>(): T | undefined {
-  return window.__gittreeInitialState as T | undefined;
+  return window.__geetInitialState as T | undefined;
 }

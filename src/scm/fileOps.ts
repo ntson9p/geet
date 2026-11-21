@@ -170,7 +170,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
 
-  register('gittree.openDiff', async (...args) => {
+  register('geet.openDiff', async (...args) => {
     const state = args.find((a): a is GeetResourceState => a instanceof GeetResourceState);
     if (state) {
       await openDiffForResource(core, state);
@@ -185,7 +185,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     );
   });
 
-  register('gittree.openDiffHead', async (...args) => {
+  register('geet.openDiffHead', async (...args) => {
     const sel = normalize(core, args);
     if (!sel || sel.entries.length === 0) return;
     const entry = sel.entries[0]!;
@@ -194,7 +194,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     await vscode.commands.executeCommand('vscode.diff', left, fileUri, diffTitle(entry.path, 'head'));
   });
 
-  register('gittree.openFile', async (...args) => {
+  register('geet.openFile', async (...args) => {
     const sel = normalize(core, args);
     const state = args.find((a): a is GeetResourceState => a instanceof GeetResourceState);
     const target = state
@@ -205,7 +205,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     if (target) await vscode.window.showTextDocument(target, { preview: false });
   });
 
-  register('gittree.add', async (...args) => {
+  register('geet.add', async (...args) => {
     const sel = normalize(core, args);
     if (!sel || sel.entries.length === 0) return;
     await runGit(
@@ -217,7 +217,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     );
   });
 
-  register('gittree.unstage', async (...args) => {
+  register('geet.unstage', async (...args) => {
     const sel = normalize(core, args);
     if (!sel || sel.entries.length === 0) return;
     const paths = sel.entries.map((e) => e.path);
@@ -250,7 +250,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
    * edit, not a git call — `.gitignore` is ordinary content, and the status
    * refresh that follows is what makes the rows disappear.
    */
-  register('gittree.gitignore.add', async (...args) => {
+  register('geet.gitignore.add', async (...args) => {
     const sel = normalize(core, args);
     if (!sel || sel.entries.length === 0) return;
     const { repo } = sel;
@@ -324,7 +324,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     );
   });
 
-  register('gittree.rollbackFile', async (...args) => {
+  register('geet.rollbackFile', async (...args) => {
     const sel = normalize(core, args);
     if (!sel || sel.entries.length === 0) return;
     const tracked = sel.entries.filter((e) => e.kind !== 'untracked');
@@ -370,7 +370,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     notifySuccess(vscode.l10n.t('Rolled back {0}.', filesCount(sel.entries.length)));
   });
 
-  register('gittree.cleanUntracked', async (...args) => {
+  register('geet.cleanUntracked', async (...args) => {
     const sel = normalize(core, args);
     const repo = sel?.repo ?? core.repos[0];
     if (!repo) return;
@@ -405,7 +405,7 @@ export function registerFileOps(context: vscode.ExtensionContext, core: Core): v
     notifySuccess(vscode.l10n.t('Deleted {0}.', untrackedFilesCount(untracked.length)));
   });
 
-  register('gittree.refresh', async () => {
+  register('geet.refresh', async () => {
     await Promise.all(core.repos.map((r) => r.refresher.refreshNow()));
   });
 }

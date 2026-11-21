@@ -48,7 +48,7 @@ export async function applyCodeActionKind(ctx: CheckContext, kind: vscode.CodeAc
  */
 export function cleanupKind(): vscode.CodeActionKind {
   const raw = vscode.workspace
-    .getConfiguration('gittree.commit.checks')
+    .getConfiguration('geet.commit.checks')
     .get<string>('cleanupKind', 'source.fixAll');
   const value = raw.trim();
   return value.length === 0 || !value.startsWith('source.')

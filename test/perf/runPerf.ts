@@ -25,7 +25,7 @@ async function main(): Promise<void> {
 
   console.log(`[perf] building ${LOG_COMMITS.toLocaleString()}-commit log fixture…`);
   let t = Date.now();
-  const repoLog = FixtureRepo.create({ prefix: 'gittree-perf-log-' });
+  const repoLog = FixtureRepo.create({ prefix: 'geet-perf-log-' });
   const commits: Array<{
     mark: number;
     parents?: number[];
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
   console.log(`[perf] building ${STATUS_FILES.toLocaleString()}-file status fixture…`);
   t = Date.now();
-  const repoStatus = FixtureRepo.create({ prefix: 'gittree-perf-status-' });
+  const repoStatus = FixtureRepo.create({ prefix: 'geet-perf-status-' });
   const files: Record<string, string> = {};
   for (let i = 0; i < STATUS_FILES; i++) {
     files[`dir${Math.floor(i / 100)}/file${i}.txt`] = `content ${i}\n`;
@@ -65,8 +65,8 @@ async function main(): Promise<void> {
   repoStatus.fastImport([{ mark: 1, message: 'seed files', files }]);
   console.log(`[perf] status fixture ready in ${Date.now() - t} ms`);
 
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-perf-'));
-  const workspaceFile = path.join(scratch, 'gittree-perf.code-workspace');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-perf-'));
+  const workspaceFile = path.join(scratch, 'geet-perf.code-workspace');
   fs.writeFileSync(
     workspaceFile,
     JSON.stringify({ folders: [{ path: repoLog.root }, { path: repoStatus.root }] }, null, 2),
@@ -84,11 +84,11 @@ async function main(): Promise<void> {
         '--skip-release-notes',
       ],
       extensionTestsEnv: {
-        GITTREE_TEST: '1',
-        GITTREE_TEST_AUTOCONFIRM: '1',
-        GITTREE_PERF_REPO_LOG: repoLog.root,
-        GITTREE_PERF_REPO_STATUS: repoStatus.root,
-        GITTREE_PERF_RESULTS: resultsFile,
+        GEET_TEST: '1',
+        GEET_TEST_AUTOCONFIRM: '1',
+        GEET_PERF_REPO_LOG: repoLog.root,
+        GEET_PERF_REPO_STATUS: repoStatus.root,
+        GEET_PERF_RESULTS: resultsFile,
       },
     });
   } finally {

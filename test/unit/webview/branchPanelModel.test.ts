@@ -597,7 +597,7 @@ describe('buildPanel: several repositories', () => {
     // Repositories panel's, where the pick they act on is made…
     expect(repositoryActionsPanel(2)).toBe('repositories');
     expect(repositoryActionsPanel(20)).toBe('repositories');
-    // …and with one, which has no Repositories panel (`gittree.multiRepo`), or none
+    // …and with one, which has no Repositories panel (`geet.multiRepo`), or none
     // yet, the Branches panel's: exactly one panel has them, never both or neither.
     expect(repositoryActionsPanel(1)).toBe('branches');
     expect(repositoryActionsPanel(0)).toBe('branches');

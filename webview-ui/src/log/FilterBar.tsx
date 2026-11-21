@@ -44,7 +44,7 @@ interface DropdownProps {
   label: string;
   /** What the chip says it filters (`filterChips.ts`), cut short when compact. */
   text: ChipText;
-  /** `gittree.log.filterChips` is `compact`: the smaller chip (D39). */
+  /** `geet.log.filterChips` is `compact`: the smaller chip (D39). */
   compact: boolean;
   onClear: () => void;
   testid: string;

@@ -1,5 +1,5 @@
 /**
- * `gittree-rev:` — read-only file content at a revision or index stage
+ * `geet-rev:` — read-only file content at a revision or index stage
  * (master §2 virtual documents). URIs carry the repo root, repo-relative
  * path and ref in the query; the path component mirrors the file path so
  * editor tabs and diff titles look natural.
@@ -12,7 +12,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core';
 import { BINARY_SNIFF_BYTES, binaryPlaceholder, looksBinary, worktreePlaceholder } from './binaryPlaceholder';
 
-export const REV_SCHEME = 'gittree-rev';
+export const REV_SCHEME = 'geet-rev';
 
 /** The side of a diff with nothing on it: a file gone from the working tree. No ref can begin with `~`. */
 export const EMPTY_SIDE_REF = '~empty';

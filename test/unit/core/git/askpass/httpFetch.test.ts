@@ -35,7 +35,7 @@ function sh(cwd: string, ...args: string[]): string {
 }
 
 beforeAll(async () => {
-  scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-askpass-e2e-'));
+  scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-askpass-e2e-'));
 
   // Upstream repo with one commit → bare "remote" prepared for dumb HTTP.
   const work = path.join(scratch, 'work');
@@ -55,7 +55,7 @@ beforeAll(async () => {
   const expected = 'Basic ' + Buffer.from(`${USER}:${PASS}`).toString('base64');
   httpServer = http.createServer((req, res) => {
     if (req.headers.authorization !== expected) {
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="gittree-test"' });
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="geet-test"' });
       res.end('auth required');
       return;
     }

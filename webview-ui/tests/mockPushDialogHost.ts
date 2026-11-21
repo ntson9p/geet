@@ -8,7 +8,7 @@
  * `window.__gtPushScenario`, set by an init script registered before this
  * one, picks the dialog: `single` (default), `multi` (two repositories),
  * `noRemote`, `protected` (the target is `main`), `hooks` (a pre-push hook
- * exists), `many` (45 commits), `needed` (POST-P14cn: `gittree.push.showDialog`
+ * exists), `many` (45 commits), `needed` (POST-P14cn: `geet.push.showDialog`
  * is off, and a Push of two repositories with neither named opened it).
  *
  * `pushDialog/retarget` recomputes host-side in the real thing; here it
@@ -17,7 +17,7 @@
  */
 export const mockPushDialogHostScript = `
 (() => {
-  window.__gittreeInitialState = { dialog: 'push' };
+  window.__geetInitialState = { dialog: 'push' };
   const scenario = window.__gtPushScenario || 'single';
 
   const commit = (sha, subject, at) => ({

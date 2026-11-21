@@ -34,9 +34,9 @@ import { showInfo } from '../ui/notices';
 import { repoRootOf } from '../ui/rowContext';
 import { writeSetting } from '../ui/writeSetting';
 
-const SCOPE_MEMENTO_KEY = 'gittree.sidebar.focusedRepo';
+const SCOPE_MEMENTO_KEY = 'geet.sidebar.focusedRepo';
 /** POST-P14ce: the repositories picked in the Repositories panel, for the workspace. */
-const REPOS_IN_VIEW_KEY = 'gittree.reposInView';
+const REPOS_IN_VIEW_KEY = 'geet.reposInView';
 
 export interface Phase02Registry {
   refServices: Map<string, RefService>;
@@ -49,7 +49,7 @@ export interface Phase02Registry {
   /** Exposed so an integration test can drive the real view, not just the provider. */
   reposView: vscode.TreeView<string>;
   hub: BranchHubViewProvider;
-  /** new-way-4: the sidebar's Repositories and Branches panels (`gittree.repositoryList`, `gittree.branches`; one panel until POST-P14co). */
+  /** new-way-4: the sidebar's Repositories and Branches panels (`geet.repositoryList`, `geet.branches`; one panel until POST-P14co). */
   panel: BranchPanelProvider;
   /** POST-P14ce: the repositories picked in that panel, which the Commit window lists and commits. */
   reposInView: ReposInView;
@@ -81,7 +81,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     let service = refServices.get(key);
     if (!service) {
       service = new RefService(repo, storage, () =>
-        vscode.workspace.getConfiguration('gittree').get<number>('branches.recentCount', 5),
+        vscode.workspace.getConfiguration('geet').get<number>('branches.recentCount', 5),
       );
       refServices.set(key, service);
       repo.disposables.add(service);
@@ -137,12 +137,12 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
 
   const repositories = new RepositoriesViewProvider(core, scope, () =>
     vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('branches.showIncomingOutgoing', true),
   );
   context.subscriptions.push({ dispose: () => repositories.dispose() });
 
-  const reposView = vscode.window.createTreeView('gittree.repositories', {
+  const reposView = vscode.window.createTreeView('geet.repositories', {
     treeDataProvider: repositories,
   });
   context.subscriptions.push(reposView);
@@ -161,7 +161,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     // The section exists only where it means something. A single-root
     // workspace has nothing to choose between, and the Branches view below
     // names its repository anyway.
-    void vscode.commands.executeCommand('setContext', 'gittree.multiRepo', core.repos.length > 1);
+    void vscode.commands.executeCommand('setContext', 'geet.multiRepo', core.repos.length > 1);
     // `REPOSITORIES  7` — the section is collapsed by default, so the count is
     // the only thing it says until someone opens it.
     reposView.description = core.repos.length > 1 ? String(core.repos.length) : undefined;
@@ -186,12 +186,12 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     reposView.onDidChangeVisibility(() => syncSelection()),
     /**
      * `select`, not `focus`: VS Code auto-registers `<viewId>.focus` for every
-     * contributed view, so `gittree.repositories.focus` is already taken by the
+     * contributed view, so `geet.repositories.focus` is already taken by the
      * command that reveals this very section — the one the branches popup's
-     * last header button uses for `gittree.branches`. Squatting on it would
+     * last header button uses for `geet.branches`. Squatting on it would
      * shadow one of the two depending on which registry answered first.
      */
-    vscode.commands.registerCommand('gittree.repositories.select', (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.repositories.select', (arg?: unknown) => {
       const root =
         typeof arg === 'string'
           ? arg
@@ -204,13 +204,13 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
 
   /**
    * The legacy Branches tree, under its own id and gated on
-   * `gittree.sidebar.extraViews`. POST-P14u replaced what `gittree.branches`
+   * `geet.sidebar.extraViews`. POST-P14u replaced what `geet.branches`
    * draws; this keeps the all-repositories tree one setting away, and keeps the
    * provider constructed unconditionally because `phase02` and
    * `phase14branchmenu` assert against it directly.
    */
   const viewProvider = new BranchesViewProvider(core, serviceFor, ops);
-  const view = vscode.window.createTreeView('gittree.branchesLegacy', {
+  const view = vscode.window.createTreeView('geet.branchesLegacy', {
     treeDataProvider: viewProvider,
     dragAndDropController: viewProvider,
     showCollapseAll: true,
@@ -224,14 +224,14 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     refServiceFor: serviceFor,
     showInOut: () =>
       vscode.workspace
-        .getConfiguration('gittree')
+        .getConfiguration('geet')
         .get<boolean>('branches.showIncomingOutgoing', true),
     // The legacy tree's own drop handler: one merge/rebase/compare prompt.
     onDrop: (repo, source, target) => viewProvider.showDropActions(repo, source, target),
   });
   context.subscriptions.push({ dispose: () => hub.dispose() });
 
-  const hubView = vscode.window.createTreeView('gittree.branchesTree', {
+  const hubView = vscode.window.createTreeView('geet.branchesTree', {
     treeDataProvider: hub,
     dragAndDropController: hub,
     showCollapseAll: true,
@@ -251,7 +251,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   // The Command Palette offers Show All Repositories while a pick narrows the
   // list: a repository opening or closing can widen or narrow it too.
   const syncNarrowed = (): void =>
-    void vscode.commands.executeCommand('setContext', 'gittree.reposNarrowed', reposInView.snapshot().narrowed);
+    void vscode.commands.executeCommand('setContext', 'geet.reposNarrowed', reposInView.snapshot().narrowed);
   syncNarrowed();
   const narrowedSubs = [
     reposInView.onDidChange(syncNarrowed),
@@ -288,36 +288,36 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       panel.providerFor('repositories'),
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
-    vscode.commands.registerCommand('gittree.branches.newBranchInPanel', (from?: unknown, roots?: unknown) =>
+    vscode.commands.registerCommand('geet.branches.newBranchInPanel', (from?: unknown, roots?: unknown) =>
       panel.openNewBranchForm(
         typeof from === 'string' ? from : undefined,
         Array.isArray(roots) ? roots.filter((r): r is string => typeof r === 'string') : undefined,
       ),
     ),
-    vscode.commands.registerCommand('gittree.branches.filterPanel', () => panel.focusFilter()),
+    vscode.commands.registerCommand('geet.branches.filterPanel', () => panel.focusFilter()),
     // POST-P14cb, POST-P14ce: a Commit-window repository row's Show Only This
     // Repository (once Select in Repositories Panel): the panel's pick, which
     // the Commit window follows. The keyboard stays where it was.
-    vscode.commands.registerCommand('gittree.branches.selectRepository', (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.branches.selectRepository', (arg?: unknown) => {
       const named = typeof arg === 'string' ? arg : repoRootOf(arg);
       const repo = named !== undefined ? core.getRepo(named) : undefined;
       if (repo) reposInView.set([repo.root], 'elsewhere');
     }),
     // POST-P14ce: every repository in view again, in every panel: a repository
     // row's menu when it is the one shown, and the Command Palette.
-    vscode.commands.registerCommand('gittree.branches.showAllRepositories', () => reposInView.clear('elsewhere')),
+    vscode.commands.registerCommand('geet.branches.showAllRepositories', () => reposInView.clear('elsewhere')),
     // POST-P14ce: a name on the Commit window's filter bar: the Repositories
     // panel in view, the keyboard on that repository's row, the pick as it is.
-    vscode.commands.registerCommand('gittree.branches.revealRepository', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.branches.revealRepository', async (arg?: unknown) => {
       const named = typeof arg === 'string' ? arg : repoRootOf(arg);
       const repo = named !== undefined ? core.getRepo(named) : undefined;
       if (repo) await panel.revealRepository(repo.root);
     }),
     // The Branches panel's Repository Dots, from the palette or a key: the same
     // setting its toolbar button and More Actions menu switch.
-    vscode.commands.registerCommand('gittree.branches.toggleRepositoryDots', () => {
-      const shown = vscode.workspace.getConfiguration('gittree.branches').get<boolean>('showRepositoryDots', false);
-      return writeSetting('gittree.branches', 'showRepositoryDots', !shown);
+    vscode.commands.registerCommand('geet.branches.toggleRepositoryDots', () => {
+      const shown = vscode.workspace.getConfiguration('geet.branches').get<boolean>('showRepositoryDots', false);
+      return writeSetting('geet.branches', 'showRepositoryDots', !shown);
     }),
   );
 
@@ -347,8 +347,8 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     // The IntelliJ keymap likewise: its keys are named only while it is on.
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
-        !e.affectsConfiguration('gittree.branches.showTags') &&
-        !e.affectsConfiguration(`gittree.${INTELLIJ_KEYMAP_SETTING}`)
+        !e.affectsConfiguration('geet.branches.showTags') &&
+        !e.affectsConfiguration(`geet.${INTELLIJ_KEYMAP_SETTING}`)
       ) {
         return;
       }
@@ -381,11 +381,11 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
 
-  register('gittree.branches.new', async (repoRoot) => {
+  register('geet.branches.new', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (repo) await ops.newBranchFrom(repo, 'HEAD');
   });
-  register('gittree.branches.checkout', async (node) => {
+  register('geet.branches.checkout', async (node) => {
     const arg = branchArg(node);
     if (!arg) return;
     const isRemote =
@@ -393,46 +393,46 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     if (isRemote) await ops.checkoutRemote(arg.repo, arg.name);
     else await ops.checkout(arg.repo, arg.name);
   });
-  register('gittree.branches.rename', async (node) => {
+  register('geet.branches.rename', async (node) => {
     const arg = branchArg(node);
     if (arg) await ops.renameBranch(arg.repo, arg.name);
   });
-  register('gittree.branches.delete', async (node) => {
+  register('geet.branches.delete', async (node) => {
     const arg = branchArg(node);
     if (arg) await ops.deleteBranch(arg.repo, arg.name);
   });
-  register('gittree.branches.push', async (node) => {
+  register('geet.branches.push', async (node) => {
     const arg = branchArg(node);
     if (arg) await ops.pushBranch(arg.repo, arg.name);
   });
-  register('gittree.branches.rebaseOntoCurrent', async (node) => {
+  register('geet.branches.rebaseOntoCurrent', async (node) => {
     const arg = branchArg(node);
     if (arg) await ops.checkoutAndRebaseOntoCurrent(arg.repo, arg.name);
   });
-  register('gittree.branches.newFrom', async (node) => {
+  register('geet.branches.newFrom', async (node) => {
     const arg = branchArg(node);
     if (arg) await ops.newBranchFrom(arg.repo, arg.name);
   });
-  register('gittree.branches.toggleFavorite', async (node) => {
+  register('geet.branches.toggleFavorite', async (node) => {
     const arg = branchArg(node);
     if (!arg) return;
     await serviceFor(arg.repo).toggleFavorite(arg.name);
   });
-  register('gittree.branches.compareWithCurrentNode', async (node) => {
+  register('geet.branches.compareWithCurrentNode', async (node) => {
     const arg = branchArg(node);
     if (arg) {
       await vscode.commands.executeCommand(
-        'gittree.branches.compareWithCurrent',
+        'geet.branches.compareWithCurrent',
         arg.repo.root,
         arg.name,
       );
     }
   });
-  register('gittree.branches.diffWithWorkingTreeNode', async (node) => {
+  register('geet.branches.diffWithWorkingTreeNode', async (node) => {
     const arg = branchArg(node);
     if (arg) {
       await vscode.commands.executeCommand(
-        'gittree.branches.diffWithWorkingTree',
+        'geet.branches.diffWithWorkingTree',
         arg.repo.root,
         arg.name,
       );
@@ -478,15 +478,15 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       if (arg) await runAction(actionId, arg.repo, arg.name);
     });
   };
-  registerAction('gittree.branch.mergeIntoCurrent', 'mergeIntoCurrent');
-  registerAction('gittree.branch.checkoutAndRebase', 'rebaseOntoCurrent');
-  registerAction('gittree.branch.rebaseCurrentOnto', 'rebaseCurrentOnto');
-  registerAction('gittree.branch.newWorktree', 'newWorktree');
-  registerAction('gittree.branch.pullIntoCurrent', 'pullIntoCurrent');
-  registerAction('gittree.branch.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
-  registerAction('gittree.branch.update', 'update');
-  registerAction('gittree.branch.stopTracking', 'stopTracking');
-  registerAction('gittree.branch.deleteOnRemote', 'deleteOnRemote');
+  registerAction('geet.branch.mergeIntoCurrent', 'mergeIntoCurrent');
+  registerAction('geet.branch.checkoutAndRebase', 'rebaseOntoCurrent');
+  registerAction('geet.branch.rebaseCurrentOnto', 'rebaseCurrentOnto');
+  registerAction('geet.branch.newWorktree', 'newWorktree');
+  registerAction('geet.branch.pullIntoCurrent', 'pullIntoCurrent');
+  registerAction('geet.branch.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
+  registerAction('geet.branch.update', 'update');
+  registerAction('geet.branch.stopTracking', 'stopTracking');
+  registerAction('geet.branch.deleteOnRemote', 'deleteOnRemote');
 
   // ---- The `Tracked Branch` submenu ----------------------------------------
   // Each row is the corresponding registry action re-aimed at the row's
@@ -517,16 +517,16 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       if (arg) await runTrackedAction(actionId, arg.repo, arg.name);
     });
   };
-  registerTracked('gittree.branch.tracked.checkout', 'checkout');
-  registerTracked('gittree.branch.tracked.newFrom', 'newFrom');
-  registerTracked('gittree.branch.tracked.compareWithCurrent', 'compareWithCurrent');
-  registerTracked('gittree.branch.tracked.diffWithWorkingTree', 'diffWithWorkingTree');
-  registerTracked('gittree.branch.tracked.pullIntoCurrent', 'pullIntoCurrent');
-  registerTracked('gittree.branch.tracked.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
-  registerTracked('gittree.branch.tracked.mergeIntoCurrent', 'mergeIntoCurrent');
-  registerTracked('gittree.branch.tracked.rebaseCurrentOnto', 'rebaseCurrentOnto');
-  registerTracked('gittree.branch.tracked.newWorktree', 'newWorktree');
-  registerTracked('gittree.branch.tracked.deleteOnRemote', 'deleteOnRemote');
+  registerTracked('geet.branch.tracked.checkout', 'checkout');
+  registerTracked('geet.branch.tracked.newFrom', 'newFrom');
+  registerTracked('geet.branch.tracked.compareWithCurrent', 'compareWithCurrent');
+  registerTracked('geet.branch.tracked.diffWithWorkingTree', 'diffWithWorkingTree');
+  registerTracked('geet.branch.tracked.pullIntoCurrent', 'pullIntoCurrent');
+  registerTracked('geet.branch.tracked.pullIntoCurrentRebase', 'pullIntoCurrentRebase');
+  registerTracked('geet.branch.tracked.mergeIntoCurrent', 'mergeIntoCurrent');
+  registerTracked('geet.branch.tracked.rebaseCurrentOnto', 'rebaseCurrentOnto');
+  registerTracked('geet.branch.tracked.newWorktree', 'newWorktree');
+  registerTracked('geet.branch.tracked.deleteOnRemote', 'deleteOnRemote');
 
   /**
    * A branch's own menu, by repository and ref name.
@@ -542,7 +542,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
    * does nothing, rather than on a stale copy. `type` disambiguates: a tag and a
    * local branch can carry the same name.
    */
-  register('gittree.branches.showActions', async (repoRoot, name, type) => {
+  register('geet.branches.showActions', async (repoRoot, name, type) => {
     const repo = pickRepo(repoRoot);
     if (!repo || typeof name !== 'string') return;
     const ref = repo.model.snapshot.refs.find(
@@ -551,18 +551,18 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
     if (!ref) return;
     await showBranchActions(core, repo, ops, ref, actions);
   });
-  register('gittree.branches.showCommonActions', async (name, kind) => {
+  register('geet.branches.showCommonActions', async (name, kind) => {
     if (typeof name !== 'string') return;
     if (kind !== 'local' && kind !== 'remote' && kind !== 'tag') return;
     await showCommonBranchActions(core, { name, kind }, actions);
   });
 
   // The hub verbs the popup lists need real command ids of their own.
-  register('gittree.branch.new', async (repoRoot) => {
+  register('geet.branch.new', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (repo) await ops.newBranchFrom(repo, 'HEAD');
   });
-  register('gittree.branches.checkoutRevision', async (repoRoot) => {
+  register('geet.branches.checkoutRevision', async (repoRoot) => {
     // POST-P14bp: with several repositories and none named — the Command
     // Palette — it asks which, rather than take the editor's, or the first.
     const repo = await askRepo(
@@ -571,7 +571,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
       vscode.l10n.t('Check out a tag or revision in which repository?'),
     );
     if (!repo) return;
-    const seeded = process.env['GITTREE_TEST_CHECKOUT_REVISION'];
+    const seeded = process.env['GEET_TEST_CHECKOUT_REVISION'];
     const value =
       seeded !== undefined && seeded.length > 0
         ? seeded
@@ -586,7 +586,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
 
   // POST-P14ax: one branch checked out in every repository, from a picker of all of them.
   // The panel's `⋯` passes the repositories in view; the palette, every repository.
-  register('gittree.branches.checkoutEverywhere', async (roots) => {
+  register('geet.branches.checkoutEverywhere', async (roots) => {
     const named =
       typeof roots === 'string'
         ? [roots]
@@ -598,7 +598,7 @@ export function registerPhase02(context: vscode.ExtensionContext, core: Core): P
   });
 
   // new-way-4: the finished branches — merged, or their remote branch gone — in one pick.
-  register('gittree.branches.cleanup', async (root) => {
+  register('geet.branches.cleanup', async (root) => {
     await cleanUpBranches(core, typeof root === 'string' ? [root] : undefined);
   });
 

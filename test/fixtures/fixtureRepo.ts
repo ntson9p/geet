@@ -23,7 +23,7 @@ export interface FixtureOptions {
 }
 
 const AUTHOR = 'Fixture Author';
-const AUTHOR_EMAIL = 'fixture@gittree.dev';
+const AUTHOR_EMAIL = 'fixture@geet.dev';
 /** Base timestamp for deterministic history (2023-11-14T22:13:20Z). */
 const EPOCH = 1_700_000_000;
 
@@ -37,7 +37,7 @@ export class FixtureRepo {
   ) {}
 
   static create(options: FixtureOptions = {}): FixtureRepo {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), options.prefix ?? 'gittree-fixture-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), options.prefix ?? 'geet-fixture-'));
     const branch = options.branch ?? 'main';
     const repo = new FixtureRepo(root, branch);
     repo.git('init');
@@ -314,7 +314,7 @@ function makeTreeWritable(dir: string): void {
 
 /** n linear commits on main, each touching file.txt and its own file. */
 export function linear(n: number): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-linear-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-linear-' });
   const commits = Array.from({ length: n }, (_, i) => ({
     mark: i + 1,
     parents: i === 0 ? [] : [i],
@@ -331,7 +331,7 @@ export function linear(n: number): FixtureRepo {
  * (including merge commits, ±1 for the final partial chunk).
  */
 export function branchy(n: number): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-branchy-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-branchy-' });
   const commits: Parameters<FixtureRepo['fastImport']>[0] = [];
   let mark = 0;
   let mainTip = 0;
@@ -358,14 +358,14 @@ export function branchy(n: number): FixtureRepo {
 
 /** Repo sitting in a conflicted merge (UU entry, MERGE_HEAD present). */
 export function conflictBasic(): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-conflict-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-conflict-' });
   repo.makeConflict();
   return repo;
 }
 
 /** Repo stopped mid-rebase (.git/rebase-merge or rebase-apply present). */
 export function midRebase(): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-midrebase-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-midrebase-' });
   repo.startRebase();
   return repo;
 }

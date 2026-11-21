@@ -20,7 +20,7 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'
 };
 const nls = JSON.parse(readFileSync(path.join(root, 'package.nls.json'), 'utf8')) as Record<string, string>;
 
-const IN_COMMIT = "webviewId == 'gittree.commit'";
+const IN_COMMIT = "webviewId == 'geet.commit'";
 
 /** A section's entries, in the order VS Code draws them. The closing quote keeps `commitRepo` from `commitRepository`. */
 function menu(section: string): MenuEntry[] {
@@ -55,12 +55,12 @@ function shown(section: string, keys: Record<string, string | boolean>): string[
     .map((m) => titleOf(m.command));
 }
 
-const base = { webviewId: 'gittree.commit', 'gittree.paradigm': 'changelists' };
+const base = { webviewId: 'geet.commit', 'geet.paradigm': 'changelists' };
 
 describe('the Commit window menus (POST-P14bf)', () => {
   it("names Move as IntelliJ does", () => {
-    expect(titleOf('gittree.changelist.moveTo')).toBe('Move to Another Changelist…');
-    expect(titleOf('gittree.addToVcs')).toBe('Add to VCS');
+    expect(titleOf('geet.changelist.moveTo')).toBe('Move to Another Changelist…');
+    expect(titleOf('geet.addToVcs')).toBe('Add to VCS');
   });
 
   it('gives Unversioned Files Add to VCS and Move, and none of a changelist’s own actions', () => {
@@ -137,7 +137,7 @@ describe('the Commit window menus (POST-P14bf)', () => {
 
   it("ends a repository row's menu with the Repositories panel's menu for it, in its order, without its Commit (POST-P14cb)", () => {
     const repository = { ...base, webviewSection: 'commitRepository', repoHasTracked: true, repoHasUnversioned: false };
-    const panel = REPOSITORY_MENU.filter((e) => e.command !== 'gittree.commit');
+    const panel = REPOSITORY_MENU.filter((e) => e.command !== 'geet.commit');
     const commands = menu('commitRepository')
       .filter((m) => panel.some((e) => e.command === m.command))
       .map((m) => m.command);
@@ -146,14 +146,14 @@ describe('the Commit window menus (POST-P14bf)', () => {
     const titles = shown('commitRepository', repository);
     expect(titles.slice(-panel.length)).toEqual(panel.map((e) => e.label));
     // This is the Commit window: its Commit is the window's own button.
-    expect(menu('commitRepository').some((m) => m.command === 'gittree.commit')).toBe(false);
+    expect(menu('commitRepository').some((m) => m.command === 'geet.commit')).toBe(false);
   });
 
   it('keeps Show Only This Repository out of the Command Palette: it needs a row', () => {
     const palette = manifest.contributes.menus['commandPalette'] ?? [];
-    expect(palette.find((e) => e.command === 'gittree.branches.selectRepository')?.when).toBe('false');
+    expect(palette.find((e) => e.command === 'geet.branches.selectRepository')?.when).toBe('false');
     // POST-P14ce: once Select in Repositories Panel; the list follows the pick now.
-    expect(titleOf('gittree.branches.selectRepository')).toBe('Show Only This Repository');
+    expect(titleOf('geet.branches.selectRepository')).toBe('Show Only This Repository');
   });
 
   it('offers Show All Repositories in place of Show Only This Repository on the repository shown alone (POST-P14ce)', () => {
@@ -170,15 +170,15 @@ describe('the Commit window menus (POST-P14bf)', () => {
 
   it("offers Show All Repositories in the Command Palette while a pick narrows the list, and keeps the bar's reveal out of it (POST-P14ce)", () => {
     const palette = manifest.contributes.menus['commandPalette'] ?? [];
-    expect(titleOf('gittree.branches.showAllRepositories')).toBe('Show All Repositories');
-    expect(palette.find((e) => e.command === 'gittree.branches.showAllRepositories')?.when).toBe('gittree.reposNarrowed');
+    expect(titleOf('geet.branches.showAllRepositories')).toBe('Show All Repositories');
+    expect(palette.find((e) => e.command === 'geet.branches.showAllRepositories')?.when).toBe('geet.reposNarrowed');
     // The filter bar's names: a root in, so no palette entry.
-    expect(titleOf('gittree.branches.revealRepository')).toBe('Show in Repositories Panel');
-    expect(palette.find((e) => e.command === 'gittree.branches.revealRepository')?.when).toBe('false');
+    expect(titleOf('geet.branches.revealRepository')).toBe('Show in Repositories Panel');
+    expect(palette.find((e) => e.command === 'geet.branches.revealRepository')?.when).toBe('false');
   });
 
   it('offers no Move in the staging paradigm, where there are no changelists', () => {
-    const staging = { ...base, 'gittree.paradigm': 'staging' };
+    const staging = { ...base, 'geet.paradigm': 'staging' };
     expect(shown('commitFolder', { ...staging, webviewSection: 'commitFolder', folderHasUnversioned: true })).not.toContain(
       'Move to Another Changelist…',
     );
@@ -188,7 +188,7 @@ describe('the Commit window menus (POST-P14bf)', () => {
   });
 
   it('offers Stage on what is not staged and Unstage on what is, with staging only (POST-QA F5)', () => {
-    const staging = { ...base, 'gittree.paradigm': 'staging' };
+    const staging = { ...base, 'geet.paradigm': 'staging' };
     for (const section of ['commitFile', 'commitFolder', 'commitGroup', 'commitRepo']) {
       const row = { ...staging, webviewSection: section };
       expect(shown(section, { ...row, stagingSide: 'unstaged' })).toContain('Stage');
@@ -215,7 +215,7 @@ describe('the Commit window menus (POST-P14bf)', () => {
 
   it('gives the Merge Conflicts row Resolve Conflicts… alone, in either paradigm (POST-QA)', () => {
     for (const paradigm of ['changelists', 'staging']) {
-      const row = { ...base, 'gittree.paradigm': paradigm, webviewSection: 'commitConflicts' };
+      const row = { ...base, 'geet.paradigm': paradigm, webviewSection: 'commitConflicts' };
       expect(shown('commitConflicts', row)).toEqual(['Resolve Conflicts…']);
     }
   });
@@ -273,7 +273,7 @@ describe("the menu of the Commit list's blank space (POST-P14cf)", () => {
   it('offers Stage All and Unstage All with staging, in place of the ticks', () => {
     const staging = {
       ...base,
-      'gittree.paradigm': 'staging',
+      'geet.paradigm': 'staging',
       webviewSection: 'commitList',
       listCanStage: true,
       listCanUnstage: true,
@@ -302,21 +302,21 @@ describe("the menu of the Commit list's blank space (POST-P14cf)", () => {
   });
 
   it('names its commands, and offers the ticks and stages in the Command Palette by paradigm', () => {
-    expect(titleOf('gittree.commit.tickAll')).toBe('Tick All Changes');
-    expect(titleOf('gittree.commit.untickAll')).toBe('Untick All Changes');
-    expect(titleOf('gittree.commit.stageAll')).toBe('Stage All Changes');
-    expect(titleOf('gittree.commit.unstageAll')).toBe('Unstage All Changes');
-    expect(titleOf('gittree.commit.expandAll')).toBe('Expand All');
-    expect(titleOf('gittree.commit.collapseAll')).toBe('Collapse All');
+    expect(titleOf('geet.commit.tickAll')).toBe('Tick All Changes');
+    expect(titleOf('geet.commit.untickAll')).toBe('Untick All Changes');
+    expect(titleOf('geet.commit.stageAll')).toBe('Stage All Changes');
+    expect(titleOf('geet.commit.unstageAll')).toBe('Unstage All Changes');
+    expect(titleOf('geet.commit.expandAll')).toBe('Expand All');
+    expect(titleOf('geet.commit.collapseAll')).toBe('Collapse All');
     const palette = manifest.contributes.menus['commandPalette'] ?? [];
     const whenOf = (command: string): string | undefined => palette.find((e) => e.command === command)?.when;
-    expect(whenOf('gittree.commit.tickAll')).toBe('gittree.paradigm == changelists');
-    expect(whenOf('gittree.commit.untickAll')).toBe('gittree.paradigm == changelists');
-    expect(whenOf('gittree.commit.stageAll')).toBe('gittree.paradigm == staging');
-    expect(whenOf('gittree.commit.unstageAll')).toBe('gittree.paradigm == staging');
+    expect(whenOf('geet.commit.tickAll')).toBe('geet.paradigm == changelists');
+    expect(whenOf('geet.commit.untickAll')).toBe('geet.paradigm == changelists');
+    expect(whenOf('geet.commit.stageAll')).toBe('geet.paradigm == staging');
+    expect(whenOf('geet.commit.unstageAll')).toBe('geet.paradigm == staging');
     // They need the window's list.
-    expect(whenOf('gittree.commit.expandAll')).toBe('false');
-    expect(whenOf('gittree.commit.collapseAll')).toBe('false');
+    expect(whenOf('geet.commit.expandAll')).toBe('false');
+    expect(whenOf('geet.commit.collapseAll')).toBe('false');
   });
 });
 
@@ -326,14 +326,14 @@ describe("the menu of the Commit list's blank space (POST-P14cf)", () => {
  */
 describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)', () => {
   const SYSTEMS = [
-    { os: 'isWindows', label: 'Reveal in File Explorer', key: 'shift+alt+r', command: 'gittree.revealFileInOS.windows' },
-    { os: 'isMac', label: 'Reveal in Finder', key: 'alt+cmd+r', command: 'gittree.revealFileInOS.mac' },
-    { os: 'isLinux', label: 'Open Containing Folder', key: 'ctrl+alt+r', command: 'gittree.revealFileInOS.linux' },
+    { os: 'isWindows', label: 'Reveal in File Explorer', key: 'shift+alt+r', command: 'geet.revealFileInOS.windows' },
+    { os: 'isMac', label: 'Reveal in Finder', key: 'alt+cmd+r', command: 'geet.revealFileInOS.mac' },
+    { os: 'isLinux', label: 'Open Containing Folder', key: 'ctrl+alt+r', command: 'geet.revealFileInOS.linux' },
   ] as const;
   const LABELS: readonly string[] = SYSTEMS.map((s) => s.label);
   const reveals = (titles: string[]): string[] => titles.filter((t) => LABELS.includes(t));
   /** A window whose files are on this computer, on one system. */
-  const on = (os: string): Record<string, string | boolean> => ({ ...base, [os]: true, 'gittree.canRevealInOS': true });
+  const on = (os: string): Record<string, string | boolean> => ({ ...base, [os]: true, 'geet.canRevealInOS': true });
 
   it('names the item as VS Code does on each system, and offers that one only', () => {
     for (const { os, label } of SYSTEMS) {
@@ -363,7 +363,7 @@ describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)
       const file = { ...on(os), webviewSection: 'commitFile' };
       expect(shown('commitFile', { ...file, fileUnversioned: true })).toContain(label);
       expect(shown('commitFile', { ...file, fileConflicted: true })).toContain(label);
-      expect(shown('commitFile', { ...file, 'gittree.paradigm': 'staging', stagingSide: 'staged' })).toContain(label);
+      expect(shown('commitFile', { ...file, 'geet.paradigm': 'staging', stagingSide: 'staged' })).toContain(label);
       expect(shown('commitFolder', { ...on(os), webviewSection: 'commitFolder', fileUnversioned: true })).toContain(
         label,
       );
@@ -420,7 +420,7 @@ describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)
       expect(binding).toHaveLength(1);
       expect(binding[0]!.key).toBe(key);
       const terms = (binding[0]!.when ?? '').split('&&').map((t) => t.trim());
-      expect(terms).toEqual(expect.arrayContaining([os, 'gittree.canRevealInOS', 'gittree.commitTreeFocus']));
+      expect(terms).toEqual(expect.arrayContaining([os, 'geet.canRevealInOS', 'geet.commitTreeFocus']));
       // Not `focusedView`: VS Code clears it once focus is inside a webview, so
       // VS Code's own reveal took the key in the real window (POST-P14bq).
       expect(binding[0]!.when).not.toContain('focusedView');
@@ -430,7 +430,7 @@ describe('Reveal in File Explorer / Finder / Open Containing Folder (POST-P14bq)
 
 /**
  * POST-P14bs: Ctrl+Enter (⌘Enter) in the Commit window's message box commits.
- * Bound to `focusedView == 'gittree.commit'`, it never did in the real window.
+ * Bound to `focusedView == 'geet.commit'`, it never did in the real window.
  */
 describe('Ctrl+Enter in the message box (POST-P14bs)', () => {
   const contributes = manifest.contributes as unknown as {
@@ -440,21 +440,21 @@ describe('Ctrl+Enter in the message box (POST-P14bs)', () => {
   const keys = contributes.keybindings;
 
   it('binds Ctrl+Enter, ⌘Enter on macOS, while the message box has the keyboard', () => {
-    expect(keys.filter((k) => k.command === 'gittree.commit.fromMessageBox')).toEqual([
-      { command: 'gittree.commit.fromMessageBox', key: 'ctrl+enter', mac: 'cmd+enter', when: 'gittree.commitMessageFocus' },
+    expect(keys.filter((k) => k.command === 'geet.commit.fromMessageBox')).toEqual([
+      { command: 'geet.commit.fromMessageBox', key: 'ctrl+enter', mac: 'cmd+enter', when: 'geet.commitMessageFocus' },
     ]);
   });
 
   it('binds nothing to the bare Commit: that reads a message the box may not have sent yet', () => {
-    expect(keys.filter((k) => k.command === 'gittree.commit' && (k.key === 'ctrl+enter' || k.mac === 'cmd+enter'))).toEqual(
+    expect(keys.filter((k) => k.command === 'geet.commit' && (k.key === 'ctrl+enter' || k.mac === 'cmd+enter'))).toEqual(
       [],
     );
   });
 
   it('names its command for Keyboard Shortcuts, and keeps it out of the Command Palette: it needs the box', () => {
-    expect(titleOf('gittree.commit.fromMessageBox')).toBe('Commit from the Message Box');
+    expect(titleOf('geet.commit.fromMessageBox')).toBe('Commit from the Message Box');
     const palette = manifest.contributes.menus['commandPalette'] ?? [];
-    expect(palette.find((e) => e.command === 'gittree.commit.fromMessageBox')?.when).toBe('false');
+    expect(palette.find((e) => e.command === 'geet.commit.fromMessageBox')?.when).toBe('false');
   });
 
   it('binds no key to one of our webviews by focusedView, which VS Code clears once focus is inside one', () => {
@@ -463,7 +463,7 @@ describe('Ctrl+Enter in the message box (POST-P14bs)', () => {
       .filter((v) => v.type === 'webview')
       .map((v) => v.id);
     expect(webviews).toEqual(
-      expect.arrayContaining(['gittree.commit', 'gittree.log', 'gittree.repositoryList', 'gittree.branches']),
+      expect.arrayContaining(['geet.commit', 'geet.log', 'geet.repositoryList', 'geet.branches']),
     );
     const viewsNamed = (when: string): string[] =>
       [...when.matchAll(/focusedView\s*==\s*'?([\w.-]+)'?/gu)].map((m) => m[1]!);

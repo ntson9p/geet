@@ -356,10 +356,10 @@ export function killTree(child: ChildProcessWithoutNullStreams): void {
 
 export interface GitLocatorSettings {
   /**
-   * `gittree.gitPath`. P14-T5 removed the built-in `git.path` fallback that
+   * `geet.gitPath`. P14-T5 removed the built-in `git.path` fallback that
    * used to sit between this and PATH — Geet reads no `git.*` configuration.
    */
-  gittreeGitPath?: string;
+  geetGitPath?: string;
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
 }
@@ -369,7 +369,7 @@ export function resolveGitCandidates(s: GitLocatorSettings = {}): string[] {
   const platform = s.platform ?? process.platform;
   const env = s.env ?? process.env;
   const candidates: string[] = [];
-  if (s.gittreeGitPath) candidates.push(s.gittreeGitPath);
+  if (s.geetGitPath) candidates.push(s.geetGitPath);
   candidates.push('git'); // PATH lookup via spawn
   if (platform === 'win32') {
     const roots = [env['ProgramFiles'], env['ProgramFiles(x86)'], env['LocalAppData']].filter(

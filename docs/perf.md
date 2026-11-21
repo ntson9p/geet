@@ -23,7 +23,7 @@ the recorded evidence is the local runs below.
 
 Phase 14 removed the SCM provider and replaced VS Code's quick diff with
 Geet-painted change bars, so the one new budget is the recompute that
-replaced it. It is the term the `gittree.changeBars.maxFileLines` cutoff exists
+replaced it. It is the term the `geet.changeBars.maxFileLines` cutoff exists
 to bound, measured on the pure function — the decoration apply is O(changes)
 and never the cost.
 

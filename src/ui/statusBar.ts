@@ -5,7 +5,7 @@
  * POST-P14s is the fix for the reported defect, and the two before it were
  * not. The widget shows **one** repository at a time, but every repository got
  * its own `StatusBarController`, and every controller created its own
- * `vscode.StatusBarItem` with the *same* id — `gittree.status.0`. That id is
+ * `vscode.StatusBarItem` with the *same* id — `geet.status.0`. That id is
  * not decoration. `createStatusBarItem(id, …)` documents it as "must be unique
  * within the extension" because the extension host derives the entry's routing
  * key from it, where the id-less overload hands out a fresh key per item. So N
@@ -140,8 +140,8 @@ interface ItemSpec {
  * a co-owner of the first one's entry — see the file header.
  */
 const ITEM_SPECS: readonly ItemSpec[] = [
-  { id: 'gittree.status.0', name: 'Geet Branch' },
-  { id: 'gittree.status.rebase', name: 'Geet Rebase' },
+  { id: 'geet.status.0', name: 'Geet Branch' },
+  { id: 'geet.status.rebase', name: 'Geet Rebase' },
 ];
 
 /**
@@ -176,7 +176,7 @@ export class StatusBarHost implements vscode.Disposable {
     if (!item) {
       const spec = ITEM_SPECS[index];
       item = vscode.window.createStatusBarItem(
-        spec?.id ?? `gittree.status.${index}`,
+        spec?.id ?? `geet.status.${index}`,
         vscode.StatusBarAlignment.Left,
         BASE_PRIORITY - index,
       );
@@ -288,7 +288,7 @@ export class StatusBarController implements vscode.Disposable {
     const commands: vscode.Command[] = [];
     if (state.text.length > 0) {
       commands.push({
-        command: 'gittree.branches.open',
+        command: 'geet.branches.open',
         title: state.text,
         tooltip: state.tooltip,
         arguments: [this.repo.root],
@@ -300,7 +300,7 @@ export class StatusBarController implements vscode.Disposable {
       const opKind = snap.inProgressOp?.kind;
       if (opKind === 'rebase-interactive' || opKind === 'rebase-apply') {
         commands.push({
-          command: 'gittree.rebase.actions',
+          command: 'geet.rebase.actions',
           title: '$(list-selection) ' + vscode.l10n.t('Rebase…'),
           tooltip: vscode.l10n.t('Continue, skip or abort the rebase'),
           arguments: [this.repo.root],

@@ -480,7 +480,7 @@ export function OperationRow({
           className="gt-button gtp-small"
           tabIndex={-1}
           title="Resolve the conflicts"
-          onClick={() => onRun('gittree.conflicts.resolve')}
+          onClick={() => onRun('geet.conflicts.resolve')}
         >
           <Codicon name="git-merge" />
           <span className="gtp-button-label">Resolve…</span>
@@ -495,7 +495,7 @@ export function OperationRow({
             ? "Commit the merge with Git's prepared message. To write your own, commit from the Commit window."
             : `Continue the ${verb.toLowerCase().replace(/ing$/u, 'e')}`
         }
-        onClick={() => onRun(isRebase ? 'gittree.rebase.continue' : 'gittree.merge.continueOp')}
+        onClick={() => onRun(isRebase ? 'geet.rebase.continue' : 'geet.merge.continueOp')}
       >
         <Codicon name="debug-continue" />
         <span className="gtp-button-label">{isMerge ? 'Commit Merge' : 'Continue'}</span>
@@ -508,7 +508,7 @@ export function OperationRow({
           className="gt-button gtp-small"
           tabIndex={-1}
           title="Skip this commit and go on with the rebase"
-          onClick={() => onRun('gittree.rebase.skip')}
+          onClick={() => onRun('geet.rebase.skip')}
         >
           <Codicon name="debug-step-over" />
           <span className="gtp-button-label">Skip</span>
@@ -519,7 +519,7 @@ export function OperationRow({
         className="gt-button gtp-small"
         tabIndex={-1}
         title="Abort, back to where it started"
-        onClick={() => onRun(isRebase ? 'gittree.rebase.abort' : 'gittree.merge.abortOp')}
+        onClick={() => onRun(isRebase ? 'geet.rebase.abort' : 'geet.merge.abortOp')}
       >
         <Codicon name="discard" />
         <span className="gtp-button-label">Abort</span>

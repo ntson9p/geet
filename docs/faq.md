@@ -15,12 +15,12 @@ Earlier versions asked once per workspace and, if you chose "takeover", wrote
 carries that setting, Geet removes it on first launch and tells you it did.
 See [migration-from-builtin.md](migration-from-builtin.md).
 
-Geet's own file badges (`gittree.decorations.fileExplorer`) are off by default.
+Geet's own file badges (`geet.decorations.fileExplorer`) are off by default.
 VS Code shows an extension's file badges in all of its views, its own Source
 Control view included, so with both extensions running they showed every badge
 twice (`U, U`). Turn the setting on if you disable the built-in Git extension.
 
-So are Geet's change bars (`gittree.changeBars.enabled`): the built-in
+So are Geet's change bars (`geet.changeBars.enabled`): the built-in
 extension draws its own beside the same lines, and with both every changed line
 had two. Geet's change actions work without them (`Ctrl+Alt+G H` at the
 cursor). Turn them on if you disable the built-in extension.
@@ -48,7 +48,7 @@ an implementation guide for future contributors live in
 (clone/fetch/push over HTTPS/SSH, including self-hosted remotes) works
 normally — Geet talks to git, not to provider APIs. Credential prompts are
 answered through VS Code via Geet's askpass bridge, which also covers
-integrated terminals when `gittree.terminalAuth` is on.
+integrated terminals when `geet.terminalAuth` is on.
 
 ### How do I fetch — all repositories, or just one?
 
@@ -61,16 +61,16 @@ Repositories`, and `Fetch` in the VCS Operations Popup (`Alt+\``) all fetch
 **every** root in the workspace that has a remote. Roots without one are skipped rather than failed, one slow or
 unreachable remote never stops the others, and the whole fan-out reports once.
 
-**One of them** is for callers that know which they mean: `gittree.fetch` takes
+**One of them** is for callers that know which they mean: `geet.fetch` takes
 a repository root as its argument. Bind it if you want a per-repository fetch:
 
 ```json
-{ "key": "ctrl+alt+g 1", "command": "gittree.fetch", "args": "D:\\code\\sample-app-client" }
+{ "key": "ctrl+alt+g 1", "command": "geet.fetch", "args": "D:\\code\\sample-app-client" }
 ```
 
 Fetch runs `git fetch --prune` against the branch's default remote, not
 `--all`; a second remote (an `upstream` fork remote, say) is not refreshed.
-Background fetching is off by default — turn on `gittree.autofetch.enabled` to
+Background fetching is off by default — turn on `geet.autofetch.enabled` to
 keep the incoming/outgoing counts fresh without asking.
 
 ### I have several repositories open. Which one does the branches popup act on?
@@ -106,12 +106,12 @@ They moved to where IntelliJ keeps them, so the sidebar shows the commit window 
   which (it appears only when the workspace has more than one). See the next entry.
 * **Worktrees** — the **Worktrees** tab of the Git tool window, beside `Log` and `Console`.
 * **Stashes** — the **Stash** tab of the commit window, beside `Commit` and `Shelf`. Setting
-  `gittree.stash.combineWithShelf` folds it into the Shelf tab, which is IntelliJ's
+  `geet.stash.combineWithShelf` folds it into the Shelf tab, which is IntelliJ's
   *Combine stashes and shelves in one tab*.
 * **Local History** — `Geet: Show Local History`, which opens the view on demand. This is
   what IntelliJ's `Show History` does.
 
-The old panes still exist. To bring all four back, turn on **`gittree.sidebar.extraViews`**
+The old panes still exist. To bring all four back, turn on **`geet.sidebar.extraViews`**
 (Settings → Extensions → Geet). They reappear as collapsed sections, and turning it off
 removes them again — no reload either way.
 
@@ -151,7 +151,7 @@ its rows act on those; the Commit window lists and commits only them, and says s
 its list (POST-P14ce). `Ctrl+T` (Update Project) and `Ctrl+Shift+K` (Push…) find their
 repositories as they always have: the project, and the active editor's repository.
 
-The trees the panels replaced are still available under `gittree.sidebar.extraViews`:
+The trees the panels replaced are still available under `geet.sidebar.extraViews`:
 **Repositories (Tree)**, **Branches (Tree)** and **Branches (All Repositories)**.
 
 ### A Geet message went away before I read it. Where is it?
@@ -159,7 +159,7 @@ The trees the panels replaced are still available under `gittree.sidebar.extraVi
 In the **Geet** output (View › Output, then *Geet*), as `[notice] 13:27:54 Checked out
 develop`. A message with nothing to click, such as *Fetch successful* or *Nothing to stash.*,
 stays 5 seconds while VS Code is in front, and VS Code cannot keep a notification it hides on a
-timer in its Notifications list. Set `gittree.notifications.durationSeconds` to keep them up
+timer in its Notifications list. Set `geet.notifications.durationSeconds` to keep them up
 longer, or to `0` for ordinary notifications, which VS Code keeps in that list. Messages with
 buttons, warnings and errors are always ordinary notifications.
 
@@ -169,7 +169,7 @@ Snapshots are content-addressed, gzip-compressed blobs under VS Code's
 extension global storage
 (`…/User/globalStorage/ntson9p.geet/history/<repo-key>/`), one store
 per repository identity. Nothing ever leaves your machine. Retention is
-controlled by `gittree.localHistory.{maxSizeMb,retentionDays,maxFileSizeKb}`
+controlled by `geet.localHistory.{maxSizeMb,retentionDays,maxFileSizeKb}`
 (see [settings.md](settings.md)); GC enforces the size budget oldest-first,
 and `Geet: Clear All Local History` wipes a repo's store.
 
@@ -177,12 +177,12 @@ and `Geet: Clear All Local History` wipes a repo's store.
 
 Outside `.git` on purpose (that is the point of shelving): under extension
 global storage (`…/User/globalStorage/ntson9p.geet/shelf/`), or a folder you
-pick via `gittree.shelf.path`. Deleting or re-initializing the repository
+pick via `geet.shelf.path`. Deleting or re-initializing the repository
 leaves shelved patches intact.
 
-### Why do Geet's settings and commands start with `gittree.`?
+### Why do Geet's settings and commands start with `geet.`?
 
-Geet was called GitTree before 0.1.0. Its settings (`gittree.localHistory.maxSizeMb`), command
+Geet was called GitTree before 0.1.0. Its settings (`geet.localHistory.maxSizeMb`), command
 IDs and keybindings kept that prefix, so a setup made then still works; the names you see —
 the views, the Command Palette's *Geet: …* entries, the messages — say Geet.
 
@@ -207,5 +207,5 @@ Benchmarks and the tuning playbook are in [perf.md](perf.md).
 
 Geet needs no account, no token and no telemetry backend. Anonymous usage
 telemetry has an off-by-default local wrapper honoring both
-`telemetry.telemetryLevel` and `gittree.telemetry.enabled`, and there is no
+`telemetry.telemetryLevel` and `geet.telemetry.enabled`, and there is no
 server configured to receive it.

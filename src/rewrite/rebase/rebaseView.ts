@@ -1,5 +1,5 @@
 /**
- * Interactive Rebase editor host (P5-T2): a `gittree.rebaseEditor` webview
+ * Interactive Rebase editor host (P5-T2): a `geet.rebaseEditor` webview
  * panel per window. Gathers the linear range, applies the published guard,
  * serves the dialog's RPC, and drives the T1 engine — the panel flips into
  * progress mode (per-step log, Continue/Skip/Abort) once the rebase starts.
@@ -31,7 +31,7 @@ interface ActiveSession {
 }
 
 export class RebaseViewController implements vscode.Disposable {
-  static readonly viewType = 'gittree.rebaseEditor';
+  static readonly viewType = 'geet.rebaseEditor';
   private panel: vscode.WebviewPanel | undefined;
   private rpc: WebviewRpcHost | undefined;
   private session: ActiveSession | undefined;

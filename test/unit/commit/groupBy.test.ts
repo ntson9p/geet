@@ -5,7 +5,7 @@ import { GROUP_BY_DIRECTORY_DEFAULT } from '../../../src/commit/window/groupByDe
 import { repoHeadOf } from '../../../src/commit/window/repoHead';
 import { commitGroupByOf } from '../../../src/shared/protocol';
 
-describe('gittree.commit.groupBy, as both sides read it', () => {
+describe('geet.commit.groupBy, as both sides read it', () => {
   it('is changelist or repository only when it says so', () => {
     expect(commitGroupByOf('repository')).toBe('repository');
     expect(commitGroupByOf('changelist')).toBe('changelist');
@@ -26,9 +26,9 @@ describe('gittree.commit.groupBy, as both sides read it', () => {
       string,
       { default?: unknown; enum?: unknown[] }
     >;
-    expect(props['gittree.commit.groupBy']?.default).toBe(commitGroupByOf(undefined));
-    expect(props['gittree.commit.groupBy']?.enum).toEqual(['none', 'changelist', 'repository']);
-    expect(props['gittree.commit.groupByDirectory']?.default).toBe(GROUP_BY_DIRECTORY_DEFAULT);
+    expect(props['geet.commit.groupBy']?.default).toBe(commitGroupByOf(undefined));
+    expect(props['geet.commit.groupBy']?.enum).toEqual(['none', 'changelist', 'repository']);
+    expect(props['geet.commit.groupByDirectory']?.default).toBe(GROUP_BY_DIRECTORY_DEFAULT);
     expect(GROUP_BY_DIRECTORY_DEFAULT).toBe(false);
   });
 });

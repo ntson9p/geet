@@ -16,7 +16,7 @@
  * `9/5/2026 3:07 PM` exactly as IntelliJ's Date column does — no padded month
  * or hour.
  *
- * POST-P14bh: that is now the `locale` choice of `gittree.log.dateFormat`. The
+ * POST-P14bh: that is now the `locale` choice of `geet.log.dateFormat`. The
  * default is `YYYY/MM/DD HH:mm` (owner's choice, 2026-11-07; D40).
  *
  * POST-P14cg: a third choice, `pretty`, is IntelliJ's log as it ships
@@ -24,7 +24,7 @@
  * `1 hour ago` within the hour, `Today 2:19 PM`, `Yesterday 2:19 PM`, and the
  * system's short date and time before that. `pretty` and `locale` now write the
  * *system's* short date and time, as IntelliJ does: the patterns the host read
- * from the OS (Windows' Region settings, `window.__gittreeSystemDates`), or,
+ * from the OS (Windows' Region settings, `window.__geetSystemDates`), or,
  * without them, the display language's as before.
  */
 
@@ -34,7 +34,7 @@ import { compileDatePattern } from './datePattern';
 /** What the tests pin; production passes neither and follows the page and the clock. */
 export interface DateFormatOptions {
   /**
-   * The system's patterns. Left out: the page's (`window.__gittreeSystemDates`).
+   * The system's patterns. Left out: the page's (`window.__geetSystemDates`).
    * `null`: none, so the display language's date and time are written.
    */
   readonly system?: SystemDatesDto | null;
@@ -42,7 +42,7 @@ export interface DateFormatOptions {
   readonly now?: () => number;
 }
 
-/** What a page's `window.__gittreeSystemDates` holds, if it is usable. */
+/** What a page's `window.__geetSystemDates` holds, if it is usable. */
 export function asSystemDates(raw: unknown): SystemDatesDto | undefined {
   if (raw === null || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
@@ -57,10 +57,10 @@ export function asSystemDates(raw: unknown): SystemDatesDto | undefined {
 
 /**
  * The system's patterns this page was given by the host, if any
- * (`window.__gittreeSystemDates`; `globalThis`, so the tests' Node reads none).
+ * (`window.__geetSystemDates`; `globalThis`, so the tests' Node reads none).
  */
 function pageSystemDates(): SystemDatesDto | undefined {
-  return asSystemDates((globalThis as { __gittreeSystemDates?: unknown }).__gittreeSystemDates);
+  return asSystemDates((globalThis as { __geetSystemDates?: unknown }).__geetSystemDates);
 }
 
 /** The system's short date and short time (IntelliJ's `formatDate` and `formatTime`). */
@@ -211,7 +211,7 @@ export function prettyDateTime(
 }
 
 /**
- * The Date column's formatter for `gittree.log.dateFormat` (D40).
+ * The Date column's formatter for `geet.log.dateFormat` (D40).
  *
  * `YYYY/MM/DD HH:mm` — the default — reads the same everywhere: year first,
  * every field two digits wide, a 24-hour clock, so the column lines up and

@@ -1,5 +1,5 @@
 /**
- * POST-QA: IntelliJ's keys are bound only with `gittree.keymap.intellij` on,
+ * POST-QA: IntelliJ's keys are bound only with `geet.keymap.intellij` on,
  * so a menu names them only then.
  */
 import { readFileSync } from 'node:fs';
@@ -25,6 +25,6 @@ describe('shownAccelerator', () => {
       contributes: { keybindings: { key: string; when?: string }[] };
     };
     const ctrlT = manifest.contributes.keybindings.find((k) => k.key === 'ctrl+t');
-    expect(ctrlT?.when).toContain(`config.gittree.${INTELLIJ_KEYMAP_SETTING}`);
+    expect(ctrlT?.when).toContain(`config.geet.${INTELLIJ_KEYMAP_SETTING}`);
   });
 });

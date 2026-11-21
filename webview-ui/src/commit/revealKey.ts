@@ -3,7 +3,7 @@
  * is unit-tested.
  *
  * The key is VS Code's own for Reveal in File Explorer, contributed as a
- * keybinding (`gittree.revealFileInOS.*`, while `gittree.commitTreeFocus`):
+ * keybinding (`geet.revealFileInOS.*`, while `geet.commitTreeFocus`):
  * VS Code resolves it and the host asks the webview for the keyboard's row.
  *
  * Windows' Shift+Alt+R is answered here instead. A key a webview passes on to

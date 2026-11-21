@@ -91,14 +91,14 @@ import {
 
 const DEFAULT_UI: PushDialogUiDto = { showDetails: true, groupByDirectory: true, treeRatio: 0.5, detailsRatio: 0.67 };
 
-const PROTECTED_SETTING_HINT = 'Configure protected branches in the setting gittree.protectedBranches';
+const PROTECTED_SETTING_HINT = 'Configure protected branches in the setting geet.protectedBranches';
 
 /** The tooltip of `Don't show this dialog again` (POST-P14cn). */
 const DONT_SHOW_HINT =
   'From now on, Push pushes straight away what this dialog would push. ' +
   'The dialog still opens when a push needs it: a repository with no remote or no commits, ' +
   'a commit on no branch, or no repository chosen. ' +
-  'Turn it back on with the setting gittree.push.showDialog.';
+  'Turn it back on with the setting geet.push.showDialog.';
 
 /** `Set upstream` counts only while it is shown: the target is not the upstream already. */
 function explicitUpstream(r: RepoState): boolean {

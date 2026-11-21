@@ -79,9 +79,9 @@ test.describe('P4-T3/T4 log webview', () => {
     const parsedMulti = JSON.parse(ctxMulti ?? '{}') as Record<string, unknown> & { shas: string[] };
     expect(parsedMulti.shas.length).toBe(2);
     // What the menu's `when` and `enablement` clauses read.
-    expect(parsedMulti['gittree.commitCount']).toBe(2);
-    expect(parsedMulti['gittree.multiCommit']).toBe(true);
-    expect(parsedSingle).not.toHaveProperty('gittree.multiCommit');
+    expect(parsedMulti['geet.commitCount']).toBe(2);
+    expect(parsedMulti['geet.multiCommit']).toBe(true);
+    expect(parsedSingle).not.toHaveProperty('geet.multiCommit');
   });
 
   test('POST-P14x: hovering a commit shows its whole message, fetched once', async ({ page }) => {
@@ -145,7 +145,7 @@ test.describe('P4-T3/T4 log webview', () => {
       .getByRole('treeitem', { name: /app\.ts/ })
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(style).toContain('gittree-color-modified');
+    expect(style).toContain('geet-color-modified');
 
     // Flat mode lists full paths under the repo row.
     await page.getByRole('button', { name: 'Flat file list' }).click();
@@ -1931,14 +1931,14 @@ test.describe('P4-T3/T4 log webview', () => {
 
   // ---- POST-P14cg: Presentation Settings ▸ Date Format ----
 
-  /** Windows' US Region settings, as the host hands every page them (`window.__gittreeSystemDates`). */
+  /** Windows' US Region settings, as the host hands every page them (`window.__geetSystemDates`). */
   const US_DATES = { date: 'M/d/yyyy', time: 'h:mm a', locale: 'en-US' };
 
   /** The log at a fixed local time; the mock's commits are an hour apart, the first one then. */
   async function openLogAt(page: Page, time: string, dates: unknown = US_DATES): Promise<void> {
     await page.clock.setFixedTime(new Date(time));
     await page.addInitScript((d) => {
-      (window as unknown as { __gittreeSystemDates?: unknown }).__gittreeSystemDates = d;
+      (window as unknown as { __geetSystemDates?: unknown }).__geetSystemDates = d;
     }, dates);
     await openLog(page);
   }
@@ -2564,7 +2564,7 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(branch).toHaveAttribute('title', 'Branch: feature/f1, feature/f2');
   });
 
-  test('gittree.log.filterChips: full writes every value out, as the row did before', async ({ page }) => {
+  test('geet.log.filterChips: full writes every value out, as the row did before', async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __mockPresentation: unknown }).__mockPresentation = { filterChips: 'full' };
     });
@@ -2576,7 +2576,7 @@ test.describe('P4-T3/T4 log webview', () => {
     await expect(chipSet(page, 'user').locator('.gt-chip-clear')).toHaveText('×');
   });
 
-  test("the Date column reads YYYY/MM/DD HH:mm, or IntelliJ's own format with gittree.log.dateFormat: locale", async ({ page }) => {
+  test("the Date column reads YYYY/MM/DD HH:mm, or IntelliJ's own format with geet.log.dateFormat: locale", async ({ page }) => {
     await openLog(page);
     const date = commitRow(page).locator('[data-gt-row="0"]').getByTestId('log-date');
     await expect(date).toHaveText(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/u);

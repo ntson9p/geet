@@ -69,7 +69,7 @@ export async function createPatchToFile(
 
   const outDir = path.join(
     repo.dirs.gitDir,
-    `gittree-format-patch-${crypto.randomBytes(4).toString('hex')}`,
+    `geet-format-patch-${crypto.randomBytes(4).toString('hex')}`,
   );
   await repo.queue.enqueue({
     label: 'create patch file',
@@ -100,7 +100,7 @@ export async function createPatchToFile(
 export async function createPatchText(repo: RepoHandle, source: CreatePatchSource): Promise<string> {
   const scratch = path.join(
     repo.dirs.gitDir,
-    `gittree-createpatch-${crypto.randomBytes(4).toString('hex')}.patch`,
+    `geet-createpatch-${crypto.randomBytes(4).toString('hex')}.patch`,
   );
   try {
     await createPatchToFile(repo, source, scratch);
@@ -118,7 +118,7 @@ async function createWorktreePatch(
 ): Promise<void> {
   const scratchIndex = path.join(
     repo.dirs.gitDir,
-    `gittree-createpatch-index-${crypto.randomBytes(4).toString('hex')}`,
+    `geet-createpatch-index-${crypto.randomBytes(4).toString('hex')}`,
   );
   await repo.queue.enqueue({
     label: 'create patch from selection',

@@ -32,7 +32,7 @@ export function registerPhase05HistoryRewriting(
 
   const updateContextKey = (): void => {
     const active = core.repos.some((r) => monitors.get(canonicalKey(r.root))?.isRebasing === true);
-    void vscode.commands.executeCommand('setContext', 'gittree.rebase.active', active);
+    void vscode.commands.executeCommand('setContext', 'geet.rebase.active', active);
   };
 
   const attach = (repo: RepoHandle): void => {
@@ -78,7 +78,7 @@ export function registerPhase05HistoryRewriting(
   };
   const engineFor = (repo: RepoHandle | undefined): RebaseEngine | undefined =>
     repo ? engines.get(canonicalKey(repo.root)) : undefined;
-  // `unknown`: a command may answer its caller (gittree.rebase.interactive answers the Rebase dialog).
+  // `unknown`: a command may answer its caller (geet.rebase.interactive answers the Rebase dialog).
   const register = (id: string, fn: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
@@ -98,28 +98,28 @@ export function registerPhase05HistoryRewriting(
     }
   };
 
-  register('gittree.rebase.continue', async (repoRoot) => {
+  register('geet.rebase.continue', async (repoRoot) => {
     const engine = engineFor(pickRepo(repoRoot));
     if (engine) await reportOutcome(() => engine.continueRebase());
   });
-  register('gittree.rebase.skip', async (repoRoot) => {
+  register('geet.rebase.skip', async (repoRoot) => {
     const engine = engineFor(pickRepo(repoRoot));
     if (engine) await reportOutcome(() => engine.skip());
   });
-  register('gittree.rebase.abort', async (repoRoot) => {
+  register('geet.rebase.abort', async (repoRoot) => {
     const engine = engineFor(pickRepo(repoRoot));
     if (engine) {
       await engine.abort();
       notifySuccess(vscode.l10n.t('Abort rebase succeeded'));
     }
   });
-  register('gittree.rebase.actions', async (repoRoot) => {
+  register('geet.rebase.actions', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (!repo) return;
     const items: Array<vscode.QuickPickItem & { cmd: string }> = [
-      { label: `$(debug-continue) ${vscode.l10n.t('Continue Rebase')}`, cmd: 'gittree.rebase.continue' },
-      { label: `$(debug-step-over) ${vscode.l10n.t('Skip Current Commit')}`, cmd: 'gittree.rebase.skip' },
-      { label: `$(discard) ${vscode.l10n.t('Abort Rebase')}`, cmd: 'gittree.rebase.abort' },
+      { label: `$(debug-continue) ${vscode.l10n.t('Continue Rebase')}`, cmd: 'geet.rebase.continue' },
+      { label: `$(debug-step-over) ${vscode.l10n.t('Skip Current Commit')}`, cmd: 'geet.rebase.skip' },
+      { label: `$(discard) ${vscode.l10n.t('Abort Rebase')}`, cmd: 'geet.rebase.abort' },
     ];
     const picked = await vscode.window.showQuickPick(items, {
       placeHolder: vscode.l10n.t('Rebase in progress — choose an action'),
@@ -164,7 +164,7 @@ export function registerPhase05HistoryRewriting(
     if (anchor !== undefined) await rebaseView.open(repo, anchor);
   };
 
-  register('gittree.rebase.interactive', async (arg): Promise<RebaseOntoResult | undefined> => {
+  register('geet.rebase.interactive', async (arg): Promise<RebaseOntoResult | undefined> => {
     // The Rebase dialog's Interactive (POST-P14cw): its repository, a new base and
     // perhaps From, not a commit picked in the Log. It went down the Log's path,
     // found no sha, and opened nothing, while the dialog said it had.
@@ -182,19 +182,19 @@ export function registerPhase05HistoryRewriting(
     await openFromLog(arg);
     return undefined;
   });
-  register('gittree.rebase.row.showInLog', async (arg) => {
+  register('geet.rebase.row.showInLog', async (arg) => {
     const sha = (arg as { sha?: string } | undefined)?.sha;
     if (typeof sha === 'string') {
       // The rebase belongs to a repository; the log shows one at a time and no
       // longer guesses which from the focused editor.
       await vscode.commands.executeCommand(
-        'gittree.log.revealCommit',
+        'geet.log.revealCommit',
         sha,
         rebaseView.currentRepoRoot,
       );
     }
   });
-  register('gittree.rebase.row.resetAction', (arg) => {
+  register('geet.rebase.row.resetAction', (arg) => {
     const sha = (arg as { sha?: string } | undefined)?.sha;
     if (typeof sha === 'string') rebaseView.resetRowAction(sha);
   });
@@ -210,7 +210,7 @@ export function registerPhase05HistoryRewriting(
     if (typeof arg === 'string' && /^[0-9a-f]{7,64}$/i.test(arg)) return arg;
     return undefined;
   };
-  register('gittree.commit.undo', async (arg) => {
+  register('geet.commit.undo', async (arg) => {
     const repo = logRepo();
     if (!repo) return;
     // HEAD only — from the log menu the handler validates the clicked sha.
@@ -226,7 +226,7 @@ export function registerPhase05HistoryRewriting(
     const result = await undoDrop.undoCommit(repo);
     if (result.status === 'done') void pushSafety.maybeOffer(repo, preHead);
   });
-  register('gittree.commit.drop', async (arg) => {
+  register('geet.commit.drop', async (arg) => {
     const repo = logRepo();
     const sha = shaOf(arg);
     if (repo && sha !== undefined) {
@@ -261,19 +261,19 @@ export function registerPhase05HistoryRewriting(
     }
     return logRepo();
   };
-  register('gittree.commit.revert', async (arg) => {
+  register('geet.commit.revert', async (arg) => {
     const repo = repoForArg(arg);
     const shas = shasOf(arg);
     if (repo && shas.length > 0) await revertPick.revert(repo, shas);
   });
-  register('gittree.commit.cherryPick', async (arg) => {
+  register('geet.commit.cherryPick', async (arg) => {
     const repo = repoForArg(arg);
     const shas = shasOf(arg);
     if (repo && shas.length > 0) await revertPick.cherryPick(repo, shas);
   });
   // The log's menu for several selected commits names it in the plural, as
   // IntelliJ's `Revert Commits` does; it is the same revert.
-  register('gittree.commit.revertCommits', async (arg) => {
+  register('geet.commit.revertCommits', async (arg) => {
     const repo = repoForArg(arg);
     const shas = shasOf(arg);
     if (repo && shas.length > 0) await revertPick.revert(repo, shas);
@@ -282,7 +282,7 @@ export function registerPhase05HistoryRewriting(
   // ---- T5: Reword from log --------------------------------------------------
   const reword = new RewordService((repo) => engines.get(canonicalKey(repo.root)));
   context.subscriptions.push(reword);
-  register('gittree.commit.reword', async (arg) => {
+  register('geet.commit.reword', async (arg) => {
     const repo = logRepo();
     const sha = shaOf(arg);
     if (repo && sha !== undefined) {
@@ -299,14 +299,14 @@ export function registerPhase05HistoryRewriting(
     (repo) => engines.get(canonicalKey(repo.root)),
     (original, acceptTitle) => reword.promptMessage(original, acceptTitle),
   );
-  register('gittree.commit.dropCommits', async (arg) => {
+  register('geet.commit.dropCommits', async (arg) => {
     const repo = logRepo();
     const shas = shasOf(arg);
     if (!repo || shas.length === 0) return;
     if (shas.length === 1) await undoDrop.dropCommit(repo, shas[0]!);
     else await multiEdit.dropCommits(repo, shas);
   });
-  register('gittree.log.squashCommits', async (arg) => {
+  register('geet.log.squashCommits', async (arg) => {
     const repo = logRepo();
     const shas = shasOf(arg);
     if (repo && shas.length > 1) await multiEdit.squashCommits(repo, shas);
@@ -315,14 +315,14 @@ export function registerPhase05HistoryRewriting(
   // P12-T6: Apply Patch — mailbox patches replay as commits (`git am -3`),
   // plain diffs content-apply (`git apply --3way`). The P13-T4 dialog will
   // front this same engine with its option matrix.
-  register('gittree.patch.apply', async (repoRoot) => {
+  register('geet.patch.apply', async (repoRoot) => {
     const repo =
       typeof repoRoot === 'string'
         ? core.repos.find((r) => canonicalKey(r.root) === canonicalKey(repoRoot))
         : (core.repoForUri(vscode.window.activeTextEditor?.document.uri ?? vscode.Uri.file('')) ??
           core.repos[0]);
     if (!repo) return;
-    const seeded = process.env['GITTREE_TEST_APPLY_PATCH'];
+    const seeded = process.env['GEET_TEST_APPLY_PATCH'];
     const picked =
       seeded !== undefined
         ? [vscode.Uri.file(seeded)]

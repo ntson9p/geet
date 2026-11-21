@@ -8,7 +8,7 @@ import type { ConflictBlock } from '../mergeCompute';
 import { baseAnchoredEdits, weaveDisjoint } from './lineDiff3';
 
 export interface WandOptions {
-  /** `gittree.merge.autoResolveWhitespace` (default on). */
+  /** `geet.merge.autoResolveWhitespace` (default on). */
   whitespace: boolean;
 }
 

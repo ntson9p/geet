@@ -18,6 +18,6 @@ describe('the change popup’s actions', () => {
 
   it('names the hunk commands that take the change', () => {
     const commands = CHANGE_ACTIONS.flatMap((a) => (a.kind === 'action' ? [a.command] : []));
-    expect(commands).toEqual(['gittree.hunk.stage', 'gittree.hunk.openCommitView', 'gittree.hunk.rollback']);
+    expect(commands).toEqual(['geet.hunk.stage', 'geet.hunk.openCommitView', 'geet.hunk.rollback']);
   });
 });

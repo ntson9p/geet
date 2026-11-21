@@ -1,7 +1,7 @@
 /**
  * P10-T1 benchmark suite. Budgets are master §13 with a 15% CI-noise
  * tolerance; medians of 5 (p95 for status, per the §13 row). Measured numbers
- * are written to GITTREE_PERF_RESULTS for the runner to print and for
+ * are written to GEET_PERF_RESULTS for the runner to print and for
  * docs/perf.md. Metrics without a §13 row (snapshot overhead, first-chunk
  * latency) are recorded for trend, not asserted.
  */
@@ -53,8 +53,8 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
   suiteSetup(async function () {
     this.timeout(120_000);
     core = await activateGeet();
-    const logRoot = process.env['GITTREE_PERF_REPO_LOG'];
-    const statusRoot = process.env['GITTREE_PERF_REPO_STATUS'];
+    const logRoot = process.env['GEET_PERF_REPO_LOG'];
+    const statusRoot = process.env['GEET_PERF_REPO_STATUS'];
     assert.ok(logRoot && statusRoot, 'perf fixture env missing');
     repoLog = core.repoForPath(logRoot)!;
     repoStatus = core.repoForPath(statusRoot)!;
@@ -63,7 +63,7 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
   });
 
   suiteTeardown(() => {
-    const out = process.env['GITTREE_PERF_RESULTS'];
+    const out = process.env['GEET_PERF_RESULTS'];
     if (out) fs.writeFileSync(out, JSON.stringify(results, null, 2));
   });
 

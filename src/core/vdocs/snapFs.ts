@@ -1,12 +1,12 @@
 /**
- * `gittree-snap:` — read-only Local History snapshot content (master §2
+ * `geet-snap:` — read-only Local History snapshot content (master §2
  * virtual documents; P9-T3). URIs carry the repo root, snapshot id and
  * repo-relative path; content is served from the SnapshotStore.
  */
 import * as vscode from 'vscode';
 import type { SnapshotStore } from '../../localHistory/snapshotStore';
 
-export const SNAP_SCHEME = 'gittree-snap';
+export const SNAP_SCHEME = 'geet-snap';
 
 export interface SnapQuery {
   repo: string;

@@ -40,9 +40,9 @@ surface, which made genuine gaps invisible. Rules:
 | [D23](#d23--changelists-are-stored-per-repository-presented-per-project) | Changelists are stored per repository and merged into one row for display; user lists merge by name | Yes (costly, low value) |
 | [D24](#d24--the-log-graph-renders-one-repository-at-a-time) | The log graph renders one repository at a time, so `Paths ▾ · Roots` is a single-select | Yes (a phase of work) |
 | [D25](#d25--the-annotation-age-ramp-is-quantised-to-five-steps) | The blame age gradient has five steps instead of a continuous ramp | No (API) |
-| [D26](#d26--four-opt-in-sidebar-panes-intellij-has-no-equivalent-of) | Branches, Worktrees, Local History and Stashes are opt-in sidebar panes | Yes (`gittree.sidebar.extraViews`) |
+| [D26](#d26--four-opt-in-sidebar-panes-intellij-has-no-equivalent-of) | Branches, Worktrees, Local History and Stashes are opt-in sidebar panes | Yes (`geet.sidebar.extraViews`) |
 | [D27](#d27--all-roots-branch-operations-are-the-ones-that-need-no-per-root-input) | Only branch operations needing no per-root input are offered across all roots | Yes (costly, low value) |
-| [D28](#d28--the-status-bar-widget-is-an-action-not-a-readout) | The status-bar widget is a button that opens the popup, not a second branch readout | Yes (`gittree.statusBar`) |
+| [D28](#d28--the-status-bar-widget-is-an-action-not-a-readout) | The status-bar widget is a button that opens the popup, not a second branch readout | Yes (`geet.statusBar`) |
 | [D29](#d29--a-repositories-section-and-a-branches-view-in-the-sidebar) | A Repositories section, and a Branches view that follows it, in the sidebar | Yes (mechanical) |
 | [D30](#d30--update-project-asks-with-a-message-box-not-a-dialog) | Update Project asks Merge or Rebase with a native message box; `Don't show again` moves to the result | No (no modal surface can hold a radio button) |
 | [D31](#d31--updates-set-local-changes-aside-with-gits-autostash-not-the-shelf) | Updates set local changes aside with git's `--autostash`, not the shelf — and not at all over staged content | Yes (a shelf-based saver) |
@@ -53,8 +53,8 @@ surface, which made genuine gaps invisible. Rules:
 | [D36](#d36--comparing-branches-one-table-the-working-tree-on-the-right) | Comparing branches is one table rather than two logs, and the working tree is on the right | Partly deliberate; Swap and Get from Branch not done |
 | [D37](#d37--the-commit-window-can-put-repositories-first) | The Commit window can put repositories first, their changelists beneath; its Group By offers that instead of IntelliJ's Directory and Repository toggles | Deliberate (owner's request) |
 | [D38](#d38--every-commit-check-starts-unticked) | Every commit check starts unticked, and so does running the advanced ones after the commit; IntelliJ ticks Analyze code, Check TODO and that | Deliberate (owner's request) |
-| [D39](#d39--the-filter-dropdowns-are-compact) | The log's filter dropdowns are small chips naming their value by IntelliJ's rules, a date in the Date column's format; `full` writes every value out | Deliberate (owner's request); `gittree.log.filterChips` |
-| [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `gittree.log.dateFormat` |
+| [D39](#d39--the-filter-dropdowns-are-compact) | The log's filter dropdowns are small chips naming their value by IntelliJ's rules, a date in the Date column's format; `full` writes every value out | Deliberate (owner's request); `geet.log.filterChips` |
+| [D40](#d40--the-date-column-writes-yyyymmdd-hhmm) | The log's Date column writes `YYYY/MM/DD HH:mm`, not the locale's short date and time | Deliberate (owner's request); `geet.log.dateFormat` |
 | [D41](#d41--the-commit-windows-rows-open-the-file-manager) | The Commit window's file and folder rows open the system's file manager, under VS Code's names and key | Deliberate (owner's request) |
 | [D42](#d42--ctrlenter-commits-from-the-message-box-only) | Ctrl+Enter commits from the Commit window's message box only, as VS Code's Source Control box takes it; IntelliJ takes it anywhere in its Commit window | Deliberate (owner's request) |
 | [D43](#d43--the-commit-window-is-compact) | The Commit window's toolbar shares the tabs' row and folds into `⋯`; one full-width Commit button holds Commit and Push… in its ▾ | Deliberate (owner's request) |
@@ -63,7 +63,7 @@ surface, which made genuine gaps invisible. Rules:
 | [D46](#d46--the-commit-windows-counter-ticks-every-change-and-its-blank-space-has-a-menu) | The Commit window's counter is a box that ticks every change, and the list's blank space has a menu of its own | Deliberate (owner's request) |
 | [D47](#d47--date-format-is-in-the-logs-eye-menu) | The log's date format is chosen in its eye menu, not in a settings page; off Windows the "system" format is VS Code's display language's | Deliberate (owner's request); the second, a platform limit |
 | [D48](#d48--generate-commit-message-uses-a-model-vs-code-has) | Generate Commit Message is written by a language model VS Code has, chosen in Geet; its button is in the message box's corner and its prompt in a setting | Platform (an extension brings no model); the rest deliberate |
-| [D49](#d49--every-push-can-go-without-the-push-dialog) | Every Push can push straight away, without the Push dialog (`Don't show this dialog again`, `gittree.push.showDialog`), not Commit and Push alone; the dialog still opens, saying why, when a push needs it | Deliberate (owner's request) |
+| [D49](#d49--every-push-can-go-without-the-push-dialog) | Every Push can push straight away, without the Push dialog (`Don't show this dialog again`, `geet.push.showDialog`), not Commit and Push alone; the dialog still opens, saying why, when a push needs it | Deliberate (owner's request) |
 
 ---
 
@@ -146,7 +146,7 @@ between C and B based on whether the per-change arrows matter more than editor f
 ### Status: Route A shipped in P14-T7 — this deviation is narrowed, not closed
 
 Geet now contributes its own controls to its own diffs (`when: isInDiffEditor &&
-gittree.diff.active`): previous/next file, side-by-side/inline, ignore-whitespace and
+geet.diff.active`): previous/next file, side-by-side/inline, ignore-whitespace and
 collapse-unchanged. It also has something IntelliJ has and the native editor structurally
 cannot: **cross-file change navigation**. VS Code wraps to the top of the same file at the last
 change because a diff editor knows two documents and nothing about a sequence; Geet opens
@@ -218,7 +218,7 @@ field literally reads "Search for branches and actions", which is what QuickPick
 **IntelliJ:** 15 named file statuses, each with a per-theme color, editable on a settings page;
 directories with modified descendants are highlighted.
 **Geet:** the statuses that map onto VS Code's decoration and theme color model, with a
-`gittree.colors.*` override block and directory highlighting derived from the change tree
+`geet.colors.*` override block and directory highlighting derived from the change tree
 (P11-T8). `FileDecorationProvider` is file-level and badge-shaped, so statuses that IntelliJ
 distinguishes by color alone may collapse together in the explorer.
 **Revisitable:** partially — inside Geet's own webview trees the full palette is achievable;
@@ -234,9 +234,9 @@ code-action kind (`source.organizeImports` is already the Optimize imports row, 
 `source.sortMembers` exists only for individual languages with no capability probe that does
 not execute every provider), so the row is hidden rather than shown-inert per the plan.
 IntelliJ's Cleanup "Choose profile" maps to **which code-action kind the Cleanup check
-applies** (`gittree.commit.checks.cleanupKind`, default `source.fixAll`, e.g.
+applies** (`geet.commit.checks.cleanupKind`, default `source.fixAll`, e.g.
 `source.fixAll.eslint`) — inspection profiles themselves have no analogue.
-The plan's contributions list also names a `gittree.commit.author` *setting*; the author
+The plan's contributions list also names a `geet.commit.author` *setting*; the author
 override is per-repo `workspaceState` instead (plan step 2), because a workspace-level setting
 cannot differ per repository in a multi-root workspace.
 **Why:** these are IntelliJ platform features (copyright profiles, run configurations,
@@ -246,7 +246,7 @@ deployment targets, package-checker), not Git features.
 ## D8 · Show Repository at Revision
 
 **IntelliJ:** opens a full project frame at that revision.
-**Geet:** a read-only tree view backed by a `gittree-tree:` `FileSystemProvider` over
+**Geet:** a read-only tree view backed by a `geet-tree:` `FileSystemProvider` over
 `git ls-tree` + `git cat-file` (P12-T7).
 **Why:** VS Code has no second project frame; faking one by mutating workspace folders is worse
 than a scoped read-only tree.
@@ -345,7 +345,7 @@ the *content* area.
 about 21px right at 100% zoom, at the identical 4px width. The alternative, `gutterIconPath`,
 renders in the **glyph margin**: 54px the *other* way, only 2px wide, and sharing a lane with
 breakpoints. The border was chosen on width fidelity and to keep breakpoints uncontested.
-Since POST-P14cc the bars are not drawn unless `gittree.changeBars.enabled` asks (D22).
+Since POST-P14cc the bars are not drawn unless `geet.changeBars.enabled` asks (D22).
 **Revisitable:** no, absent a new API.
 
 ## D19 · The change popup is keyboard-invoked; hover is opt-in
@@ -353,8 +353,8 @@ Since POST-P14cc the bars are not drawn unless `gittree.changeBars.enabled` asks
 **IntelliJ:** clicking a gutter marker opens a compact popup with the previous text and a
 toolbar. Hovering the marker shows nothing.
 **Geet:** the same actions — Rollback / Stage / Commit View — open at the cursor from
-`gittree.change.showActions` (`Ctrl+Alt+G H`). The full popup, previous text included, also
-opens on hover over a changed line when `gittree.changeBars.hoverActions` is on; it is **off by
+`geet.change.showActions` (`Ctrl+Alt+G H`). The full popup, previous text included, also
+opens on hover over a changed line when `geet.changeBars.hoverActions` is on; it is **off by
 default** (POST-P14aa).
 
 **Why:** VS Code exposes no click handler for a `TextEditorDecorationType`, and no API opens a
@@ -375,14 +375,14 @@ core menu item, but the button only runs a command, and VS Code's registry hands
 whoever registered it last, which its own `CommandService` allows for ("in case an extension wants
 to overwrite it"). Geet registers `workbench.action.compareEditor.nextChange` and
 `previousChange` while one of its diffs is on screen and releases them otherwise, so no other diff
-in the window goes through it. `gittree.diff.goToNextFileAfterLastChange` turns this off, like
+in the window goes through it. `geet.diff.goToNextFileAfterLastChange` turns this off, like
 IntelliJ's *Go to the next file after reaching last change*.
 
 | IntelliJ | Geet | Why |
 |---|---|---|
 | A file with no text change is a stop | **Next Change skips it.** `←` `→` and clicking it still show it | VS Code greys out its ↓ on such a file, so a stop there would strand the walk in a commit full of renames |
 | The next button is disabled at the end of the list | **It stays enabled and says** *This is the last change* | Whether a core button is enabled is not an extension's to decide |
-| Images diff side by side | **Any binary file reads as** `Binary file, 79 bytes (7d1ad7a)` on each side | VS Code's image viewer cannot read `gittree-rev:`, which is a text content provider. Showing images needs a read-only file system for those revisions |
+| Images diff side by side | **Any binary file reads as** `Binary file, 79 bytes (7d1ad7a)` on each side | VS Code's image viewer cannot read `geet-rev:`, which is a text content provider. Showing images needs a read-only file system for those revisions |
 | The hint names no file | **It names the next file** and its position | An addition, since VS Code's hover has the room |
 | A walk over several selected rows leaves the tree as it is, so nothing in it says which one is open | **The name of the file on screen is highlighted in its list**, whatever is selected, the way VS Code highlights a name in a tree. Over the whole list the selection still follows, as IntelliJ's does | An addition. A highlighted name is how a VS Code tree points at a row without selecting it, which is the one thing a walk over a selection must not do |
 | The hint is a tooltip wherever the change is | **On the first few lines in view it is a label at the end of the line** | A hover there is drawn over the toolbar, and in a window under about 1200px wide over the ↓ just clicked, so the second click would hit the hover |
@@ -404,7 +404,7 @@ correct diffs of the same change; the block covers the same number of lines.
 
 **Before P14:** Geet skipped explorer decorations in "companion" mode so as not to double up
 with the built-in Git extension's.
-**Now:** `gittree.decorations.fileExplorer`, **off by default since POST-P14bz** (it was on).
+**Now:** `geet.decorations.fileExplorer`, **off by default since POST-P14bz** (it was on).
 Geet does not inspect what other extensions are doing.
 
 A decoration is VS Code's, not a view's: no API keeps it out of VS Code's own Source Control
@@ -415,7 +415,7 @@ independent. Off by default keeps both rules: Geet adds nothing to VS Code's vie
 still does not change what it does by what another extension is doing. Someone who disables
 the built-in extension turns it on.
 
-**Change bars, likewise** (`gittree.changeBars.enabled`, **off by default since POST-P14cc**). VS
+**Change bars, likewise** (`geet.changeBars.enabled`, **off by default since POST-P14cc**). VS
 Code's built-in Git draws its own bars in the gutter (`scm.diffDecorations: all`, its default), so
 every changed line had two: VS Code's in its lane and Geet's at the text's edge (D18), and they
 could disagree, VS Code calling a line modified that Geet called added. Geet's change actions
@@ -425,8 +425,8 @@ read the changes, not the bars: `Ctrl+Alt+G H` and Next / Previous Change work w
 Geet's Stashes, Local History, Conflicts and Worktrees views carried `file:` addresses, which
 tell VS Code a row *is* that file on disk, so VS Code's Git marked them with the file's status
 now. In a stash or a snapshot that is misleading: of two files a stash changed, the one edited
-since read `M` and the other nothing. They now carry Geet's own address (`gittree-row:`), as the
-Compare view's always have (`gittree-compare:`). Geet marks them itself with what is true of
+since read `M` and the other nothing. They now carry Geet's own address (`geet-row:`), as the
+Compare view's always have (`geet-compare:`). Geet marks them itself with what is true of
 the row: a stash's files with the stash's own change, a conflicted file `!`; Local History and
 Worktrees rows carry no mark. The address keeps the file's name, which the icon theme reads.
 
@@ -442,7 +442,7 @@ dislikes the overlap turns one of them off.
 
 In IntelliJ a changelist is a *project*-level object: one `Changes` node holds files from every
 VCS root, and a list named `Feature X` spans three repositories at once. Geet builds one
-`ChangelistService` per repository (`gittree.changelists.<root>`).
+`ChangelistService` per repository (`geet.changelists.<root>`).
 
 **The tree reads as IntelliJ's.** `assembleCommitTree` merges the same changelist across
 repositories into one row, with a repository row per contributor beneath it — a single `Changes`
@@ -527,7 +527,7 @@ continuous gradient between **five anchor colours** from the colour scheme
 has.
 
 **Geet:** the same five anchors are contributed as themable colours
-(`gittree.blame.age1Background` … `age5Background`, newest first) and `ageStep` quantises the
+(`geet.blame.age1Background` … `age5Background`, newest first) and `ageStep` quantises the
 ramp to five steps. The ranking is IntelliJ's — position among the file's own distinct commit
 times, not wall-clock age.
 
@@ -559,14 +559,14 @@ own window. None of the four is a permanent section of the commit surface.
 
 **Geet:** the default shape is now the same — POST-P14k moved worktrees to the Git tool
 window, POST-P14l gave stashes their `Stash` tab, and POST-P14n gates
-`gittree.branchesLegacy`, `gittree.worktrees`, `gittree.localHistory` and `gittree.stashes`
-behind `gittree.sidebar.extraViews` (default `false`). Turning the setting on brings all four
+`geet.branchesLegacy`, `geet.worktrees`, `geet.localHistory` and `geet.stashes`
+behind `geet.sidebar.extraViews` (default `false`). Turning the setting on brings all four
 back as collapsed sections.
 
-**Amended by POST-P14u (D29).** Branches is no longer one of the four. `gittree.branches` was
+**Amended by POST-P14u (D29).** Branches is no longer one of the four. `geet.branches` was
 promoted to the repository-scoped Branches view, which opens unconditionally; the
 all-repositories tree this deviation is about kept its provider and moved to
-`gittree.branchesLegacy`, still behind the same setting. Everything below still describes
+`geet.branchesLegacy`, still behind the same setting. Everything below still describes
 that tree and the other three.
 
 **Why a setting and not `"visibility": "hidden"`, which POST-P14m tried first:** `visibility`
@@ -579,10 +579,10 @@ focuses the stashes pane until `TreeView.visible` is true, then turns the settin
 requires the pane to disappear. A manifest assertion cannot see that difference, which is how
 the first attempt shipped broken.
 
-Two of the four are also revealed **on demand**, the way `gittree.compare` is, because a view
+Two of the four are also revealed **on demand**, the way `geet.compare` is, because a view
 that is not contributed cannot be focused and the commands that reveal them would otherwise
 have become silent no-ops: the branches popup's last header button arms
-`gittree.branches.active`, and `gittree.history.show` arms `gittree.localHistory.active`
+`geet.branches.active`, and `geet.history.show` arms `geet.localHistory.active`
 before focusing. For Local History that is *closer* to IntelliJ than a standing pane —
 `Show History` opens the window when you ask for it.
 
@@ -597,7 +597,7 @@ the POST-P14d failure mode, where three surfaces of the branch registry offered 
 nine menu rows for the same ref. The mitigation is structural rather than procedural: the
 relocated surfaces **dispatch into the same commands** the trees do
 (`worktreesPaneBridge`, `stashBridge`, `shelfBridge`, `branchesPaneBridge` all forward to
-`gittree.*` commands) instead of reimplementing them, so a divergence has to be introduced
+`geet.*` commands) instead of reimplementing them, so a divergence has to be introduced
 deliberately rather than by omission.
 
 **Revisitable:** yes, in either direction. Deleting the four views and their ~34 menu
@@ -702,7 +702,7 @@ installed the extension nothing to aim at. The name is the cheapest fix for both
 no information: VS Code is already showing the branch a few centimetres to the left, which is
 the same premise this whole deviation rests on. `$(list-tree)` is a placeholder chosen for what
 it is *not* — `$(git-branch)`, `$(git-commit)` and `$(source-control)` are all already in this
-strip. `media/gittree-mark.svg` belongs here instead, once `contributes.icons` carries it as a
+strip. `media/geet-mark.svg` belongs here instead, once `contributes.icons` carries it as a
 font glyph; an SVG cannot reach status-bar text any other way. `full` keeps `$(git-branch)`:
 there the widget *is* the branch readout and the branch name is its label.
 
@@ -719,7 +719,7 @@ any repository's `hide()` disposed the entry the active one had shown; POST-P14s
 `ui/statusBar.ts` carries the mechanism. This deviation stands on the duplication argument
 alone, which is what it was actually argued from.
 
-**The readout is not gone, it is conditional.** `gittree.statusBar: auto` (the default) resolves
+**The readout is not gone, it is conditional.** `geet.statusBar: auto` (the default) resolves
 to `full` — branch name plus counts, capped at `99+` — when the built-in Git extension is absent
 or `git.enabled` is false, because then nobody else is drawing one. Detection is deliberately
 conservative: VS Code exposes no way to see that a user hid those entries from the status bar's
@@ -737,10 +737,10 @@ Branches themselves live in two places: that popup, and the Git tool window's Br
 There is no notion of a "current repository" anywhere in the UI; scope is picked per
 operation (which is what D27 is about).
 
-**Geet:** the sidebar gains two sections. **Branches** (`gittree.branches`) is the popup's
-content standing open, scoped to one repository. **Repositories** (`gittree.repositories`)
+**Geet:** the sidebar gains two sections. **Branches** (`geet.branches`) is the popup's
+content standing open, scoped to one repository. **Repositories** (`geet.repositories`)
 lists every root with its current branch and its distance from upstream, and chooses which
-repository Branches shows; it is contributed only when `gittree.multiRepo` is set, and starts
+repository Branches shows; it is contributed only when `geet.multiRepo` is set, and starts
 collapsed with the root count beside its title.
 
 **Why, against a project whose first principle is IntelliJ fidelity.** Two reasons, and only
@@ -786,7 +786,7 @@ Control view" turns out to describe two different VS Code views:
   update was `Update Project…` here until POST-P14bx, though it updated that repository alone,
   and Update Project is every repository everywhere else. It is now **Update Repository…**
   and **Update Repository Without Fetching…**, commands of their own
-  (`gittree.update.repository`, `…repositoryWithoutFetch`), so the menu, which shows each
+  (`geet.update.repository`, `…repositoryWithoutFetch`), so the menu, which shows each
   command's own title, can say so.
 
 **What it costs.** One more surface over the branch-action registry, which is the POST-P14d
@@ -816,7 +816,7 @@ repositories were named rather than the project, titled by them: *Update api* fo
 own **Update Repository…**, *Update 2 Repositories* for the Repositories panel's `⋯` with two
 picked (the Branches panel's from POST-P14co until POST-P14cq, and before that the one panel's). With only one repository in the workspace it is always *Update Project*. Its text names
 what is being updated — `develop ← origin/develop · 3 to pull · 1 to push` — and, with
-`gittree.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
+`geet.dialogs.showCommandLine` on, the exact commands behind each button. The buttons are
 `Merge`, `Rebase`, `Reset to the Remote Branch` and VS Code's own `Cancel`; pressing one is
 the `OK`. The strategy answered last comes first, so `Enter` repeats it the way IntelliJ's
 pre-selected radio does. `Don't show again` moved to the update's result notification as
@@ -889,17 +889,17 @@ and `[Merge] [Rebase] [Cancel]` with the saved update method as the default. In 
 several repositories it also has *Update all repositories*.
 **Geet:** the same question as a native modal message box, a warning as IntelliJ's is: its
 sentence (naming the repository too when the workspace has several), then — with
-`gittree.dialogs.showCommandLine` on — what each button runs, the update and then the same push
+`geet.dialogs.showCommandLine` on — what each button runs, the update and then the same push
 again. The buttons are `Merge`, `Rebase` and VS Code's own `Cancel`, the last answer first; the
 answer is shared with Update Project, as IntelliJ keeps one update method for both. `Remember…`
 is `Don't Ask Again` on the result, and it writes IntelliJ's own setting — *Auto-update if push
-of the current branch was rejected* — as `gittree.push.autoUpdateIfRejected`.
+of the current branch was rejected* — as `geet.push.autoUpdateIfRejected`.
 
 **Why:** D30's reason, and D30's answer: no modal surface an extension can open holds a
 checkbox, and Geet's two update questions should behave alike.
 
 **Also different:**
-* ***Update all repositories* is a setting** (POST-P14ag), `gittree.push.updateAllRepositoriesIfRejected`,
+* ***Update all repositories* is a setting** (POST-P14ag), `geet.push.updateAllRepositoriesIfRejected`,
   on by default — the owner's decision, matching the checkbox as IntelliJ first shows it. The
   question names the other repositories it will update, where IntelliJ shows the ticked box. As
   in IntelliJ, every update runs before anything is pushed again, and nothing is pushed again
@@ -939,7 +939,7 @@ it offers nothing Geet's strip lacks.
 branch) and in the Git tool window's Branches pane (a tree that filters the log). There is no
 standing panel that combines every repository's state with its branches.
 **Geet:** two panels designed for VS Code's sidebar, the **Repositories** panel
-(`gittree.repositoryList`) and the **Branches** panel (`gittree.branches`). They were one panel
+(`geet.repositoryList`) and the **Branches** panel (`geet.branches`). They were one panel
 until POST-P14co, titled Branches until POST-P14bb and Repositories after:
 * every repository's status first, in the Repositories panel (with several repositories);
 * then one list of branches for all of them, under **Recent**, **Local**, **Remote** and
@@ -978,7 +978,7 @@ folded away. The owner later asked for two panels after all, with no label at al
   `⋯`), the form and the branches;
 * VS Code folds, sizes and scrolls each. Its divider between them is marked as the one under the
   Commit window is: a line along the Repositories panel's foot (POST-P14bu);
-* with one repository there is no Repositories panel (`when: gittree.multiRepo`): its current
+* with one repository there is no Repositories panel (`when: geet.multiRepo`): its current
   branch heads the Branches panel, as it headed the one list;
 * one pick for both, kept by the host (`reposInView.ts`), which tells each panel of a pick the
   other made. A repository's New Branch… opens the Branches panel's form. Typing in the
@@ -1063,7 +1063,7 @@ And one item IntelliJ's branch menu has no counterpart for, **Show in New Log Ta
 IntelliJ's branches tree sits in the log and filters it on a double-click (`Update Branch Filter
 in Log`). The panel sits in the sidebar, so it opens the branch in a Log tab of its own.
 
-**Revisitable:** yes — the popup and the opt-in trees (`gittree.sidebar.extraViews`) are
+**Revisitable:** yes — the popup and the opt-in trees (`geet.sidebar.extraViews`) are
 untouched.
 
 ## D35 · A new branch tracks nothing by default, and Stop Tracking is a menu row
@@ -1130,7 +1130,7 @@ several roots (`SetRepositoryChangesGroupingAction`).
 | --- | --- | --- |
 | Changelists always at the top | **Changelist › Repository** or **Repository › Changelist**: a row per repository with changes, its own lists beneath | The owner's request. With many repositories, what changed where reads best per repository, as VS Code's own Source Control lays them out |
 | Directory and Repository are toggles | Directory is a toggle too since POST-P14cb (D44); with several repositories, always grouped by repository | A flat list of several repositories' files would need each row to say which |
-| The grouping is kept per project | Kept per workspace, in `gittree.commit.groupBy` | A setting is where VS Code keeps a view's choice, and the palette commands set it too |
+| The grouping is kept per project | Kept per workspace, in `geet.commit.groupBy` | A setting is where VS Code keeps a view's choice, and the palette commands set it too |
 
 Every row looks as IntelliJ draws it: a repository row is its root colour and its branch, a
 changelist row a folder in its files' status colour. In Repository › Changelist a list row under a
@@ -1147,12 +1147,12 @@ default (D44); this choice is the order once they are.
 (`VcsConfiguration.CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT`, on except in PyCharm, RubyMine and
 CLion, and `CHECK_NEW_TODO = true`). Reformat code, Rearrange code, Optimize imports and Cleanup
 start unticked.
-**Geet:** all five of its checks start unticked: `gittree.commit.checks.analyze` and
-`gittree.commit.checks.todo` default to `false`, as `reformat`, `optimizeImports` and `cleanup`
+**Geet:** all five of its checks start unticked: `geet.commit.checks.analyze` and
+`geet.commit.checks.todo` default to `false`, as `reformat`, `optimizeImports` and `cleanup`
 already did. A commit runs no check until the user ticks one in the gear popup or Settings.
 
 **Run advanced checks after a commit is done** starts unticked too (POST-P14bv), where IntelliJ
-ticks it (`NON_MODAL_COMMIT_POSTPONE_SLOW_CHECKS = true`): `gittree.commit.checks.deferAdvanced`
+ticks it (`NON_MODAL_COMMIT_POSTPONE_SLOW_CHECKS = true`): `geet.commit.checks.deferAdvanced`
 defaults to `false`. It is no check itself. It says when a ticked Analyze code or Check TODO runs:
 unticked, before the commit, where a finding asks *Review…*, *Commit Anyway* or *Cancel*, as the
 other checks' findings do. Ticked, after it, reported in a notification, and never stopping it.
@@ -1171,7 +1171,7 @@ name their value by rules of their own: a user by name, without the e-mail, and 
 (`UserFilterPopupComponent`); a date as `Since …` or `Until …` (`DateFilterPopupComponent`);
 several values joined with `|` and cut at 20 characters with `…`
 (`MultipleValueFilterPopupComponent.MAX_FILTER_VALUE_LENGTH`); the whole value in the tooltip.
-**Geet:** `gittree.log.filterChips: compact`, the default, names the value by those same
+**Geet:** `geet.log.filterChips: compact`, the default, names the value by those same
 rules. What differs:
 
 | IntelliJ | Geet | Why |
@@ -1179,7 +1179,7 @@ rules. What differs:
 | Flat labels | Small filled chips, the `×` inside | Geet's filter row has always been chips; these are the smaller kind |
 | A date in the system's short format, `Since 10/31/2026` | In the Date column's format, `Since 2026/10/31` | One way of writing a day in the window (D40) |
 | A range of dates `10/31/2026-11/5/2026` | `2026/10/31–2026/11/05` | The same |
-| — | `gittree.log.filterChips: full`: larger chips, every value written out (`Ben Okafor <ben@example.com>`, `a, b`, `3 refs`, `2026-10-31 → …`) | The look Geet had before, kept as an option at the owner's request |
+| — | `geet.log.filterChips: full`: larger chips, every value written out (`Ben Okafor <ben@example.com>`, `a, b`, `3 refs`, `2026-10-31 → …`) | The look Geet had before, kept as an option at the owner's request |
 
 **Revisitable:** yes — one setting.
 
@@ -1188,7 +1188,7 @@ rules. What differs:
 **IntelliJ:** the log's Date column is `DateFormatUtil.formatPrettyDateTime`: within the hour
 *5 minutes ago*, then *Today 3:07 PM* and *Yesterday 3:07 PM*, and older dates in the system's
 short date and time, `9/5/2026 3:07 PM` with US English Region settings on Windows.
-**Geet:** `2026/09/05 15:07` by default (`gittree.log.dateFormat: YYYY/MM/DD HH:mm`): year
+**Geet:** `2026/09/05 15:07` by default (`geet.log.dateFormat: YYYY/MM/DD HH:mm`): year
 first, two digits for every other field, a 24-hour clock, the same in every language. The
 `Date ▾` chip writes its days the same way. *Presentation Settings ▸ Date Format ▸ IntelliJ*
 (`pretty`) is IntelliJ's as it ships, and *System* (`locale`) the system's date and time with
@@ -1236,8 +1236,8 @@ the Commit button does, and nothing when the button is disabled.
 
 Why: the owner's choice, asked when the key was fixed (POST-P14bs).
 
-**Revisitable:** yes. The keybinding's `when` (`gittree.commitMessageFocus`) would also take
-`gittree.commitTreeFocus`, and the webview's `answersCommitAsk` would answer from the tree.
+**Revisitable:** yes. The keybinding's `when` (`geet.commitMessageFocus`) would also take
+`geet.commitTreeFocus`, and the webview's `answersCommitAsk` would answer from the tree.
 
 ## D43 · The Commit window is compact
 
@@ -1268,14 +1268,14 @@ Why: the owner asked for a much more compact Commit window that can be resized (
 **IntelliJ:** the Commit tool window lists changes by changelist: the default list and any others,
 then Unversioned Files. A file's status is its colour. Group By › Directory adds folder rows.
 **Geet:** by default it lists every changed file under its repository, as VS Code's Source Control
-view lists them (`gittree.commit.groupBy: none`):
+view lists them (`geet.commit.groupBy: none`):
 
 | IntelliJ | Geet | Why |
 | --- | --- | --- |
 | Changelist rows | None by default; View Options › Group By › **Changelist** brings them back | The owner's request: a list like VS Code's own, as the default |
 | Unversioned Files is a node of its own | Untracked files are among the others, in path order. They wear the colour and icon of the added file they become; their names are in italics and their letter is `U` | The owner's request: an untracked file looks like a tracked one and differs in one thing |
 | A file's status is its colour | Its colour, and VS Code's letter at the end of its row (`M`, `A`, `D`, `R`, `U`, `!`); a deleted file's name is struck through | VS Code's own look; a letter reads without colour |
-| Folder rows | None by default (`gittree.commit.groupByDirectory`): one list, each file naming its folder. Group By › **Directory** adds them, in every grouping | VS Code's Source Control view starts as a list |
+| Folder rows | None by default (`geet.commit.groupByDirectory`): one list, each file naming its folder. Group By › **Directory** adds them, in every grouping | VS Code's Source Control view starts as a list |
 | A repository row's menu: New Changelist…, Shelve Changes…, Rollback… | **Show Only This Repository** first (once *Select in Repositories Panel*; D45); then those, Reveal in File Explorer, and the Repositories panel's own menu for the repository, without its Commit | The owner's request; one repository, one menu |
 
 Changelists still exist underneath: new changes go to the active list, and Move to Another
@@ -1361,7 +1361,7 @@ Region settings (`GetLocaleInfoEx`), on macOS CoreFoundation's, on Linux `LC_TIM
 
 | IntelliJ | Geet | Why |
 | --- | --- | --- |
-| A settings page, two checkboxes and a pattern | *Presentation Settings ▸ Date Format* (the eye over the Commits list), three choices each showing today at 14:19: *Year First* (Geet's default, D40), *IntelliJ* (pretty formatting on), *System* (pretty formatting off); also `gittree.log.dateFormat` | The owner's request: change the format from the log itself. Three named choices instead of two checkboxes, since the default (D40) is Geet's own |
+| A settings page, two checkboxes and a pattern | *Presentation Settings ▸ Date Format* (the eye over the Commits list), three choices each showing today at 14:19: *Year First* (Geet's default, D40), *IntelliJ* (pretty formatting on), *System* (pretty formatting off); also `geet.log.dateFormat` | The owner's request: change the format from the log itself. Three named choices instead of two checkboxes, since the default (D40) is Geet's own |
 | The system's formats on every OS | On Windows the Region settings' short date and time, read from `HKCU\Control Panel\International` and turned into Java's letters as `fixWindowsFormat` does; elsewhere VS Code's display language's short date and time | A webview's `Intl` knows VS Code's display language, not the OS's formats; Node can read Windows' registry, but not CoreFoundation or a C library's `LC_TIME` |
 | The table repaints, and so rewrites the minutes, whenever anything moves | The rows are redrawn every half minute while on show | A webview list is drawn only when told |
 | — | A Windows format with a character beyond ASCII in it (a literal such as Bulgarian `'г.'`) is not used; the display language's is | `reg` prints in the console's code page; a misread literal would be worse |
@@ -1387,12 +1387,12 @@ edited under the Commit tool window's gear (*AI Assistant ▸ Prompt for generat
 
 | IntelliJ | Geet | Why |
 | --- | --- | --- |
-| The model is AI Assistant's own, with a JetBrains AI subscription | A model VS Code has, through its Language Model API (`vscode.lm`): GitHub Copilot's once signed in, or one added under *Chat: Manage Language Models*. With several, Geet asks the first time and keeps the answer (`gittree.commit.messageGeneration.model`) | An extension brings no model of its own, and Geet holds no key. VS Code hands an extension the models the user already has, and asks their consent first for Copilot's |
-| The prompt is edited under the gear, or in the Prompt Library | `gittree.commit.messageGeneration.instructions`: the author's own rules, added to Geet's and coming before them. `$GIT_BRANCH_NAME` is the same | VS Code keeps such text in settings. Geet's own rules (subject length, plain text, the repository's style) stay, so a one-line instruction is enough |
+| The model is AI Assistant's own, with a JetBrains AI subscription | A model VS Code has, through its Language Model API (`vscode.lm`): GitHub Copilot's once signed in, or one added under *Chat: Manage Language Models*. With several, Geet asks the first time and keeps the answer (`geet.commit.messageGeneration.model`) | An extension brings no model of its own, and Geet holds no key. VS Code hands an extension the models the user already has, and asks their consent first for Copilot's |
+| The prompt is edited under the gear, or in the Prompt Library | `geet.commit.messageGeneration.instructions`: the author's own rules, added to Geet's and coming before them. `$GIT_BRANCH_NAME` is the same | VS Code keeps such text in settings. Geet's own rules (subject length, plain text, the repository's style) stay, so a one-line instruction is enough |
 | A button of the Commit tool window | The ✨ in the message box's top right corner; also *Geet: Generate Commit Message* in the palette | Where VS Code's own Source Control input keeps Copilot's. The Amend row has no room for another button at the sidebar's default width (measured: it fills 300 px exactly) |
 | — | With **Amend**, the last commit's own changes and message go to the model too | The message written replaces the amended commit's, so it has to describe both. Geet's own |
 | — | The message arrives whole, as one edit of the box | One **Ctrl+Z** brings back what it replaced. Geet's own |
-| Offered while the plugin is enabled | Offered while `gittree.commit.messageGeneration.enabled` is on and VS Code's `chat.disableAIFeatures` is off | Someone who turned VS Code's AI features off has said so once |
+| Offered while the plugin is enabled | Offered while `geet.commit.messageGeneration.enabled` is on and VS Code's `chat.disableAIFeatures` is off | Someone who turned VS Code's AI features off has said so once |
 
 What is sent: the diffs of the changes being committed (a large one cut short, a binary file
 only named), the repository's name and branch, and the subjects of its last ten commits. It
@@ -1417,18 +1417,18 @@ source lacks (`shouldShow`; the remote is asked first, `GitPushDivergenceDetecto
 
 | IntelliJ | Geet | Why |
 | --- | --- | --- |
-| Push… always opens the dialog | Every Push dialog has `Don't show this dialog again` (`gittree.push.showDialog`). Ticked, Push…, a branch's Push…, Push All up to Here… and Commit and Push all push straight away, what the dialog would have pushed | The owner's request: some users do not want the list of commits every time, and want to push or publish at once |
+| Push… always opens the dialog | Every Push dialog has `Don't show this dialog again` (`geet.push.showDialog`). Ticked, Push…, a branch's Push…, Push All up to Here… and Commit and Push all push straight away, what the dialog would have pushed | The owner's request: some users do not want the list of commits every time, and want to push or publish at once |
 | Unticked after Commit and Push, the dialog still opens for a protected branch | Nothing singles out a protected branch | Asked for: push at once. A protected branch already refuses Force Push, the one push that rewrites it |
 | Opens anyway when the push is not possible | Opens anyway and says why at its top (*Shown because …*): a repository with no remote or no commits, a commit on no branch (its target would be a made-up `detached`), several repositories and nothing to say which | Each is settled in the dialog: Define remote, the target, the ticks |
 | Opens anyway when the target has diverged on the remote | Pushes; a push the remote rejects asks Merge or Rebase and pushes again (POST-P14af) | That question settles it without the dialog, and no remote is asked before the push |
 
 The box shows ticked in a dialog that opened anyway, and unticking it there (then Push) brings the
 dialog back for every push. It is kept only on Push and Force Push, as IntelliJ keeps its own.
-*Show Push dialog for Commit and Push* (`gittree.push.showDialogForCommitAndPush`) still turns the
+*Show Push dialog for Commit and Push* (`geet.push.showDialogForCommitAndPush`) still turns the
 dialog off for Commit and Push alone, while this one is on.
 
 Why: the owner asked for a way to turn off the list of commits shown before a push, and to push
 or publish at once, perhaps by ticking a checkbox (POST-P14cn).
 
 **Revisitable:** yes. IntelliJ's protected-only variant would be a third value of
-`gittree.push.showDialog`; the rule is `pushWithoutDialog` in `src/scm/dialogs/pushModel.ts`.
+`geet.push.showDialog`; the rule is `pushWithoutDialog` in `src/scm/dialogs/pushModel.ts`.

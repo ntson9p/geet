@@ -31,7 +31,7 @@ function repositoriesSectionMenu(): Array<{ command: string; group: string }> {
     return [name ?? '', Number(order ?? 0)];
   };
   return manifest.contributes.menus['view/item/context']!
-    .filter((m) => m.when === 'view == gittree.repositories && viewItem == repository')
+    .filter((m) => m.when === 'view == geet.repositories && viewItem == repository')
     .map((m) => ({ command: m.command, group: m.group ?? '' }))
     .sort((a, b) => {
       const [ga, oa] = groupOf(a.group);
@@ -73,7 +73,7 @@ describe("REPOSITORY_MENU (a repository's right-click menu in the Branches secti
 
   it('opens with Show in New Log Tab, its own group: a way of looking, before the ways of acting', () => {
     expect(REPOSITORY_MENU[0]).toEqual({
-      command: 'gittree.repositories.showInLog',
+      command: 'geet.repositories.showInLog',
       label: 'Show in New Log Tab',
       group: 'view',
     });
@@ -83,38 +83,38 @@ describe("REPOSITORY_MENU (a repository's right-click menu in the Branches secti
   it('updates the repository under its own name, Without Fetching right under it (POST-P14bx)', () => {
     // Update Project… updates every repository everywhere else; here it updated this one alone.
     const commands = REPOSITORY_MENU.map((e) => e.command);
-    const at = commands.indexOf('gittree.update.repository');
+    const at = commands.indexOf('geet.update.repository');
     expect(at).toBeGreaterThan(0);
-    expect(commands[at + 1]).toBe('gittree.update.repositoryWithoutFetch');
-    expect(repositoryMenuEntry('gittree.update.repository')).toEqual({
-      command: 'gittree.update.repository',
+    expect(commands[at + 1]).toBe('geet.update.repositoryWithoutFetch');
+    expect(repositoryMenuEntry('geet.update.repository')).toEqual({
+      command: 'geet.update.repository',
       label: 'Update Repository…',
       group: 'update',
     });
-    expect(repositoryMenuEntry('gittree.update.repositoryWithoutFetch')).toEqual({
-      command: 'gittree.update.repositoryWithoutFetch',
+    expect(repositoryMenuEntry('geet.update.repositoryWithoutFetch')).toEqual({
+      command: 'geet.update.repositoryWithoutFetch',
       label: 'Update Repository Without Fetching…',
       group: 'update',
     });
-    expect(commands).not.toContain('gittree.update.dialog');
-    expect(commands).not.toContain('gittree.update.withoutFetch');
+    expect(commands).not.toContain('geet.update.dialog');
+    expect(commands).not.toContain('geet.update.withoutFetch');
   });
 
   it("with one repository, which is the project, updates under the project's name (POST-P14bx)", () => {
     const one = repositoryMenuFor(1);
     expect(one.map((e) => e.label)).toEqual(
       REPOSITORY_MENU.map((e) =>
-        e.command === 'gittree.update.repository'
+        e.command === 'geet.update.repository'
           ? 'Update Project…'
-          : e.command === 'gittree.update.repositoryWithoutFetch'
+          : e.command === 'geet.update.repositoryWithoutFetch'
             ? 'Update Project Without Fetching…'
             : e.label,
       ),
     );
     const update = one.find((e) => e.label === 'Update Project…');
-    expect(update).toEqual({ command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' });
+    expect(update).toEqual({ command: 'geet.update.dialog', label: 'Update Project…', group: 'update' });
     expect(one.find((e) => e.label === 'Update Project Without Fetching…')?.command).toBe(
-      'gittree.update.withoutFetch',
+      'geet.update.withoutFetch',
     );
     // The project's titles are those commands' own, as every entry's is.
     for (const entry of one) expect(entry.label).toBe(titleOf(entry.command));
@@ -124,8 +124,8 @@ describe("REPOSITORY_MENU (a repository's right-click menu in the Branches secti
   });
 
   it('offers Fetch, which with a root fetches that repository only', () => {
-    expect(repositoryMenuEntry('gittree.fetch')?.label).toBe('Fetch');
-    expect(REPOSITORY_MENU.map((e) => e.command)).not.toContain('gittree.fetch.all');
+    expect(repositoryMenuEntry('geet.fetch')?.label).toBe('Fetch');
+    expect(REPOSITORY_MENU.map((e) => e.command)).not.toContain('geet.fetch.all');
   });
 });
 
@@ -146,8 +146,8 @@ describe('repositoryMenuDto', () => {
 
 describe('repositoryMenuEntry', () => {
   it('knows only the menu\'s own commands', () => {
-    expect(repositoryMenuEntry('gittree.push.dialog')?.label).toBe('Push…');
-    expect(repositoryMenuEntry('gittree.branches.open')).toBeUndefined();
+    expect(repositoryMenuEntry('geet.push.dialog')?.label).toBe('Push…');
+    expect(repositoryMenuEntry('geet.branches.open')).toBeUndefined();
     expect(repositoryMenuEntry('workbench.action.reloadWindow')).toBeUndefined();
     expect(repositoryMenuEntry(42)).toBeUndefined();
     expect(repositoryMenuEntry(undefined)).toBeUndefined();

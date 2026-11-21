@@ -24,17 +24,17 @@ const read = (...p: string[]): string => readFileSync(path.join(root, ...p), 'ut
 describe("a row's address", () => {
   it('is Geet’s scheme, the view as its authority, the file’s path, and the mark as its query', () => {
     expect(rowAddress('stash', '/c:/repos/api/src/a.ts', 'modified')).toEqual({
-      scheme: 'gittree-row',
+      scheme: 'geet-row',
       authority: 'stash',
       path: '/c:/repos/api/src/a.ts',
       query: 'modified',
     });
-    expect(ROW_SCHEME).toBe('gittree-row');
+    expect(ROW_SCHEME).toBe('geet-row');
   });
 
   it('keeps the path absolute, and has no query without a mark', () => {
     expect(rowAddress('history', 'c:/repos/api/a.ts')).toEqual({
-      scheme: 'gittree-row',
+      scheme: 'geet-row',
       authority: 'history',
       path: '/c:/repos/api/a.ts',
       query: '',
@@ -50,12 +50,12 @@ describe("a row's address", () => {
 describe('the marks Geet draws', () => {
   it("are VS Code's letters, in Geet's status colours", () => {
     expect(ROW_MARKS.map((m) => [m, rowLook(m).letter, rowLook(m).color])).toEqual([
-      ['added', 'A', 'gittree.color.added'],
-      ['modified', 'M', 'gittree.color.modified'],
-      ['deleted', 'D', 'gittree.color.deleted'],
-      ['renamed', 'R', 'gittree.color.renamed'],
-      ['untracked', 'U', 'gittree.color.untracked'],
-      ['conflicted', '!', 'gittree.color.conflicted'],
+      ['added', 'A', 'geet.color.added'],
+      ['modified', 'M', 'geet.color.modified'],
+      ['deleted', 'D', 'geet.color.deleted'],
+      ['renamed', 'R', 'geet.color.renamed'],
+      ['untracked', 'U', 'geet.color.untracked'],
+      ['conflicted', '!', 'geet.color.conflicted'],
     ]);
   });
 
@@ -73,19 +73,19 @@ describe('the marks Geet draws', () => {
   });
 
   it('are read back from the address', () => {
-    expect(rowMarkOf('gittree-row', 'stash', 'deleted')).toEqual({ view: 'stash', mark: 'deleted' });
-    expect(rowMarkOf('gittree-row', 'conflict', 'conflicted')).toEqual({ view: 'conflict', mark: 'conflicted' });
+    expect(rowMarkOf('geet-row', 'stash', 'deleted')).toEqual({ view: 'stash', mark: 'deleted' });
+    expect(rowMarkOf('geet-row', 'conflict', 'conflicted')).toEqual({ view: 'conflict', mark: 'conflicted' });
   });
 
   it('are none for another scheme, another view, no mark, or a query that is no mark', () => {
     expect(rowMarkOf('file', 'stash', 'modified')).toBeUndefined();
-    expect(rowMarkOf('gittree-compare', '', 'M')).toBeUndefined();
-    expect(rowMarkOf('gittree-row', 'somewhere', 'modified')).toBeUndefined();
-    expect(rowMarkOf('gittree-row', 'history', '')).toBeUndefined();
-    expect(rowMarkOf('gittree-row', 'stash', 'M')).toBeUndefined();
+    expect(rowMarkOf('geet-compare', '', 'M')).toBeUndefined();
+    expect(rowMarkOf('geet-row', 'somewhere', 'modified')).toBeUndefined();
+    expect(rowMarkOf('geet-row', 'history', '')).toBeUndefined();
+    expect(rowMarkOf('geet-row', 'stash', 'M')).toBeUndefined();
     // The query is looked up, not trusted: no prototype key is a mark.
     for (const odd of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
-      expect(rowMarkOf('gittree-row', 'stash', odd)).toBeUndefined();
+      expect(rowMarkOf('geet-row', 'stash', odd)).toBeUndefined();
     }
   });
 

@@ -181,7 +181,7 @@ export class RepoDiscovery {
       this.deps.trace?.(
         `scan: stopped after ${visitLimit} directories with ${queue.length} still queued; ` +
           'repositories below that point were not found — lower ' +
-          'gittree.repositoryScan.maxDepth or extend gittree.repositoryScan.ignoredFolders',
+          'geet.repositoryScan.maxDepth or extend geet.repositoryScan.ignoredFolders',
       );
     }
     return hits;

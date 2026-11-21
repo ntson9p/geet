@@ -115,11 +115,11 @@ suite('P9 local history — restore UX & destruction detection', () => {
     // Also diverge the file NOT in the subset — restore must not touch it.
     write('lhsub/inner.txt', 'sub changed\n');
 
-    process.env['GITTREE_TEST_RESTORE_PATHS'] = 'lh/keep.txt;lh/gone.txt';
+    process.env['GEET_TEST_RESTORE_PATHS'] = 'lh/keep.txt;lh/gone.txt';
     try {
       await withAutoConfirm('1', () => reg.restoreUx.restore(snapshotNode(seedManifest), true));
     } finally {
-      delete process.env['GITTREE_TEST_RESTORE_PATHS'];
+      delete process.env['GEET_TEST_RESTORE_PATHS'];
     }
 
     // Deleted file recreated byte-identically; modified file rolled back;
@@ -147,7 +147,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
     assert.ok(outsideId);
 
     await vscode.commands.executeCommand(
-      'gittree.history.showForPath',
+      'geet.history.showForPath',
       vscode.Uri.file(abs('lhsub')),
     );
     const filter = reg.viewProvider.currentFilter;
@@ -169,7 +169,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
           for (const file of reg.viewProvider.getChildren(snap)) {
             if (file.kind !== 'file') continue;
             const item = reg.viewProvider.getTreeItem(file);
-            assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+            assert.strictEqual(item.resourceUri?.scheme, 'geet-row');
             assert.strictEqual(item.resourceUri?.authority, 'history');
             assert.strictEqual(item.resourceUri?.query, '');
             assert.strictEqual(item.tooltip, path.join(file.repo.root, file.relPath));
@@ -192,7 +192,7 @@ suite('P9 local history — restore UX & destruction detection', () => {
     assert.ok(!labels.includes('LH outside'), 'outside manifest not filtered');
     assert.ok(!labels.includes('Before restore of "LH seed"'), 'paranoia (lh/ only) not filtered');
 
-    await vscode.commands.executeCommand('gittree.history.clearFilter');
+    await vscode.commands.executeCommand('geet.history.clearFilter');
     assert.strictEqual(reg.viewProvider.currentFilter, undefined);
   });
 

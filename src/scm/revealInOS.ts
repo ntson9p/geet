@@ -12,11 +12,11 @@
  * `revealTarget.ts` for what it does on each system).
  *
  * The menus hide the item where it cannot work: on a deleted row (nothing on
- * disk to select) and in a remote window (`gittree.canRevealInOS`). A row whose
+ * disk to select) and in a remote window (`geet.canRevealInOS`). A row whose
  * file went since the last refresh says so rather than doing nothing, which is
  * what the OS would do with it.
  *
- * The keys: VS Code resolves ⌥⌘R and Ctrl+Alt+R (while `gittree.commitTreeFocus`)
+ * The keys: VS Code resolves ⌥⌘R and Ctrl+Alt+R (while `geet.commitTreeFocus`)
  * and the command, given no row, asks the window for the keyboard's row.
  * Windows' Shift+Alt+R is answered inside the webview and never reaches VS Code,
  * which would also open its Run menu (`webview-ui/src/commit/revealKey.ts`); its
@@ -30,7 +30,7 @@ import { showInfo } from '../ui/notices';
 import { canRevealInOS, REPOSITORY_FOLDER, revealPath, revealTargetOf } from '../ui/revealTarget';
 
 /** Set once at start-up: whether this window's files are on this computer. */
-export const REVEAL_CONTEXT_KEY = 'gittree.canRevealInOS';
+export const REVEAL_CONTEXT_KEY = 'geet.canRevealInOS';
 
 /**
  * Whether the Commit window's change tree has the keyboard: the reveal key's
@@ -39,11 +39,11 @@ export const REVEAL_CONTEXT_KEY = 'gittree.canRevealInOS';
  * `focusedView` the moment focus goes into the webview. The webview says it
  * itself (`commit/treeFocus`).
  */
-export const TREE_FOCUS_CONTEXT_KEY = 'gittree.commitTreeFocus';
+export const TREE_FOCUS_CONTEXT_KEY = 'geet.commitTreeFocus';
 
 let treeFocused = false;
 
-/** Sets `gittree.commitTreeFocus`; a repeat of the last value sends nothing. */
+/** Sets `geet.commitTreeFocus`; a repeat of the last value sends nothing. */
 export function setTreeFocus(focused: boolean): void {
   if (treeFocused === focused) return;
   treeFocused = focused;
@@ -52,12 +52,12 @@ export function setTreeFocus(focused: boolean): void {
 
 /** One command per platform, each titled as VS Code titles the item there. */
 export const REVEAL_COMMANDS = [
-  'gittree.revealFileInOS.windows',
-  'gittree.revealFileInOS.mac',
-  'gittree.revealFileInOS.linux',
+  'geet.revealFileInOS.windows',
+  'geet.revealFileInOS.mac',
+  'geet.revealFileInOS.linux',
 ] as const;
 
-/** What a reveal did. Integration tests read it: under `GITTREE_TEST` nothing opens. */
+/** What a reveal did. Integration tests read it: under `GEET_TEST` nothing opens. */
 export interface RevealRecord {
   readonly outcome: 'revealed' | 'missing' | 'unsupported';
   /** The file or folder, absolute; absent for `unsupported`. */
@@ -118,7 +118,7 @@ export async function revealRow(core: Core, args: readonly unknown[]): Promise<v
     return;
   }
   record({ outcome: 'revealed', path: full });
-  if (process.env['GITTREE_TEST'] === '1') return;
+  if (process.env['GEET_TEST'] === '1') return;
   try {
     await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(full));
   } catch (err) {

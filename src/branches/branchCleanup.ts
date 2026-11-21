@@ -105,7 +105,7 @@ export async function cleanUpBranches(core: Core, roots?: readonly string[]): Pr
     }
   }
   // Test seam: `names:a,b` picks those branches, as if ticked by hand.
-  const seeded = process.env['GITTREE_TEST_CLEANUP'];
+  const seeded = process.env['GEET_TEST_CLEANUP'];
   const named = seeded?.startsWith('names:') === true ? new Set(seeded.slice(6).split(',')) : undefined;
   const picked: readonly Pick[] | undefined =
     named !== undefined

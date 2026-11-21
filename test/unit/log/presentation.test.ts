@@ -51,23 +51,23 @@ describe('writeScope (Presentation Settings / Branches Pane Settings toggles)', 
   });
 
   it('names each setting by its full id', () => {
-    expect(settingId('showTagNames')).toBe('gittree.log.showTagNames');
-    expect(settingId('showHashColumn')).toBe('gittree.log.columns.hash');
-    expect(settingId('showTags')).toBe('gittree.branches.showTags');
-    expect(settingId('showGraph')).toBe('gittree.log.showGraph');
-    expect(settingId('dateFormat')).toBe('gittree.log.dateFormat');
-    expect(settingId('filterChips')).toBe('gittree.log.filterChips');
+    expect(settingId('showTagNames')).toBe('geet.log.showTagNames');
+    expect(settingId('showHashColumn')).toBe('geet.log.columns.hash');
+    expect(settingId('showTags')).toBe('geet.branches.showTags');
+    expect(settingId('showGraph')).toBe('geet.log.showGraph');
+    expect(settingId('dateFormat')).toBe('geet.log.dateFormat');
+    expect(settingId('filterChips')).toBe('geet.log.filterChips');
   });
 
   it('lists every setting a view draws from, so a change to any reaches it', () => {
     const ids = presentationSettingIds();
     for (const id of [
-      'gittree.log.showTagNames',
-      'gittree.branches.showTags',
-      'gittree.log.columns.date',
-      'gittree.log.showGraph',
-      'gittree.log.dateFormat',
-      'gittree.log.filterChips',
+      'geet.log.showTagNames',
+      'geet.branches.showTags',
+      'geet.log.columns.date',
+      'geet.log.showGraph',
+      'geet.log.dateFormat',
+      'geet.log.filterChips',
     ]) {
       expect(ids).toContain(id);
     }
@@ -81,7 +81,7 @@ describe('readPresentation (POST-P14bh)', () => {
 
   it('reads what the settings say, and the defaults for what they do not', () => {
     const p = readPresentation(
-      settings({ 'gittree.log.showGraph': false, 'gittree.log.dateFormat': 'locale', 'gittree.log.filterChips': 'full' }),
+      settings({ 'geet.log.showGraph': false, 'geet.log.dateFormat': 'locale', 'geet.log.filterChips': 'full' }),
       DEFAULT_LOG_PRESENTATION,
     );
     expect(p).toEqual({ ...DEFAULT_LOG_PRESENTATION, showGraph: false, dateFormat: 'locale', filterChips: 'full' });
@@ -91,9 +91,9 @@ describe('readPresentation (POST-P14bh)', () => {
   it('keeps the default for a value of the wrong kind, or one the setting does not offer', () => {
     const p = readPresentation(
       settings({
-        'gittree.log.showGraph': 'no',
-        'gittree.log.dateFormat': 'DD.MM.YYYY',
-        'gittree.log.filterChips': true,
+        'geet.log.showGraph': 'no',
+        'geet.log.dateFormat': 'DD.MM.YYYY',
+        'geet.log.filterChips': true,
       }),
       DEFAULT_LOG_PRESENTATION,
     );
@@ -106,7 +106,7 @@ describe('readPresentation (POST-P14bh)', () => {
   });
 
   it("reads IntelliJ's dates (POST-P14cg)", () => {
-    expect(readPresentation(settings({ 'gittree.log.dateFormat': 'pretty' }), DEFAULT_LOG_PRESENTATION).dateFormat).toBe(
+    expect(readPresentation(settings({ 'geet.log.dateFormat': 'pretty' }), DEFAULT_LOG_PRESENTATION).dateFormat).toBe(
       'pretty',
     );
   });
@@ -168,14 +168,14 @@ describe('presentationPatch', () => {
 describe('presentationWrites (POST-P14cg)', () => {
   it('writes each toggle to its setting, where the menu writes it', () => {
     expect(presentationWrites({ showTagNames: true, showTags: false })).toEqual([
-      { section: 'gittree.log', key: 'showTagNames', value: true, scope: 'global' },
-      { section: 'gittree.branches', key: 'showTags', value: false, scope: 'workspace' },
+      { section: 'geet.log', key: 'showTagNames', value: true, scope: 'global' },
+      { section: 'geet.branches', key: 'showTags', value: false, scope: 'workspace' },
     ]);
   });
 
-  it("writes Date Format's choice to gittree.log.dateFormat, IDE-wide as IntelliJ keeps its date formats", () => {
+  it("writes Date Format's choice to geet.log.dateFormat, IDE-wide as IntelliJ keeps its date formats", () => {
     expect(presentationWrites({ dateFormat: 'pretty' })).toEqual([
-      { section: 'gittree.log', key: 'dateFormat', value: 'pretty', scope: 'global' },
+      { section: 'geet.log', key: 'dateFormat', value: 'pretty', scope: 'global' },
     ]);
   });
 

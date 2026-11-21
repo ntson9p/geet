@@ -1,5 +1,5 @@
 /**
- * Log tool-window host (P4-T3/T4): WebviewViewProvider for `gittree.log` in
+ * Log tool-window host (P4-T3/T4): WebviewViewProvider for `geet.log` in
  * the bottom panel. Owns the LogService/GraphLayout session, streams pages to
  * the webview, runs the chip pickers (QuickPicks host-side), opens diffs, and
  * exposes revealCommit/setFilter for blame click-through, file history and
@@ -99,9 +99,9 @@ const AUTO_REFRESH_DEBOUNCE_MS = 300;
 const AUTO_REFRESH_MAX_WAIT_MS = 5000;
 
 /** Which repository the log is showing, remembered across restarts. */
-const ROOT_MEMENTO_KEY = 'gittree.log.root';
+const ROOT_MEMENTO_KEY = 'geet.log.root';
 /** The Log tabs (`LogTabsState`), so they come back after a restart. */
-const TABS_MEMENTO_KEY = 'gittree.log.tabs';
+const TABS_MEMENTO_KEY = 'geet.log.tabs';
 
 /** The Log tab a request or event is about: its `logTab`, or the main tab. */
 function tabOf(params: unknown): string {
@@ -141,7 +141,7 @@ interface Session {
 }
 
 export class LogViewProvider implements vscode.WebviewViewProvider {
-  static readonly viewId = 'gittree.log';
+  static readonly viewId = 'geet.log';
   private view: vscode.WebviewView | undefined;
   private rpc: WebviewRpcHost | undefined;
   /** One session per Log tab that has been shown, keyed by tab id. */
@@ -160,7 +160,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   private readonly diffsOnScreen = new Map<string, { sha: string; path: string }>();
   /** P12-T2: refs data + shared-registry dispatch for the Branches pane. */
   readonly branchesBridge: BranchesPaneBridge;
-  /** POST-P14k: the Worktrees tab's list + `gittree.worktree.*` dispatch. */
+  /** POST-P14k: the Worktrees tab's list + `geet.worktree.*` dispatch. */
   readonly worktreesBridge: WorktreesPaneBridge;
   /** Keeps `Paths ▾ · Roots` current as folders join and leave the workspace. */
   private rootsSub: vscode.Disposable | undefined;
@@ -510,7 +510,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const range = session?.filter.range;
       if (!session || !range) return { ok: false };
       await vscode.commands.executeCommand(
-        'gittree.compare.showFilesDiff',
+        'geet.compare.showFilesDiff',
         session.repo.root,
         range.a,
         range.b,
@@ -656,24 +656,24 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
           ignoreFocusOut: true,
         }));
       if (chosen === undefined || chosen.trim().length === 0) return { ok: false };
-      const config = vscode.workspace.getConfiguration('gittree.log');
+      const config = vscode.workspace.getConfiguration('geet.log');
       const presets = [
         ...(config.get<Array<{ name: string; filter: LogFilterDto }>>('filterPresets') ?? []).filter(
           (p) => p.name !== chosen.trim(),
         ),
         { name: chosen.trim(), filter },
       ];
-      await writeSetting('gittree.log', 'filterPresets', presets);
+      await writeSetting('geet.log', 'filterPresets', presets);
       return { ok: true };
     });
 
     rpc.on(LOG_METHODS.deletePreset, async (params) => {
       const { name } = params as { name: string };
-      const config = vscode.workspace.getConfiguration('gittree.log');
+      const config = vscode.workspace.getConfiguration('geet.log');
       const presets = (
         config.get<Array<{ name: string; filter: LogFilterDto }>>('filterPresets') ?? []
       ).filter((p) => p.name !== name);
-      await writeSetting('gittree.log', 'filterPresets', presets);
+      await writeSetting('geet.log', 'filterPresets', presets);
       return { ok: true };
     });
 
@@ -691,7 +691,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       const session = this.sessions.get(tabOf(params));
       if (!session || typeof relPath !== 'string') return { ok: false };
       await vscode.commands.executeCommand(
-        'gittree.showFileHistory',
+        'geet.showFileHistory',
         vscode.Uri.file(path.join(session.repo.root, relPath)),
       );
       return { ok: true };
@@ -787,7 +787,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
   // ---- session -------------------------------------------------------------
 
   private graphPalette(): 'default' | 'colorBlind' {
-    const v = vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette', 'default');
+    const v = vscode.workspace.getConfiguration('geet.log').get<string>('graphPalette', 'default');
     return v === 'colorBlind' ? 'colorBlind' : 'default';
   }
 
@@ -828,7 +828,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
 
   /** P12-T4: issue-key linkification config for the details body. */
   private issueConfig(): { pattern: string; url: string } | undefined {
-    const config = vscode.workspace.getConfiguration('gittree.log');
+    const config = vscode.workspace.getConfiguration('geet.log');
     const pattern = config.get<string>('issuePattern', '').trim();
     const url = config.get<string>('issueUrl', '').trim();
     if (pattern.length === 0 || url.length === 0) return undefined;
@@ -857,7 +857,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    */
   async showTab(tab: LogTab): Promise<void> {
     if (!this.rpc) this.pendingTab = tab;
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
@@ -955,7 +955,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
       graphPalette: this.graphPalette(),
       colors: statusColorOverrides(),
       ...(this.issueConfig() !== undefined ? { issue: this.issueConfig() } : {}),
-      presets: vscode.workspace.getConfiguration('gittree.log').get('filterPresets') ?? [],
+      presets: vscode.workspace.getConfiguration('geet.log').get('filterPresets') ?? [],
       presentation: this.presentation(),
       logTab: tab,
       ...(this.diffsOnScreen.has(tab) ? { diffOnScreen: this.diffsOnScreen.get(tab) } : {}),
@@ -1154,7 +1154,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * @returns whether the commit ended up selected in the graph.
    */
   async revealCommit(sha: string, repoRoot?: string): Promise<boolean> {
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     // Wait for the view to resolve (first open).
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
@@ -1261,7 +1261,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * repository instead.
    */
   async setFilter(filter: LogFilter, repoRoot?: string): Promise<void> {
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
@@ -1280,7 +1280,7 @@ export class LogViewProvider implements vscode.WebviewViewProvider {
    * brought forward, even when it shows exactly that (an extra tab still is).
    */
   async openTab(filter: LogFilter, repoRoot?: string, opts: { readonly newTab?: boolean } = {}): Promise<void> {
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     for (let i = 0; i < 50 && !this.rpc; i++) {
       await new Promise((r) => setTimeout(r, 50));
     }

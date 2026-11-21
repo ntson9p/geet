@@ -1,6 +1,6 @@
 /**
  * Host half of the file-status palette (P11-T8): reads the
- * `gittree.colors.<status>` override block and ships a validated map to the
+ * `geet.colors.<status>` override block and ships a validated map to the
  * webview surfaces (commit window state, Shelve dialog params). An invalid
  * value is dropped rather than injected into a style attribute — the value
  * lands in CSS, so only color-shaped strings pass.
@@ -26,7 +26,7 @@ export function isValidStatusColor(value: string): boolean {
 }
 
 export function statusColorOverrides(): Partial<Record<StatusKind, string>> {
-  const config = vscode.workspace.getConfiguration('gittree.colors');
+  const config = vscode.workspace.getConfiguration('geet.colors');
   const out: Partial<Record<StatusKind, string>> = {};
   for (const kind of STATUS_KINDS) {
     const raw = config.get<string>(kind, '').trim();

@@ -11,14 +11,14 @@ const planFile = process.argv[2];
 const todoFile = process.argv[3];
 
 if (!planFile || !todoFile) {
-  process.stderr.write('gittree-seq-editor: expected <planfile> <todofile> argv\n');
+  process.stderr.write('geet-seq-editor: expected <planfile> <todofile> argv\n');
   process.exit(1);
 }
 
 try {
   fs.copyFileSync(planFile, todoFile);
 } catch (err) {
-  process.stderr.write('gittree-seq-editor: ' + (err && err.message ? err.message : String(err)) + '\n');
+  process.stderr.write('geet-seq-editor: ' + (err && err.message ? err.message : String(err)) + '\n');
   process.exit(1);
 }
 process.exit(0);

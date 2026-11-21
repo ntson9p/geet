@@ -12,7 +12,7 @@
  *
  * Every notification raised here is also recorded, so integration tests can
  * read what the user was told (`recentNotifications`, exposed through the
- * `notifications` debug registry). `GITTREE_TEST_NOTIFICATION_ACTION` names an
+ * `notifications` debug registry). `GEET_TEST_NOTIFICATION_ACTION` names an
  * action to run as if clicked — a toast cannot be clicked from a test.
  *
  * An operation run in several repositories at once says it once, as IntelliJ's
@@ -111,7 +111,7 @@ function show(
     return;
   }
   record(kind, message, actions);
-  const seeded = process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+  const seeded = process.env['GEET_TEST_NOTIFICATION_ACTION'];
   const picked = seeded !== undefined ? actions.find((a) => a.title === seeded) : undefined;
   if (picked) {
     void runAction(picked);

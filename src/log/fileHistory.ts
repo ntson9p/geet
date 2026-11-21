@@ -1,5 +1,5 @@
 /**
- * File History (P4-T8): `gittree.showFileHistory` opens the log panel in
+ * File History (P4-T8): `geet.showFileHistory` opens the log panel in
  * single-path --follow mode; row clicks diff parent↔sha for that path via the
  * details panel (rename chains surface through git's --follow + rename-aware
  * details). It opens in a Log tab of its own (`History: <file>`), as
@@ -18,7 +18,7 @@ export function registerFileHistory(
   logView: LogViewProvider,
 ): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.showFileHistory', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.showFileHistory', async (arg?: unknown) => {
       const uri =
         arg instanceof vscode.Uri ? arg : vscode.window.activeTextEditor?.document.uri;
       if (!uri || uri.scheme !== 'file') return;

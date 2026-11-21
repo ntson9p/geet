@@ -2,11 +2,11 @@
  * What the Rebase dialog's Interactive hands the interactive rebase editor, and
  * what it hears back (POST-P14cw). Vscode-free, for the unit tests.
  *
- * The dialog asks through `gittree.rebase.interactive`, which the Log calls with
+ * The dialog asks through `geet.rebase.interactive`, which the Log calls with
  * the commits picked there; this argument is told apart by its shape.
  */
 
-/** `gittree.rebase.interactive`'s argument from the Rebase dialog. */
+/** `geet.rebase.interactive`'s argument from the Rebase dialog. */
 export interface RebaseOntoArgs {
   repoRoot: string;
   /** The new base. */

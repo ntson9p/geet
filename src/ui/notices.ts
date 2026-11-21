@@ -1,7 +1,7 @@
 /**
  * Geet's plain notices (new-way-6): an information message with nothing to
  * click — *Fetch successful*, *Checked out main*, *Nothing to stash.* — shown
- * for `gittree.notifications.durationSeconds` while VS Code is in front, then
+ * for `geet.notifications.durationSeconds` while VS Code is in front, then
  * gone. `noticeTiming.ts` says how long, and why Geet keeps the time
  * itself rather than leave it to VS Code.
  *
@@ -33,7 +33,7 @@ const windowFocus: WindowFocus = {
 
 /** The setting, read when a notice is shown: a change applies to the next one. */
 function durationSeconds(): number {
-  return noticeSeconds(vscode.workspace.getConfiguration('gittree.notifications').get<unknown>('durationSeconds'));
+  return noticeSeconds(vscode.workspace.getConfiguration('geet.notifications').get<unknown>('durationSeconds'));
 }
 
 /**

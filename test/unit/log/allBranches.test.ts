@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe('All branches against real git', () => {
   it('shows a branch and a tag, never a stash', () => {
-    const repo = FixtureRepo.create({ prefix: 'gittree-allbranches-' });
+    const repo = FixtureRepo.create({ prefix: 'geet-allbranches-' });
     repos.push(repo);
     repo.commit('base', { 'a.txt': 'a\n' });
     repo.branch('side', { checkout: true });

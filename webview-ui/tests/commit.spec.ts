@@ -869,7 +869,7 @@ test.describe('P11-T5 commit options gear popup', () => {
 });
 
 test.describe('P11-T8 status colors and directory highlighting', () => {
-  test('a gittree.colors override colors icon and name; theme rows keep their variable', async ({ page }) => {
+  test('a geet.colors override colors icon and name; theme rows keep their variable', async ({ page }) => {
     await openCommit(page);
     // The mock ships { modified: '#ff8800' } — the override must win…
     await expect(row(page, 'guide.md').locator('.gt-tree-name')).toHaveCSS(
@@ -880,14 +880,14 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
     const untrackedStyle = await row(page, '2.txt')
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(untrackedStyle).toContain('gittree-color-untracked');
+    expect(untrackedStyle).toContain('geet-color-untracked');
   });
 
   test('a theme color reaches a name under the name VS Code gives it in a webview', async ({ page }) => {
     await openCommit(page);
-    // As VS Code's webview sets it: only the first dot of `gittree.color.untracked` replaced.
+    // As VS Code's webview sets it: only the first dot of `geet.color.untracked` replaced.
     await page.evaluate(() =>
-      document.documentElement.style.setProperty('--vscode-gittree-color.untracked', 'rgb(1, 2, 3)'),
+      document.documentElement.style.setProperty('--vscode-geet-color.untracked', 'rgb(1, 2, 3)'),
     );
     await expect(row(page, '2.txt').locator('.gt-tree-name')).toHaveCSS('color', 'rgb(1, 2, 3)');
     await expect(row(page, '2.txt').locator('.gt-tree-icon')).toHaveCSS('color', 'rgb(1, 2, 3)');
@@ -914,7 +914,7 @@ test.describe('P11-T8 status colors and directory highlighting', () => {
     const unversionedStyle = await row(page, 'Unversioned Files, 1 file')
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(unversionedStyle).toContain('gittree-color-untracked');
+    expect(unversionedStyle).toContain('geet-color-untracked');
   });
 });
 
@@ -924,7 +924,7 @@ test.describe('repository rows wear their repository colour', () => {
   const GIT_CHANGES = 'demo-git, 4 files, Branch main, tracking origin/main';
   const GIT_UNVERSIONED = 'demo-git, 1 file, Branch main, tracking origin/main';
 
-  /** Two repositories, so the tree has repository rows; `palette` is gittree.log.graphPalette. */
+  /** Two repositories, so the tree has repository rows; `palette` is geet.log.graphPalette. */
   async function openTwoRepos(page: Page, palette?: 'colorBlind'): Promise<void> {
     await page.addInitScript((p) => {
       const w = window as unknown as { __mockSecondRepo?: boolean; __mockGraphPalette?: string };
@@ -974,7 +974,7 @@ test.describe('repository rows wear their repository colour', () => {
     const untrackedStyle = await row(page, 'Unversioned Files, 2 files')
       .locator('.gt-tree-name')
       .getAttribute('style');
-    expect(untrackedStyle).toContain('gittree-color-untracked');
+    expect(untrackedStyle).toContain('geet-color-untracked');
   });
 
   test("a repository's colour follows the theme", async ({ page }) => {
@@ -1777,7 +1777,7 @@ test.describe('POST-P14bq reveal in the file manager', () => {
 /**
  * POST-P14bs: Ctrl+Enter (⌘Enter on macOS) in the message box commits, as the
  * Commit button does. The key is VS Code's keybinding, resolved from the key
- * the webview passes on (while `gittree.commitMessageFocus`); the host then asks
+ * the webview passes on (while `geet.commitMessageFocus`); the host then asks
  * the webview (`commit/commitKey`), which alone has the message as typed. Here:
  * what the box says and does with the key, and how the window answers the ask.
  */
@@ -1949,7 +1949,7 @@ test.describe('POST-P14bu the borders a drag resizes are drawn', () => {
     await openCommit(page);
     // VS Code hands every webview the colour as this variable.
     await page.evaluate(
-      (colour) => document.documentElement.style.setProperty('--vscode-gittree-sectionBorder', colour),
+      (colour) => document.documentElement.style.setProperty('--vscode-geet-sectionBorder', colour),
       LINE,
     );
   }

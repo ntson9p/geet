@@ -197,7 +197,7 @@ export class MergeLifecycle implements vscode.Disposable {
    */
   private announce(session: ConflictSession, unmerged: number): void {
     const repo = session.repo;
-    void vscode.commands.executeCommand('gittree.conflicts.focus');
+    void vscode.commands.executeCommand('geet.conflicts.focus');
     if (!this.quiet.has(canonicalKey(repo.root)) && !conflictsDialogEnabled()) {
       const show = vscode.l10n.t('Show Conflicts');
       // With several repositories open, which one: the toast was the same for each.
@@ -213,7 +213,7 @@ export class MergeLifecycle implements vscode.Disposable {
             )
           : vscode.l10n.t('{0} stopped on {1}.', operationName(session.source), conflictedFilesCount(unmerged));
       void vscode.window.showWarningMessage(message, show).then((choice) => {
-        if (choice === show) return vscode.commands.executeCommand('gittree.conflicts.focus');
+        if (choice === show) return vscode.commands.executeCommand('geet.conflicts.focus');
         return undefined;
       });
     }
@@ -307,7 +307,7 @@ export class MergeLifecycle implements vscode.Disposable {
     // P14-T1: our own container, not VS Code's SCM one — and the Commit view
     // in it, expanded: the container alone left a collapsed Commit view
     // collapsed, the message nowhere to be seen (POST-QA).
-    await vscode.commands.executeCommand('gittree.commit.focus');
+    await vscode.commands.executeCommand('geet.commit.focus');
   }
 
   dispose(): void {

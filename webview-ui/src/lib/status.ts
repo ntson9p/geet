@@ -1,8 +1,8 @@
 /**
  * File-status palette (P11-T8): IntelliJ's status colors mapped onto VS Code
- * theme colors, with per-status user overrides (`gittree.colors.<status>`).
+ * theme colors, with per-status user overrides (`geet.colors.<status>`).
  *
- * P14-T5: the defaults are Geet's own `gittree.color.*` contributions, not
+ * P14-T5: the defaults are Geet's own `geet.color.*` contributions, not
  * the built-in git extension's `gitDecoration-*` tokens — those belong to that
  * extension and go blank when a user disables it. Ours ship the same values, so
  * the change is invisible to anyone who liked the old colors, and they still
@@ -31,19 +31,19 @@ export const STATUS_ICONS: Record<StatusKind, string> = {
 };
 
 const THEME_COLORS: Record<StatusKind, string> = {
-  added: 'gittree.color.added',
-  modified: 'gittree.color.modified',
-  deleted: 'gittree.color.deleted',
-  renamed: 'gittree.color.renamed',
-  untracked: 'gittree.color.untracked',
-  conflicted: 'gittree.color.conflicted',
+  added: 'geet.color.added',
+  modified: 'geet.color.modified',
+  deleted: 'geet.color.deleted',
+  renamed: 'geet.color.renamed',
+  untracked: 'geet.color.untracked',
+  conflicted: 'geet.color.conflicted',
 };
 
 /**
  * A theme color as a webview reads it. VS Code replaces only the first dot of the
  * id (`'vscode-' + id.replace('.', '-')` in its webview theming, 1.96 and 1.144
- * alike), so `gittree.color.added` arrives as `--vscode-gittree-color.added`, and
- * the reference has to escape the dot left. Reading `--vscode-gittree-color-added`
+ * alike), so `geet.color.added` arrives as `--vscode-geet-color.added`, and
+ * the reference has to escape the dot left. Reading `--vscode-geet-color-added`
  * matched nothing, and every name fell back to the plain foreground. That name is
  * still read second, in case VS Code ever replaces every dot.
  */

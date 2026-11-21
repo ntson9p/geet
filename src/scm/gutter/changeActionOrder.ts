@@ -10,8 +10,8 @@ export type ChangeAction =
   | { readonly kind: 'separator' };
 
 export const CHANGE_ACTIONS: readonly ChangeAction[] = [
-  { kind: 'action', id: 'stage', command: 'gittree.hunk.stage' },
-  { kind: 'action', id: 'commitView', command: 'gittree.hunk.openCommitView' },
+  { kind: 'action', id: 'stage', command: 'geet.hunk.stage' },
+  { kind: 'action', id: 'commitView', command: 'geet.hunk.openCommitView' },
   { kind: 'separator' },
-  { kind: 'action', id: 'rollback', command: 'gittree.hunk.rollback' },
+  { kind: 'action', id: 'rollback', command: 'geet.hunk.rollback' },
 ];

@@ -204,7 +204,7 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       applies: (ctx) => !ctx.isCurrent,
       run: async (ctx) => {
         await vscode.commands.executeCommand(
-          'gittree.branches.compareWithCurrent',
+          'geet.branches.compareWithCurrent',
           ctx.repo.root,
           ctx.name,
         );
@@ -221,7 +221,7 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       applies: () => true,
       run: async (ctx) => {
         await vscode.commands.executeCommand(
-          'gittree.branches.diffWithWorkingTree',
+          'geet.branches.diffWithWorkingTree',
           ctx.repo.root,
           ctx.name,
         );
@@ -282,7 +282,7 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
       // unreachable from the branch it starts at.
       applies: () => true,
       run: async (ctx) => {
-        await vscode.commands.executeCommand('gittree.worktree.add', ctx.name, ctx.repo.root);
+        await vscode.commands.executeCommand('geet.worktree.add', ctx.name, ctx.repo.root);
       },
     },
     {
@@ -319,7 +319,7 @@ export function createBranchActions(deps: BranchActionDeps): BranchAction[] {
        * actions, aimed at the upstream instead of the row. Nothing new runs —
        * the upstream's own action list is opened, so the two can never offer
        * different verbs for the same ref. The Branches tree contributes this
-       * as a real submenu (`gittree.branches.trackedSubmenu`); here, where the
+       * as a real submenu (`geet.branches.trackedSubmenu`); here, where the
        * surface is a QuickPick, drilling in is the equivalent gesture.
        */
       id: 'trackedBranch',

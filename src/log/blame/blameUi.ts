@@ -54,18 +54,18 @@ type Attachment = vscode.ThemableDecorationAttachmentRenderOptions & {
  */
 const AGE_BACKGROUNDS: readonly vscode.ThemeColor[] = Array.from(
   { length: AGE_STEPS },
-  (_, step) => new vscode.ThemeColor(`gittree.blame.age${step + 1}Background`),
+  (_, step) => new vscode.ThemeColor(`geet.blame.age${step + 1}Background`),
 );
 
 /** Outside the gradient: a line nobody has committed yet has no age to rank. */
-const UNCOMMITTED_BACKGROUND = new vscode.ThemeColor('gittree.blame.uncommittedBackground');
+const UNCOMMITTED_BACKGROUND = new vscode.ThemeColor('geet.blame.uncommittedBackground');
 
 /**
  * One legible foreground for every line. The age lives in the background now;
  * fading the text as well would stack two ramps on top of each other and leave
  * the oldest lines unreadable, which is why IntelliJ only shades the cell.
  */
-const FOREGROUND = new vscode.ThemeColor('gittree.blame.foreground');
+const FOREGROUND = new vscode.ThemeColor('geet.blame.foreground');
 
 /** Right edge of the annotation column, echoing IntelliJ's gutter separator. */
 const RULE_COLOR = new vscode.ThemeColor('editorLineNumber.foreground');
@@ -124,7 +124,7 @@ export class BlameUi implements vscode.Disposable {
       },
     });
     this.statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
-    this.statusItem.command = 'gittree.blame.revealCursorCommit';
+    this.statusItem.command = 'geet.blame.revealCursorCommit';
     this.subs.push(
       this.statusItem,
       vscode.window.onDidChangeActiveTextEditor(() => void this.refresh()),
@@ -217,7 +217,7 @@ export class BlameUi implements vscode.Disposable {
       }
       this.enabled.add(key);
     }
-    await vscode.commands.executeCommand('setContext', 'gittree.blameOn', this.enabled.has(key));
+    await vscode.commands.executeCommand('setContext', 'geet.blameOn', this.enabled.has(key));
     await this.refresh();
   }
 
@@ -234,7 +234,7 @@ export class BlameUi implements vscode.Disposable {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
     const doc = editor.document;
-    await vscode.commands.executeCommand('setContext', 'gittree.blameOn', this.isEnabled(doc));
+    await vscode.commands.executeCommand('setContext', 'geet.blameOn', this.isEnabled(doc));
     if (!this.isEnabled(doc)) {
       this.clear(editor);
       return;
@@ -257,7 +257,7 @@ export class BlameUi implements vscode.Disposable {
   }
 
   private apply(editor: vscode.TextEditor, blame: FileBlame): void {
-    const cfg = vscode.workspace.getConfiguration('gittree');
+    const cfg = vscode.workspace.getConfiguration('geet');
     const format = cfg.get<string>('blame.format', '${author|12} ${date|relative} ${sha|7}');
     const shadeByAge = cfg.get<boolean>('blame.heatmap', true);
     const now = Date.now();
@@ -327,14 +327,14 @@ export class BlameUi implements vscode.Disposable {
     md.appendMarkdown(
       `**${lb.author}** · ${new Date(lb.authorTime * 1000).toLocaleString()}\n\n` +
         `\`${lb.sha.slice(0, 12)}\` ${escapeMd(lb.summary)}\n\n` +
-        `[$(git-commit) Show in Log](command:gittree.log.revealCommit?${revealArg}) · ` +
-        `[$(copy) Copy sha](command:gittree.log.copySha?${shaArg}) · ` +
-        `[$(diff) Show Diff](command:gittree.blame.showDiff?${diffArg})`,
+        `[$(git-commit) Show in Log](command:geet.log.revealCommit?${revealArg}) · ` +
+        `[$(copy) Copy sha](command:geet.log.copySha?${shaArg}) · ` +
+        `[$(diff) Show Diff](command:geet.blame.showDiff?${diffArg})`,
     );
     return new vscode.Hover(md, new vscode.Range(pos.line, 0, pos.line, 0));
   }
 
-  /** `gittree.blame.showDiff` target — commit vs its parent for this file. */
+  /** `geet.blame.showDiff` target — commit vs its parent for this file. */
   async showDiff(sha: string, fsPath: string): Promise<void> {
     const repo = this.core.repoForPath(fsPath);
     if (!repo) return;

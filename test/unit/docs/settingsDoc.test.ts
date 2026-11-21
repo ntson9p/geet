@@ -13,7 +13,7 @@ describe('docs/settings.md generation', () => {
   it('says a deprecated setting is deprecated, and why (POST-QA)', () => {
     const { pkg, strings } = loadInputs(root);
     const doc = generateSettingsDoc(pkg, strings);
-    const section = doc.slice(doc.indexOf('### `gittree.log.sort`'));
+    const section = doc.slice(doc.indexOf('### `geet.log.sort`'));
     expect(section.slice(0, section.indexOf('\n### ', 4))).toMatch(/\*\*Deprecated:\*\* Has no effect/u);
   });
 
@@ -30,7 +30,7 @@ describe('docs/settings.md generation', () => {
       expect(section.title).toMatch(/^%.+%$/);
       expect(strings[section.title.slice(1, -1)]).toBeTypeOf('string');
       for (const [id, def] of Object.entries(section.properties)) {
-        expect(id).toMatch(/^gittree\./);
+        expect(id).toMatch(/^geet\./);
         expect(def.description).toMatch(/^%.+%$/);
         expect(strings[(def.description as string).slice(1, -1)]).toBeTypeOf('string');
         const deprecated = (def as { markdownDeprecationMessage?: string }).markdownDeprecationMessage;

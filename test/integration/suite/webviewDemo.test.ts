@@ -12,7 +12,7 @@ suite('P0-T9 webview host factory', () => {
     const ext = vscode.extensions.getExtension(EXTENSION_ID);
     assert.ok(ext);
     await ext.activate();
-    await vscode.commands.executeCommand('gittree.debug.webviewDemo');
+    await vscode.commands.executeCommand('geet.debug.webviewDemo');
     // Tab state updates asynchronously; look for the webview tab anywhere.
     const findDemoTab = (): vscode.Tab | undefined =>
       vscode.window.tabGroups.all

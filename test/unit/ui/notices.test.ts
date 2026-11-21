@@ -1,7 +1,7 @@
 /**
  * new-way-6: Geet's information messages with nothing to click go through
  * `showInfo` (src/ui/notices.ts), which shows them for
- * `gittree.notifications.durationSeconds` while VS Code is in front. That
+ * `geet.notifications.durationSeconds` while VS Code is in front. That
  * module is vscode-bound, so this reads the sources and the manifest.
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -82,13 +82,13 @@ describe('Geet’s information messages with nothing to click', () => {
   });
 });
 
-describe('gittree.notifications.durationSeconds', () => {
+describe('geet.notifications.durationSeconds', () => {
   const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
     contributes: { configuration: Array<{ title: string; properties: Record<string, Record<string, unknown>> }> };
   };
   const nls = JSON.parse(readFileSync(path.join(root, 'package.nls.json'), 'utf8')) as Record<string, string>;
-  const section = manifest.contributes.configuration.find((s) => 'gittree.notifications.durationSeconds' in s.properties);
-  const setting = section?.properties['gittree.notifications.durationSeconds'];
+  const section = manifest.contributes.configuration.find((s) => 'geet.notifications.durationSeconds' in s.properties);
+  const setting = section?.properties['geet.notifications.durationSeconds'];
 
   it('is a number of seconds, five by default, from 0 to a minute, among the general settings', () => {
     expect(nls[section!.title.slice(1, -1)]).toBe('Geet');

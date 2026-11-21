@@ -1,7 +1,7 @@
 /**
  * P6-T3 — Tri-Editor composition: three REAL VS Code editors (master
  * architecture decision) — Left "Yours" (:2, read-only), Center "Result"
- * (writable `gittree-merge:` doc, full language features), Right "Theirs"
+ * (writable `geet-merge:` doc, full language features), Right "Theirs"
  * (:3, read-only). Block ranges in the result are the anchor source of
  * truth, maintained by mapping text-change deltas (the stable API cannot
  * read adjusted decoration ranges back — decorations render state only).
@@ -104,7 +104,7 @@ export class TriMergeEditor {
         this.blocks.map((t) => t.block),
         {
           whitespace: vscode.workspace
-            .getConfiguration('gittree.merge')
+            .getConfiguration('geet.merge')
             .get<boolean>('autoResolveWhitespace', true),
         },
       ),
@@ -178,7 +178,7 @@ export class TriMergeEditor {
     });
 
     const mode = vscode.workspace
-      .getConfiguration('gittree.merge')
+      .getConfiguration('geet.merge')
       .get<'virtual' | 'markers'>('resultMode', 'virtual');
     if (mode === 'markers') {
       // Fallback for language servers that require on-disk files: edit the
@@ -620,7 +620,7 @@ export class TriMergeEditor {
   private async closedByUser(): Promise<void> {
     const lost = this.edited || this.resolvedCount > 0;
     await this.close();
-    if (!lost || process.env['GITTREE_TEST'] === '1') return;
+    if (!lost || process.env['GEET_TEST'] === '1') return;
     const reopen = vscode.l10n.t('Reopen');
     const choice = await vscode.window.showWarningMessage(
       vscode.l10n.t(
@@ -631,7 +631,7 @@ export class TriMergeEditor {
     );
     if (choice !== reopen) return;
     const file = this.session.files().find((f) => f.path === this.rel);
-    if (file) await vscode.commands.executeCommand('gittree.merge.open', { session: this.session, path: file.path, kind: file.kind });
+    if (file) await vscode.commands.executeCommand('geet.merge.open', { session: this.session, path: file.path, kind: file.kind });
   }
 }
 
@@ -710,7 +710,7 @@ export class TriEditorManager implements vscode.Disposable {
   constructor(private readonly mergeFs: MergeFsProvider) {
     this.decorations = createTriEditorDecorations();
     this.statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 40);
-    this.statusBar.command = 'gittree.merge.nextConflict';
+    this.statusBar.command = 'geet.merge.nextConflict';
   }
 
   private key(repoRoot: string, rel: string): string {
@@ -789,7 +789,7 @@ export class TriEditorManager implements vscode.Disposable {
     const active = this.active();
     void vscode.commands.executeCommand(
       'setContext',
-      'gittree.merge.triEditorActive',
+      'geet.merge.triEditorActive',
       this.open.size > 0,
     );
     if (!active) {

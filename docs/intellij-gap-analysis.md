@@ -71,13 +71,13 @@ container-level decisions that set the product's character.
 
 | # | IntelliJ | Geet before Tier 1 | Status after Tier 1 |
 | --- | --- | --- | --- |
-| S1 | **Commit tool window** (`Alt+0`): one panel with file tree, large message editor, toolbar, gear options, and an inline diff preview | VS Code SCM sidebar plus the **native SCM input box**; options scattered across `scm/title` menus and the command palette | **CLOSED (P11).** One `gittree.commit` tool window: `Commit \| Shelf` tabs, toolbar strip, tri-state change tree, message editor, options gear. `commit.window: "native"` restores the old surface. |
-| S2 | **Git tool window** (`Alt+9`): 4 synchronized panes — Branches, Commits, Changed Files, Commit Details — plus Console / History / Repository / Update Info tabs | One webview in the bottom **panel**: filter bar + graph rows + details panel | **CLOSED (P12).** Bottom-docked `gittree-panel` webview with `Log \| Console` tabs and four panes — Branches, Commits, Changed Files, Commit Details — in nested persisted splitters, each with its own toolbar. |
+| S1 | **Commit tool window** (`Alt+0`): one panel with file tree, large message editor, toolbar, gear options, and an inline diff preview | VS Code SCM sidebar plus the **native SCM input box**; options scattered across `scm/title` menus and the command palette | **CLOSED (P11).** One `geet.commit` tool window: `Commit \| Shelf` tabs, toolbar strip, tri-state change tree, message editor, options gear. `commit.window: "native"` restores the old surface. |
+| S2 | **Git tool window** (`Alt+9`): 4 synchronized panes — Branches, Commits, Changed Files, Commit Details — plus Console / History / Repository / Update Info tabs | One webview in the bottom **panel**: filter bar + graph rows + details panel | **CLOSED (P12).** Bottom-docked `geet-panel` webview with `Log \| Console` tabs and four panes — Branches, Commits, Changed Files, Commit Details — in nested persisted splitters, each with its own toolbar. |
 | S3 | **Branches popup**: a *tree* popup that is also an **action hub** — it opens with Update Project / Commit / Push / New Branch / Checkout Tag or Revision before any branch appears, and the search field matches "branches **and actions**". Real folder nodes (`feature` collapses `f1`, `f1-1`, `f2`), per-row `›` submenus, gear settings | A flat `QuickPick` list with separator headers; branches only | **CLOSED (P13-T5).** Top-level verbs first, folder rows with drill-in and `‹ Back`, flat search across every level, `›` submenu per row from one registry, header gear and incoming/outgoing toggle. |
 | S4 | **Dialogs with "Modify options"** — Push, Pull, Merge, Rebase, Update Project, Reset, Rollback, Stash, Shelve, Cherry-pick target, Apply Patch, Clone, Manage Remotes | Chains of `showQuickPick` / `showInputBox` (25 QuickPick call sites) | **CLOSED (P13-T1…T4).** Twelve option-bearing dialogs on the "Modify options" pattern, each previewing the exact argv it will run. |
 | S5 | **Differences Viewer** with its own toolbar: side-by-side/unified toggle, ignore-whitespace modes, highlight granularity (words/lines/chars/split), align changes, collapse unchanged fragments, compare-with-clipboard, switch-to-three-side, annotate-in-diff | VS Code's native diff editor (`vscode.diff`) | **OPEN — Tier 2, deliberate (D1).** VS Code exposes no API to render controls inside a diff editor. `InlineDiff` covers the commit window and dialogs where per-change inclusion is load-bearing. Route A/B/C for a future phase are written up in `docs/deviations.md`. |
 | S6 | **VCS Operations Popup** (`Alt+` + backtick) — one hub listing every applicable VCS action in context | — | **CLOSED (P13-T7).** `` Alt+` `` VCS Operations Popup, enumerated from `dialogRegistry.ts` + `branchActions.ts`, context-aware, recents floated. |
-| S7 | **Files Merged with Conflicts** dialog: per-file *Accept Yours / Accept Theirs / Merge…*, plus resolve-all-simple | `gittree.conflicts` **tree view** in the SCM container with equivalent actions | **CLOSED (P13-T8).** `Files Merged with Conflicts` dialog gate once per session; the `gittree.conflicts` tree view retained as the persistent surface. |
+| S7 | **Files Merged with Conflicts** dialog: per-file *Accept Yours / Accept Theirs / Merge…*, plus resolve-all-simple | `geet.conflicts` **tree view** in the SCM container with equivalent actions | **CLOSED (P13-T8).** `Files Merged with Conflicts` dialog gate once per session; the `geet.conflicts` tree view retained as the persistent surface. |
 | S8 | VCS widget sits in the **top-left main toolbar** (New UI) as `<project> ▾  ⑂ <branch> ▾`, with incoming (blue) / outgoing (green) arrows | Bottom **status bar** item with ahead/behind counts | **ACCEPTED DEVIATION (D4).** VS Code has no top-toolbar surface; the widget stays in the status bar. |
 | S9 | **File status colors**: 15 named statuses with per-theme colors, customizable on a settings page; directories with modified descendants highlighted | VS Code `FileDecorationProvider` badges | **PARTIAL (P11-T8, D6).** Status colors derive from the theme's own `gitDecoration-*` variables with per-status user overrides; IntelliJ's 15-status settings page has no analogue. |
 | S10 | **Console tab** in the tool window showing every executed git command and its output | One `Geet` output channel | **CLOSED (P12-T8).** `Console` tab beside `Log`, a redacted 2 000-entry ring of every executed git command. Read-only by design (D10). |
@@ -368,19 +368,19 @@ row in the branches tree.
 
 | IntelliJ | Geet | |
 | --- | --- | --- |
-| Gutter change markers (green/blue/grey) | QuickDiffProvider, `gittree.quickDiff.base` | ✅ |
+| Gutter change markers (green/blue/grey) | QuickDiffProvider, `geet.quickDiff.base` | ✅ |
 | Click marker opens a floating toolbar popup | Peek diff plus hunk commands | 🟡 no floating toolbar |
 | Popup: **prev/next change** arrows | — | ❌ |
-| Popup: **Rollback** hunk | `gittree.revert.hunkAt` / `hunk.rollback` | ✅ |
-| Popup: **Stage** chunk | `gittree.hunk.stage` | ✅ |
+| Popup: **Rollback** hunk | `geet.revert.hunkAt` / `hunk.rollback` | ✅ |
+| Popup: **Stage** chunk | `geet.hunk.stage` | ✅ |
 | Popup: **"Commit this change"** — a real inline message field with edit and commit buttons, right in the popup | — | ❌ |
 | Popup: **Amend** button | — | ❌ |
 | Popup: **changelist selector** dropdown | — | ❌ |
 | Hollow marker means staged chunk | — | ❌ |
-| Annotate with Git Blame (toggle) | `gittree.blame.toggle` | ✅ |
-| Blame age colouring (IntelliJ "Order": newest strongest, ranked within the file) | `gittree.blame.heatmap` — five themable background anchors, quantised not interpolated (**D25**) | ✅ |
-| Click annotation opens the commit in the log | `gittree.blame.revealCursorCommit`; annotations follow HEAD, so the sha it opens is never one a commit or amend has superseded | ✅ |
-| Blame **View** menu: revision info / date / author formats, commit number, colors | colors are themable (`gittree.blame.*`); the field layout is `gittree.blame.format` only, with no in-editor menu | 🟡 |
+| Annotate with Git Blame (toggle) | `geet.blame.toggle` | ✅ |
+| Blame age colouring (IntelliJ "Order": newest strongest, ranked within the file) | `geet.blame.heatmap` — five themable background anchors, quantised not interpolated (**D25**) | ✅ |
+| Click annotation opens the commit in the log | `geet.blame.revealCursorCommit`; annotations follow HEAD, so the sha it opens is never one a commit or amend has superseded | ✅ |
+| Blame **View** menu: revision info / date / author formats, commit number, colors | colors are themable (`geet.blame.*`); the field layout is `geet.blame.format` only, with no in-editor menu | 🟡 |
 | Blame **Options**: Ignore Whitespaces (`-w`) | — | ❌ |
 | Blame Options: Detect Movements Within File (`-M`) | — | ❌ |
 | Blame Options: Detect Movements Across Files (`-C`) | — | ❌ |
@@ -413,11 +413,11 @@ row in the branches tree.
 | **Swap Branches** in Show Diff with Working Tree | — (**D36**) | ❌ |
 | **Get from Branch** in Show Diff with Working Tree | — (**D36**) | ❌ |
 | Rename / Delete / Push | `branches.{rename,delete,push}` | ✅ |
-| **Merge \<branch\> into \<current\>** | P13-T5: registry entry, `›` submenu row, tree menu row and `gittree.branch.mergeIntoCurrent` | ✅ |
+| **Merge \<branch\> into \<current\>** | P13-T5: registry entry, `›` submenu row, tree menu row and `geet.branch.mergeIntoCurrent` | ✅ |
 | **Rebase \<current\> onto \<selected\>** (this direction) | P13-T5 `BranchOps.rebaseCurrentOnto` | ✅ |
 | **Update** selected branch | `branchOps.updateBranch` — Update Project on HEAD, fast-forward-only refspec fetch on any other branch | ✅ |
 | **Checkout and Update** selected branch | — | ❌ |
-| **Tracked Branch '\<upstream\>'** submenu | the upstream's own action set, re-aimed: `gittree.branches.trackedSubmenu` in the tree, a drill-in row in the popup | 🟡 tree submenu label cannot carry the ref name (static VS Code titles) |
+| **Tracked Branch '\<upstream\>'** submenu | the upstream's own action set, re-aimed: `geet.branches.trackedSubmenu` in the tree, a drill-in row in the popup | 🟡 tree submenu label cannot carry the ref name (static VS Code titles) |
 | **Pull into \<branch\> Using Rebase / Using Merge** | `pullRemoteIntoCurrent(…, 'merge' \| 'rebase')`, both named in the menus | ✅ |
 | **New Worktree from \<branch\>** | P13-T5 submenu row → P13-T6 New Worktree dialog; offered on the checked-out branch too, where the dialog opens in new-branch mode | ✅ |
 | Multi-select batch branch operations | — | ❌ |
@@ -462,10 +462,10 @@ row in the branches tree.
 | **Run advanced checks after a commit is done** (async) | P11-T5 deferred checks | ✅ |
 | Commit-message inspections / spellcheck | — | ❌ |
 | **Commit and Push** | `commitAndPush` | ✅ |
-| **Push dialog**: left pane = editable target (`branch → origin : branch`) plus the exact commits being pushed; right pane = **the full changed-file tree of the push**, status-coloured, with per-folder counts and its own toolbar; footer = `☐ Push tags [All ▾]`, `☑ Run Git hooks`, `[Push ▾]` split button | P13-T1 Push dialog, rebuilt on IntelliJ's own `VcsPushDialog`/`PushLog` in POST-P14ao: the push-log tree (`source → remote : branch`, `New`/`Upstream` labels, 20 commits then `...`, IntelliJ's commit tooltip), changes of the *selected* commits with Show Diff · View Options · Edit Source · Show Details · Expand/Collapse, the selected commit's details, the target editor with recent targets and `Set upstream`, the remote list and Define Remote, checkboxes and `Edit all targets` for several repositories, `Run Git hooks` only with a pre-push hook, Force Push's own warning with `Don't warn about this target`, refused for protected branches (`gittree.protectedBranches`). Every Push opens it: `Push…`, a branch's `Push…`, `Push All up to Here…`, Commit and Push. Not ported: the commit-checks warning strip above the tree (D7) and IntelliJ's pre-push handlers | ✅ |
-| **Push Rejected dialog** (Rebase / Merge, update-all, remember choice) | POST-P14af message box: Merge / Rebase (last answer first), update then push again, `Don't Ask Again` → `gittree.push.autoUpdateIfRejected`; update-all is `gittree.push.updateAllRepositoriesIfRejected`, on by default (POST-P14ag, **D32**) | ✅ |
-| *Show Push dialog for Commit and Push* setting | POST-P14ah `gittree.push.showDialogForCommitAndPush`, on by default: the Push dialog for the repositories just committed, one for all; off pushes directly, what the dialog would push (POST-P14cn). Its nested *only when committing to protected branches* is absent — the protected-branch list (`gittree.protectedBranches`, POST-P14ao) gates Force Push only so far | 🟡 no protected-only variant |
-| The push-after-commit dialog's checkbox (*For Commit and Push to non-protected branches, preview commits before push*), and its rule for opening anyway (`GitPushAfterCommitDialog.shouldShow`: `!canPush`, or the target diverged on the remote) | POST-P14cn: every Push dialog has `Don't show this dialog again` (`gittree.push.showDialog`), which makes every Push go straight through, not Commit and Push alone (**D49**). It still opens when the push cannot go ahead (no remote, no commits, a commit on no branch, nothing chosen) and says why. A diverged target is not checked first: the push is rejected and asks Merge or Rebase (POST-P14af) | 🟡 no divergence check, by design |
+| **Push dialog**: left pane = editable target (`branch → origin : branch`) plus the exact commits being pushed; right pane = **the full changed-file tree of the push**, status-coloured, with per-folder counts and its own toolbar; footer = `☐ Push tags [All ▾]`, `☑ Run Git hooks`, `[Push ▾]` split button | P13-T1 Push dialog, rebuilt on IntelliJ's own `VcsPushDialog`/`PushLog` in POST-P14ao: the push-log tree (`source → remote : branch`, `New`/`Upstream` labels, 20 commits then `...`, IntelliJ's commit tooltip), changes of the *selected* commits with Show Diff · View Options · Edit Source · Show Details · Expand/Collapse, the selected commit's details, the target editor with recent targets and `Set upstream`, the remote list and Define Remote, checkboxes and `Edit all targets` for several repositories, `Run Git hooks` only with a pre-push hook, Force Push's own warning with `Don't warn about this target`, refused for protected branches (`geet.protectedBranches`). Every Push opens it: `Push…`, a branch's `Push…`, `Push All up to Here…`, Commit and Push. Not ported: the commit-checks warning strip above the tree (D7) and IntelliJ's pre-push handlers | ✅ |
+| **Push Rejected dialog** (Rebase / Merge, update-all, remember choice) | POST-P14af message box: Merge / Rebase (last answer first), update then push again, `Don't Ask Again` → `geet.push.autoUpdateIfRejected`; update-all is `geet.push.updateAllRepositoriesIfRejected`, on by default (POST-P14ag, **D32**) | ✅ |
+| *Show Push dialog for Commit and Push* setting | POST-P14ah `geet.push.showDialogForCommitAndPush`, on by default: the Push dialog for the repositories just committed, one for all; off pushes directly, what the dialog would push (POST-P14cn). Its nested *only when committing to protected branches* is absent — the protected-branch list (`geet.protectedBranches`, POST-P14ao) gates Force Push only so far | 🟡 no protected-only variant |
+| The push-after-commit dialog's checkbox (*For Commit and Push to non-protected branches, preview commits before push*), and its rule for opening anyway (`GitPushAfterCommitDialog.shouldShow`: `!canPush`, or the target diverged on the remote) | POST-P14cn: every Push dialog has `Don't show this dialog again` (`geet.push.showDialog`), which makes every Push go straight through, not Commit and Push alone (**D49**). It still opens when the push cannot go ahead (no remote, no commits, a commit on no branch, nothing chosen) and says why. A diverged target is not checked first: the push is rejected and asks Merge or Rebase (POST-P14af) | 🟡 no divergence check, by design |
 | Warn if CRLF separators are about to be committed | — | ❌ |
 | Warn when committing in detached HEAD or during rebase | — | ❌ |
 | *Do not run Git commit hooks* option | P13-T1 `Run Git hooks` (push); commit hooks still always run | 🟡 push only |
@@ -481,7 +481,7 @@ row in the branches tree.
 | **Graph Options** ▾ · Sort: **By Commit Date** / **Topologically** (IntelliSort) | The button after `Paths ▾`, IntelliJ's icon and dot; `sort: 'date' \| 'intelli'` (git's plain `'topo'`, which File History and Compare open in, ticks Topologically). *Was a Date / Topo / IntelliSort dropdown until 2026-11-01* | ✅ |
 | Graph Options ▾ · Options: **First Parent** / **No Merges** | `firstParent` (`--first-parent`, in the sort's place as in IntelliJ) and `noMerges` (merges hidden by the host so the graph's lines run through them; `--no-merges` in the tab title). *Added 2026-11-01* | ✅ |
 | Graph Options ▾ · Collapse / Expand Linear Branches (in the JetBrains help, not in the owner's IntelliJ 2026 menu) | — | ❌ |
-| Branch / User / Date / Path filters | filter chips, naming their value by IntelliJ's rules (a user by name, `me`, `Since …`, 20 characters then `…`), a date in the Date column's format (**D39**, `gittree.log.filterChips`); `Branch ▾`'s HEAD and All branches are radio buttons above the list (2026-11-07) | ✅ |
+| Branch / User / Date / Path filters | filter chips, naming their value by IntelliJ's rules (a user by name, `me`, `Since …`, 20 characters then `…`), a date in the Date column's format (**D39**, `geet.log.filterChips`); `Branch ▾`'s HEAD and All branches are radio buttons above the list (2026-11-07) | ✅ |
 | `Paths ▾` **Select…** / **Select in Tree…** | host file chooser + a tree-ordered pick over `git ls-files` | ✅ |
 | `Paths ▾` **Roots** section (per-root checkbox, colour swatch) | every workspace repository, swatched — but the log renders one at a time, so the rows are radios (**D24**). Picking one keeps the Branch selection, as IntelliJ's filters stay; a branch the repository lacks is left out and marked (2026-11-07) | 🟡 single-select |
 | Text search plus Regex plus Match Case | search box with toggles | ✅ |
@@ -504,10 +504,10 @@ row in the branches tree.
 | Revert Commit / Undo Commit / Drop Commit / Cherry-pick / Edit Commit Message | `commit.{revert,undo,drop,cherryPick,reword}` | ✅ |
 | Interactively Rebase from Here | `rebase.interactive` | ✅ |
 | **Create Patch** (from commit) | P12-T6 `log.createPatch` | ✅ |
-| **Show Repository at Revision** | P12-T7 read-only `gittree-tree:` FS + view | ✅ |
+| **Show Repository at Revision** | P12-T7 read-only `geet-tree:` FS + view | ✅ |
 | **Fixup** / **Squash Into** (direct from the log) | P12-T7 `log.fixup` / `log.squashInto` + autosquash | ✅ |
 | **Squash Commits** (multi-select) | `log.squashCommits`: the selected commits, adjacent or not, folded into the oldest with a message edited from theirs (IntelliJ's `prettySquash`), Undo after. *Added 2026-11-01* | ✅ |
-| Multi-select in the log: Ctrl/Shift+click, Shift+arrows, Ctrl+A; Changed Files = the merged changes of exactly the selected commits; Commit Details stacked (50 max); the context menu's multi-commit rules (Revert/Drop Commits, Compare Versions for two, single-commit actions hidden or greyed) | `logSelection.ts`, `zipChanges.ts`, the stacked details pane and the `gittree.multiCommit` / `gittree.commitCount` / `gittree.mergeSelected` menu keys. *Added 2026-11-01*; the menu cannot say why an item is greyed (VS Code menus carry no description), and commits on the upstream are confirmed rather than refused | ✅ |
+| Multi-select in the log: Ctrl/Shift+click, Shift+arrows, Ctrl+A; Changed Files = the merged changes of exactly the selected commits; Commit Details stacked (50 max); the context menu's multi-commit rules (Revert/Drop Commits, Compare Versions for two, single-commit actions hidden or greyed) | `logSelection.ts`, `zipChanges.ts`, the stacked details pane and the `geet.multiCommit` / `geet.commitCount` / `geet.mergeSelected` menu keys. *Added 2026-11-01*; the menu cannot say why an item is greyed (VS Code menus carry no description), and commits on the upstream are confirmed rather than refused | ✅ |
 | **Push All up to Here…** | P12-T7 `log.pushAllUpToHere`; since POST-P14ao the Push dialog with the commit as its source (`GitPushUpToCommitAction`) | ✅ |
 | **Add Commits to Remote Branch** | — | ❌ |
 | **Rebase \<branch\> onto Selected Commit** | — | ❌ |
@@ -524,7 +524,7 @@ row in the branches tree.
 
 | IntelliJ | Geet | |
 | --- | --- | --- |
-| Files Merged with Conflicts dialog | P13-T8 dialog gate (once per session) + the retained `gittree.conflicts` view | ✅ |
+| Files Merged with Conflicts dialog | P13-T8 dialog gate (once per session) + the retained `geet.conflicts` view | ✅ |
 | Per-file Accept Yours / Accept Theirs / Merge… | `merge.acceptYoursFile` / `acceptTheirsFile` / `merge.open` | ✅ |
 | Three panes, centre is a fully functional editor | `TriMergeEditor` (three real VS Code editors) | ✅ **strength** |
 | Apply All Non-Conflicting Changes ("magic wand") | `merge.magicWand` / `magicWandSession` | ✅ |
@@ -547,12 +547,12 @@ row in the branches tree.
 
 | IntelliJ | Geet | |
 | --- | --- | --- |
-| Stash tab: Create Stash / Apply / Pop / Drop / Clear | full `gittree.stash.*`, in the POST-P14l `Stash` tab of the commit window | ✅ |
+| Stash tab: Create Stash / Apply / Pop / Drop / Clear | full `geet.stash.*`, in the POST-P14l `Stash` tab of the commit window | ✅ |
 | Unstash **as new branch** | `stash.branch` | ✅ |
 | Reinstate Index (`--index`) | `restoreIndex` | ✅ |
 | **Keep index** on create (`--keep-index`) | P13-T4 Stash dialog option | ✅ |
 | Stash dialog: git-root selector, branch verification, message | P13-T4 Stash dialog (message + Modify options) | ✅ |
-| Shelf tab, patches stored outside `.git` | `gittree.shelf.*` | ✅ **strength** |
+| Shelf tab, patches stored outside `.git` | `geet.shelf.*` | ✅ **strength** |
 | Unshelve (full / partial) | `shelf.unshelve` / `unshelvePartial` | ✅ |
 | Import Patches / export | `shelf.import` / `shelf.export` | ✅ |
 | **Shelve Silently** (`Ctrl+Shift+H`) | — | ❌ |
@@ -562,27 +562,27 @@ row in the branches tree.
 | **Already Unshelved** filter | — | ❌ |
 | **Recently Deleted** node plus **Restore** | — | ❌ |
 | Shelve dialog: file list, Group By, Show Differences, Revert | P11-T7 Shelve Changes dialog (tree, counts, inline diff) | ✅ |
-| *Combine stashes and shelves in one tab* | POST-P14l `gittree.stash.combineWithShelf` — the Stash tab folds into the Shelf tab | ✅ |
+| *Combine stashes and shelves in one tab* | POST-P14l `geet.stash.combineWithShelf` — the Stash tab folds into the Shelf tab | ✅ |
 | *Shelve base revisions of files* / Change Shelves Location | `shelf.path` only | 🟡 |
 
 ### 3.7 Remote synchronization
 
 | IntelliJ | Geet | |
 | --- | --- | --- |
-| Fetch | `gittree.fetch` (`--prune`) | ✅ |
-| Fetch is a **project** operation — one button, every root | POST-P14o: `gittree.fetch` with no argument, `gittree.fetch.all`, and the branches-popup header button all fan out across every root with a remote; an explicit root still fetches only that one. Was a silent guess at the active editor's repository | ✅ |
+| Fetch | `geet.fetch` (`--prune`) | ✅ |
+| Fetch is a **project** operation — one button, every root | POST-P14o: `geet.fetch` with no argument, `geet.fetch.all`, and the branches-popup header button all fan out across every root with a remote; an explicit root still fetches only that one. Was a silent guess at the active editor's repository | ✅ |
 | Fetch reaches **every remote** of each root | only the default remote (`fetch --prune`, not `--all`) — a second remote is never refreshed | 🟡 |
-| Fetch in the **VCS Operations Popup** | POST-P14o `gittree.fetch.all` in the `sync` group — absent before, the popup enumerates dialogs and fetch has none | ✅ |
+| Fetch in the **VCS Operations Popup** | POST-P14o `geet.fetch.all` in the `sync` group — absent before, the popup enumerates dialogs and fetch has none | ✅ |
 | *Fetch remote changes automatically* | `autofetch.enabled` | ✅ |
 | **Pull Changes dialog**: repository, remote, branch, **Modify options** (`--rebase`, `--ff-only`, `--no-ff`, `--squash`, `--no-commit`, `--no-verify`) | P13-T2 Update Project dialog (merge/rebase, explicit argv) | 🟡 no per-flag list |
-| **Update Project** (`Ctrl+T`) with Merge / Rebase / **Reset to the Remote Branch** | P13-T2 `gittree.update.dialog`, bound to `Ctrl+T` | ✅ |
+| **Update Project** (`Ctrl+T`) with Merge / Rebase / **Reset to the Remote Branch** | P13-T2 `geet.update.dialog`, bound to `Ctrl+T` | ✅ |
 | **Update Info** tab summarizing what arrived | P13-T2 result notification with "Show in Log" (D9) | 🟡 notification, not a tab |
 | *Update method* and *Clean working tree using (Stash\|Shelve)* settings | — | ❌ |
 | *Fetch tags* (Auto / Sync / Always / Never) | — | ❌ |
 | Push / Force push | `push`, `pushForceWithLease` | ✅ |
 | **Merge Branches dialog** with `--no-ff`, `--ff-only`, `--squash`, `-m`, `--no-commit`, `--no-verify`, `--allow-unrelated-histories` | P13-T3 Merge dialog (every listed flag + strategy/strategy-option) | ✅ |
 | **Git Rebase dialog** with `--onto`, `--rebase-merges`, `--keep-empty`, `--root`, `--update-refs`, `--autosquash` | P13-T3 Rebase dialog (`--onto`, `--rebase-merges`, `--keep-empty`, `--autostash`, `--no-verify`, `--interactive`) | 🟡 no `--root`/`--update-refs` |
-| **Manage Remotes** dialog (add / edit / remove) | P13-T4 `gittree.remotes.manage` (add / edit / remove / prune) | ✅ |
+| **Manage Remotes** dialog (add / edit / remove) | P13-T4 `geet.remotes.manage` (add / edit / remove / prune) | ✅ |
 | Incoming (blue) / outgoing (green) arrows | ahead/behind in the status bar | 🟡 |
 | *Check remote for incoming changes* | — | ❌ |
 | *Use credential helper* | askpass implementation | 🟡 |
@@ -616,12 +616,12 @@ row in the branches tree.
 
 | IntelliJ | Geet | |
 | --- | --- | --- |
-| Create Patch from Local Changes | P12-T6 `gittree.patch.create` | ✅ |
-| Create Patch from a commit (log) | P12-T6 `gittree.log.createPatch` | ✅ |
+| Create Patch from Local Changes | P12-T6 `geet.patch.create` | ✅ |
+| Create Patch from a commit (log) | P12-T6 `geet.log.createPatch` | ✅ |
 | Create Patch from a file revision (history) | — | ❌ |
 | Patch File Settings dialog (location, **To clipboard**, base path, **Reverse patch**, encoding) | P12-T6 create options + P13-T4 apply options (`--reverse`, `-p<n>`) | 🟡 no encoding/base-path |
-| Copy as Patch to Clipboard | P12-T6 `gittree.patch.copyToClipboard` | ✅ |
-| Apply Patch… / Apply Patch from Clipboard | P12-T6 engine + P13-T4 `gittree.patch.applyDialog` (file picker; no clipboard source) | 🟡 no clipboard source |
+| Copy as Patch to Clipboard | P12-T6 `geet.patch.copyToClipboard` | ✅ |
+| Apply Patch… / Apply Patch from Clipboard | P12-T6 engine + P13-T4 `geet.patch.applyDialog` (file picker; no clipboard source) | 🟡 no clipboard source |
 | Change Directory Paths (map base dir, strip / restore leading dirs) | P13-T4 `-p<n>` strip depth only | 🟡 strip only |
 | Analyze and apply patch from clipboard on the fly | — | ❌ |
 | Import to shelf | `shelf.import` | ✅ |
@@ -630,20 +630,20 @@ row in the branches tree.
 
 | IntelliJ | Geet | |
 | --- | --- | --- |
-| Clone Repository dialog | P13-T4 `gittree.clone.dialog` | ✅ |
+| Clone Repository dialog | P13-T4 `geet.clone.dialog` | ✅ |
 | Create Git Repository / Enable Version Control Integration | `git init` exists only in the playground generator | ❌ |
-| Add to VCS (`Ctrl+Alt+A`) | POST-P14v `gittree.addToVcs` (intent-to-add, into the default list) on file rows; POST-P14bf on folder rows, the Unversioned Files rows and a repository row too. No `Ctrl+Alt+A` | 🟡 |
-| Move to Another Changelist… on unversioned files: added to VCS in the list picked | POST-P14bf `gittree.changelist.moveTo`, on files, folders, the Unversioned Files rows and a repository row, merged across repositories | ✅ |
+| Add to VCS (`Ctrl+Alt+A`) | POST-P14v `geet.addToVcs` (intent-to-add, into the default list) on file rows; POST-P14bf on folder rows, the Unversioned Files rows and a repository row too. No `Ctrl+Alt+A` | 🟡 |
+| Move to Another Changelist… on unversioned files: added to VCS in the list picked | POST-P14bf `geet.changelist.moveTo`, on files, folders, the Unversioned Files rows and a repository row, merged across repositories | ✅ |
 | **Add to .gitignore** / **Add to .git/info/exclude** | POST-P14w Add to .gitignore on unversioned file rows, the nearest ignore file; POST-P14bf on folder rows, one `/folder/` rule when git tracks nothing in it. No `.git/info/exclude` | 🟡 |
 | **Show Ignored Files** toggle | — | ❌ |
-| Manage Remotes | P13-T4 `gittree.remotes.manage` | ✅ |
+| Manage Remotes | P13-T4 `geet.remotes.manage` | ✅ |
 | **Worktrees tab** plus **New Worktree** dialog plus *New Worktree from \<branch\>* | POST-P14k Worktrees **tab in the Git tool window** (JetBrains: "Alt+9, then select Worktrees") + P13-T6 New Worktree dialog + the T5 submenu row | ✅ |
 | Submodule awareness / operations | status parser reads the submodule field only | ❌ |
 | Multi-repo, "Execute branch operations on all roots" | POST-P14p: the popup opens at a **project level** with a row per repository and `Common Local Branches` / `Common Remote Branches` / `Common Tags`; a common row runs one registry action over every root. Not a switch — the operations that need no per-root input always fan out, and those that would prompt seven times are offered inside a repository instead (**D27**) | 🟡 |
 | Multi-repo: the popup names which repository it is scoped to | POST-P14p: repository rows at the project level, the repository's name in the title once drilled in, and `‹ Back` up to the project. Was a silent `pickRepo` guess at the active editor's root, never shown | ✅ |
-| **Roots detected below the project directory**, not only at it | downward search under every open folder, `gittree.repositoryScan.maxDepth` (default 1, `-1` unlimited) plus an ignore list — VS Code's `git.repositoryScan*` defaults. Was upward-only, so a folder *containing* checkouts found none of them | ✅ |
+| **Roots detected below the project directory**, not only at it | downward search under every open folder, `geet.repositoryScan.maxDepth` (default 1, `-1` unlimited) plus an ignore list — VS Code's `git.repositoryScan*` defaults. Was upward-only, so a folder *containing* checkouts found none of them | ✅ |
 | Roots refreshed when one appears or vanishes | the existing workspace watcher reports a `.git` entry created or deleted and a debounced rediscovery follows; no reload needed | ✅ |
-| Directory mappings settings page (per-root add/remove/ignore UI) | the two `gittree.repositoryScan.*` settings; no per-root table, and they are window-scoped where VS Code's equivalents are per-folder | 🟡 |
+| Directory mappings settings page (per-root add/remove/ignore UI) | the two `geet.repositoryScan.*` settings; no per-root table, and they are window-scoped where VS Code's equivalents are per-folder | 🟡 |
 
 ### 3.11 Local History
 
@@ -676,7 +676,7 @@ executable ❌, Configure GPG Key ❌, Protected branches ❌, Update method ❌
 working tree using ❌, Fetch tags ❌, Use credential helper ❌, Combine stashes and
 shelves ❌, CRLF warning ❌, detached-HEAD warning ❌, File Status Colors ❌, Diff &
 Merge preferences ❌, *Highlight files from non-active changelists* ❌.
-(*Path to Git executable* is present as `gittree.gitPath` ✅.)
+(*Path to Git executable* is present as `geet.gitPath` ✅.)
 
 ### 3.13 Provider integrations — already a known, accepted gap
 
@@ -729,7 +729,7 @@ the reversal is the honest cost of Tier 1:
 
 - §6 rejected a webview commit dialog — *"loses native SCM input, IME/undo
   quirks"*. Those objections are real; they become acceptance criteria (P11-T4
-  covers IME composition and an intact undo stack) and `gittree.commit.window:
+  covers IME composition and an intact undo stack) and `geet.commit.window:
   'native'` keeps the old surface as a supported fallback.
 - §6 chose `TreeItemCheckboxState` for changelists. It has no partial state, so it
   cannot express S11 no matter how the tree is arranged.

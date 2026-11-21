@@ -19,7 +19,7 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'
 };
 const settings: Record<string, Setting> = {};
 for (const section of manifest.contributes.configuration) Object.assign(settings, section.properties);
-const PREFIX = 'gittree.commit.checks.';
+const PREFIX = 'geet.commit.checks.';
 
 describe('commit check defaults', () => {
   it('ticks no check, Analyze code and Check TODO included', () => {
@@ -41,7 +41,7 @@ describe('commit check defaults', () => {
   });
 
   it('a check added to package.json is a check CHECK_DEFAULTS knows', () => {
-    // Every boolean under gittree.commit.checks.* is a check box, save the
+    // Every boolean under geet.commit.checks.* is a check box, save the
     // "Run advanced checks after a commit is done" mode.
     const booleans = Object.keys(settings)
       .filter((key) => key.startsWith(PREFIX) && settings[key]?.type === 'boolean')

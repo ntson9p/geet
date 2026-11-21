@@ -16,7 +16,7 @@ export interface WebviewHtmlOptions {
   webview: vscode.Webview;
   extensionUri: vscode.Uri;
   title: string;
-  /** Serialized onto window.__gittreeInitialState before the bundle loads. */
+  /** Serialized onto window.__geetInitialState before the bundle loads. */
   initialState?: unknown;
 }
 
@@ -84,7 +84,7 @@ ${styleLinks}
 </head>
 <body>
   <div id="root"></div>
-  <script nonce="${nonce}">window.__gittreeInitialState = ${state}; window.__gittreeSystemDates = ${systemDates};</script>
+  <script nonce="${nonce}">window.__geetInitialState = ${state}; window.__geetSystemDates = ${systemDates};</script>
   <script nonce="${nonce}" type="module" src="${scriptUri.toString()}"></script>
 </body>
 </html>`;

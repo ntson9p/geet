@@ -29,7 +29,7 @@ import type { GitErrorKind } from '../core/git/errors';
 const LARGE_REPO_FILES = 50_000;
 
 function threshold(): number {
-  const seeded = process.env['GITTREE_TEST_LARGE_REPO_THRESHOLD'];
+  const seeded = process.env['GEET_TEST_LARGE_REPO_THRESHOLD'];
   if (seeded !== undefined) {
     const n = Number.parseInt(seeded, 10);
     if (Number.isFinite(n) && n >= 0) return n;
@@ -43,21 +43,21 @@ export function registerPhase10Hardening(
   perf?: { activationSyncMs: number },
 ): void {
   const promptedKey = (repo: RepoHandle): string =>
-    `gittree.perfPlaybook.${repoStoreKey(canonicalKey(repo.root))}`;
+    `geet.perfPlaybook.${repoStoreKey(canonicalKey(repo.root))}`;
 
   // ---- P10-T4: telemetry (double-gated, content-free, NO backend) ----------
   // The shipped sender is a no-op by owner decision — there is no service to
   // receive events. Tests swap in a buffering sender via the env seam.
   const testEvents: { name: string; props: Record<string, string> }[] = [];
   const sender: TelemetrySender =
-    process.env['GITTREE_TEST'] === '1'
+    process.env['GEET_TEST'] === '1'
       ? { send: (name, props) => void testEvents.push({ name, props }) }
       : NOOP_SENDER;
   const telemetry = new Telemetry({
     envEnabled: () =>
-      process.env['GITTREE_TEST_TELEMETRY_ENV'] === '1' || vscode.env.isTelemetryEnabled,
+      process.env['GEET_TEST_TELEMETRY_ENV'] === '1' || vscode.env.isTelemetryEnabled,
     settingEnabled: () =>
-      vscode.workspace.getConfiguration('gittree').get<boolean>('telemetry.enabled', false),
+      vscode.workspace.getConfiguration('geet').get<boolean>('telemetry.enabled', false),
     sender,
   });
   telemetry.event('activation', { syncBucket: durationBucket(perf?.activationSyncMs ?? 0) });
@@ -103,7 +103,7 @@ export function registerPhase10Hardening(
 
     const enable = vscode.l10n.t('Enable');
     const never = vscode.l10n.t("Don't Ask Again");
-    const seeded = process.env['GITTREE_TEST_PLAYBOOK_CHOICE'];
+    const seeded = process.env['GEET_TEST_PLAYBOOK_CHOICE'];
     const choice =
       seeded !== undefined
         ? seeded === 'enable'

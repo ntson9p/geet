@@ -4,7 +4,7 @@
  *
  * - `Compare with 'X'` is a log: a Log tab over `X...current`, whose Changed Files
  *   pane walks a commit. IntelliJ's `GitCompareBranchesUi` is two logs in one tab.
- * - The other two are a list of files: the `gittree.compare` pane, after IntelliJ's
+ * - The other two are a list of files: the `geet.compare` pane, after IntelliJ's
  *   `ChangesBrowserToolWindow`, which each request replaces. A file opens a diff
  *   that walks the whole list, or the rows selected when there are several.
  *
@@ -42,9 +42,9 @@ import {
 } from './compareModel';
 import { parseNameStatusZ, type NameStatusEntry } from './parsing';
 
-const VIEW_ID = 'gittree.compare';
+const VIEW_ID = 'geet.compare';
 /** A row's URI. It names a file for VS Code's icon theme, and carries its status for the decoration. */
-const ROW_SCHEME = 'gittree-compare';
+const ROW_SCHEME = 'geet-compare';
 const SEQUENCE_ID = 'compare';
 
 export interface CompareState {
@@ -160,7 +160,7 @@ export class CompareViewProvider implements vscode.TreeDataProvider<TreeNode> {
     item.tooltip = node.path;
     item.contextValue = 'compare:file';
     item.command = {
-      command: 'gittree.compare.openFile',
+      command: 'geet.compare.openFile',
       title: vscode.l10n.t('Show Diff'),
       arguments: [node],
     };
@@ -206,23 +206,23 @@ export class CompareService {
     context.subscriptions.push(
       this.view,
       vscode.window.registerFileDecorationProvider(new CompareRowDecorations()),
-      vscode.commands.registerCommand('gittree.branches.compareWithCurrent', (repoRoot: unknown, branch: unknown) =>
+      vscode.commands.registerCommand('geet.branches.compareWithCurrent', (repoRoot: unknown, branch: unknown) =>
         this.compareWithCurrent(String(repoRoot), String(branch)),
       ),
-      vscode.commands.registerCommand('gittree.branches.diffWithWorkingTree', (repoRoot: unknown, branch: unknown) =>
+      vscode.commands.registerCommand('geet.branches.diffWithWorkingTree', (repoRoot: unknown, branch: unknown) =>
         this.diffWithWorkingTree(String(repoRoot), String(branch)),
       ),
-      vscode.commands.registerCommand('gittree.compare.showFilesDiff', (repoRoot: unknown, a: unknown, b: unknown) =>
+      vscode.commands.registerCommand('geet.compare.showFilesDiff', (repoRoot: unknown, a: unknown, b: unknown) =>
         this.showFilesDiff(String(repoRoot), String(a), String(b)),
       ),
-      vscode.commands.registerCommand('gittree.compare.openFile', (node: TreeFileNode) => this.onRowClicked(node)),
+      vscode.commands.registerCommand('geet.compare.openFile', (node: TreeFileNode) => this.onRowClicked(node)),
       vscode.commands.registerCommand(
-        'gittree.compare.openChanges',
+        'geet.compare.openChanges',
         (node: TreeNode | undefined, selected: readonly TreeNode[] | undefined) => this.showDiff(node, selected),
       ),
-      vscode.commands.registerCommand('gittree.compare.openAll', () => this.openAll()),
-      vscode.commands.registerCommand('gittree.compare.refresh', () => this.read()),
-      vscode.commands.registerCommand('gittree.compare.close', () => this.close()),
+      vscode.commands.registerCommand('geet.compare.openAll', () => this.openAll()),
+      vscode.commands.registerCommand('geet.compare.refresh', () => this.read()),
+      vscode.commands.registerCommand('geet.compare.close', () => this.close()),
     );
   }
 
@@ -237,7 +237,7 @@ export class CompareService {
   /** The two branches' commits, each commit with its files: a log, like IntelliJ's. */
   async compareWithCurrent(repoRoot: string, branch: string): Promise<void> {
     const repo = this.repoOf(repoRoot);
-    if (repo) await vscode.commands.executeCommand('gittree.branches.compareInLog', repo.root, branch);
+    if (repo) await vscode.commands.executeCommand('geet.branches.compareInLog', repo.root, branch);
   }
 
   /** Every file that differs between two revisions, tip against tip. */
@@ -261,7 +261,7 @@ export class CompareService {
       this.view.description = undefined;
       this.view.message = vscode.l10n.t('Loading…');
     }
-    await vscode.commands.executeCommand('setContext', 'gittree.compare.active', true);
+    await vscode.commands.executeCommand('setContext', 'geet.compare.active', true);
     await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
     await this.read();
   }
@@ -444,7 +444,7 @@ export class CompareService {
     this.walksWholeList = false;
     this.provider.setShowing(undefined);
     this.provider.setState(undefined);
-    await vscode.commands.executeCommand('setContext', 'gittree.compare.active', false);
+    await vscode.commands.executeCommand('setContext', 'geet.compare.active', false);
   }
 }
 

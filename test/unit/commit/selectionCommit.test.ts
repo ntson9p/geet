@@ -30,7 +30,7 @@ const status = (repo: FixtureRepo): string[] =>
  * n.txt added and h.txt deleted by theirs; unrelated.txt a local file.
  */
 function midMerge(): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-selcommit-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-selcommit-' });
   repos.push(repo);
   repo.commit('base', { 'f.txt': 'a\nb\nc\n', 'g.txt': 'one\n', 'h.txt': 'keep\n' });
   repo.branch('other', { checkout: true });
@@ -79,7 +79,7 @@ describe('commitSelection', () => {
   });
 
   it('commits whole files and a part of another, and leaves the working tree and the rest of the index alone', async () => {
-    const repo = FixtureRepo.create({ prefix: 'gittree-selcommit-' });
+    const repo = FixtureRepo.create({ prefix: 'geet-selcommit-' });
     repos.push(repo);
     repo.commit('base', { 'a.txt': 'a1\n', 'p.txt': 'l1\nl2\nl3\nl4\n', 's.txt': 's1\n' });
     repo.writeFiles({ 'a.txt': 'a2\n', 'p.txt': 'L1\nl2\nl3\nL4\n', 's.txt': 's2\n' });
@@ -96,7 +96,7 @@ describe('commitSelection', () => {
   });
 
   it('refuses while a conflict is left, though the scratch index would not see it', async () => {
-    const repo = FixtureRepo.create({ prefix: 'gittree-selcommit-' });
+    const repo = FixtureRepo.create({ prefix: 'geet-selcommit-' });
     repos.push(repo);
     repo.makeConflict('c.txt');
     repo.writeFiles({ 'other.txt': 'x\n' });

@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 function repo(): { root: string; git: (...a: string[]) => string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-parser-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-parser-'));
   cleanups.push(() => {
     try {
       fs.rmSync(root, { recursive: true, force: true, maxRetries: 3 });

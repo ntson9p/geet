@@ -39,7 +39,7 @@ suite('Log roots & path filter', () => {
     repoA = core.repoForPath(workspaceRepoA())!;
     repoB = core.repoForPath(workspaceRepoB())!;
     assert.ok(repoA && repoB, 'fixture repositories missing');
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => reg.logView.currentSession !== undefined, 30_000);
     restoreRoot = reg.logView.currentSession?.repoRoot;
   });
@@ -177,7 +177,7 @@ suite('Log roots & path filter', () => {
     // exactly this, and the relative path it computes belongs to B.
     reg.logView.showRoot(repoA.root);
     await vscode.commands.executeCommand(
-      'gittree.showFileHistory',
+      'geet.showFileHistory',
       vscode.Uri.file(path.join(repoB.root, 'README.md')),
     );
     await waitFor(() => reg.logView.currentSession?.repoRoot === repoB.root, 20_000);
@@ -193,7 +193,7 @@ suite('Log roots & path filter', () => {
     this.timeout(60_000);
     reg.logView.showRoot(repoA.root);
     const branchB = gitWithRetry(repoB.root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
-    await vscode.commands.executeCommand('gittree.branches.compareInLog', repoB.root, branchB);
+    await vscode.commands.executeCommand('geet.branches.compareInLog', repoB.root, branchB);
     await waitFor(() => reg.logView.currentSession?.repoRoot === repoB.root, 20_000);
     assert.strictEqual(reg.logView.currentSession!.filter.range?.a, branchB);
   });

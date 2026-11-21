@@ -1,7 +1,7 @@
 /**
  * POST-P14k — the Worktrees tab's host bridge. The pane names a repository and
  * a path; everything else is resolved here, against live state, and dispatched
- * to the same `gittree.worktree.*` commands the tree view ran.
+ * to the same `geet.worktree.*` commands the tree view ran.
  */
 import { describe, expect, it } from 'vitest';
 import type { Core, RepoHandle } from '../../../src/core/core';
@@ -106,7 +106,7 @@ describe('WorktreesPaneBridge.dispatch', () => {
     ]);
     await bridge.dispatch({ action: 'remove', repoRoot: '/a', path: '/a-wt' });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.command).toBe('gittree.worktree.remove');
+    expect(calls[0]?.command).toBe('geet.worktree.remove');
     expect(calls[0]?.args[0]).toMatchObject({ kind: 'worktree', info: { path: '/a-wt' } });
   });
 
@@ -114,7 +114,7 @@ describe('WorktreesPaneBridge.dispatch', () => {
     const { bridge, calls } = harness([{ root: '/a', worktrees: [] }]);
     await bridge.dispatch({ action: 'add', repoRoot: '/a' });
     await bridge.dispatch({ action: 'prune', repoRoot: '/a' });
-    expect(calls.map((c) => c.command)).toEqual(['gittree.worktree.add', 'gittree.worktree.prune']);
+    expect(calls.map((c) => c.command)).toEqual(['geet.worktree.add', 'geet.worktree.prune']);
     // `add` takes (branchOrNode, repoRoot); an undefined seed means "from HEAD".
     expect(calls[0]?.args).toEqual([undefined, '/a']);
   });

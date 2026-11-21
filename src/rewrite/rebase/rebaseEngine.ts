@@ -98,7 +98,7 @@ export class RebaseEngine {
       return { status: 'refused-merges' };
     }
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-rebase-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-rebase-'));
     const serialized = serializePlan(plan, toPosix(tmpDir));
     const planFile = path.join(tmpDir, 'plan.txt');
     fs.writeFileSync(planFile, serialized.todo);

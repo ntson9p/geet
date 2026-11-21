@@ -161,7 +161,7 @@ describe('RepoDiscovery downward scan', () => {
     );
 
   // The ignore list is the caller's: the pure module ignores nothing by
-  // default, and Core passes gittree.repositoryScan.ignoredFolders.
+  // default, and Core passes geet.repositoryScan.ignoredFolders.
   const skipModules = { ignoredFolders: ['node_modules'] };
 
   it('stops at the configured depth', async () => {

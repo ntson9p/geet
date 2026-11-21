@@ -25,7 +25,7 @@ suite('P0-T6 watchers → refresher → model', () => {
 
   suiteSetup(async function () {
     this.timeout(30_000);
-    repo = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p0t6-'));
+    repo = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p0t6-'));
     cli('init');
     cli('config', 'user.email', 't@t.dev');
     cli('config', 'user.name', 'T');
@@ -108,7 +108,7 @@ suite('P0-T6 watchers → refresher → model', () => {
     await new Promise((r) => setTimeout(r, 800));
     statusRuns = 0;
     await queue.enqueue({
-      label: 'gittree commit',
+      label: 'geet commit',
       kind: 'mutate',
       run: async (g) => {
         fs.writeFileSync(path.join(repo, 'c.txt'), 'ours\n');

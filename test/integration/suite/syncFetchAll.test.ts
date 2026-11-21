@@ -10,7 +10,7 @@ import { activateGeet, gitWithRetry, waitFor, workspaceRepoD, workspaceRepoE } f
 /**
  * POST-P14o — Fetch is project-wide, as IntelliJ's is.
  *
- * `gittree.fetch` with no argument fetches **every** root (the branches-popup
+ * `geet.fetch` with no argument fetches **every** root (the branches-popup
  * header button and the palette entry both take that path); with an explicit
  * root it still fetches only that one, which is how every in-product caller
  * that knows what it means keeps its narrow behaviour.
@@ -36,7 +36,7 @@ suite('POST-P14o fetch across roots', () => {
 
   /** A root with a local bare remote and a clone to push new commits from. */
   function wire(root: string, tag: string): Wired {
-    const remote = fs.mkdtempSync(path.join(os.tmpdir(), `gittree-${tag}-remote-`));
+    const remote = fs.mkdtempSync(path.join(os.tmpdir(), `geet-${tag}-remote-`));
     scratch.push(remote);
     execFileSync('git', ['init', '--bare'], { cwd: remote });
     const branch = cli(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
@@ -44,7 +44,7 @@ suite('POST-P14o fetch across roots', () => {
     cli(root, 'remote', 'add', 'origin', remote);
     cli(root, 'push', '-u', 'origin', branch);
 
-    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), `gittree-${tag}-clone-`));
+    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), `geet-${tag}-clone-`));
     scratch.push(cloneDir);
     execFileSync('git', ['clone', remote, 'c'], { cwd: cloneDir });
     const clone = path.join(cloneDir, 'c');
@@ -113,7 +113,7 @@ suite('POST-P14o fetch across roots', () => {
     assert.notStrictEqual(trackedSha(d), wantD, 'repoD already had the commit before fetching');
     assert.notStrictEqual(trackedSha(e), wantE, 'repoE already had the commit before fetching');
 
-    await vscode.commands.executeCommand('gittree.fetch');
+    await vscode.commands.executeCommand('geet.fetch');
 
     await waitFor(() => trackedSha(d) === wantD && trackedSha(e) === wantE, 60_000);
     assert.strictEqual(trackedSha(d), wantD);
@@ -126,7 +126,7 @@ suite('POST-P14o fetch across roots', () => {
     const wantE = advance(e, 'incoming e two');
     const beforeE = trackedSha(e);
 
-    await vscode.commands.executeCommand('gittree.fetch', d.root);
+    await vscode.commands.executeCommand('geet.fetch', d.root);
 
     await waitFor(() => trackedSha(d) === wantD, 60_000);
     assert.strictEqual(trackedSha(d), wantD, 'the named root was not fetched');
@@ -134,16 +134,16 @@ suite('POST-P14o fetch across roots', () => {
     assert.notStrictEqual(trackedSha(e), wantE);
 
     // Put repoE back in step so the next test starts from a known place.
-    await vscode.commands.executeCommand('gittree.fetch', e.root);
+    await vscode.commands.executeCommand('geet.fetch', e.root);
     await waitFor(() => trackedSha(e) === wantE, 60_000);
   });
 
-  test('gittree.fetch.all is the same fan-out under its own id', async function () {
+  test('geet.fetch.all is the same fan-out under its own id', async function () {
     this.timeout(120_000);
     const wantD = advance(d, 'incoming d three');
     const wantE = advance(e, 'incoming e three');
 
-    await vscode.commands.executeCommand('gittree.fetch.all');
+    await vscode.commands.executeCommand('geet.fetch.all');
 
     await waitFor(() => trackedSha(d) === wantD && trackedSha(e) === wantE, 60_000);
     assert.strictEqual(trackedSha(d), wantD);
@@ -165,7 +165,7 @@ suite('POST-P14o fetch across roots', () => {
     const before = remoteless.map((r) => r.model.snapshot.lastFetchAt);
 
     const wantD = advance(d, 'incoming d four');
-    await vscode.commands.executeCommand('gittree.fetch');
+    await vscode.commands.executeCommand('geet.fetch');
     await waitFor(() => trackedSha(d) === wantD, 60_000);
 
     remoteless.forEach((r, i) => {
@@ -192,7 +192,7 @@ suite('POST-P14o fetch across roots', () => {
     assert.ok(remoteless, 'expected a remote-less root in the workspace');
     const before = remoteless.model.snapshot.lastFetchAt;
 
-    await vscode.commands.executeCommand('gittree.fetch', remoteless.root);
+    await vscode.commands.executeCommand('geet.fetch', remoteless.root);
 
     assert.strictEqual(remoteless.model.snapshot.lastFetchAt, before, 'a root with no remote was fetched');
   });
@@ -204,7 +204,7 @@ suite('POST-P14o fetch across roots', () => {
     const beforeD = d.repo.model.snapshot.lastFetchAt ?? 0;
     const beforeE = e.repo.model.snapshot.lastFetchAt ?? 0;
 
-    await vscode.commands.executeCommand('gittree.fetch');
+    await vscode.commands.executeCommand('geet.fetch');
 
     await waitFor(
       () =>

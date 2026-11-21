@@ -34,9 +34,9 @@ describe('inProgressItems', () => {
   it('offers continue / skip / abort for a rebase', () => {
     const items = inProgressItems(ctx({ inProgressOp: 'rebase-interactive' }));
     expect(items.map((i) => i.command)).toEqual([
-      'gittree.rebase.continue',
-      'gittree.rebase.skip',
-      'gittree.rebase.abort',
+      'geet.rebase.continue',
+      'geet.rebase.skip',
+      'geet.rebase.abort',
     ]);
     expect(items[0]?.label).toBe('Continue Rebase');
   });
@@ -44,10 +44,10 @@ describe('inProgressItems', () => {
   it('offers continue / abort for a merge — a merge has no "skip"', () => {
     const items = inProgressItems(ctx({ inProgressOp: 'merge' }));
     expect(items.map((i) => i.command)).toEqual([
-      'gittree.merge.continueOp',
-      'gittree.merge.abortOp',
+      'geet.merge.continueOp',
+      'geet.merge.abortOp',
     ]);
-    expect(items.map((i) => i.command)).not.toContain('gittree.rebase.skip');
+    expect(items.map((i) => i.command)).not.toContain('geet.rebase.skip');
   });
 
   it('names the operation it is continuing', () => {
@@ -68,7 +68,7 @@ describe('diffItems / commitItems', () => {
 
   it('offer hunk actions in a diff editor', () => {
     expect(diffItems(ctx({ diffEditorFocused: true })).map((i) => i.command)).toContain(
-      'gittree.stageHunk',
+      'geet.stageHunk',
     );
   });
 });
@@ -76,20 +76,20 @@ describe('diffItems / commitItems', () => {
 describe('buildOperationsItems across the four contexts', () => {
   it('a clean tree hides the change actions', () => {
     const commands = commandsOf(ctx());
-    expect(commands).not.toContain('gittree.stash.dialog');
-    expect(commands).not.toContain('gittree.rollback.dialog');
-    expect(commands).not.toContain('gittree.commit');
+    expect(commands).not.toContain('geet.stash.dialog');
+    expect(commands).not.toContain('geet.rollback.dialog');
+    expect(commands).not.toContain('geet.commit');
     // Branch-level actions still apply.
-    expect(commands).toContain('gittree.merge.dialog');
+    expect(commands).toContain('geet.merge.dialog');
   });
 
   it('a dirty tree adds commit / stash / shelve / rollback', () => {
     const commands = commandsOf(ctx({ dirty: true }));
     for (const c of [
-      'gittree.commit',
-      'gittree.stash.dialog',
-      'gittree.shelve.dialog',
-      'gittree.rollback.dialog',
+      'geet.commit',
+      'geet.stash.dialog',
+      'geet.shelve.dialog',
+      'geet.rollback.dialog',
     ]) {
       expect(commands).toContain(c);
     }
@@ -97,16 +97,16 @@ describe('buildOperationsItems across the four contexts', () => {
 
   it('mid-rebase puts continue/skip/abort first', () => {
     const items = buildOperationsItems(ctx({ dirty: true, inProgressOp: 'rebase-apply' }));
-    expect(items[0]?.command).toBe('gittree.rebase.continue');
+    expect(items[0]?.command).toBe('geet.rebase.continue');
     expect(items[0]?.group).toBe('inProgress');
     // The rest of the popup is still there beneath it.
-    expect(items.map((i) => i.command)).toContain('gittree.commit');
+    expect(items.map((i) => i.command)).toContain('geet.commit');
   });
 
   it('a focused diff editor adds the hunk actions and keeps the rest', () => {
     const commands = commandsOf(ctx({ diffEditorFocused: true }));
-    expect(commands).toContain('gittree.revertHunk');
-    expect(commands).toContain('gittree.merge.dialog');
+    expect(commands).toContain('geet.revertHunk');
+    expect(commands).toContain('geet.merge.dialog');
   });
 
   it('the four contexts really differ from one another', () => {
@@ -121,38 +121,38 @@ describe('buildOperationsItems across the four contexts', () => {
 describe('preconditions', () => {
   it('never offers Push without a remote, or Update without an upstream', () => {
     const bare = commandsOf(ctx());
-    expect(bare).not.toContain('gittree.push.dialog');
-    expect(bare).not.toContain('gittree.update.dialog');
+    expect(bare).not.toContain('geet.push.dialog');
+    expect(bare).not.toContain('geet.update.dialog');
 
     const wired = commandsOf(ctx({ hasRemote: true, hasUpstream: true }));
-    expect(wired).toContain('gittree.push.dialog');
-    expect(wired).toContain('gittree.update.dialog');
+    expect(wired).toContain('geet.push.dialog');
+    expect(wired).toContain('geet.update.dialog');
   });
 
   it('POST-P14ae: dispatches Update Project for the project, not the popup\'s repository', () => {
     // The popup passes its repository to any item without args of its own;
     // an explicit empty list is how Fetch already stays project-wide.
     const update = buildOperationsItems(ctx({ hasRemote: true, hasUpstream: true })).find(
-      (i) => i.command === 'gittree.update.dialog',
+      (i) => i.command === 'geet.update.dialog',
     );
     expect(update?.args).toEqual([]);
   });
 
   it('POST-P14bm: dispatches Update Project Without Fetching for the project too', () => {
     const items = buildOperationsItems(ctx({ hasRemote: true, hasUpstream: true }));
-    const withoutFetch = items.find((i) => i.command === 'gittree.update.withoutFetch');
+    const withoutFetch = items.find((i) => i.command === 'geet.update.withoutFetch');
     expect(withoutFetch?.label).toBe('Update Project Without Fetching…');
     expect(withoutFetch?.args).toEqual([]);
-    expect(commandsOf(ctx())).not.toContain('gittree.update.withoutFetch');
+    expect(commandsOf(ctx())).not.toContain('geet.update.withoutFetch');
   });
 
   it('never offers Unstash with no stash', () => {
-    expect(commandsOf(ctx())).not.toContain('gittree.unstash.dialog');
-    expect(commandsOf(ctx({ hasStash: true }))).toContain('gittree.unstash.dialog');
+    expect(commandsOf(ctx())).not.toContain('geet.unstash.dialog');
+    expect(commandsOf(ctx({ hasStash: true }))).toContain('geet.unstash.dialog');
   });
 
   it('offers only Clone with no repository at all', () => {
-    expect(commandsOf({ ...EMPTY_DIALOG_CONTEXT })).toEqual(['gittree.clone.dialog']);
+    expect(commandsOf({ ...EMPTY_DIALOG_CONTEXT })).toEqual(['geet.clone.dialog']);
   });
 });
 
@@ -165,7 +165,7 @@ describe('syncItems — Fetch', () => {
     expect(syncItems(ctx())).toEqual([]);
     expect(syncItems({ ...EMPTY_DIALOG_CONTEXT })).toEqual([]);
     expect(syncItems(ctx({ hasRemote: true })).map((i) => i.command)).toEqual([
-      'gittree.fetch.all',
+      'geet.fetch.all',
     ]);
   });
 
@@ -185,7 +185,7 @@ describe('syncItems — Fetch', () => {
 
   it('reaches the assembled popup, in the sync group', () => {
     const items = buildOperationsItems(ctx({ hasRemote: true, hasUpstream: true }));
-    const fetch = items.find((i) => i.command === 'gittree.fetch.all');
+    const fetch = items.find((i) => i.command === 'geet.fetch.all');
     expect(fetch?.group).toBe('sync');
   });
 });
@@ -200,25 +200,25 @@ describe('groups and recency', () => {
   });
 
   it('floats a recently used command into its own group, exactly once', () => {
-    const items = buildOperationsItems(ctx({ dirty: true }), ['gittree.stash.dialog']);
-    const stash = items.filter((i) => i.command === 'gittree.stash.dialog');
+    const items = buildOperationsItems(ctx({ dirty: true }), ['geet.stash.dialog']);
+    const stash = items.filter((i) => i.command === 'geet.stash.dialog');
     expect(stash).toHaveLength(1);
     expect(stash[0]?.group).toBe('recent');
   });
 
   it('never demotes an in-progress action into "recent"', () => {
     const items = buildOperationsItems(ctx({ inProgressOp: 'merge' }), [
-      'gittree.merge.continueOp',
+      'geet.merge.continueOp',
     ]);
-    const cont = items.filter((i) => i.command === 'gittree.merge.continueOp');
+    const cont = items.filter((i) => i.command === 'geet.merge.continueOp');
     expect(cont).toHaveLength(1);
     expect(cont[0]?.group).toBe('inProgress');
-    expect(items[0]?.command).toBe('gittree.merge.continueOp');
+    expect(items[0]?.command).toBe('geet.merge.continueOp');
   });
 
   it('ignores a remembered command that does not apply now', () => {
-    const items = buildOperationsItems(ctx(), ['gittree.unstash.dialog']);
-    expect(items.map((i) => i.command)).not.toContain('gittree.unstash.dialog');
+    const items = buildOperationsItems(ctx(), ['geet.unstash.dialog']);
+    expect(items.map((i) => i.command)).not.toContain('geet.unstash.dialog');
   });
 });
 

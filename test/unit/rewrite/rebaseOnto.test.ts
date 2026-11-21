@@ -1,6 +1,6 @@
 /**
  * POST-P14cw: the Rebase dialog's Interactive opened nothing. It handed
- * `gittree.rebase.interactive` a repository and a new base, and the command
+ * `geet.rebase.interactive` a repository and a new base, and the command
  * looked only for commits picked in the Log. The two are told apart by shape.
  */
 import { describe, expect, it } from 'vitest';

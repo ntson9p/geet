@@ -463,7 +463,7 @@ export class LogService {
     const storage = this.storage;
     if (storage === undefined || this.disposed) return Promise.resolve();
     if (this.repo.model.snapshot.capabilities?.commitGraph !== true) return Promise.resolve();
-    const key = `gittree.commitGraph.${this.repo.root}`;
+    const key = `geet.commitGraph.${this.repo.root}`;
     const due = (): boolean =>
       Date.now() - (storage.get<number>(key) ?? 0) >= MAINTENANCE_INTERVAL_MS;
     if (!due()) return Promise.resolve();

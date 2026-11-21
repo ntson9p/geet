@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 function realRepo(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-mergecompute-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-mergecompute-'));
   cleanups.push(() => {
     try {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });

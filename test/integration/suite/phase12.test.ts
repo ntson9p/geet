@@ -59,7 +59,7 @@ suite('P12 git tool window', () => {
 
   test('T1: every webview→host log method has a host handler', async function () {
     this.timeout(30_000);
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => reg.logView.hasHandler(LOG_METHODS.init), 15_000);
     // The P11-T3 lesson: `on()` and `onEvent()` are different routers, and a
     // missing handler fails in total silence. Assert the whole surface.
@@ -116,7 +116,7 @@ suite('P12 git tool window', () => {
     });
     await waitFor(() => git('rev-parse', '--abbrev-ref', 'HEAD').trim() === 'feature/f1', 20_000);
     // The pane's context-menu path: the command with the webview context arg.
-    await vscode.commands.executeCommand('gittree.log.branch.checkout', {
+    await vscode.commands.executeCommand('geet.log.branch.checkout', {
       repoRoot,
       refName: base,
       refType: 'local',
@@ -252,7 +252,7 @@ suite('P12 git tool window', () => {
 
   test('T5: a saved filter preset persists and restores across a re-init', async function () {
     this.timeout(60_000);
-    const config = vscode.workspace.getConfiguration('gittree.log');
+    const config = vscode.workspace.getConfiguration('geet.log');
     const preset = {
       name: 'p12 preset',
       filter: { sort: 'topo' as const, refs: 'HEAD' as const, authors: ['Geet Test'] },
@@ -268,7 +268,7 @@ suite('P12 git tool window', () => {
         return f !== undefined && JSON.stringify(f.authors) === JSON.stringify(['Geet Test']);
       }, 20_000);
       const stored = vscode.workspace
-        .getConfiguration('gittree.log')
+        .getConfiguration('geet.log')
         .get<Array<{ name: string }>>('filterPresets');
       assert.strictEqual(stored?.[0]?.name, 'p12 preset', 'the preset must survive in settings');
     } finally {
@@ -438,11 +438,11 @@ suite('P12 git tool window', () => {
       return p3.changelistsFor(repo).getLists().some((l) => l.checked.includes('p12/fix.txt'));
     }, 20_000);
 
-    process.env['GITTREE_TEST_AUTOSQUASH'] = 'yes';
+    process.env['GEET_TEST_AUTOSQUASH'] = 'yes';
     try {
-      await vscode.commands.executeCommand('gittree.log.fixup', { sha: target });
+      await vscode.commands.executeCommand('geet.log.fixup', { sha: target });
     } finally {
-      delete process.env['GITTREE_TEST_AUTOSQUASH'];
+      delete process.env['GEET_TEST_AUTOSQUASH'];
     }
 
     await waitFor(() => git('rev-list', '--count', 'HEAD').trim() === countBefore, 30_000);
@@ -466,7 +466,7 @@ suite('P12 git tool window', () => {
     const side = git('rev-parse', 'HEAD').trim();
     git('checkout', base);
     const head = git('rev-parse', 'HEAD').trim();
-    await vscode.commands.executeCommand('gittree.log.fixup', { sha: side });
+    await vscode.commands.executeCommand('geet.log.fixup', { sha: side });
     assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'a refused fixup must change nothing');
     git('branch', '-D', 'p12/not-ancestor');
   });
@@ -491,14 +491,14 @@ suite('P12 git tool window', () => {
       // IntelliJ's GitPushUpToCommitAction: the dialog, with the commit as the
       // source and the branch it is on — nothing is pushed until it says so.
       const mid = git('rev-parse', 'HEAD~1').trim();
-      const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
-      process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+      const saved = process.env['GEET_TEST_PUSH_DIALOG'];
+      process.env['GEET_TEST_PUSH_DIALOG'] = 'cancel';
       p13.clearLastPushDialogRequest();
       try {
-        await vscode.commands.executeCommand('gittree.log.pushAllUpToHere', { sha: mid });
+        await vscode.commands.executeCommand('geet.log.pushAllUpToHere', { sha: mid });
       } finally {
-        if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
-        else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+        if (saved === undefined) delete process.env['GEET_TEST_PUSH_DIALOG'];
+        else process.env['GEET_TEST_PUSH_DIALOG'] = saved;
       }
       const opened = p13.lastPushDialogOpened();
       assert.deepStrictEqual(opened?.source, { kind: 'revision', sha: mid, branch });
@@ -565,7 +565,7 @@ suite('P12 git tool window', () => {
     }
   });
 
-  test('T7: gittree-tree serves a 3-commits-ago file read-only', async function () {
+  test('T7: geet-tree serves a 3-commits-ago file read-only', async function () {
     this.timeout(90_000);
     const { makeRevTreeUri } = await import('../../../src/core/vdocs/revTreeFs');
     const rev = git('rev-parse', 'HEAD~3').trim();
@@ -575,7 +575,7 @@ suite('P12 git tool window', () => {
       .find((l) => l.trim().length > 0)!;
     assert.ok(known, 'the revision must have at least one file');
 
-    await vscode.commands.executeCommand('gittree.log.showRepoAtRevision', { sha: rev });
+    await vscode.commands.executeCommand('geet.log.showRepoAtRevision', { sha: rev });
     assert.strictEqual(reg.revTree.currentTarget?.rev, rev);
 
     const rootEntries = await reg.revTreeFs.readDirectory(makeRevTreeUri(repoRoot, rev, ''));
@@ -593,7 +593,7 @@ suite('P12 git tool window', () => {
     );
     const doc = await vscode.workspace.openTextDocument(uri);
     assert.strictEqual(doc.getText(), git('show', `${rev}:${known}`));
-    await vscode.commands.executeCommand('gittree.revTree.close');
+    await vscode.commands.executeCommand('geet.revTree.close');
     assert.strictEqual(reg.revTree.currentTarget, undefined);
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   });
@@ -613,9 +613,9 @@ suite('P12 git tool window', () => {
     // A local change to the very file the reset would rewrite → git refuses.
     write('p12/keep.txt', 'k-local\n');
     await repo.refresher.refreshNow();
-    process.env['GITTREE_TEST_RESET_MODE'] = 'keep';
+    process.env['GEET_TEST_RESET_MODE'] = 'keep';
     try {
-      await vscode.commands.executeCommand('gittree.log.resetHere', { sha: target });
+      await vscode.commands.executeCommand('geet.log.resetHere', { sha: target });
       assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'refused keep must not move HEAD');
       assert.strictEqual(
         fs.readFileSync(path.join(repoRoot, 'p12/keep.txt'), 'utf8'),
@@ -625,11 +625,11 @@ suite('P12 git tool window', () => {
 
       // With the worktree clean for that file, keep moves HEAD.
       git('checkout', '--', 'p12/keep.txt');
-      await vscode.commands.executeCommand('gittree.log.resetHere', { sha: target });
+      await vscode.commands.executeCommand('geet.log.resetHere', { sha: target });
       await waitFor(() => git('rev-parse', 'HEAD').trim() !== head, 20_000);
       assert.strictEqual(fs.readFileSync(path.join(repoRoot, 'p12/keep.txt'), 'utf8'), 'k1\n');
     } finally {
-      delete process.env['GITTREE_TEST_RESET_MODE'];
+      delete process.env['GEET_TEST_RESET_MODE'];
       git('reset', '--hard', head);
       await repo.refresher.refreshNow();
       restoreChecked();
@@ -703,7 +703,7 @@ suite('P12 git tool window', () => {
     assert.ok(delta.every((e) => e.seq > mid), 'delta strictly after the cursor');
 
     const maxSeq = all[all.length - 1]!.seq;
-    await vscode.commands.executeCommand('gittree.log.console.clear');
+    await vscode.commands.executeCommand('geet.log.console.clear');
     // Background refreshers may push a run between clear and this line —
     // "empty" means everything pre-clear is gone, not that git went quiet.
     const after = log.entriesAfter(0);

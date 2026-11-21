@@ -93,7 +93,7 @@ export class UnshelveEngine {
 
     const tmp = path.join(
       os.tmpdir(),
-      `gittree-unshelve-${process.pid}-${crypto.randomBytes(4).toString('hex')}.patch`,
+      `geet-unshelve-${process.pid}-${crypto.randomBytes(4).toString('hex')}.patch`,
     );
     fs.writeFileSync(tmp, Buffer.from(chosen.map((s) => s.text).join(''), 'latin1'));
     try {

@@ -170,7 +170,7 @@ export interface PopupInput {
   /** Hide the verbs and folder rows: the flat search across every level. */
   filtering: boolean;
   showInOut: boolean;
-  /** `gittree.keymap.intellij`: the verbs' accelerators are bound, so shown. */
+  /** `geet.keymap.intellij`: the verbs' accelerators are bound, so shown. */
   intellijKeymap?: boolean;
   /**
    * POST-P14p: show `‹ Back` even at prefix `''`. In a multi-root workspace a
@@ -314,7 +314,7 @@ export interface ProjectPopupInput {
   readonly commonTags: readonly string[];
   readonly filtering: boolean;
   readonly showInOut: boolean;
-  /** `gittree.keymap.intellij`: the verbs' accelerators are bound, so shown. */
+  /** `geet.keymap.intellij`: the verbs' accelerators are bound, so shown. */
   readonly intellijKeymap?: boolean;
 }
 
@@ -583,7 +583,7 @@ export async function showBranchesPopup(
   const multiRoot = core.repos.length > 1;
   const expanded = new Set<string>();
   let showInOut = vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<boolean>('branches.showIncomingOutgoing', true);
 
   /**
@@ -684,7 +684,7 @@ export async function showBranchesPopup(
     qp.items = toQuickPickItems(
       flat.rows,
       flat.open,
-      vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
+      vscode.workspace.getConfiguration('geet').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
     );
     if (keepId !== undefined) {
       const found = qp.items.find((i) => i.row?.id === keepId);
@@ -756,8 +756,8 @@ export async function showBranchesPopup(
     if (!row.verb) return;
     qp.hide();
     // A repository's own copy of a verb runs there. The project-level ones take
-    // no argument: `gittree.commit` spans every root, and so does
-    // `gittree.update.dialog` (POST-P14ae) — one question, every repository.
+    // no argument: `geet.commit` spans every root, and so does
+    // `geet.update.dialog` (POST-P14ae) — one question, every repository.
     if (row.repoRoot !== undefined) {
       await vscode.commands.executeCommand(row.verb.command, row.repoRoot);
     } else {
@@ -792,11 +792,11 @@ export async function showBranchesPopup(
     if (button === btnFetch) {
       qp.busy = true;
       // No argument: every root, exactly as IntelliJ's popup Fetch does.
-      await vscode.commands.executeCommand('gittree.fetch');
+      await vscode.commands.executeCommand('geet.fetch');
       await populate();
     } else if (button === BTN_INOUT) {
       showInOut = !showInOut;
-      await writeSetting('gittree', 'branches.showIncomingOutgoing', showInOut);
+      await writeSetting('geet', 'branches.showIncomingOutgoing', showInOut);
       await populate();
     } else if (button === BTN_COLLAPSE) {
       expanded.clear();
@@ -808,7 +808,7 @@ export async function showBranchesPopup(
       await populate();
     } else if (button === BTN_GEAR) {
       qp.hide();
-      await vscode.commands.executeCommand('workbench.action.openSettings', 'gittree.branches');
+      await vscode.commands.executeCommand('workbench.action.openSettings', 'geet.branches');
     }
   });
 

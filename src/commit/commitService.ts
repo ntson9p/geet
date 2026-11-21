@@ -45,7 +45,7 @@ export class CommitService {
   async toggleAmend(repo: RepoHandle): Promise<{ amend: boolean; previousMessage?: string }> {
     if (this.amendRepos.has(repo.root)) {
       this.amendRepos.delete(repo.root);
-      await vscode.commands.executeCommand('setContext', 'gittree.amend', false);
+      await vscode.commands.executeCommand('setContext', 'geet.amend', false);
       return { amend: false };
     }
     // Guard: amending a pushed HEAD rewrites shared history.
@@ -59,7 +59,7 @@ export class CommitService {
       if (!ok) return { amend: false };
     }
     this.amendRepos.add(repo.root);
-    await vscode.commands.executeCommand('setContext', 'gittree.amend', true);
+    await vscode.commands.executeCommand('setContext', 'geet.amend', true);
     const lastMessage = await repo.queue.enqueue({
       label: 'read HEAD message',
       kind: 'read',
@@ -113,7 +113,7 @@ export class CommitService {
   async toggleSign(repo: RepoHandle): Promise<boolean> {
     const current = await this.isSignEnabled(repo);
     this.signOverride = !current;
-    await vscode.commands.executeCommand('setContext', 'gittree.sign', this.signOverride);
+    await vscode.commands.executeCommand('setContext', 'geet.sign', this.signOverride);
     return this.signOverride;
   }
 
@@ -194,7 +194,7 @@ export class CommitService {
   private async afterCommit(repo: RepoHandle, message: string): Promise<void> {
     this.amendRepos.delete(repo.root);
     this.signOverride = undefined;
-    await vscode.commands.executeCommand('setContext', 'gittree.amend', false);
+    await vscode.commands.executeCommand('setContext', 'geet.amend', false);
     const sha = await repo.queue.enqueue({
       label: 'read new HEAD',
       kind: 'read',

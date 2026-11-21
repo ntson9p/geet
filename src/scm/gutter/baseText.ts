@@ -12,12 +12,12 @@ import { revObjectSpec } from '../../core/vdocs/revContentProvider';
 export type ChangeBarsBase = 'index' | 'head';
 
 /**
- * `gittree.changeBars.base`, with a read-through fallback to the P1 name.
+ * `geet.changeBars.base`, with a read-through fallback to the P1 name.
  * The old key stays honoured for one release so an upgrade does not silently
  * change what a user's bars mean.
  */
 export function changeBarsBase(): ChangeBarsBase {
-  const cfg = vscode.workspace.getConfiguration('gittree');
+  const cfg = vscode.workspace.getConfiguration('geet');
   const next = cfg.inspect<string>('changeBars.base');
   const explicit =
     next?.workspaceFolderValue ?? next?.workspaceValue ?? next?.globalValue ?? undefined;

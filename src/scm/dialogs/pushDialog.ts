@@ -8,7 +8,7 @@
  * Every Push of Geet opens it, as every Push of IntelliJ does: `Push…`
  * (Ctrl+Shift+K) for the workspace, a branch's `Push…` for that branch, `Push
  * All up to Here…` for a commit, and `Commit and Push…` once its commits land.
- * POST-P14cn: with `gittree.push.showDialog` off (its footer's `Don't show this
+ * POST-P14cn: with `geet.push.showDialog` off (its footer's `Don't show this
  * dialog again`) each of them pushes straight away instead, what the dialog
  * would push had Push been pressed at once, and the dialog opens only for a
  * push that cannot go ahead without it (`pushModel.pushWithoutDialog`).
@@ -106,9 +106,9 @@ export interface PushDialogRequest {
     | { readonly kind: 'revision'; readonly sha: string; readonly branch?: string };
 }
 
-const UI_KEY = 'gittree.pushDialog.ui';
-const RECENT_KEY = 'gittree.push.recentTargets';
-const SILENT_FORCE_KEY = 'gittree.push.silentForceTargets';
+const UI_KEY = 'geet.pushDialog.ui';
+const RECENT_KEY = 'geet.push.recentTargets';
+const SILENT_FORCE_KEY = 'geet.push.silentForceTargets';
 
 const DEFAULT_UI: PushDialogUiDto = {
   showDetails: true,
@@ -129,10 +129,10 @@ function silentOf(state: vscode.Memento | undefined): ForceTarget[] {
   return state?.get<ForceTarget[]>(SILENT_FORCE_KEY) ?? [];
 }
 
-/** `gittree.protectedBranches`: IntelliJ's *Protected branches*. */
+/** `geet.protectedBranches`: IntelliJ's *Protected branches*. */
 export function protectedBranches(): string[] {
   return vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<string[]>('protectedBranches', [...DEFAULT_PROTECTED_BRANCHES]);
 }
 
@@ -370,9 +370,9 @@ function dialogRows(request: PushDialogRequest): DialogRows {
   };
 }
 
-/** `gittree.push.tags`, the tag mode the last push used: what the footer opens with. */
+/** `geet.push.tags`, the tag mode the last push used: what the footer opens with. */
 function tagsSetting(): PushTagsMode {
-  const value = vscode.workspace.getConfiguration('gittree').get<string>('push.tags', 'none');
+  const value = vscode.workspace.getConfiguration('geet').get<string>('push.tags', 'none');
   return value === 'all' || value === 'follow' ? value : 'none';
 }
 
@@ -384,7 +384,7 @@ export async function buildPushParams(
   because?: string,
 ): Promise<PushDialogParamsDto> {
   const { core } = deps;
-  const cfg = vscode.workspace.getConfiguration('gittree');
+  const cfg = vscode.workspace.getConfiguration('geet');
   const labels = repoLabels(core.repos.map((r) => r.root));
   const { rows: withSource, single, ticked } = dialogRows(request);
   const preselected = new Set(request.preselected.map((r) => r.root));
@@ -428,7 +428,7 @@ export async function buildPushParams(
 }
 
 /**
- * POST-P14cn: a Push with `gittree.push.showDialog` off. What the dialog would
+ * POST-P14cn: a Push with `geet.push.showDialog` off. What the dialog would
  * push had Push been pressed the moment it opened (`pushWithoutDialog`), read
  * as the dialog reads it, for the repositories it would tick and no others.
  * `undefined` when there is no repository to push at all.
@@ -472,7 +472,7 @@ export function pushDialogNeedText(need: PushDialogNeed): string {
 
 /** The log's issue-link configuration, so a commit's details read the same here. */
 function issueConfig(): { pattern: string; url: string } | undefined {
-  const config = vscode.workspace.getConfiguration('gittree.log');
+  const config = vscode.workspace.getConfiguration('geet.log');
   const pattern = config.get<string>('issuePattern', '').trim();
   const url = config.get<string>('issueUrl', '').trim();
   if (pattern.length === 0 || url.length === 0) return undefined;
@@ -694,7 +694,7 @@ export async function applyPushResult(
     showInfo(
       result.dontShowAgain
         ? vscode.l10n.t(
-            'Push now pushes straight away, without the Push dialog. To see it again, turn on the setting gittree.push.showDialog.',
+            'Push now pushes straight away, without the Push dialog. To see it again, turn on the setting geet.push.showDialog.',
           )
         : vscode.l10n.t('The Push dialog opens for every push again.'),
     );
@@ -773,31 +773,31 @@ export async function applyPushResult(
 const SHOW_DIALOG = 'push.showDialog';
 
 export function isPushDialogOn(): boolean {
-  return vscode.workspace.getConfiguration('gittree').get<boolean>(SHOW_DIALOG, true);
+  return vscode.workspace.getConfiguration('geet').get<boolean>(SHOW_DIALOG, true);
 }
 
 /** What the checkbox writes; also a test seam, where `undefined` puts the default back. */
 export async function setPushDialogOn(value: boolean | undefined): Promise<void> {
-  await writeSetting('gittree', SHOW_DIALOG, value);
+  await writeSetting('geet', SHOW_DIALOG, value);
 }
 
 /**
  * IntelliJ's *Show Push dialog for Commit and Push* (POST-P14ah), on by
  * default as it is there: `Commit and Push…` opens this dialog for the
  * repositories it just committed. Off, it pushes them straight away. It counts
- * only while `gittree.push.showDialog` is on: off, no Push opens the dialog.
+ * only while `geet.push.showDialog` is on: off, no Push opens the dialog.
  */
 const SHOW_FOR_COMMIT_AND_PUSH = 'push.showDialogForCommitAndPush';
 
 export function showPushDialogForCommitAndPush(): boolean {
   return vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<boolean>(SHOW_FOR_COMMIT_AND_PUSH, true);
 }
 
 /** Test seam; `undefined` puts the default back. */
 export async function setShowPushDialogForCommitAndPush(value: boolean | undefined): Promise<void> {
-  await writeSetting('gittree', SHOW_FOR_COMMIT_AND_PUSH, value);
+  await writeSetting('geet', SHOW_FOR_COMMIT_AND_PUSH, value);
 }
 
 /** What the dialog was last opened for, as a test reads it. */
@@ -849,11 +849,11 @@ export async function showPushDialog(
     ...(because !== undefined ? { because } : {}),
   };
   // A webview dialog cannot be answered from an integration test:
-  // `GITTREE_TEST_PUSH_DIALOG=cancel` closes it unanswered, as Escape would,
+  // `GEET_TEST_PUSH_DIALOG=cancel` closes it unanswered, as Escape would,
   // after recording what it was opened for. Read before the first await: a
   // caller that does not wait for the dialog (Commit and Push) has moved on
   // by then, and a test restores the seam as soon as its command returns.
-  const cancelledByTest = process.env['GITTREE_TEST_PUSH_DIALOG'] === 'cancel';
+  const cancelledByTest = process.env['GEET_TEST_PUSH_DIALOG'] === 'cancel';
   const sources: PushSources = new Map();
   const params = await buildPushParams(deps, request, sources, because);
   if (params.repos.length === 0) {
@@ -875,7 +875,7 @@ export async function showPushDialog(
   // IntelliJ remembers the tag mode of the last push; `Run Git hooks` starts
   // ticked every time. Written only when it changes, and never into the
   // repository: every push used to leave `.vscode/settings.json` behind (POST-QA).
-  await writeSetting('gittree', 'push.tags', result.tags);
+  await writeSetting('geet', 'push.tags', result.tags);
 
   // `applyPushResult` reports; a second summary here would say it all twice.
   const outcomes = await applyPushResult(deps, result);

@@ -75,7 +75,7 @@ suite('P13 dialogs', () => {
     // `os.tmpdir()` hands back the 8.3 short path on Windows, and git prints
     // the resolved long form — comparing the two never matches. Canonicalize
     // once here so every path this suite builds is the one git will echo.
-    tmpDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p13-')));
+    tmpDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p13-')));
     bareUrl = path.join(tmpDir, 'remote.git').replace(/\\/g, '/');
     execFileSync('git', ['init', '--bare', bareUrl], { cwd: tmpDir, encoding: 'utf8' });
     git('remote', 'add', REMOTE, bareUrl);
@@ -161,14 +161,14 @@ suite('P13 dialogs', () => {
 
   test('T1: Push… lists every repository and checks the one asked for', async function () {
     this.timeout(60_000);
-    const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
-    process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+    const saved = process.env['GEET_TEST_PUSH_DIALOG'];
+    process.env['GEET_TEST_PUSH_DIALOG'] = 'cancel';
     reg.clearLastPushDialogRequest();
     try {
-      await vscode.commands.executeCommand('gittree.push.dialog', repo.root);
+      await vscode.commands.executeCommand('geet.push.dialog', repo.root);
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
-      else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_PUSH_DIALOG'];
+      else process.env['GEET_TEST_PUSH_DIALOG'] = saved;
     }
     const opened = reg.lastPushDialogOpened();
     assert.deepStrictEqual([...(opened?.repos ?? [])].sort(), core.repos.map((r) => r.root).sort());
@@ -417,7 +417,7 @@ suite('P13 dialogs', () => {
     bare('branch', '-D', 'p13-prune');
 
     notes.clear();
-    await vscode.commands.executeCommand('gittree.fetch', repo.root);
+    await vscode.commands.executeCommand('geet.fetch', repo.root);
     assert.ok(!git('branch', '-r').includes(`${REMOTE}/p13-prune`), 'the fetch prunes');
     assert.deepStrictEqual(
       notes.recent().map((n) => n.message),
@@ -426,7 +426,7 @@ suite('P13 dialogs', () => {
 
     // Nothing to prune: just Fetch successful.
     notes.clear();
-    await vscode.commands.executeCommand('gittree.fetch', repo.root);
+    await vscode.commands.executeCommand('geet.fetch', repo.root);
     assert.deepStrictEqual(
       notes.recent().map((n) => n.message),
       ['Fetch successful'],
@@ -437,7 +437,7 @@ suite('P13 dialogs', () => {
     const result = fromDialog(branch);
     const outcomes = await reg.applyPushResult({
       ...result,
-      repos: [{ ...result.repos[0]!, root: path.join(os.tmpdir(), 'gittree-not-a-repo') }],
+      repos: [{ ...result.repos[0]!, root: path.join(os.tmpdir(), 'geet-not-a-repo') }],
     });
     assert.strictEqual(outcomes.length, 1);
     assert.match(outcomes[0]!, /repository not found/);
@@ -473,7 +473,7 @@ suite('P13 dialogs', () => {
 
     /**
      * POST-P14af: the Push Rejected question is a native modal, which no test
-     * can click: `GITTREE_TEST_PUSH_REJECTED_CHOICE` answers it. `cancel` is
+     * can click: `GEET_TEST_PUSH_REJECTED_CHOICE` answers it. `cancel` is
      * the safe answer for a test that expects no question at all — asked
      * anyway, the push stays rejected and the test fails instead of hanging.
      */
@@ -481,13 +481,13 @@ suite('P13 dialogs', () => {
       choice: 'merge' | 'rebase' | 'cancel',
       fn: () => Promise<T>,
     ): Promise<T> => {
-      const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
-      process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = choice;
+      const saved = process.env['GEET_TEST_PUSH_REJECTED_CHOICE'];
+      process.env['GEET_TEST_PUSH_REJECTED_CHOICE'] = choice;
       try {
         return await fn();
       } finally {
-        if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
-        else process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = saved;
+        if (saved === undefined) delete process.env['GEET_TEST_PUSH_REJECTED_CHOICE'];
+        else process.env['GEET_TEST_PUSH_REJECTED_CHOICE'] = saved;
       }
     };
     /** Brings the second clone level with the remote, which repoC pushes to from POST-P14af on. */
@@ -517,7 +517,7 @@ suite('P13 dialogs', () => {
 
     /**
      * POST-P14ab: the question is a native modal, which no test can click.
-     * `GITTREE_TEST_UPDATE_CHOICE` answers it — and `cancel` is the safe
+     * `GEET_TEST_UPDATE_CHOICE` answers it — and `cancel` is the safe
      * answer for a test that expects no question at all: a modal asked for
      * real would hang the run instead of failing it.
      */
@@ -525,13 +525,13 @@ suite('P13 dialogs', () => {
       choice: 'merge' | 'rebase' | 'reset' | 'cancel',
       fn: () => Promise<T>,
     ): Promise<T> => {
-      const saved = process.env['GITTREE_TEST_UPDATE_CHOICE'];
-      process.env['GITTREE_TEST_UPDATE_CHOICE'] = choice;
+      const saved = process.env['GEET_TEST_UPDATE_CHOICE'];
+      process.env['GEET_TEST_UPDATE_CHOICE'] = choice;
       try {
         return await fn();
       } finally {
-        if (saved === undefined) delete process.env['GITTREE_TEST_UPDATE_CHOICE'];
-        else process.env['GITTREE_TEST_UPDATE_CHOICE'] = saved;
+        if (saved === undefined) delete process.env['GEET_TEST_UPDATE_CHOICE'];
+        else process.env['GEET_TEST_UPDATE_CHOICE'] = saved;
       }
     };
 
@@ -1062,13 +1062,13 @@ suite('P13 dialogs', () => {
       const label = (r: RepoHandle): string =>
         repoLabels(core.repos.map((x) => x.root)).get(r.root) ?? path.basename(r.root);
       const withChoice = async <T>(choice: string, fn: () => Promise<T>): Promise<T> => {
-        const saved = process.env['GITTREE_TEST_UPDATE_CHOICE'];
-        process.env['GITTREE_TEST_UPDATE_CHOICE'] = choice;
+        const saved = process.env['GEET_TEST_UPDATE_CHOICE'];
+        process.env['GEET_TEST_UPDATE_CHOICE'] = choice;
         try {
           return await fn();
         } finally {
-          if (saved === undefined) delete process.env['GITTREE_TEST_UPDATE_CHOICE'];
-          else process.env['GITTREE_TEST_UPDATE_CHOICE'] = saved;
+          if (saved === undefined) delete process.env['GEET_TEST_UPDATE_CHOICE'];
+          else process.env['GEET_TEST_UPDATE_CHOICE'] = saved;
         }
       };
       /** Refreshes until `cond` holds — `refreshNow()` alone can resolve early. */
@@ -1153,7 +1153,7 @@ suite('P13 dialogs', () => {
         const headsBefore = core.repos.map((r) => cli(r.root, 'rev-parse', 'HEAD').trim());
         // Cancelled, so nothing runs anywhere: this reads the question only.
         await withChoice('cancel', async () => {
-          await vscode.commands.executeCommand('gittree.update.dialog');
+          await vscode.commands.executeCommand('geet.update.dialog');
         });
         const prompt = reg.lastUpdatePrompt();
         assert.ok(prompt, 'the project must be asked about, once');
@@ -1210,7 +1210,7 @@ suite('P13 dialogs', () => {
           // Some of the project, as the Repositories panel's ⋯ hands it: a list.
           reg.clearLastUpdatePrompt();
           await withChoice('cancel', async () => {
-            await vscode.commands.executeCommand('gittree.update.dialog', [repoD.root, repoE.root]);
+            await vscode.commands.executeCommand('geet.update.dialog', [repoD.root, repoE.root]);
           });
           let prompt = reg.lastUpdatePrompt();
           assert.ok(prompt, 'repoD has a commit to pull: asked');
@@ -1222,7 +1222,7 @@ suite('P13 dialogs', () => {
           // One repository's own update, as its menu and its row's button run it.
           reg.clearLastUpdatePrompt();
           await withChoice('cancel', async () => {
-            await vscode.commands.executeCommand('gittree.update.repository', repoD.root);
+            await vscode.commands.executeCommand('geet.update.repository', repoD.root);
           });
           prompt = reg.lastUpdatePrompt();
           assert.ok(prompt, 'asked');
@@ -1231,7 +1231,7 @@ suite('P13 dialogs', () => {
           // A list naming no repository still open updates nothing, not the project.
           reg.clearLastUpdatePrompt();
           await withChoice('merge', async () => {
-            await vscode.commands.executeCommand('gittree.update.dialog', [path.join(tmpDir, 'no-such-repo')]);
+            await vscode.commands.executeCommand('geet.update.dialog', [path.join(tmpDir, 'no-such-repo')]);
           });
           assert.strictEqual(reg.lastUpdatePrompt(), undefined, 'nothing asked');
           assert.deepStrictEqual(
@@ -1566,16 +1566,16 @@ suite('P13 dialogs', () => {
         assert.strictEqual(reg.rememberedUpdateStrategy(), 'rebase', 'Cancel remembers nothing');
       });
 
-      test('POST-P14af: with auto-update on, gittree.push updates and pushes without asking', async function () {
+      test('POST-P14af: with auto-update on, geet.push updates and pushes without asking', async function () {
         this.timeout(120_000);
         const theirs = teammate('p13/push-theirs-d.txt', 'theirs\n', 'P14af teammate D');
         localCommit('p13/push-mine-d.txt', 'mine\n', 'P14af mine D');
         await repo.refresher.refreshNow();
         await reg.setAutoUpdateIfRejected(true);
         try {
-          // `gittree.push` is what Commit and Push and Sync run.
+          // `geet.push` is what Commit and Push and Sync run.
           await withPushChoice('cancel', async () => {
-            await vscode.commands.executeCommand('gittree.push', repo.root);
+            await vscode.commands.executeCommand('geet.push', repo.root);
           });
         } finally {
           await reg.setAutoUpdateIfRejected(false);
@@ -1666,7 +1666,7 @@ suite('P13 dialogs', () => {
       // ---- POST-P14ah · Commit and Push opens the Push dialog first ---------------
 
       /**
-       * One change committed in repoC through `gittree.commitAndPush` with the
+       * One change committed in repoC through `geet.commitAndPush` with the
        * repository named — a context menu's form — in whichever commit
        * paradigm an earlier suite left behind: ticked in changelists, staged
        * in staging. The Push dialog, if opened, is closed unanswered.
@@ -1692,18 +1692,18 @@ suite('P13 dialogs', () => {
         p3.commitWindow.messageBoxFor(repo).value = subject;
         reg.clearLastPushDialogRequest();
         const saved = {
-          checks: process.env['GITTREE_TEST_CHECKS_CHOICE'],
-          dialog: process.env['GITTREE_TEST_PUSH_DIALOG'],
+          checks: process.env['GEET_TEST_CHECKS_CHOICE'],
+          dialog: process.env['GEET_TEST_PUSH_DIALOG'],
         };
-        process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
-        process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+        process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
+        process.env['GEET_TEST_PUSH_DIALOG'] = 'cancel';
         try {
-          await vscode.commands.executeCommand('gittree.commitAndPush', repo.root);
+          await vscode.commands.executeCommand('geet.commitAndPush', repo.root);
         } finally {
-          if (saved.checks === undefined) delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
-          else process.env['GITTREE_TEST_CHECKS_CHOICE'] = saved.checks;
-          if (saved.dialog === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
-          else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved.dialog;
+          if (saved.checks === undefined) delete process.env['GEET_TEST_CHECKS_CHOICE'];
+          else process.env['GEET_TEST_CHECKS_CHOICE'] = saved.checks;
+          if (saved.dialog === undefined) delete process.env['GEET_TEST_PUSH_DIALOG'];
+          else process.env['GEET_TEST_PUSH_DIALOG'] = saved.dialog;
         }
         await waitFor(() => git('log', '-1', '--format=%s').trim() === subject, 30_000);
       };
@@ -1730,7 +1730,7 @@ suite('P13 dialogs', () => {
         assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim(), 'the commit reached the remote');
       });
 
-      test('POST-P14cn: with gittree.push.showDialog off, Commit and Push pushes straight away too', async function () {
+      test('POST-P14cn: with geet.push.showDialog off, Commit and Push pushes straight away too', async function () {
         this.timeout(90_000);
         // *Show Push dialog for Commit and Push* stays on: the general switch wins.
         await reg.setPushDialogOn(false);
@@ -1739,7 +1739,7 @@ suite('P13 dialogs', () => {
         } finally {
           await reg.setPushDialogOn(undefined);
         }
-        assert.strictEqual(reg.lastPushDialogRequest(), undefined, 'no dialog with gittree.push.showDialog off');
+        assert.strictEqual(reg.lastPushDialogRequest(), undefined, 'no dialog with geet.push.showDialog off');
         assert.strictEqual(remoteHead(), git('rev-parse', 'HEAD').trim(), 'the commit reached the remote');
       });
     });
@@ -1748,24 +1748,24 @@ suite('P13 dialogs', () => {
 
     suite('POST-P14cn push without the dialog', () => {
       const showDialog = (): boolean | undefined =>
-        vscode.workspace.getConfiguration('gittree').get<boolean>('push.showDialog');
+        vscode.workspace.getConfiguration('geet').get<boolean>('push.showDialog');
       const labelOf = (r: RepoHandle): string =>
         repoLabels(core.repos.map((x) => x.root)).get(r.root) ?? path.basename(r.root);
 
       /**
-       * `fn` with `gittree.push.showDialog` off, and the dialog's test seam on:
+       * `fn` with `geet.push.showDialog` off, and the dialog's test seam on:
        * a dialog that opens anyway records why and closes unanswered.
        */
       const withoutDialog = async <T>(fn: () => Thenable<T> | Promise<T>): Promise<T> => {
-        const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
-        process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+        const saved = process.env['GEET_TEST_PUSH_DIALOG'];
+        process.env['GEET_TEST_PUSH_DIALOG'] = 'cancel';
         await reg.setPushDialogOn(false);
         try {
           return await fn();
         } finally {
           await reg.setPushDialogOn(undefined);
-          if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
-          else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+          if (saved === undefined) delete process.env['GEET_TEST_PUSH_DIALOG'];
+          else process.env['GEET_TEST_PUSH_DIALOG'] = saved;
         }
       };
 
@@ -1851,8 +1851,8 @@ suite('P13 dialogs', () => {
         this.timeout(90_000);
         const mine = localCommit('p13/p14cn-a.txt', 'a\n', 'P14cn straight push');
         await repo.refresher.refreshNow();
-        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root));
-        assert.strictEqual(reg.lastPushDialogOpened(), undefined, 'no dialog with gittree.push.showDialog off');
+        await withoutDialog(() => vscode.commands.executeCommand('geet.push.dialog', repo.root));
+        assert.strictEqual(reg.lastPushDialogOpened(), undefined, 'no dialog with geet.push.showDialog off');
         assert.strictEqual(remoteHead(), mine, 'the commit reached the remote');
       });
 
@@ -1864,7 +1864,7 @@ suite('P13 dialogs', () => {
           const mine = localCommit('p13/p14cn-b.txt', 'b\n', 'P14cn publish');
           await repo.refresher.refreshNow();
           await waitFor(() => repo.model.snapshot.headRef === name, 20_000);
-          await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root));
+          await withoutDialog(() => vscode.commands.executeCommand('geet.push.dialog', repo.root));
           assert.strictEqual(reg.lastPushDialogOpened(), undefined, 'publishing needs no dialog');
           assert.strictEqual(remoteHead(name), mine, 'a new branch of its name on the remote');
           assert.strictEqual(
@@ -1890,7 +1890,7 @@ suite('P13 dialogs', () => {
           await repo.refresher.refreshNow();
           await waitFor(() => repo.model.snapshot.headRef === branch, 20_000);
           const pushed = await withoutDialog(() =>
-            vscode.commands.executeCommand<boolean>('gittree.push.branch', [repo.root], name),
+            vscode.commands.executeCommand<boolean>('geet.push.branch', [repo.root], name),
           );
           assert.strictEqual(pushed, true);
           assert.strictEqual(reg.lastPushDialogOpened(), undefined);
@@ -1908,7 +1908,7 @@ suite('P13 dialogs', () => {
         const second = localCommit('p13/p14cn-d2.txt', 'd2\n', 'P14cn after it');
         await repo.refresher.refreshNow();
         const pushed = await withoutDialog(() =>
-          vscode.commands.executeCommand<boolean>('gittree.push.upTo', repo.root, first),
+          vscode.commands.executeCommand<boolean>('geet.push.upTo', repo.root, first),
         );
         assert.strictEqual(pushed, true);
         assert.strictEqual(reg.lastPushDialogOpened(), undefined);
@@ -1927,7 +1927,7 @@ suite('P13 dialogs', () => {
           20_000,
         );
         const before = remoteHead();
-        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root));
+        await withoutDialog(() => vscode.commands.executeCommand('geet.push.dialog', repo.root));
         assert.strictEqual(
           reg.lastPushDialogOpened()?.because,
           `Shown because ${loose.slice(0, 8)} in ${labelOf(repo)} is on no branch: say which branch it goes to.`,
@@ -1948,7 +1948,7 @@ suite('P13 dialogs', () => {
           this.skip();
           return;
         }
-        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', lonely.root));
+        await withoutDialog(() => vscode.commands.executeCommand('geet.push.dialog', lonely.root));
         assert.strictEqual(
           reg.lastPushDialogOpened()?.because,
           `Shown because ${labelOf(lonely)} has no remote to push to.`,
@@ -1965,7 +1965,7 @@ suite('P13 dialogs', () => {
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
         await waitFor(() => vscode.window.activeTextEditor === undefined, 10_000);
         const before = remoteHead();
-        await withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog'));
+        await withoutDialog(() => vscode.commands.executeCommand('geet.push.dialog'));
         const opened = reg.lastPushDialogOpened();
         assert.strictEqual(
           opened?.because,
@@ -2002,7 +2002,7 @@ suite('P13 dialogs', () => {
         const mine = localCommit('p13/p14cn-mine.txt', 'mine\n', 'P14cn mine');
         await repo.refresher.refreshNow();
         await withPushChoice('merge', () =>
-          withoutDialog(() => vscode.commands.executeCommand('gittree.push.dialog', repo.root)),
+          withoutDialog(() => vscode.commands.executeCommand('geet.push.dialog', repo.root)),
         );
         assert.ok(reg.lastPushRejectedPrompt(), 'the Push Rejected question, as for any push');
         const head = git('rev-parse', 'HEAD').trim();
@@ -3070,7 +3070,7 @@ suite('P13 dialogs', () => {
       assert.strictEqual(item.label, branch);
       // POST-P14cd: Geet's own address, unmarked: no extension marks the row
       // as the folder on disk.
-      assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+      assert.strictEqual(item.resourceUri?.scheme, 'geet-row');
       assert.strictEqual(item.resourceUri?.authority, 'worktree');
       assert.strictEqual(item.resourceUri?.query, '');
       assert.ok(String(item.contextValue).includes('main'));

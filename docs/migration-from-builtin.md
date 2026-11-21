@@ -21,8 +21,8 @@ launch it removes that override and shows a notification saying so. It only ever
 *removes* what it wrote — a `git.enabled` you set yourself, at any other scope,
 is left alone.
 
-Geet's own file badges in the Explorer (`gittree.decorations.fileExplorer`)
-and its change bars (`gittree.changeBars.enabled`) are off by default, so they
+Geet's own file badges in the Explorer (`geet.decorations.fileExplorer`)
+and its change bars (`geet.changeBars.enabled`) are off by default, so they
 never double up with the built-in extension's. If you disable the built-in
 extension, turn them on.
 
@@ -47,7 +47,7 @@ Keyboard reference: [keyboard.md](keyboard.md). Every setting: [settings.md](set
   arrays, no shell), so hooks, signing, LFS filters and credential helpers
   behave exactly as on your command line.
 - **Authentication** — VS Code's credential UI answers git's prompts via
-  Geet's askpass bridge; set `gittree.terminalAuth` to extend that to
+  Geet's askpass bridge; set `geet.terminalAuth` to extend that to
   integrated terminals.
 - **The index** — even the changelists paradigm leaves your staging area
   untouched unless you stage something yourself.

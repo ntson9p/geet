@@ -212,7 +212,7 @@ describe('LogService commit-graph maintenance', () => {
       fixture.dispose();
     });
     const writes = (): number => calls.filter(isGraphWrite).length;
-    return { fixture, git, queue, service, values, writes, key: `gittree.commitGraph.${fixture.root}` };
+    return { fixture, git, queue, service, values, writes, key: `geet.commitGraph.${fixture.root}` };
   }
 
   it('waits out the opening, holds up no read, then writes the commit-graph', async () => {

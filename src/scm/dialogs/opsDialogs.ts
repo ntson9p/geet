@@ -77,7 +77,7 @@ function base(repo: RepoHandle): {
     repoLabel: path.basename(repo.root),
     currentBranch: repo.model.snapshot.headRef ?? 'HEAD',
     showCommandLine: vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('dialogs.showCommandLine', true),
   };
 }
@@ -183,7 +183,7 @@ export async function applyRebaseResult(
       ...(from.length > 0 ? { from } : {}),
     };
     const answer = await vscode.commands.executeCommand<RebaseOntoResult | undefined>(
-      'gittree.rebase.interactive',
+      'geet.rebase.interactive',
       args,
     );
     if (answer === undefined || !answer.opened) {

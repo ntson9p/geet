@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 function repo(): FixtureRepo {
-  const r = FixtureRepo.create({ prefix: 'gittree-pullargs-' });
+  const r = FixtureRepo.create({ prefix: 'geet-pullargs-' });
   repos.push(r);
   r.commit('base', { 'a.txt': 'a\n' });
   return r;

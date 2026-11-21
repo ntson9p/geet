@@ -3,12 +3,12 @@
  * JetBrains keeps stashes in a `Stash` tab of the Commit tool window beside
  * `Shelf` (Settings | Version Control | Git | Stash · *Combine stashes and
  * shelves in one tab* merges the two, off by default), which is why this
- * replaces the `gittree.stashes` sidebar pane rather than extending it.
+ * replaces the `geet.stashes` sidebar pane rather than extending it.
  *
  * Rows are `stash@{N} · message`, expanding to the stashed files; activating a
  * file diffs it against the working tree, which is what the tree view did.
  * Every action dispatches through `commit/stashAction` to the SAME
- * `gittree.stash.*` commands, so the two surfaces cannot drift.
+ * `geet.stash.*` commands, so the two surfaces cannot drift.
  *
  * Actions carry the stash **sha**, never `stash@{N}`: the index shifts under
  * the list whenever a stash is pushed or dropped, so a row acted on after the
@@ -50,7 +50,7 @@ export interface StashTabProps {
   colors?: StatusColorOverrides;
   /** Rendered inside the Shelf tab when `combineWithShelf` is on. */
   embedded?: boolean;
-  /** `gittree.log.dateFormat`: an entry older than a day gives its date as the log does. */
+  /** `geet.log.dateFormat`: an entry older than a day gives its date as the log does. */
   dateFormat?: LogDateFormat | undefined;
 }
 

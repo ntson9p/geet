@@ -135,7 +135,7 @@ describe('stageFiles / unstageFiles against real git', () => {
       .sort();
 
   it('stages a modification, a deletion and a new file, and unstages them again', async () => {
-    const r = FixtureRepo.create({ prefix: 'gittree-stagefiles-' });
+    const r = FixtureRepo.create({ prefix: 'geet-stagefiles-' });
     repos.push(r);
     r.commit('base', { 'm.txt': 'm\n', 'd.txt': 'd\n' });
     fs.writeFileSync(path.join(r.root, 'm.txt'), 'm2\n');
@@ -148,7 +148,7 @@ describe('stageFiles / unstageFiles against real git', () => {
   });
 
   it('unstages before the first commit, where there is no HEAD', async () => {
-    const r = FixtureRepo.create({ prefix: 'gittree-stagefiles-unborn-' });
+    const r = FixtureRepo.create({ prefix: 'geet-stagefiles-unborn-' });
     repos.push(r);
     fs.writeFileSync(path.join(r.root, 'a.txt'), 'a\n');
     await stageFiles(git, r.root, ['a.txt']);

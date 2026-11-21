@@ -143,7 +143,7 @@ export interface Phase13Registry {
   /** IntelliJ's `Update all repositories`, as a setting (D32). */
   setUpdateAllRepositoriesIfRejected: typeof setUpdateAllRepositoriesIfRejected;
   /**
-   * `gittree.push.run` for `repo`'s checked-out branch, with `Update all
+   * `geet.push.run` for `repo`'s checked-out branch, with `Update all
    * repositories` narrowed to `project` — the shared fixture repositories
    * track remotes other suites have long deleted.
    */
@@ -158,7 +158,7 @@ export interface Phase13Registry {
   clearLastPushDialogRequest: typeof clearLastPushDialogRequest;
   /** IntelliJ's *Show Push dialog for Commit and Push*. */
   setShowPushDialogForCommitAndPush: typeof setShowPushDialogForCommitAndPush;
-  /** POST-P14cn: `gittree.push.showDialog`, what the footer's `Don't show this dialog again` writes. */
+  /** POST-P14cn: `geet.push.showDialog`, what the footer's `Don't show this dialog again` writes. */
   setPushDialogOn: typeof setPushDialogOn;
   /** POST-P14cn: what a Push without the dialog would do for `request`, without doing it. */
   planPushWithoutDialog: (request: PushDialogRequest) => ReturnType<typeof planPushWithoutDialog>;
@@ -292,8 +292,8 @@ export function registerPhase13Dialogs(
   };
 
   // P13-T1: Push — IntelliJ's `VcsPushDialog`, which every Push of Geet
-  // opens (POST-P14ao), unless `gittree.push.showDialog` is off (POST-P14cn).
-  // `gittree.push` (P1) stays registered, hidden from the palette, for a
+  // opens (POST-P14ao), unless `geet.push.showDialog` is off (POST-P14cn).
+  // `geet.push` (P1) stays registered, hidden from the palette, for a
   // keybinding; Geet itself no longer calls it. Sync pushes its own way.
   /** The commit's branch, as `GitPushUpToCommitAction` picks it. */
   const branchHolding = async (repo: RepoHandle, sha: string): Promise<string | undefined> => {
@@ -327,7 +327,7 @@ export function registerPhase13Dialogs(
       return false;
     });
   /**
-   * POST-P14cn: a Push as `gittree.push.showDialog` says. On, the dialog. Off,
+   * POST-P14cn: a Push as `geet.push.showDialog` says. On, the dialog. Off,
    * straight away: what the dialog would push had Push been pressed at once,
    * reported as a push of the branch to its upstream is. The dialog opens
    * after all, saying why, for a push that cannot go ahead without it. Resolves
@@ -365,7 +365,7 @@ export function registerPhase13Dialogs(
   const push = (request: PushDialogRequest): Promise<boolean> =>
     pushAsSet(request, { dialog: isPushDialogOn(), waitForDialog: true });
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.push.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.push.dialog', async (arg?: unknown) => {
       // POST-P14by: a list, the Branches panel's `⋯` with some repositories
       // in view: every repository listed still, as IntelliJ's dialog lists them,
       // and those checked.
@@ -393,7 +393,7 @@ export function registerPhase13Dialogs(
     // Internal, called by the branch rows. Resolves once the dialog closes, or
     // without the dialog once the push is done.
     vscode.commands.registerCommand(
-      'gittree.push.branch',
+      'geet.push.branch',
       async (arg?: unknown, branchArg?: unknown): Promise<boolean> => {
         const roots: unknown[] = Array.isArray(arg) ? arg : [arg];
         const repos = roots
@@ -408,7 +408,7 @@ export function registerPhase13Dialogs(
     // `Push All up to Here…` (IntelliJ's `GitPushUpToCommitAction`): the commit
     // and everything before it, from the branch it is on. Internal.
     vscode.commands.registerCommand(
-      'gittree.push.upTo',
+      'geet.push.upTo',
       async (arg?: unknown, shaArg?: unknown): Promise<boolean> => {
         const repo = namedRepo(core, arg);
         if (!repo || typeof shaArg !== 'string' || shaArg.length === 0) return false;
@@ -422,12 +422,12 @@ export function registerPhase13Dialogs(
       },
     ),
     // POST-P14af: a tracked branch pushed to its upstream, the IntelliJ way —
-    // `gittree.push` (so Sync) comes through here; every Push… opens the Push
+    // `geet.push` (so Sync) comes through here; every Push… opens the Push
     // dialog, or pushes as it would (POST-P14cn). Internal, as
-    // `gittree.update.run` is. Resolves to what happened, or `undefined` for a
+    // `geet.update.run` is. Resolves to what happened, or `undefined` for a
     // branch that tracks nothing, which the caller publishes its own way.
     vscode.commands.registerCommand(
-      'gittree.push.run',
+      'geet.push.run',
       async (arg?: unknown, branchArg?: unknown): Promise<PushResult[] | undefined> => {
         const repo = namedRepo(core, arg);
         if (!repo) return undefined;
@@ -439,12 +439,12 @@ export function registerPhase13Dialogs(
     // POST-P14ah: `Commit and Push…` once its commits have landed — IntelliJ's
     // push-after-commit. With *Show Push dialog for Commit and Push* on (its
     // default) that is the Push dialog, for the repositories just committed;
-    // off — or with `gittree.push.showDialog` off (POST-P14cn) — they are
+    // off — or with `geet.push.showDialog` off (POST-P14cn) — they are
     // pushed straight away, as a Push without the dialog pushes. Internal: the
     // commit flow is the only caller, and hands over every repository it
     // committed at once, so a commit spanning several opens one dialog, or
     // runs one push, not one each.
-    vscode.commands.registerCommand('gittree.push.afterCommit', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.push.afterCommit', async (arg?: unknown) => {
       const repos = (Array.isArray(arg) ? arg : [])
         .map((root: unknown) => namedRepo(core, root))
         .filter((r): r is RepoHandle => r !== undefined);
@@ -478,11 +478,11 @@ export function registerPhase13Dialogs(
     }
   };
 
-  // P13-T2: Update Project. `gittree.pull` (P1) stays as the raw pull; this is
+  // P13-T2: Update Project. `geet.pull` (P1) stays as the raw pull; this is
   // Ctrl+T's question (a native modal since POST-P14ab, D30), and it runs
   // directly once the user chooses Don't Ask Again.
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.update.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.update.dialog', async (arg?: unknown) => {
       // POST-P14bx: a list of repositories, the Branches panel's `⋯` with
       // some of them in view, updates those.
       const several = namedRepos(core, arg);
@@ -546,12 +546,12 @@ export function registerPhase13Dialogs(
     // checked-out branch. Internal: not contributed, so not in the palette,
     // where `Update Project…` is the verb. Returns the outcome so the caller
     // can tell a fan-out whether to carry on.
-    vscode.commands.registerCommand('gittree.update.run', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.update.run', async (arg?: unknown) => {
       const repo = resolveRepo(core, arg);
       return repo ? runRememberedUpdate(updateDeps, repo) : undefined;
     }),
     // The "gear" that brings the question back after Don't Ask Again.
-    vscode.commands.registerCommand('gittree.update.configure', async () => {
+    vscode.commands.registerCommand('geet.update.configure', async () => {
       await configureUpdateStrategy();
     }),
   );
@@ -563,15 +563,15 @@ export function registerPhase13Dialogs(
   // these dialogs have no Git Root chooser of their own, as IntelliJ's do.
   const needRepo = (arg?: unknown): Promise<RepoHandle | undefined> => chooseRepo(core, arg);
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.merge.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.merge.dialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (repo) await showMergeDialog(opDeps, repo);
     }),
-    vscode.commands.registerCommand('gittree.rebase.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.rebase.dialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (repo) await showRebaseDialog(opDeps, repo);
     }),
-    vscode.commands.registerCommand('gittree.reset.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.reset.dialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (!repo) return;
       // Invoked from a log row, the clicked commit seeds the revision field.
@@ -579,7 +579,7 @@ export function registerPhase13Dialogs(
         arg !== null && typeof arg === 'object' && 'sha' in arg ? String(arg.sha) : undefined;
       await showResetDialog(opDeps, repo, seed);
     }),
-    vscode.commands.registerCommand('gittree.rollback.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.rollback.dialog', async (arg?: unknown) => {
       // A Commit-window repository row passes `{ repoRoot }`: that repository,
       // every change listed and ticked, for the dialog to untick.
       const repo = await needRepo(repoRootOf(arg) ?? arg);
@@ -610,32 +610,32 @@ export function registerPhase13Dialogs(
     },
   };
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.cherryPick.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.cherryPick.dialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (!repo) return;
       const seed =
         arg !== null && typeof arg === 'object' && 'sha' in arg ? [String(arg.sha)] : undefined;
       await showCherryPickDialog(opDeps, repo, seed);
     }),
-    vscode.commands.registerCommand('gittree.stash.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.stash.dialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (repo) await showStashDialog(opDeps, repo);
     }),
-    vscode.commands.registerCommand('gittree.unstash.dialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.unstash.dialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (repo) await showUnstashDialog(unstashDeps, repo);
     }),
-    vscode.commands.registerCommand('gittree.patch.applyDialog', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.patch.applyDialog', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (!repo) return;
       const seed = arg instanceof vscode.Uri ? arg.fsPath : undefined;
       await showApplyPatchDialog(opDeps, repo, seed);
     }),
     // Clone is the one dialog that works with no repository open.
-    vscode.commands.registerCommand('gittree.clone.dialog', async () => {
+    vscode.commands.registerCommand('geet.clone.dialog', async () => {
       await showCloneDialog(opDeps);
     }),
-    vscode.commands.registerCommand('gittree.remotes.manage', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.remotes.manage', async (arg?: unknown) => {
       const repo = await needRepo(arg);
       if (repo) await showRemotesDialog(opDeps, repo);
     }),
@@ -646,7 +646,7 @@ export function registerPhase13Dialogs(
   const worktrees = registerWorktrees(context, core, deps);
 
   // P13-T8 · S7: the `Files Merged with Conflicts` gate. IntelliJ gates on the
-  // modal; the `gittree.conflicts` tree view stays as the persistent surface,
+  // modal; the `geet.conflicts` tree view stays as the persistent surface,
   // so this fires once per session and can be switched off entirely.
   const p6 = core.debugRegistry.get('phase06') as
     | { lifecycle?: { onDidStartSession: vscode.Event<ConflictSession> } }
@@ -663,7 +663,7 @@ export function registerPhase13Dialogs(
   // the Files Merged with Conflicts dialog back; it used to only focus the
   // Conflicts view, and the dialog, once dismissed, had no way back.
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.conflicts.resolve', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.conflicts.resolve', async (arg?: unknown) => {
       const phase06 = core.debugRegistry.get('phase06') as
         | { getSession?: (repoRoot: string) => ConflictSession | undefined }
         | undefined;
@@ -673,7 +673,7 @@ export function registerPhase13Dialogs(
         await showConflictsDialog(deps, session);
         return;
       }
-      await vscode.commands.executeCommand('gittree.conflicts.focus');
+      await vscode.commands.executeCommand('geet.conflicts.focus');
     }),
   );
 

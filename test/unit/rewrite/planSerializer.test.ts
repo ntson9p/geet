@@ -12,7 +12,7 @@ const entry = (c: string, action: RebasePlanEntry['action'], message?: string): 
   message === undefined ? { sha: sha(c), action } : { sha: sha(c), action, message };
 const plan = (...entries: RebasePlanEntry[]): RebasePlan => ({ baseSha: sha('0'), entries });
 
-const MSG_DIR = 'C:/tmp/gittree-rebase-x';
+const MSG_DIR = 'C:/tmp/geet-rebase-x';
 
 describe('serializePlan', () => {
   it('emits plain picks in order', () => {

@@ -55,14 +55,14 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
 | Gutter line tracking, bars track the index live | ✅ | P14-T3 `ChangeBarsController` — Geet-painted decorations against the index or HEAD, invalidated on every status move; `phase14` integration asserts the exact painted rows |
-| Hunk actions from the gutter popup | 🟡 | P14-T3 `changePopup`: previous text + Rollback / Stage / Commit View / ↑ ↓, Geet's own content. Opens from `Ctrl+Alt+G H` (hover opt-in via `gittree.changeBars.hoverActions`, off by default — POST-P14aa) rather than by clicking the bar — decorations expose no click handler (**D19**) |
+| Hunk actions from the gutter popup | 🟡 | P14-T3 `changePopup`: previous text + Rollback / Stage / Commit View / ↑ ↓, Geet's own content. Opens from `Ctrl+Alt+G H` (hover opt-in via `geet.changeBars.hoverActions`, off by default — POST-P14aa) rather than by clicking the bar — decorations expose no click handler (**D19**) |
 | Next/previous change walks into the next file | ✅ | P14-T7 `navigationStep` + `diffSession`: IntelliJ's two-stage gesture and tooltip on VS Code's own ↑ ↓ and `Alt+F5`, asserted end to end over a commit diff and asserted never to wrap. Four small differences (**D20**) |
 | Differences Viewer toolbar controls | 🟡 | P14-T7 Route A: side-by-side/inline, ignore whitespace, collapse unchanged, scoped to Geet's diffs. The renderer stays VS Code's, so per-change apply arrows and highlight granularity remain out (**D1**, narrowed) |
-| Blame: author · date · sha per line, toggleable | ✅ | `gittree.blame.toggle` (`Ctrl+Alt+G B`), inline decorations, `blame --incremental` |
-| Blame age heat-map | ✅ | `gittree.blame.heatmap` — the cell background on a five-step ramp of contributed colours, newest strongest, ranked within the file as IntelliJ's "Order" mode does. `ageStep` unit-tested; the decoration path benchmarked (`blameAnnotate5k`) |
-| Click a blame annotation → the commit in the log | ✅ | `gittree.blame.revealCursorCommit` |
+| Blame: author · date · sha per line, toggleable | ✅ | `geet.blame.toggle` (`Ctrl+Alt+G B`), inline decorations, `blame --incremental` |
+| Blame age heat-map | ✅ | `geet.blame.heatmap` — the cell background on a five-step ramp of contributed colours, newest strongest, ranked within the file as IntelliJ's "Order" mode does. `ageStep` unit-tested; the decoration path benchmarked (`blameAnnotate5k`) |
+| Click a blame annotation → the commit in the log | ✅ | `geet.blame.revealCursorCommit` |
 | VCS status widget: branch + ahead/behind + fetch spinner | 🟡 | `StatusBarController` — status bar, not a top toolbar (**D4**) |
-| Widget click opens the Branches popup | ✅ | `gittree.branches.open` |
+| Widget click opens the Branches popup | ✅ | `geet.branches.open` |
 
 ## §2 Branch management (the popup as an action hub)
 
@@ -76,7 +76,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Header: new branch · fetch · incoming/outgoing toggle · gear | ✅ | P13-T5 |
 | `›` per-row submenu, full reference list, names interpolated | ✅ | `branchActions.ts` → popup, tree view, log pane |
 | Irrelevant submenu items hidden, not disabled | ✅ | asserted across local / remote / tag / current |
-| **`Merge 'X' into '<current>'` reachable without dragging** | ✅ | `gittree.branch.mergeIntoCurrent`; real merge asserted from the command |
+| **`Merge 'X' into '<current>'` reachable without dragging** | ✅ | `geet.branch.mergeIntoCurrent`; real merge asserted from the command |
 | `Rebase '<current>' onto 'X'` | ✅ | `BranchOps.rebaseCurrentOnto` |
 | `Pull into '<current>'` | 🟡 | merge variant only; no rebase variant |
 | `New Worktree from 'X'…` | ✅ | → P13-T6 dialog |
@@ -87,7 +87,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| One tool window with `Commit \| Shelf` tabs, first in the Geet container | ✅ | P11-T2 `gittree.commit` webview; moved out of VS Code's SCM container by P14-T1 |
+| One tool window with `Commit \| Shelf` tabs, first in the Geet container | ✅ | P11-T2 `geet.commit` webview; moved out of VS Code's SCM container by P14-T1 |
 | Toolbar strip (refresh, rollback, diff, shelve, preview, expand/collapse) | ✅ | P11-T2 |
 | Folder rows with single-child chains collapsed | ✅ | `treeModel.buildTree` |
 | Tri-state checkboxes on group, folder and file rows | ✅ | P11-T2/T3 — impossible in `TreeView` |
@@ -100,7 +100,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | IME composition in the message editor | 🟡 | event contract covered; **needs one manual pass on a real OS IME** |
 | Multi-root: one gesture commits every repository with ticked changes | ✅ | `runCommitAcross` — one message, one commit each, stopped at the first refusal with a report; the button names its targets. Amend stays single-repo and asks first. Was a silent single-repo commit until this fix |
 | Multi-root: one `Changes` / `Unversioned Files` with repository rows beneath | ✅ | `assembleCommitTree` merges the same changelist across repositories; actions on a merged row fan out, repository rows keep the scoped ones. A repository row wears its root colour (`rootColorIndices`, the log's `Roots` and the Repositories panel), a filled square with a plain name, then its file count and its current branch in a tinted label, as IntelliJ's `RepositoryChangesBrowserNode` (`appendCurrentBranch`); it had worn its files' status colour, like a folder |
-| View Options › Group By (`ChangesView.ViewOptions`), offered with several roots | 🟡 | The eye before Expand all, shown only with several repositories, as IntelliJ's Repository toggle is. It chooses **Changelist › Repository** (IntelliJ's shape, the default) or **Repository › Changelist** (Geet's own) instead of toggling Directory and Repository: Geet always groups by both (**D37**). Saved for the workspace in `gittree.commit.groupBy`; a switch keeps the selection, the keyboard's row and the scroll place |
+| View Options › Group By (`ChangesView.ViewOptions`), offered with several roots | 🟡 | The eye before Expand all, shown only with several repositories, as IntelliJ's Repository toggle is. It chooses **Changelist › Repository** (IntelliJ's shape, the default) or **Repository › Changelist** (Geet's own) instead of toggling Directory and Repository: Geet always groups by both (**D37**). Saved for the workspace in `geet.commit.groupBy`; a switch keeps the selection, the keyboard's row and the scroll place |
 | Multi-root: a changelist is one project-level object | 🟡 | storage stays per repository. The two well-known buckets merge by id (exact); user lists merge by **name**, and the active-list flag stays per repo (**D23**) |
 
 ## §4 Git log & history (Git tool window)
@@ -114,7 +114,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 | Branches pane + vertical icon rail | ✅ | P12-T2 |
 | Graph, 100k commits, filters, search, Graph Options (By Commit Date / Topologically = IntelliSort, First Parent, No Merges) | ✅ | P4 + P12-T5 + POST-P14ak; perf-gated |
 | Presentation & highlight menus | 🟡 | *Presentation Settings* (eye) holds **Compact References View**, **Tag Names**, **References on the Left** and **Columns** (2026-11-01), after Geet's own **Graph** toggle (2026-11-07); *Highlight my commits* is a toolbar toggle and the other highlight modes are absent. *Collapse linear branches* / *Show long edges* need whole-graph edge spans the row-local model cannot give (recorded in PHASE-12). Corrected 2026-10-31: this row used to credit P12-T5 with both menus, which it never shipped |
-| Branches Pane Settings · Show Tags | ✅ | The rail's gear; `gittree.branches.showTags`, shared with the Branches popup, the sidebar's Repositories panel and the branch trees, as IntelliJ's Show Tags is |
+| Branches Pane Settings · Show Tags | ✅ | The rail's gear; `geet.branches.showTags`, shared with the Branches popup, the sidebar's Repositories panel and the branch trees, as IntelliJ's Show Tags is |
 | Go to Hash / Branch / Tag | ✅ | P12-T4 |
 | Commit context menu (28 items) | ✅ | P12-T7 — incl. fixup/squash, push-all-up-to-here, reset **Keep**, show-repo-at-revision |
 | Changed Files pane with counts, status colors, toolbar | ✅ | P12-T3 |
@@ -125,7 +125,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| `Files Merged with Conflicts` gate, tree view retained | ✅ | P13-T8; once per session, `gittree.merge.conflictsDialog` to disable |
+| `Files Merged with Conflicts` gate, tree view retained | ✅ | P13-T8; once per session, `geet.merge.conflictsDialog` to disable |
 | Three panes, centre a real editor | ✅ | P6-T3 `TriMergeEditor` — **a win over a webview** (**D14**) |
 | `Apply non-conflicting changes` Left · All · Right | ✅ | P13-T8; Left/Right act on the conflict blocks (**D17**) |
 | Live counter `No changes. N conflicts.` | ✅ | P13-T8, in the status bar |
@@ -139,8 +139,8 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Stash **tab in the Commit tool window**, create/apply/pop/drop/clear/branch | ✅ | P7 engine + POST-P14l tab; the P7 tree view stays off behind `gittree.sidebar.extraViews` |
-| `Combine stashes and shelves in one tab` | ✅ | POST-P14l `gittree.stash.combineWithShelf`, off by default as in IntelliJ |
+| Stash **tab in the Commit tool window**, create/apply/pop/drop/clear/branch | ✅ | P7 engine + POST-P14l tab; the P7 tree view stays off behind `geet.sidebar.extraViews` |
+| `Combine stashes and shelves in one tab` | ✅ | POST-P14l `geet.stash.combineWithShelf`, off by default as in IntelliJ |
 | `Stash Changes` dialog with `--keep-index`, `--all`, `--staged` | ✅ | P13-T4; `--staged` gated on git ≥ 2.35 with the reason stated |
 | `Unstash` dialog: list, pop, reinstate index, changelist, inline diff | ✅ | P13-T4 |
 | Shelf outside `.git`, Shelf tab, partial shelve, import/export | ✅ | P7 + P11-T6/T7 |
@@ -156,7 +156,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| `Show History` opens the view on demand, not a standing pane | ✅ | POST-P14m; `gittree.history.show` reveals the hidden view, as IntelliJ's Show History opens its window (**D26**) |
+| `Show History` opens the view on demand, not a standing pane | ✅ | POST-P14m; `geet.history.show` reveals the hidden view, as IntelliJ's Show History opens its window (**D26**) |
 | Snapshot before every destructive operation | ✅ | P9-T2; table-driven coverage test over `SNAPSHOT_LABELS` |
 | Byte-exact restore, paranoia snapshot, undo restore | ✅ | P9-T3 |
 | Dangling-commit recovery from the reflog | ✅ | P9-T4 |
@@ -177,7 +177,7 @@ integrations (D11) — plus IntelliJ-platform features with no VS Code analogue.
 
 | FEATURES.md item | Status | Shipped as / evidence |
 | --- | --- | --- |
-| Worktrees **tab in the Git tool window**: path, branch, Locked/Prunable | ✅ | POST-P14k; the P13-T6 tree view stays off behind `gittree.sidebar.extraViews` |
+| Worktrees **tab in the Git tool window**: path, branch, Locked/Prunable | ✅ | POST-P14k; the P13-T6 tree view stays off behind `geet.sidebar.extraViews` |
 | New Worktree dialog (existing / new-from / detach, location, options) | ✅ | P13-T6 |
 | Open · Remove · Lock · Unlock · Prune | ✅ | P13-T6; dirty removal refused with git's reason |
 | Lock/prunable reported by the porcelain | 🟡 | derived from disk on git < 2.36 (**D16**) |

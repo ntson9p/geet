@@ -67,9 +67,9 @@ export const SETTINGS = {
   'npm.autoDetect': 'off',
   'git.enabled': false,
   'github.gitAuthentication': false,
-  'gittree.whatsNew.enabled': false,
-  'gittree.commit.groupBy': 'changelist',
-  'gittree.log.showTagNames': true,
+  'geet.whatsNew.enabled': false,
+  'geet.commit.groupBy': 'changelist',
+  'geet.log.showTagNames': true,
 };
 
 /**

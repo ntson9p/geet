@@ -246,9 +246,9 @@ describe('GitExecutorImpl and GIT_LITERAL_PATHSPECS', () => {
 describe('resolveGitCandidates', () => {
   it('orders the setting first, then PATH, then well-known locations', () => {
     // P14-T5 removed the built-in `git.path` fallback that used to sit between
-    // `gittree.gitPath` and PATH — Geet reads no `git.*` configuration.
+    // `geet.gitPath` and PATH — Geet reads no `git.*` configuration.
     const c = resolveGitCandidates({
-      gittreeGitPath: 'X:\\custom\\git.exe',
+      geetGitPath: 'X:\\custom\\git.exe',
       platform: 'win32',
       env: { ProgramFiles: 'C:\\Program Files' },
     });
@@ -258,7 +258,7 @@ describe('resolveGitCandidates', () => {
   });
 
   it('de-duplicates while keeping priority order', () => {
-    const c = resolveGitCandidates({ gittreeGitPath: 'git', platform: 'linux', env: {} });
+    const c = resolveGitCandidates({ geetGitPath: 'git', platform: 'linux', env: {} });
     expect(c.filter((x) => x === 'git')).toHaveLength(1);
     expect(c[0]).toBe('git');
   });

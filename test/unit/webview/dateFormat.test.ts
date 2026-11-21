@@ -62,7 +62,7 @@ describe('createCommitDateFormat (POST-P14z)', () => {
   });
 });
 
-describe('createLogDateFormat (POST-P14bh, gittree.log.dateFormat)', () => {
+describe('createLogDateFormat (POST-P14bh, geet.log.dateFormat)', () => {
   const at = (iso: string): number => Math.floor(Date.parse(iso) / 1000);
 
   it('writes YYYY/MM/DD HH:mm by default: year first, two digits each, a 24-hour clock', () => {
@@ -196,19 +196,19 @@ describe('the system short date and time (POST-P14cg)', () => {
   });
 
   describe("the page's own patterns", () => {
-    const page = globalThis as { __gittreeSystemDates?: unknown };
+    const page = globalThis as { __geetSystemDates?: unknown };
     afterEach(() => {
-      delete page.__gittreeSystemDates;
+      delete page.__geetSystemDates;
     });
 
-    it('are read from `window.__gittreeSystemDates` when the caller names none', () => {
-      page.__gittreeSystemDates = DE;
+    it('are read from `window.__geetSystemDates` when the caller names none', () => {
+      page.__geetSystemDates = DE;
       // A zone named makes these the caller's own writers, not the page's cached ones.
       expect(createCommitDateFormat(undefined, 'UTC')(iso('2026-10-27T05:19:00Z'))).toBe('27.10.2026 05:19');
     });
 
     it('are left alone when the caller says `null`', () => {
-      page.__gittreeSystemDates = DE;
+      page.__geetSystemDates = DE;
       expect(createCommitDateFormat('en-US', 'UTC', { system: null })(iso('2026-10-27T05:19:00Z'))).toMatch(
         /^10\/27\/2026 5:19\sAM$/u,
       );

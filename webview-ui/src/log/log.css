@@ -45,7 +45,7 @@
   border-left: 1px solid var(--vscode-contrastBorder, rgba(128, 128, 128, 0.35));
 }
 
-/* POST-P14bh, `gittree.log.filterChips: compact` (D39): a smaller chip, its
+/* POST-P14bh, `geet.log.filterChips: compact` (D39): a smaller chip, its
    value cut short by `filterChips.ts` and capped here too, the `×` inside it. */
 .gt-filter-chipset.gt-compact {
   border-radius: 4px;

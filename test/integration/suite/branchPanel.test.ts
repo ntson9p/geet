@@ -155,7 +155,7 @@ suite('new-way-4 Branches panel', () => {
 
     const repoMenu = await panel.menu({ root: repoD.root });
     assert.ok(
-      repoMenu.some((i) => i.kind === 'item' && i.run.type === 'command' && i.run.command === 'gittree.fetch'),
+      repoMenu.some((i) => i.kind === 'item' && i.run.type === 'command' && i.run.command === 'geet.fetch'),
       'a repository has its own menu',
     );
   });
@@ -179,10 +179,10 @@ suite('new-way-4 Branches panel', () => {
 
   test('T4b a command the panel does not offer is never run, whatever the webview sends', () => {
     // Asserted on the allowlist itself: proving it by sending one would run it if it failed.
-    assert.ok(PANEL_COMMANDS.has('gittree.fetch'));
-    assert.ok(PANEL_COMMANDS.has('gittree.rebase.continue'));
+    assert.ok(PANEL_COMMANDS.has('geet.fetch'));
+    assert.ok(PANEL_COMMANDS.has('geet.rebase.continue'));
     assert.ok(!PANEL_COMMANDS.has('workbench.action.closeWindow'));
-    assert.ok(!PANEL_COMMANDS.has('gittree.discardAll'));
+    assert.ok(!PANEL_COMMANDS.has('geet.discardAll'));
   });
 
   test("T5 a card says how a branch stands against what is checked out, and who made it", async function () {
@@ -222,14 +222,14 @@ suite('new-way-4 Branches panel', () => {
       'a finished branch: Delete takes Merge’s place',
     );
 
-    const saved = process.env['GITTREE_TEST_CLEANUP'];
+    const saved = process.env['GEET_TEST_CLEANUP'];
     // By name: other suites' branches in repoD are not this test's to delete.
-    process.env['GITTREE_TEST_CLEANUP'] = 'names:gtp/ahead';
+    process.env['GEET_TEST_CLEANUP'] = 'names:gtp/ahead';
     try {
-      await vscode.commands.executeCommand('gittree.branches.cleanup', repoD.root);
+      await vscode.commands.executeCommand('geet.branches.cleanup', repoD.root);
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_CLEANUP'];
-      else process.env['GITTREE_TEST_CLEANUP'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_CLEANUP'];
+      else process.env['GEET_TEST_CLEANUP'] = saved;
     }
     await refresh();
     assert.ok(!has(repoD, 'gtp/ahead'), 'the merged branch is gone');
@@ -277,7 +277,7 @@ suite('new-way-4 Branches panel', () => {
 
   test('T7 a new branch from a remote branch of another name tracks nothing, its first push its own', async function () {
     this.timeout(120_000);
-    remoteDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-track-')));
+    remoteDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'geet-track-')));
     const bare = path.join(remoteDir, 'remote.git').replace(/\\/g, '/');
     execFileSync('git', ['init', '--bare', bare], { cwd: remoteDir, encoding: 'utf8' });
     git(repoD, 'remote', 'add', REMOTE, bare);
@@ -328,15 +328,15 @@ suite('new-way-4 Branches panel', () => {
   test('T10 the input-box path follows the same rule', async function () {
     this.timeout(60_000);
     await refresh();
-    process.env['GITTREE_TEST_BRANCH_MODE'] = 'create';
+    process.env['GEET_TEST_BRANCH_MODE'] = 'create';
     try {
-      process.env['GITTREE_TEST_BRANCH_NAME'] = 'gtp/asked';
+      process.env['GEET_TEST_BRANCH_NAME'] = 'gtp/asked';
       await opsOf().newBranchFrom(repoD, `${REMOTE}/gtp/develop`);
       made.push([repoD, 'gtp/asked']);
       assert.strictEqual(trackedBy('gtp/asked'), '');
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
-      delete process.env['GITTREE_TEST_BRANCH_MODE'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_BRANCH_MODE'];
     }
   });
 
@@ -369,7 +369,7 @@ suite('new-way-4 Branches panel', () => {
     );
 
     await tracking('gtp/undo', upstream);
-    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Undo';
+    process.env['GEET_TEST_NOTIFICATION_ACTION'] = 'Undo';
     try {
       await panel.run({
         type: 'action',
@@ -378,7 +378,7 @@ suite('new-way-4 Branches panel', () => {
       });
       await waitFor(() => trackedBy('gtp/undo') === upstream, 10_000);
     } finally {
-      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+      delete process.env['GEET_TEST_NOTIFICATION_ACTION'];
     }
   });
 
@@ -421,11 +421,11 @@ suite('new-way-4 Branches panel', () => {
     this.timeout(90_000);
     const other = `${REMOTE}/gtp/develop`;
     await tracking('gtp/renamed-a', other);
-    process.env['GITTREE_TEST_BRANCH_NAME'] = 'gtp/renamed-b';
+    process.env['GEET_TEST_BRANCH_NAME'] = 'gtp/renamed-b';
     try {
       await opsOf().renameBranch(repoD, 'gtp/renamed-a');
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
     }
     made.push([repoD, 'gtp/renamed-b']);
     const told = notes().recent().at(-1);
@@ -435,14 +435,14 @@ suite('new-way-4 Branches panel', () => {
     // Its own name on the remote: moving it there is on offer, and is what the button says.
     const own = await onRemote('gtp/renamed-c');
     await tracking('gtp/renamed-c', own);
-    process.env['GITTREE_TEST_BRANCH_NAME'] = 'gtp/renamed-d';
-    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = `Stop Tracking ${own}`;
+    process.env['GEET_TEST_BRANCH_NAME'] = 'gtp/renamed-d';
+    process.env['GEET_TEST_NOTIFICATION_ACTION'] = `Stop Tracking ${own}`;
     try {
       await opsOf().renameBranch(repoD, 'gtp/renamed-c');
       await waitFor(() => trackedBy('gtp/renamed-d') === '', 10_000);
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
-      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_NOTIFICATION_ACTION'];
     }
     made.push([repoD, 'gtp/renamed-d']);
     const offered = notes()
@@ -459,16 +459,16 @@ suite('new-way-4 Branches panel', () => {
     this.timeout(90_000);
     const upstream = `${REMOTE}/gtp/develop`;
     await tracking('gtp/tidied', upstream);
-    const savedCleanup = process.env['GITTREE_TEST_CLEANUP'];
-    process.env['GITTREE_TEST_CLEANUP'] = 'names:gtp/tidied';
-    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Restore';
+    const savedCleanup = process.env['GEET_TEST_CLEANUP'];
+    process.env['GEET_TEST_CLEANUP'] = 'names:gtp/tidied';
+    process.env['GEET_TEST_NOTIFICATION_ACTION'] = 'Restore';
     try {
-      await vscode.commands.executeCommand('gittree.branches.cleanup', repoD.root);
+      await vscode.commands.executeCommand('geet.branches.cleanup', repoD.root);
       await waitFor(() => trackedBy('gtp/tidied') === upstream, 10_000);
     } finally {
-      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
-      if (savedCleanup === undefined) delete process.env['GITTREE_TEST_CLEANUP'];
-      else process.env['GITTREE_TEST_CLEANUP'] = savedCleanup;
+      delete process.env['GEET_TEST_NOTIFICATION_ACTION'];
+      if (savedCleanup === undefined) delete process.env['GEET_TEST_CLEANUP'];
+      else process.env['GEET_TEST_CLEANUP'] = savedCleanup;
     }
   });
 
@@ -544,13 +544,13 @@ suite('new-way-4 Branches panel', () => {
     (core.debugRegistry.get('phase02') as { lastLocalChangesQuestion: () => { message: string } | undefined })
       .lastLocalChangesQuestion();
   const withSmartChoice = async <T>(choice: string, body: () => Promise<T>): Promise<T> => {
-    const saved = process.env['GITTREE_TEST_SMART_CHOICE'];
-    process.env['GITTREE_TEST_SMART_CHOICE'] = choice;
+    const saved = process.env['GEET_TEST_SMART_CHOICE'];
+    process.env['GEET_TEST_SMART_CHOICE'] = choice;
     try {
       return await body();
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_SMART_CHOICE'];
-      else process.env['GITTREE_TEST_SMART_CHOICE'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_SMART_CHOICE'];
+      else process.env['GEET_TEST_SMART_CHOICE'] = saved;
     }
   };
 
@@ -714,7 +714,7 @@ suite('new-way-4 Branches panel', () => {
 
   const showInLog = (repo: RepoHandle, name: string): BranchPanelRunDto => ({
     type: 'command',
-    command: 'gittree.branches.showInLog',
+    command: 'geet.branches.showInLog',
     root: repo.root,
     arg: name,
   });
@@ -763,7 +763,7 @@ suite('new-way-4 Branches panel', () => {
   test('T24 Show in New Log Tab opens that repository’s branch in a Log tab of its own, once', async function () {
     this.timeout(120_000);
     const log = (core.debugRegistry.get('phase04') as Phase04Registry).logView;
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => log.currentSession !== undefined, 30_000);
     const before = log.logTabs.tabs;
     const inFront = log.logTabs.active;
@@ -807,16 +807,16 @@ suite('new-way-4 Branches panel', () => {
     const first = menu[0];
     assert.ok(first?.kind === 'item', labelsIn(menu).join(' | '));
     assert.strictEqual(first.label, 'Show in New Log Tab');
-    assert.deepStrictEqual(first.run, { type: 'command', command: 'gittree.repositories.showInLog', root: repoD.root });
+    assert.deepStrictEqual(first.run, { type: 'command', command: 'geet.repositories.showInLog', root: repoD.root });
     assert.strictEqual(menu[1]?.kind, 'separator');
     // The panel runs it: the command is one a panel row may run.
-    assert.ok(PANEL_COMMANDS.has('gittree.repositories.showInLog'));
+    assert.ok(PANEL_COMMANDS.has('geet.repositories.showInLog'));
   });
 
   test('T27 Show in New Log Tab opens the repository at HEAD in a new Log tab, once', async function () {
     this.timeout(120_000);
     const log = (core.debugRegistry.get('phase04') as Phase04Registry).logView;
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => log.currentSession !== undefined, 30_000);
     const before = log.logTabs.tabs;
     const inFront = log.logTabs.active;
@@ -825,7 +825,7 @@ suite('new-way-4 Branches panel', () => {
       // The main tab may well show this repository at HEAD already: still a new tab.
       const mainRoot = log.currentSession!.repoRoot;
       const repo = core.repos.find((r) => canonicalKey(r.root) === canonicalKey(mainRoot)) ?? repoD;
-      await panel.run({ type: 'command', command: 'gittree.repositories.showInLog', root: repo.root });
+      await panel.run({ type: 'command', command: 'geet.repositories.showInLog', root: repo.root });
       const tab = log.logTabs.active;
       assert.ok(!before.includes(tab), 'a tab of its own, not the main one brought forward');
       opened.push(tab);
@@ -835,7 +835,7 @@ suite('new-way-4 Branches panel', () => {
       await waitFor(() => (log.currentSession?.rowCount ?? 0) > 0, 30_000);
 
       // Asked again, that tab comes forward: no second one.
-      await panel.run({ type: 'command', command: 'gittree.repositories.showInLog', root: repo.root });
+      await panel.run({ type: 'command', command: 'geet.repositories.showInLog', root: repo.root });
       assert.strictEqual(log.logTabs.active, tab);
       assert.strictEqual(log.logTabs.tabs.length, before.length + 1);
     } finally {
@@ -847,16 +847,16 @@ suite('new-way-4 Branches panel', () => {
 
   test('T25 Repository Dots are off by default, and the command switches what the state says', async function () {
     this.timeout(30_000);
-    const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree.branches');
+    const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('geet.branches');
     const inspected = config().inspect<boolean>('showRepositoryDots');
     assert.strictEqual(inspected?.defaultValue, false, 'the setting ships off');
     try {
       assert.strictEqual((await panel.buildState()).showRepositoryDots, config().get('showRepositoryDots'));
       const was = config().get<boolean>('showRepositoryDots', false);
-      await vscode.commands.executeCommand('gittree.branches.toggleRepositoryDots');
+      await vscode.commands.executeCommand('geet.branches.toggleRepositoryDots');
       await waitFor(() => config().get('showRepositoryDots') === !was, 5_000);
       assert.strictEqual((await panel.buildState()).showRepositoryDots, !was);
-      await vscode.commands.executeCommand('gittree.branches.toggleRepositoryDots');
+      await vscode.commands.executeCommand('geet.branches.toggleRepositoryDots');
       await waitFor(() => config().get('showRepositoryDots') === was, 5_000);
       assert.strictEqual((await panel.buildState()).showRepositoryDots, was);
     } finally {
@@ -877,8 +877,8 @@ suite('new-way-4 Branches panel', () => {
   test('T17 a right-click on the opt-in Branches tree reaches the branch', async function () {
     this.timeout(60_000);
     await tracking('gtp/tree-row', `${REMOTE}/gtp/develop`);
-    // What `gittree.branchesTree` hands its menu: a `TreeRow`, not a `BranchNode`.
-    await vscode.commands.executeCommand('gittree.branch.stopTracking', {
+    // What `geet.branchesTree` hands its menu: a `TreeRow`, not a `BranchNode`.
+    await vscode.commands.executeCommand('geet.branch.stopTracking', {
       kind: 'ref',
       repoRoot: repoD.root,
       ref: repoD.model.snapshot.refs.find((r) => r.type === 'head' && r.name === 'gtp/tree-row'),
@@ -896,26 +896,26 @@ suite('new-way-4 Branches panel', () => {
       ext.packageJSON as {
         contributes: { views: Record<string, Array<{ id: string; type?: string; when?: string; name: string }>> };
       }
-    ).contributes.views['gittree']!;
+    ).contributes.views['geet']!;
     const ids = views.map((v) => v.id);
-    const repositories = views.find((v) => v.id === 'gittree.repositoryList');
-    const branches = views.find((v) => v.id === 'gittree.branches');
+    const repositories = views.find((v) => v.id === 'geet.repositoryList');
+    const branches = views.find((v) => v.id === 'geet.branches');
     // Webviews both; the Repositories panel right under the Commit window,
     // and only where there is more than one repository to list.
     assert.deepStrictEqual(
       { type: repositories?.type, when: repositories?.when, name: repositories?.name },
-      { type: 'webview', when: 'gittree.multiRepo', name: '%gittree.view.repositoryList.name%' },
+      { type: 'webview', when: 'geet.multiRepo', name: '%geet.view.repositoryList.name%' },
     );
     assert.deepStrictEqual(
       { type: branches?.type, when: branches?.when, name: branches?.name },
-      { type: 'webview', when: undefined, name: '%gittree.view.branches.name%' },
+      { type: 'webview', when: undefined, name: '%geet.view.branches.name%' },
     );
-    assert.strictEqual(ids.indexOf('gittree.repositoryList'), ids.indexOf('gittree.commit') + 1);
-    assert.ok(ids.indexOf('gittree.repositoryList') < ids.indexOf('gittree.branches'));
+    assert.strictEqual(ids.indexOf('geet.repositoryList'), ids.indexOf('geet.commit') + 1);
+    assert.ok(ids.indexOf('geet.repositoryList') < ids.indexOf('geet.branches'));
     // The test workspace has several repositories: both panels come up.
     assert.ok(core.repos.length > 1);
-    await vscode.commands.executeCommand('gittree.repositoryList.focus');
-    await vscode.commands.executeCommand('gittree.branches.focus');
+    await vscode.commands.executeCommand('geet.repositoryList.focus');
+    await vscode.commands.executeCommand('geet.branches.focus');
     // One state serves both, the same as before the split.
     const state = await panel.buildState();
     assert.ok(state.repos.some((r) => canonicalKey(r.root) === canonicalKey(repoD.root)));

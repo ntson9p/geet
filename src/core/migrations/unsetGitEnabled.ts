@@ -15,9 +15,9 @@
  */
 
 /** Where `ModeManager` persisted its decision. */
-export const MODE_STATE_KEY = 'gittree.mode';
+export const MODE_STATE_KEY = 'geet.mode';
 /** Set once the migration has run, so later activations cost nothing. */
-export const MIGRATION_DONE_KEY = 'gittree.migration.unsetGitEnabled';
+export const MIGRATION_DONE_KEY = 'geet.migration.unsetGitEnabled';
 
 export type MigrationOutcome = 'already-done' | 'nothing-to-undo' | 'restored';
 

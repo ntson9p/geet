@@ -37,7 +37,7 @@ suite('P1 core SCM', () => {
   }
 
   /**
-   * POST-P14r: `gittree.statusBar` decides the widget's shape, and `auto` — the
+   * POST-P14r: `geet.statusBar` decides the widget's shape, and `auto` — the
    * default — picks the compact button whenever the built-in Git extension is
    * present, which it always is in this window. Assertions about the *readout*
    * therefore have to say which mode they mean.
@@ -47,7 +47,7 @@ suite('P1 core SCM', () => {
     bar: BarShape,
     fn: () => void | Promise<void>,
   ): Promise<void> {
-    const cfg = vscode.workspace.getConfiguration('gittree');
+    const cfg = vscode.workspace.getConfiguration('geet');
     await cfg.update('statusBar', mode, vscode.ConfigurationTarget.Workspace);
     try {
       // The config listener fires on its own; this makes the read deterministic
@@ -90,7 +90,7 @@ suite('P1 core SCM', () => {
     // Phase 3's changelists paradigm is the default; this suite asserts on
     // staged/unstaged classification, so run it in staging mode.
     await vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .update('commit.paradigm', 'staging', vscode.ConfigurationTarget.Workspace);
     await waitFor(() => paradigmOf() === 'staging', 10_000);
   });
@@ -99,7 +99,7 @@ suite('P1 core SCM', () => {
     this.timeout(30_000);
     // Restore the default paradigm for the Phase 3 suite.
     await vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .update('commit.paradigm', undefined, vscode.ConfigurationTarget.Workspace);
     await waitFor(() => paradigmOf() === 'changelists', 10_000);
   });
@@ -169,7 +169,7 @@ suite('P1 core SCM', () => {
     await refresh();
   });
 
-  test('T2: gittree-rev provider serves index and HEAD content', async function () {
+  test('T2: geet-rev provider serves index and HEAD content', async function () {
     this.timeout(30_000);
     await activateGeet();
     write('t2-index.txt', 'index only\n');
@@ -177,7 +177,7 @@ suite('P1 core SCM', () => {
 
     const q = (rel: string, ref: string) =>
       vscode.Uri.from({
-        scheme: 'gittree-rev',
+        scheme: 'geet-rev',
         path: '/' + rel,
         query: JSON.stringify({ repo: repoRoot, rel, ref }),
       });
@@ -211,7 +211,7 @@ suite('P1 core SCM', () => {
     }, 15_000);
 
     // Stage via command.
-    await vscode.commands.executeCommand('gittree.add', fileArg('README.md'));
+    await vscode.commands.executeCommand('geet.add', fileArg('README.md'));
     await refresh();
     await waitFor(() => {
       const e = entry('README.md');
@@ -219,7 +219,7 @@ suite('P1 core SCM', () => {
     }, 15_000);
 
     // Unstage via command.
-    await vscode.commands.executeCommand('gittree.unstage', fileArg('README.md'));
+    await vscode.commands.executeCommand('geet.unstage', fileArg('README.md'));
     await refresh();
     await waitFor(() => {
       const e = entry('README.md');
@@ -227,7 +227,7 @@ suite('P1 core SCM', () => {
     }, 15_000);
 
     // Rollback (modal auto-confirmed in the test env) → file restored.
-    await vscode.commands.executeCommand('gittree.rollbackFile', fileArg('README.md'));
+    await vscode.commands.executeCommand('geet.rollbackFile', fileArg('README.md'));
     await waitFor(
       () => !fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8').includes('unstaged edit'),
       15_000,
@@ -239,7 +239,7 @@ suite('P1 core SCM', () => {
       const e = entry('t4-untracked.txt');
       return e !== undefined && isUntracked(e);
     }, 15_000);
-    await vscode.commands.executeCommand('gittree.rollbackFile', fileArg('t4-untracked.txt'));
+    await vscode.commands.executeCommand('geet.rollbackFile', fileArg('t4-untracked.txt'));
     await waitFor(() => !fs.existsSync(path.join(repoRoot, 't4-untracked.txt')), 15_000);
     await refresh();
   });
@@ -263,7 +263,7 @@ suite('P1 core SCM', () => {
     await waitFor(() => entry('w-root.log') !== undefined && entry('pkg/gen.ts') !== undefined, 15_000);
 
     try {
-      await vscode.commands.executeCommand('gittree.gitignore.add', {
+      await vscode.commands.executeCommand('geet.gitignore.add', {
         repoRoot,
         relPath: 'w-root.log',
         relPaths: ['w-root.log', 'pkg/gen.ts'],
@@ -304,7 +304,7 @@ suite('P1 core SCM', () => {
     assert.ok(reveals, 'revealInOS registry missing — registerRevealInOS not run?');
     // The test window is a local desktop one, where the item is offered.
     assert.strictEqual(reveals.supported, true);
-    // Under GITTREE_TEST nothing opens: the registry is what the user would have seen.
+    // Under GEET_TEST nothing opens: the registry is what the user would have seen.
     const root = core.repoForPath(repoRoot)!.root;
     const dir = path.join(repoRoot, 'reveal-me');
     fs.mkdirSync(path.join(dir, 'deep'), { recursive: true });
@@ -313,14 +313,14 @@ suite('P1 core SCM', () => {
     try {
       // A file row inside a selection of two: the row clicked, alone. Any of
       // the three commands does it; each platform's menu shows its own.
-      await vscode.commands.executeCommand('gittree.revealFileInOS.windows', {
+      await vscode.commands.executeCommand('geet.revealFileInOS.windows', {
         webviewSection: 'commitFile',
         repoRoot,
         relPath: 'reveal-me/deep/here.txt',
         relPaths: ['reveal-me/deep/here.txt', 'README.md'],
       });
       // A folder row: its folder, not the first file it also carries.
-      await vscode.commands.executeCommand('gittree.revealFileInOS.linux', {
+      await vscode.commands.executeCommand('geet.revealFileInOS.linux', {
         webviewSection: 'commitFolder',
         repoRoot,
         relPath: 'reveal-me/deep/here.txt',
@@ -328,12 +328,12 @@ suite('P1 core SCM', () => {
         folder: 'reveal-me/deep',
       });
       // Gone since the tree was drawn: said, not attempted.
-      await vscode.commands.executeCommand('gittree.revealFileInOS.mac', {
+      await vscode.commands.executeCommand('geet.revealFileInOS.mac', {
         repoRoot,
         relPath: 'reveal-me/not-there.txt',
       });
       // Out of the repository: refused before anything is looked at.
-      await vscode.commands.executeCommand('gittree.revealFileInOS.windows', { repoRoot, relPath: '../outside.txt' });
+      await vscode.commands.executeCommand('geet.revealFileInOS.windows', { repoRoot, relPath: '../outside.txt' });
       assert.deepStrictEqual(reveals.recent(), [
         { outcome: 'revealed', path: path.join(root, 'reveal-me', 'deep', 'here.txt') },
         { outcome: 'revealed', path: path.join(root, 'reveal-me', 'deep') },
@@ -365,15 +365,15 @@ suite('P1 core SCM', () => {
     // quiesce). Declare the intent explicitly, the way phase03's T5 does — and
     // RESTORE the previous value rather than deleting it, because the runner
     // sets this kind of env once for the whole process (see setup.ts).
-    const prevChoice = process.env['GITTREE_TEST_CHECKS_CHOICE'];
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    const prevChoice = process.env['GEET_TEST_CHECKS_CHOICE'];
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
       // The window's setter persists through workspaceState without awaiting,
       // so read it back first: an empty message aborts the flow silently and
       // would look exactly like "the commit never ran".
       box.value = 'p1 commit from the commit window';
       await waitFor(() => box.value === 'p1 commit from the commit window', 5_000);
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
       await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
       assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p1 commit from the commit window');
       assert.strictEqual(box.value, '');
@@ -389,11 +389,11 @@ suite('P1 core SCM', () => {
 
       box.value = 'p1 amended message';
       await waitFor(() => box.value === 'p1 amended message', 5_000);
-      await vscode.commands.executeCommand('gittree.commitAmend', repoRoot);
+      await vscode.commands.executeCommand('geet.commitAmend', repoRoot);
       await waitFor(() => git('log', '-1', '--format=%s').trim() === 'p1 amended message', 30_000);
     } finally {
-      if (prevChoice === undefined) delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
-      else process.env['GITTREE_TEST_CHECKS_CHOICE'] = prevChoice;
+      if (prevChoice === undefined) delete process.env['GEET_TEST_CHECKS_CHOICE'];
+      else process.env['GEET_TEST_CHECKS_CHOICE'] = prevChoice;
     }
     await refresh();
   });
@@ -405,7 +405,7 @@ suite('P1 core SCM', () => {
     const bar = await barOf(repoRoot);
 
     // Local bare remote + upstream.
-    const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p1-remote-'));
+    const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p1-remote-'));
     execFileSync('git', ['init', '--bare'], { cwd: remote });
     const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
     execFileSync('git', ['symbolic-ref', 'HEAD', `refs/heads/${branch}`], { cwd: remote });
@@ -416,7 +416,7 @@ suite('P1 core SCM', () => {
     write('ahead.txt', 'ahead\n');
     git('add', 'ahead.txt');
     git('commit', '-m', 'local ahead');
-    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p1-clone-'));
+    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p1-clone-'));
     execFileSync('git', ['clone', remote, 'c'], { cwd: cloneDir });
     const clone = path.join(cloneDir, 'c');
     const cgit = (...args: string[]) => execFileSync('git', args, { cwd: clone, encoding: 'utf8' });
@@ -458,7 +458,7 @@ suite('P1 core SCM', () => {
     assert.ok(tip.includes('2 behind'), `tooltip must carry the exact counts: ${tip}`);
     assert.ok(tip.includes('1 ahead'), `tooltip must carry the exact counts: ${tip}`);
 
-    await vscode.commands.executeCommand('gittree.sync', repoRoot);
+    await vscode.commands.executeCommand('geet.sync', repoRoot);
     await refresh();
     await waitFor(
       () => (repo.model.snapshot.ahead ?? 0) === 0 && (repo.model.snapshot.behind ?? 0) === 0,
