@@ -2700,3 +2700,26 @@ Testing (written, **not run**, by the owner's standing instruction):
   - with From, only the commits after From, onto Onto;
   - nothing to replay says so, and opens nothing;
   - a merge in the range, or an unknown Onto, is refused with the reason.
+
+POST-P14cx ✅ 2026-11-21 (branch `pre-publish`): **The release workflow publishes with Trusted Publishing, not a stored token.** `release.yml` published with `-p "$VSCE_PAT"`, a Personal Access Token for "All accessible organizations", which is what the Marketplace took. Azure DevOps is retiring such "global" tokens. In November 2026 its blog (updated 10/23) said they stop on January 27, 2027, and VS Code's publishing guide still said December 1, 2026. The guide now recommends Trusted Publishing from GitHub Actions: a policy on the Marketplace publisher names the repository owner, the repository, the workflow file and, optionally, one environment. `vsce publish --oidc` then exchanges the job's GitHub OIDC token for a Marketplace credential that lasts 15 minutes. vsce 4.1.1, the project's, has `--oidc`.
+- **One `publish` job, in one environment, `marketplace`,** for both channels. It replaces `publish-prerelease` (environment `pre-release`) and `publish-stable` (`stable`). Neither Microsoft's two pages nor vsce's README say whether a publisher can have two policies, or what an empty Environment field matches. One policy naming one environment works either way. That environment's required reviewers are the manual gate, which now covers a pre-release too.
+- **Permissions:** `contents: read` for the run (it was `contents: write`). The publish job asks for `id-token: write`, and for `contents: write` for a stable version's GitHub Release.
+- **docs/releasing.md:** the release flow, a paragraph on Trusted Publishing, and a new one-time set-up:
+  - the publisher;
+  - make the repository public: the README's images and links and Help and Report Issue need it, and GitHub's free plan has environments only on public repositories;
+  - the `marketplace` environment, with required reviewers;
+  - the policy, field by field.
+
+  By hand, a token still works until the cutoff. The docs said to push the tag after publishing by hand, which runs the workflow into a version the Marketplace already has; they now say to reject its approval.
+
+Decided without asking: the one environment, and so an approval for a pre-release as well, when reviewers are set.
+
+Gates: typecheck (root, webview, integration) clean; lint clean.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `releaseWorkflow.test.ts` (new, 6):
+  - every `vsce publish` uses `--oidc` and no token;
+  - only the publish job asks for an OIDC token, from the one environment, with `contents: read` above it;
+  - an odd minor publishes as a pre-release; an even one extracts the changelog first, then publishes, then makes the GitHub Release;
+  - the docs' policy table names package.json's repository owner and repository, this workflow file and its environment, and package.json's publisher.
+- Its parsing was checked against the real files with a scratch script (one too-broad pattern, `-p`, which `node -p` matched, was fixed).

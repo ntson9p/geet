@@ -1,14 +1,23 @@
-# Release pipeline (P10-T5; readied for its first run in POST-P14cr). It
-# publishes to the Visual Studio Marketplace as `ntson9p.geet`, from
-# github.com/ntson9p/git-tree; docs/releasing.md has the one-time set-up
-# (publisher, the VSCE_PAT secret, the two environments) and a release's steps.
+# Release pipeline (P10-T5; readied for its first run in POST-P14cr; Trusted
+# Publishing in POST-P14cx). It publishes to the Visual Studio Marketplace as
+# `ntson9p.geet`, from github.com/ntson9p/git-tree; docs/releasing.md has the
+# one-time set-up (publisher, the Trusted Publishing policy, the environment)
+# and a release's steps.
 #
 # Flow: tag v* → full test + perf matrix → package (the channel from the
-# version's minor, the bundle budget asserted) → publish that very VSIX: an odd
-# minor to the PRE-RELEASE channel; an even minor to STABLE after a manual
-# approval (environment "stable" with required reviewers), with a GitHub
+# version's minor, the bundle budget asserted) → publish that very VSIX in the
+# "marketplace" environment, whose required reviewers are the manual gate: an
+# odd minor to the PRE-RELEASE channel; an even minor to STABLE, with a GitHub
 # Release carrying the changelog extract and the VSIX. The Marketplace takes a
 # version once, so a version is one channel or the other, never both.
+#
+# Authentication is Trusted Publishing (`vsce publish --oidc`): GitHub's OIDC
+# token is exchanged for a Marketplace credential that lasts 15 minutes. No
+# token is stored, so there is no secret to leak or renew; Azure DevOps is
+# retiring the "all accessible organizations" tokens the Marketplace needed.
+# The policy names this repository, this file and the environment: renaming
+# any of them needs the policy changed too.
+#
 # Provenance: third-party actions are pinned to commit shas; dependencies
 # install via `npm ci` and are signature-audited.
 name: Release
@@ -17,8 +26,9 @@ on:
   push:
     tags: ['v*']
 
+# Least privilege; the publish job asks for what it needs.
 permissions:
-  contents: write # GitHub Release creation in publish-stable
+  contents: read
 
 jobs:
   verify:
@@ -126,14 +136,16 @@ jobs:
           name: geet-vsix
           path: '*.vsix'
 
-  publish-prerelease:
-    name: publish → pre-release channel
+  publish:
+    name: publish → Marketplace (+ GitHub Release for a stable version)
     needs: [verify, package]
-    # Odd minors only: the Marketplace takes a version once, as one channel.
-    if: needs.verify.outputs.prerelease == 'true'
     runs-on: ubuntu-latest
-    # The VSCE_PAT secret is this environment's.
-    environment: pre-release
+    # One job and one environment for both channels: a Trusted Publishing policy
+    # names one environment, and this one's required reviewers approve each publish.
+    environment: marketplace
+    permissions:
+      contents: write # the GitHub Release of a stable version
+      id-token: write # the OIDC token `vsce publish --oidc` exchanges
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -146,39 +158,19 @@ jobs:
         with:
           name: geet-vsix
           path: vsix
-      - name: vsce publish (pre-release)
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        # --pre-release makes vsce refuse a VSIX that was not packaged as one.
-        run: npx vsce publish --pre-release --packagePath vsix/*.vsix -p "$VSCE_PAT"
-
-  publish-stable:
-    name: publish → stable + GitHub Release
-    needs: [verify, package]
-    # Even minors only; the "stable" environment must be configured with
-    # required reviewers — that reviewer approval IS the manual gate.
-    if: needs.verify.outputs.prerelease == 'false'
-    runs-on: ubuntu-latest
-    environment: stable
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: geet-vsix
-          path: vsix
-      # Before publishing: a missing section stops the release here.
-      - name: Extract changelog section
+      # Before publishing: a stable version without its changelog section stops here.
+      - name: Extract changelog section (stable)
+        if: needs.verify.outputs.prerelease == 'false'
         run: node scripts/extractChangelog.mjs "${{ needs.verify.outputs.version }}" > release-notes.md
+      - name: vsce publish (pre-release)
+        if: needs.verify.outputs.prerelease == 'true'
+        # --pre-release makes vsce refuse a VSIX that was not packaged as one.
+        run: npx vsce publish --pre-release --packagePath vsix/*.vsix --oidc
       - name: vsce publish (stable)
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --packagePath vsix/*.vsix -p "$VSCE_PAT"
-      - name: GitHub Release with vsix + notes
+        if: needs.verify.outputs.prerelease == 'false'
+        run: npx vsce publish --packagePath vsix/*.vsix --oidc
+      - name: GitHub Release with vsix + notes (stable)
+        if: needs.verify.outputs.prerelease == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

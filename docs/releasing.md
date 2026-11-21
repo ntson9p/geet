@@ -6,7 +6,9 @@ name only once, ignoring spaces and case: "GitTree", the name before, was refuse
 an older "Git Tree". The pipeline is
 [.github/workflows/release.yml](../.github/workflows/release.yml): pushing a `v*` tag tests,
 packages and publishes. It was authored in P10-T5 and readied for its first run in POST-P14cr;
-the [one-time set-up](#one-time-set-up) below must be done before it can publish.
+the [one-time set-up](#one-time-set-up) below must be done before it can publish. It publishes
+with [Trusted Publishing](#release-flow-what-the-workflow-does-on-git-tag-vxyz--git-push-origin-vxyz),
+so no token is stored (POST-P14cx).
 
 ## Versioning
 
@@ -83,27 +85,47 @@ Every release adds a `## [x.y.z] — YYYY-MM-DD` section at the top of
    the §13 performance budgets; `npm ci` + `npm audit signatures` provenance.
 3. **package** — `npm run package` (the channel's flag, the bundle budget); the VSIX is
    uploaded as an artifact, and that very file is what the next step publishes.
-4. **odd minor → publish-prerelease** — `vsce publish --pre-release --packagePath` (environment
-   `pre-release`, needs the `VSCE_PAT` secret).
-5. **even minor → publish-stable** — gated on the `stable` environment's **required
-   reviewers** (that approval is the manual gate): `vsce publish --packagePath`, then a GitHub
-   Release with the changelog extract and the VSIX.
+4. **publish** — in the `marketplace` environment, so it waits for that environment's
+   **required reviewers** (their approval is the manual gate): `vsce publish --oidc
+   --packagePath`, with `--pre-release` for an odd minor. For an even minor the changelog
+   section is extracted first, and a GitHub Release with it and the VSIX follows.
+
+**Trusted Publishing** (`--oidc`, POST-P14cx): the publish job asks GitHub for an OIDC token
+(`id-token: write`), and vsce exchanges it for a Marketplace credential that lasts 15 minutes.
+Nothing is stored, so no secret can leak or expire. The Marketplace takes such a token only
+from the repository, workflow file and environment its policy names (below), and vsce does
+not fall back to a stored token when the exchange fails. Both channels publish from the one
+job and environment because a policy names one environment.
 
 ## One-time set-up
 
 1. **Publisher.** Sign in at <https://marketplace.visualstudio.com/manage> with a Microsoft
    account and create the publisher with the ID **`ntson9p`** (`package.json#publisher`; the
    ID cannot change later, the display name can).
-2. **Token.** In Azure DevOps (<https://dev.azure.com>, the same account; create an
-   organization if asked), *User settings › Personal access tokens › New token*:
-   organization **All accessible organizations**, scope **Marketplace › Manage**. Check it
-   with `npx vsce verify-pat ntson9p` (it asks for the token). If your account cannot create
-   such a token, vsce can sign in with Microsoft Entra ID instead (`vsce publish
-   --azure-credential`, after `az login`; the identity must be a member of the publisher).
-3. **GitHub.** In the repository's *Settings › Environments*, create `pre-release` and
-   `stable`, each with the token as the secret `VSCE_PAT`; give `stable` *Required
-   reviewers* (yourself). Third-party actions in release.yml are pinned to commit shas —
-   re-verify them against the tags noted in the comments when bumping one.
+2. **Make the repository public.** The Marketplace page loads the README's screenshots from
+   it; the page's links, and Geet's own Help and Report Issue buttons, open it; and GitHub's
+   free plan has environments only on public repositories.
+3. **GitHub environment.** In the repository's *Settings › Environments*, create
+   `marketplace` and give it *Required reviewers* (yourself). It needs no secret. Without
+   reviewers, a pushed tag publishes as soon as the tests pass.
+4. **Trusted Publishing policy.** On the publisher's page at
+   <https://marketplace.visualstudio.com/manage>, select *Trusted Publishing*, expand
+   *Create*, and enter:
+
+   | Field | Value |
+   | --- | --- |
+   | Policy name | anything, e.g. `release` |
+   | Repository owner | `ntson9p` |
+   | Repository | `git-tree` |
+   | Workflow | `release.yml` |
+   | Environment | `marketplace` |
+
+   The first successful publish activates the policy for good. For a private repository, the
+   workflow must run within 48 hours of the policy's creation. Renaming the repository, the
+   workflow file or the environment needs the policy changed to match.
+
+Third-party actions in release.yml are pinned to commit shas — re-verify them against the
+tags noted in the comments when bumping one.
 
 ## A release
 
@@ -114,9 +136,14 @@ Every release adds a `## [x.y.z] — YYYY-MM-DD` section at the top of
 4. After the first publish, read the listing on the Marketplace: the icon, the banner colour
    (`galleryBanner`), the README's screenshots and links.
 
-**Publishing by hand** (without the workflow, e.g. the first time): `npm run package`, then
+**Publishing by hand** (without the workflow): `npm run package`, then
 `npx vsce publish --pre-release --packagePath geet-0.1.0.vsix` for a pre-release
 (`--pre-release` makes vsce refuse a VSIX not packaged as one), or without `--pre-release` for
-a stable version. vsce takes the token from `-p <token>`, the `VSCE_PAT` environment variable,
-or `npx vsce login ntson9p`. Push the matching tag afterwards, so the repository records what
-was published.
+a stable version. By hand, vsce needs a Personal Access Token from Azure DevOps
+(<https://dev.azure.com>, *User settings › Personal access tokens › New token*: organization
+**All accessible organizations**, scope **Marketplace › Manage**), given as `-p <token>`, the
+`VSCE_PAT` environment variable, or `npx vsce login ntson9p`. Azure DevOps is retiring such
+"global" tokens: in November 2026 its blog said January 27, 2027, and VS Code's publishing
+guide still said December 1, 2026. After that, publish through the workflow. Push the matching
+tag afterwards, so the repository records what was published, and when the workflow then asks
+for approval to publish, reject it: the Marketplace already has that version.
