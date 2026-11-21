@@ -38,6 +38,14 @@ The first release on the Visual Studio Marketplace, as a **pre-release** (an odd
   ([docs/screenshots.md](docs/screenshots.md)); they are not in the VSIX, which is smaller for
   it.
 
+### Fixed — the Rebase dialog's Interactive option opens the interactive rebase editor
+
+- **Rebase… with Interactive ticked** opens the interactive rebase editor on the commits the
+  rebase would replay: those Onto does not have, or, with From, those after From. It opened
+  nothing, and said "Opened the interactive rebase editor."
+- When there is nothing to replay, when the commits include a merge, or when Onto or From is
+  not a revision, it says so instead.
+
 ### Changed — Update, Commit and Push are in the Repositories panel's `⋯`
 
 - **The Repositories panel has a `⋯` of its own**, after Fetch. It holds **Update Project…**,

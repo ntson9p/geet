@@ -14,7 +14,7 @@ import type { CancelToken, GitExecutor, GitResult } from '../../core/git/executo
 import { readStaged, restoreStaged, type StagedSnapshot } from '../../core/ops/keepStaged';
 import { Emitter, type Event } from '../../core/util/events';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
-import { serializePlan, type RebasePlan } from './planSerializer';
+import { interactiveRebaseArgs, serializePlan, type RebasePlan } from './planSerializer';
 
 export type RebaseRunStatus =
   | 'completed'
@@ -83,11 +83,13 @@ export class RebaseEngine {
   }
 
   /**
-   * Starts `git rebase -i --autostash <base>` with the serialized plan.
+   * Starts `git rebase -i --autostash <base>` with the serialized plan, or
+   * `--onto <base> <upstream>` when the plan has an upstream of its own.
    * Resolves when git exits: completed, paused (conflict), or failed.
    */
   async start(plan: RebasePlan): Promise<RebaseOutcome> {
-    if (await this.hasMergesInRange(plan.baseSha)) {
+    // The commits that are replayed: those after the upstream, not after the new base.
+    if (await this.hasMergesInRange(plan.upstreamSha ?? plan.baseSha)) {
       void vscode.window.showErrorMessage(
         vscode.l10n.t(
           'The selected range contains merge commits. Geet cannot rebase merges yet — rebase from a commit after the merge instead.',
@@ -114,7 +116,7 @@ export class RebaseEngine {
     return this.runStep(
       vscode.l10n.t('Interactive rebase'),
       SNAPSHOT_LABELS.rebaseStart,
-      ['rebase', '-i', '--autostash', plan.baseSha],
+      interactiveRebaseArgs(plan),
       { GIT_SEQUENCE_EDITOR: editor, GIT_EDITOR: 'true' },
       true,
     );

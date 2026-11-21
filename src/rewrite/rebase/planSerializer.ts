@@ -23,9 +23,26 @@ export interface RebasePlanEntry {
 }
 
 export interface RebasePlan {
-  /** Rebase onto this sha — entries cover `baseSha..HEAD`, oldest first. */
+  /** Rebase onto this sha — entries cover `baseSha..HEAD`, oldest first, unless `upstreamSha` says otherwise. */
   baseSha: string;
+  /**
+   * Where the replayed commits start, when that is not `baseSha`: entries then cover
+   * `upstreamSha..HEAD`, replayed onto `baseSha` (`git rebase -i --onto <base> <upstream>`).
+   * The Rebase dialog's From sets it (POST-P14cw); everything else leaves it out.
+   */
+  upstreamSha?: string;
   entries: RebasePlanEntry[];
+}
+
+/**
+ * The argv that starts a plan: `git rebase -i --autostash <base>`, or, with an
+ * upstream of its own, `git rebase -i --autostash --onto <base> <upstream>`.
+ */
+export function interactiveRebaseArgs(plan: RebasePlan): string[] {
+  const upstream = plan.upstreamSha;
+  return upstream === undefined || upstream === plan.baseSha
+    ? ['rebase', '-i', '--autostash', plan.baseSha]
+    : ['rebase', '-i', '--autostash', '--onto', plan.baseSha, upstream];
 }
 
 export interface SerializedPlan {
@@ -53,6 +70,9 @@ export function validatePlan(plan: RebasePlan): string[] {
   const firstKept = plan.entries.find((e) => e.action !== 'drop');
   if (firstKept !== undefined && (firstKept.action === 'squash' || firstKept.action === 'fixup')) {
     issues.push('The first commit cannot be squashed or fixed up — there is nothing before it.');
+  }
+  if (plan.upstreamSha !== undefined && !/^[0-9a-f]{40,64}$/.test(plan.upstreamSha)) {
+    issues.push(`"${plan.upstreamSha}" is not a full commit sha.`);
   }
   for (const e of plan.entries) {
     if (!/^[0-9a-f]{40,64}$/.test(e.sha)) {

@@ -2682,3 +2682,21 @@ The two from POST-P14ct were written and never run, by the owner's standing inst
 Gates: typecheck (root, webview, integration) clean; lint clean.
 
 Testing: the change is to three tests; **not run**, by the owner's standing instruction. CI runs them on the owner's next push.
+
+POST-P14cw ✅ 2026-11-21 (branch `pre-publish`): **The Rebase dialog's Interactive opens the interactive rebase editor.** Found on 2026-11-19 (POST-P14cs) and reported; the owner said to fix it before publishing. `applyRebaseResult` handed `gittree.rebase.interactive` a repository, a new base and perhaps From. The command looked only for commits picked in the Log (`sha`, `shas`), found none and returned, and the dialog said "Opened the interactive rebase editor." anyway. Now:
+- **The command tells the two apart by shape** (`isRebaseOntoArgs`, `src/rewrite/rebase/rebaseOnto.ts`, vscode-free). The dialog's argument goes to the dialog's own repository, not the Log's.
+- **`RebaseViewController.openOnto`** opens the editor on what `git rebase -i --onto <onto> <from>` would replay: `from..HEAD`, or `onto..HEAD` without From. The new base is Onto.
+- **The plan can start where the new base does not:** `RebasePlan.upstreamSha`. The engine then runs `git rebase -i --autostash --onto <base> <upstream>` (`interactiveRebaseArgs`), and looks for merges after the upstream, not after the new base. Every other caller leaves it out, and runs what it ran before.
+- **When the editor can't open, the dialog says why, once:** nothing to replay (an info, like merge's "Already up to date"), merge commits in the range, or an Onto or From that is not a revision. `openOnto` shows nothing itself.
+
+Decided without asking: the editor still refuses merges, as it does from the Log; and the dialog's other options (Rebase merges, Autostash, No verify, Keep empty) are still not passed to the editor, which always autostashes.
+
+Gates: typecheck (root, webview, integration) clean; lint clean.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `rebaseOnto.test.ts` (new, 3): what the dialog sends, with or without From; what the Log sends; other shapes. `planSerializer.test.ts` (+4): `interactiveRebaseArgs` with and without an upstream, and with one equal to the base; an abbreviated upstream is refused.
+- **Integration:** `phase13.test.ts` (+4):
+  - Interactive opens the editor on what Onto lacks, and starting it replays them onto Onto;
+  - with From, only the commits after From, onto Onto;
+  - nothing to replay says so, and opens nothing;
+  - a merge in the range, or an unknown Onto, is refused with the reason.

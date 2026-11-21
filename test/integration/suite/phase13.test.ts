@@ -19,6 +19,8 @@ import {
 } from '../../../src/shared/protocol';
 import * as vscode from 'vscode';
 import { repoLabels } from '../../../src/core/util/repoLabels';
+import type { RebaseViewController } from '../../../src/rewrite/rebase/rebaseView';
+import { EMPTY_REBASE_OPTIONS } from '../../../src/scm/dialogs/rebaseArgs';
 import {
   activateGeet,
   gitWithRetry,
@@ -2173,6 +2175,140 @@ suite('P13 dialogs', () => {
       git('reset', '--hard', before);
       git('branch', '-D', 'p13/t3-base');
       await repo.refresher.refreshNow();
+    });
+
+    // POST-P14cw: Interactive handed the editor a repository and a new base, the
+    // editor looked only for commits picked in the Log, and nothing opened, while
+    // the dialog said "Opened the interactive rebase editor.".
+    /** The interactive rebase editor, where the dialog's Interactive lands. */
+    const rebaseView = (): RebaseViewController =>
+      (core.debugRegistry.get('phase05') as { rebaseView: RebaseViewController }).rebaseView;
+    const opensSince = (view: RebaseViewController, mark: number): string[] =>
+      view.debugTrail.slice(mark).filter((l) => l.startsWith('open '));
+
+    test('T3: Interactive opens the rebase editor on what the rebase would replay', async function () {
+      this.timeout(90_000);
+      const before = git('rev-parse', 'HEAD').trim();
+      const ontoSha = sideBranch('p13/t3-ionto', 'p13/t3-ionto.txt', 'onto\n');
+      write('p13/t3-imine.txt', 'mine\n');
+      git('add', '--', 'p13/t3-imine.txt');
+      const mine = commit('P13-T3 interactive mine');
+      await repo.refresher.refreshNow();
+      const view = rebaseView();
+      try {
+        const outcome = await reg.applyRebaseResult(repo, {
+          options: { ...EMPTY_REBASE_OPTIONS, onto: 'p13/t3-ionto', interactive: true },
+        });
+        assert.ok(outcome.ok, outcome.message);
+        assert.match(outcome.message, /Opened the interactive rebase editor/);
+        const state = view.currentState;
+        assert.ok(state, 'the editor did not open');
+        assert.strictEqual(state.phase, 'edit');
+        assert.strictEqual(state.baseSha, ontoSha, 'the new base is Onto');
+        assert.deepStrictEqual(
+          state.rows.map((r) => r.sha),
+          [mine],
+          'the rows are the commits Onto does not have',
+        );
+
+        const started = await view.startRebase({ entries: [{ sha: mine, action: 'pick' }], forceAcknowledged: true });
+        assert.ok(started.ok, started.error);
+        assert.strictEqual(view.currentState?.outcome, 'completed');
+        assert.strictEqual(git('rev-parse', 'HEAD^').trim(), ontoSha, 'replayed onto Onto');
+        assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'P13-T3 interactive mine');
+      } finally {
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        git('reset', '--hard', before);
+        git('branch', '-D', 'p13/t3-ionto');
+        await repo.refresher.refreshNow();
+      }
+    });
+
+    test('T3: Interactive with From replays only the commits after From, onto Onto', async function () {
+      this.timeout(90_000);
+      const before = git('rev-parse', 'HEAD').trim();
+      const ontoSha = sideBranch('p13/t3-fonto', 'p13/t3-fonto.txt', 'onto\n');
+      write('p13/t3-fold.txt', 'old\n');
+      git('add', '--', 'p13/t3-fold.txt');
+      const left = commit('P13-T3 from: left behind');
+      write('p13/t3-fnew.txt', 'new\n');
+      git('add', '--', 'p13/t3-fnew.txt');
+      const mine = commit('P13-T3 from: replayed');
+      await repo.refresher.refreshNow();
+      const view = rebaseView();
+      try {
+        const outcome = await reg.applyRebaseResult(repo, {
+          options: { ...EMPTY_REBASE_OPTIONS, onto: 'p13/t3-fonto', from: left, interactive: true },
+        });
+        assert.ok(outcome.ok, outcome.message);
+        const state = view.currentState;
+        assert.ok(state, 'the editor did not open');
+        assert.strictEqual(state.baseSha, ontoSha, 'the new base is Onto, not From');
+        assert.deepStrictEqual(state.rows.map((r) => r.sha), [mine], 'only the commits after From');
+
+        const started = await view.startRebase({ entries: [{ sha: mine, action: 'pick' }], forceAcknowledged: true });
+        assert.ok(started.ok, started.error);
+        assert.strictEqual(view.currentState?.outcome, 'completed');
+        // `git rebase -i --onto <onto> <from>`: the commit after From sits on Onto,
+        // and From's own commit is no longer on the branch.
+        assert.strictEqual(git('rev-parse', 'HEAD^').trim(), ontoSha);
+        assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'P13-T3 from: replayed');
+        assert.ok(!fs.existsSync(path.join(repoRoot, 'p13', 't3-fold.txt')), 'the commit before From came along');
+      } finally {
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        git('reset', '--hard', before);
+        git('branch', '-D', 'p13/t3-fonto');
+        await repo.refresher.refreshNow();
+      }
+    });
+
+    test('T3: Interactive with nothing to replay says so, and opens no editor', async function () {
+      this.timeout(60_000);
+      // A branch one commit ahead: every commit here is already on it.
+      sideBranch('p13/t3-iahead', 'p13/t3-iahead.txt', 'ahead\n');
+      await repo.refresher.refreshNow();
+      const view = rebaseView();
+      const mark = view.debugTrail.length;
+      try {
+        const outcome = await reg.applyRebaseResult(repo, {
+          options: { ...EMPTY_REBASE_OPTIONS, onto: 'p13/t3-iahead', interactive: true },
+        });
+        assert.ok(outcome.ok, 'nothing to do is not a failure');
+        assert.match(outcome.message, /^Nothing to rebase: every commit on .+ is already on p13\/t3-iahead\.$/);
+        assert.deepStrictEqual(outcome.commands, [], 'nothing ran');
+        assert.deepStrictEqual(opensSince(view, mark), [], 'no editor opened');
+      } finally {
+        git('branch', '-D', 'p13/t3-iahead');
+        await repo.refresher.refreshNow();
+      }
+    });
+
+    test('T3: Interactive refuses, and says why, a merge or an unknown revision', async function () {
+      this.timeout(60_000);
+      const before = git('rev-parse', 'HEAD').trim();
+      sideBranch('p13/t3-imerge', 'p13/t3-imerge.txt', 'merged\n');
+      git('-c', 'user.name=T', '-c', 'user.email=t@example.com', 'merge', '--no-ff', '-m', 'P13-T3 a merge', 'p13/t3-imerge');
+      await repo.refresher.refreshNow();
+      const view = rebaseView();
+      const mark = view.debugTrail.length;
+      try {
+        const merged = await reg.applyRebaseResult(repo, {
+          options: { ...EMPTY_REBASE_OPTIONS, onto: before, interactive: true },
+        });
+        assert.strictEqual(merged.ok, false);
+        assert.match(merged.message, /merge commits/);
+
+        const unknown = await reg.applyRebaseResult(repo, {
+          options: { ...EMPTY_REBASE_OPTIONS, onto: 'p13/no-such-branch', interactive: true },
+        });
+        assert.strictEqual(unknown.ok, false);
+        assert.match(unknown.message, /p13\/no-such-branch.* is not a revision in this repository/);
+        assert.deepStrictEqual(opensSince(view, mark), [], 'no editor opened');
+      } finally {
+        git('reset', '--hard', before);
+        git('branch', '-D', 'p13/t3-imerge');
+        await repo.refresher.refreshNow();
+      }
     });
 
     test('T3: Reset Keep refuses rather than discarding local changes', async function () {

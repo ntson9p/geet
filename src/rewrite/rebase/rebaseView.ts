@@ -17,6 +17,7 @@ import {
 import { buildWebviewHtml, webviewResourceRoots, WebviewRpcHost } from '../../ui/webviewHost';
 import { isPublished } from '../publishedGuard';
 import { validatePlan, type RebasePlan } from './planSerializer';
+import type { RebaseOntoResult } from './rebaseOnto';
 import type { RebaseEngine } from './rebaseEngine';
 import type { RebaseStateMonitor } from './stateMonitor';
 import { showInfo } from '../../ui/notices';
@@ -25,6 +26,8 @@ interface ActiveSession {
   repo: RepoHandle;
   state: RebaseStateDto;
   monitorSubs: Array<{ dispose(): void }>;
+  /** Where the rows start when that is not the new base (the Rebase dialog's From). */
+  upstream?: string;
 }
 
 export class RebaseViewController implements vscode.Disposable {
@@ -79,6 +82,67 @@ export class RebaseViewController implements vscode.Disposable {
       showInfo(vscode.l10n.t('Nothing to rebase.'));
       return false;
     }
+    await this.openSession(repo, base, rows, undefined);
+    return true;
+  }
+
+  /**
+   * The Rebase dialog's Interactive (POST-P14cw): the editor on the commits
+   * `git rebase -i --onto <onto> <from>` would replay, `from..HEAD`, or
+   * `onto..HEAD` without From, to be replayed onto `onto`. Shows nothing itself
+   * when it cannot open: the dialog reports why, once.
+   */
+  async openOnto(repo: RepoHandle, onto: string, from?: string): Promise<RebaseOntoResult> {
+    const engine = this.engineFor(repo);
+    if (!engine) {
+      return {
+        opened: false,
+        severity: 'error',
+        message: vscode.l10n.t('Interactive rebase is not available in this repository.'),
+      };
+    }
+    const notARevision = (rev: string): RebaseOntoResult => ({
+      opened: false,
+      severity: 'error',
+      message: vscode.l10n.t('“{0}” is not a revision in this repository.', rev),
+    });
+    const base = await this.revParse(repo, onto);
+    if (base === undefined) return notARevision(onto);
+    const fromRef = from?.trim() ?? '';
+    const upstream = fromRef.length > 0 ? await this.revParse(repo, fromRef) : base;
+    if (upstream === undefined) return notARevision(fromRef);
+
+    if (await engine.hasMergesInRange(upstream)) {
+      return {
+        opened: false,
+        severity: 'error',
+        message: vscode.l10n.t(
+          'The commits to rebase include merge commits, which Geet cannot rebase interactively yet.',
+        ),
+      };
+    }
+    const rows = await this.loadRows(repo, upstream);
+    if (rows.length === 0) {
+      const branch = repo.model.snapshot.headRef ?? 'HEAD';
+      return {
+        opened: false,
+        severity: 'info',
+        message:
+          fromRef.length > 0
+            ? vscode.l10n.t('Nothing to rebase: {0} has no commits after {1}.', branch, fromRef)
+            : vscode.l10n.t('Nothing to rebase: every commit on {0} is already on {1}.', branch, onto),
+      };
+    }
+    await this.openSession(repo, base, rows, upstream === base ? undefined : upstream);
+    return { opened: true };
+  }
+
+  private async openSession(
+    repo: RepoHandle,
+    base: string,
+    rows: RebaseRowDto[],
+    upstream: string | undefined,
+  ): Promise<void> {
     const oldest = rows[0];
     const published = oldest !== undefined && (await isPublished(repo, oldest.sha));
 
@@ -86,6 +150,7 @@ export class RebaseViewController implements vscode.Disposable {
     this.session = {
       repo,
       monitorSubs: [],
+      ...(upstream !== undefined ? { upstream } : {}),
       state: {
         repoRoot: repo.root,
         branch: repo.model.snapshot.headRef ?? 'HEAD',
@@ -100,8 +165,9 @@ export class RebaseViewController implements vscode.Disposable {
     this.hookMonitor();
     this.showPanel();
     this.pushState();
-    this.debugTrail.push(`open ${base.slice(0, 7)} rows=${rows.length} published=${String(published)}`);
-    return true;
+    this.debugTrail.push(
+      `open ${base.slice(0, 7)}${upstream !== undefined ? ` from ${upstream.slice(0, 7)}` : ''} rows=${rows.length} published=${String(published)}`,
+    );
   }
 
   /** The RPC start handler's body — also the integration-test entry. */
@@ -113,6 +179,7 @@ export class RebaseViewController implements vscode.Disposable {
     }
     const plan: RebasePlan = {
       baseSha: session.state.baseSha,
+      ...(session.upstream !== undefined ? { upstreamSha: session.upstream } : {}),
       entries: params.entries.map((e) =>
         e.message === undefined
           ? { sha: e.sha, action: e.action }

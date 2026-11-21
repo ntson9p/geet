@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  interactiveRebaseArgs,
   serializePlan,
   validatePlan,
   type RebasePlan,
@@ -132,5 +133,39 @@ describe('validatePlan', () => {
     expect(validatePlan({ baseSha: sha('0'), entries: [{ sha: 'abc123', action: 'pick' }] })).toContainEqual(
       expect.stringMatching(/full commit sha/),
     );
+  });
+
+  it('flags an abbreviated upstream (POST-P14cw)', () => {
+    expect(validatePlan({ ...plan(entry('a', 'pick')), upstreamSha: 'abc123' })).toContainEqual(
+      expect.stringMatching(/"abc123" is not a full commit sha/),
+    );
+    expect(validatePlan({ ...plan(entry('a', 'pick')), upstreamSha: sha('9') })).toEqual([]);
+  });
+});
+
+// POST-P14cw: the Rebase dialog's From replays `from..HEAD` onto a base of its own.
+describe('interactiveRebaseArgs', () => {
+  it('rebases onto the base when the replayed commits start there', () => {
+    expect(interactiveRebaseArgs(plan(entry('a', 'pick')))).toEqual(['rebase', '-i', '--autostash', sha('0')]);
+  });
+
+  it('gives an upstream of its own to --onto', () => {
+    expect(interactiveRebaseArgs({ ...plan(entry('a', 'pick')), upstreamSha: sha('9') })).toEqual([
+      'rebase',
+      '-i',
+      '--autostash',
+      '--onto',
+      sha('0'),
+      sha('9'),
+    ]);
+  });
+
+  it('needs no --onto when the upstream is the base itself', () => {
+    expect(interactiveRebaseArgs({ ...plan(entry('a', 'pick')), upstreamSha: sha('0') })).toEqual([
+      'rebase',
+      '-i',
+      '--autostash',
+      sha('0'),
+    ]);
   });
 });

@@ -10,6 +10,7 @@ import { canonicalKey } from '../core/repoDiscovery';
 import { headSha, PushSafetyService } from './pushSafety';
 import { MultiCommitEditService } from './multiCommitEdit';
 import { RebaseEngine } from './rebase/rebaseEngine';
+import { isRebaseOntoArgs, type RebaseOntoResult } from './rebase/rebaseOnto';
 import { oldestOf, RebaseViewController } from './rebase/rebaseView';
 import { RebaseStateMonitor } from './rebase/stateMonitor';
 import { RevertCherryPickService } from './revertCherryPick';
@@ -77,7 +78,8 @@ export function registerPhase05HistoryRewriting(
   };
   const engineFor = (repo: RepoHandle | undefined): RebaseEngine | undefined =>
     repo ? engines.get(canonicalKey(repo.root)) : undefined;
-  const register = (id: string, fn: (...args: unknown[]) => Promise<void> | void): void => {
+  // `unknown`: a command may answer its caller (gittree.rebase.interactive answers the Rebase dialog).
+  const register = (id: string, fn: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
 
@@ -143,7 +145,8 @@ export function registerPhase05HistoryRewriting(
     return (root !== undefined ? core.getRepo(root) : undefined) ?? pickRepo();
   };
 
-  register('gittree.rebase.interactive', async (arg) => {
+  /** From the Log: the editor anchored at the oldest of the commits picked there. */
+  const openFromLog = async (arg: unknown): Promise<void> => {
     const ctx = (typeof arg === 'object' && arg !== null ? arg : {}) as {
       sha?: string;
       shas?: string[];
@@ -159,6 +162,25 @@ export function registerPhase05HistoryRewriting(
     if (candidates.length === 0) return;
     const anchor = await oldestOf(repo, candidates);
     if (anchor !== undefined) await rebaseView.open(repo, anchor);
+  };
+
+  register('gittree.rebase.interactive', async (arg): Promise<RebaseOntoResult | undefined> => {
+    // The Rebase dialog's Interactive (POST-P14cw): its repository, a new base and
+    // perhaps From, not a commit picked in the Log. It went down the Log's path,
+    // found no sha, and opened nothing, while the dialog said it had.
+    if (isRebaseOntoArgs(arg)) {
+      const repo = core.getRepo(arg.repoRoot);
+      if (!repo) {
+        return {
+          opened: false,
+          severity: 'error',
+          message: vscode.l10n.t('No repository is open at {0}.', arg.repoRoot),
+        };
+      }
+      return rebaseView.openOnto(repo, arg.onto, arg.from);
+    }
+    await openFromLog(arg);
+    return undefined;
   });
   register('gittree.rebase.row.showInLog', async (arg) => {
     const sha = (arg as { sha?: string } | undefined)?.sha;
