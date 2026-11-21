@@ -1,5 +1,7 @@
 # Progress log
 
+> **Identifiers in this log are as they were when each entry was written.** Before POST-P14cy (2026-11-21), settings, commands, views and the rest were `gittree.*`, and the test hooks `GITTREE_*`. Since then they are `geet.*` and `GEET_*`. The product itself was GitTree until POST-P14ct.
+
 P0-T1 ✅ 2026-07-11 — scaffold: manifest (engine ^1.96), esbuild bundle, strict tsc, eslint flat config (type-checked, no-floating-promises), vitest, CI matrix workflow, vsce packaging verified, integration bootstrap green locally (Windows); CI execution pending first push (no remote configured).
 P0-T2 ✅ 2026-07-11 — GitExecutor: vscode-free core with injected trace/env, locator chain (settings→PATH→well-known), capabilities probe, stderr classifier, NUL/LF stream pump with yield-based backpressure, tree-kill cancellation; 52 unit + 6 integration tests green.
 P0-T3 ✅ 2026-07-11 — Porcelain parsers (statusV2/refs/logFormat/blameIncremental/stashList/reflog) with fixtures captured from real git via test/unit/fixtures/git/capture.mjs: unicode paths, -z renames, unmerged stage masks, detached, gone upstream, merge log, boundary blame; 46 new tests.
@@ -2723,3 +2725,61 @@ Testing (written, **not run**, by the owner's standing instruction):
   - an odd minor publishes as a pre-release; an even one extracts the changelog first, then publishes, then makes the GitHub Release;
   - the docs' policy table names package.json's repository owner and repository, this workflow file and its environment, and package.json's publisher.
 - Its parsing was checked against the real files with a scratch script (one too-broad pattern, `-p`, which `node -p` matched, was fixed).
+
+POST-P14cy ✅ 2026-11-21 (branch `pre-publish`): **Settings, commands and every other identifier say geet.** POST-P14ct renamed what a user reads and kept the lowercase identifiers. It reported that VS Code labels a setting from its key ("Gittree › Decorations: File Explorer"), and that Keyboard Shortcuts and settings.json show the `gittree.` IDs. Asked whether the project was ready to publish, the owner said yes to renaming them before the first publish. Until then only the owner's own settings use the old keys; after it, every user's would need moving.
+
+- **`55d43e6`, mechanical, by script:**
+  - every `gittree` became `geet` and every `GITTREE` `GEET`: 4,776 words in 297 files;
+  - `media/gittree-mark*.svg` became `media/geet-mark*.svg`.
+
+  What a user sees or types:
+  - settings, command IDs, views and their containers (`geet`, `geet-panel`);
+  - context keys, colours, submenus, the walkthrough;
+  - the commit-message language (`geet-commit-message`), the SCM provider, the URI schemes.
+
+  The internals that shared the prefix moved too: Memento keys, the `GEET_TEST_*` hooks, temporary files, webview globals.
+- **Kept, because each names something that still has the name:**
+  - the old extension IDs, where the CHANGELOG, the FAQ and tests mention them;
+  - the old placeholder URL a test forbids;
+  - the project's folder `gittree-vsix`, and `gittree-0.0.1.vsix`;
+  - the npm workspace's package name, `gittree-webview-ui`. Nobody sees it, and renaming it would churn package-lock.json and the local `node_modules` link.
+
+  History is left as written: `docs/plan/` (with a note at the top of this log) and IMPLEMENTATION_PLAN.md.
+- **Nothing is stranded:** no ref, `.git` path or file in a repository carried the name. Memento keys and globalStorage belong to the extension's ID, which already changed in POST-P14ct.
+- **By hand, in this commit:**
+  - the CHANGELOG's rename note and a FAQ entry now say what an old build's user renames: `settings.json` keys, a `"[gittree-commit-message]"` block, colour customizations, `keybindings.json` commands and `when` clauses;
+  - the settings doc's intro, through its generator, no longer says the settings kept the name;
+  - a test comment;
+  - the guard tests.
+
+**Checked:**
+- **Byte for byte:** the 297 files differ from before only in the swapped word, and the two with NUL bytes keep them.
+- **What still says `gittree` outside history:** only the kept names above.
+- **The manifest:** every ID starts with geet (405 dotted IDs, plus the two containers, the language and the grammar).
+- **The links between the manifest and the code are the same before and after:**
+  - all 261 commands are named by the source;
+  - the lists of IDs that one side names and the other does not are identical.
+- `docs/settings.md`, regenerated, equalled the renamed file before its intro was changed.
+- No code depends on the prefix's length, and nothing spells it in pieces.
+- **The VSIX** (`npm run package`: 48 files, 514 KB):
+  - only `changelog.md` says `gittree`, in its notes for an old build;
+  - `package.json` and `extension.js` say `geet.` 1,587 and 646 times.
+- **Real VS Code 1.144.0, the VSIX installed as a user installs it** (`scratchpad/geet-ids/drive-geet-ids.cjs`), 8/8:
+  - it installs as `ntson9p.geet@0.1.0`;
+  - the activity bar has Geet, and the Command Palette lists *Geet: …* commands;
+  - the Settings editor labels every row *Geet › …* or *Geet: …* (*Geet › Decorations: File Explorer*), and its contents list *Geet for Git (86)*;
+  - Keyboard Shortcuts finds Geet's rebase commands by `geet.rebase…`, and nothing for `gittree`;
+  - **POST-P14cw, by mouse:** *Geet: Rebase…*, Onto `main`, *Modify options* › *Interactive*, *Start Interactive Rebase* opens the editor on the two commits `main` lacks. *Start* completes the rebase, and git shows them on `main`.
+  - the log is `1-Geet.log`, and no log names a missing command or `gittree`.
+
+  The driver's first run had 2 failures of its own: a selector for Keyboard Shortcuts, and VS Code's log naming the VSIX's path. Both were fixed in the driver.
+
+Gates: typecheck (root, webview, integration) clean; lint clean.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `marketplace.test.ts` (+2):
+  - no shipped file has `gittree` in its name or its text;
+  - every ID the manifest contributes starts with geet.
+
+  Its parsing was checked against the real files with a scratch script. The shipped-files list is now shared with the GitTree test. Changed: a comment in `walkthrough.test.ts`.
+- **Elsewhere:** the mechanical commit changed 112 test files: 65 unit, 31 integration, 2 perf, 1 fixture and 13 Playwright.

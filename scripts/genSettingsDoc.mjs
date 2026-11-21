@@ -30,10 +30,10 @@ export function generateSettingsDoc(pkg, strings) {
     '     `contributes.configuration`; regenerate with `npm run docs:settings`.',
     '     test/unit/docs/settingsDoc.test.ts fails when this file is stale. -->',
     '',
-    'All settings live under the `geet.` namespace: Geet was called GitTree',
-    'before 0.1.0, and its settings kept the name. Geet owns its own views,',
-    'change bars and commit window, so nothing here depends on — or changes —',
-    'the built-in Git extension.',
+    'All settings live under the `geet.` namespace. Before 0.1.0, when Geet was',
+    'called GitTree, it was `gittree.`: the CHANGELOG says what to rename. Geet',
+    'owns its own views, change bars and commit window, so nothing here depends',
+    'on — or changes — the built-in Git extension.',
     '',
   ];
   for (const section of pkg.contributes.configuration) {

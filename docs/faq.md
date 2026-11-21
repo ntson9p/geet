@@ -180,11 +180,14 @@ global storage (`…/User/globalStorage/ntson9p.geet/shelf/`), or a folder you
 pick via `geet.shelf.path`. Deleting or re-initializing the repository
 leaves shelved patches intact.
 
-### Why do Geet's settings and commands start with `geet.`?
+### My settings from GitTree, Geet's name before 0.1.0, do nothing. Why?
 
-Geet was called GitTree before 0.1.0. Its settings (`geet.localHistory.maxSizeMb`), command
-IDs and keybindings kept that prefix, so a setup made then still works; the names you see —
-the views, the Command Palette's *Geet: …* entries, the messages — say Geet.
+Before 0.1.0 Geet was called GitTree, and its settings, command IDs, views and context keys
+started with `gittree.` (`gittree.localHistory.maxSizeMb`). Since 0.1.0 they start with
+`geet.` (`geet.localHistory.maxSizeMb`), and VS Code ignores the old keys. Rename `gittree.` to
+`geet.` in your `settings.json` (also a `"[gittree-commit-message]"` block and any `gittree.…`
+colour under `workbench.colorCustomizations`) and in `keybindings.json`, commands and `when`
+clauses alike. VS Code marks a setting key it no longer knows, so the old ones are easy to find.
 
 ### I used GitTree, Geet's name before the Marketplace. Where did my shelf go?
 

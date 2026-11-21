@@ -16,7 +16,7 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../../../package.js
 
 describe('walkthroughId', () => {
   it('is the extension ID, then # and the walkthrough package.json contributes', () => {
-    // The walkthrough's own id keeps its `geet.` prefix, as every contributed ID does.
+    // The walkthrough's own id starts with `geet.`, as every contributed ID does (POST-P14cy).
     expect(walkthroughId('ntson9p.geet')).toBe('ntson9p.geet#geet.gettingStarted');
     expect(walkthroughId('someone.geet')).toBe('someone.geet#geet.gettingStarted');
   });

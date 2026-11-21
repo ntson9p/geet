@@ -14,8 +14,13 @@ The first release on the Visual Studio Marketplace, as a **pre-release** (an odd
 ### Changed — GitTree is now Geet, published on the Marketplace as `ntson9p.geet`
 
 - **GitTree is now called Geet**, listed on the Marketplace as **Geet for Git**. Its views,
-  commands (*Geet: …* in the Command Palette), messages and Output channel say Geet. Settings,
-  command IDs and keybindings keep their `geet.` prefix, so nothing you have set up changes.
+  commands (*Geet: …* in the Command Palette), messages and Output channel say Geet, and so do
+  its identifiers: settings, command IDs, views, context keys and colours start with `geet.`,
+  not `gittree.`, so the Settings editor says *Geet › …*. **If you used a build before this
+  one**, rename `gittree.` to `geet.` in your `settings.json` (every key, a
+  `"[gittree-commit-message]"` block, any `gittree.…` colour under
+  `workbench.colorCustomizations`) and in `keybindings.json` (commands and `when` clauses).
+  VS Code marks a setting key it no longer knows, so the old ones are easy to find.
 - **The extension's ID is `ntson9p.geet`**; builds made before this one were
   `gittree.gittree`. VS Code keeps an extension's data under its ID, so after moving from such a
   build its changelists, commit message history and drafts start empty, and its shelved changes
