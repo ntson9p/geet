@@ -213,7 +213,7 @@ export function LogTab({
   const [refreshing, trackRefresh] = useBusy();
   /** Ends the Refresh in flight; called when page 0 arrives. */
   const refreshDoneRef = useRef<(() => void) | undefined>(undefined);
-  // P10-T2: gittree.log.focusFilter lands here (keyboard parity).
+  // P10-T2: geet.log.focusFilter lands here (keyboard parity).
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   // P12-T1: this tab's layout, persisted with its focus. A tab opened by `+` or
   // a command starts with the Branches pane folded, as IntelliJ's new tabs do.
@@ -542,7 +542,7 @@ export function LogTab({
       ),
     [measure, sizedBy, firstSha],
   );
-  // `gittree.log.dateFormat`: one formatter per choice, not per row.
+  // `geet.log.dateFormat`: one formatter per choice, not per row.
   const formatDate = useMemo(() => createLogDateFormat(presentation.dateFormat), [presentation.dateFormat]);
   // POST-P14cg: IntelliJ's dates ("5 minutes ago", "Today 2:19 PM") read the
   // clock as they are written, so the rows are written again every half

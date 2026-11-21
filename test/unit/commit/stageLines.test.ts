@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function fixture(files: Record<string, string>): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-stagelines-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-stagelines-' });
   repos.push(repo);
   repo.commit('base', files);
   return repo;

@@ -3,7 +3,7 @@
  * the moment a merge conflicts — the file list with `Accept Yours`,
  * `Accept Theirs`, `Resolve Simple` and `Merge…`.
  *
- * The `gittree.conflicts` tree view remains the persistent surface; this is the
+ * The `geet.conflicts` tree view remains the persistent surface; this is the
  * modal moment, not a replacement for it.
  */
 import { useEffect, useMemo, useState } from 'react';

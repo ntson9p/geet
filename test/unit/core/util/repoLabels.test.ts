@@ -24,7 +24,10 @@ describe('repoLabels', () => {
     expect(labels.get('/w/docs')).toBe('docs');
   });
 
-  it('handles backslash paths, which is every root on Windows', () => {
+  // `node:path` splits on backslashes only on Windows, which is the only place a
+  // root has them; on Linux and macOS a backslash is part of a name. Run there,
+  // this test failed in CI from its first run (POST-P14cv).
+  it.runIf(process.platform === 'win32')('handles backslash paths, which is every root on Windows', () => {
     const labels = repoLabels(['C:\\w\\web\\api', 'C:\\w\\mobile\\api']);
     expect([...labels.values()].sort()).toEqual(['mobile/api', 'web/api']);
   });

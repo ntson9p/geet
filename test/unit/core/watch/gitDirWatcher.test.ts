@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 function tmpdir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-watch-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-watch-'));
   cleanups.push(() => {
     try {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });

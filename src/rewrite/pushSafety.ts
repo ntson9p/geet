@@ -1,7 +1,7 @@
 /**
  * Post-rewrite push safety (P5-T6): after a successful rewrite on a branch
  * with an upstream, the one-time explanatory toast offering
- * `gittree.pushForceWithLease` (never plain --force), gated by the "after
+ * `geet.pushForceWithLease` (never plain --force), gated by the "after
  * rewrite: ask/never" setting.
  *
  * POST-QA F2: a force push is needed only when the rewrite replaced commits
@@ -45,7 +45,7 @@ export async function headSha(repo: RepoHandle): Promise<string | undefined> {
 
 function protectedPatterns(): string[] {
   return vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<string[]>('protectedBranches', [...DEFAULT_PROTECTED_BRANCHES]);
 }
 
@@ -63,7 +63,7 @@ export class PushSafetyService {
    */
   async maybeOffer(repo: RepoHandle, preHead: string | undefined): Promise<void> {
     const mode = vscode.workspace
-      .getConfiguration('gittree.pushSafety')
+      .getConfiguration('geet.pushSafety')
       .get<'ask' | 'never'>('afterRewrite', 'ask');
     if (mode === 'never' || preHead === undefined) return;
 
@@ -106,10 +106,10 @@ export class PushSafetyService {
 
     this._onDidOffer.fire({ repo, upstream });
 
-    const seam = process.env['GITTREE_TEST_PUSHSAFETY_CHOICE'];
+    const seam = process.env['GEET_TEST_PUSHSAFETY_CHOICE'];
     if (seam !== undefined) {
       if (seam === 'push') {
-        await vscode.commands.executeCommand('gittree.pushForceWithLease', repo.root);
+        await vscode.commands.executeCommand('geet.pushForceWithLease', repo.root);
       }
       return;
     }
@@ -126,10 +126,10 @@ export class PushSafetyService {
       never,
     );
     if (choice === pushAction) {
-      await vscode.commands.executeCommand('gittree.pushForceWithLease', repo.root);
+      await vscode.commands.executeCommand('geet.pushForceWithLease', repo.root);
     } else if (choice === never) {
       await vscode.workspace
-        .getConfiguration('gittree.pushSafety')
+        .getConfiguration('geet.pushSafety')
         .update('afterRewrite', 'never', vscode.ConfigurationTarget.Global);
     }
   }

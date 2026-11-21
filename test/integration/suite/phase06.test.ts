@@ -133,7 +133,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     // POST-P14cd: each under Geet's own address, marked `!` by Geet.
     for (const row of rows) {
       const item = reg.viewProvider.getTreeItem(row);
-      assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+      assert.strictEqual(item.resourceUri?.scheme, 'geet-row');
       assert.strictEqual(item.resourceUri?.authority, 'conflict');
       assert.strictEqual(item.resourceUri?.query, 'conflicted');
     }
@@ -149,12 +149,12 @@ suite('P6 merge engine — conflict sessions & view', () => {
     assert.ok(session.resolved.has('p6c.txt'), 'resolved set must track the file');
 
     // Delete/mode conflicts resolve through the tailored QuickPick.
-    process.env['GITTREE_TEST_SPECIAL_CHOICE'] = '0'; // keep OUR modified file
+    process.env['GEET_TEST_SPECIAL_CHOICE'] = '0'; // keep OUR modified file
     try {
       const node = { session, path: 'p6d.txt', kind: 'deleted-by-them' as const };
-      await vscode.commands.executeCommand('gittree.merge.open', node);
+      await vscode.commands.executeCommand('geet.merge.open', node);
     } finally {
-      delete process.env['GITTREE_TEST_SPECIAL_CHOICE'];
+      delete process.env['GEET_TEST_SPECIAL_CHOICE'];
     }
     await waitFor(() => !session.files().some((f) => f.path === 'p6d.txt'), 10_000);
     assert.strictEqual(fs.readFileSync(abs('p6d.txt'), 'utf8'), 'modified by us\n');
@@ -197,12 +197,12 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
     // Classified as a text-kind conflict (both-modified), but compute()
     // detects binary content and opens the side QuickPick instead of T3.
-    process.env['GITTREE_TEST_SPECIAL_CHOICE'] = '1'; // keep THEIR version
+    process.env['GEET_TEST_SPECIAL_CHOICE'] = '1'; // keep THEIR version
     try {
       const node = { session, path: 'p6bin.dat', kind: 'both-modified' as const };
-      await vscode.commands.executeCommand('gittree.merge.open', node);
+      await vscode.commands.executeCommand('geet.merge.open', node);
     } finally {
-      delete process.env['GITTREE_TEST_SPECIAL_CHOICE'];
+      delete process.env['GEET_TEST_SPECIAL_CHOICE'];
     }
     await waitFor(() => session.remaining === 0, 10_000);
     assert.deepStrictEqual([...fs.readFileSync(abs('p6bin.dat'))], theirsBytes);
@@ -243,7 +243,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     const session = await buildTwoBlockConflict('tri', 'p6tri.txt');
 
     const node = { session, path: 'p6tri.txt', kind: 'both-modified' as const };
-    await vscode.commands.executeCommand('gittree.merge.open', node);
+    await vscode.commands.executeCommand('geet.merge.open', node);
     const tri = reg.triEditors.get(repoRoot, 'p6tri.txt');
     assert.ok(tri, 'tri-editor must register itself');
     assert.strictEqual(tri.blocks.length, 2, 'two conflict blocks expected');
@@ -292,8 +292,8 @@ suite('P6 merge engine — conflict sessions & view', () => {
     const node = { session, path: 'p6twice.txt', kind: 'both-modified' as const };
     // A double-click in the Conflicts view: two opens before the first is done.
     await Promise.all([
-      vscode.commands.executeCommand('gittree.merge.open', node),
-      vscode.commands.executeCommand('gittree.merge.open', node),
+      vscode.commands.executeCommand('geet.merge.open', node),
+      vscode.commands.executeCommand('geet.merge.open', node),
     ]);
     const tri = reg.triEditors.get(repoRoot, 'p6twice.txt');
     assert.ok(tri, 'tri-editor must register itself');
@@ -339,7 +339,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
       const session = reg.getSession(repoRoot)!;
       assert.strictEqual(session.reversed, true, 'a rebase swaps git\'s sides back');
 
-      await vscode.commands.executeCommand('gittree.merge.open', {
+      await vscode.commands.executeCommand('geet.merge.open', {
         session,
         path: 'p6rebase.txt',
         kind: 'both-modified' as const,
@@ -371,7 +371,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     this.timeout(120_000);
     const session = await buildTwoBlockConflict('chev', 'p6chev.txt');
     const node = { session, path: 'p6chev.txt', kind: 'both-modified' as const };
-    await vscode.commands.executeCommand('gittree.merge.open', node);
+    await vscode.commands.executeCommand('geet.merge.open', node);
     const tri = reg.triEditors.get(repoRoot, 'p6chev.txt');
     assert.ok(tri, 'tri-editor must open');
     const b0 = tri.blocks[0]!.block.id;
@@ -391,7 +391,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     }, 10_000);
     assert.ok(centerTitles.includes('Ignore (Keep Base)'), `center lenses: ${centerTitles.join(',')}`);
     const leftEd = vscode.window.visibleTextEditors.find(
-      (e) => e.document.uri.scheme === 'gittree-rev' && e.document.uri.path.includes('(Yours)'),
+      (e) => e.document.uri.scheme === 'geet-rev' && e.document.uri.path.includes('(Yours)'),
     );
     assert.ok(leftEd, 'left pane expected');
     const leftLenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
@@ -399,12 +399,12 @@ suite('P6 merge engine — conflict sessions & view', () => {
       leftEd.document.uri,
     );
     assert.ok(
-      leftLenses.some((l) => l.command?.command === 'gittree.merge.acceptYours'),
+      leftLenses.some((l) => l.command?.command === 'geet.merge.acceptYours'),
       'left pane must offer Accept Yours ≫',
     );
 
     // Accept Both on block 0 → ours then theirs.
-    await vscode.commands.executeCommand('gittree.merge.acceptBoth', repoRoot, 'p6chev.txt', b0);
+    await vscode.commands.executeCommand('geet.merge.acceptBoth', repoRoot, 'p6chev.txt', b0);
     assert.strictEqual(tri.resultText(), 'a\nB1\nB2\nc\nd\ne\n');
     assert.strictEqual(tri.blocks[0]!.block.resolution, 'both');
 
@@ -416,7 +416,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     assert.strictEqual(tri.blocks[0]!.block.resolution, undefined, 'undo → unresolved again');
 
     // Ignore keeps base but resolves the block.
-    await vscode.commands.executeCommand('gittree.merge.ignoreBlock', repoRoot, 'p6chev.txt', b0);
+    await vscode.commands.executeCommand('geet.merge.ignoreBlock', repoRoot, 'p6chev.txt', b0);
     assert.strictEqual(tri.blocks[0]!.block.resolution, 'manual');
     assert.strictEqual(tri.resultText(), 'a\nb\nc\nd\ne\n');
 
@@ -429,12 +429,12 @@ suite('P6 merge engine — conflict sessions & view', () => {
     assert.strictEqual(centerEd.selection.active.line, tri.blocks[1]!.startLine, 'jumped to first conflict');
 
     // Chevron theirs, revert it, then file-level Accept All Theirs.
-    await vscode.commands.executeCommand('gittree.merge.acceptTheirs', repoRoot, 'p6chev.txt', b1);
+    await vscode.commands.executeCommand('geet.merge.acceptTheirs', repoRoot, 'p6chev.txt', b1);
     assert.strictEqual(tri.resultText(), 'a\nb\nc\nD2\ne\n');
-    await vscode.commands.executeCommand('gittree.merge.revertBlock', repoRoot, 'p6chev.txt', b1);
+    await vscode.commands.executeCommand('geet.merge.revertBlock', repoRoot, 'p6chev.txt', b1);
     assert.strictEqual(tri.blocks[1]!.block.resolution, undefined);
     assert.strictEqual(tri.resultText(), 'a\nb\nc\nd\ne\n');
-    await vscode.commands.executeCommand('gittree.merge.acceptFileTheirs');
+    await vscode.commands.executeCommand('geet.merge.acceptFileTheirs');
     assert.strictEqual(tri.resultText(), 'a\nb\nc\nD2\ne\n');
     assert.strictEqual(tri.blocks[0]!.block.resolution, 'manual', 'ignored block untouched by accept-all');
 
@@ -476,11 +476,11 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
     // File-level wand inside the tri-editor.
     const node = { session, path: 'p6wand.txt', kind: 'both-modified' as const };
-    await vscode.commands.executeCommand('gittree.merge.open', node);
+    await vscode.commands.executeCommand('geet.merge.open', node);
     const tri = reg.triEditors.get(repoRoot, 'p6wand.txt');
     assert.ok(tri, 'tri-editor must open');
     assert.strictEqual(tri.blocks.length, 2, 'two conflict blocks expected');
-    await vscode.commands.executeCommand('gittree.merge.magicWand');
+    await vscode.commands.executeCommand('geet.merge.magicWand');
     assert.strictEqual(tri.blocks[0]!.block.resolution, 'auto', 'interleave block auto-resolved');
     assert.deepStrictEqual(tri.blocks[0]!.block.resolvedLines, ['B!\n', 'C!\n']);
     assert.strictEqual(tri.blocks[1]!.block.resolution, undefined, 'adversarial block stays manual');
@@ -488,15 +488,15 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
     // Every auto-resolution is individually undoable until Apply.
     const b0 = tri.blocks[0]!.block.id;
-    await vscode.commands.executeCommand('gittree.merge.revertBlock', repoRoot, 'p6wand.txt', b0);
+    await vscode.commands.executeCommand('geet.merge.revertBlock', repoRoot, 'p6wand.txt', b0);
     assert.strictEqual(tri.blocks[0]!.block.resolution, undefined, 'auto block reverts to unresolved');
     assert.strictEqual(tri.resultText(), 'a\nb\nc\nSEP\nm\nn\no\n');
 
     // Wand again, chevron the manual block, Apply.
-    await vscode.commands.executeCommand('gittree.merge.magicWand');
+    await vscode.commands.executeCommand('geet.merge.magicWand');
     assert.strictEqual(tri.blocks[0]!.block.resolution, 'auto');
     await vscode.commands.executeCommand(
-      'gittree.merge.acceptYours',
+      'geet.merge.acceptYours',
       repoRoot,
       'p6wand.txt',
       tri.blocks[1]!.block.id,
@@ -506,7 +506,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     await waitFor(() => !session.files().some((f) => f.path === 'p6wand.txt'), 10_000);
 
     // Session-wide wand: writes + stages the fully-auto file.
-    await vscode.commands.executeCommand('gittree.merge.magicWandSession', repoRoot);
+    await vscode.commands.executeCommand('geet.merge.magicWandSession', repoRoot);
     assert.strictEqual(fs.readFileSync(abs('p6wauto.txt'), 'utf8'), 'x\nY!\nZ!\nw\n');
     await waitFor(() => session.remaining === 0, 10_000);
     const staged = git('ls-files', '-s', '--', 'p6wauto.txt').trim().split('\n');
@@ -518,7 +518,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
 
   test('T3: center pane serves TypeScript completions (resultMode: markers)', async function () {
     this.timeout(120_000);
-    const config = vscode.workspace.getConfiguration('gittree.merge');
+    const config = vscode.workspace.getConfiguration('geet.merge');
     await config.update('resultMode', 'markers', vscode.ConfigurationTarget.Global);
     try {
       git('checkout', '-f', 'main');
@@ -543,7 +543,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
       const session = reg.getSession(repoRoot)!;
 
       const node = { session, path: 'p6comp.ts', kind: 'both-modified' as const };
-      await vscode.commands.executeCommand('gittree.merge.open', node);
+      await vscode.commands.executeCommand('geet.merge.open', node);
       const tri = reg.triEditors.get(repoRoot, 'p6comp.ts');
       assert.ok(tri, 'tri-editor must open');
 
@@ -667,7 +667,7 @@ suite('P6 merge engine — conflict sessions & view', () => {
     let timer: NodeJS.Timeout | undefined;
     try {
       await Promise.race([
-        vscode.commands.executeCommand('gittree.commit', repoRoot),
+        vscode.commands.executeCommand('geet.commit', repoRoot),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error('the merge commit hung behind the hold')), 30_000);
         }),

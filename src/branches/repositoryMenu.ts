@@ -3,7 +3,7 @@
  * Repositories section already shows for the same repository, so a repository
  * has one menu wherever its name is. Each entry runs its command with the
  * repository's root, which every one of them reads as "this repository only" —
- * `gittree.fetch` included, which with no argument fetches every root.
+ * `geet.fetch` included, which with no argument fetches every root.
  *
  * The Repositories section's menu lives in `package.json` (`view/item/context`);
  * a unit test holds this list to it, entry for entry, so the two cannot drift.
@@ -21,20 +21,20 @@ export interface RepositoryMenuEntry {
 
 export const REPOSITORY_MENU: readonly RepositoryMenuEntry[] = [
   // The repository's history at HEAD, in a Log tab of its own.
-  { command: 'gittree.repositories.showInLog', label: 'Show in New Log Tab', group: 'view' },
+  { command: 'geet.repositories.showInLog', label: 'Show in New Log Tab', group: 'view' },
   // POST-P14bx: this repository's update, named so. It was Update Project…,
   // which elsewhere updates every repository, and here updated this one alone.
-  { command: 'gittree.update.repository', label: 'Update Repository…', group: 'update' },
+  { command: 'geet.update.repository', label: 'Update Repository…', group: 'update' },
   // From each remote branch as last fetched: instant, and offline.
-  { command: 'gittree.update.repositoryWithoutFetch', label: 'Update Repository Without Fetching…', group: 'update' },
-  { command: 'gittree.push.dialog', label: 'Push…', group: 'update' },
-  { command: 'gittree.fetch', label: 'Fetch', group: 'update' },
-  { command: 'gittree.commit', label: 'Commit', group: 'commit' },
-  { command: 'gittree.branch.new', label: 'New Branch…', group: 'branch' },
-  { command: 'gittree.branches.checkoutRevision', label: 'Checkout Tag or Revision…', group: 'branch' },
-  { command: 'gittree.stash.dialog', label: 'Stash Changes…', group: 'stash' },
-  { command: 'gittree.unstash.dialog', label: 'Unstash Changes…', group: 'stash' },
-  { command: 'gittree.remotes.manage', label: 'Manage Remotes…', group: 'manage' },
+  { command: 'geet.update.repositoryWithoutFetch', label: 'Update Repository Without Fetching…', group: 'update' },
+  { command: 'geet.push.dialog', label: 'Push…', group: 'update' },
+  { command: 'geet.fetch', label: 'Fetch', group: 'update' },
+  { command: 'geet.commit', label: 'Commit', group: 'commit' },
+  { command: 'geet.branch.new', label: 'New Branch…', group: 'branch' },
+  { command: 'geet.branches.checkoutRevision', label: 'Checkout Tag or Revision…', group: 'branch' },
+  { command: 'geet.stash.dialog', label: 'Stash Changes…', group: 'stash' },
+  { command: 'geet.unstash.dialog', label: 'Unstash Changes…', group: 'stash' },
+  { command: 'geet.remotes.manage', label: 'Manage Remotes…', group: 'manage' },
 ];
 
 /**
@@ -42,7 +42,7 @@ export const REPOSITORY_MENU: readonly RepositoryMenuEntry[] = [
  * opens the branch list for the repository, and in the Branches section that
  * list is the very thing you right-clicked in.
  */
-export const LEFT_OUT_OF_BRANCHES_VIEW: readonly string[] = ['gittree.branches.open'];
+export const LEFT_OUT_OF_BRANCHES_VIEW: readonly string[] = ['geet.branches.open'];
 
 /**
  * POST-P14bx: with one repository, the repository is the project, so its menu
@@ -51,9 +51,9 @@ export const LEFT_OUT_OF_BRANCHES_VIEW: readonly string[] = ['gittree.branches.o
  * view is there only with several repositories.
  */
 const AS_PROJECT: Readonly<Record<string, RepositoryMenuEntry>> = {
-  'gittree.update.repository': { command: 'gittree.update.dialog', label: 'Update Project…', group: 'update' },
-  'gittree.update.repositoryWithoutFetch': {
-    command: 'gittree.update.withoutFetch',
+  'geet.update.repository': { command: 'geet.update.dialog', label: 'Update Project…', group: 'update' },
+  'geet.update.repositoryWithoutFetch': {
+    command: 'geet.update.withoutFetch',
     label: 'Update Project Without Fetching…',
     group: 'update',
   },

@@ -52,7 +52,7 @@
   justify-content: center;
 }
 
-/* The borders a drag resizes are drawn (POST-P14bu), in `gittree.sectionBorder`:
+/* The borders a drag resizes are drawn (POST-P14bu), in `geet.sectionBorder`:
    VS Code draws none between its views in its modern look, and only a faint one
    in its classic look, so nothing showed where to grab.
 
@@ -71,7 +71,7 @@
   right: 0;
   bottom: 0;
   height: 0;
-  border-top: 2px solid var(--vscode-gittree-sectionBorder, transparent);
+  border-top: 2px solid var(--vscode-geet-sectionBorder, transparent);
   pointer-events: none;
   z-index: 2;
 }
@@ -85,7 +85,7 @@
   right: 0;
   top: 2px;
   height: 0;
-  border-top: 1px solid var(--vscode-gittree-sectionBorder, transparent);
+  border-top: 1px solid var(--vscode-geet-sectionBorder, transparent);
   pointer-events: none;
 }
 
@@ -108,7 +108,7 @@
   right: 0;
   top: 2px;
   height: 0;
-  border-top: 1px solid var(--vscode-gittree-sectionBorder, var(--vscode-panel-border, transparent));
+  border-top: 1px solid var(--vscode-geet-sectionBorder, var(--vscode-panel-border, transparent));
   pointer-events: none;
 }
 

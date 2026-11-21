@@ -70,13 +70,13 @@ suite('Multi-root commit', () => {
 
   /** The check pipeline gates every commit; nothing here is testing checks. */
   async function commitWith<T>(fn: () => Thenable<T>): Promise<T> {
-    const saved = process.env['GITTREE_TEST_CHECKS_CHOICE'];
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    const saved = process.env['GEET_TEST_CHECKS_CHOICE'];
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
       return await fn();
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
-      else process.env['GITTREE_TEST_CHECKS_CHOICE'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_CHECKS_CHOICE'];
+      else process.env['GEET_TEST_CHECKS_CHOICE'] = saved;
     }
   }
 
@@ -85,13 +85,13 @@ suite('Multi-root commit', () => {
    * records what it was opened for and closes it unanswered, as Escape would.
    */
   async function withPushDialogCancelled<T>(fn: () => Thenable<T>): Promise<T> {
-    const saved = process.env['GITTREE_TEST_PUSH_DIALOG'];
-    process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+    const saved = process.env['GEET_TEST_PUSH_DIALOG'];
+    process.env['GEET_TEST_PUSH_DIALOG'] = 'cancel';
     try {
       return await fn();
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
-      else process.env['GITTREE_TEST_PUSH_DIALOG'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_PUSH_DIALOG'];
+      else process.env['GEET_TEST_PUSH_DIALOG'] = saved;
     }
   }
 
@@ -168,7 +168,7 @@ suite('Multi-root commit', () => {
     }
     const colorOf = (handle: RepoHandle) => state.repos.find((r) => r.root === handle.root)?.colorIdx;
     assert.notStrictEqual(colorOf(repoD), colorOf(repoE), 'two repositories, two colours');
-    assert.strictEqual(state.palette, panelState.palette, 'both follow gittree.log.graphPalette');
+    assert.strictEqual(state.palette, panelState.palette, 'both follow geet.log.graphPalette');
   });
 
   test('repositories come named and ordered as the Repositories panel lists them, with what they have checked out', async () => {
@@ -187,9 +187,9 @@ suite('Multi-root commit', () => {
     assert.strictEqual(d?.head?.unborn, undefined, 'and it has commits');
   });
 
-  test('View Options › Group By lives in gittree.commit.groupBy and groupByDirectory', async function () {
+  test('View Options › Group By lives in geet.commit.groupBy and groupByDirectory', async function () {
     this.timeout(30_000);
-    const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree');
+    const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('geet');
     const saved = config().inspect('commit.groupBy');
     const savedFolders = config().inspect('commit.groupByDirectory');
     // POST-QA (`writeSetting`): where the user keeps the setting, else in their
@@ -202,21 +202,21 @@ suite('Multi-root commit', () => {
       // POST-P14cb: no changelist rows and no folder rows by default.
       assert.strictEqual(reg.commitWindow.buildState().groupBy, 'none', 'no changelist rows by default');
       assert.strictEqual(reg.commitWindow.buildState().groupByDirectory, false, 'no folder rows by default');
-      await vscode.commands.executeCommand('gittree.commit.groupByRepository');
+      await vscode.commands.executeCommand('geet.commit.groupByRepository');
       assert.strictEqual(kept(), 'repository', "saved where the user keeps it, else in the user's settings");
       if (saved?.workspaceValue === undefined) {
         assert.strictEqual(config().inspect('commit.groupBy')?.workspaceValue, undefined, 'not into the workspace');
       }
       assert.strictEqual(reg.commitWindow.buildState().groupBy, 'repository', 'the window reads it on its next push');
-      await vscode.commands.executeCommand('gittree.commit.groupByChangelist');
+      await vscode.commands.executeCommand('geet.commit.groupByChangelist');
       assert.strictEqual(kept(), 'changelist');
       assert.strictEqual(reg.commitWindow.buildState().groupBy, 'changelist');
-      await vscode.commands.executeCommand('gittree.commit.groupByNone');
+      await vscode.commands.executeCommand('geet.commit.groupByNone');
       assert.strictEqual(config().get('commit.groupBy'), 'none');
       assert.strictEqual(reg.commitWindow.buildState().groupBy, 'none');
-      await vscode.commands.executeCommand('gittree.commit.toggleGroupByDirectory');
+      await vscode.commands.executeCommand('geet.commit.toggleGroupByDirectory');
       assert.strictEqual(reg.commitWindow.buildState().groupByDirectory, true, 'the folder rows, from the palette');
-      await vscode.commands.executeCommand('gittree.commit.toggleGroupByDirectory');
+      await vscode.commands.executeCommand('geet.commit.toggleGroupByDirectory');
       assert.strictEqual(reg.commitWindow.buildState().groupByDirectory, false, 'and off again');
     } finally {
       await config().update('commit.groupBy', saved?.workspaceValue, vscode.ConfigurationTarget.Workspace);
@@ -253,7 +253,7 @@ suite('Multi-root commit', () => {
     notes.clear();
 
     // No repo argument: the palette / Ctrl+K / commit-button path.
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit'));
 
     await waitFor(() => headOf(repoD) !== beforeD && headOf(repoE) !== beforeE, 60_000);
     assert.strictEqual(subjectOf(repoD), message, 'repoD committed with the typed message');
@@ -308,7 +308,7 @@ suite('Multi-root commit', () => {
 
     // No repo argument: the commit window's `Commit and Push…` (in the ▾ beside Commit).
     await withPushDialogCancelled(() =>
-      commitWith(() => vscode.commands.executeCommand('gittree.commitAndPush')),
+      commitWith(() => vscode.commands.executeCommand('geet.commitAndPush')),
     );
 
     await waitFor(() => headOf(repoD) !== beforeD && headOf(repoE) !== beforeE, 60_000);
@@ -339,7 +339,7 @@ suite('Multi-root commit', () => {
     const message = 'typed against repoD, committed to repoE';
     reg.commitWindow.messageBoxFor(repoD).value = message;
 
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit'));
 
     await waitFor(() => headOf(repoE) !== beforeE, 60_000);
     assert.strictEqual(subjectOf(repoE), message, 'repoE used the message the user could see');
@@ -363,7 +363,7 @@ suite('Multi-root commit', () => {
 
     // Context menus and every existing suite call it this way; spanning here
     // would silently widen what those callers asked for.
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit', repoD.root));
 
     await waitFor(() => headOf(repoD) !== beforeD, 60_000);
     assert.strictEqual(headOf(repoE), beforeE, 'repoE was named by nobody and must be untouched');
@@ -376,7 +376,7 @@ suite('Multi-root commit', () => {
     // Hand repoE back clean for the next test.
     reg.commitWindow.messageBoxFor(repoE).value = 'scoped cleanup of repoE';
     await focus(repoE);
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoE.root));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit', repoE.root));
     await waitFor(() => headOf(repoE) !== beforeE, 60_000);
   });
 
@@ -394,7 +394,7 @@ suite('Multi-root commit', () => {
 
     // Declining the warning must abort everything — no repo is committed.
     await withAutoConfirm('0', () =>
-      commitWith(() => vscode.commands.executeCommand('gittree.commit')),
+      commitWith(() => vscode.commands.executeCommand('geet.commit')),
     );
     assert.strictEqual(headOf(repoD), beforeD, 'declining the amend warning commits nothing');
     assert.strictEqual(headOf(repoE), beforeE, 'declining the amend warning commits nothing');
@@ -402,7 +402,7 @@ suite('Multi-root commit', () => {
     // Accepting it amends the message repo alone and leaves the rest ticked.
     reg.commitWindow.messageBoxFor(repoD).value = 'amended repoD alone';
     await withAutoConfirm('1', () =>
-      commitWith(() => vscode.commands.executeCommand('gittree.commit')),
+      commitWith(() => vscode.commands.executeCommand('geet.commit')),
     );
     await waitFor(() => subjectOf(repoD) === 'amended repoD alone', 60_000);
     assert.notStrictEqual(headOf(repoD), beforeD, 'the amended commit is a new object');
@@ -421,7 +421,7 @@ suite('Multi-root commit', () => {
     // Clean up: commit repoE so the suite leaves both repos as it found them.
     await focus(repoE);
     reg.commitWindow.messageBoxFor(repoE).value = 'amend cleanup of repoE';
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoE.root));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit', repoE.root));
     await waitFor(() => headOf(repoE) !== beforeE, 60_000);
     assert.deepStrictEqual(ourTargets(), [], 'suite leaves nothing ticked');
   });
@@ -438,7 +438,7 @@ suite('Multi-root commit', () => {
     const message = 'committed in view: repoE alone';
     reg.commitWindow.messageBoxFor(repoD).value = message;
 
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit', [repoE.root]));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit', [repoE.root]));
 
     await waitFor(() => headOf(repoE) !== beforeE, 60_000);
     assert.strictEqual(subjectOf(repoE), message, 'repoE used the message the user could see');
@@ -449,13 +449,13 @@ suite('Multi-root commit', () => {
     // A list naming no repository still open commits nothing, rather than all that is ticked.
     reg.commitWindow.messageBoxFor(repoD).value = 'must not be committed';
     await commitWith(() =>
-      vscode.commands.executeCommand('gittree.commit', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
+      vscode.commands.executeCommand('geet.commit', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
     );
     assert.strictEqual(headOf(repoD), beforeD, 'nothing open was named: nothing is committed');
 
     // Hand repoD back clean.
     reg.commitWindow.messageBoxFor(repoD).value = 'in-view cleanup of repoD';
-    await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+    await commitWith(() => vscode.commands.executeCommand('geet.commit', repoD.root));
     await waitFor(() => headOf(repoD) !== beforeD, 60_000);
     await waitFor(() => ourTargets().length === 0, 30_000);
   });
@@ -466,7 +466,7 @@ suite('Multi-root commit', () => {
     assert.ok(p13, 'phase13 registry missing');
     p13.clearLastPushDialogRequest();
     await withPushDialogCancelled(() =>
-      vscode.commands.executeCommand('gittree.push.dialog', [repoD.root, repoE.root]),
+      vscode.commands.executeCommand('geet.push.dialog', [repoD.root, repoE.root]),
     );
     const opened = p13.lastPushDialogOpened();
     assert.ok(opened, 'the Push dialog opens');
@@ -477,7 +477,7 @@ suite('Multi-root commit', () => {
     // A list naming no repository still open opens nothing.
     p13.clearLastPushDialogRequest();
     await withPushDialogCancelled(() =>
-      vscode.commands.executeCommand('gittree.push.dialog', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
+      vscode.commands.executeCommand('geet.push.dialog', [path.join(path.dirname(repoD.root), 'no-such-repo')]),
     );
     assert.strictEqual(p13.lastPushDialogOpened(), undefined, 'nothing open was named: no dialog');
   });
@@ -524,7 +524,7 @@ suite('Multi-root commit', () => {
       assert.deepStrictEqual((await panel.buildState()).scope, [repoE.root]);
 
       // Shown all again from the Command Palette: every repository listed.
-      await vscode.commands.executeCommand('gittree.branches.showAllRepositories');
+      await vscode.commands.executeCommand('geet.branches.showAllRepositories');
       const all = reg.commitWindow.buildState();
       assert.strictEqual(all.filter, undefined);
       assert.ok(all.repos.some((r) => r.root === repoD.root) && all.repos.some((r) => r.root === repoE.root));
@@ -537,7 +537,7 @@ suite('Multi-root commit', () => {
       await tick(repoE, '# repoE committed from the pick\n');
       await focus(repoD);
       // A repository row's Show Only This Repository, in the Commit window.
-      await vscode.commands.executeCommand('gittree.branches.selectRepository', { repoRoot: repoE.root });
+      await vscode.commands.executeCommand('geet.branches.selectRepository', { repoRoot: repoE.root });
       assert.deepStrictEqual(reg.commitWindow.buildState().targets, [labelOf(repoE)]);
 
       const beforeD = headOf(repoD);
@@ -548,7 +548,7 @@ suite('Multi-root commit', () => {
       notes.clear();
 
       // No repository argument: the button, Ctrl+K.
-      await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
+      await commitWith(() => vscode.commands.executeCommand('geet.commit'));
 
       await waitFor(() => headOf(repoE) !== beforeE, 60_000);
       assert.strictEqual(subjectOf(repoE), message, 'repoE used the message on screen');
@@ -567,7 +567,7 @@ suite('Multi-root commit', () => {
       await waitFor(() => ourTargets().length === 1, 30_000);
       assert.deepStrictEqual(ourTargets(), [labelOf(repoD)]);
       reg.commitWindow.messageBoxFor(repoD).value = 'pick cleanup of repoD';
-      await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+      await commitWith(() => vscode.commands.executeCommand('geet.commit', repoD.root));
       await waitFor(() => headOf(repoD) !== beforeD, 60_000);
       await waitFor(() => ourTargets().length === 0, 30_000);
     });
@@ -582,13 +582,13 @@ suite('Multi-root commit', () => {
       reg.commitWindow.messageBoxFor(repoD).value = 'must not be committed';
       const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
       notes.clear();
-      const saved = process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
-      process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Show All Repositories';
+      const saved = process.env['GEET_TEST_NOTIFICATION_ACTION'];
+      process.env['GEET_TEST_NOTIFICATION_ACTION'] = 'Show All Repositories';
       try {
-        await commitWith(() => vscode.commands.executeCommand('gittree.commit'));
+        await commitWith(() => vscode.commands.executeCommand('geet.commit'));
       } finally {
-        if (saved === undefined) delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
-        else process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = saved;
+        if (saved === undefined) delete process.env['GEET_TEST_NOTIFICATION_ACTION'];
+        else process.env['GEET_TEST_NOTIFICATION_ACTION'] = saved;
       }
       const said = notes.recent().find((n) => n.message.startsWith(`Nothing ticked to commit in ${labelOf(repoE)}.`));
       assert.ok(said, JSON.stringify(notes.recent()));
@@ -601,7 +601,7 @@ suite('Multi-root commit', () => {
 
       // Hand repoD back clean.
       reg.commitWindow.messageBoxFor(repoD).value = 'pick notice cleanup of repoD';
-      await commitWith(() => vscode.commands.executeCommand('gittree.commit', repoD.root));
+      await commitWith(() => vscode.commands.executeCommand('geet.commit', repoD.root));
       await waitFor(() => headOf(repoD) !== beforeD, 60_000);
       await waitFor(() => ourTargets().length === 0, 30_000);
     });
@@ -635,16 +635,16 @@ suite('Multi-root commit', () => {
       assert.strictEqual(e.isChecked(NEW_FILE), false, 'a new file starts unticked');
 
       // The list menu names the repositories its list shows.
-      await vscode.commands.executeCommand('gittree.commit.untickAll', { listRoots: [repoD.root, repoE.root] });
+      await vscode.commands.executeCommand('geet.commit.untickAll', { listRoots: [repoD.root, repoE.root] });
       assert.strictEqual(d.isChecked('README.md'), false);
-      await vscode.commands.executeCommand('gittree.commit.tickAll', { listRoots: [repoE.root] });
+      await vscode.commands.executeCommand('geet.commit.tickAll', { listRoots: [repoE.root] });
       assert.strictEqual(e.isChecked(NEW_FILE), true, 'a new file is ticked with the rest');
       assert.strictEqual(d.isChecked('README.md'), false, 'repoD was not listed, and is left as it was');
-      await vscode.commands.executeCommand('gittree.commit.tickAll', { listRoots: [repoD.root, repoE.root] });
+      await vscode.commands.executeCommand('geet.commit.tickAll', { listRoots: [repoD.root, repoE.root] });
       assert.strictEqual(d.isChecked('README.md'), true);
 
       // And untick all again: the new file too.
-      await vscode.commands.executeCommand('gittree.commit.untickAll', { listRoots: [repoD.root, repoE.root] });
+      await vscode.commands.executeCommand('geet.commit.untickAll', { listRoots: [repoD.root, repoE.root] });
       assert.strictEqual(e.isChecked(NEW_FILE), false);
       assert.strictEqual(d.isChecked('README.md'), false);
     });
@@ -659,9 +659,9 @@ suite('Multi-root commit', () => {
       await waitFor(() => e.unversioned().includes(NEW_FILE), 20_000);
       inView().set([repoE.root], 'elsewhere');
       // No argument: the palette.
-      await vscode.commands.executeCommand('gittree.commit.tickAll');
+      await vscode.commands.executeCommand('geet.commit.tickAll');
       assert.strictEqual(e.isChecked(NEW_FILE), true);
-      await vscode.commands.executeCommand('gittree.commit.untickAll');
+      await vscode.commands.executeCommand('geet.commit.untickAll');
       assert.strictEqual(e.isChecked(NEW_FILE), false);
       assert.strictEqual(d.isChecked('README.md'), true, 'repoD, out of the pick, keeps its tick');
     });
@@ -679,7 +679,7 @@ suite('Multi-root commit', () => {
       });
       reg.inclusion.set(key, 'README.md', [line(1), line(2)], [0]);
       assert.ok(reg.inclusion.count(key) > 0, 'a pick to drop');
-      await vscode.commands.executeCommand('gittree.commit.untickAll', { listRoots: [repoD.root] });
+      await vscode.commands.executeCommand('geet.commit.untickAll', { listRoots: [repoD.root] });
       assert.strictEqual(reg.inclusion.count(key), 0);
     });
   });
@@ -708,13 +708,13 @@ suite('Multi-root commit', () => {
 
     test('a new changelist is created in every repository, not just the active one', async function () {
       this.timeout(60_000);
-      const saved = process.env['GITTREE_TEST_BRANCH_NAME'];
-      process.env['GITTREE_TEST_BRANCH_NAME'] = 'Feature Fanout';
+      const saved = process.env['GEET_TEST_BRANCH_NAME'];
+      process.env['GEET_TEST_BRANCH_NAME'] = 'Feature Fanout';
       try {
-        await vscode.commands.executeCommand('gittree.changelist.new');
+        await vscode.commands.executeCommand('geet.changelist.new');
       } finally {
-        if (saved === undefined) delete process.env['GITTREE_TEST_BRANCH_NAME'];
-        else process.env['GITTREE_TEST_BRANCH_NAME'] = saved;
+        if (saved === undefined) delete process.env['GEET_TEST_BRANCH_NAME'];
+        else process.env['GEET_TEST_BRANCH_NAME'] = saved;
       }
       // Present everywhere, so the merged row is real and `Move to…` offers it
       // in whichever repository the file happens to live.
@@ -739,7 +739,7 @@ suite('Multi-root commit', () => {
 
       // setActive is the fan-out under test: no prompts, so the plumbing is
       // what is being measured rather than a dialog seam.
-      await vscode.commands.executeCommand('gittree.changelist.setActive', { targets });
+      await vscode.commands.executeCommand('geet.changelist.setActive', { targets });
 
       for (const r of [repoD, repoE]) {
         assert.strictEqual(
@@ -749,7 +749,7 @@ suite('Multi-root commit', () => {
         );
       }
       // A scoped row still means one repository, and must not touch the other.
-      await vscode.commands.executeCommand('gittree.changelist.setActive', {
+      await vscode.commands.executeCommand('geet.changelist.setActive', {
         repoRoot: repoD.root,
         listId: listsOf(repoD).find((l) => l.isDefault)!.id,
       });
@@ -782,7 +782,7 @@ suite('Multi-root commit', () => {
       reg.commitWindow.messageBoxFor(repoD).value = 'merged changelist across both repos';
 
       await commitWith(() =>
-        vscode.commands.executeCommand('gittree.changelist.commitList', { targets }),
+        vscode.commands.executeCommand('geet.changelist.commitList', { targets }),
       );
 
       await waitFor(() => headOf(repoD) !== beforeD && headOf(repoE) !== beforeE, 60_000);
@@ -846,7 +846,7 @@ suite('Multi-root commit', () => {
       await refreshed(repoE, () => reg.changelistsFor(repoE).unversioned().includes('pending-e.ts'));
 
       // The merged Unversioned Files row's payload: one target per repository.
-      await vscode.commands.executeCommand('gittree.addToVcs', {
+      await vscode.commands.executeCommand('geet.addToVcs', {
         webviewSection: 'commitGroup',
         listIsUnversioned: true,
         targets: [
@@ -873,10 +873,10 @@ suite('Multi-root commit', () => {
       await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('moved/d.ts'));
       await refreshed(repoE, () => reg.changelistsFor(repoE).unversioned().includes('moved/e.ts'));
 
-      const saved = process.env['GITTREE_TEST_CHANGELIST_PICK'];
-      process.env['GITTREE_TEST_CHANGELIST_PICK'] = 'Incoming';
+      const saved = process.env['GEET_TEST_CHANGELIST_PICK'];
+      process.env['GEET_TEST_CHANGELIST_PICK'] = 'Incoming';
       try {
-        await vscode.commands.executeCommand('gittree.changelist.moveTo', {
+        await vscode.commands.executeCommand('geet.changelist.moveTo', {
           webviewSection: 'commitGroup',
           listIsUnversioned: true,
           targets: [
@@ -885,8 +885,8 @@ suite('Multi-root commit', () => {
           ],
         });
       } finally {
-        if (saved === undefined) delete process.env['GITTREE_TEST_CHANGELIST_PICK'];
-        else process.env['GITTREE_TEST_CHANGELIST_PICK'] = saved;
+        if (saved === undefined) delete process.env['GEET_TEST_CHANGELIST_PICK'];
+        else process.env['GEET_TEST_CHANGELIST_PICK'] = saved;
       }
 
       for (const [r, rel] of [
@@ -909,7 +909,7 @@ suite('Multi-root commit', () => {
       await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('kept.ts'));
       reg.changelistsFor(repoD).moveFiles(['kept.ts'], keep.id);
 
-      await vscode.commands.executeCommand('gittree.addToVcs', {
+      await vscode.commands.executeCommand('geet.addToVcs', {
         webviewSection: 'commitFile',
         repoRoot: repoD.root,
         relPath: 'kept.ts',
@@ -930,7 +930,7 @@ suite('Multi-root commit', () => {
         newFile(repoD, 'scratch-dir/b.txt');
         await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('scratch-dir/b.txt'));
 
-        await vscode.commands.executeCommand('gittree.gitignore.add', {
+        await vscode.commands.executeCommand('geet.gitignore.add', {
           webviewSection: 'commitFolder',
           repoRoot: repoD.root,
           relPath: 'scratch-dir/a.txt',
@@ -957,7 +957,7 @@ suite('Multi-root commit', () => {
         newFile(repoD, 'mixed/new.txt');
         await refreshed(repoD, () => reg.changelistsFor(repoD).unversioned().includes('mixed/new.txt'));
 
-        await vscode.commands.executeCommand('gittree.gitignore.add', {
+        await vscode.commands.executeCommand('geet.gitignore.add', {
           webviewSection: 'commitFolder',
           repoRoot: repoD.root,
           relPath: 'mixed/new.txt',

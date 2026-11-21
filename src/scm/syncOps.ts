@@ -4,7 +4,7 @@
  * pushing without an upstream offers "Publish Branch"; the branches-popup
  * command is a checkout QuickPick stub that P2 swaps for the real popup.
  *
- * POST-P14o: `gittree.fetch` is **project-scoped when it is given no argument**
+ * POST-P14o: `geet.fetch` is **project-scoped when it is given no argument**
  * — IntelliJ's Fetch fetches every root, and inferring one root from the active
  * editor (as this did) is a coin flip the user cannot see the result of. An
  * explicit `repoRoot` still means that one repository, so every in-product
@@ -259,7 +259,7 @@ export function registerSyncOps(
       snap.upstream !== undefined
     ) {
       const results = await vscode.commands.executeCommand<unknown[] | undefined>(
-        'gittree.push.run',
+        'geet.push.run',
         repo.root,
       );
       if (results !== undefined) return;
@@ -306,7 +306,7 @@ export function registerSyncOps(
           )
           .then((choice) => {
             if (choice === fetchAction) {
-              return vscode.commands.executeCommand('gittree.fetch', repo.root);
+              return vscode.commands.executeCommand('geet.fetch', repo.root);
             }
             return undefined;
           });
@@ -331,7 +331,7 @@ export function registerSyncOps(
 
   // Argument presence decides the scope: a caller that knows which repository
   // it means says so, and everyone else gets IntelliJ's project-wide Fetch.
-  register('gittree.fetch', async (arg) => {
+  register('geet.fetch', async (arg) => {
     // A root, or a Commit-window repository row (POST-P14cb): without this, its
     // row would have fetched every repository.
     const repoRoot = typeof arg === 'string' ? arg : repoRootOf(arg);
@@ -352,7 +352,7 @@ export function registerSyncOps(
     await fetchAll();
   });
 
-  register('gittree.fetch.all', async () => {
+  register('geet.fetch.all', async () => {
     await fetchAll();
   });
 
@@ -379,7 +379,7 @@ export function registerSyncOps(
           ),
           update,
         );
-        if (choice === update) await vscode.commands.executeCommand('gittree.update.dialog', repo.root);
+        if (choice === update) await vscode.commands.executeCommand('geet.update.dialog', repo.root);
         return false;
       }
       throw err;
@@ -397,17 +397,17 @@ export function registerSyncOps(
     return res.exitCode === 0 ? res.stdout.trim() : '';
   }
 
-  register('gittree.pull', async (repoRoot) => {
+  register('geet.pull', async (repoRoot) => {
     const repo = await pickRepo(core, repoRoot);
     if (repo) await pullAndReport(repo);
   });
 
-  register('gittree.push', async (repoRoot) => {
+  register('geet.push', async (repoRoot) => {
     const repo = await pickRepo(core, repoRoot);
     if (repo) await push(repo);
   });
 
-  register('gittree.pushForceWithLease', async (repoRoot) => {
+  register('geet.pushForceWithLease', async (repoRoot) => {
     const repo = await pickRepo(core, repoRoot);
     if (!repo) return;
     const branch = repo.model.snapshot.headRef ?? 'HEAD';
@@ -459,7 +459,7 @@ export function registerSyncOps(
     return res.exitCode === 0;
   }
 
-  register('gittree.sync', async (repoRoot) => {
+  register('geet.sync', async (repoRoot) => {
     const repo = await pickRepo(core, repoRoot);
     if (!repo) return;
     if (!(await pullAndReport(repo))) return;
@@ -469,7 +469,7 @@ export function registerSyncOps(
   });
 
   // Branches popup — stub QuickPick until P2 replaces the handler.
-  register('gittree.branches.open', async (repoRoot) => {
+  register('geet.branches.open', async (repoRoot) => {
     const repo = await pickRepo(core, repoRoot);
     if (!repo) return;
     if (branchesOpenHandler) {
@@ -505,7 +505,7 @@ export function registerSyncOps(
     }),
   );
   const timer = setInterval(() => {
-    const cfg = vscode.workspace.getConfiguration('gittree.autofetch');
+    const cfg = vscode.workspace.getConfiguration('geet.autofetch');
     if (!cfg.get<boolean>('enabled', false)) return;
     const unfocusedMs = vscode.window.state.focused ? 0 : Date.now() - lastFocusedAt;
     if (unfocusedMs > 30 * 60 * 1000) return;

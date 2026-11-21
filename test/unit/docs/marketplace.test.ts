@@ -77,27 +77,30 @@ describe('the Marketplace manifest', () => {
   });
 });
 
+const files = (dir: string, pattern: RegExp): string[] =>
+  readdirSync(path.join(root, dir)).flatMap((name) => {
+    const rel = path.join(dir, name);
+    return statSync(path.join(root, rel)).isDirectory() ? files(rel, pattern) : pattern.test(name) ? [rel] : [];
+  });
+
+/** What a user gets and sees: the manifest and its strings, the README, the licence, the code, the webviews, `media/`, the shims. */
+const shipped = (): string[] => [
+  'package.json',
+  'package.nls.json',
+  'README.md',
+  'LICENSE',
+  ...files('src', /\.ts$/u),
+  ...files(path.join('webview-ui', 'src'), /\.(tsx?|css)$/u),
+  ...readdirSync(path.join(root, 'webview-ui')).filter((n) => n.endsWith('.html')).map((n) => path.join('webview-ui', n)),
+  ...files('media', /\.(svg|json)$/u),
+  ...files('shims', /./u),
+];
+
 describe('the old name, GitTree, is nowhere a user sees it', () => {
   // The CHANGELOG, the FAQ and the settings doc say it on purpose: they tell an old
   // build's user what became of it. Nothing else may.
-  const files = (dir: string, pattern: RegExp): string[] =>
-    readdirSync(path.join(root, dir)).flatMap((name) => {
-      const rel = path.join(dir, name);
-      return statSync(path.join(root, rel)).isDirectory() ? files(rel, pattern) : pattern.test(name) ? [rel] : [];
-    });
-
   it('not in the manifest, the code, the webviews, the images, the README or the licence', () => {
-    const seen = [
-      'package.json',
-      'package.nls.json',
-      'README.md',
-      'LICENSE',
-      ...files('src', /\.ts$/u),
-      ...files(path.join('webview-ui', 'src'), /\.(tsx?|css)$/u),
-      ...readdirSync(path.join(root, 'webview-ui')).filter((n) => n.endsWith('.html')).map((n) => path.join('webview-ui', n)),
-      ...files('media', /\.(svg|json)$/u),
-      ...files('shims', /./u),
-    ];
+    const seen = shipped();
     const found = seen.filter((rel) => /Git ?Tree/u.test(read(rel)));
     expect(found).toEqual([]);
     expect(seen.length).toBeGreaterThan(100);
@@ -108,6 +111,49 @@ describe('the old name, GitTree, is nowhere a user sees it', () => {
       .contributes.commands;
     const categories = new Set(commands.flatMap((c) => (c.category === undefined ? [] : [c.category])));
     expect([...categories]).toEqual(['Geet']);
+  });
+});
+
+// POST-P14cy: the identifiers too. VS Code labels a setting from its key ("Gittree › …"
+// until then), and command IDs show in Keyboard Shortcuts and settings.json. Renaming them
+// once people had set them up would have needed a migration of their settings.
+describe('the old identifiers, gittree.*, are nowhere a user sees them', () => {
+  interface Contributes {
+    commands: Array<{ command: string }>;
+    configuration: Array<{ properties: Record<string, unknown> }>;
+    views: Record<string, Array<{ id: string }>>;
+    viewsContainers: Record<string, Array<{ id: string }>>;
+    submenus: Array<{ id: string }>;
+    colors: Array<{ id: string }>;
+    walkthroughs: Array<{ id: string }>;
+    keybindings: Array<{ command: string }>;
+    languages: Array<{ id: string }>;
+    grammars: Array<{ scopeName: string }>;
+  }
+
+  it('not in a file that ships, nor in the name of one', () => {
+    const seen = shipped();
+    expect(seen.filter((rel) => /gittree/iu.test(rel))).toEqual([]);
+    expect(seen.filter((rel) => /gittree/iu.test(read(rel)))).toEqual([]);
+  });
+
+  it('every ID the manifest contributes starts with geet', () => {
+    const c = (JSON.parse(read('package.json')) as { contributes: Contributes }).contributes;
+    const dotted = [
+      ...c.commands.map((x) => x.command),
+      ...c.configuration.flatMap((s) => Object.keys(s.properties)),
+      ...Object.values(c.views).flat().map((v) => v.id),
+      ...c.submenus.map((s) => s.id),
+      ...c.colors.map((s) => s.id),
+      ...c.walkthroughs.map((s) => s.id),
+      ...c.keybindings.map((k) => k.command),
+    ];
+    expect(dotted.length).toBeGreaterThan(300);
+    expect(dotted.filter((id) => !id.startsWith('geet.'))).toEqual([]);
+    // These have no dot to put after the name.
+    expect(Object.values(c.viewsContainers).flat().map((v) => v.id).sort()).toEqual(['geet', 'geet-panel']);
+    expect(c.languages.map((l) => l.id)).toEqual(['geet-commit-message']);
+    expect(c.grammars.map((g) => g.scopeName)).toEqual(['text.geet-commit-message']);
   });
 });
 
@@ -136,11 +182,13 @@ describe('the README, as the Marketplace page', () => {
   });
 
   it('says Geet is not affiliated with JetBrains', () => {
-    expect(readme).toMatch(/not affiliated with or endorsed by JetBrains/u);
+    // `\s+`: the README wraps its lines, so a space can be a line break.
+    expect(readme).toMatch(/not\s+affiliated\s+with\s+or\s+endorsed\s+by\s+JetBrains/u);
   });
 
   it('is titled "Geet for Git", and says Geet is not the Git project’s', () => {
     expect(readme.split('\n')[0]).toBe('# Geet for Git');
-    expect(readme).toMatch(/not affiliated with or endorsed by the Git project/u);
+    // README.md breaks this line after "Git" (POST-P14cv: it failed in CI).
+    expect(readme).toMatch(/not\s+affiliated\s+with\s+or\s+endorsed\s+by\s+the\s+Git\s+project/u);
   });
 });

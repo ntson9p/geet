@@ -189,7 +189,7 @@ describe('the work folder', () => {
 describe('clearDemoFolder', () => {
   const made: string[] = [];
   const tmp = (): string => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'gittree-shots-test-'));
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'geet-shots-test-'));
     made.push(dir);
     return dir;
   };
@@ -227,7 +227,7 @@ describe('the scratch VS Code', () => {
   it('has a fixed theme, no prompts of its own, and VS Code’s Git off', () => {
     expect(SETTINGS['workbench.colorTheme']).toBe('Default Dark Modern');
     expect(SETTINGS['git.enabled']).toBe(false);
-    expect(SETTINGS['gittree.whatsNew.enabled']).toBe(false);
+    expect(SETTINGS['geet.whatsNew.enabled']).toBe(false);
     expect(SETTINGS['update.mode']).toBe('none');
     expect(SETTINGS['telemetry.telemetryLevel']).toBe('off');
   });

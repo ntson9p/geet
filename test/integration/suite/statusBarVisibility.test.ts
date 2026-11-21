@@ -45,7 +45,7 @@ suite('status bar visibility follows the repository set', () => {
   }
 
   /** Untracked inside repoA while it exists, so `.git/info/exclude` hides it. */
-  const NESTED = 'gittree-statusbar-tmp';
+  const NESTED = 'geet-statusbar-tmp';
 
   let core: Core;
   let phase01: Phase01Shape;
@@ -83,12 +83,12 @@ suite('status bar visibility follows the repository set', () => {
     extraIgnores: readonly string[] = [],
   ): Promise<void> {
     marker += 1;
-    await vscode.workspace.getConfiguration('gittree').update(
+    await vscode.workspace.getConfiguration('geet').update(
       'repositoryScan.ignoredFolders',
       // The marker changes every call so `affectsConfiguration` always fires
       // and never coalesces two requests into one; it names a folder that
       // cannot exist, so it changes nothing about what discovery finds.
-      ['node_modules', ...extraIgnores, `gittree-no-such-folder-${marker}`],
+      ['node_modules', ...extraIgnores, `geet-no-such-folder-${marker}`],
       vscode.ConfigurationTarget.Workspace,
     );
     try {
@@ -169,11 +169,11 @@ suite('status bar visibility follows the repository set', () => {
     // repository in a window that expects five.
     if (removed) {
       await vscode.workspace
-        .getConfiguration('gittree')
+        .getConfiguration('geet')
         .update('repositoryScan.ignoredFolders', undefined, vscode.ConfigurationTarget.Workspace);
     } else {
       await vscode.workspace
-        .getConfiguration('gittree')
+        .getConfiguration('geet')
         .update(
           'repositoryScan.ignoredFolders',
           ['node_modules', NESTED],
@@ -194,7 +194,7 @@ suite('status bar visibility follows the repository set', () => {
    * missed. `createStatusBarItem(id, …)` says the id "must be unique within the
    * extension" because VS Code routes the entry by it: every item sharing an id
    * shares **one** entry, `show()` updates it and `hide()` *disposes* it. A
-   * controller per repository, each creating `gittree.status.0`, therefore gave
+   * controller per repository, each creating `geet.status.0`, therefore gave
    * six co-owners the power to delete the seventh's widget — which is what a
    * fetch fan-out did, one `setFetching` at a time.
    *
@@ -327,12 +327,12 @@ suite('status bar visibility follows the repository set', () => {
    * a crowded status bar. These assert the wiring — that the setting reaches
    * the controller, and that a change to it redraws with no other event.
    */
-  test('the widget shape follows gittree.statusBar, and the setting alone redraws it', async function () {
+  test('the widget shape follows geet.statusBar, and the setting alone redraws it', async function () {
     this.timeout(60_000);
     const bar = bars.get(repoAKey);
     assert.ok(bar, 'repoA has no status bar controller');
     const cfg = (): vscode.WorkspaceConfiguration =>
-      vscode.workspace.getConfiguration('gittree');
+      vscode.workspace.getConfiguration('geet');
 
     try {
       // Default is `auto`, and this window always has the built-in Git

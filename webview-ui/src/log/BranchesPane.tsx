@@ -4,7 +4,7 @@
  * with the §2A vertical icon rail on the left edge. Selecting refs filters
  * the Commits pane; `HEAD (Current)` restores the default; selection is
  * additive with Ctrl. Context menus are native (`data-vscode-context` →
- * `gittree.log.branch.*`), dispatching the same registry as the tree view.
+ * `geet.log.branch.*`), dispatching the same registry as the tree view.
  * The rail's gear is IntelliJ's `Branches Pane Settings`, holding `Show Tags`.
  */
 import { useCallback, useMemo, useState } from 'react';
@@ -29,7 +29,7 @@ export interface BranchesPaneProps {
   filter: LogFilterDto;
   onFilterChange: (next: LogFilterDto) => void;
   onCollapsePane: () => void;
-  /** `Branches Pane Settings · Show Tags` (`gittree.branches.showTags`). */
+  /** `Branches Pane Settings · Show Tags` (`geet.branches.showTags`). */
   showTags: boolean;
   onShowTagsChange: (next: boolean) => void;
   /** The Log tab this pane belongs to, so a rail action runs in its repository. */
@@ -158,7 +158,7 @@ export function BranchesPane({
         repoRoot,
         refName: ref.name,
         refType: ref.type,
-        ...(ref.tracked === true ? { 'gittree.branchTracked': true } : {}),
+        ...(ref.tracked === true ? { 'geet.branchTracked': true } : {}),
       };
     },
     [refs, repoRoot],

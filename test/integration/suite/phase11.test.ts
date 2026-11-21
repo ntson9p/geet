@@ -91,7 +91,7 @@ suite('P11 commit tool window', () => {
     // Registration alone proves nothing — a WebviewViewProvider only resolves
     // when its view becomes visible, and that is the one seam the mocked
     // Playwright suite cannot cover.
-    await vscode.commands.executeCommand('gittree.commit.focus');
+    await vscode.commands.executeCommand('geet.commit.focus');
     await waitFor(() => reg.commitWindow.isResolved, 15_000);
     // A push with a live view must reach the webview instead of no-opping.
     reg.commitWindow.push();
@@ -142,7 +142,7 @@ suite('P11 commit tool window', () => {
 
   test('T3: every intent the webview posts has a host handler', async function () {
     this.timeout(30_000);
-    await vscode.commands.executeCommand('gittree.commit.focus');
+    await vscode.commands.executeCommand('geet.commit.focus');
     await waitFor(() => reg.commitWindow.isResolved, 15_000);
     // `on()` and `onEvent()` feed different routers. P11-T2 registered these
     // with `on()` while the webview posted them as events, so every intent but
@@ -180,11 +180,11 @@ suite('P11 commit tool window', () => {
     service.setChecked(['p11/take-me.txt'], true);
     const before = git('rev-parse', 'HEAD').trim();
     reg.commitWindow.messageBoxFor(repo).value = 'p11 add one untracked file';
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
 
@@ -209,11 +209,11 @@ suite('P11 commit tool window', () => {
     reg.commitWindow.messageBoxFor(repo).value = 'p11 commit from the tool window';
     assert.strictEqual(reg.commitWindow.getMessage(repo), 'p11 commit from the tool window');
 
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
     assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p11 commit from the tool window');
@@ -245,11 +245,11 @@ suite('P11 commit tool window', () => {
   async function commitNow(message: string): Promise<string> {
     const before = git('rev-parse', 'HEAD').trim();
     reg.commitWindow.messageBoxFor(repo).value = message;
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
     return git('rev-parse', 'HEAD').trim();
@@ -429,7 +429,7 @@ suite('P11 commit tool window', () => {
       assert.strictEqual(store.getAuthor(repo), 'Test Author <t@example.com>');
       await applyOption(store, repo, { kind: 'signoff', value: true });
       assert.strictEqual(
-        vscode.workspace.getConfiguration('gittree.commit').get('signoff'),
+        vscode.workspace.getConfiguration('geet.commit').get('signoff'),
         true,
       );
       // Unticked by default (POST-P14bv), so the round trip ticks it.
@@ -454,7 +454,7 @@ suite('P11 commit tool window', () => {
       // The gear writes where the user keeps a setting, else in their own
       // settings (`writeSetting`, POST-QA): both go, or the next test starts
       // with Run advanced checks after commit ticked.
-      const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
+      const checks = vscode.workspace.getConfiguration('geet.commit.checks');
       await checks.update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
       await checks.update('deferAdvanced', undefined, vscode.ConfigurationTarget.Global);
     }
@@ -493,8 +493,8 @@ suite('P11 commit tool window', () => {
   test('T5: deferred advanced checks run after the commit and never gate it', async function () {
     this.timeout(90_000);
     const store = reg.optionsStore;
-    const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
-    process.env['GITTREE_TEST_DEFERRED_CHECKS'] = '1';
+    const checks = vscode.workspace.getConfiguration('geet.commit.checks');
+    process.env['GEET_TEST_DEFERRED_CHECKS'] = '1';
     try {
       // Default assertions first. POST-P14bv: deferred-after starts unticked
       // (IntelliJ ticks it), and POST-P14bg: so does every check (D38). This
@@ -519,9 +519,9 @@ suite('P11 commit tool window', () => {
 
       const before = git('rev-parse', 'HEAD').trim();
       reg.commitWindow.messageBoxFor(repo).value = 't5 deferred checks commit';
-      // Deliberately NO GITTREE_TEST_CHECKS_CHOICE: a gating modal would hang
+      // Deliberately NO GEET_TEST_CHECKS_CHOICE: a gating modal would hang
       // this test. Deferred mode must commit without asking anything.
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
       await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 30_000);
       const newHead = git('rev-parse', 'HEAD').trim();
 
@@ -538,7 +538,7 @@ suite('P11 commit tool window', () => {
         `expected the TODO finding, got: ${JSON.stringify(outcome.failures)}`,
       );
     } finally {
-      delete process.env['GITTREE_TEST_DEFERRED_CHECKS'];
+      delete process.env['GEET_TEST_DEFERRED_CHECKS'];
       await checks.update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
       await checks.update('analyze', undefined, vscode.ConfigurationTarget.Workspace);
       await checks.update('todo', undefined, vscode.ConfigurationTarget.Workspace);
@@ -570,18 +570,18 @@ suite('P11 commit tool window', () => {
     this.timeout(30_000);
     const commands = await vscode.commands.getCommands(true);
     for (const id of [
-      'gittree.shelf.shelve',
-      'gittree.shelf.unshelve',
-      'gittree.shelf.unshelveSilently',
-      'gittree.shelf.unshelvePartial',
-      'gittree.shelf.compareWithLocal',
-      'gittree.shelf.openShelvedDiff',
-      'gittree.shelf.showPatch',
-      'gittree.shelf.export',
-      'gittree.shelf.rename',
-      'gittree.shelf.delete',
-      'gittree.shelf.import',
-      'gittree.shelf.showUnshelved',
+      'geet.shelf.shelve',
+      'geet.shelf.unshelve',
+      'geet.shelf.unshelveSilently',
+      'geet.shelf.unshelvePartial',
+      'geet.shelf.compareWithLocal',
+      'geet.shelf.openShelvedDiff',
+      'geet.shelf.showPatch',
+      'geet.shelf.export',
+      'geet.shelf.rename',
+      'geet.shelf.delete',
+      'geet.shelf.import',
+      'geet.shelf.showUnshelved',
     ]) {
       assert.ok(commands.includes(id), `missing command ${id}`);
     }
@@ -650,11 +650,11 @@ suite('P11 commit tool window', () => {
     const rel = 'p11/shelf-keep.txt';
     const id = await seedShelf('p11 kept', rel);
 
-    process.env['GITTREE_TEST_UNSHELVE'] = JSON.stringify({ deleteAfter: false });
+    process.env['GEET_TEST_UNSHELVE'] = JSON.stringify({ deleteAfter: false });
     try {
       await shelfBridge.dispatch({ action: 'unshelve', repoRoot: fsRoot, id });
     } finally {
-      delete process.env['GITTREE_TEST_UNSHELVE'];
+      delete process.env['GEET_TEST_UNSHELVE'];
     }
     await waitFor(
       () => fs.readFileSync(path.join(repoRoot, rel), 'utf8') === 'shelf changed\n',
@@ -670,7 +670,7 @@ suite('P11 commit tool window', () => {
       !hidden.repos.some((r) => r.entries.some((e) => e.id === id)),
       'applied-but-kept entries hide by default',
     );
-    await vscode.commands.executeCommand('gittree.shelf.showUnshelved');
+    await vscode.commands.executeCommand('geet.shelf.showUnshelved');
     try {
       const shown = shelfBridge.buildState();
       assert.strictEqual(shown.showUnshelved, true);
@@ -680,7 +680,7 @@ suite('P11 commit tool window', () => {
       assert.ok(entry, 'the toggle must reveal the applied entry');
       assert.strictEqual(entry.unshelved, true);
     } finally {
-      await vscode.commands.executeCommand('gittree.shelf.showUnshelved');
+      await vscode.commands.executeCommand('geet.shelf.showUnshelved');
     }
 
     shelfStore.delete(id);
@@ -848,7 +848,7 @@ suite('P11 commit tool window', () => {
 
   test('T8: color overrides ship with the state; invalid values are dropped', async function () {
     this.timeout(30_000);
-    const colors = vscode.workspace.getConfiguration('gittree.colors');
+    const colors = vscode.workspace.getConfiguration('geet.colors');
     try {
       await colors.update('modified', '#ff8800', vscode.ConfigurationTarget.Workspace);
       // A value that is not color-shaped must never reach a style attribute.
@@ -910,14 +910,14 @@ suite('P11 commit tool window', () => {
   });
 
   // P14-T2 deleted the two surface-switching tests with the surface they
-  // switched to: `gittree.commit.window` and its toggle command are gone.
+  // switched to: `geet.commit.window` and its toggle command are gone.
 
   test('POST-P14bs: the commit key asks the window, and never commits a message of its own', async function () {
     this.timeout(60_000);
     // Ctrl+Enter in the message box runs this command (while the box has the
     // keyboard). The host's copy of the message may trail the box by its
     // persist debounce, so the window commits, as its Commit button does.
-    await vscode.commands.executeCommand('gittree.commit.focus');
+    await vscode.commands.executeCommand('geet.commit.focus');
     await waitFor(() => reg.commitWindow.isResolved, 15_000);
     const box = reg.messageBoxFor(repo);
     const previous = box.value;
@@ -929,7 +929,7 @@ suite('P11 commit tool window', () => {
     try {
       box.value = 'p11 the commit key must not commit this';
       await waitFor(() => box.value === 'p11 the commit key must not commit this', 5_000);
-      await vscode.commands.executeCommand('gittree.commit.fromMessageBox');
+      await vscode.commands.executeCommand('geet.commit.fromMessageBox');
       assert.strictEqual(asks(), asked + 1, `trail: ${reg.commitWindow.debugTrail.join(' | ')}`);
       // The window's box never had the keyboard here, so the window lets the
       // ask go: nothing commits, and the host never commits from its own copy.

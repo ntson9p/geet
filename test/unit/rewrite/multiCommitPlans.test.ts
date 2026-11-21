@@ -12,7 +12,7 @@ const BASE = sha('0');
 // base..HEAD, oldest first: a b c d e.
 const RANGE = ['a', 'b', 'c', 'd', 'e'].map(sha);
 const pick = (...cs: string[]): Set<string> => new Set(cs.map(sha));
-const MSG_DIR = 'C:/tmp/gittree-rebase-x';
+const MSG_DIR = 'C:/tmp/geet-rebase-x';
 
 describe('isContiguous', () => {
   it('is true for one unbroken run, wherever it sits', () => {

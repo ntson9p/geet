@@ -3,10 +3,10 @@
  * the moment a merge produces conflicts — a file list with `Accept Yours`,
  * `Accept Theirs`, resolve-all-simple and `Merge…`.
  *
- * IntelliJ gates on the modal; the `gittree.conflicts` **tree view stays** as
+ * IntelliJ gates on the modal; the `geet.conflicts` **tree view stays** as
  * the persistent surface for ongoing work, exactly as the phase plan specifies.
  * The dialog is shown once per session and can be turned off entirely with
- * `gittree.merge.conflictsDialog` — an editor-area panel opening by itself is
+ * `geet.merge.conflictsDialog` — an editor-area panel opening by itself is
  * more intrusive than IntelliJ's modal, so it needs an off switch.
  */
 import * as path from 'node:path';
@@ -53,7 +53,7 @@ export async function applyConflictsResult(
 ): Promise<string> {
   const paths = result.paths.filter((p) => session.files().some((f) => f.path === p));
   if (result.action === 'resolveSimple') {
-    await vscode.commands.executeCommand('gittree.merge.magicWandSession', {
+    await vscode.commands.executeCommand('geet.merge.magicWandSession', {
       repoRoot: session.repo.root,
     });
     return vscode.l10n.t('Resolved the simple conflicts.');
@@ -62,7 +62,7 @@ export async function applyConflictsResult(
     const first = paths[0];
     if (first === undefined) return vscode.l10n.t('No file selected to merge.');
     // The same `ConflictNode` shape the tree view dispatches with.
-    await vscode.commands.executeCommand('gittree.merge.open', {
+    await vscode.commands.executeCommand('geet.merge.open', {
       session,
       path: first,
       kind: session.files().find((f) => f.path === first)?.kind,
@@ -84,15 +84,15 @@ export async function applyConflictsResult(
  * editor-based assertion in a suite that creates conflict sessions (it did —
  * P6-T4's chevron test). The dialog's own halves (`buildConflictsParams`,
  * `applyConflictsResult`) are driven directly by the P13 suite, and
- * `GITTREE_TEST_CONFLICTS_DIALOG=1` re-arms the auto-open for anyone who wants
+ * `GEET_TEST_CONFLICTS_DIALOG=1` re-arms the auto-open for anyone who wants
  * to exercise the whole path.
  */
 export function conflictsDialogEnabled(): boolean {
-  if (process.env['GITTREE_TEST'] === '1' && process.env['GITTREE_TEST_CONFLICTS_DIALOG'] !== '1') {
+  if (process.env['GEET_TEST'] === '1' && process.env['GEET_TEST_CONFLICTS_DIALOG'] !== '1') {
     return false;
   }
   return vscode.workspace
-    .getConfiguration('gittree.merge')
+    .getConfiguration('geet.merge')
     .get<boolean>('conflictsDialog', true);
 }
 

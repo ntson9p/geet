@@ -3,13 +3,13 @@
  * Repositories, until POST-P14co split it in two): together they answer, for
  * every repository at once, "where am I, what is waiting, and where can I go".
  *
- * - **Repositories** (`gittree.repositoryList`): a filter of them by name, with
+ * - **Repositories** (`geet.repositoryList`): a filter of them by name, with
  *   Fetch (every repository) beside it (POST-P14cp) and `⋯` (POST-P14cq: Update,
  *   Commit and Push on the repositories in view), then every repository the
  *   filter matches, with what it has checked out, its counts, its buttons and
  *   its menu; a click picks it. Only with several repositories
- *   (`gittree.multiRepo`).
- * - **Branches** (`gittree.branches`, the old panel's id, so a layout or a
+ *   (`geet.multiRepo`).
+ * - **Branches** (`geet.branches`, the old panel's id, so a layout or a
  *   keybinding made before keeps working): the filter (whose `@` picks
  *   repositories), New Branch and the rest of the toolbar, then the branches
  *   under their tabs. With one repository it starts with its current branch,
@@ -124,9 +124,9 @@ function newPage(role: BranchPanelRole): PanelPage {
 
 export class BranchPanelProvider {
   /** The Branches panel: the old one-panel id, kept so layouts and keybindings carry over. */
-  static readonly viewType = 'gittree.branches';
+  static readonly viewType = 'geet.branches';
   /** POST-P14co: the Repositories panel. */
-  static readonly repositoriesViewType = 'gittree.repositoryList';
+  static readonly repositoriesViewType = 'geet.repositoryList';
 
   /** The view each panel is drawn in. */
   static viewTypeOf(role: BranchPanelRole): string {
@@ -174,9 +174,9 @@ export class BranchPanelProvider {
       ),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (
-          e.affectsConfiguration('gittree.branches') ||
-          e.affectsConfiguration('gittree.log.graphPalette') ||
-          e.affectsConfiguration(`gittree.${INTELLIJ_KEYMAP_SETTING}`)
+          e.affectsConfiguration('geet.branches') ||
+          e.affectsConfiguration('geet.log.graphPalette') ||
+          e.affectsConfiguration(`geet.${INTELLIJ_KEYMAP_SETTING}`)
         ) {
           this.schedulePush();
         }
@@ -309,7 +309,7 @@ export class BranchPanelProvider {
         });
       }),
     );
-    const cfg = vscode.workspace.getConfiguration('gittree.branches');
+    const cfg = vscode.workspace.getConfiguration('geet.branches');
     const state: BranchPanelStateDto = {
       repos,
       showTags: showTagsSetting(),
@@ -319,10 +319,10 @@ export class BranchPanelProvider {
       fetchingAll: this.fetchingAll,
       now: Math.floor(Date.now() / 1000),
       palette:
-        vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette') === 'colorBlind'
+        vscode.workspace.getConfiguration('geet.log').get<string>('graphPalette') === 'colorBlind'
           ? 'colorBlind'
           : 'default',
-      intellijKeymap: vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
+      intellijKeymap: vscode.workspace.getConfiguration('geet').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
       // Read once the awaits above are over, so a push built across a pick
       // carries the pick as it is when it is sent, never as it was.
       scope: this.deps.reposInView.picked,
@@ -543,7 +543,7 @@ export class BranchPanelProvider {
       const p = params as { key?: unknown; value?: unknown } | undefined;
       const key = typeof p?.key === 'string' ? SETTING_KEYS[p.key as BranchPanelSettingKey] : undefined;
       if (key === undefined || typeof p?.value !== 'boolean') return null;
-      await writeSetting('gittree.branches', key, p.value);
+      await writeSetting('geet.branches', key, p.value);
       return null;
     });
 
@@ -587,7 +587,7 @@ export class BranchPanelProvider {
 
   /** Runs what a menu entry, a card button or a row button asked for. */
   async run(run: BranchPanelRunDto): Promise<void> {
-    if (run.type === 'command' && run.command === 'gittree.fetch' && run.root !== undefined) {
+    if (run.type === 'command' && run.command === 'geet.fetch' && run.root !== undefined) {
       // Not awaited by the request: a fetch outlasts its timeout, and the row
       // shows its own progress.
       void this.fetchRepository(run.root);
@@ -618,7 +618,7 @@ export class BranchPanelProvider {
     this.fetching.add(key);
     this.schedulePush();
     try {
-      await vscode.commands.executeCommand('gittree.fetch', root);
+      await vscode.commands.executeCommand('geet.fetch', root);
     } catch (err) {
       this.deps.core.output.appendLine(`[branches] fetch ${root} failed: ${String(err)}`);
     } finally {
@@ -636,7 +636,7 @@ export class BranchPanelProvider {
     this.fetchingAll = true;
     this.schedulePush();
     try {
-      await vscode.commands.executeCommand('gittree.fetch');
+      await vscode.commands.executeCommand('geet.fetch');
     } catch (err) {
       this.deps.core.output.appendLine(`[branches] fetch all failed: ${String(err)}`);
     } finally {

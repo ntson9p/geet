@@ -173,7 +173,7 @@ export const mockCommitHostScript = `
     };
   }
 
-  // gittree.commit.groupBy and (POST-P14cb) gittree.commit.groupByDirectory.
+  // geet.commit.groupBy and (POST-P14cb) geet.commit.groupByDirectory.
   // Opt-in start (window.__mockGroupBy, window.__mockGroupByDirectory), read
   // when first asked so an init script can set them; View Options writes them as
   // the host does. The specs written before POST-P14cb are about IntelliJ's tree,
@@ -310,7 +310,7 @@ export const mockCommitHostScript = `
       paradigm: 'changelists',
       // P11-T8: one override so specs can see it win; the rest follow the theme.
       colors: { modified: '#ff8800' },
-      // gittree.log.graphPalette, which the repositories' colours follow.
+      // geet.log.graphPalette, which the repositories' colours follow.
       palette: window.__mockGraphPalette === 'colorBlind' ? 'colorBlind' : 'default',
       groupBy: currentGroupBy(),
       groupByDirectory: currentDirectory(),
@@ -486,9 +486,9 @@ export const mockCommitHostScript = `
     'commit/openDiff': () => undefined,
     // POST-P14bq: the host opens the file manager; receiving it is enough.
     'commit/reveal': () => undefined,
-    // POST-P14bq: the host sets gittree.commitTreeFocus; receiving it is enough.
+    // POST-P14bq: the host sets geet.commitTreeFocus; receiving it is enough.
     'commit/treeFocus': () => undefined,
-    // POST-P14bs: the host sets gittree.commitMessageFocus; likewise.
+    // POST-P14bs: the host sets geet.commitMessageFocus; likewise.
     'commit/messageFocus': () => undefined,
     'commit/diffChain': () => undefined,
     'commit/rollback': () => undefined,

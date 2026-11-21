@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 function rig(): { store: ShelfStore; storeDir: string } {
-  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-shelf-'));
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-shelf-'));
   cleanups.push(() => {
     try {
       fs.rmSync(storeDir, { recursive: true, force: true, maxRetries: 3 });

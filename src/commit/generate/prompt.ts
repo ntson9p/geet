@@ -25,7 +25,7 @@ export interface PromptInput {
   readonly repos: readonly PromptRepo[];
   /** Subjects of recent commits, newest first: style to follow, never content. */
   readonly recentSubjects: readonly string[];
-  /** `gittree.commit.messageGeneration.instructions`, as typed. */
+  /** `geet.commit.messageGeneration.instructions`, as typed. */
   readonly instructions?: string;
   /** The most characters of diff text to send, all files together. */
   readonly diffBudget: number;

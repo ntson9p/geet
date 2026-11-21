@@ -14,8 +14,8 @@
  * and for the same reason `Remember the update method and update silently in
  * the future` moves to the result as `Don't Ask Again` (D32). What that writes
  * is IntelliJ's own setting, `Auto-update if push of the current branch was
- * rejected` — `gittree.push.autoUpdateIfRejected`. The dialog's other
- * checkbox, `Update all repositories`, is `gittree.push.updateAllRepositoriesIfRejected`.
+ * rejected` — `geet.push.autoUpdateIfRejected`. The dialog's other
+ * checkbox, `Update all repositories`, is `geet.push.updateAllRepositoriesIfRejected`.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -108,12 +108,12 @@ export type PushResult =
 const AUTO_UPDATE_SETTING = 'push.autoUpdateIfRejected';
 
 function autoUpdateIfRejected(): boolean {
-  return vscode.workspace.getConfiguration('gittree').get<boolean>(AUTO_UPDATE_SETTING, false);
+  return vscode.workspace.getConfiguration('geet').get<boolean>(AUTO_UPDATE_SETTING, false);
 }
 
 /** The persistence half of `Don't Ask Again`, separated so tests drive the same path. */
 export async function setAutoUpdateIfRejected(value: boolean): Promise<void> {
-  await writeSetting('gittree', AUTO_UPDATE_SETTING, value);
+  await writeSetting('geet', AUTO_UPDATE_SETTING, value);
 }
 
 /**
@@ -124,16 +124,16 @@ export async function setAutoUpdateIfRejected(value: boolean): Promise<void> {
 const UPDATE_ALL_SETTING = 'push.updateAllRepositoriesIfRejected';
 
 function updateAllRepositoriesIfRejected(): boolean {
-  return vscode.workspace.getConfiguration('gittree').get<boolean>(UPDATE_ALL_SETTING, true);
+  return vscode.workspace.getConfiguration('geet').get<boolean>(UPDATE_ALL_SETTING, true);
 }
 
 /** Test seam; `undefined` puts the default back. */
 export async function setUpdateAllRepositoriesIfRejected(value: boolean | undefined): Promise<void> {
-  await writeSetting('gittree', UPDATE_ALL_SETTING, value);
+  await writeSetting('geet', UPDATE_ALL_SETTING, value);
 }
 
 function showCommandLine(): boolean {
-  return vscode.workspace.getConfiguration('gittree').get<boolean>('dialogs.showCommandLine', true);
+  return vscode.workspace.getConfiguration('geet').get<boolean>('dialogs.showCommandLine', true);
 }
 
 /** Workspace-wide names, so a repository is called here what the sidebar calls it. */
@@ -261,7 +261,7 @@ export interface PushRunOptions {
  * All pushes go first, as IntelliJ's do, so one question covers every
  * repository the remote turned away. Then IntelliJ's order: **update
  * everything, then push again** — the rejected repositories and, with
- * `gittree.push.updateAllRepositoriesIfRejected` on, every other one that can
+ * `geet.push.updateAllRepositoriesIfRejected` on, every other one that can
  * be updated. The updates run in workspace order and stop at the first
  * failure, as Update Project's do, and nothing is pushed again unless every
  * one of them went through.
@@ -452,7 +452,7 @@ function choiceLabel(choice: UpdateStrategy, merges: boolean): string {
  * the branch — and the repository, in a workspace with more than one — and
  * the other repositories `Update all repositories` will update too, which the
  * dialog shows as a ticked checkbox; then, with
- * `gittree.dialogs.showCommandLine` on, what each button runs.
+ * `geet.dialogs.showCommandLine` on, what each button runs.
  */
 export function buildPushRejectedPrompt(
   deps: UpdateDialogDeps,
@@ -487,7 +487,7 @@ export function buildPushRejectedPrompt(
   if (others.length > 0) {
     lines.push(
       vscode.l10n.t(
-        'Also updates {0} (Update all repositories: gittree.push.updateAllRepositoriesIfRejected).',
+        'Also updates {0} (Update all repositories: geet.push.updateAllRepositoriesIfRejected).',
         others.map(label).join(', '),
       ),
     );
@@ -554,13 +554,13 @@ export function clearLastPushRejectedPrompt(): void {
 
 /**
  * Puts the question; `undefined` is Cancel, Escape or closing the box. A
- * warning, as IntelliJ's dialog is. `GITTREE_TEST_PUSH_REJECTED_CHOICE`
+ * warning, as IntelliJ's dialog is. `GEET_TEST_PUSH_REJECTED_CHOICE`
  * (`merge` | `rebase` | `cancel`) answers it in tests, the same kind of seam
- * as `GITTREE_TEST_UPDATE_CHOICE`; the prompt is recorded either way.
+ * as `GEET_TEST_UPDATE_CHOICE`; the prompt is recorded either way.
  */
 async function askPushRejected(prompt: PushRejectedPrompt): Promise<UpdateStrategy | undefined> {
   lastPrompt = prompt;
-  const seam = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+  const seam = process.env['GEET_TEST_PUSH_REJECTED_CHOICE'];
   if (seam !== undefined) return prompt.choices.find((c) => c === seam);
   const picked = await vscode.window.showWarningMessage(
     prompt.message,
@@ -727,10 +727,10 @@ async function rememberAutoUpdate(strategy: UpdateStrategy): Promise<void> {
   showInfo(
     strategy === 'rebase'
       ? vscode.l10n.t(
-          'A rejected push will now rebase and push again without asking. Turn this off with the setting gittree.push.autoUpdateIfRejected.',
+          'A rejected push will now rebase and push again without asking. Turn this off with the setting geet.push.autoUpdateIfRejected.',
         )
       : vscode.l10n.t(
-          'A rejected push will now merge and push again without asking. Turn this off with the setting gittree.push.autoUpdateIfRejected.',
+          'A rejected push will now merge and push again without asking. Turn this off with the setting geet.push.autoUpdateIfRejected.',
         ),
   );
 }
@@ -825,7 +825,7 @@ export function reportPushes(core: Core, run: PushRun, options: PushReportOption
     } else if (choice === dontAsk && remember !== undefined) {
       await rememberAutoUpdate(remember);
     } else if (choice === details) {
-      await vscode.commands.executeCommand('gittree.log.showConsole');
+      await vscode.commands.executeCommand('geet.log.showConsole');
     }
   });
 }

@@ -94,18 +94,18 @@ export interface UpdateRequest {
   strategy: UpdateStrategy;
 }
 
-const LAST_STRATEGY_KEY = 'gittree.update.lastStrategy';
+const LAST_STRATEGY_KEY = 'geet.update.lastStrategy';
 
 /** POST-P14bm: Update Project Without Fetching — with a root, that repository; without, the project. */
-export const UPDATE_WITHOUT_FETCH_COMMAND = 'gittree.update.withoutFetch';
+export const UPDATE_WITHOUT_FETCH_COMMAND = 'geet.update.withoutFetch';
 
 /**
  * POST-P14bx: Update Repository… and its Without Fetching — one repository's
  * update, as its own menu and button name it; with no repository named, which
  * one is asked.
  */
-export const UPDATE_REPOSITORY_COMMAND = 'gittree.update.repository';
-export const UPDATE_REPOSITORY_WITHOUT_FETCH_COMMAND = 'gittree.update.repositoryWithoutFetch';
+export const UPDATE_REPOSITORY_COMMAND = 'geet.update.repository';
+export const UPDATE_REPOSITORY_WITHOUT_FETCH_COMMAND = 'geet.update.repositoryWithoutFetch';
 
 /** What the update actually did — returned so integration tests can assert it. */
 export interface UpdateOutcome {
@@ -159,7 +159,7 @@ function holdConflictNotices(core: Core, repos: readonly RepoHandle[]): vscode.D
 
 function readSetting(): UpdateStrategySetting {
   return normalizeStrategySetting(
-    vscode.workspace.getConfiguration('gittree').get<string>('update.strategy', 'ask'),
+    vscode.workspace.getConfiguration('geet').get<string>('update.strategy', 'ask'),
   );
 }
 
@@ -348,7 +348,7 @@ function standingLine(f: FetchedUpdate, now: number): string {
  * The buttons carry the verbs; the detail says what they act on, which a
  * dialog title alone never did — `develop ← origin/develop · 3 to pull`, one
  * line per repository, named when the workspace has more than one, then any
- * repository being skipped and why. With `gittree.dialogs.showCommandLine`
+ * repository being skipped and why. With `geet.dialogs.showCommandLine`
  * on, one repository gets each button's exact commands, the lines the P13
  * dialogs showed as `will run:`; several get one sentence saying what each of
  * them runs, rather than two command lines per repository.
@@ -372,7 +372,7 @@ export function buildUpdatePrompt(
   const named = deps.core.repos.length > 1;
   const remembered = rememberedUpdateStrategy(deps.state);
   const showCommands = vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<boolean>('dialogs.showCommandLine', true);
   const withoutFetch = scope.withoutFetch === true;
   const now = Date.now();
@@ -454,14 +454,14 @@ export function clearLastUpdatePrompt(): void {
 /**
  * Puts the question. `undefined` is Cancel, Escape or closing the box.
  *
- * A native modal cannot be clicked from a test, so `GITTREE_TEST_UPDATE_CHOICE`
+ * A native modal cannot be clicked from a test, so `GEET_TEST_UPDATE_CHOICE`
  * answers it (`merge` | `rebase` | `reset` | `cancel`), the same kind of seam
- * as `GITTREE_TEST_AUTOCONFIRM`. The prompt is recorded either way, so a test
+ * as `GEET_TEST_AUTOCONFIRM`. The prompt is recorded either way, so a test
  * sees exactly what a user would have been asked.
  */
 async function askUpdate(prompt: UpdatePrompt): Promise<UpdateChoice | undefined> {
   lastPrompt = prompt;
-  const seam = process.env['GITTREE_TEST_UPDATE_CHOICE'];
+  const seam = process.env['GEET_TEST_UPDATE_CHOICE'];
   if (seam !== undefined) {
     return prompt.choices.find((c) => c === seam);
   }
@@ -1093,7 +1093,7 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
     const offer = options.offerWithoutFetch === true && outcome.fetchFailed !== undefined && root !== undefined;
     const buttons = offer ? [withoutFetch, details] : [details];
     void vscode.window.showErrorMessage(message, ...buttons).then(async (choice) => {
-      if (choice === details) await vscode.commands.executeCommand('gittree.log.showConsole');
+      if (choice === details) await vscode.commands.executeCommand('geet.log.showConsole');
       if (choice === withoutFetch) await vscode.commands.executeCommand(UPDATE_WITHOUT_FETCH_COMMAND, root);
     });
     return;
@@ -1115,14 +1115,14 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
       : vscode.window.showInformationMessage(outcome.message, ...actions);
   void shown.then(async (choice) => {
     if (choice === showConflicts) {
-      await vscode.commands.executeCommand('gittree.conflicts.focus');
+      await vscode.commands.executeCommand('geet.conflicts.focus');
       return;
     }
     if (choice === showInLog) {
       if (options.root !== undefined) {
         await showRangeInLog(outcome, options.root);
       } else {
-        await vscode.commands.executeCommand('gittree.log.openTab', {
+        await vscode.commands.executeCommand('geet.log.openTab', {
           sort: 'topo',
           range: { a: outcome.from, b: outcome.to },
         });
@@ -1139,7 +1139,7 @@ export function reportUpdate(outcome: UpdateOutcome, options: ReportOptions = {}
 function showConflictsAction(): NotificationAction {
   return {
     title: vscode.l10n.t('Show Conflicts'),
-    run: () => vscode.commands.executeCommand('gittree.conflicts.focus'),
+    run: () => vscode.commands.executeCommand('geet.conflicts.focus'),
   };
 }
 
@@ -1147,7 +1147,7 @@ function showConflictsAction(): NotificationAction {
  * The update of one named repository: a repository's own menu or button
  * (`Update Repository…`). Asks Merge or Rebase unless the user chose `Don't Ask
  * Again`, in which case that strategy runs directly — IntelliJ's behaviour, and
- * restorable through `gittree.update.configure`.
+ * restorable through `geet.update.configure`.
  *
  * POST-P14bm: `fetch: false` is Update Repository Without Fetching.
  * POST-P14bx: titled by the repository (`Update api`), not `Update Project`.
@@ -1516,7 +1516,7 @@ function reportProjectUpdate(
     // git's own words, every line of them, for what one sentence could not hold.
     actions.push({
       title: vscode.l10n.t('Show Details'),
-      run: () => vscode.commands.executeCommand('gittree.log.showConsole'),
+      run: () => vscode.commands.executeCommand('geet.log.showConsole'),
     });
   } else if (dontAskAgain !== undefined) {
     actions.push({ title: vscode.l10n.t("Don't Ask Again"), run: () => rememberDontAskAgain(dontAskAgain) });
@@ -1542,7 +1542,7 @@ export function unreachableWithUpstream(result: ProjectUpdateResult): RepoHandle
  */
 export async function showRangeInLog(outcome: UpdateOutcome, root: string): Promise<void> {
   await vscode.commands.executeCommand(
-    'gittree.log.openTab',
+    'geet.log.openTab',
     { sort: 'topo', range: { a: outcome.from, b: outcome.to } },
     root,
   );
@@ -1603,7 +1603,7 @@ export function currentUpdateStrategy(): UpdateStrategySetting {
  * the result's `Don't Ask Again`) drive the same code path the picker does.
  */
 export async function setUpdateStrategy(value: UpdateStrategySetting): Promise<void> {
-  await writeSetting('gittree', 'update.strategy', value);
+  await writeSetting('geet', 'update.strategy', value);
 }
 
 /**

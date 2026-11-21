@@ -68,7 +68,7 @@ export function App() {
       </div>
 
       <VsCodeContext
-        context={{ webview: 'gittree-demo', area: 'list' }}
+        context={{ webview: 'geet-demo', area: 'list' }}
         preventDefaults={false}
       >
         <VirtualList

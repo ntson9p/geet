@@ -4,7 +4,7 @@
  * folder rows with `N files` counts → status-colored files. A multi-commit
  * selection shows the aggregate (`git diff <oldest>^..<newest>`), which is
  * how IntelliJ's "Compare Versions" reads; a file click opens the
- * range-scoped diff through the existing `gittree-rev:` provider.
+ * range-scoped diff through the existing `geet-rev:` provider.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CommitFileDto, LogChangedFilesDto } from '../../../src/shared/protocol';

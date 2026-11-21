@@ -71,7 +71,7 @@ export async function chooseRepo(core: Core, arg?: unknown, placeHolder?: string
  * use of the editor's repository is the very problem. That repository comes
  * first, marked, so Enter still takes it, but with its name on screen.
  *
- * `GITTREE_TEST_REPO_PICK` answers it in tests: a repository's root, or
+ * `GEET_TEST_REPO_PICK` answers it in tests: a repository's root, or
  * anything else (`cancel`) for Escape.
  */
 export async function askRepo(core: Core, arg?: unknown, placeHolder?: string): Promise<RepoHandle | undefined> {
@@ -84,7 +84,7 @@ export async function askRepo(core: Core, arg?: unknown, placeHolder?: string): 
   if (core.repos.length === 1) return core.repos[0];
   const editor = implicitRepo(core);
   const ordered = repoPickOrder(core.repos, editor?.root, canonicalKey);
-  const seeded = process.env['GITTREE_TEST_REPO_PICK'];
+  const seeded = process.env['GEET_TEST_REPO_PICK'];
   if (seeded !== undefined) {
     return ordered.find((r) => canonicalKey(r.root) === canonicalKey(seeded));
   }

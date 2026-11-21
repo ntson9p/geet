@@ -21,7 +21,7 @@ import {
 } from './operationsModel';
 import { showInfo } from './notices';
 
-const RECENT_KEY = 'gittree.operationsPopup.recent';
+const RECENT_KEY = 'geet.operationsPopup.recent';
 
 interface OpsQuickPickItem extends vscode.QuickPickItem {
   item?: OpsItem;
@@ -126,7 +126,7 @@ export function registerOperationsPopup(
     buildOperationsItems(readContext(arg), recent());
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.operationsPopup', async (arg?: unknown) => {
+    vscode.commands.registerCommand('geet.operationsPopup', async (arg?: unknown) => {
       const repo = repoOf(arg);
       const items = buildItems(arg);
       if (items.length === 0) {
@@ -135,7 +135,7 @@ export function registerOperationsPopup(
         );
         return;
       }
-      const keymap = vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false);
+      const keymap = vscode.workspace.getConfiguration('geet').get<boolean>(INTELLIJ_KEYMAP_SETTING, false);
       const picked = await vscode.window.showQuickPick(toQuickPickItems(items, keymap), {
         placeHolder: vscode.l10n.t('VCS Operations'),
         matchOnDescription: true,

@@ -401,7 +401,7 @@ export function initiallyChecked(
 // ---- a Push without the dialog (POST-P14cn) ------------------------------------------
 
 /**
- * Why a Push opens the dialog although `gittree.push.showDialog` is off: what
+ * Why a Push opens the dialog although `geet.push.showDialog` is off: what
  * the dialog would push by default cannot go ahead, and only the dialog can
  * settle it. IntelliJ's Commit and Push opens its dialog the same way when it
  * cannot push (`GitPushAfterCommitDialog.shouldShow`: `!canPush`).

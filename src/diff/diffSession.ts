@@ -97,10 +97,10 @@ export class DiffSessionRegistry implements vscode.Disposable {
     const setContext = (name: string, value: boolean): void => {
       void vscode.commands.executeCommand('setContext', name, value);
     };
-    setContext('gittree.diff.active', active !== undefined);
-    setContext('gittree.diff.hasPrevFile', active !== undefined && active.index > 0);
+    setContext('geet.diff.active', active !== undefined);
+    setContext('geet.diff.hasPrevFile', active !== undefined && active.index > 0);
     setContext(
-      'gittree.diff.hasNextFile',
+      'geet.diff.hasNextFile',
       active !== undefined && active.index < active.entries.length - 1,
     );
     this.changed.fire();
@@ -199,7 +199,7 @@ export class DiffSessionRegistry implements vscode.Disposable {
         preserveFocus,
         ...(selection !== undefined ? { selection } : {}),
         // The text diff, whatever the file. By its name a `.png` would go to the
-        // image viewer, which cannot read `gittree-rev:` and shows an error page
+        // image viewer, which cannot read `geet-rev:` and shows an error page
         // with no toolbar, and that would be the end of the walk. Not in the
         // public typings; VS Code's own `TextEditorOpenOptions` reads it.
         override: true,

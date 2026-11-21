@@ -11,13 +11,13 @@ import {
 } from '../../../src/core/git/executor';
 
 function makeTempRepo(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-exec-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-exec-'));
   const run = (...args: string[]) => {
     const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
     assert.strictEqual(r.status, 0, `git ${args.join(' ')} failed: ${r.stderr}`);
   };
   run('init');
-  run('config', 'user.email', 'test@gittree.dev');
+  run('config', 'user.email', 'test@geet.dev');
   run('config', 'user.name', 'Geet Test');
   run('config', 'commit.gpgsign', 'false');
   for (let i = 1; i <= 3; i++) {

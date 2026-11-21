@@ -7,7 +7,7 @@
  */
 export const mockShelveDialogHostScript = `
 (() => {
-  window.__gittreeInitialState = { dialog: 'shelve' };
+  window.__geetInitialState = { dialog: 'shelve' };
 
   const PARAMS = {
     repoRoot: 'D:/repos/demo-git',

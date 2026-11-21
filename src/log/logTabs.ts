@@ -22,7 +22,7 @@ export interface LogTabRecord {
   readonly filter: LogFilter;
   /**
    * The repository an extra tab shows. The main tab has none: it follows the
-   * repository the log has always remembered (`gittree.log.root`).
+   * repository the log has always remembered (`geet.log.root`).
    */
   readonly root?: string;
 }

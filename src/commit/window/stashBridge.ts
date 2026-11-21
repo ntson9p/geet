@@ -1,6 +1,6 @@
 /**
  * Stash tab bridge (POST-P14l): serves the commit window's `Stash` tab and
- * routes its actions through the SAME `gittree.stash.*` commands the tree view
+ * routes its actions through the SAME `geet.stash.*` commands the tree view
  * uses — one implementation, two surfaces, exactly as `shelfBridge.ts` does for
  * the shelf.
  *
@@ -32,7 +32,7 @@ export interface StashBridgeDeps {
 
 /** IntelliJ's *Combine stashes and shelves in one tab*, off by default. */
 export function isCombineStashesEnabled(): boolean {
-  return vscode.workspace.getConfiguration('gittree.stash').get<boolean>('combineWithShelf', false);
+  return vscode.workspace.getConfiguration('geet.stash').get<boolean>('combineWithShelf', false);
 }
 
 export class StashBridge implements vscode.Disposable {
@@ -53,7 +53,7 @@ export class StashBridge implements vscode.Disposable {
     this.subs.push(
       new vscode.Disposable(() => addSub.dispose()),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.stash.combineWithShelf')) this._onDidChange.fire();
+        if (e.affectsConfiguration('geet.stash.combineWithShelf')) this._onDidChange.fire();
       }),
     );
   }
@@ -92,11 +92,11 @@ export class StashBridge implements vscode.Disposable {
    */
   async dispatch(params: CommitStashActionParamsDto): Promise<void> {
     if (params.action === 'push') {
-      await vscode.commands.executeCommand('gittree.stash.push');
+      await vscode.commands.executeCommand('geet.stash.push');
       return;
     }
     if (params.action === 'clear') {
-      await vscode.commands.executeCommand('gittree.stash.clear');
+      await vscode.commands.executeCommand('geet.stash.clear');
       return;
     }
     if (params.repoRoot === undefined || params.sha === undefined) return;
@@ -113,12 +113,12 @@ export class StashBridge implements vscode.Disposable {
     }
     const node = { kind: 'stash', repo: found.repo, service: found.service, info: found.info };
     const command = {
-      apply: 'gittree.stash.apply',
-      pop: 'gittree.stash.pop',
-      drop: 'gittree.stash.drop',
-      branch: 'gittree.stash.branch',
-      copyMessage: 'gittree.stash.copyMessage',
-      diffAll: 'gittree.stash.diffAll',
+      apply: 'geet.stash.apply',
+      pop: 'geet.stash.pop',
+      drop: 'geet.stash.drop',
+      branch: 'geet.stash.branch',
+      copyMessage: 'geet.stash.copyMessage',
+      diffAll: 'geet.stash.diffAll',
     }[params.action];
     await vscode.commands.executeCommand(command, node);
   }

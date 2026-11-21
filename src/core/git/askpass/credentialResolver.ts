@@ -12,7 +12,7 @@ interface HostCredentials {
   password?: string;
 }
 
-const SECRET_PREFIX = 'gittree.credential.';
+const SECRET_PREFIX = 'geet.credential.';
 
 export function createCredentialResolver(
   context: vscode.ExtensionContext,

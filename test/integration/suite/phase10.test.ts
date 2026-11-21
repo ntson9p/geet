@@ -44,8 +44,8 @@ suite('P10 hardening — large-repo playbook', () => {
       return;
     }
 
-    process.env['GITTREE_TEST_LARGE_REPO_THRESHOLD'] = '1';
-    process.env['GITTREE_TEST_PLAYBOOK_CHOICE'] = 'enable';
+    process.env['GEET_TEST_LARGE_REPO_THRESHOLD'] = '1';
+    process.env['GEET_TEST_PLAYBOOK_CHOICE'] = 'enable';
     try {
       await reg.offerPlaybook(repo.root);
       assert.strictEqual(git('config', 'core.fsmonitor').trim(), 'true');
@@ -56,8 +56,8 @@ suite('P10 hardening — large-repo playbook', () => {
       await reg.offerPlaybook(repo.root);
       assert.throws(() => git('config', 'core.fsmonitor'), 'second offer must be a no-op');
     } finally {
-      delete process.env['GITTREE_TEST_LARGE_REPO_THRESHOLD'];
-      delete process.env['GITTREE_TEST_PLAYBOOK_CHOICE'];
+      delete process.env['GEET_TEST_LARGE_REPO_THRESHOLD'];
+      delete process.env['GEET_TEST_PLAYBOOK_CHOICE'];
       try {
         git('fsmonitor--daemon', 'stop');
       } catch {
@@ -81,7 +81,7 @@ suite('P10 hardening — large-repo playbook', () => {
 /** P10-T3: onboarding — playground generator + walkthrough plumbing. */
 suite('P10 onboarding — playground generator', () => {
   let reg: Phase10RegistryShape;
-  const target = path.join(os.tmpdir(), `gittree-e2e-playground-${process.pid}`);
+  const target = path.join(os.tmpdir(), `geet-e2e-playground-${process.pid}`);
 
   suiteSetup(async function () {
     this.timeout(60_000);
@@ -106,7 +106,7 @@ suite('P10 onboarding — playground generator', () => {
 
   test('T3: generates a walkthrough-shaped repo — history, pending edit, conflicting branch', async function () {
     this.timeout(60_000);
-    process.env['GITTREE_TEST_PLAYGROUND_DIR'] = target;
+    process.env['GEET_TEST_PLAYGROUND_DIR'] = target;
     try {
       const dir = await reg.generatePlayground();
       assert.strictEqual(dir, target);
@@ -144,13 +144,13 @@ suite('P10 onboarding — playground generator', () => {
       // Non-empty target refused (no clobbering).
       assert.strictEqual(await reg.generatePlayground(), undefined);
     } finally {
-      delete process.env['GITTREE_TEST_PLAYGROUND_DIR'];
+      delete process.env['GEET_TEST_PLAYGROUND_DIR'];
     }
   });
 
   test('T3: walkthrough + onboarding commands are registered', async () => {
     const all = await vscode.commands.getCommands(true);
-    for (const cmd of ['gittree.openWalkthrough', 'gittree.generatePlayground']) {
+    for (const cmd of ['geet.openWalkthrough', 'geet.generatePlayground']) {
       assert.ok(all.includes(cmd), `${cmd} missing`);
     }
   });
@@ -182,10 +182,10 @@ suite('P10 telemetry & error UX', () => {
 
   test('T4: double gate — nothing sends until env AND setting allow; schema strips leaks', async function () {
     this.timeout(30_000);
-    const cfg = vscode.workspace.getConfiguration('gittree');
+    const cfg = vscode.workspace.getConfiguration('geet');
     try {
       // Setting off (default): blocked even with the env gate forced open.
-      process.env['GITTREE_TEST_TELEMETRY_ENV'] = '1';
+      process.env['GEET_TEST_TELEMETRY_ENV'] = '1';
       assert.strictEqual(reg.sendTelemetry('activation', { syncBucket: 'lt100ms' }), false);
 
       await cfg.update('telemetry.enabled', true, vscode.ConfigurationTarget.Global);
@@ -215,12 +215,12 @@ suite('P10 telemetry & error UX', () => {
       assert.match(durations[0]!.props['bucket'] ?? '', /^(lt100ms|lt400ms|lt1s|lt5s|ge5s)$/);
 
       // Env gate closes → blocked again despite the setting.
-      delete process.env['GITTREE_TEST_TELEMETRY_ENV'];
+      delete process.env['GEET_TEST_TELEMETRY_ENV'];
       if (!vscode.env.isTelemetryEnabled) {
         assert.strictEqual(reg.sendTelemetry('activation', { syncBucket: 'lt100ms' }), false);
       }
     } finally {
-      delete process.env['GITTREE_TEST_TELEMETRY_ENV'];
+      delete process.env['GEET_TEST_TELEMETRY_ENV'];
       await cfg.update('telemetry.enabled', undefined, vscode.ConfigurationTarget.Global);
     }
   });
@@ -243,8 +243,8 @@ suite('P10 telemetry & error UX', () => {
     // The trace tail references workspace repos by absolute path — all of
     // that must have been hashed away.
     assert.ok(!decoded.includes(repo.root), 'repo root leaked');
-    assert.ok(!/gittree-ws-/i.test(decoded), 'fixture workspace path leaked');
-    assert.ok(await isCommandRegistered('gittree.reportIssue'));
+    assert.ok(!/geet-ws-/i.test(decoded), 'fixture workspace path leaked');
+    assert.ok(await isCommandRegistered('geet.reportIssue'));
   });
 });
 

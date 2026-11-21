@@ -21,7 +21,7 @@ import { showInfo } from '../ui/notices';
 export function wandOptions(): WandOptions {
   return {
     whitespace: vscode.workspace
-      .getConfiguration('gittree.merge')
+      .getConfiguration('geet.merge')
       .get<boolean>('autoResolveWhitespace', true),
   };
 }
@@ -48,7 +48,7 @@ export class MergeCodeLensProvider implements vscode.CodeLensProvider {
         lenses.push(
           new vscode.CodeLens(this.lensRange(t.leftStart), {
             title: vscode.l10n.t('Accept Yours ≫'),
-            command: 'gittree.merge.acceptYours',
+            command: 'geet.merge.acceptYours',
             arguments: args,
           }),
         );
@@ -58,7 +58,7 @@ export class MergeCodeLensProvider implements vscode.CodeLensProvider {
         lenses.push(
           new vscode.CodeLens(this.lensRange(t.rightStart), {
             title: vscode.l10n.t('≪ Accept Theirs'),
-            command: 'gittree.merge.acceptTheirs',
+            command: 'geet.merge.acceptTheirs',
             arguments: args,
           }),
         );
@@ -69,12 +69,12 @@ export class MergeCodeLensProvider implements vscode.CodeLensProvider {
         lenses.push(
           new vscode.CodeLens(range, {
             title: vscode.l10n.t('Accept Both (Yours First)'),
-            command: 'gittree.merge.acceptBoth',
+            command: 'geet.merge.acceptBoth',
             arguments: args,
           }),
           new vscode.CodeLens(range, {
             title: vscode.l10n.t('Ignore (Keep Base)'),
-            command: 'gittree.merge.ignoreBlock',
+            command: 'geet.merge.ignoreBlock',
             arguments: args,
           }),
         );
@@ -82,7 +82,7 @@ export class MergeCodeLensProvider implements vscode.CodeLensProvider {
         lenses.push(
           new vscode.CodeLens(range, {
             title: vscode.l10n.t('Revert Block ({0})', t.block.resolution),
-            command: 'gittree.merge.revertBlock',
+            command: 'geet.merge.revertBlock',
             arguments: args,
           }),
         );
@@ -129,29 +129,29 @@ export function registerResolutionActions(
     return editor ? { editor } : undefined;
   };
 
-  register('gittree.merge.acceptYours', async (...args) => {
+  register('geet.merge.acceptYours', async (...args) => {
     const t = target(args);
     if (t?.blockId !== undefined) await t.editor.applyBlockResolution(t.blockId, 'ours');
   });
-  register('gittree.merge.acceptTheirs', async (...args) => {
+  register('geet.merge.acceptTheirs', async (...args) => {
     const t = target(args);
     if (t?.blockId !== undefined) await t.editor.applyBlockResolution(t.blockId, 'theirs');
   });
-  register('gittree.merge.acceptBoth', async (...args) => {
+  register('geet.merge.acceptBoth', async (...args) => {
     const t = target(args);
     if (t?.blockId !== undefined) await t.editor.applyBlockResolution(t.blockId, 'both');
   });
-  register('gittree.merge.ignoreBlock', (...args) => {
+  register('geet.merge.ignoreBlock', (...args) => {
     const t = target(args);
     if (t?.blockId !== undefined) t.editor.ignoreBlock(t.blockId);
   });
-  register('gittree.merge.revertBlock', async (...args) => {
+  register('geet.merge.revertBlock', async (...args) => {
     const t = target(args);
     if (t?.blockId !== undefined) await t.editor.revertBlock(t.blockId);
   });
 
   /** alt+enter: chevron for the block under the cursor, side from the pane. */
-  register('gittree.merge.acceptFocusedSide', async () => {
+  register('geet.merge.acceptFocusedSide', async () => {
     const active = vscode.window.activeTextEditor;
     if (!active) return;
     const owned = manager.owner(active.document.uri);
@@ -178,16 +178,16 @@ export function registerResolutionActions(
       if (t.block.resolution === undefined) await editor.applyBlockResolution(t.block.id, side);
     }
   };
-  register('gittree.merge.acceptFileYours', () => acceptAllBlocks('ours'));
-  register('gittree.merge.acceptFileTheirs', () => acceptAllBlocks('theirs'));
+  register('geet.merge.acceptFileYours', () => acceptAllBlocks('ours'));
+  register('geet.merge.acceptFileTheirs', () => acceptAllBlocks('theirs'));
 
   /** Abort file: discard the partial result, keep the file unmerged. */
-  register('gittree.merge.abortFile', async () => {
+  register('geet.merge.abortFile', async () => {
     await manager.active()?.close();
   });
 
   /** Magic Wand over the current file's unresolved blocks (toolbar $(wand)). */
-  register('gittree.merge.magicWand', async () => {
+  register('geet.merge.magicWand', async () => {
     const editor = manager.active();
     if (!editor) return;
     const opts = wandOptions();
@@ -241,21 +241,21 @@ export function registerResolutionActions(
     return message;
   };
 
-  register('gittree.merge.applyNonConflicting.left', async () => {
+  register('geet.merge.applyNonConflicting.left', async () => {
     const editor = manager.active();
     if (editor) await applySide(editor, 'left');
   });
-  register('gittree.merge.applyNonConflicting.all', async () => {
+  register('geet.merge.applyNonConflicting.all', async () => {
     const editor = manager.active();
     if (editor) await applySide(editor, 'all');
   });
-  register('gittree.merge.applyNonConflicting.right', async () => {
+  register('geet.merge.applyNonConflicting.right', async () => {
     const editor = manager.active();
     if (editor) await applySide(editor, 'right');
   });
 
   /** §2A per-side `Show Details`: the revision behind each pane. */
-  register('gittree.merge.showDetails', async (arg) => {
+  register('geet.merge.showDetails', async (arg) => {
     const editor = manager.active();
     if (!editor) return;
     const side = arg === 'right' ? 'right' : 'left';

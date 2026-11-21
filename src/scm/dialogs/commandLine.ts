@@ -1,6 +1,6 @@
 /**
  * The dim "will run:" line every P13 dialog shows
- * (`gittree.dialogs.showCommandLine`). vscode-free so the webview imports it
+ * (`geet.dialogs.showCommandLine`). vscode-free so the webview imports it
  * directly and previews exactly the argv the host will execute.
  */
 

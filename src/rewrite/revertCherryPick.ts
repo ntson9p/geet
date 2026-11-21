@@ -2,7 +2,7 @@
  * Revert & Cherry-Pick flows (P5-T4). Multi-select aware (`git revert
  * <shas…>` / `git cherry-pick <shas…>` oldest-first through one sequencer),
  * merge reverts via `-m 1` behind an explainer modal, clean picks
- * auto-commit, `-x` behind gittree.cherryPick.recordOrigin, and a
+ * auto-commit, `-x` behind geet.cherryPick.recordOrigin, and a
  * Continue/Skip/Abort pause flow with per-commit progress until the P6
  * conflicts view takes over. GIT_EDITOR never opens (--no-edit / env guard).
  */
@@ -79,7 +79,7 @@ export class RevertCherryPickService {
     const ordered = await this.orderOldestFirst(repo, shas);
     if (ordered.length === 0) return { status: 'refused' };
     const recordOrigin = vscode.workspace
-      .getConfiguration('gittree.cherryPick')
+      .getConfiguration('geet.cherryPick')
       .get<boolean>('recordOrigin', false);
     const args = ['cherry-pick'];
     if (recordOrigin) args.push('-x');

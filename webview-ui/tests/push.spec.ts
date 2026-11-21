@@ -372,7 +372,7 @@ test.describe('push dialog — several repositories', () => {
 
 /**
  * POST-P14cn: the owner asked for a way to push without this dialog. The
- * footer's checkbox is `gittree.push.showDialog`, ticked when that is off; the
+ * footer's checkbox is `geet.push.showDialog`, ticked when that is off; the
  * host writes it when Push is pressed, as IntelliJ keeps its own checkbox.
  */
 test.describe('push dialog — Don’t show this dialog again', () => {
@@ -383,7 +383,7 @@ test.describe('push dialog — Don’t show this dialog again', () => {
     await expect(dontShow(page)).not.toBeChecked();
     const label = page.locator('label', { has: dontShow(page) });
     await expect(label).toHaveText("Don't show this dialog again");
-    await expect(label).toHaveAttribute('title', /push pushes straight away.*gittree\.push\.showDialog/isu);
+    await expect(label).toHaveAttribute('title', /push pushes straight away.*geet\.push\.showDialog/isu);
     // The dialog that opened for every Push says nothing about why.
     await expect(page.getByTestId('push-opened-because')).toHaveCount(0);
 

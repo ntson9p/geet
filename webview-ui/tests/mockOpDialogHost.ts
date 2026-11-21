@@ -7,7 +7,7 @@
 export function mockOpDialogHostScript(dialog: 'merge' | 'rebase' | 'reset' | 'rollback'): string {
   return `
 (() => {
-  window.__gittreeInitialState = { dialog: '${dialog}' };
+  window.__geetInitialState = { dialog: '${dialog}' };
 
   const REFS = [
     { name: 'feature/x', kind: 'local' },

@@ -47,14 +47,14 @@ describe('isRebasing', () => {
     repos.push(rebasing);
     expect(isRebasing(rebasing.gitDir)).toBe(true);
 
-    const merging = FixtureRepo.create({ prefix: 'gittree-midmerge-' });
+    const merging = FixtureRepo.create({ prefix: 'geet-midmerge-' });
     repos.push(merging);
     merging.makeConflict();
     expect(isRebasing(merging.gitDir)).toBe(false);
   });
 
   it('is false for git am, which shares rebase-apply but applies onto the user\'s branch', () => {
-    const repo = FixtureRepo.create({ prefix: 'gittree-am-' });
+    const repo = FixtureRepo.create({ prefix: 'geet-am-' });
     repos.push(repo);
     repo.commit('base', { 'a.txt': 'a\n' });
     fs.mkdirSync(path.join(repo.gitDir, 'rebase-apply'));

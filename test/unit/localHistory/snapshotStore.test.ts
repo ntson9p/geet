@@ -29,8 +29,8 @@ interface StoreOverrides {
 }
 
 function makeStore(overrides: StoreOverrides = {}): { store: SnapshotStore; repoRoot: string; storeDir: string } {
-  const repoRoot = scratch('gittree-lh-repo-');
-  const storeDir = path.join(scratch('gittree-lh-store-'), 'history', 'repo-x');
+  const repoRoot = scratch('geet-lh-repo-');
+  const storeDir = path.join(scratch('geet-lh-store-'), 'history', 'repo-x');
   const store = new SnapshotStore({ storeDir, repoRoot, ...overrides });
   return { store, repoRoot, storeDir };
 }
@@ -79,7 +79,7 @@ describe('SnapshotStore basics', () => {
   it('skips missing files and paths outside the repo', async () => {
     const { store, repoRoot } = makeStore();
     const real = write(repoRoot, 'real.txt', 'x\n');
-    const outside = path.join(os.tmpdir(), 'gittree-outside.txt');
+    const outside = path.join(os.tmpdir(), 'geet-outside.txt');
     fs.writeFileSync(outside, 'outside\n');
     cleanups.push(outside);
     const id = await store.snapshot('mixed', 'manual', [

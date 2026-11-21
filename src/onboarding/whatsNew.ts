@@ -1,6 +1,6 @@
 /**
  * "What's new" notification (P10-T3 step 4): once per MINOR version bump,
- * setting-gated (`gittree.whatsNew.enabled`) and dismissible — any outcome
+ * setting-gated (`geet.whatsNew.enabled`) and dismissible — any outcome
  * marks the minor as seen. "Show" opens the changelog in VS Code's own
  * markdown preview (the reused renderer): `changelog.md` in an installed
  * extension, as vsce names it, `CHANGELOG.md` in a development host.
@@ -10,11 +10,11 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { changelogName, whatsNewDecision } from './whatsNewGate';
 
-const SEEN_KEY = 'gittree.whatsNew.seenMinor';
+const SEEN_KEY = 'geet.whatsNew.seenMinor';
 
 export async function maybeShowWhatsNew(context: vscode.ExtensionContext): Promise<void> {
   const enabled = vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<boolean>('whatsNew.enabled', true);
   if (!enabled) return;
 

@@ -18,7 +18,7 @@ export type SmartCheckoutBehavior = 'ask' | 'auto' | 'never';
 
 export function smartCheckoutBehavior(): SmartCheckoutBehavior {
   const v = vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<string>('smartCheckout.behavior', 'ask');
   return v === 'auto' || v === 'never' ? v : 'ask';
 }
@@ -71,9 +71,9 @@ export async function checkoutWithSmart(core: Core, repo: RepoHandle, target: st
       const smart = vscode.l10n.t('Smart Checkout');
       const force = vscode.l10n.t('Force Checkout');
       const picked =
-        process.env['GITTREE_TEST_SMART_CHOICE'] === 'smart'
+        process.env['GEET_TEST_SMART_CHOICE'] === 'smart'
           ? smart
-          : process.env['GITTREE_TEST_SMART_CHOICE'] === 'force'
+          : process.env['GEET_TEST_SMART_CHOICE'] === 'force'
             ? force
             : await vscode.window.showWarningMessage(
                 vscode.l10n.t('Your local changes would be overwritten by checkout. ({0} files)', blocking.length),
@@ -144,7 +144,7 @@ export async function setAsideAround(
   args: readonly string[],
   options: { readonly quietProgress?: boolean } = {},
 ): Promise<void> {
-  const marker = `gittree-smart:${target}:${Date.now()}`;
+  const marker = `geet-smart:${target}:${Date.now()}`;
   // Quiet when a caller's own progress says what is going on.
   const quiet = options.quietProgress === true ? { quietProgress: true as const } : {};
 

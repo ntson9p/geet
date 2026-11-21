@@ -18,7 +18,7 @@ import { activateGeet, gitWithRetry, waitFor, workspaceRepoB } from '../setup';
  * (`branchHubView`): project-level — the project's verbs, every repository,
  * then the refs they share — and the Repositories pick no longer filters it;
  * it decides which repository opens first. Since 87798ad both trees sit behind
- * `gittree.sidebar.extraViews` (the Branches section itself is a webview), so
+ * `geet.sidebar.extraViews` (the Branches section itself is a webview), so
  * a test of the view, rather than of its provider, turns that on. Rewritten to
  * that design at the integration suite's first run in a long while (POST-P14cm).
  */
@@ -132,7 +132,7 @@ suite('POST-P14u sidebar sections', () => {
         `row description "${String(item.description)}" names the branch`,
       );
     }
-    assert.strictEqual(item.command?.command, 'gittree.repositories.select');
+    assert.strictEqual(item.command?.command, 'geet.repositories.select');
     assert.deepStrictEqual(item.command?.arguments, [row], 'the row acts on itself, not on a guess');
   });
 
@@ -148,7 +148,7 @@ suite('POST-P14u sidebar sections', () => {
     assert.ok(rows.length > 1, 'this workspace has several repositories');
     const other = rows.find((r) => !reg.scope.isFocused(r))!;
 
-    await vscode.commands.executeCommand('gittree.repositories.select', other);
+    await vscode.commands.executeCommand('geet.repositories.select', other);
     await waitFor(() => reg.scope.isFocused(other));
 
     assert.strictEqual(canonicalKey(reg.hub.repo()!.root), canonicalKey(other));
@@ -158,7 +158,7 @@ suite('POST-P14u sidebar sections', () => {
 
   test('T5 the Branches tree lists every repository, and opens the one focused first', async () => {
     const target = core.getRepo(workspaceRepoB())!;
-    await vscode.commands.executeCommand('gittree.repositories.select', target.root);
+    await vscode.commands.executeCommand('geet.repositories.select', target.root);
     await waitFor(() => reg.scope.isFocused(target.root));
     reg.hub.refresh();
 
@@ -247,19 +247,19 @@ suite('POST-P14u sidebar sections', () => {
      * The other tests call the provider directly, which proves the shaping and
      * nothing about the plumbing. This view's element is the repository root
      * *string* rather than a wrapper object — deliberately, so VS Code hands
-     * every `gittree.*` command in the row's context menu exactly the argument
+     * every `geet.*` command in the row's context menu exactly the argument
      * it already takes. `reveal` is what proves that choice works: it round
      * trips the element through VS Code's own element↔handle map, which is the
      * part a provider-level test cannot reach.
      *
-     * Since 87798ad the tree is shown only with gittree.sidebar.extraViews (and
+     * Since 87798ad the tree is shown only with geet.sidebar.extraViews (and
      * several repositories): turned on here, and back as it was after.
      */
-    const sidebar = vscode.workspace.getConfiguration('gittree.sidebar');
+    const sidebar = vscode.workspace.getConfiguration('geet.sidebar');
     const saved = sidebar.inspect('extraViews');
     await sidebar.update('extraViews', true, vscode.ConfigurationTarget.Global);
     try {
-      await vscode.commands.executeCommand('gittree.repositories.focus');
+      await vscode.commands.executeCommand('geet.repositories.focus');
       await waitFor(() => reg.reposView.visible, 20_000);
 
       const root = reg.scope.current!;

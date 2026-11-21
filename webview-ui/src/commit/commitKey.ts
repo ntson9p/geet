@@ -3,8 +3,8 @@
  * ⌘Enter on macOS, as VS Code's Source Control box takes it. Pure, so it is
  * unit-tested.
  *
- * The key is a VS Code keybinding (`gittree.commit.fromMessageBox`, while
- * `gittree.commitMessageFocus`), so it can be rebound. VS Code resolves it from
+ * The key is a VS Code keybinding (`geet.commit.fromMessageBox`, while
+ * `geet.commitMessageFocus`), so it can be rebound. VS Code resolves it from
  * the key the webview passes on, and the host asks the webview to commit
  * (`commit/commitKey`), which it does as its Commit button does: the message
  * as typed this instant, which the host's copy may not have yet.

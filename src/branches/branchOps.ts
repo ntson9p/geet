@@ -101,7 +101,7 @@ export class BranchOps {
     if (name === undefined) return;
     const checkoutItem = vscode.l10n.t('Create and Checkout');
     const createItem = vscode.l10n.t('Create');
-    const testMode = process.env['GITTREE_TEST_BRANCH_MODE'];
+    const testMode = process.env['GEET_TEST_BRANCH_MODE'];
     const mode =
       testMode === 'checkout'
         ? checkoutItem
@@ -374,7 +374,7 @@ export class BranchOps {
    */
   async pushBranch(repos: RepoHandle | readonly RepoHandle[], branch: string): Promise<void> {
     const roots = (Array.isArray(repos) ? repos : [repos]).map((r: RepoHandle) => r.root);
-    await vscode.commands.executeCommand('gittree.push.branch', roots, branch);
+    await vscode.commands.executeCommand('geet.push.branch', roots, branch);
   }
 
   /** `git rebase <current> <sel>`: checks out sel and rebases it onto current. */
@@ -547,7 +547,7 @@ export class BranchOps {
   async updateBranch(repo: RepoHandle, branch: string, isCurrent: boolean): Promise<boolean> {
     if (isCurrent) {
       const outcome = await vscode.commands.executeCommand<{ ok: boolean } | undefined>(
-        'gittree.update.run',
+        'geet.update.run',
         repo.root,
       );
       return outcome?.ok === true;
@@ -681,7 +681,7 @@ export class BranchOps {
     prompt: string,
   ): Promise<string | undefined> {
     // Test seam: native input boxes cannot be driven by the harness.
-    const testName = process.env['GITTREE_TEST_BRANCH_NAME'];
+    const testName = process.env['GEET_TEST_BRANCH_NAME'];
     if (testName !== undefined && testName.length > 0) return testName;
     const name = await vscode.window.showInputBox({
       prompt,

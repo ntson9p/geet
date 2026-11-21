@@ -1,5 +1,5 @@
 /**
- * `gittree-merge:` — writable in-memory result documents for the Tri-Editor
+ * `geet-merge:` — writable in-memory result documents for the Tri-Editor
  * (master §2 virtual documents; P6-T3). The center "Result" pane edits one
  * of these; the URI path mirrors the real file path so language detection
  * (and with it LSP features — the spec's hard requirement) works from the
@@ -7,7 +7,7 @@
  */
 import * as vscode from 'vscode';
 
-export const MERGE_SCHEME = 'gittree-merge';
+export const MERGE_SCHEME = 'geet-merge';
 
 export interface MergeQuery {
   repo: string;

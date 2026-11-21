@@ -1,7 +1,7 @@
 /**
  * POST-P14cd: the addresses of Geet's own tree rows (`rowAddress.ts`) as VS
  * Code URIs, and the letters and colours Geet marks them with, which VS Code
- * takes only from a file decoration. Only rows under `gittree-row` with a mark
+ * takes only from a file decoration. Only rows under `geet-row` with a mark
  * get one: a stash's file, what the stash did to it; a conflicted file, `!`.
  */
 import * as vscode from 'vscode';

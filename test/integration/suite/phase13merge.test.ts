@@ -138,7 +138,7 @@ suite('P13 merge parity', () => {
     await startConflict();
     try {
       const session = lifecycle.get(repo.root)!;
-      await vscode.commands.executeCommand('gittree.merge.open', {
+      await vscode.commands.executeCommand('geet.merge.open', {
         session,
         path: REL,
         kind: 'both-modified',
@@ -188,7 +188,7 @@ suite('P13 merge parity', () => {
     await startConflict();
     try {
       const session = lifecycle.get(repo.root)!;
-      await vscode.commands.executeCommand('gittree.merge.open', {
+      await vscode.commands.executeCommand('geet.merge.open', {
         session,
         path: REL,
         kind: 'both-modified',
@@ -223,10 +223,10 @@ suite('P13 merge parity', () => {
   test('T8: the three apply commands and Show Details are registered', async () => {
     const all = await vscode.commands.getCommands(true);
     for (const id of [
-      'gittree.merge.applyNonConflicting.left',
-      'gittree.merge.applyNonConflicting.all',
-      'gittree.merge.applyNonConflicting.right',
-      'gittree.merge.showDetails',
+      'geet.merge.applyNonConflicting.left',
+      'geet.merge.applyNonConflicting.all',
+      'geet.merge.applyNonConflicting.right',
+      'geet.merge.showDetails',
     ]) {
       assert.ok(all.includes(id), `${id} is not registered`);
     }
@@ -237,7 +237,7 @@ suite('P13 merge parity', () => {
     await startConflict();
     try {
       const session = lifecycle.get(repo.root)!;
-      await vscode.commands.executeCommand('gittree.merge.open', {
+      await vscode.commands.executeCommand('geet.merge.open', {
         session,
         path: REL,
         kind: 'both-modified',
@@ -294,7 +294,7 @@ suite('P13 merge parity', () => {
       assert.match(message, /Accepted their version/, message);
       await repo.refresher.refreshNow();
       // Their content is on disk and the file is no longer unmerged — exactly
-      // what `gittree.merge.acceptTheirsFile` does from the tree.
+      // what `geet.merge.acceptTheirsFile` does from the tree.
       assert.strictEqual(fs.readFileSync(path.join(repoRoot, REL), 'utf8'), THEIRS);
       await waitFor(
         () => !repo.model.snapshot.statusEntries.some((e) => e.kind === 'unmerged'),

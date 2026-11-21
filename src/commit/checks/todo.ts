@@ -11,7 +11,7 @@ export { scanAddedTodos, type TodoHit } from './todoScanner';
 
 export function todoPattern(): RegExp {
   const raw = vscode.workspace
-    .getConfiguration('gittree.commit.checks')
+    .getConfiguration('geet.commit.checks')
     .get<string>('todoPattern', '\\b(TODO|FIXME)\\b');
   try {
     return new RegExp(raw);

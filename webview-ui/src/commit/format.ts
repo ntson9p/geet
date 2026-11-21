@@ -14,7 +14,7 @@ export function firstLine(message: string): string {
 /**
  * Mirrors `src/commit/messageHistory.ts` `relativeTime`: an age within the
  * day, the date after it — written as the log writes dates
- * (`gittree.log.dateFormat`), not the locale's `11/5/2026` beside a log
+ * (`geet.log.dateFormat`), not the locale's `11/5/2026` beside a log
  * reading `2026/11/05` (POST-QA).
  */
 export function relativeTime(ts: number, now: number, dateFormat: LogDateFormat = 'locale'): string {

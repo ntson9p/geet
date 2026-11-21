@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const host = (seedBranchIsHead = false): string => `
 (() => {
-  window.__gittreeInitialState = { dialog: 'newWorktree' };
+  window.__geetInitialState = { dialog: 'newWorktree' };
   const PARAMS = {
     repoRoot: 'D:/repos/demo',
     repoLabel: 'demo',

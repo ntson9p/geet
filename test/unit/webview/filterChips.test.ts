@@ -120,7 +120,7 @@ describe('the chips, compact (the default, D39)', () => {
   });
 });
 
-describe('the chips, full (the look before, `gittree.log.filterChips: full`)', () => {
+describe('the chips, full (the look before, `geet.log.filterChips: full`)', () => {
   it('writes every value out, as the row always did', () => {
     expect(branchChip({ ...base, refs: ['a', 'b'] }, 'full').value).toBe('a, b');
     expect(branchChip({ ...base, refs: ['a', 'b', 'c'] }, 'full').value).toBe('3 refs');

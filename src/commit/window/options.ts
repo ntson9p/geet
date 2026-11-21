@@ -3,7 +3,7 @@
  * sign-off, check toggles and the deferred-advanced-checks mode.
  *
  * The author override is per-repo `workspaceState` (plan step 2) — the phase
- * doc's contributions list also names a `gittree.commit.author` *setting*, but
+ * doc's contributions list also names a `geet.commit.author` *setting*, but
  * a setting cannot be per-repository in a multi-root workspace, so the step
  * wins; recorded as a deviation.
  */
@@ -20,10 +20,10 @@ import { CHECK_DEFAULTS, DEFER_ADVANCED_DEFAULT } from '../checks/checkDefaults'
 import type { CheckPipeline } from '../checks/pipeline';
 import { writeSetting } from '../../ui/writeSetting';
 
-const AUTHOR_KEY_PREFIX = 'gittree.commit.author.';
+const AUTHOR_KEY_PREFIX = 'geet.commit.author.';
 
 function config(): vscode.WorkspaceConfiguration {
-  return vscode.workspace.getConfiguration('gittree.commit');
+  return vscode.workspace.getConfiguration('geet.commit');
 }
 
 export class CommitOptionsStore {
@@ -79,7 +79,7 @@ export async function readOptions(
   store: CommitOptionsStore,
   repo: RepoHandle,
 ): Promise<CommitOptionsDto> {
-  const checks = vscode.workspace.getConfiguration('gittree.commit.checks');
+  const checks = vscode.workspace.getConfiguration('geet.commit.checks');
   return {
     repoRoot: repo.root,
     author: store.getAuthor(repo) ?? '',
@@ -110,7 +110,7 @@ export async function applyOption(
   repo: RepoHandle,
   change: CommitOptionChangeDto,
 ): Promise<void> {
-  const checks = (key: string, value: unknown): Promise<void> => writeSetting('gittree.commit.checks', key, value);
+  const checks = (key: string, value: unknown): Promise<void> => writeSetting('geet.commit.checks', key, value);
   switch (change.kind) {
     case 'author': {
       const value = change.value.trim();
@@ -121,7 +121,7 @@ export async function applyOption(
       return;
     }
     case 'signoff':
-      await writeSetting('gittree.commit', 'signoff', change.value);
+      await writeSetting('geet.commit', 'signoff', change.value);
       return;
     case 'check':
       await checks(change.id, change.value);
@@ -162,7 +162,7 @@ export async function runDeferredChecks(
   repo: RepoHandle,
   files: vscode.Uri[],
 ): Promise<DeferredChecksOutcome | undefined> {
-  if (process.env['GITTREE_TEST'] === '1' && process.env['GITTREE_TEST_DEFERRED_CHECKS'] !== '1') {
+  if (process.env['GEET_TEST'] === '1' && process.env['GEET_TEST_DEFERRED_CHECKS'] !== '1') {
     return undefined;
   }
   const head = await repo.queue.enqueue({

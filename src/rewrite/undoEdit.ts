@@ -70,7 +70,7 @@ async function protectedHolder(repo: RepoHandle, edit: HistoryEdit): Promise<str
   if (first === undefined) return undefined;
   const holders = await read(repo, ['branch', '-r', '--contains', first, '--format=%(refname:short)']);
   const patterns = vscode.workspace
-    .getConfiguration('gittree')
+    .getConfiguration('geet')
     .get<string[]>('protectedBranches', [...DEFAULT_PROTECTED_BRANCHES]);
   for (const ref of holders.stdout.split('\n').map((l) => l.trim())) {
     if (ref.indexOf('/') <= 0) continue;

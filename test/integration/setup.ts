@@ -1,7 +1,7 @@
 /**
  * Shared helpers for @vscode/test-electron suites (master P0-T10 step 3).
  * The runner (runTests.ts) opens a multi-root workspace of FixtureRepo repos
- * and sets GITTREE_TEST=1 so the extension exposes its getCore() hook.
+ * and sets GEET_TEST=1 so the extension exposes its getCore() hook.
  */
 import * as assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
@@ -19,7 +19,7 @@ export async function activateGeet(): Promise<Core> {
   assert.ok(ext, `extension ${EXTENSION_ID} not found`);
   const api = await ext.activate();
   const corePromise = api.getCore();
-  assert.ok(corePromise, 'getCore() hook unavailable — GITTREE_TEST not set?');
+  assert.ok(corePromise, 'getCore() hook unavailable — GEET_TEST not set?');
   const core = await corePromise;
   assert.ok(core, 'core failed to initialize (git missing?)');
   cached = core;
@@ -28,50 +28,50 @@ export async function activateGeet(): Promise<Core> {
 
 /** Workspace fixture repo paths exported by the runner. */
 export function workspaceRepoA(): string {
-  const p = process.env['GITTREE_TEST_REPO_A'];
-  assert.ok(p, 'GITTREE_TEST_REPO_A missing');
+  const p = process.env['GEET_TEST_REPO_A'];
+  assert.ok(p, 'GEET_TEST_REPO_A missing');
   return p;
 }
 
 export function workspaceRepoB(): string {
-  const p = process.env['GITTREE_TEST_REPO_B'];
-  assert.ok(p, 'GITTREE_TEST_REPO_B missing');
+  const p = process.env['GEET_TEST_REPO_B'];
+  assert.ok(p, 'GEET_TEST_REPO_B missing');
   return p;
 }
 
 export function workspaceRepoC(): string {
-  const p = process.env['GITTREE_TEST_REPO_C'];
-  assert.ok(p, 'GITTREE_TEST_REPO_C missing');
+  const p = process.env['GEET_TEST_REPO_C'];
+  assert.ok(p, 'GEET_TEST_REPO_C missing');
   return p;
 }
 
 /** repoD/repoE belong to the multi-root commit suite — see runTests.ts. */
 export function workspaceRepoD(): string {
-  const p = process.env['GITTREE_TEST_REPO_D'];
-  assert.ok(p, 'GITTREE_TEST_REPO_D missing');
+  const p = process.env['GEET_TEST_REPO_D'];
+  assert.ok(p, 'GEET_TEST_REPO_D missing');
   return p;
 }
 
 export function workspaceRepoE(): string {
-  const p = process.env['GITTREE_TEST_REPO_E'];
-  assert.ok(p, 'GITTREE_TEST_REPO_E missing');
+  const p = process.env['GEET_TEST_REPO_E'];
+  assert.ok(p, 'GEET_TEST_REPO_E missing');
   return p;
 }
 
 /**
- * Runs `fn` with GITTREE_TEST_AUTOCONFIRM pinned, then restores whatever the
+ * Runs `fn` with GEET_TEST_AUTOCONFIRM pinned, then restores whatever the
  * harness had. `delete`-ing it instead — as several suites used to — silently
  * disarms auto-confirm for every suite that runs afterwards, because the runner
  * sets it once for the whole process (runTests.ts `extensionTestsEnv`).
  */
 export async function withAutoConfirm<T>(value: '0' | '1', fn: () => Promise<T>): Promise<T> {
-  const saved = process.env['GITTREE_TEST_AUTOCONFIRM'];
-  process.env['GITTREE_TEST_AUTOCONFIRM'] = value;
+  const saved = process.env['GEET_TEST_AUTOCONFIRM'];
+  process.env['GEET_TEST_AUTOCONFIRM'] = value;
   try {
     return await fn();
   } finally {
-    if (saved === undefined) delete process.env['GITTREE_TEST_AUTOCONFIRM'];
-    else process.env['GITTREE_TEST_AUTOCONFIRM'] = saved;
+    if (saved === undefined) delete process.env['GEET_TEST_AUTOCONFIRM'];
+    else process.env['GEET_TEST_AUTOCONFIRM'] = saved;
   }
 }
 

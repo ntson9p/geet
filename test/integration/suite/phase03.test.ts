@@ -95,15 +95,15 @@ suite('P3 commit lifecycle', () => {
     messageBox.value = 'feature x commit';
     const notes = (await activateGeet()).debugRegistry.get('notifications') as NotificationsRegistry;
     notes.clear();
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
       // P14-T2: the commit window's context shape replaces the tree node.
-      await vscode.commands.executeCommand('gittree.changelist.commitList', {
+      await vscode.commands.executeCommand('geet.changelist.commitList', {
         repoRoot: repo.root,
         listId: feature.id,
       });
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await refresh();
     await waitFor(() => git('log', '-1', '--format=%s').trim() === 'feature x commit', 15_000);
@@ -158,7 +158,7 @@ suite('P3 commit lifecycle', () => {
       new vscode.Selection(2, 0, 2, 5),
       new vscode.Selection(14, 0, 14, 5),
     ];
-    await vscode.commands.executeCommand('gittree.stage.selectedRanges');
+    await vscode.commands.executeCommand('geet.stage.selectedRanges');
     await refresh();
 
     const cached = git('diff', '--cached', '--', 'hunks.txt');
@@ -171,7 +171,7 @@ suite('P3 commit lifecycle', () => {
     // file the command only says so.
     const indexEditor = await vscode.window.showTextDocument(makeRevUri(fsRoot, 'hunks.txt', ':0'));
     indexEditor.selections = [new vscode.Selection(14, 0, 14, 5)];
-    await vscode.commands.executeCommand('gittree.unstage.selectedRanges');
+    await vscode.commands.executeCommand('geet.unstage.selectedRanges');
     const cached2 = git('diff', '--cached', '--', 'hunks.txt');
     assert.ok(cached2.includes('line 3 CHANGED'));
     assert.ok(!cached2.includes('line 15 CHANGED'), 'hunk 2 should be unstaged again');
@@ -194,7 +194,7 @@ suite('P3 commit lifecycle', () => {
     const uri = vscode.Uri.file(path.join(fsRoot, 'crlf.txt'));
     const editor = await vscode.window.showTextDocument(uri);
     editor.selections = [new vscode.Selection(1, 0, 1, 3)];
-    await vscode.commands.executeCommand('gittree.stage.selectedRanges');
+    await vscode.commands.executeCommand('geet.stage.selectedRanges');
 
     const stagedBytes = execFileSync('git', ['show', ':0:crlf.txt'], { cwd: repoRoot });
     assert.strictEqual(stagedBytes.toString('latin1'), edited, 'staged bytes differ');
@@ -210,17 +210,17 @@ suite('P3 commit lifecycle', () => {
     // had made deferred advanced checks the default, for IntelliJ parity). Set
     // anyway, so it never rests on what an earlier test left behind.
     await vscode.workspace
-      .getConfiguration('gittree.commit.checks')
+      .getConfiguration('geet.commit.checks')
       .update('deferAdvanced', false, vscode.ConfigurationTarget.Workspace);
     // POST-P14bg: Analyze code starts unticked (D38); this test ticks it.
     await vscode.workspace
-      .getConfiguration('gittree.commit.checks')
+      .getConfiguration('geet.commit.checks')
       .update('analyze', true, vscode.ConfigurationTarget.Workspace);
     // Seed a diagnostic OURSELVES — deterministic, no language server needed.
     const uri = vscode.Uri.file(path.join(fsRoot, 'src', 'code.ts'));
     write('src/code.ts', 'export const one = 1; // diagnostic target\n');
     git('add', 'src/code.ts');
-    const collection = vscode.languages.createDiagnosticCollection('gittree-test');
+    const collection = vscode.languages.createDiagnosticCollection('geet-test');
     collection.set(uri, [
       new vscode.Diagnostic(
         new vscode.Range(0, 0, 0, 5),
@@ -242,28 +242,28 @@ suite('P3 commit lifecycle', () => {
 
     const before = git('rev-parse', 'HEAD').trim();
     messageBox.value = 'analyze gate commit';
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'cancel';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'cancel';
     try {
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     assert.strictEqual(git('rev-parse', 'HEAD').trim(), before, 'cancel must not commit');
 
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await waitFor(() => git('rev-parse', 'HEAD').trim() !== before, 20_000);
     assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'analyze gate commit');
     collection.dispose();
     await vscode.workspace
-      .getConfiguration('gittree.commit.checks')
+      .getConfiguration('geet.commit.checks')
       .update('deferAdvanced', undefined, vscode.ConfigurationTarget.Workspace);
     await vscode.workspace
-      .getConfiguration('gittree.commit.checks')
+      .getConfiguration('geet.commit.checks')
       .update('analyze', undefined, vscode.ConfigurationTarget.Workspace);
   });
 
@@ -312,7 +312,7 @@ suite('P3 commit lifecycle', () => {
       await refresh();
 
       await vscode.workspace
-        .getConfiguration('gittree.commit.checks')
+        .getConfiguration('geet.commit.checks')
         .update('reformat', true, vscode.ConfigurationTarget.Workspace);
       const { reformatCheck } = await import('../../../src/commit/checks/reformat');
       const { CancellationSource } = await import('../../../src/core/util/cancellation');
@@ -329,7 +329,7 @@ suite('P3 commit lifecycle', () => {
     } finally {
       formatter.dispose();
       await vscode.workspace
-        .getConfiguration('gittree.commit.checks')
+        .getConfiguration('geet.commit.checks')
         .update('reformat', undefined, vscode.ConfigurationTarget.Workspace);
       git('checkout', '--', 'fmt-target.fmttest');
     }
@@ -381,7 +381,7 @@ suite('P3 commit lifecycle', () => {
     );
 
     try {
-      await vscode.commands.executeCommand('gittree.addToVcs', {
+      await vscode.commands.executeCommand('geet.addToVcs', {
         repoRoot: fsRoot,
         relPath: 'v-one.txt',
         relPaths: ['v-one.txt', 'nested/v-two.txt'],
@@ -447,15 +447,15 @@ suite('P3 commit lifecycle', () => {
     const before = git('rev-parse', 'HEAD').trim();
     const subject = git('log', '-1', '--format=%s').trim();
     messageBox.value = '';
-    await vscode.commands.executeCommand('gittree.commit.toggleAmend', repoRoot);
+    await vscode.commands.executeCommand('geet.commit.toggleAmend', repoRoot);
     assert.strictEqual(messageBox.value, subject, 'amend should load the previous message');
 
     messageBox.value = 'amended subject line';
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
-      await vscode.commands.executeCommand('gittree.commit', repoRoot);
+      await vscode.commands.executeCommand('geet.commit', repoRoot);
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await waitFor(() => git('log', '-1', '--format=%s').trim() === 'amended subject line', 20_000);
     assert.notStrictEqual(git('rev-parse', 'HEAD').trim(), before);

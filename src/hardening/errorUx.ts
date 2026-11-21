@@ -81,13 +81,13 @@ export async function presentGitError(
   if (choice === help) {
     await vscode.env.openExternal(vscode.Uri.parse(ERROR_DOCS[kind]));
   } else if (choice === report) {
-    await vscode.commands.executeCommand('gittree.reportIssue', kind);
+    await vscode.commands.executeCommand('geet.reportIssue', kind);
   }
 }
 
 export function registerErrorReporting(context: vscode.ExtensionContext, core: Core): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.reportIssue', async (kind?: unknown) => {
+    vscode.commands.registerCommand('geet.reportIssue', async (kind?: unknown) => {
       const errorKind =
         typeof kind === 'string' && kind in ERROR_DOCS ? (kind as GitErrorKind) : undefined;
       const url = newIssueUrl(collectIssueInfo(context, core, errorKind));

@@ -32,17 +32,17 @@ export interface PresentationSetting {
 }
 
 export const PRESENTATION_SETTINGS: Readonly<Record<PresentationKey, PresentationSetting>> = {
-  showTagNames: { section: 'gittree.log', key: 'showTagNames', scope: 'global' },
-  showTags: { section: 'gittree.branches', key: 'showTags', scope: 'workspace' },
+  showTagNames: { section: 'geet.log', key: 'showTagNames', scope: 'global' },
+  showTags: { section: 'geet.branches', key: 'showTags', scope: 'workspace' },
   // IntelliJ keeps these with Tag Names, IDE-wide (`VcsLogApplicationSettings`),
   // the visible columns included.
-  compactReferences: { section: 'gittree.log', key: 'compactReferences', scope: 'global' },
-  referencesOnLeft: { section: 'gittree.log', key: 'referencesOnLeft', scope: 'global' },
-  showAuthorColumn: { section: 'gittree.log', key: 'columns.author', scope: 'global' },
-  showDateColumn: { section: 'gittree.log', key: 'columns.date', scope: 'global' },
-  showHashColumn: { section: 'gittree.log', key: 'columns.hash', scope: 'global' },
+  compactReferences: { section: 'geet.log', key: 'compactReferences', scope: 'global' },
+  referencesOnLeft: { section: 'geet.log', key: 'referencesOnLeft', scope: 'global' },
+  showAuthorColumn: { section: 'geet.log', key: 'columns.author', scope: 'global' },
+  showDateColumn: { section: 'geet.log', key: 'columns.date', scope: 'global' },
+  showHashColumn: { section: 'geet.log', key: 'columns.hash', scope: 'global' },
   // Geet's own, kept with the columns it sits beside.
-  showGraph: { section: 'gittree.log', key: 'showGraph', scope: 'global' },
+  showGraph: { section: 'geet.log', key: 'showGraph', scope: 'global' },
 };
 
 /** A presentation setting that is one of a few values rather than on or off. */
@@ -59,15 +59,15 @@ export interface PresentationChoice {
  * the Settings editor's; `filterChips` is the Settings editor's alone.
  */
 export const PRESENTATION_CHOICES: Readonly<Record<PresentationChoiceKey, PresentationChoice>> = {
-  dateFormat: { section: 'gittree.log', key: 'dateFormat', values: LOG_DATE_FORMATS },
-  filterChips: { section: 'gittree.log', key: 'filterChips', values: LOG_FILTER_CHIPS },
+  dateFormat: { section: 'geet.log', key: 'dateFormat', values: LOG_DATE_FORMATS },
+  filterChips: { section: 'geet.log', key: 'filterChips', values: LOG_FILTER_CHIPS },
 };
 
 /** The choices a menu changes: Presentation Settings ▸ Date Format. */
 export type MenuChoiceKey = 'dateFormat';
 
 /**
- * `gittree.log.dateFormat` as a view takes it: a value the setting does not
+ * `geet.log.dateFormat` as a view takes it: a value the setting does not
  * offer (a typo in settings.json) is the default.
  */
 export function readDateFormat(value: unknown): LogDateFormat {
@@ -76,7 +76,7 @@ export function readDateFormat(value: unknown): LogDateFormat {
     : DEFAULT_LOG_PRESENTATION.dateFormat;
 }
 
-/** The full setting id behind a presentation key, e.g. `gittree.log.columns.hash`. */
+/** The full setting id behind a presentation key, e.g. `geet.log.columns.hash`. */
 export function settingId(name: PresentationKey | PresentationChoiceKey): string {
   const { section, key } =
     name in PRESENTATION_SETTINGS

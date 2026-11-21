@@ -113,7 +113,7 @@ export class RefService {
     const identity = result.exitCode === 0 && result.stdout.trim().length > 0
       ? result.stdout.trim()
       : this.repo.root;
-    this.favoritesKeyCache = `gittree.favorites.${crypto
+    this.favoritesKeyCache = `geet.favorites.${crypto
       .createHash('sha256')
       .update(identity)
       .digest('hex')

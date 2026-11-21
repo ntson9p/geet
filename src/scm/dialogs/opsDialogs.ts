@@ -16,6 +16,7 @@ import { isStaged, isDirty } from '../../core/model/statusEntry';
 import { toBlobEol } from '../../core/patch/eol';
 import { computeLineChanges } from '../../core/patch/lineDiff';
 import { SNAPSHOT_LABELS } from '../../localHistory/hooks';
+import type { RebaseOntoArgs, RebaseOntoResult } from '../../rewrite/rebase/rebaseOnto';
 import {
   ROLLBACK_DIALOG_METHODS,
   type MergeDialogParamsDto,
@@ -76,7 +77,7 @@ function base(repo: RepoHandle): {
     repoLabel: path.basename(repo.root),
     currentBranch: repo.model.snapshot.headRef ?? 'HEAD',
     showCommandLine: vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('dialogs.showCommandLine', true),
   };
 }
@@ -175,11 +176,25 @@ export async function applyRebaseResult(
   // editor, and shelling out to git's own would open a terminal editor the
   // webview cannot serve.
   if (result.options.interactive) {
-    await vscode.commands.executeCommand('gittree.rebase.interactive', {
+    const from = result.options.from.trim();
+    const args: RebaseOntoArgs = {
       repoRoot: repo.root,
-      onto: result.options.onto,
-      ...(result.options.from.length > 0 ? { from: result.options.from } : {}),
-    });
+      onto: result.options.onto.trim(),
+      ...(from.length > 0 ? { from } : {}),
+    };
+    const answer = await vscode.commands.executeCommand<RebaseOntoResult | undefined>(
+      'geet.rebase.interactive',
+      args,
+    );
+    if (answer === undefined || !answer.opened) {
+      // POST-P14cw: say so when the editor did not open; it used to say it had.
+      // Nothing to rebase is not a failure, as merge's "Already up to date" is not.
+      return {
+        ok: answer?.severity === 'info',
+        message: answer?.message ?? vscode.l10n.t('The interactive rebase editor did not open.'),
+        commands: [],
+      };
+    }
     return {
       ok: true,
       message: vscode.l10n.t('Opened the interactive rebase editor.'),

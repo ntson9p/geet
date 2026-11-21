@@ -327,7 +327,7 @@ suite('P7 stash & shelve — StashService', () => {
       // POST-P14cd: Geet's own address, marked with what the stash did to
       // the file, so no other extension marks the row with its status now.
       if (child.kind === 'file') {
-        assert.strictEqual(item.resourceUri?.scheme, 'gittree-row');
+        assert.strictEqual(item.resourceUri?.scheme, 'geet-row');
         assert.strictEqual(item.resourceUri?.authority, 'stash');
         assert.strictEqual(item.resourceUri?.query, child.file.status);
         assert.strictEqual(item.tooltip, path.join(child.repo.root, child.file.path));
@@ -350,12 +350,12 @@ suite('P7 stash & shelve — StashService', () => {
     // Palette mirrors every verb.
     const all = await vscode.commands.getCommands(true);
     for (const verb of ['push', 'apply', 'pop', 'drop', 'branch', 'clear', 'copyMessage', 'diffAll']) {
-      assert.ok(all.includes(`gittree.stash.${verb}`), `gittree.stash.${verb} registered`);
+      assert.ok(all.includes(`geet.stash.${verb}`), `geet.stash.${verb} registered`);
     }
 
     // Drop via the command path (auto-confirmed modal), node-targeted.
     await withAutoConfirm('1', async () => {
-      await vscode.commands.executeCommand('gittree.stash.drop', row);
+      await vscode.commands.executeCommand('geet.stash.drop', row);
     });
     await waitFor(() => stash.list().length === 0, 10_000);
   });
@@ -539,12 +539,12 @@ suite('P7 stash & shelve — ShelfStore', () => {
 
   test('T3: shelf survives rm -rf .git + re-init — still lists and unshelves', async function () {
     this.timeout(90_000);
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p7t3-repo-'));
-    const shelfDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p7t3-shelf-'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p7t3-repo-'));
+    const shelfDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p7t3-shelf-'));
     const tgit = (...args: string[]): string => gitWithRetry(tmp, args);
     const configure = (): void => {
       tgit('config', 'user.name', 'P7 T3');
-      tgit('config', 'user.email', 'p7t3@gittree.test');
+      tgit('config', 'user.email', 'p7t3@geet.test');
       tgit('config', 'commit.gpgsign', 'false');
       tgit('config', 'core.autocrlf', 'false');
     };
@@ -654,7 +654,7 @@ suite('P7 stash & shelve — Shelf UI', () => {
     const res = await shelf.shelve({ name: 'ui entry', removeFromWorktree: true });
     assert.strictEqual(res.removed, true);
 
-    // P14-T2: the `gittree.shelf` tree view is gone, so the entry/file rows are
+    // P14-T2: the `geet.shelf` tree view is gone, so the entry/file rows are
     // the commit window's Shelf tab now. What this test is really for survives
     // unchanged — that `shelfDiffSides` names a pair whose two sides resolve to
     // the exact base and reconstructed contents, worktree untouched throughout.
@@ -692,7 +692,7 @@ suite('P7 stash & shelve — Shelf UI', () => {
     // Palette surface: every T4 verb registered.
     const all = await vscode.commands.getCommands(true);
     for (const verb of ['shelve', 'rename', 'delete', 'export', 'import', 'showPatch']) {
-      assert.ok(all.includes(`gittree.shelf.${verb}`), `gittree.shelf.${verb} registered`);
+      assert.ok(all.includes(`geet.shelf.${verb}`), `geet.shelf.${verb} registered`);
     }
     shelf.delete(res.meta.id);
   });
@@ -833,9 +833,9 @@ suite('P7 stash & shelve — Unshelve engine', () => {
       await waitFor(() => p3.paradigm.paradigm === 'changelists', 10_000);
     }
     try {
-      await drive('gittree.shelf.unshelve', {
-        GITTREE_TEST_SHELF_PICK: 'p7 clean unshelve',
-        GITTREE_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
+      await drive('geet.shelf.unshelve', {
+        GEET_TEST_SHELF_PICK: 'p7 clean unshelve',
+        GEET_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
       });
 
       assert.strictEqual(fs.readFileSync(abs('u5a.txt'), 'utf8'), 'one edited\n');
@@ -867,9 +867,9 @@ suite('P7 stash & shelve — Unshelve engine', () => {
     write('u5c.txt', 'rival\n');
     commitAll('p7 rival');
 
-    await drive('gittree.shelf.unshelve', {
-      GITTREE_TEST_SHELF_PICK: 'p7 conflict unshelve',
-      GITTREE_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
+    await drive('geet.shelf.unshelve', {
+      GEET_TEST_SHELF_PICK: 'p7 conflict unshelve',
+      GEET_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
     });
 
     // apply --index refused, --3way left staged conflicts → unshelve session.
@@ -911,9 +911,9 @@ suite('P7 stash & shelve — Unshelve engine', () => {
     const idx = sections.findIndex((s) => s.relPath === 'u5p2.txt');
     assert.ok(idx >= 0, 'target section located');
 
-    await drive('gittree.shelf.unshelvePartial', {
-      GITTREE_TEST_SHELF_PICK: 'p7 partial unshelve',
-      GITTREE_TEST_UNSHELVE_PARTIAL: JSON.stringify({ indexes: [idx], deleteAfter: true }),
+    await drive('geet.shelf.unshelvePartial', {
+      GEET_TEST_SHELF_PICK: 'p7 partial unshelve',
+      GEET_TEST_UNSHELVE_PARTIAL: JSON.stringify({ indexes: [idx], deleteAfter: true }),
     });
 
     assert.strictEqual(fs.readFileSync(abs('u5p2.txt'), 'utf8'), 'p2 edited\n');
@@ -931,9 +931,9 @@ suite('P7 stash & shelve — Unshelve engine', () => {
     assert.strictEqual(shelf.verify(remaining.id), true, 'pruned patch re-consecrated');
 
     // Unshelving the remainder drains and deletes the entry.
-    await drive('gittree.shelf.unshelve', {
-      GITTREE_TEST_SHELF_PICK: 'p7 partial unshelve',
-      GITTREE_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
+    await drive('geet.shelf.unshelve', {
+      GEET_TEST_SHELF_PICK: 'p7 partial unshelve',
+      GEET_TEST_UNSHELVE: JSON.stringify({ deleteAfter: true }),
     });
     assert.strictEqual(fs.readFileSync(abs('u5p1.txt'), 'utf8'), 'p1 edited\n');
     assert.strictEqual(fs.readFileSync(abs('u5p3.txt'), 'utf8'), 'p3 edited\n');

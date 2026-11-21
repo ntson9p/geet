@@ -1,5 +1,5 @@
 /**
- * Whether Geet decorates files (`gittree.decorations.fileExplorer`) before
+ * Whether Geet decorates files (`geet.decorations.fileExplorer`) before
  * anyone sets it: off (POST-P14bz). Pure and vscode-free, so the default is
  * unit-tested against package.json's, which must say the same.
  *

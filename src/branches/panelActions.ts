@@ -116,11 +116,11 @@ export function headName(repo: RepoHandle): string {
 /**
  * `Show in New Log Tab`: the ref's history in a Log tab of its own, so the
  * filters the Log's tabs were set to survive. One already showing exactly
- * that comes forward instead (`gittree.branches.showInLog`). It changes
+ * that comes forward instead (`geet.branches.showInLog`). It changes
  * nothing, so it needs no registry entry.
  */
 function logTabRun(repo: RepoHandle, name: string): BranchPanelRunDto {
-  return { type: 'command', command: 'gittree.branches.showInLog', root: repo.root, arg: name };
+  return { type: 'command', command: 'geet.branches.showInLog', root: repo.root, arg: name };
 }
 
 /** Where `Show in New Log Tab` goes among a ref's registry entries. */
@@ -351,7 +351,7 @@ export function repositoryMenu(root: string, repoCount: number): BranchPanelMenu
     if (lastGroup !== undefined && entry.group !== lastGroup) items.push({ kind: 'separator' });
     lastGroup = entry.group;
     const run: BranchPanelRunDto =
-      entry.command === 'gittree.branch.new'
+      entry.command === 'geet.branch.new'
         ? { type: 'newBranch', from: 'HEAD', roots: [root] }
         : { type: 'command', command: entry.command, root };
     items.push({ kind: 'item', label: entry.label, run });
@@ -515,23 +515,23 @@ function commonShort(id: string): string {
  */
 export const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   ...REPOSITORY_MENU.map((e) => e.command),
-  'gittree.fetch',
+  'geet.fetch',
   // The project's update: in a workspace of one repository, that repository's
   // menu and row run it (POST-P14bx); with several, a repository's run its own.
-  'gittree.update.dialog',
-  'gittree.update.withoutFetch',
-  'gittree.push.dialog',
-  'gittree.commit',
-  'gittree.branches.checkoutRevision',
-  'gittree.branches.showInLog',
-  'gittree.branches.cleanup',
-  'gittree.rebase.continue',
-  'gittree.rebase.skip',
-  'gittree.rebase.abort',
-  'gittree.merge.continueOp',
-  'gittree.merge.abortOp',
-  'gittree.conflicts.focus',
-  'gittree.conflicts.resolve',
+  'geet.update.dialog',
+  'geet.update.withoutFetch',
+  'geet.push.dialog',
+  'geet.commit',
+  'geet.branches.checkoutRevision',
+  'geet.branches.showInLog',
+  'geet.branches.cleanup',
+  'geet.rebase.continue',
+  'geet.rebase.skip',
+  'geet.rebase.abort',
+  'geet.merge.continueOp',
+  'geet.merge.abortOp',
+  'geet.conflicts.focus',
+  'geet.conflicts.resolve',
 ]);
 
 /**
@@ -540,10 +540,10 @@ export const PANEL_COMMANDS: ReadonlySet<string> = new Set([
  * the verb comes from the webview, and `constructor` is no verb.
  */
 export const IN_VIEW_COMMANDS: ReadonlyMap<string, string> = new Map<BranchPanelInViewVerb, string>([
-  ['update', 'gittree.update.dialog'],
-  ['updateWithoutFetch', 'gittree.update.withoutFetch'],
-  ['commit', 'gittree.commit'],
-  ['push', 'gittree.push.dialog'],
+  ['update', 'geet.update.dialog'],
+  ['updateWithoutFetch', 'geet.update.withoutFetch'],
+  ['commit', 'geet.commit'],
+  ['push', 'geet.push.dialog'],
 ]);
 
 export async function runPanel(deps: PanelActionDeps, run: BranchPanelRunDto): Promise<void> {

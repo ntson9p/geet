@@ -154,7 +154,7 @@ export class LocalHistoryViewProvider implements vscode.TreeDataProvider<History
         item.iconPath = new vscode.ThemeIcon('history');
         item.contextValue = 'lh:snapshot';
         item.command = {
-          command: 'gittree.history.compareSnapshot',
+          command: 'geet.history.compareSnapshot',
           title: vscode.l10n.t('Compare with Current'),
           arguments: [node],
         };
@@ -186,7 +186,7 @@ export class LocalHistoryViewProvider implements vscode.TreeDataProvider<History
         item.iconPath = new vscode.ThemeIcon('file');
         item.contextValue = 'lh:file';
         item.command = {
-          command: 'gittree.history.diffFile',
+          command: 'geet.history.diffFile',
           title: vscode.l10n.t('Diff with Current'),
           arguments: [node],
         };
@@ -251,7 +251,7 @@ export class RestoreUx {
     // A deletion is restored by deleting; an oversized stub has nothing to restore.
     let targets = manifest.files.filter((f) => f.blobSha.length > 0 || f.deleted === true);
     if (subset) {
-      const testPaths = process.env['GITTREE_TEST_RESTORE_PATHS'];
+      const testPaths = process.env['GEET_TEST_RESTORE_PATHS'];
       if (testPaths !== undefined) {
         const wanted = new Set(testPaths.split(';'));
         targets = targets.filter((f) => wanted.has(f.relPath));
@@ -349,7 +349,7 @@ export class RestoreUx {
     const store = this.storeFor(target);
     if (!store) return;
     const typed =
-      process.env['GITTREE_TEST_AUTOCONFIRM'] === '1'
+      process.env['GEET_TEST_AUTOCONFIRM'] === '1'
         ? 'DELETE'
         : await vscode.window.showInputBox({
             prompt: vscode.l10n.t('Type DELETE to clear ALL Local History for {0}', target.root),

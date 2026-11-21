@@ -16,7 +16,7 @@ const manifest = JSON.parse(read('package.json')) as {
 };
 const nls = JSON.parse(read('package.nls.json')) as Record<string, string>;
 const setting = manifest.contributes.configuration
-  .map((section) => section.properties[`gittree.${CHANGE_BARS_SETTING}`])
+  .map((section) => section.properties[`geet.${CHANGE_BARS_SETTING}`])
   .find((s) => s !== undefined);
 
 describe('Geet change bars (POST-P14cc)', () => {

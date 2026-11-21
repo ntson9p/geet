@@ -1,5 +1,5 @@
 /**
- * P7-T2 — Stash UI: TreeView `gittree.stashes` in the SCM container. Stash
+ * P7-T2 — Stash UI: TreeView `geet.stashes` in the SCM container. Stash
  * rows (`stash@{0} · message · 2h ago · from main`) expand to file children;
  * clicking a file diffs the stashed content against the current working-tree
  * file when it exists (IntelliJ "diff stash against working tree"), falling

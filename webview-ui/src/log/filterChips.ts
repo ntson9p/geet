@@ -1,6 +1,6 @@
 /**
  * What the filter row's `Branch ▾ User ▾ Date ▾ Paths ▾` dropdowns say about
- * the filter, in either look of `gittree.log.filterChips` (POST-P14bh):
+ * the filter, in either look of `geet.log.filterChips` (POST-P14bh):
  *
  * - `compact` (the default, D39): each value cut short — a user's name without
  *   the e-mail, `me` for you, a date as `Since 2026/10/31` — and anything

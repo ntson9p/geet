@@ -25,7 +25,7 @@ export class MessageHistory {
   ) {}
 
   private async key(repo: RepoHandle): Promise<string> {
-    return `gittree.msghistory.${await repoIdentityHash(repo)}`;
+    return `geet.msghistory.${await repoIdentityHash(repo)}`;
   }
 
   async entries(repo: RepoHandle): Promise<HistoryEntry[]> {

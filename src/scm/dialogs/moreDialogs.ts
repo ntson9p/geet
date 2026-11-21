@@ -64,7 +64,7 @@ function base(repo: RepoHandle): {
     repoLabel: path.basename(repo.root),
     currentBranch: repo.model.snapshot.headRef ?? 'HEAD',
     showCommandLine: vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('dialogs.showCommandLine', true),
   };
 }
@@ -91,7 +91,7 @@ export async function buildCherryPickParams(
   repo: RepoHandle,
   seedShas?: readonly string[],
 ): Promise<CherryPickDialogParamsDto> {
-  const cfg = vscode.workspace.getConfiguration('gittree');
+  const cfg = vscode.workspace.getConfiguration('geet');
   const commits: CherryPickDialogParamsDto['commits'] = [];
   if (seedShas !== undefined && seedShas.length > 0) {
     for (const sha of seedShas) {
@@ -209,7 +209,7 @@ export function buildStashParams(core: Core, repo: RepoHandle): StashDialogParam
     untrackedCount: entries.filter((e) => e.kind === 'untracked').length,
     stagedCount: entries.filter((e) => isStaged(e)).length,
     includeUntrackedDefault: vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('stash.includeUntrackedDefault', true),
   };
 }
@@ -578,7 +578,7 @@ export function buildCloneParams(): CloneDialogParamsDto {
   return {
     defaultParent: first !== undefined ? path.dirname(first) : '',
     showCommandLine: vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('dialogs.showCommandLine', true),
   };
 }

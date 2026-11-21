@@ -37,7 +37,7 @@ const NATIVE: Readonly<Record<Direction, string>> = {
   prev: 'workbench.action.compareEditor.previousChange',
 };
 
-const SETTING_SECTION = 'gittree.diff';
+const SETTING_SECTION = 'geet.diff';
 const SETTING_KEY = 'goToNextFileAfterLastChange';
 
 /** How long the status bar repeats a hint, should the hover be gone. */
@@ -531,13 +531,13 @@ export function registerDiffControls(
   const register = (id: string, fn: () => Promise<void> | void): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
-  register('gittree.diff.nextChange', () => inTurn(() => press('next', [])));
-  register('gittree.diff.prevChange', () => inTurn(() => press('prev', [])));
-  register('gittree.diff.nextFile', () => inTurn(() => toFile(1)));
-  register('gittree.diff.prevFile', () => inTurn(() => toFile(-1)));
-  register('gittree.diff.toggleSideBySide', () => toggle('renderSideBySide'));
-  register('gittree.diff.toggleIgnoreWhitespace', () => toggle('ignoreTrimWhitespace'));
-  register('gittree.diff.toggleCollapseUnchanged', () => toggle('hideUnchangedRegions.enabled'));
+  register('geet.diff.nextChange', () => inTurn(() => press('next', [])));
+  register('geet.diff.prevChange', () => inTurn(() => press('prev', [])));
+  register('geet.diff.nextFile', () => inTurn(() => toFile(1)));
+  register('geet.diff.prevFile', () => inTurn(() => toFile(-1)));
+  register('geet.diff.toggleSideBySide', () => toggle('renderSideBySide'));
+  register('geet.diff.toggleIgnoreWhitespace', () => toggle('ignoreTrimWhitespace'));
+  register('geet.diff.toggleCollapseUnchanged', () => toggle('hideUnchangedRegions.enabled'));
 
   core.debugRegistry.set('phase14', registry);
   return registry;

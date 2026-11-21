@@ -49,7 +49,7 @@ function ctxOf(repos: RepoRefs[]): TreeContext {
 
 const tagRows = (rows: ReturnType<typeof rootRows>) => rows.filter((r) => r.ref?.type === 'tag');
 
-describe('applyShowTags (gittree.branches.showTags)', () => {
+describe('applyShowTags (geet.branches.showTags)', () => {
   it('leaves the context alone while Show Tags is on', () => {
     const ctx = ctxOf([repo('/a', 'a')]);
     expect(applyShowTags(ctx, true)).toBe(ctx);
@@ -117,8 +117,8 @@ describe('Update Project Without Fetching among the verbs (POST-P14bm)', () => {
   it('sits right under Update Project, with no key of its own', () => {
     const verbs = rootRows(ctxOf([repo('/r', 'r')])).filter((r) => r.kind === 'verb');
     const commands = verbs.map((r) => r.verb?.command);
-    const at = commands.indexOf('gittree.update.dialog');
-    expect(commands[at + 1]).toBe('gittree.update.withoutFetch');
+    const at = commands.indexOf('geet.update.dialog');
+    expect(commands[at + 1]).toBe('geet.update.withoutFetch');
     expect(verbs[at + 1]?.label).toBe('Update Project Without Fetching…');
     expect(verbs[at + 1]?.verb?.accelerator).toBeUndefined();
   });
@@ -126,19 +126,19 @@ describe('Update Project Without Fetching among the verbs (POST-P14bm)', () => {
   it('acts on the project: a repository of several has no copy of its own', () => {
     const ctx = ctxOf([repo('/a', 'a'), repo('/b', 'b')]);
     const project = rootRows(ctx).filter((r) => r.kind === 'verb');
-    expect(project.map((r) => r.verb?.command)).toContain('gittree.update.withoutFetch');
+    expect(project.map((r) => r.verb?.command)).toContain('geet.update.withoutFetch');
     const repoRow = rootRows(ctx).find((r) => r.kind === 'repo');
     expect(repoRow).toBeDefined();
     const inRepo = childRows(ctx, repoRow!).filter((r) => r.kind === 'verb');
     // It does have verbs of its own — just not this one.
     expect(inRepo.length).toBeGreaterThan(0);
-    expect(inRepo.map((r) => r.verb?.command)).not.toContain('gittree.update.withoutFetch');
+    expect(inRepo.map((r) => r.verb?.command)).not.toContain('geet.update.withoutFetch');
   });
 });
 
 describe('Checkout Tag or Revision at the project level (POST-P14bo)', () => {
-  const REVISION = 'gittree.branches.checkoutRevision';
-  const EVERYWHERE = 'gittree.branches.checkoutEverywhere';
+  const REVISION = 'geet.branches.checkoutRevision';
+  const EVERYWHERE = 'geet.branches.checkoutEverywhere';
   const verbCommands = (rows: ReturnType<typeof rootRows>) =>
     rows.filter((r) => r.kind === 'verb').map((r) => r.verb?.command);
 
@@ -184,7 +184,7 @@ describe('Checkout Tag or Revision at the project level (POST-P14bo)', () => {
 describe('verb rows and their keys (POST-QA)', () => {
   it('keep the accelerator on the verb, out of the description, for the surface to show when bound', () => {
     const verbs = rootRows(ctxOf([repo('/r', 'r')])).filter((r) => r.kind === 'verb');
-    const update = verbs.find((r) => r.verb?.command === 'gittree.update.dialog');
+    const update = verbs.find((r) => r.verb?.command === 'geet.update.dialog');
     expect(update?.verb?.accelerator).toBe('Ctrl+T');
     expect(update?.description).toBeUndefined();
     expect(verbs.every((r) => r.description === undefined)).toBe(true);

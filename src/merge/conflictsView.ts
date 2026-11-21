@@ -70,11 +70,11 @@ export class ConflictsViewProvider implements vscode.TreeDataProvider<ConflictNo
     item.resourceUri = rowUri('conflict', path.join(node.session.repo.root, node.path), 'conflicted');
     item.iconPath = new vscode.ThemeIcon(
       node.kind === 'both-modified' || node.kind === 'added-by-both' ? 'git-merge' : 'warning',
-      new vscode.ThemeColor('gittree.color.conflicted'),
+      new vscode.ThemeColor('geet.color.conflicted'),
     );
     item.contextValue = isSpecialConflict(node.kind) ? 'conflict:special' : 'conflict:file';
     item.command = {
-      command: 'gittree.merge.open',
+      command: 'geet.merge.open',
       title: vscode.l10n.t('Merge…'),
       arguments: [node],
     };

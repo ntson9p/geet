@@ -162,7 +162,7 @@ describe('ageStep', () => {
     };
     const ids = new Set(pkg.contributes.colors.map((c) => c.id));
     for (let step = 0; step < AGE_STEPS; step++) {
-      expect(ids.has(`gittree.blame.age${step + 1}Background`)).toBe(true);
+      expect(ids.has(`geet.blame.age${step + 1}Background`)).toBe(true);
     }
   });
 });

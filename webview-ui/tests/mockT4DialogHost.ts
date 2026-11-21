@@ -10,7 +10,7 @@ export function mockT4DialogHostScript(
 ): string {
   return `
 (() => {
-  window.__gittreeInitialState = { dialog: '${dialog}' };
+  window.__geetInitialState = { dialog: '${dialog}' };
 
   const BASE = {
     repoRoot: 'D:/repos/demo-git',

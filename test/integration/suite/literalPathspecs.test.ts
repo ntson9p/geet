@@ -97,11 +97,11 @@ suite('POST-P14ck a path that looks like a pattern', () => {
     service.moveFiles([ID], list.id);
     service.setChecked([ID], true);
     reg.messageBoxFor(repo).value = 'p14ck ticked';
-    process.env['GITTREE_TEST_CHECKS_CHOICE'] = 'anyway';
+    process.env['GEET_TEST_CHECKS_CHOICE'] = 'anyway';
     try {
-      await vscode.commands.executeCommand('gittree.changelist.commitList', { repoRoot: repo.root, listId: list.id });
+      await vscode.commands.executeCommand('geet.changelist.commitList', { repoRoot: repo.root, listId: list.id });
     } finally {
-      delete process.env['GITTREE_TEST_CHECKS_CHOICE'];
+      delete process.env['GEET_TEST_CHECKS_CHOICE'];
     }
     await waitFor(() => git('log', '-1', '--format=%s').trim() === 'p14ck ticked', 15_000);
 
@@ -115,8 +115,8 @@ suite('POST-P14ck a path that looks like a pattern', () => {
     await repo.refresher.refreshNow();
     await waitFor(() => repo.model.snapshot.statusEntries.some((e) => e.path === ID), 15_000);
 
-    // The modal confirms itself in the test host (GITTREE_TEST_AUTOCONFIRM).
-    await vscode.commands.executeCommand('gittree.rollbackFile', { repoRoot: repo.root, relPath: ID });
+    // The modal confirms itself in the test host (GEET_TEST_AUTOCONFIRM).
+    await vscode.commands.executeCommand('geet.rollbackFile', { repoRoot: repo.root, relPath: ID });
     await waitFor(() => fs.readFileSync(abs(ID), 'utf8') === 'one\ntwo\n', 15_000);
 
     assert.strictEqual(fs.readFileSync(abs(`${DIR}/i.tsx`), 'utf8'), 'one\ntwo\n');

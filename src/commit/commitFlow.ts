@@ -2,7 +2,7 @@
  * Commit flow orchestration (P3-T8): resolve paradigm-aware target files →
  * guards → CheckPipeline → executor → post-actions (clear input, message
  * history, optional push offer, refresh). One progress notification with
- * step names; `gittree.commit` keeps its P1 id.
+ * step names; `geet.commit` keeps its P1 id.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -135,7 +135,7 @@ async function mergeCommitChecks(
           )
         : vscode.l10n.t('Cannot commit changes due to unresolved conflicts.');
     void vscode.window.showWarningMessage(message, resolve).then((choice) => {
-      if (choice === resolve) void vscode.commands.executeCommand('gittree.conflicts.resolve', first.repo.root);
+      if (choice === resolve) void vscode.commands.executeCommand('geet.conflicts.resolve', first.repo.root);
     });
     return false;
   }
@@ -503,7 +503,7 @@ export async function runCommitAcross(
   // silently is the exact trap this work exists to remove.
   //
   // Checked across every participant, not just `messageRepo`: amend is per repo
-  // and `gittree.commit.toggleAmend <root>` can arm it on one the editor is not
+  // and `geet.commit.toggleAmend <root>` can arm it on one the editor is not
   // bound to. Without this the spanning loop below would reach that repo with
   // amend still armed and rewrite its history as part of a plain commit.
   // POST-P14by: only a repository being committed can be amended (`amendTarget`).
@@ -596,14 +596,14 @@ export async function runCommitAcross(
 /**
  * "and Push", once the commits have landed (POST-P14ah): IntelliJ's
  * push-after-commit — the Push dialog for the repositories just committed,
- * or, with `gittree.push.showDialogForCommitAndPush` or `gittree.push.showDialog`
+ * or, with `geet.push.showDialogForCommitAndPush` or `geet.push.showDialog`
  * off (POST-P14cn), the push itself. The push module decides which; the
  * dialog is not waited for.
  */
 async function pushAfterCommit(repos: readonly RepoHandle[]): Promise<void> {
   if (repos.length === 0) return;
   await vscode.commands.executeCommand(
-    'gittree.push.afterCommit',
+    'geet.push.afterCommit',
     repos.map((r) => r.root),
   );
 }

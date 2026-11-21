@@ -173,7 +173,7 @@ export async function createBranches(
   }
   const summary = summarizeNewBranch(name, from, ordered);
   const actions: NotificationAction[] = restoreConflicts
-    ? [{ title: vscode.l10n.t('Show Conflicts'), run: () => vscode.commands.executeCommand('gittree.conflicts.focus') }]
+    ? [{ title: vscode.l10n.t('Show Conflicts'), run: () => vscode.commands.executeCommand('geet.conflicts.focus') }]
     : [];
   if (summary.kind === 'warning') notifyWarning(summary.message, ...actions);
   else notifySuccess(summary.message, ...actions);

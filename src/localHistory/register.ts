@@ -28,7 +28,7 @@ export function getSnapshotStore(repoRoot: string): SnapshotStore | undefined {
 }
 
 export function registerPhase09LocalHistory(context: vscode.ExtensionContext, core: Core): void {
-  const config = () => vscode.workspace.getConfiguration('gittree.localHistory');
+  const config = () => vscode.workspace.getConfiguration('geet.localHistory');
   const trace = (l: string): void => core.output.appendLine(`[local-history] ${l}`);
 
   const attach = (repo: RepoHandle): void => {
@@ -93,7 +93,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
     ),
   );
   const viewProvider = new LocalHistoryViewProvider(core, storeForRepo);
-  const view = vscode.window.createTreeView('gittree.localHistory', {
+  const view = vscode.window.createTreeView('geet.localHistory', {
     treeDataProvider: viewProvider,
     showCollapseAll: true,
   });
@@ -104,7 +104,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
     viewProvider.setPathFilter(filter);
     void vscode.commands.executeCommand(
       'setContext',
-      'gittree.localHistory.filtered',
+      'geet.localHistory.filtered',
       filter !== undefined,
     );
   };
@@ -116,13 +116,13 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
   const register = (id: string, fn: (...args: unknown[]) => Promise<void> | void): void => {
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
-  register('gittree.history.show', async (repoRoot) => {
+  register('geet.history.show', async (repoRoot) => {
     setFilter(undefined);
     void pickRepo(repoRoot);
-    await vscode.commands.executeCommand('setContext', 'gittree.localHistory.active', true);
-    await vscode.commands.executeCommand('gittree.localHistory.focus');
+    await vscode.commands.executeCommand('setContext', 'geet.localHistory.active', true);
+    await vscode.commands.executeCommand('geet.localHistory.focus');
   });
-  register('gittree.history.showForPath', async (arg) => {
+  register('geet.history.showForPath', async (arg) => {
     const uri = arg instanceof vscode.Uri ? arg : vscode.window.activeTextEditor?.document.uri;
     if (!uri || uri.scheme !== 'file') return;
     const repo = core.repoForUri(uri);
@@ -130,17 +130,17 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
     const rel = repoRelative(repo.root, uri.fsPath);
     if (rel === undefined) return;
     setFilter({ repoRoot: repo.root, prefix: rel });
-    await vscode.commands.executeCommand('setContext', 'gittree.localHistory.active', true);
-    await vscode.commands.executeCommand('gittree.localHistory.focus');
+    await vscode.commands.executeCommand('setContext', 'geet.localHistory.active', true);
+    await vscode.commands.executeCommand('geet.localHistory.focus');
   });
-  register('gittree.history.compareSnapshot', (node) => restoreUx.compareSnapshot(node as HistoryNode));
-  register('gittree.history.diffFile', (node) => restoreUx.diffFile(node as HistoryNode));
-  register('gittree.history.restoreSnapshot', (node) => restoreUx.restore(node as HistoryNode, false));
-  register('gittree.history.restoreFiles', (node) => restoreUx.restore(node as HistoryNode, true));
-  register('gittree.history.deleteSnapshot', (node) => restoreUx.deleteSnapshot(node as HistoryNode));
-  register('gittree.history.clearAll', (repoRoot) => restoreUx.clearAll(pickRepo(repoRoot)));
-  register('gittree.history.gcNow', (repoRoot) => restoreUx.gcNow(pickRepo(repoRoot)));
-  register('gittree.history.clearFilter', () => setFilter(undefined));
+  register('geet.history.compareSnapshot', (node) => restoreUx.compareSnapshot(node as HistoryNode));
+  register('geet.history.diffFile', (node) => restoreUx.diffFile(node as HistoryNode));
+  register('geet.history.restoreSnapshot', (node) => restoreUx.restore(node as HistoryNode, false));
+  register('geet.history.restoreFiles', (node) => restoreUx.restore(node as HistoryNode, true));
+  register('geet.history.deleteSnapshot', (node) => restoreUx.deleteSnapshot(node as HistoryNode));
+  register('geet.history.clearAll', (repoRoot) => restoreUx.clearAll(pickRepo(repoRoot)));
+  register('geet.history.gcNow', (repoRoot) => restoreUx.gcNow(pickRepo(repoRoot)));
+  register('geet.history.clearFilter', () => setFilter(undefined));
 
   // Keep the view fresh as snapshots land (current and future repos).
   const hookRefresh = (repo: RepoHandle): void => {
@@ -153,7 +153,7 @@ export function registerPhase09LocalHistory(context: vscode.ExtensionContext, co
   // ---- P9-T4: destruction detection ----------------------------------------
   const recovery = new RecoveryWatch(core);
   context.subscriptions.push(recovery);
-  register('gittree.history.recoverCommit', async (repoRoot, sha) => {
+  register('geet.history.recoverCommit', async (repoRoot, sha) => {
     const repo = pickRepo(repoRoot);
     if (repo && typeof sha === 'string') {
       await recovery.recoverCommit(repo, sha);

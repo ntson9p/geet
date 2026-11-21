@@ -9,7 +9,7 @@
  * this is where the two are reconciled — the storage stays per repo, the tree
  * reads as IntelliJ's.
  *
- * **Or repositories first** (`gittree.commit.groupBy: repository`, Geet's
+ * **Or repositories first** (`geet.commit.groupBy: repository`, Geet's
  * own, D37): one row per repository with changes, its own changelists beneath.
  * Only a workspace of several repositories has the choice; one repository has
  * no repository rows to arrange.
@@ -21,7 +21,7 @@
  * (Staged, Unstaged, Unversioned) stay rows of their own. Merge Conflicts is a
  * row first in both, as it blocks the commit.
  *
- * **Folders or a list** (`gittree.commit.groupByDirectory`, POST-P14cb): IntelliJ's
+ * **Folders or a list** (`geet.commit.groupByDirectory`, POST-P14cb): IntelliJ's
  * Group By › Directory, in every grouping. Off, the files are one list in path
  * order and each row names its folder; a file's path is the same either way.
  *
@@ -172,7 +172,7 @@ export interface CommitTreeModel {
   readonly staging: boolean;
   /**
    * POST-P14cb: folder rows over the files (`tree`), or the files as one list in
-   * path order (`list`), each naming its folder (`gittree.commit.groupByDirectory`).
+   * path order (`list`), each naming its folder (`geet.commit.groupByDirectory`).
    */
   readonly layout: CommitLayout;
   /**
@@ -198,7 +198,7 @@ export function multiRepoOf(state: CommitStateDto): boolean {
 /** POST-P14cb: folder rows, or none. */
 export type CommitLayout = 'tree' | 'list';
 
-/** The layout a state is drawn in: folder rows only when `gittree.commit.groupByDirectory` asks. */
+/** The layout a state is drawn in: folder rows only when `geet.commit.groupByDirectory` asks. */
 export function layoutOf(state: CommitStateDto): CommitLayout {
   return state.groupByDirectory === true ? 'tree' : 'list';
 }
@@ -1095,7 +1095,7 @@ export function splitDelta(
  * carries only the row under the cursor, which is also what the tree then
  * selects.
  *
- * Scoped to one repository: `gittree.*` file commands take a single
+ * Scoped to one repository: `geet.*` file commands take a single
  * `repoRoot`, and a cross-repository selection silently acting on half of
  * itself is worse than acting on the clicked repository's half by contract.
  */

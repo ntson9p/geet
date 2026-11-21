@@ -1,6 +1,6 @@
 /**
  * POST-P14cc: Geet's change bars are not drawn unless asked for
- * (`gittree.changeBars.enabled`). VS Code's built-in Git draws its own bars on
+ * (`geet.changeBars.enabled`). VS Code's built-in Git draws its own bars on
  * the same changed lines (`scm.diffDecorations: all`, its default), so with
  * both every changed line had two, and the two could disagree: VS Code calling
  * a line modified where Geet called it added. Geet's change actions (its

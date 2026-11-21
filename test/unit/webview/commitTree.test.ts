@@ -568,7 +568,7 @@ describe('fileRowContext (POST-P14v)', () => {
       new Set([clicked, mine[1]![0], theirs[0]![0]]),
     );
     expect(ctx?.['repoRoot']).toBe('D:/repos/demo');
-    // Every `gittree.*` file command takes one repoRoot; the other repo's row
+    // Every `geet.*` file command takes one repoRoot; the other repo's row
     // would silently be dropped by the host instead of here.
     expect(ctx?.['relPaths']).toEqual([mine[0]![1].relPath, mine[1]![1].relPath]);
   });

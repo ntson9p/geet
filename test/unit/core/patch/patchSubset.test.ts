@@ -32,7 +32,7 @@ const change = (
 
 let repo: FixtureRepo;
 beforeAll(() => {
-  repo = FixtureRepo.create({ prefix: 'gittree-subset-' });
+  repo = FixtureRepo.create({ prefix: 'geet-subset-' });
   repo.commit('base', { 'file.txt': 'seed\n' });
 });
 afterAll(() => repo.dispose());

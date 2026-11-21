@@ -182,7 +182,7 @@ export class ConflictSession {
     }
     switch (this.source) {
       case 'rebase':
-        await vscode.commands.executeCommand('gittree.rebase.continue', this.repo.root);
+        await vscode.commands.executeCommand('geet.rebase.continue', this.repo.root);
         return true;
       case 'stash-pop':
       case 'unshelve':
@@ -235,7 +235,7 @@ export class ConflictSession {
   async abortOp(): Promise<void> {
     switch (this.source) {
       case 'rebase':
-        await vscode.commands.executeCommand('gittree.rebase.abort', this.repo.root);
+        await vscode.commands.executeCommand('geet.rebase.abort', this.repo.root);
         return;
       case 'stash-pop':
       case 'unshelve':

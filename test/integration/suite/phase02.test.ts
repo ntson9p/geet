@@ -124,23 +124,23 @@ suite('P2 branches', () => {
     const said = (): string[] => notes.recent().map((n) => n.message);
     notes.clear();
     // New branch (input via test seam), created without checkout.
-    process.env['GITTREE_TEST_BRANCH_NAME'] = 'ops/created';
-    process.env['GITTREE_TEST_BRANCH_MODE'] = 'create';
+    process.env['GEET_TEST_BRANCH_NAME'] = 'ops/created';
+    process.env['GEET_TEST_BRANCH_MODE'] = 'create';
     try {
       await reg.ops.newBranchFrom(repo, 'HEAD');
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
-      delete process.env['GITTREE_TEST_BRANCH_MODE'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_BRANCH_MODE'];
     }
     assert.ok(git('branch', '--list', 'ops/created').includes('ops/created'));
     assert.deepStrictEqual(said(), ['Branch ops/created was created']);
 
     // Rename.
-    process.env['GITTREE_TEST_BRANCH_NAME'] = 'ops/renamed';
+    process.env['GEET_TEST_BRANCH_NAME'] = 'ops/renamed';
     try {
       await reg.ops.renameBranch(repo, 'ops/created');
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
     }
     assert.ok(git('branch', '--list', 'ops/renamed').includes('ops/renamed'));
     assert.strictEqual(git('branch', '--list', 'ops/created').trim(), '');
@@ -161,12 +161,12 @@ suite('P2 branches', () => {
     // suite's first run since this was written, POST-P14cm.)
     git('branch', 'ops/renamed', tip);
     await refresh();
-    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Restore';
+    process.env['GEET_TEST_NOTIFICATION_ACTION'] = 'Restore';
     try {
       await reg.ops.deleteBranch(repo, 'ops/renamed');
       await waitFor(() => git('branch', '--list', 'ops/renamed').trim().length > 0, 15_000);
     } finally {
-      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+      delete process.env['GEET_TEST_NOTIFICATION_ACTION'];
     }
     assert.strictEqual(git('rev-parse', 'ops/renamed').trim(), tip, 'restored at its old tip');
     await waitFor(() => said().includes('Restored branch ops/renamed'), 15_000);
@@ -202,11 +202,11 @@ suite('P2 branches', () => {
 
     const notes = (await activateGeet()).debugRegistry.get('notifications') as NotificationsRegistry;
     notes.clear();
-    process.env['GITTREE_TEST_SMART_CHOICE'] = 'smart';
+    process.env['GEET_TEST_SMART_CHOICE'] = 'smart';
     try {
       await reg.ops.checkout(repo, 'smart/target');
     } finally {
-      delete process.env['GITTREE_TEST_SMART_CHOICE'];
+      delete process.env['GEET_TEST_SMART_CHOICE'];
     }
     // POST-P14ap: `Checked out` — unless restoring the changes conflicted,
     // which warns instead (handled below).
@@ -219,7 +219,7 @@ suite('P2 branches', () => {
     const stashes = git('stash', 'list');
     const conflicted = git('status', '--porcelain').includes('UU tracked.txt');
     if (conflicted) {
-      assert.ok(stashes.includes('gittree-smart:smart/target'), 'conflicting pop must keep the stash');
+      assert.ok(stashes.includes('geet-smart:smart/target'), 'conflicting pop must keep the stash');
       git('checkout', '--theirs', 'tracked.txt');
       git('add', 'tracked.txt');
       git('reset');
@@ -228,7 +228,7 @@ suite('P2 branches', () => {
     } else {
       // Clean pop: change restored on target, stash gone.
       assert.strictEqual(fs.readFileSync(path.join(repoRoot, 'tracked.txt'), 'utf8'), 'dirty local edit\n');
-      assert.ok(!stashes.includes('gittree-smart:smart/target'));
+      assert.ok(!stashes.includes('geet-smart:smart/target'));
       git('checkout', '-f', 'smart/target');
     }
     git('checkout', '-f', 'main');
@@ -242,11 +242,11 @@ suite('P2 branches', () => {
     await refresh();
     await waitFor(() => repo.model.snapshot.statusEntries.some((e) => e.path === 'tracked.txt'), 15_000);
 
-    process.env['GITTREE_TEST_SMART_CHOICE'] = 'force';
+    process.env['GEET_TEST_SMART_CHOICE'] = 'force';
     try {
       await reg.ops.checkout(repo, 'smart/target');
     } finally {
-      delete process.env['GITTREE_TEST_SMART_CHOICE'];
+      delete process.env['GEET_TEST_SMART_CHOICE'];
     }
     await refresh();
     await waitFor(() => repo.model.snapshot.headRef === 'smart/target', 15_000);
@@ -276,7 +276,7 @@ suite('P2 branches', () => {
     await refresh();
 
     const { logView } = core.debugRegistry.get('phase04') as Phase04Registry;
-    await vscode.commands.executeCommand('gittree.branches.compareWithCurrent', repoRoot, 'smart/target');
+    await vscode.commands.executeCommand('geet.branches.compareWithCurrent', repoRoot, 'smart/target');
     await waitFor(() => logView.currentSession?.filter.range !== undefined, 15_000);
     const current = repo.model.snapshot.headRef!;
     assert.deepStrictEqual(logView.currentSession!.filter.range, { a: 'smart/target', b: current });
@@ -286,14 +286,14 @@ suite('P2 branches', () => {
     await logView.openTab({ sort: 'date', refs: 'HEAD' }, repoRoot);
     await waitFor(() => logView.currentSession?.filter.range === undefined, 15_000);
 
-    await vscode.commands.executeCommand('gittree.compare.showFilesDiff', repoRoot, 'smart/target', current);
+    await vscode.commands.executeCommand('geet.compare.showFilesDiff', repoRoot, 'smart/target', current);
     const state = reg.compare.provider.state;
     assert.ok(state, 'compare state not set');
     assert.strictEqual(state.comparison.left.name, 'smart/target');
     assert.strictEqual(state.comparison.left.sha, git('rev-parse', 'smart/target').trim());
     assert.ok(state.files.some((f) => f.path === 'main-only.txt'), 'a file only one tip has');
 
-    await vscode.commands.executeCommand('gittree.compare.openAll');
+    await vscode.commands.executeCommand('geet.compare.openAll');
     // The multi-diff editor opened as a tab.
     const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs);
     assert.ok(
@@ -307,7 +307,7 @@ suite('P2 branches', () => {
     // tests, which resolve everything from the active editor, are where that
     // surfaced.
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-    await vscode.commands.executeCommand('gittree.compare.close');
+    await vscode.commands.executeCommand('geet.compare.close');
     assert.strictEqual(reg.compare.provider.state, undefined);
   });
 
@@ -346,11 +346,11 @@ suite('P2 branches', () => {
 
     // Drag smart/target onto main → merge (choices auto-picked in test env).
     const before = git('rev-parse', 'HEAD').trim();
-    process.env['GITTREE_TEST_DROP_CHOICE'] = 'merge';
+    process.env['GEET_TEST_DROP_CHOICE'] = 'merge';
     try {
       await reg.viewProvider.showDropActions(repo, 'smart/target', 'main');
     } finally {
-      delete process.env['GITTREE_TEST_DROP_CHOICE'];
+      delete process.env['GEET_TEST_DROP_CHOICE'];
     }
     await refresh();
     const after = git('rev-parse', 'HEAD').trim();

@@ -53,7 +53,7 @@ export interface DialogHandle<TResult> {
   readonly panel: vscode.WebviewPanel;
 }
 
-const VIEW_TYPE = 'gittree.dialog';
+const VIEW_TYPE = 'geet.dialog';
 
 /**
  * Opens a dialog and returns a handle. Prefer `openDialog` unless you need to

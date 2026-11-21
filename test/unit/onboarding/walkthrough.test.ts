@@ -16,9 +16,9 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../../../package.js
 
 describe('walkthroughId', () => {
   it('is the extension ID, then # and the walkthrough package.json contributes', () => {
-    // The walkthrough's own id keeps its `gittree.` prefix, as every contributed ID does.
-    expect(walkthroughId('ntson9p.geet')).toBe('ntson9p.geet#gittree.gettingStarted');
-    expect(walkthroughId('someone.gittree')).toBe('someone.gittree#gittree.gettingStarted');
+    // The walkthrough's own id starts with `geet.`, as every contributed ID does (POST-P14cy).
+    expect(walkthroughId('ntson9p.geet')).toBe('ntson9p.geet#geet.gettingStarted');
+    expect(walkthroughId('someone.geet')).toBe('someone.geet#geet.gettingStarted');
   });
 
   it("names the manifest's walkthrough, and the manifest's extension ID makes the one VS Code knows", () => {

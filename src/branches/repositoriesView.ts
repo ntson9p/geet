@@ -4,7 +4,7 @@
  * dashboard VS Code users read in the Source Control view, and the selector the
  * Branches section below it follows.
  *
- * **The element is the root string, deliberately.** Every `gittree.*` command
+ * **The element is the root string, deliberately.** Every `geet.*` command
  * that acts on a repository already takes `repoRoot` as its first argument
  * (`resolveRepo`, `pickRepo`), and VS Code hands a tree node straight to the
  * command a menu entry names — so the row's context menu is built from the
@@ -88,7 +88,7 @@ export class RepositoriesViewProvider implements vscode.TreeDataProvider<string>
       : vscode.l10n.t('{0}\n{1}\n\nClick to show this repository in Branches.', name, root);
     item.contextValue = 'repository';
     item.command = {
-      command: 'gittree.repositories.select',
+      command: 'geet.repositories.select',
       title: vscode.l10n.t('Focus Repository'),
       arguments: [root],
     };

@@ -1,6 +1,6 @@
 /**
  * Marketplace icon capture (P10-T3) — NOT part of the test gate.
- * Run manually with GITTREE_CAPTURE=1 to (re)generate media/icon.png from
+ * Run manually with GEET_CAPTURE=1 to (re)generate media/icon.png from
  * media/icon.svg.
  *
  * The README's screenshots are no longer taken here, against the mock hosts:
@@ -12,11 +12,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from '@playwright/test';
 
-const capture = process.env['GITTREE_CAPTURE'] === '1';
+const capture = process.env['GEET_CAPTURE'] === '1';
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
 const out = (...p: string[]): string => path.resolve(testsDir, '..', '..', ...p);
 
-test.describe('asset capture (manual: GITTREE_CAPTURE=1)', () => {
+test.describe('asset capture (manual: GEET_CAPTURE=1)', () => {
   test.skip(!capture, 'asset capture is a manual, on-demand step');
 
   test('marketplace icon (svg → 256px png)', async ({ page }) => {

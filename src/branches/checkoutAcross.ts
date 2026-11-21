@@ -99,8 +99,8 @@ export function lastLocalChangesQuestion(): typeof lastQuestion {
 
 /**
  * The one question for every repository whose local changes were in the way,
- * settled by `gittree.smartCheckout.behavior` when that says so. A native modal
- * cannot be clicked from a test: `GITTREE_TEST_SMART_CHOICE` answers it. Shared
+ * settled by `geet.smartCheckout.behavior` when that says so. A native modal
+ * cannot be clicked from a test: `GEET_TEST_SMART_CHOICE` answers it. Shared
  * with the New Branch form's Check it out.
  */
 export async function askAboutLocalChanges(
@@ -130,7 +130,7 @@ export async function askAboutLocalChanges(
     ),
   ].join('\n');
   lastQuestion = { message, detail, buttons: [smart, force] };
-  const seeded = process.env['GITTREE_TEST_SMART_CHOICE'];
+  const seeded = process.env['GEET_TEST_SMART_CHOICE'];
   if (seeded !== undefined) return seeded === 'smart' ? 'smart' : seeded === 'force' ? 'force' : 'leave';
   const picked = await vscode.window.showWarningMessage(message, { modal: true, detail }, smart, force);
   return picked === smart ? 'smart' : picked === force ? 'force' : 'leave';
@@ -291,10 +291,10 @@ export async function checkoutAcross(
   });
   const summary = summarizeCheckout(target, ordered.map((o) => o.result));
   const actions: NotificationAction[] = restoreConflicts
-    ? [{ title: vscode.l10n.t('Show Conflicts'), run: () => vscode.commands.executeCommand('gittree.conflicts.focus') }]
+    ? [{ title: vscode.l10n.t('Show Conflicts'), run: () => vscode.commands.executeCommand('geet.conflicts.focus') }]
     : [];
   if (ordered.some((o) => o.result.kind === 'failed')) {
-    actions.push({ title: vscode.l10n.t('Show Details'), run: () => vscode.commands.executeCommand('gittree.log.showConsole') });
+    actions.push({ title: vscode.l10n.t('Show Details'), run: () => vscode.commands.executeCommand('geet.log.showConsole') });
   }
   if (summary.kind === 'warning') notifyWarning(summary.message, ...actions);
   else notifySuccess(summary.message, ...actions);
@@ -303,7 +303,7 @@ export async function checkoutAcross(
 
 /**
  * `Checkout Branch in All Repositories…`: every branch any of them has, local or
- * remote, by its own name, then `checkoutAcross`. `GITTREE_TEST_CHECKOUT_BRANCH`
+ * remote, by its own name, then `checkoutAcross`. `GEET_TEST_CHECKOUT_BRANCH`
  * answers the picker, which a test cannot click.
  */
 export async function pickAndCheckoutAcross(
@@ -320,7 +320,7 @@ export async function pickAndCheckoutAcross(
     showInfo(vscode.l10n.t('There is no branch to check out.'));
     return undefined;
   }
-  const seeded = process.env['GITTREE_TEST_CHECKOUT_BRANCH'];
+  const seeded = process.env['GEET_TEST_CHECKOUT_BRANCH'];
   let name: string | undefined;
   if (seeded !== undefined) {
     name = seeded;

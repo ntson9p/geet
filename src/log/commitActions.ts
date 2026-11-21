@@ -2,7 +2,7 @@
  * Commit actions & navigation wiring (P4-T5): the webview/context menu
  * commands. Handlers receive the row's data-vscode-context payload
  * ({sha, shas}). Reset-hard is destructive-flagged; multi-select rewrite
- * entries are reserved for P5 behind gittree:rewriteReady.
+ * entries are reserved for P5 behind geet:rewriteReady.
  */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -48,10 +48,10 @@ export function registerCommitActions(
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
 
-  register('gittree.log.refresh', () => {
+  register('geet.log.refresh', () => {
     logView.refresh();
   });
-  register('gittree.log.revealCommit', async (sha, repoRoot) => {
+  register('geet.log.revealCommit', async (sha, repoRoot) => {
     const s = shaOf(sha);
     if (s !== undefined) {
       await logView.revealCommit(s, typeof repoRoot === 'string' ? repoRoot : undefined);
@@ -60,18 +60,18 @@ export function registerCommitActions(
 
   // IntelliJ's Copy Revision Number: several hashes go on one line, spaced,
   // in the order the log lists them.
-  register('gittree.log.copySha', async (arg) => {
+  register('geet.log.copySha', async (arg) => {
     const ctx = arg as CommitContext | undefined;
     const text = (ctx?.shas && ctx.shas.length > 1 ? ctx.shas : [shaOf(arg) ?? '']).join(' ');
     if (text.length > 0) await vscode.env.clipboard.writeText(text);
   });
 
-  register('gittree.log.createBranchHere', async (arg) => {
+  register('geet.log.createBranchHere', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
     const name =
-      process.env['GITTREE_TEST_BRANCH_NAME'] ??
+      process.env['GEET_TEST_BRANCH_NAME'] ??
       (await vscode.window.showInputBox({
         prompt: vscode.l10n.t('New branch at {0}', sha.slice(0, 7)),
         ignoreFocusOut: true,
@@ -87,12 +87,12 @@ export function registerCommitActions(
     notifySuccess(vscode.l10n.t('Branch {0} was created', name.trim()));
   });
 
-  register('gittree.log.createTagHere', async (arg) => {
+  register('geet.log.createTagHere', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
     const name =
-      process.env['GITTREE_TEST_BRANCH_NAME'] ??
+      process.env['GEET_TEST_BRANCH_NAME'] ??
       (await vscode.window.showInputBox({
         prompt: vscode.l10n.t('New tag at {0}', sha.slice(0, 7)),
         ignoreFocusOut: true,
@@ -108,7 +108,7 @@ export function registerCommitActions(
     notifySuccess(vscode.l10n.t('Created tag {0}', name.trim()));
   });
 
-  register('gittree.log.checkoutRevision', async (arg) => {
+  register('geet.log.checkoutRevision', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
@@ -131,7 +131,7 @@ export function registerCommitActions(
     notifySuccess(vscode.l10n.t('Checked out {0}', sha.slice(0, 8)));
   });
 
-  register('gittree.log.resetHere', async (arg) => {
+  register('geet.log.resetHere', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
@@ -146,7 +146,7 @@ export function registerCommitActions(
       // HEAD but REFUSES rather than discard local changes.
       { label: vscode.l10n.t('Keep — like hard, but refuses to touch local changes'), mode: 'keep' },
     ];
-    const testMode = process.env['GITTREE_TEST_RESET_MODE'];
+    const testMode = process.env['GEET_TEST_RESET_MODE'];
     const picked =
       testMode === 'soft' || testMode === 'mixed' || testMode === 'hard' || testMode === 'keep'
         ? items.find((i) => i.mode === testMode)
@@ -192,7 +192,7 @@ export function registerCommitActions(
     }
   });
 
-  register('gittree.log.compareWithLocal', async (arg) => {
+  register('geet.log.compareWithLocal', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
@@ -226,7 +226,7 @@ export function registerCommitActions(
    * the log to the upper one, kept to the log's path filter as IntelliJ keeps
    * it to the affected paths.
    */
-  register('gittree.log.compareVersions', async (arg) => {
+  register('geet.log.compareVersions', async (arg) => {
     const shas = (arg as CommitContext | undefined)?.shas;
     const repo = repoOf();
     if (!repo || !Array.isArray(shas) || shas.length !== 2) return;
@@ -263,7 +263,7 @@ export function registerCommitActions(
     );
   });
 
-  register('gittree.log.openOnRemote', async (arg) => {
+  register('geet.log.openOnRemote', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
@@ -295,7 +295,7 @@ export function registerCommitActions(
   // An optional root, so a caller acting on one repository of several filters
   // *that* repository's log rather than whichever one the log shows (POST-P14ae:
   // Update Project's `Show in Log`, whose range exists only in its own repo).
-  register('gittree.log.setFilter', async (filter, root) => {
+  register('geet.log.setFilter', async (filter, root) => {
     if (typeof filter === 'object' && filter !== null) {
       await logView.setFilter(filter as never, typeof root === 'string' ? root : undefined);
     }
@@ -304,7 +304,7 @@ export function registerCommitActions(
   // Internal: the same arguments, shown in a Log tab of its own (reused when
   // one already shows exactly that), so the active tab's filters survive.
   // What an update's Show in Log runs.
-  register('gittree.log.openTab', async (filter, root) => {
+  register('geet.log.openTab', async (filter, root) => {
     if (typeof filter === 'object' && filter !== null) {
       await logView.openTab(filter as never, typeof root === 'string' ? root : undefined);
     }
@@ -312,7 +312,7 @@ export function registerCommitActions(
 
   // P2-T5 upgrade: Compare with Current now routes into the filtered log
   // (range mode with side badges), in a Log tab of its own. Command id unchanged.
-  register('gittree.branches.compareInLog', async (repoRoot, branch) => {
+  register('geet.branches.compareInLog', async (repoRoot, branch) => {
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
     if (!repo || typeof branch !== 'string') return;
     const current = repo.model.snapshot.headRef ?? 'HEAD';
@@ -325,7 +325,7 @@ export function registerCommitActions(
   // The Branches panel's `Show in New Log Tab`: a ref's history, in a Log tab
   // of its own (reused when one already shows exactly that), so whatever the
   // active tab was filtered to survives.
-  register('gittree.branches.showInLog', async (repoRoot, ref) => {
+  register('geet.branches.showInLog', async (repoRoot, ref) => {
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? repoOf();
     if (!repo || typeof ref !== 'string' || ref.length === 0) return;
     await logView.openTab({ sort: 'topo', refs: [ref] }, repo.root);
@@ -335,7 +335,7 @@ export function registerCommitActions(
   // its history at HEAD, the Log's own default, in a Log tab of its own. Not
   // the main tab, even when it shows exactly that: it was asked for as new.
   // An extra tab already showing it comes forward instead of a second.
-  register('gittree.repositories.showInLog', async (arg) => {
+  register('geet.repositories.showInLog', async (arg) => {
     // A root from the Repositories panel, or a Commit-window repository row (POST-P14cb).
     const repoRoot = typeof arg === 'string' ? arg : repoRootOf(arg);
     const repo = (repoRoot !== undefined ? core.getRepo(repoRoot) : undefined) ?? repoOf();
@@ -409,9 +409,9 @@ export function registerCommitActions(
     await repo.refresher.refreshNow();
 
     const doRebase =
-      process.env['GITTREE_TEST_AUTOSQUASH'] === 'yes'
+      process.env['GEET_TEST_AUTOSQUASH'] === 'yes'
         ? true
-        : process.env['GITTREE_TEST_AUTOSQUASH'] === 'no'
+        : process.env['GEET_TEST_AUTOSQUASH'] === 'no'
           ? false
           : (await vscode.window.showInformationMessage(
               vscode.l10n.t('{0} commit created. Run rebase --autosquash now?', mode),
@@ -446,19 +446,19 @@ export function registerCommitActions(
     }
     await repo.refresher.refreshNow();
   };
-  register('gittree.log.fixup', (arg) => fixupLike(arg, 'fixup'));
-  register('gittree.log.squashInto', (arg) => fixupLike(arg, 'squash'));
+  register('geet.log.fixup', (arg) => fixupLike(arg, 'fixup'));
+  register('geet.log.squashInto', (arg) => fixupLike(arg, 'squash'));
 
   /**
    * Push All up to Here… — IntelliJ's `GitPushUpToCommitAction`: the Push
    * dialog with the commit as its source, so the commits that would go are
    * listed, and the target can still be changed, before anything is pushed.
    */
-  register('gittree.log.pushAllUpToHere', async (arg) => {
+  register('geet.log.pushAllUpToHere', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
-    await vscode.commands.executeCommand('gittree.push.upTo', repo.root, sha);
+    await vscode.commands.executeCommand('geet.push.upTo', repo.root, sha);
   });
 
   /**
@@ -466,7 +466,7 @@ export function registerCommitActions(
    * registry's checkout / new-branch-from / compare. QuickPick stands in for
    * the submenu — native webview menus cannot nest dynamically (D3).
    */
-  register('gittree.log.commitBranches', async (arg) => {
+  register('geet.log.commitBranches', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
@@ -498,7 +498,7 @@ export function registerCommitActions(
       );
       return;
     }
-    const seededRef = process.env['GITTREE_TEST_COMMIT_BRANCH_PICK'];
+    const seededRef = process.env['GEET_TEST_COMMIT_BRANCH_PICK'];
     const pickedRef =
       seededRef !== undefined
         ? items.find((i) => i.ref === seededRef)
@@ -514,7 +514,7 @@ export function registerCommitActions(
       { label: vscode.l10n.t("New Branch from '{0}'…", pickedRef.ref), action: 'newFrom' },
       { label: vscode.l10n.t('Compare with Current'), action: 'compareWithCurrent' },
     ];
-    const seededAction = process.env['GITTREE_TEST_COMMIT_BRANCH_ACTION'];
+    const seededAction = process.env['GEET_TEST_COMMIT_BRANCH_ACTION'];
     const pickedAction =
       seededAction !== undefined
         ? actions.find((a) => a.action === seededAction)
@@ -528,7 +528,7 @@ export function registerCommitActions(
   });
 
   /** Go to Parent / Child (step 1). Child = a loaded row listing sha as parent. */
-  register('gittree.log.goToParent', async (arg) => {
+  register('geet.log.goToParent', async (arg) => {
     const sha = shaOf(arg);
     const repo = repoOf();
     if (sha === undefined || !repo) return;
@@ -556,7 +556,7 @@ export function registerCommitActions(
     if (target !== undefined) await logView.revealCommit(target);
   });
 
-  register('gittree.log.goToChild', async (arg) => {
+  register('geet.log.goToChild', async (arg) => {
     const sha = shaOf(arg);
     if (sha === undefined) return;
     const child = logView.findLoadedChild(sha);
@@ -570,13 +570,13 @@ export function registerCommitActions(
   });
 
   /** Create Patch… (step 1, over the T6 engine). */
-  register('gittree.log.createPatch', async (arg) => {
+  register('geet.log.createPatch', async (arg) => {
     const ctx = arg as CommitContext | undefined;
     const repo = repoOf();
     const shas = ctx?.shas && ctx.shas.length > 0 ? ctx.shas : [shaOf(arg) ?? ''].filter((s) => s.length > 0);
     if (!repo || shas.length === 0) return;
     const { createPatchToFile } = await import('../rewrite/patch/createPatch');
-    const seeded = process.env['GITTREE_TEST_CREATE_PATCH'];
+    const seeded = process.env['GEET_TEST_CREATE_PATCH'];
     const target =
       seeded !== undefined
         ? vscode.Uri.file(seeded)

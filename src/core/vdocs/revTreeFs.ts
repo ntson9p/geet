@@ -1,7 +1,7 @@
 /**
- * `gittree-tree:` FileSystemProvider (P12-T7): a read-only browse of the
+ * `geet-tree:` FileSystemProvider (P12-T7): a read-only browse of the
  * repository AS OF a revision — `Show Repository at Revision`. The existing
- * `gittree-rev:` provider is a TextDocumentContentProvider and can only serve
+ * `geet-rev:` provider is a TextDocumentContentProvider and can only serve
  * single text documents; a browsable tree needs stat/readDirectory/readFile,
  * hence a real (read-only) file system over `ls-tree` + blob reads.
  *
@@ -20,7 +20,7 @@ import type { Core, RepoHandle } from '../core';
 import { literalPathspec } from '../git/pathspec';
 import { canonicalKey } from '../repoDiscovery';
 
-export const REV_TREE_SCHEME = 'gittree-tree';
+export const REV_TREE_SCHEME = 'geet-tree';
 
 interface RevTreeQuery {
   repo: string;
@@ -184,21 +184,21 @@ export class RevTreeFs implements vscode.FileSystemProvider {
 
   // Read-only: every mutation is refused.
   createDirectory(): void {
-    throw vscode.FileSystemError.NoPermissions('gittree-tree is read-only');
+    throw vscode.FileSystemError.NoPermissions('geet-tree is read-only');
   }
   writeFile(): void {
-    throw vscode.FileSystemError.NoPermissions('gittree-tree is read-only');
+    throw vscode.FileSystemError.NoPermissions('geet-tree is read-only');
   }
   delete(): void {
-    throw vscode.FileSystemError.NoPermissions('gittree-tree is read-only');
+    throw vscode.FileSystemError.NoPermissions('geet-tree is read-only');
   }
   rename(): void {
-    throw vscode.FileSystemError.NoPermissions('gittree-tree is read-only');
+    throw vscode.FileSystemError.NoPermissions('geet-tree is read-only');
   }
 }
 
 // ---------------------------------------------------------------------------
-// The dedicated tree view (`gittree.revTree`).
+// The dedicated tree view (`geet.revTree`).
 // ---------------------------------------------------------------------------
 
 export interface RevTreeTarget {
@@ -222,13 +222,13 @@ export class RevTreeViewProvider implements vscode.TreeDataProvider<RevTreeNode>
 
   async show(target: RevTreeTarget): Promise<void> {
     this.target = target;
-    await vscode.commands.executeCommand('setContext', 'gittree.revTree.active', true);
+    await vscode.commands.executeCommand('setContext', 'geet.revTree.active', true);
     this._onDidChange.fire();
   }
 
   async close(): Promise<void> {
     this.target = undefined;
-    await vscode.commands.executeCommand('setContext', 'gittree.revTree.active', false);
+    await vscode.commands.executeCommand('setContext', 'geet.revTree.active', false);
     this._onDidChange.fire();
   }
 

@@ -148,7 +148,7 @@ export interface CommitGroupDto {
 }
 
 /**
- * How the Commit window arranges its changes (`gittree.commit.groupBy`):
+ * How the Commit window arranges its changes (`geet.commit.groupBy`):
  * - `none`, the default (POST-P14cb, D44): no changelist rows. Every changed
  *   file is listed under its repository, as VS Code's Source Control view lists
  *   them; with one repository, at the top.
@@ -277,23 +277,23 @@ export interface CommitStateDto {
   paradigm: 'changelists' | 'staging';
   error?: string;
   /**
-   * P11-T8: `gittree.colors.<status>` overrides (validated host-side). Absent
-   * statuses fall back to Geet's own `gittree.color.*` theme colors (P14-T5).
+   * P11-T8: `geet.colors.<status>` overrides (validated host-side). Absent
+   * statuses fall back to Geet's own `geet.color.*` theme colors (P14-T5).
    */
   colors?: Record<string, string>;
-  /** `gittree.log.graphPalette`, which the repositories' colours follow, as the log's do. */
+  /** `geet.log.graphPalette`, which the repositories' colours follow, as the log's do. */
   palette?: 'default' | 'colorBlind';
-  /** `gittree.log.dateFormat`: stash, shelf and message-history dates past a day are written as the log writes them. */
+  /** `geet.log.dateFormat`: stash, shelf and message-history dates past a day are written as the log writes them. */
   dateFormat?: LogDateFormat;
-  /** `gittree.commit.groupBy`: whether changelists are rows, and what comes first when they are. */
+  /** `geet.commit.groupBy`: whether changelists are rows, and what comes first when they are. */
   groupBy?: CommitGroupBy;
-  /** POST-P14cb: `gittree.commit.groupByDirectory`, folder rows over the files; a flat list without. */
+  /** POST-P14cb: `geet.commit.groupByDirectory`, folder rows over the files; a flat list without. */
   groupByDirectory?: boolean;
   /** `CommitDiffOnScreenDto.file`, for a view that starts again while the diff is up. */
   diffOnScreen?: CommitDiffFileDto;
   /**
    * POST-P14cj: Generate Commit Message. Absent while it is not offered:
-   * `gittree.commit.messageGeneration.enabled` off, or VS Code's AI features
+   * `geet.commit.messageGeneration.enabled` off, or VS Code's AI features
    * (`chat.disableAIFeatures`). `running` while a model writes the message.
    */
   messageGeneration?: CommitMessageGeneration;
@@ -391,14 +391,14 @@ export const COMMIT_METHODS = {
   evtRevealRow: 'commit/revealRow',
   /**
    * POST-P14bq: `CommitTreeFocusParamsDto`, the change tree gained or lost the
-   * keyboard. It sets `gittree.commitTreeFocus`, the reveal key's `when`: VS
+   * keyboard. It sets `geet.commitTreeFocus`, the reveal key's `when`: VS
    * Code clears `focusedView` once focus is inside a webview, whose iframe lives
    * outside its view pane.
    */
   treeFocus: 'commit/treeFocus',
   /**
    * POST-P14bs: `CommitMessageFocusParamsDto`, the message box gained or lost
-   * the keyboard. It sets `gittree.commitMessageFocus`, the commit key's `when`,
+   * the keyboard. It sets `geet.commitMessageFocus`, the commit key's `when`,
    * for the same reason as `treeFocus`.
    */
   messageFocus: 'commit/messageFocus',
@@ -524,7 +524,7 @@ export interface CommitRunParamsDto {
 /** View Options › Group By: the grouping, the folder rows, or both; what is absent stays. */
 export interface CommitSetGroupByParamsDto {
   groupBy?: CommitGroupBy;
-  /** POST-P14cb: `gittree.commit.groupByDirectory`. */
+  /** POST-P14cb: `geet.commit.groupByDirectory`. */
   directory?: boolean;
 }
 
@@ -872,7 +872,7 @@ export interface PushDialogParamsDto {
   showCommandLine: boolean;
   /** `git push --force-if-includes` supported — the preview line must be exact. */
   forceIfIncludes: boolean;
-  /** Branch patterns Force Push refuses (`gittree.protectedBranches`). */
+  /** Branch patterns Force Push refuses (`geet.protectedBranches`). */
   protectedBranches: string[];
   /** Targets force-pushed to with `Don't warn about this target`. */
   silentForceTargets: Array<{ remote: string; branch: string }>;
@@ -883,7 +883,7 @@ export interface PushDialogParamsDto {
   issue?: { pattern: string; url: string };
   /**
    * POST-P14cn: `Don't show this dialog again`, ticked when the setting
-   * `gittree.push.showDialog` is off: every Push then pushes straight away.
+   * `geet.push.showDialog` is off: every Push then pushes straight away.
    */
   dontShowAgain: boolean;
   /**
@@ -1063,7 +1063,7 @@ export interface CherryPickCommitDto {
 
 export interface CherryPickDialogParamsDto extends OpDialogBaseDto {
   commits: CherryPickCommitDto[];
-  /** `gittree.cherryPick.recordOrigin` — the `-x` default. */
+  /** `geet.cherryPick.recordOrigin` — the `-x` default. */
   recordOrigin: boolean;
 }
 
@@ -1354,37 +1354,37 @@ export interface LogRootDto {
  */
 export interface LogPresentationDto {
   /**
-   * `gittree.log.showTagNames`: a commit's tags are named chips, or one tag icon
+   * `geet.log.showTagNames`: a commit's tags are named chips, or one tag icon
    * whose names are a hover away.
    */
   showTagNames: boolean;
-  /** `gittree.branches.showTags`: the Branches pane lists a `Tags` node. */
+  /** `geet.branches.showTags`: the Branches pane lists a `Tags` node. */
   showTags: boolean;
   /**
-   * `gittree.log.compactReferences`, IntelliJ's Compact References View: a
+   * `geet.log.compactReferences`, IntelliJ's Compact References View: a
    * commit's refs are one label, named after the first, with every ref's
    * colour stacked in its icon.
    */
   compactReferences: boolean;
-  /** `gittree.log.referencesOnLeft`: the labels go before the message, not at its end. */
+  /** `geet.log.referencesOnLeft`: the labels go before the message, not at its end. */
   referencesOnLeft: boolean;
-  /** `gittree.log.columns.author`: Presentation Settings ▸ Columns ▸ Author. */
+  /** `geet.log.columns.author`: Presentation Settings ▸ Columns ▸ Author. */
   showAuthorColumn: boolean;
-  /** `gittree.log.columns.date`: Presentation Settings ▸ Columns ▸ Date. */
+  /** `geet.log.columns.date`: Presentation Settings ▸ Columns ▸ Date. */
   showDateColumn: boolean;
-  /** `gittree.log.columns.hash`: Presentation Settings ▸ Columns ▸ Hash. */
+  /** `geet.log.columns.hash`: Presentation Settings ▸ Columns ▸ Hash. */
   showHashColumn: boolean;
   /**
-   * `gittree.log.showGraph`: Presentation Settings ▸ Graph. Off, the rows are
+   * `geet.log.showGraph`: Presentation Settings ▸ Graph. Off, the rows are
    * the message and the columns alone, with no lanes or commit dots.
    */
   showGraph: boolean;
   /**
-   * `gittree.log.dateFormat`: how the Date column writes a commit's date and
+   * `geet.log.dateFormat`: how the Date column writes a commit's date and
    * time. Presentation Settings ▸ Date Format (POST-P14cg), and the Settings editor.
    */
   dateFormat: LogDateFormat;
-  /** `gittree.log.filterChips`: how the Branch, User, Date and Paths dropdowns show what they filter. */
+  /** `geet.log.filterChips`: how the Branch, User, Date and Paths dropdowns show what they filter. */
   filterChips: LogFilterChips;
 }
 
@@ -1403,7 +1403,7 @@ export type LogDateFormat = (typeof LOG_DATE_FORMATS)[number];
  * (`DateFormatUtil.getSystemFormats`): patterns in Java's letters (`M/d/yyyy`,
  * `h:mm a`), and the locale that names months and writes AM and PM. Read once
  * by the host (on Windows, the Region settings) and handed to every webview
- * with its page as `window.__gittreeSystemDates`; without it a webview writes
+ * with its page as `window.__geetSystemDates`; without it a webview writes
  * the short date and time of VS Code's display language.
  */
 export interface SystemDatesDto {
@@ -1455,13 +1455,13 @@ export interface LogInitDto {
   roots?: LogRootDto[];
   filter: LogFilterDto;
   laneWidth: number;
-  /** P10-T2: graph palette variant (`gittree.log.graphPalette`). */
+  /** P10-T2: graph palette variant (`geet.log.graphPalette`). */
   graphPalette?: 'default' | 'colorBlind';
   /** P11-T8 palette overrides, same contract as `CommitStateDto.colors`. */
   colors?: Record<string, string>;
-  /** P12-T4: issue-key linkification (`gittree.log.issuePattern`/`issueUrl`). */
+  /** P12-T4: issue-key linkification (`geet.log.issuePattern`/`issueUrl`). */
   issue?: { pattern: string; url: string };
-  /** P12-T5: saved filter presets (`gittree.log.filterPresets`). */
+  /** P12-T5: saved filter presets (`geet.log.filterPresets`). */
   presets?: Array<{ name: string; filter: LogFilterDto }>;
   /** How refs are drawn — see `LogPresentationDto`. */
   presentation?: LogPresentationDto;
@@ -1721,7 +1721,7 @@ export const LOG_METHODS = {
   consoleClear: 'log/consoleClear',
   /** POST-P14k: the Worktrees tab's list, every repository at once. */
   worktrees: 'log/worktrees',
-  /** POST-P14k: one row/toolbar action, dispatched to the `gittree.worktree.*` commands. */
+  /** POST-P14k: one row/toolbar action, dispatched to the `geet.worktree.*` commands. */
   worktreeAction: 'log/worktreeAction',
   /**
    * A toggle in `Presentation Settings ▾` or `Branches Pane Settings`:
@@ -1908,7 +1908,7 @@ export interface BranchPanelStateDto {
   readonly showInOut: boolean;
   readonly groupByFolder: boolean;
   /**
-   * `gittree.branches.showRepositoryDots`: a branch row carries a dot per
+   * `geet.branches.showRepositoryDots`: a branch row carries a dot per
    * repository in view. Off by default; a card lists the repositories anyway.
    */
   readonly showRepositoryDots: boolean;
@@ -1918,7 +1918,7 @@ export interface BranchPanelStateDto {
   readonly now: number;
   /** The log's lane palette, so a repository's colour here is its colour there. */
   readonly palette: 'default' | 'colorBlind';
-  /** `gittree.keymap.intellij`: Ctrl+T, Ctrl+K and Ctrl+Shift+K are bound, so the menu names them. */
+  /** `geet.keymap.intellij`: Ctrl+T, Ctrl+K and Ctrl+Shift+K are bound, so the menu names them. */
   readonly intellijKeymap?: boolean;
   /**
    * POST-P14ce: the repositories picked, kept by the host since the Commit
@@ -2064,23 +2064,23 @@ export interface BranchPanelCreateResultDto {
  * its own. The webview leaves it out of the one repository's head menu, where
  * the current branch's own `Show in New Log Tab` already stands.
  */
-export const REPOSITORY_LOG_TAB_COMMAND = 'gittree.repositories.showInLog';
+export const REPOSITORY_LOG_TAB_COMMAND = 'geet.repositories.showInLog';
 
-/** Panel settings the webview can change; each is a `gittree.branches.*` setting. */
+/** Panel settings the webview can change; each is a `geet.branches.*` setting. */
 export type BranchPanelSettingKey = 'showTags' | 'showIncomingOutgoing' | 'groupByFolder' | 'showRepositoryDots';
 
 /**
  * POST-P14co: which of the two side-bar panels a page is. One webview app draws
- * both, told which by its page (`window.__gittreeInitialState.role`):
+ * both, told which by its page (`window.__geetInitialState.role`):
  * - `repositories`: the Repositories panel, every repository with what it has
- *   checked out (`gittree.repositoryList`);
+ *   checked out (`geet.repositoryList`);
  * - `branches`: the Branches panel, the filter and the branches under their
- *   tabs (`gittree.branches`). With one repository it is the only one, and it
+ *   tabs (`geet.branches`). With one repository it is the only one, and it
  *   starts with that repository's current branch.
  */
 export type BranchPanelRole = 'repositories' | 'branches';
 
-/** What a panel's page is told when it is built (`window.__gittreeInitialState`). */
+/** What a panel's page is told when it is built (`window.__geetInitialState`). */
 export interface BranchPanelInitialStateDto {
   readonly role: BranchPanelRole;
 }

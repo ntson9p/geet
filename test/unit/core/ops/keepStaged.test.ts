@@ -23,7 +23,7 @@ afterEach(() => {
 
 /** base: keep.txt, touched.txt, gone.txt; then "dropme" (touched.txt line 1) and "top" (top.txt). */
 function history(): { repo: FixtureRepo; dropme: string } {
-  const repo = FixtureRepo.create({ prefix: 'gittree-keepstaged-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-keepstaged-' });
   repos.push(repo);
   repo.commit('base', { 'keep.txt': 'k1\n', 'touched.txt': 'l1\nl2\nl3\n', 'gone.txt': 'g\n', 'both.txt': 'b1\n' });
   const dropme = repo.commit('dropme', { 'touched.txt': 'L1\nl2\nl3\n' });

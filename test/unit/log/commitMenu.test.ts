@@ -19,7 +19,7 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'
 };
 const nls = JSON.parse(readFileSync(path.join(root, 'package.nls.json'), 'utf8')) as Record<string, string>;
 
-const ON_COMMIT = "webviewId == 'gittree.log' && webviewSection == 'commit'";
+const ON_COMMIT = "webviewId == 'geet.log' && webviewSection == 'commit'";
 
 /** The commit row's menu, in the order VS Code draws it. */
 const menu = manifest.contributes.menus['webview/context']!
@@ -70,7 +70,7 @@ function menuFor(keys: Record<string, unknown>): string[] {
 
 describe('the log commit menu (IntelliJ’s Vcs.Log.ContextMenu)', () => {
   it('for several commits reads as IntelliJ’s does: the actions that apply, the rest greyed', () => {
-    expect(menuFor({ 'gittree.commitCount': 4, 'gittree.multiCommit': true })).toEqual([
+    expect(menuFor({ 'geet.commitCount': 4, 'geet.multiCommit': true })).toEqual([
       'Copy Revision Number',
       'Create Patch…',
       'Cherry-Pick',
@@ -93,28 +93,28 @@ describe('the log commit menu (IntelliJ’s Vcs.Log.ContextMenu)', () => {
   });
 
   it('offers Compare Versions for exactly two commits', () => {
-    const two = menuFor({ 'gittree.commitCount': 2, 'gittree.multiCommit': true });
+    const two = menuFor({ 'geet.commitCount': 2, 'geet.multiCommit': true });
     expect(two).toContain('Compare Versions');
-    expect(menuFor({ 'gittree.commitCount': 3, 'gittree.multiCommit': true })).not.toContain('Compare Versions');
-    expect(menuFor({ 'gittree.commitCount': 1 })).not.toContain('Compare Versions');
+    expect(menuFor({ 'geet.commitCount': 3, 'geet.multiCommit': true })).not.toContain('Compare Versions');
+    expect(menuFor({ 'geet.commitCount': 1 })).not.toContain('Compare Versions');
   });
 
   it('greys Undo Commit on a commit that is not HEAD, as IntelliJ does (POST-QA)', () => {
-    expect(menuFor({ 'gittree.commitCount': 1, 'gittree.notHead': true })).toContain('Undo Commit (off)');
-    expect(menuFor({ 'gittree.commitCount': 1 })).toContain('Undo Commit');
+    expect(menuFor({ 'geet.commitCount': 1, 'geet.notHead': true })).toContain('Undo Commit (off)');
+    expect(menuFor({ 'geet.commitCount': 1 })).toContain('Undo Commit');
     // The palette, where no row says anything, keeps it.
-    expect(holds(enablementOf('gittree.commit.undo'), {})).toBe(true);
+    expect(holds(enablementOf('geet.commit.undo'), {})).toBe(true);
   });
 
   it('greys Revert, Drop and Squash Commits when a merge is selected, as IntelliJ does', () => {
-    const rows = menuFor({ 'gittree.commitCount': 2, 'gittree.multiCommit': true, 'gittree.mergeSelected': true });
+    const rows = menuFor({ 'geet.commitCount': 2, 'geet.multiCommit': true, 'geet.mergeSelected': true });
     expect(rows).toContain('Revert Commits (off)');
     expect(rows).toContain('Drop Commits (off)');
     expect(rows).toContain('Squash Commits… (off)');
   });
 
   it('for one commit keeps every action, in IntelliJ’s order, with the singular names', () => {
-    expect(menuFor({ 'gittree.commitCount': 1 })).toEqual([
+    expect(menuFor({ 'geet.commitCount': 1 })).toEqual([
       'Copy Revision Number',
       'Create Patch…',
       'Cherry-Pick',
@@ -153,10 +153,10 @@ describe('the log commit menu (IntelliJ’s Vcs.Log.ContextMenu)', () => {
   it('keeps the selection-only commands out of the Command Palette', () => {
     const palette = manifest.contributes.menus.commandPalette ?? [];
     for (const command of [
-      'gittree.commit.revertCommits',
-      'gittree.commit.dropCommits',
-      'gittree.log.squashCommits',
-      'gittree.log.compareVersions',
+      'geet.commit.revertCommits',
+      'geet.commit.dropCommits',
+      'geet.log.squashCommits',
+      'geet.log.compareVersions',
     ]) {
       expect(palette.find((m) => m.command === command)?.when).toBe('false');
     }

@@ -497,7 +497,7 @@ suite('P5 history rewriting — rebase engine', () => {
     commit('p5b.txt', 'b\n', 'B published');
     const head = git('rev-parse', 'HEAD').trim();
 
-    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-remote-'));
+    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p5-remote-'));
     execFileSync('git', ['init', '--bare', remoteDir]);
     git('remote', 'add', 'p5origin', remoteDir);
     try {
@@ -505,7 +505,7 @@ suite('P5 history rewriting — rebase engine', () => {
       await repo.refresher.refreshNow();
 
       // Auto-decline the warn modal → both operations must refuse.
-      process.env['GITTREE_TEST_AUTOCONFIRM'] = '0';
+      process.env['GEET_TEST_AUTOCONFIRM'] = '0';
       const undoRefused = await reg.undoDrop.undoCommit(repo);
       assert.strictEqual(undoRefused.status, 'refused-published');
       assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'refused undo must not move HEAD');
@@ -514,7 +514,7 @@ suite('P5 history rewriting — rebase engine', () => {
       assert.strictEqual(git('rev-parse', 'HEAD').trim(), head, 'refused drop must not move HEAD');
 
       // Forced (acknowledged modal) → the drop proceeds.
-      process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
+      process.env['GEET_TEST_AUTOCONFIRM'] = '1';
       const forced = await reg.undoDrop.dropCommit(repo, a);
       assert.strictEqual(forced.status, 'completed', 'stderr' in forced ? forced.stderr : undefined);
       assert.deepStrictEqual(
@@ -524,7 +524,7 @@ suite('P5 history rewriting — rebase engine', () => {
       );
     } finally {
       // The runner sets '1' globally — restore it, never delete.
-      process.env['GITTREE_TEST_AUTOCONFIRM'] = '1';
+      process.env['GEET_TEST_AUTOCONFIRM'] = '1';
       try {
         git('remote', 'remove', 'p5origin');
       } catch {
@@ -610,7 +610,7 @@ suite('P5 history rewriting — rebase engine', () => {
     git('checkout', '-b', 'p5/picktarget2', seed);
     await repo.refresher.refreshNow();
 
-    const config = vscode.workspace.getConfiguration('gittree.cherryPick');
+    const config = vscode.workspace.getConfiguration('geet.cherryPick');
     await config.update('recordOrigin', true, vscode.ConfigurationTarget.Global);
     try {
       const outcome = await reg.revertPick.cherryPick(repo, [src]);
@@ -635,12 +635,12 @@ suite('P5 history rewriting — rebase engine', () => {
     commit('p5c.txt', 'c\n', 'C');
     const preTrees = trees(base);
 
-    process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'B message rewritten\n\nwith a new body';
+    process.env['GEET_TEST_REWORD_MESSAGE'] = 'B message rewritten\n\nwith a new body';
     try {
       const result = await reg.reword.reword(repo, b);
       assert.strictEqual(result, 'done');
     } finally {
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
     }
     assert.deepStrictEqual(subjects(base), ['A', 'B message rewritten', 'C']);
     assert.ok(git('log', '--format=%B', '-1', 'HEAD^').includes('with a new body'));
@@ -660,7 +660,7 @@ suite('P5 history rewriting — rebase engine', () => {
 
     const notes = core.debugRegistry.get('notifications') as NotificationsRegistry;
     notes.clear();
-    process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'A head reworded';
+    process.env['GEET_TEST_REWORD_MESSAGE'] = 'A head reworded';
     try {
       const result = await reg.reword.reword(repo, head);
       assert.strictEqual(result, 'done');
@@ -677,7 +677,7 @@ suite('P5 history rewriting — rebase engine', () => {
       const status = git('status', '--porcelain');
       assert.ok(/^A\s+p5staged\.txt/m.test(status), `staged file must remain staged: ${status}`);
     } finally {
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
       try {
         git('reset', '--', 'p5staged.txt');
       } catch {
@@ -693,8 +693,8 @@ suite('P5 history rewriting — rebase engine', () => {
     const reg = core.debugRegistry.get('phase05') as Phase05RegistryShape;
     onBranch('rewordundo');
     const head = commit('p5u.txt', 'u\n', 'U original message');
-    process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'U reworded';
-    process.env['GITTREE_TEST_NOTIFICATION_ACTION'] = 'Undo';
+    process.env['GEET_TEST_REWORD_MESSAGE'] = 'U reworded';
+    process.env['GEET_TEST_NOTIFICATION_ACTION'] = 'Undo';
     try {
       const result = await reg.reword.reword(repo, head);
       assert.strictEqual(result, 'done');
@@ -702,8 +702,8 @@ suite('P5 history rewriting — rebase engine', () => {
       await waitFor(() => git('rev-parse', 'HEAD').trim() === head, 15_000);
       assert.strictEqual(git('log', '--format=%s', '-1').trim(), 'U original message');
     } finally {
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
-      delete process.env['GITTREE_TEST_NOTIFICATION_ACTION'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_NOTIFICATION_ACTION'];
       await repo.refresher.refreshNow();
     }
   });
@@ -717,22 +717,22 @@ suite('P5 history rewriting — rebase engine', () => {
     // completion event drives the push-safety offer.
     const a = commit('p5a.txt', 'a\n', 'A to reword');
     commit('p5b.txt', 'b\n', 'B');
-    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-lease-'));
+    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p5-lease-'));
     execFileSync('git', ['init', '--bare', remoteDir]);
     git('remote', 'add', 'p5safety', remoteDir);
 
     const offers: string[] = [];
     const sub = reg.pushSafety.onDidOffer((e) => offers.push(e.upstream));
-    process.env['GITTREE_TEST_PUSHSAFETY_CHOICE'] = 'push';
+    process.env['GEET_TEST_PUSHSAFETY_CHOICE'] = 'push';
     try {
       git('push', '-u', 'p5safety', 'p5/pushsafety');
       await repo.refresher.refreshNow();
 
       // Rewrite a published commit (autoconfirm accepts the published modal).
-      process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'A reworded after publish';
+      process.env['GEET_TEST_REWORD_MESSAGE'] = 'A reworded after publish';
       const result = await reg.reword.reword(repo, a);
       assert.strictEqual(result, 'done');
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
 
       // The engine fires the rewrite event → offer → seam chooses push.
       await waitFor(() => offers.length > 0, 15_000);
@@ -747,8 +747,8 @@ suite('P5 history rewriting — rebase engine', () => {
         20_000,
       );
     } finally {
-      delete process.env['GITTREE_TEST_PUSHSAFETY_CHOICE'];
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_PUSHSAFETY_CHOICE'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
       sub.dispose();
       try {
         git('remote', 'remove', 'p5safety');
@@ -766,8 +766,8 @@ suite('P5 history rewriting — rebase engine', () => {
     onBranch('stalelease');
     commit('p5a.txt', 'a\n', 'A');
     const b = commit('p5b.txt', 'b\n', 'B stale');
-    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-stale-'));
-    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p5-clone-'));
+    const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p5-stale-'));
+    const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p5-clone-'));
     execFileSync('git', ['init', '--bare', remoteDir]);
     git('remote', 'add', 'p5stale', remoteDir);
     try {
@@ -788,12 +788,12 @@ suite('P5 history rewriting — rebase engine', () => {
       }).trim();
 
       // …meanwhile we rewrite locally and force-with-lease against stale info.
-      process.env['GITTREE_TEST_REWORD_MESSAGE'] = 'B reworded stale';
+      process.env['GEET_TEST_REWORD_MESSAGE'] = 'B reworded stale';
       const result = await reg.reword.reword(repo, b);
       assert.strictEqual(result, 'done');
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
 
-      await vscode.commands.executeCommand('gittree.pushForceWithLease', repo.root);
+      await vscode.commands.executeCommand('geet.pushForceWithLease', repo.root);
 
       // The lease must refuse: remote tip unchanged, no crash surfaced.
       const after = execFileSync('git', ['rev-parse', 'refs/heads/p5/stalelease'], {
@@ -803,7 +803,7 @@ suite('P5 history rewriting — rebase engine', () => {
       assert.strictEqual(after, remoteTip, 'stale lease must not overwrite the remote');
       assert.notStrictEqual(after, git('rev-parse', 'HEAD').trim());
     } finally {
-      delete process.env['GITTREE_TEST_REWORD_MESSAGE'];
+      delete process.env['GEET_TEST_REWORD_MESSAGE'];
       try {
         git('remote', 'remove', 'p5stale');
       } catch {

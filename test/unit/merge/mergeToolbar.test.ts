@@ -26,7 +26,7 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'
   };
 };
 
-const ON_RESULT = 'resourceScheme == gittree-merge';
+const ON_RESULT = 'resourceScheme == geet-merge';
 const iconOf = (command: string): string | undefined =>
   manifest.contributes.commands.find((c) => c.command === command)?.icon;
 
@@ -40,12 +40,12 @@ const toolbar = entries
 describe('the merge editor toolbar', () => {
   it('reads as IntelliJ’s: Apply, the three non-conflicting applies, the wand, Abort', () => {
     expect(toolbar.map((m) => m.command)).toEqual([
-      'gittree.merge.apply',
-      'gittree.merge.applyNonConflicting.left',
-      'gittree.merge.applyNonConflicting.all',
-      'gittree.merge.applyNonConflicting.right',
-      'gittree.merge.magicWand',
-      'gittree.merge.abortFile',
+      'geet.merge.apply',
+      'geet.merge.applyNonConflicting.left',
+      'geet.merge.applyNonConflicting.all',
+      'geet.merge.applyNonConflicting.right',
+      'geet.merge.magicWand',
+      'geet.merge.abortFile',
     ]);
   });
 
@@ -54,14 +54,14 @@ describe('the merge editor toolbar', () => {
     expect(icons.every((i) => i !== undefined)).toBe(true);
     expect(new Set(icons).size).toBe(icons.length);
     expect(toolbar.filter((m) => iconOf(m.command) === '$(wand)').map((m) => m.command)).toEqual([
-      'gittree.merge.magicWand',
+      'geet.merge.magicWand',
     ]);
   });
 
   it('points the non-conflicting applies from their side toward the result', () => {
-    expect(iconOf('gittree.merge.applyNonConflicting.left')).toBe('$(arrow-right)');
-    expect(iconOf('gittree.merge.applyNonConflicting.all')).toBe('$(arrow-both)');
-    expect(iconOf('gittree.merge.applyNonConflicting.right')).toBe('$(arrow-left)');
+    expect(iconOf('geet.merge.applyNonConflicting.left')).toBe('$(arrow-right)');
+    expect(iconOf('geet.merge.applyNonConflicting.all')).toBe('$(arrow-both)');
+    expect(iconOf('geet.merge.applyNonConflicting.right')).toBe('$(arrow-left)');
   });
 
   it('keeps the whole-file and all-files accepts in the … menu, the file ones first', () => {
@@ -70,10 +70,10 @@ describe('the merge editor toolbar', () => {
       .sort((a, b) => order(a) - order(b))
       .map((m) => m.command);
     expect(more).toEqual([
-      'gittree.merge.acceptFileYours',
-      'gittree.merge.acceptFileTheirs',
-      'gittree.merge.acceptAllYours',
-      'gittree.merge.acceptAllTheirs',
+      'geet.merge.acceptFileYours',
+      'geet.merge.acceptFileTheirs',
+      'geet.merge.acceptAllYours',
+      'geet.merge.acceptAllTheirs',
     ]);
   });
 });

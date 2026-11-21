@@ -1,10 +1,10 @@
 /**
  * Shelf tab (P11-T6) — the `Commit | Shelf` strip's second tab (gap analysis
- * S13), hosting what the `gittree.shelf` tree view renders in native mode:
+ * S13), hosting what the `geet.shelf` tree view renders in native mode:
  * entries (name · time · N files · origin branch) expanding to their files.
  *
  * Every action dispatches through `commit/shelfAction` to the SAME
- * `gittree.shelf.*` commands the tree view runs, so the two surfaces cannot
+ * `geet.shelf.*` commands the tree view runs, so the two surfaces cannot
  * drift. Context menus are VS Code-native (`data-vscode-context` +
  * `webview/context` contributions) — the labels are static, which is exactly
  * the case master §9 reserves native menus for.
@@ -43,7 +43,7 @@ export interface ShelfTabProps {
   send: (method: string, params?: unknown) => void;
   /** P11-T8: status color overrides from the commit state. */
   colors?: StatusColorOverrides;
-  /** `gittree.log.dateFormat`: an entry older than a day gives its date as the log does. */
+  /** `geet.log.dateFormat`: an entry older than a day gives its date as the log does. */
   dateFormat?: LogDateFormat | undefined;
 }
 

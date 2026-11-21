@@ -1,7 +1,7 @@
 /**
  * Worktrees pane bridge (POST-P14k): builds the worktree snapshot the Git tool
  * window's third tab renders, and dispatches its actions through the existing
- * `gittree.worktree.*` commands — the same handlers the tree view runs, so the
+ * `geet.worktree.*` commands — the same handlers the tree view runs, so the
  * confirmation modals, the lock-reason prompt and the error reporting are one
  * implementation rather than two.
  *
@@ -21,12 +21,12 @@ interface WorktreeRegistryShape {
 
 /** Command id per action — `refresh` is handled here, it runs no git. */
 const COMMAND_OF: Record<Exclude<LogWorktreeActionParamsDto['action'], 'refresh'>, string> = {
-  add: 'gittree.worktree.add',
-  open: 'gittree.worktree.open',
-  remove: 'gittree.worktree.remove',
-  lock: 'gittree.worktree.lock',
-  unlock: 'gittree.worktree.unlock',
-  prune: 'gittree.worktree.prune',
+  add: 'geet.worktree.add',
+  open: 'geet.worktree.open',
+  remove: 'geet.worktree.remove',
+  lock: 'geet.worktree.lock',
+  unlock: 'geet.worktree.unlock',
+  prune: 'geet.worktree.prune',
 };
 
 export class WorktreesPaneBridge {

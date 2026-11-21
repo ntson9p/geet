@@ -90,7 +90,7 @@ describe('buildPatch → real git apply --cached round-trip', () => {
 
   /** Commits original, writes modified, stages via our patch, returns staged text. */
   function stageViaPatch(original: string, modified: string, changes: LineChange[]): string {
-    const repo = FixtureRepo.create({ prefix: 'gittree-patch-' });
+    const repo = FixtureRepo.create({ prefix: 'geet-patch-' });
     repos.push(repo);
     repo.commit('base', { 'file.txt': original });
     fs.writeFileSync(path.join(repo.root, 'file.txt'), modified);

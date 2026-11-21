@@ -31,7 +31,7 @@ suite('P4 log & blame host', () => {
 
   test('log view boots a session and streams rows', async function () {
     this.timeout(60_000);
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000).catch((err: Error) => {
       const root = reg.logView.currentSession?.repoRoot ?? repoRoot;
       let replay = '';
@@ -64,7 +64,7 @@ suite('P4 log & blame host', () => {
 
   test('the graph re-pages itself when history moves — no manual refresh', async function () {
     this.timeout(90_000);
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
     const before = reg.logView.currentSession!.rowCount;
     const autoBefore = reg.logView.autoRefreshCount;
@@ -73,7 +73,7 @@ suite('P4 log & blame host', () => {
     // An empty commit moves refs/heads/* without touching the worktree, so the
     // restore below cannot destroy anything this test did not create.
     git('commit', '--allow-empty', '-m', 'p4 auto-refresh probe');
-    // Deliberately NOT calling gittree.log.refresh: the model event alone has
+    // Deliberately NOT calling geet.log.refresh: the model event alone has
     // to re-page the graph. refreshNow() stands in for the fs watcher so the
     // assertion measures model→log view, not watcher latency (P0-T6 covers
     // that path separately).
@@ -92,7 +92,7 @@ suite('P4 log & blame host', () => {
 
   test('a status-only change never re-pages the graph', async function () {
     this.timeout(60_000);
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
     const autoBefore = reg.logView.autoRefreshCount;
 
@@ -138,7 +138,7 @@ suite('P4 log & blame host', () => {
 
   test('a commit made from outside just after a Geet operation reaches the model and the log', async function () {
     this.timeout(60_000);
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
     const headBefore = git('rev-parse', 'HEAD').trim();
     const rowsBefore = reg.logView.currentSession!.rowCount;
@@ -180,7 +180,7 @@ suite('P4 log & blame host', () => {
   test('file history opens the log in --follow path mode', async function () {
     this.timeout(60_000);
     const target = vscode.Uri.file(path.join(fsRoot, 'README.md'));
-    await vscode.commands.executeCommand('gittree.showFileHistory', target);
+    await vscode.commands.executeCommand('geet.showFileHistory', target);
     await waitFor(() => reg.logView.currentSession?.filter.follow === true, 15_000);
     const filter = reg.logView.currentSession!.filter;
     // A plain name is passed as it is; one git would glob gets `:(literal)`
@@ -194,7 +194,7 @@ suite('P4 log & blame host', () => {
   test('compare-in-log sets a range filter (P2-T5 upgrade)', async function () {
     this.timeout(60_000);
     git('branch', '-f', 'p4-compare', 'HEAD');
-    await vscode.commands.executeCommand('gittree.branches.compareInLog', repoRoot, 'p4-compare');
+    await vscode.commands.executeCommand('geet.branches.compareInLog', repoRoot, 'p4-compare');
     await waitFor(() => reg.logView.currentSession?.filter.range !== undefined, 15_000);
     assert.strictEqual(reg.logView.currentSession!.filter.range!.a, 'p4-compare');
     git('branch', '-D', 'p4-compare');
@@ -205,29 +205,29 @@ suite('P4 log & blame host', () => {
     const head = git('rev-parse', 'HEAD').trim();
     const parent = git('rev-parse', 'HEAD~1').trim();
 
-    process.env['GITTREE_TEST_BRANCH_NAME'] = 'p4/action-branch';
+    process.env['GEET_TEST_BRANCH_NAME'] = 'p4/action-branch';
     try {
-      await vscode.commands.executeCommand('gittree.log.createBranchHere', { sha: head });
+      await vscode.commands.executeCommand('geet.log.createBranchHere', { sha: head });
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
     }
     assert.ok(git('branch', '--list', 'p4/action-branch').includes('p4/action-branch'));
     git('branch', '-D', 'p4/action-branch');
 
-    process.env['GITTREE_TEST_BRANCH_NAME'] = 'p4-tag';
+    process.env['GEET_TEST_BRANCH_NAME'] = 'p4-tag';
     try {
-      await vscode.commands.executeCommand('gittree.log.createTagHere', { sha: head });
+      await vscode.commands.executeCommand('geet.log.createTagHere', { sha: head });
     } finally {
-      delete process.env['GITTREE_TEST_BRANCH_NAME'];
+      delete process.env['GEET_TEST_BRANCH_NAME'];
     }
     assert.ok(git('tag', '--list', 'p4-tag').includes('p4-tag'));
     git('tag', '-d', 'p4-tag');
 
-    process.env['GITTREE_TEST_RESET_MODE'] = 'soft';
+    process.env['GEET_TEST_RESET_MODE'] = 'soft';
     try {
-      await vscode.commands.executeCommand('gittree.log.resetHere', { sha: parent });
+      await vscode.commands.executeCommand('geet.log.resetHere', { sha: parent });
     } finally {
-      delete process.env['GITTREE_TEST_RESET_MODE'];
+      delete process.env['GEET_TEST_RESET_MODE'];
     }
     await waitFor(() => git('rev-parse', 'HEAD').trim() === parent, 15_000);
     // Restore (the commit is still referenced by the soft-reset index).
@@ -250,13 +250,13 @@ suite('P4 log & blame host', () => {
       }
       return false;
     };
-    if (!(await roundTrips('gittree-clipboard-probe'))) {
+    if (!(await roundTrips('geet-clipboard-probe'))) {
       this.skip();
     }
 
     const head = git('rev-parse', 'HEAD').trim();
     for (let attempt = 0; attempt < 5; attempt++) {
-      await vscode.commands.executeCommand('gittree.log.copySha', { sha: head });
+      await vscode.commands.executeCommand('geet.log.copySha', { sha: head });
       if ((await vscode.env.clipboard.readText()) === head) break;
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -265,7 +265,7 @@ suite('P4 log & blame host', () => {
 
   test('reveal reports a commit the filter hides instead of doing nothing', async function () {
     this.timeout(90_000);
-    await vscode.commands.executeCommand('gittree.log.focus');
+    await vscode.commands.executeCommand('geet.log.focus');
     await reg.logView.setFilter({ sort: 'topo', refs: 'HEAD' } as never, fsRoot);
     await waitFor(() => (reg.logView.currentSession?.rowCount ?? 0) > 0, 30_000);
     const head = git('rev-parse', 'HEAD').trim();
@@ -318,7 +318,7 @@ suite('P4 log & blame host', () => {
     try {
       // Start from a known slate. Everything BlameUi does resolves from the
       // ACTIVE editor, and this shared window accumulates tabs from earlier
-      // suites — including `gittree-rev:` documents opened into a multi-diff
+      // suites — including `geet-rev:` documents opened into a multi-diff
       // (phase02's compare). While one of those is the active tab,
       // `showTextDocument` does not win `activeTextEditor` back, so the
       // annotation would be computed for someone else's file no matter how

@@ -285,7 +285,7 @@ export class MergeComputer {
    * signals a real error.
    */
   private async mergeFile(base: string, ours: string, theirs: string): Promise<string> {
-    const dir = fs.mkdtempSync(path.join(this.tmpRoot, 'gittree-merge-'));
+    const dir = fs.mkdtempSync(path.join(this.tmpRoot, 'geet-merge-'));
     try {
       const oursPath = path.join(dir, 'ours');
       const basePath = path.join(dir, 'base');

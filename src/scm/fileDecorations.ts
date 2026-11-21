@@ -1,7 +1,7 @@
 /**
  * Explorer file decorations (P1-T6): IntelliJ-style colored filenames +
  * letter badges, propagated to parent folders. Registered only while
- * `gittree.decorations.fileExplorer` is on, which it is not by default
+ * `geet.decorations.fileExplorer` is on, which it is not by default
  * (POST-P14bz): the built-in Git extension draws its own, and VS Code shows
  * both everywhere, its own Source Control view included.
  */
@@ -17,32 +17,32 @@ function decorationFor(entry: StatusEntry): vscode.FileDecoration {
   switch (entry.kind) {
     case 'untracked':
       badge = 'U';
-      color = 'gittree.color.untracked';
+      color = 'geet.color.untracked';
       break;
     case 'ignored':
       badge = '!';
-      color = 'gittree.color.ignored';
+      color = 'geet.color.ignored';
       break;
     case 'unmerged':
       badge = '!';
-      color = 'gittree.color.conflicted';
+      color = 'geet.color.conflicted';
       break;
     case 'renamed':
     case 'copied':
       badge = 'R';
-      color = 'gittree.color.renamed';
+      color = 'geet.color.renamed';
       break;
     case 'ordinary': {
       const code = entry.x !== '.' ? entry.x : entry.y;
       if (code === 'A') {
         badge = 'A';
-        color = 'gittree.color.added';
+        color = 'geet.color.added';
       } else if (code === 'D') {
         badge = 'D';
-        color = 'gittree.color.deleted';
+        color = 'geet.color.deleted';
       } else {
         badge = 'M';
-        color = 'gittree.color.modified';
+        color = 'geet.color.modified';
       }
     }
   }
@@ -93,7 +93,7 @@ export class GeetFileDecorationProvider implements vscode.FileDecorationProvider
 }
 
 /**
- * P14-T6: registered only while `gittree.decorations.fileExplorer` is on. The
+ * P14-T6: registered only while `geet.decorations.fileExplorer` is on. The
  * old gate was the takeover/companion mode — Geet skipped explorer
  * decorations in companion mode so it would not double up with the built-in
  * git extension's. That is now a plain user setting: Geet does not change
@@ -112,7 +112,7 @@ export function wireFileDecorations(context: vscode.ExtensionContext, core: Core
 
   const apply = (): void => {
     const wantOn = vscode.workspace
-      .getConfiguration('gittree')
+      .getConfiguration('geet')
       .get<boolean>('decorations.fileExplorer', EXPLORER_DECORATIONS_DEFAULT);
     if (wantOn && !registration) {
       provider = new GeetFileDecorationProvider(core);
@@ -130,7 +130,7 @@ export function wireFileDecorations(context: vscode.ExtensionContext, core: Core
   apply();
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('gittree.decorations.fileExplorer')) apply();
+      if (e.affectsConfiguration('geet.decorations.fileExplorer')) apply();
     }),
     new vscode.Disposable(() => {
       registration?.dispose();

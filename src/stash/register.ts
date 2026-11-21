@@ -34,17 +34,17 @@ import { stashRowOf } from './stashRow';
 import { showInfo } from '../ui/notices';
 
 /**
- * P7-T3: shelf root — `gittree.shelf.path` when set AND write-probe passes,
+ * P7-T3: shelf root — `geet.shelf.path` when set AND write-probe passes,
  * else `<globalStorage>/shelf`. Both live outside `.git` and the workspace,
  * so shelves survive repo deletion. Read once per repo attach; changing the
  * setting applies to repos attached afterwards (reload for existing ones).
  */
 function shelfRootDir(context: vscode.ExtensionContext): string {
-  const override = vscode.workspace.getConfiguration('gittree.shelf').get<string>('path', '').trim();
+  const override = vscode.workspace.getConfiguration('geet.shelf').get<string>('path', '').trim();
   if (override.length > 0) {
     try {
       fs.mkdirSync(override, { recursive: true });
-      const probe = path.join(override, `.gittree-write-probe-${process.pid}`);
+      const probe = path.join(override, `.geet-write-probe-${process.pid}`);
       fs.writeFileSync(probe, '');
       fs.rmSync(probe, { force: true });
       return override;
@@ -86,7 +86,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   };
 
   const viewProvider = new StashViewProvider();
-  const view = vscode.window.createTreeView('gittree.stashes', { treeDataProvider: viewProvider });
+  const view = vscode.window.createTreeView('geet.stashes', { treeDataProvider: viewProvider });
   context.subscriptions.push(view);
   const pushRepos = (): void => {
     viewProvider.setRepos(
@@ -169,7 +169,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       showInfo(vscode.l10n.t('There are no stashes.'));
       return undefined;
     }
-    const seeded = process.env['GITTREE_TEST_STASH_PICK'];
+    const seeded = process.env['GEET_TEST_STASH_PICK'];
     if (seeded !== undefined) return choices[Number.parseInt(seeded, 10)];
     return vscode.window.showQuickPick(choices, { placeHolder: vscode.l10n.t('Select a stash') });
   };
@@ -185,15 +185,15 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   };
 
   /** View-title `+`: message → option toggles → optional file subset. */
-  register('gittree.stash.push', async () => {
+  register('geet.stash.push', async () => {
     const repo = repoForNew();
     if (!repo) return;
     const service = services.get(canonicalKey(repo.root))!;
     const includeUntrackedDefault = vscode.workspace
-      .getConfiguration('gittree.stash')
+      .getConfiguration('geet.stash')
       .get<boolean>('includeUntrackedDefault', true);
 
-    const seeded = process.env['GITTREE_TEST_STASH_PUSH'];
+    const seeded = process.env['GEET_TEST_STASH_PUSH'];
     if (seeded !== undefined) {
       await service.push(JSON.parse(seeded) as StashPushOptions);
       notifySuccess(vscode.l10n.t('Files stashed successfully'));
@@ -246,19 +246,19 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
 
   // IntelliJ's `unstash.stash.applied` once it went in cleanly; a conflicted
   // one has the conflicts session to say so instead.
-  register('gittree.stash.apply', async (arg) => {
+  register('geet.stash.apply', async (arg) => {
     const t = await pickStash(arg);
     if (!t) return;
     const outcome = await t.service.apply(t.index, { restoreIndex: true });
     if (outcome.status === 'clean') notifySuccess(vscode.l10n.t('Stash successfully applied'));
   });
-  register('gittree.stash.pop', async (arg) => {
+  register('geet.stash.pop', async (arg) => {
     const t = await pickStash(arg);
     if (!t) return;
     const outcome = await t.service.pop(t.index, { restoreIndex: true });
     if (outcome.status === 'clean') notifySuccess(vscode.l10n.t('Stash successfully applied'));
   });
-  register('gittree.stash.drop', async (arg) => {
+  register('geet.stash.drop', async (arg) => {
     const t = await pickStash(arg);
     if (!t) return;
     const age = relativeTime(t.service.list().find((s) => s.index === t.index)?.time ?? 0);
@@ -269,10 +269,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     );
     if (ok) await t.service.drop(t.index);
   });
-  register('gittree.stash.branch', async (arg) => {
+  register('geet.stash.branch', async (arg) => {
     const t = await pickStash(arg);
     if (!t) return;
-    const seeded = process.env['GITTREE_TEST_STASH_BRANCH'];
+    const seeded = process.env['GEET_TEST_STASH_BRANCH'];
     const name =
       seeded ??
       (await vscode.window.showInputBox({
@@ -283,7 +283,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     await t.service.branch(name.trim(), t.index);
     notifySuccess(vscode.l10n.t('Stash successfully applied on new branch {0}', name.trim()));
   });
-  register('gittree.stash.clear', async () => {
+  register('geet.stash.clear', async () => {
     const repo = repoForNew();
     if (!repo) return;
     const service = services.get(canonicalKey(repo.root))!;
@@ -298,12 +298,12 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     );
     if (ok) await service.clear();
   });
-  register('gittree.stash.copyMessage', async (arg) => {
+  register('geet.stash.copyMessage', async (arg) => {
     const t = await pickStash(arg);
     if (t) await vscode.env.clipboard.writeText(t.message);
   });
   /** "Compare all vs working tree" — one multi-diff for the whole stash. */
-  register('gittree.stash.diffAll', async (arg) => {
+  register('geet.stash.diffAll', async (arg) => {
     const t = await pickStash(arg);
     if (!t) return;
     const files = await t.service.getStashFiles(t.index);
@@ -323,7 +323,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   });
 
   // ---- P7-T4: shelf per-file diffs, patch edit/import/export --------------
-  // P14-T2: the `gittree.shelf` tree view is gone; the commit window's Shelf
+  // P14-T2: the `geet.shelf` tree view is gone; the commit window's Shelf
   // tab (P11-T6) renders the same stores through shelfBridge.
   const shelfContent = new ShelfContentProvider(
     (repoRoot) => shelves.get(canonicalKey(repoRoot)),
@@ -375,7 +375,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       showInfo(vscode.l10n.t('There are no shelved changes.'));
       return undefined;
     }
-    const seeded = process.env['GITTREE_TEST_SHELF_PICK'];
+    const seeded = process.env['GEET_TEST_SHELF_PICK'];
     if (seeded !== undefined) {
       // Name match first (stable under leftover entries), index fallback.
       return choices.find((c) => c.meta.name === seeded) ?? choices[Number.parseInt(seeded, 10)];
@@ -402,7 +402,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   ): { name: string; files: readonly string[] } | undefined => phase03()?.changelistsFor(repo).getList(listId);
 
   /** Shelve flow — commit-window group row, toolbar and palette all land here. */
-  register('gittree.shelf.shelve', async (arg) => {
+  register('geet.shelf.shelve', async (arg) => {
     // P14-T2: the changelists tree view is gone; the commit window's group row
     // passes {repoRoot, listId} through its native context menu instead.
     const ctx = listCtx(arg);
@@ -412,7 +412,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     const list = ctx ? listOf(repo, ctx.listId) : undefined;
     const listPaths = list && list.files.length > 0 ? list.files : undefined;
 
-    const seeded = process.env['GITTREE_TEST_SHELVE'];
+    const seeded = process.env['GEET_TEST_SHELVE'];
     if (seeded !== undefined) {
       const opts = JSON.parse(seeded) as ShelveOptions;
       const res = await store.shelve(list ? { paths: listPaths, ...opts } : opts);
@@ -453,10 +453,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     }
   });
 
-  register('gittree.shelf.rename', async (arg) => {
+  register('geet.shelf.rename', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
-    const seeded = process.env['GITTREE_TEST_SHELF_RENAME'];
+    const seeded = process.env['GEET_TEST_SHELF_RENAME'];
     const name =
       seeded ??
       (await vscode.window.showInputBox({ prompt: vscode.l10n.t('Shelf name'), value: t.meta.name }));
@@ -468,7 +468,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     t.store.rename(t.meta.id, name.trim(), comment);
   });
 
-  register('gittree.shelf.delete', async (arg) => {
+  register('geet.shelf.delete', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
     const ok = await confirmModal(
@@ -479,10 +479,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     if (ok) t.store.delete(t.meta.id);
   });
 
-  register('gittree.shelf.export', async (arg) => {
+  register('geet.shelf.export', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
-    const seeded = process.env['GITTREE_TEST_SHELF_EXPORT'];
+    const seeded = process.env['GEET_TEST_SHELF_EXPORT'];
     const target =
       seeded !== undefined
         ? vscode.Uri.file(seeded)
@@ -496,11 +496,11 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     notifySuccess(vscode.l10n.t('Successfully created patch {0}', target.fsPath));
   });
 
-  register('gittree.shelf.import', async () => {
+  register('geet.shelf.import', async () => {
     const repo = repoForNew();
     if (!repo) return;
     const store = shelves.get(canonicalKey(repo.root))!;
-    const seeded = process.env['GITTREE_TEST_SHELF_IMPORT'];
+    const seeded = process.env['GEET_TEST_SHELF_IMPORT'];
     const picked =
       seeded !== undefined
         ? [vscode.Uri.file(seeded)]
@@ -536,7 +536,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     { store: ShelfStore; id: string; repo: RepoHandle; bytes: Buffer | undefined }
   >();
 
-  register('gittree.shelf.showPatch', async (arg) => {
+  register('geet.shelf.showPatch', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
     pristinePatches.set(t.store.patchPath(t.meta.id), {
@@ -570,7 +570,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
       if (!meta) return;
       // Validate against the BASE tree through a throwaway index — the real
       // index and worktree stay untouched whatever the verdict.
-      const tmpIndex = path.join(os.tmpdir(), `gittree-shelf-check-${process.pid}-${Date.now()}`);
+      const tmpIndex = path.join(os.tmpdir(), `geet-shelf-check-${process.pid}-${Date.now()}`);
       const verdict = await owner.repo.queue.enqueue({
         label: vscode.l10n.t('Validate shelf patch'),
         kind: 'read',
@@ -675,7 +675,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
         exportAction,
       );
       if (choice === exportAction) {
-        await vscode.commands.executeCommand('gittree.shelf.export', {
+        await vscode.commands.executeCommand('geet.shelf.export', {
           kind: 'entry',
           repo: t.repo,
           store: t.store,
@@ -739,10 +739,10 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     return choice?.deleteAfter;
   };
 
-  register('gittree.shelf.unshelve', async (arg) => {
+  register('geet.shelf.unshelve', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
-    const seeded = process.env['GITTREE_TEST_UNSHELVE'];
+    const seeded = process.env['GEET_TEST_UNSHELVE'];
     let deleteAfter: boolean | undefined;
     if (seeded !== undefined) {
       deleteAfter = (JSON.parse(seeded) as { deleteAfter?: boolean }).deleteAfter ?? true;
@@ -756,7 +756,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   // P11-T6: IntelliJ's "Unshelve Silently" — apply with the defaults, no
   // prompts. deleteAfter=true is this codebase's stated IntelliJ default
   // (P7-T5's pickDeleteAfter labels), kept consistent here.
-  register('gittree.shelf.unshelveSilently', async (arg) => {
+  register('geet.shelf.unshelveSilently', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
     await runUnshelve(t, undefined, true);
@@ -778,7 +778,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   };
 
   // P11-T6: shelved content ↔ the file as it is in the worktree right now.
-  register('gittree.shelf.compareWithLocal', async (arg) => {
+  register('geet.shelf.compareWithLocal', async (arg) => {
     const t = await pickShelfFile(arg);
     if (!t) return;
     if (t.file.isBinary) {
@@ -797,7 +797,7 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   });
 
   // P11-T6: the tab's file-row activate — same base↔shelved diff the tree opens.
-  register('gittree.shelf.openShelvedDiff', async (arg) => {
+  register('geet.shelf.openShelvedDiff', async (arg) => {
     const t = await pickShelfFile(arg);
     if (!t || t.file.isBinary) return;
     const sides = shelfDiffSides({
@@ -810,18 +810,18 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
     await vscode.commands.executeCommand('vscode.diff', sides.left, sides.right, sides.title);
   });
 
-  register('gittree.shelf.showUnshelved', async () => {
-    const config = vscode.workspace.getConfiguration('gittree.shelf');
-    await writeSetting('gittree.shelf', 'showUnshelved', !config.get<boolean>('showUnshelved', false));
+  register('geet.shelf.showUnshelved', async () => {
+    const config = vscode.workspace.getConfiguration('geet.shelf');
+    await writeSetting('geet.shelf', 'showUnshelved', !config.get<boolean>('showUnshelved', false));
   });
   // P14-T2: no listener here any more — ShelfBridge carries its own
-  // `gittree.shelf.showUnshelved` config listener for the Shelf tab.
+  // `geet.shelf.showUnshelved` config listener for the Shelf tab.
 
-  register('gittree.shelf.unshelvePartial', async (arg) => {
+  register('geet.shelf.unshelvePartial', async (arg) => {
     const t = await pickShelf(arg);
     if (!t) return;
     const engine = engineFor(t);
-    const seeded = process.env['GITTREE_TEST_UNSHELVE_PARTIAL'];
+    const seeded = process.env['GEET_TEST_UNSHELVE_PARTIAL'];
     if (seeded !== undefined) {
       const opts = JSON.parse(seeded) as { indexes: number[]; deleteAfter?: boolean };
       await runUnshelve(t, opts.indexes, opts.deleteAfter ?? true);
@@ -851,9 +851,9 @@ export function registerPhase07StashShelve(context: vscode.ExtensionContext, cor
   });
 
   // P11-T7: the Shelve Changes dialog — the IntelliJ-shaped surface. The
-  // QuickPick flow above (`gittree.shelf.shelve`) remains for native mode and
+  // QuickPick flow above (`geet.shelf.shelve`) remains for native mode and
   // for tests that seed it via env.
-  register('gittree.shelve.dialog', async (arg) => {
+  register('geet.shelve.dialog', async (arg) => {
     const p3full = core.debugRegistry.get('phase03') as Phase03Registry | undefined;
     if (!p3full) return;
     let repo: RepoHandle | undefined;

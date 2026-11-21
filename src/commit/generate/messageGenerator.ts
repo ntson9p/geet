@@ -65,7 +65,7 @@ interface DescribedRepo {
 /** Where the models come from: VS Code, or a test's stand-in. */
 export type ModelSource = () => Thenable<readonly vscode.LanguageModelChat[]>;
 
-const SECTION = 'gittree.commit.messageGeneration';
+const SECTION = 'geet.commit.messageGeneration';
 /** A commit message is short: an answer running past this is cut off, not waited for. */
 const MAX_ANSWER_CHARS = 20_000;
 /** How often the request is rebuilt smaller when the model counts more tokens than it takes. */
@@ -76,7 +76,7 @@ const MANAGE_MODELS = 'workbench.action.chat.manage';
 const SET_UP_CHAT = 'workbench.action.chat.triggerSetup';
 const MANAGE_ACCESS = 'workbench.action.chat.manageLanguageModelAuthentication';
 
-/** `gittree.commit.messageGeneration.enabled`, on unless set off. */
+/** `geet.commit.messageGeneration.enabled`, on unless set off. */
 export function generationEnabled(): boolean {
   return vscode.workspace.getConfiguration(SECTION).get<boolean>('enabled', true) !== false;
 }
@@ -212,7 +212,7 @@ export class MessageGenerator {
       token,
     );
     if (picked === undefined) return undefined;
-    await writeSetting('gittree', 'commit.messageGeneration.model', modelKey(picked.model));
+    await writeSetting('geet', 'commit.messageGeneration.model', modelKey(picked.model));
     return picked.model;
   }
 
@@ -314,7 +314,7 @@ export class MessageGenerator {
     if (!generationEnabled()) {
       showInfo(
         vscode.l10n.t(
-          'Generate Commit Message is turned off (gittree.commit.messageGeneration.enabled), so no commit message was written.',
+          'Generate Commit Message is turned off (geet.commit.messageGeneration.enabled), so no commit message was written.',
         ),
       );
       return nothing;

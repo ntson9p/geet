@@ -28,7 +28,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
   context.subscriptions.push(triEditors);
   registerResolutionActions(context, triEditors);
   const trace = (l: string): void => core.output.appendLine(`[merge] ${l}`);
-  const view = vscode.window.createTreeView('gittree.conflicts', {
+  const view = vscode.window.createTreeView('geet.conflicts', {
     treeDataProvider: viewProvider,
   });
   context.subscriptions.push(view);
@@ -42,8 +42,8 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     viewProvider.setSessions(all);
     const any = all.some((s) => s.remaining > 0);
     const canContinue = all.some((s) => s.remaining === 0);
-    void vscode.commands.executeCommand('setContext', 'gittree.hasConflicts', any || all.length > 0);
-    void vscode.commands.executeCommand('setContext', 'gittree.conflicts.canContinue', canContinue);
+    void vscode.commands.executeCommand('setContext', 'geet.hasConflicts', any || all.length > 0);
+    void vscode.commands.executeCommand('setContext', 'geet.conflicts.canContinue', canContinue);
   };
   context.subscriptions.push(lifecycle.onDidChangeSessions(() => pushSessions()));
   pushSessions();
@@ -85,7 +85,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
         { label: vscode.l10n.t('$(arrow-right) Keep theirs (mode/content)'), keep: 'file', side: 'theirs' },
       );
     }
-    const seeded = process.env['GITTREE_TEST_SPECIAL_CHOICE'];
+    const seeded = process.env['GEET_TEST_SPECIAL_CHOICE'];
     const picked =
       seeded !== undefined
         ? choices[Number.parseInt(seeded, 10)]
@@ -118,7 +118,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
       { label: vscode.l10n.t('$(arrow-left) Keep your version'), side: 'ours' },
       { label: vscode.l10n.t('$(arrow-right) Keep their version'), side: 'theirs' },
     ];
-    const seeded = process.env['GITTREE_TEST_SPECIAL_CHOICE'];
+    const seeded = process.env['GEET_TEST_SPECIAL_CHOICE'];
     const picked =
       seeded !== undefined
         ? choices[Number.parseInt(seeded, 10)]
@@ -131,7 +131,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     if (picked) await node.session.acceptSide([node.path], picked.side);
   };
 
-  register('gittree.merge.open', async (arg) => {
+  register('geet.merge.open', async (arg) => {
     const node = arg as ConflictNode | undefined;
     if (!node || !('path' in node)) return;
     if (isSpecialConflict(node.kind)) {
@@ -150,31 +150,31 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     // default throughout.
     await triEditors.openEditor(node.session.repo, node.path, node.session, input.merge);
   });
-  register('gittree.merge.apply', async () => {
+  register('geet.merge.apply', async () => {
     await triEditors.active()?.apply();
   });
-  register('gittree.merge.nextConflict', () => {
+  register('geet.merge.nextConflict', () => {
     triEditors.active()?.jumpToConflict(1);
   });
-  register('gittree.merge.prevConflict', () => {
+  register('geet.merge.prevConflict', () => {
     triEditors.active()?.jumpToConflict(-1);
   });
-  register('gittree.merge.toggleSyncScroll', () => {
+  register('geet.merge.toggleSyncScroll', () => {
     triEditors.active()?.toggleSyncScroll();
   });
-  register('gittree.merge.acceptYoursFile', async (arg) => {
+  register('geet.merge.acceptYoursFile', async (arg) => {
     const node = arg as ConflictNode | undefined;
     if (!node || !('path' in node)) return;
     if (isSpecialConflict(node.kind)) return resolveSpecial(node);
     await node.session.acceptSide([node.path], 'ours');
   });
-  register('gittree.merge.acceptTheirsFile', async (arg) => {
+  register('geet.merge.acceptTheirsFile', async (arg) => {
     const node = arg as ConflictNode | undefined;
     if (!node || !('path' in node)) return;
     if (isSpecialConflict(node.kind)) return resolveSpecial(node);
     await node.session.acceptSide([node.path], 'theirs');
   });
-  register('gittree.merge.acceptAllYours', async (arg) => {
+  register('geet.merge.acceptAllYours', async (arg) => {
     const session = sessionFor(arg);
     if (!session) return;
     const paths = session.files().filter((f) => !isSpecialConflict(f.kind)).map((f) => f.path);
@@ -185,7 +185,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     );
     if (ok) await session.acceptSide(paths, 'ours');
   });
-  register('gittree.merge.acceptAllTheirs', async (arg) => {
+  register('geet.merge.acceptAllTheirs', async (arg) => {
     const session = sessionFor(arg);
     if (!session) return;
     const paths = session.files().filter((f) => !isSpecialConflict(f.kind)).map((f) => f.path);
@@ -201,7 +201,7 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
    * conflict whose blocks ALL fall to the cascade; partially resolvable
    * files stay untouched for the tri-editor.
    */
-  register('gittree.merge.magicWandSession', async (arg) => {
+  register('geet.merge.magicWandSession', async (arg) => {
     const session = sessionFor(arg);
     if (!session) return;
     const computer = new MergeComputer(mergeExecFor(session.repo));
@@ -246,10 +246,10 @@ export function registerPhase06MergeEngine(context: vscode.ExtensionContext, cor
     );
   });
 
-  register('gittree.merge.continueOp', async (arg) => {
+  register('geet.merge.continueOp', async (arg) => {
     await sessionFor(arg)?.continueOp();
   });
-  register('gittree.merge.abortOp', async (arg) => {
+  register('geet.merge.abortOp', async (arg) => {
     await sessionFor(arg)?.abortOp();
   });
 

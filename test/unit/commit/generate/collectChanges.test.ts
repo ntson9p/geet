@@ -39,7 +39,7 @@ const A_WORK = 'one\nTWO\nthree\nfour\nfive\nsix\nSEVEN\neight\nnine\n';
  * with a changed `i.tsx` beside it that the pattern matches and nobody ticked.
  */
 function dirty(): FixtureRepo {
-  const repo = FixtureRepo.create({ prefix: 'gittree-generate-' });
+  const repo = FixtureRepo.create({ prefix: 'geet-generate-' });
   repos.push(repo);
   repo.commit('base', {
     'a.txt': A_BASE,
@@ -243,7 +243,7 @@ describe('collectChanges, at the edges of history', () => {
   it(
     'reads a repository with no commit yet: everything is new, and Amend means nothing',
     async () => {
-      const repo = FixtureRepo.create({ prefix: 'gittree-generate-unborn-' });
+      const repo = FixtureRepo.create({ prefix: 'geet-generate-unborn-' });
       repos.push(repo);
       repo.writeFiles({ 'first.txt': 'first\n', 'second.txt': 'second\n' });
       repo.git('add', 'first.txt');
@@ -262,7 +262,7 @@ describe('collectChanges, at the edges of history', () => {
   it(
     'amending the first commit compares against nothing',
     async () => {
-      const repo = FixtureRepo.create({ prefix: 'gittree-generate-root-' });
+      const repo = FixtureRepo.create({ prefix: 'geet-generate-root-' });
       repos.push(repo);
       repo.commit('first', { 'first.txt': 'first\n' });
       expect((await collectChanges(git, repo.root, staged({ amend: true }))).map(changeLine)).toEqual([

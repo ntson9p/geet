@@ -109,7 +109,7 @@ suite('P14 branch menu parity', () => {
 
     // A local bare repo stands in for a remote: the suite needs a real
     // upstream to fast-forward from, and nothing here ever leaves the machine.
-    tmpDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-p14bm-')));
+    tmpDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'geet-p14bm-')));
     bareUrl = path.join(tmpDir, 'remote.git').replace(/\\/g, '/');
     execFileSync('git', ['init', '--bare', bareUrl], { cwd: tmpDir, encoding: 'utf8' });
     git('remote', 'add', REMOTE, bareUrl);
@@ -264,7 +264,7 @@ suite('P14 branch menu parity', () => {
     await refreshUntil(() => targetUpstream() !== undefined);
     assert.strictEqual(git('rev-parse', TARGET).trim(), base, 'precondition: local is behind');
 
-    await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(TARGET));
+    await vscode.commands.executeCommand('geet.branch.update', await nodeFor(TARGET));
     await waitFor(() => git('rev-parse', TARGET).trim() === ahead, 30_000);
 
     assert.strictEqual(git('rev-parse', TARGET).trim(), ahead);
@@ -288,7 +288,7 @@ suite('P14 branch menu parity', () => {
     // without the code under test ever running.
     await refreshUntil(() => targetUpstream() === `${REMOTE}/${TARGET}`);
 
-    await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(TARGET));
+    await vscode.commands.executeCommand('geet.branch.update', await nodeFor(TARGET));
     assert.strictEqual(
       git('rev-parse', TARGET).trim(),
       mine,
@@ -323,14 +323,14 @@ suite('P14 branch menu parity', () => {
 
     // IntelliJ's GitPushBranchAction: the dialog, for this branch in this
     // repository — and nothing pushed until it says so.
-    const savedDialog = process.env['GITTREE_TEST_PUSH_DIALOG'];
-    process.env['GITTREE_TEST_PUSH_DIALOG'] = 'cancel';
+    const savedDialog = process.env['GEET_TEST_PUSH_DIALOG'];
+    process.env['GEET_TEST_PUSH_DIALOG'] = 'cancel';
     reg13.clearLastPushDialogRequest();
     try {
       await push.run(ctx);
     } finally {
-      if (savedDialog === undefined) delete process.env['GITTREE_TEST_PUSH_DIALOG'];
-      else process.env['GITTREE_TEST_PUSH_DIALOG'] = savedDialog;
+      if (savedDialog === undefined) delete process.env['GEET_TEST_PUSH_DIALOG'];
+      else process.env['GEET_TEST_PUSH_DIALOG'] = savedDialog;
     }
     const opened = reg13.lastPushDialogOpened();
     assert.deepStrictEqual(opened?.source, { kind: 'branch', branch: TARGET });
@@ -357,9 +357,9 @@ suite('P14 branch menu parity', () => {
       force: false,
     };
 
-    const saved = process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
+    const saved = process.env['GEET_TEST_PUSH_REJECTED_CHOICE'];
     // The hang guard: this branch is not checked out, so nothing may ask.
-    process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = 'cancel';
+    process.env['GEET_TEST_PUSH_REJECTED_CHOICE'] = 'cancel';
     reg13.clearLastPushRejectedPrompt();
     try {
       const pushed = await reg13.applyPushResult(fromDialog);
@@ -376,8 +376,8 @@ suite('P14 branch menu parity', () => {
       assert.strictEqual(reg13.lastPushRejectedPrompt(), undefined);
       assert.strictEqual(onRemote(), theirs);
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'];
-      else process.env['GITTREE_TEST_PUSH_REJECTED_CHOICE'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_PUSH_REJECTED_CHOICE'];
+      else process.env['GEET_TEST_PUSH_REJECTED_CHOICE'] = saved;
     }
   });
 
@@ -399,7 +399,7 @@ suite('P14 branch menu parity', () => {
   };
 
   /**
-   * Runs `body` with the question answered by `GITTREE_TEST_UPDATE_CHOICE`,
+   * Runs `body` with the question answered by `GEET_TEST_UPDATE_CHOICE`,
    * then puts back the branch, its tracking and the answer seam.
    *
    * `cancel` is the hang guard for tests that expect no question: a
@@ -413,14 +413,14 @@ suite('P14 branch menu parity', () => {
     const reg13 = core.debugRegistry.get('phase13') as Phase13Registry;
     assert.ok(reg13, 'phase13 registry missing');
     const base = git('rev-parse', 'HEAD').trim();
-    const saved = process.env['GITTREE_TEST_UPDATE_CHOICE'];
-    process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'cancel';
+    const saved = process.env['GEET_TEST_UPDATE_CHOICE'];
+    process.env['GEET_TEST_UPDATE_CHOICE'] = 'cancel';
     reg13.clearLastUpdatePrompt();
     try {
       await body(base, reg13);
     } finally {
-      if (saved === undefined) delete process.env['GITTREE_TEST_UPDATE_CHOICE'];
-      else process.env['GITTREE_TEST_UPDATE_CHOICE'] = saved;
+      if (saved === undefined) delete process.env['GEET_TEST_UPDATE_CHOICE'];
+      else process.env['GEET_TEST_UPDATE_CHOICE'] = saved;
       git('reset', '-q', '--hard', base);
       git('branch', '--unset-upstream', current);
       await refreshUntil(() => repo.model.snapshot.upstream === undefined);
@@ -432,7 +432,7 @@ suite('P14 branch menu parity', () => {
     await withCurrentBranch(async (base, reg13) => {
       const ahead = commitOnto(base, "p14bm: the checked-out branch's upstream moves on");
       await trackCurrentAt(ahead);
-      await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(current));
+      await vscode.commands.executeCommand('geet.branch.update', await nodeFor(current));
       // IntelliJ's branch Update runs with the saved method; only Update
       // Project asks. Before this, the row opened the question.
       assert.strictEqual(reg13.lastUpdatePrompt(), undefined, "a branch row's Update must not ask");
@@ -449,7 +449,7 @@ suite('P14 branch menu parity', () => {
       // local work, the rebase just brings the branch up to it.
       const first = commitOnto(base, 'p14bm: the upstream moves on once');
       await trackCurrentAt(first);
-      process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'rebase';
+      process.env['GEET_TEST_UPDATE_CHOICE'] = 'rebase';
       const answered = await reg13.showUpdateDialog(repo);
       assert.ok(answered?.ok, answered?.message ?? 'no outcome');
       assert.ok(reg13.lastUpdatePrompt() !== undefined, 'with something coming in, Update Project asks');
@@ -459,7 +459,7 @@ suite('P14 branch menu parity', () => {
 
       // Now the upstream moves on while there is local work, so merge and
       // rebase would give different histories.
-      process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'cancel';
+      process.env['GEET_TEST_UPDATE_CHOICE'] = 'cancel';
       reg13.clearLastUpdatePrompt();
       const ahead = commitOnto(first, "p14bm: the checked-out branch's upstream moves on");
       fs.writeFileSync(path.join(repoRoot, 'p14bm-local.txt'), 'local work\n');
@@ -475,7 +475,7 @@ suite('P14 branch menu parity', () => {
       );
       await trackCurrentAt(ahead);
       try {
-        await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(current));
+        await vscode.commands.executeCommand('geet.branch.update', await nodeFor(current));
         assert.strictEqual(reg13.lastUpdatePrompt(), undefined, "a branch row's Update must not ask");
         // Rebased, not merged: the local commit sits on the upstream's with a
         // single parent. A merge would have made HEAD^ the local commit.
@@ -493,7 +493,7 @@ suite('P14 branch menu parity', () => {
         // Asked only with something coming in (POST-P14aw): the upstream moves
         // on once more, and the merge takes it in. `withCurrentBranch` puts the
         // branch back afterwards.
-        process.env['GITTREE_TEST_UPDATE_CHOICE'] = 'merge';
+        process.env['GEET_TEST_UPDATE_CHOICE'] = 'merge';
         const again = commitOnto(git('rev-parse', 'HEAD').trim(), 'p14bm: the upstream moves on again');
         await trackCurrentAt(again);
         await reg13.showUpdateDialog(repo);
@@ -516,7 +516,7 @@ suite('P14 branch menu parity', () => {
     // this branch and the assertion below would catch it. Wait for the model
     // to agree the branch is untracked, then prove nothing runs.
     await refreshUntil(() => targetUpstream() === undefined);
-    await vscode.commands.executeCommand('gittree.branch.update', await nodeFor(TARGET));
+    await vscode.commands.executeCommand('geet.branch.update', await nodeFor(TARGET));
     assert.strictEqual(git('rev-parse', TARGET).trim(), base);
   });
 
@@ -526,18 +526,18 @@ suite('P14 branch menu parity', () => {
     this.timeout(60_000);
     const all = await vscode.commands.getCommands(true);
     for (const id of [
-      'gittree.branch.update',
-      'gittree.branch.pullIntoCurrentRebase',
-      'gittree.branch.tracked.checkout',
-      'gittree.branch.tracked.newFrom',
-      'gittree.branch.tracked.compareWithCurrent',
-      'gittree.branch.tracked.diffWithWorkingTree',
-      'gittree.branch.tracked.pullIntoCurrent',
-      'gittree.branch.tracked.pullIntoCurrentRebase',
-      'gittree.branch.tracked.mergeIntoCurrent',
-      'gittree.branch.tracked.rebaseCurrentOnto',
-      'gittree.branch.tracked.newWorktree',
-      'gittree.branch.tracked.deleteOnRemote',
+      'geet.branch.update',
+      'geet.branch.pullIntoCurrentRebase',
+      'geet.branch.tracked.checkout',
+      'geet.branch.tracked.newFrom',
+      'geet.branch.tracked.compareWithCurrent',
+      'geet.branch.tracked.diffWithWorkingTree',
+      'geet.branch.tracked.pullIntoCurrent',
+      'geet.branch.tracked.pullIntoCurrentRebase',
+      'geet.branch.tracked.mergeIntoCurrent',
+      'geet.branch.tracked.rebaseCurrentOnto',
+      'geet.branch.tracked.newWorktree',
+      'geet.branch.tracked.deleteOnRemote',
     ]) {
       assert.ok(all.includes(id), `command ${id} is contributed but never registered`);
     }
@@ -556,7 +556,7 @@ suite('P14 branch menu parity', () => {
     // the tracked row must hand it `<remote>/<branch>`.
     const { logView } = core.debugRegistry.get('phase04') as Phase04Registry;
     await vscode.commands.executeCommand(
-      'gittree.branch.tracked.compareWithCurrent',
+      'geet.branch.tracked.compareWithCurrent',
       await nodeFor(TARGET),
     );
     await waitFor(() => logView.currentSession?.filter.range !== undefined, 30_000);

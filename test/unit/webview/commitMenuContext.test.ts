@@ -16,7 +16,7 @@ describe("commitMenuContext (what VS Code's menu reads off a commit row)", () =>
       webviewSection: 'commit',
       sha: 'a',
       shas: ['a'],
-      'gittree.commitCount': 1,
+      'geet.commitCount': 1,
       preventDefaultContextMenuItems: true,
     });
   });
@@ -25,30 +25,30 @@ describe("commitMenuContext (what VS Code's menu reads off a commit row)", () =>
     const ctx = commitMenuContext(ROWS.get('b')!, ['a', 'b', 'c'], rowOf);
     expect(ctx.shas).toEqual(['a', 'b', 'c']);
     expect(ctx.sha).toBe('b');
-    expect(ctx['gittree.commitCount']).toBe(3);
-    expect(ctx['gittree.multiCommit']).toBe(true);
+    expect(ctx['geet.commitCount']).toBe(3);
+    expect(ctx['geet.multiCommit']).toBe(true);
   });
 
   it('is that commit alone when the row is outside the selection', () => {
     const ctx = commitMenuContext(ROWS.get('c')!, ['a', 'b'], rowOf);
     expect(ctx.shas).toEqual(['c']);
-    expect(ctx['gittree.multiCommit']).toBeUndefined();
+    expect(ctx['geet.multiCommit']).toBeUndefined();
   });
 
   it('says when a merge is among them, for Revert/Drop/Squash Commits', () => {
-    expect(commitMenuContext(ROWS.get('a')!, ['a', 'm'], rowOf)['gittree.mergeSelected']).toBe(true);
-    expect(commitMenuContext(ROWS.get('m')!, ['m'], rowOf)['gittree.mergeSelected']).toBe(true);
-    expect(commitMenuContext(ROWS.get('a')!, ['a', 'b'], rowOf)['gittree.mergeSelected']).toBeUndefined();
+    expect(commitMenuContext(ROWS.get('a')!, ['a', 'm'], rowOf)['geet.mergeSelected']).toBe(true);
+    expect(commitMenuContext(ROWS.get('m')!, ['m'], rowOf)['geet.mergeSelected']).toBe(true);
+    expect(commitMenuContext(ROWS.get('a')!, ['a', 'b'], rowOf)['geet.mergeSelected']).toBeUndefined();
   });
 
   it('counts two for Compare Versions', () => {
-    expect(commitMenuContext(ROWS.get('a')!, ['a', 'c'], rowOf)['gittree.commitCount']).toBe(2);
+    expect(commitMenuContext(ROWS.get('a')!, ['a', 'c'], rowOf)['geet.commitCount']).toBe(2);
   });
 
   it('says when the one commit is not HEAD, for Undo Commit greyed out (POST-QA)', () => {
     const at = (refs: MenuRow['refs']): MenuRow => ({ sha: 'h', parents: ['p'], refs });
     const notHead = (r: MenuRow, sel: string[] = [r.sha]): unknown =>
-      commitMenuContext(r, sel, rowOf)['gittree.notHead'];
+      commitMenuContext(r, sel, rowOf)['geet.notHead'];
     // HEAD on a branch, and a detached HEAD.
     expect(notHead(at([{ type: 'branch', isHeadTarget: true }]))).toBeUndefined();
     expect(notHead(at([{ type: 'head' }, { type: 'tag' }]))).toBeUndefined();

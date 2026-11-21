@@ -82,7 +82,7 @@ describe('updateTab', () => {
   it('moves an extra tab to another repository, never the main one', () => {
     const { state, id } = openTab(initialTabsState(), HEAD, '/r');
     expect(updateTab(state, id, HEAD, '/other').tabs[1]?.root).toBe('/other');
-    // The main tab's repository is remembered elsewhere (`gittree.log.root`).
+    // The main tab's repository is remembered elsewhere (`geet.log.root`).
     expect(updateTab(state, MAIN_LOG_TAB, HEAD, '/other').tabs[0]).toEqual({ id: MAIN_LOG_TAB, filter: HEAD });
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Playground repository generator (P10-T3): `gittree.generatePlayground`
+ * Playground repository generator (P10-T3): `geet.generatePlayground`
  * seeds a disposable LOCAL repo shaped for the walkthrough — a pending edit
  * for the first commit, a branch whose rebase conflicts for the 3-pane merge
  * editor, and enough history to make the log and blame interesting. No
@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Core } from '../core/core';
 
-const DIR_NAME = 'gittree-playground';
+const DIR_NAME = 'geet-playground';
 
 const README = `# Geet Playground
 
@@ -80,7 +80,7 @@ async function isUsableTarget(dir: string): Promise<boolean> {
 
 /** Creates the playground repo and returns its path (undefined = cancelled). */
 export async function generatePlayground(core: Core): Promise<string | undefined> {
-  const seeded = process.env['GITTREE_TEST_PLAYGROUND_DIR'];
+  const seeded = process.env['GEET_TEST_PLAYGROUND_DIR'];
   let target: string;
   if (seeded !== undefined && seeded.length > 0) {
     target = seeded;
@@ -117,7 +117,7 @@ export async function generatePlayground(core: Core): Promise<string | undefined
   // Identity is repo-local so the playground works without global git config;
   // `checkout -b` (not `init -b`) keeps git 2.28 compatibility.
   await run(['config', 'user.name', 'Geet Playground']);
-  await run(['config', 'user.email', 'playground@gittree.invalid']);
+  await run(['config', 'user.email', 'playground@geet.invalid']);
   await run(['checkout', '-b', 'main']);
 
   await fs.mkdir(path.join(target, 'src'), { recursive: true });

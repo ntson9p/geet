@@ -52,9 +52,9 @@ export interface LocalHistoryHooksDeps {
   model: RepositoryModel;
   queue: OperationQueue;
   store: SnapshotStore;
-  /** Kill switch: gittree.localHistory.enabled. */
+  /** Kill switch: geet.localHistory.enabled. */
   isEnabled: () => boolean;
-  /** gittree.localHistory.taskLabels (default on). */
+  /** geet.localHistory.taskLabels (default on). */
   taskLabelsEnabled?: () => boolean;
   /** Called once when a snapshot write fails (warn, never block). */
   onStoreFailure?: (error: unknown) => void;

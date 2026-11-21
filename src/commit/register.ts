@@ -73,7 +73,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const key = canonicalKey(repo.root);
     let s = services.get(key);
     if (!s) {
-      s = new ChangelistService(repo.model, context.workspaceState, `gittree.changelists.${key}`);
+      s = new ChangelistService(repo.model, context.workspaceState, `geet.changelists.${key}`);
       services.set(key, s);
       repo.disposables.add(s);
       repo.disposables.add({ dispose: () => services.delete(key) });
@@ -206,7 +206,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // command (palette, Ctrl+K, the commit window's button) means "commit what
   // is ticked", which in a multi-root workspace may span repositories — those
   // the Commit window lists (POST-P14ce).
-  register('gittree.commit', async (repoRoot) => {
+  register('geet.commit', async (repoRoot) => {
     // POST-P14by: a list, the Branches panel's `⋯` with some repositories in
     // view: what is ticked in those, with the message typed in the Commit window
     // (whichever repository it is bound to), one commit per repository.
@@ -231,20 +231,20 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
   // POST-P14cj: Generate Commit Message, as the Commit window's button: for what
   // its list shows, into the box on screen. Run again while a message is being
   // written, it stops it, as the button then does.
-  register('gittree.commit.generateMessage', async () => {
+  register('geet.commit.generateMessage', async () => {
     if (commitWindow.isGenerating) commitWindow.stopGenerating();
     else await commitWindow.generateMessage();
   });
-  register('gittree.commit.chooseMessageModel', async () => {
+  register('geet.commit.chooseMessageModel', async () => {
     await messageGenerator.chooseModel();
   });
-  register('gittree.commitAndPush', async (repoRoot) => {
+  register('geet.commitAndPush', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     if (!repo) return;
     if (repoRoot === undefined) await runCommitAcross(flowDeps, repo, { andPush: true, ...inView() });
     else await runCommitFlow(flowDeps, repo, { andPush: true });
   });
-  register('gittree.commitAmend', async (repoRoot) => {
+  register('geet.commitAmend', async (repoRoot) => {
     // POST-P14ce: bare, the repository the window's Amend acts on, which its
     // list shows; the message is the one on screen, in the box of the editor's
     // repository, which may be one the list leaves out.
@@ -269,7 +269,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const ok = await runCommitFlow(flowDeps, repo, typed.length > 0 ? { message: typed } : {});
     if (ok && input.value.length > 0) input.value = '';
   });
-  register('gittree.commit.toggleAmend', async (repoRoot) => {
+  register('geet.commit.toggleAmend', async (repoRoot) => {
     // POST-P14ce: bare, as the window's Amend box does: a repository the list
     // shows, the prefill into the box on screen.
     const repo = pickCommitRepo(repoRoot);
@@ -281,7 +281,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     }
     commitWindow.push();
   });
-  register('gittree.commit.toggleSign', async (repoRoot) => {
+  register('geet.commit.toggleSign', async (repoRoot) => {
     // POST-P14ce: the next commit of a repository the list shows, as Amend.
     const repo = pickCommitRepo(repoRoot);
     if (!repo) return;
@@ -292,7 +292,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     );
   });
   // A row's menu: what walking from it means depends on the tree the webview shows.
-  register('gittree.commit.openChanges', (arg) => {
+  register('geet.commit.openChanges', (arg) => {
     const { repoRoot, relPath, stagingSide } = (arg ?? {}) as {
       repoRoot?: unknown;
       relPath?: unknown;
@@ -332,8 +332,8 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       if (paths.length > 0) await commitWindow.stagePaths(repo, paths, how);
     }
   };
-  register('gittree.commit.stage', (arg) => stageFromRow(arg, 'stage'));
-  register('gittree.commit.unstage', (arg) => stageFromRow(arg, 'unstage'));
+  register('geet.commit.stage', (arg) => stageFromRow(arg, 'stage'));
+  register('geet.commit.unstage', (arg) => stageFromRow(arg, 'unstage'));
 
   /**
    * POST-P14cf: the Commit list's menu, on its blank space. Its payload names
@@ -344,21 +344,21 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const raw = typeof arg === 'object' && arg !== null ? (arg as { listRoots?: unknown }).listRoots : undefined;
     return Array.isArray(raw) ? raw.filter((r): r is string => typeof r === 'string') : undefined;
   };
-  register('gittree.commit.tickAll', (arg) => commitWindow.setAllTicked(listRootsOf(arg), true));
-  register('gittree.commit.untickAll', (arg) => commitWindow.setAllTicked(listRootsOf(arg), false));
-  register('gittree.commit.stageAll', (arg) => commitWindow.stageAll(listRootsOf(arg), 'stage'));
-  register('gittree.commit.unstageAll', (arg) => commitWindow.stageAll(listRootsOf(arg), 'unstage'));
-  register('gittree.commit.expandAll', () => commitWindow.expandAll());
-  register('gittree.commit.collapseAll', () => commitWindow.collapseAll());
-  register('gittree.commit.switchParadigm', () => paradigm.switch());
+  register('geet.commit.tickAll', (arg) => commitWindow.setAllTicked(listRootsOf(arg), true));
+  register('geet.commit.untickAll', (arg) => commitWindow.setAllTicked(listRootsOf(arg), false));
+  register('geet.commit.stageAll', (arg) => commitWindow.stageAll(listRootsOf(arg), 'stage'));
+  register('geet.commit.unstageAll', (arg) => commitWindow.stageAll(listRootsOf(arg), 'unstage'));
+  register('geet.commit.expandAll', () => commitWindow.expandAll());
+  register('geet.commit.collapseAll', () => commitWindow.collapseAll());
+  register('geet.commit.switchParadigm', () => paradigm.switch());
   // The Commit window's View Options › Group By, from the palette or a key.
-  register('gittree.commit.groupByRepository', () => writeCommitGroupBy('repository'));
-  register('gittree.commit.groupByChangelist', () => writeCommitGroupBy('changelist'));
+  register('geet.commit.groupByRepository', () => writeCommitGroupBy('repository'));
+  register('geet.commit.groupByChangelist', () => writeCommitGroupBy('changelist'));
   // POST-P14cb: the new default, without changelist rows, and the folder rows.
-  register('gittree.commit.groupByNone', () => writeCommitGroupBy('none'));
-  register('gittree.commit.toggleGroupByDirectory', () => writeCommitGroupByDirectory(!readCommitGroupByDirectory()));
-  register('gittree.commit.configureChecks', () => configureChecks(pipeline));
-  register('gittree.commit.showMessageHistory', async (repoRoot) => {
+  register('geet.commit.groupByNone', () => writeCommitGroupBy('none'));
+  register('geet.commit.toggleGroupByDirectory', () => writeCommitGroupByDirectory(!readCommitGroupByDirectory()));
+  register('geet.commit.configureChecks', () => configureChecks(pipeline));
+  register('geet.commit.showMessageHistory', async (repoRoot) => {
     const repo = pickRepo(repoRoot);
     const input = repo ? messageBoxFor(repo) : undefined;
     if (repo && input) await history.showPicker(repo, input);
@@ -416,7 +416,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       : [];
     return { repo, relPath: c.relPath, relPaths: [c.relPath, ...rest] };
   };
-  register('gittree.changelist.new', async (arg) => {
+  register('geet.changelist.new', async (arg) => {
     // A changelist is a project-level idea. Creating it in every repository is
     // what keeps the merged row honest: the next new file lands in the same
     // named list whichever repository it belongs to, and `Move to…` offers it
@@ -426,13 +426,13 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     const repos = explicit ? [explicit] : core.repos;
     if (repos.length === 0) return;
     const name =
-      process.env['GITTREE_TEST_BRANCH_NAME'] ??
+      process.env['GEET_TEST_BRANCH_NAME'] ??
       (await vscode.window.showInputBox({
         prompt: vscode.l10n.t('New changelist name'),
         ignoreFocusOut: true,
       }));
     if (name === undefined || name.trim().length === 0) return;
-    const comment = await (process.env['GITTREE_TEST'] === '1'
+    const comment = await (process.env['GEET_TEST'] === '1'
       ? Promise.resolve(undefined)
       : vscode.window.showInputBox({
           prompt: vscode.l10n.t('Comment (optional)'),
@@ -442,7 +442,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
       changelistsFor(repo).create(name.trim(), comment?.trim() || undefined, false);
     }
   });
-  register('gittree.changelist.rename', async (node) => {
+  register('geet.changelist.rename', async (node) => {
     const targets = listTargets(node);
     const first = targets[0];
     if (!first) return;
@@ -461,7 +461,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     });
     for (const t of targets) changelistsFor(t.repo).rename(t.listId, name.trim(), comment?.trim());
   });
-  register('gittree.changelist.delete', async (node) => {
+  register('geet.changelist.delete', async (node) => {
     const targets = listTargets(node).filter((t) => {
       const l = changelistsFor(t.repo).getList(t.listId);
       return l !== undefined && !l.isDefault;
@@ -495,10 +495,10 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     }
     service.remove(first.listId, target);
   });
-  register('gittree.changelist.setActive', (node) => {
+  register('geet.changelist.setActive', (node) => {
     for (const t of listTargets(node)) changelistsFor(t.repo).setActive(t.listId);
   });
-  register('gittree.changelist.commitList', async (node) => {
+  register('geet.changelist.commitList', async (node) => {
     const targets = listTargets(node);
     const first = targets[0];
     if (!first) return;
@@ -577,7 +577,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
     choices: readonly MoveChoice[],
     count: number,
   ): Promise<{ readonly key: string } | { readonly name: string } | undefined> => {
-    const seeded = process.env['GITTREE_TEST_CHANGELIST_PICK'];
+    const seeded = process.env['GEET_TEST_CHANGELIST_PICK'];
     if (seeded !== undefined) {
       const hit = choices.find((c) => c.label === seeded);
       return hit !== undefined ? { key: hit.key } : { name: seeded };
@@ -603,7 +603,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
    * list they move to, as IntelliJ's `MoveChangesToAnotherListAction` does
    * (`addUnversionedFilesToVcsInBackground(project, targetList, …)`).
    */
-  register('gittree.changelist.moveTo', async (...args) => {
+  register('geet.changelist.moveTo', async (...args) => {
     const rows = rowFiles(args).filter((r) => r.relPaths.length > 0);
     const count = rows.reduce((n, r) => n + r.relPaths.length, 0);
     if (count === 0) return;
@@ -645,7 +645,7 @@ export function registerPhase03(context: vscode.ExtensionContext, core: Core): P
    * Unversioned Files rows and a repository row too; a file already moved into
    * a list stays in it.
    */
-  register('gittree.addToVcs', async (...args) => {
+  register('geet.addToVcs', async (...args) => {
     for (const { repo, relPaths } of rowFiles(args)) {
       const service = changelistsFor(repo);
       // The menu is gated on the rows holding unversioned files, but a status

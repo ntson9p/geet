@@ -8,11 +8,11 @@
  * *Fetch successful* could sit in the corner for a minute. An extension can
  * neither set that time nor take one toast down. A notice with nothing to
  * click is shown instead as a progress notification that Geet ends on its
- * own clock: `gittree.notifications.durationSeconds` while VS Code is in
+ * own clock: `geet.notifications.durationSeconds` while VS Code is in
  * front, a little longer for a long one.
  */
 
-/** `gittree.notifications.durationSeconds` when it is not set. */
+/** `geet.notifications.durationSeconds` when it is not set. */
 export const DEFAULT_NOTICE_SECONDS = 5;
 /** The most the setting takes: past a minute, a notice is no longer a short one. */
 export const MAX_NOTICE_SECONDS = 60;

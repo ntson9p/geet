@@ -459,7 +459,7 @@ export function App() {
 
   /**
    * POST-P14bq: says when the change tree gains or loses the keyboard, which the
-   * reveal key's `when` (`gittree.commitTreeFocus`) reads: VS Code clears its own
+   * reveal key's `when` (`geet.commitTreeFocus`) reads: VS Code clears its own
    * `focusedView` once focus is inside a webview. Not `send`: a focus change is
    * no intent, and must not clear a failure's banner.
    */
@@ -476,7 +476,7 @@ export function App() {
   );
   /**
    * POST-P14bs: the same for the message box, which the commit key's `when`
-   * (`gittree.commitMessageFocus`) reads.
+   * (`geet.commitMessageFocus`) reads.
    */
   const messageFocused = useRef(false);
   const reportMessageFocus = useCallback(

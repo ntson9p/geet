@@ -101,11 +101,11 @@ export const STATUS_BADGE: Readonly<Record<CompareStatusKind, string>> = {
 
 /** The colours the Log's Changed Files pane and the Commit window use for the same statuses. */
 export const STATUS_COLOR: Readonly<Record<CompareStatusKind, string>> = {
-  added: 'gittree.color.added',
-  modified: 'gittree.color.modified',
-  deleted: 'gittree.color.deleted',
-  renamed: 'gittree.color.renamed',
-  conflicted: 'gittree.color.conflicted',
+  added: 'geet.color.added',
+  modified: 'geet.color.modified',
+  deleted: 'geet.color.deleted',
+  renamed: 'geet.color.renamed',
+  conflicted: 'geet.color.conflicted',
 };
 
 /** A press this soon after another on the same row was a double click. */

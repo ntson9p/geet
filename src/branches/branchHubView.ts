@@ -36,7 +36,7 @@ import type { RepoScope } from './repoScope';
 import { showTagsSetting } from './showTags';
 import { INTELLIJ_KEYMAP_SETTING, shownAccelerator } from '../ui/accelerators';
 
-const DND_MIME = 'application/vnd.code.tree.gittree.branches';
+const DND_MIME = 'application/vnd.code.tree.geet.branches';
 
 export interface BranchHubDeps {
   readonly core: Core;
@@ -145,7 +145,7 @@ export class BranchHubViewProvider
       row.description ??
       shownAccelerator(
         row.verb?.accelerator,
-        vscode.workspace.getConfiguration('gittree').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
+        vscode.workspace.getConfiguration('geet').get<boolean>(INTELLIJ_KEYMAP_SETTING, false),
       );
     if (description !== undefined) item.description = description;
     item.contextValue = this.contextValue(row);
@@ -153,7 +153,7 @@ export class BranchHubViewProvider
     if (row.verb !== undefined) {
       // A repository's own copy of a verb (the `New Branch…` under an open
       // repository) runs there. The project's verbs take no argument, exactly as
-      // the popup runs them, so `gittree.commit` spans every root.
+      // the popup runs them, so `geet.commit` spans every root.
       item.command = {
         command: row.verb.command,
         title: row.verb.label,

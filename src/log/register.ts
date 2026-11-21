@@ -34,14 +34,14 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
   const blameUi = new BlameUi(context, core);
   context.subscriptions.push(blameUi);
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.blame.toggle', () => blameUi.toggle()),
-    vscode.commands.registerCommand('gittree.blame.showDiff', (sha: unknown, fsPath: unknown) => {
+    vscode.commands.registerCommand('geet.blame.toggle', () => blameUi.toggle()),
+    vscode.commands.registerCommand('geet.blame.showDiff', (sha: unknown, fsPath: unknown) => {
       if (typeof sha === 'string' && typeof fsPath === 'string') {
         return blameUi.showDiff(sha, fsPath);
       }
       return undefined;
     }),
-    vscode.commands.registerCommand('gittree.blame.revealCursorCommit', async () => {
+    vscode.commands.registerCommand('geet.blame.revealCursorCommit', async () => {
       const lb = blameUi.cursorCommit();
       if (lb && !lb.isUncommitted) {
         // Resolved exactly the way `cursorCommit` resolved the blame itself —
@@ -52,15 +52,15 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
       }
     }),
     // P10-T2: keyboard parity — reveal the log and focus its filter box.
-    vscode.commands.registerCommand('gittree.log.focusFilter', async () => {
-      await vscode.commands.executeCommand('gittree.log.focus');
+    vscode.commands.registerCommand('geet.log.focusFilter', async () => {
+      await vscode.commands.executeCommand('geet.log.focus');
       logView.focusFilter();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
-        e.affectsConfiguration('gittree.log.graphPalette') ||
-        e.affectsConfiguration('gittree.log.issuePattern') ||
-        e.affectsConfiguration('gittree.log.issueUrl')
+        e.affectsConfiguration('geet.log.graphPalette') ||
+        e.affectsConfiguration('geet.log.issuePattern') ||
+        e.affectsConfiguration('geet.log.issueUrl')
       ) {
         logView.refreshInit();
       }
@@ -104,7 +104,7 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
     'toggleFavorite',
   ]) {
     context.subscriptions.push(
-      vscode.commands.registerCommand(`gittree.log.branch.${action}`, async (arg: unknown) => {
+      vscode.commands.registerCommand(`geet.log.branch.${action}`, async (arg: unknown) => {
         const ctx = branchCtx(arg);
         if (!ctx) return;
         // Canonical match, and NO fallback: acting on some other repo because
@@ -132,8 +132,8 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
       isReadonly: true,
       isCaseSensitive: true,
     }),
-    vscode.window.createTreeView('gittree.revTree', { treeDataProvider: revTree }),
-    vscode.commands.registerCommand('gittree.log.showRepoAtRevision', async (arg: unknown) => {
+    vscode.window.createTreeView('geet.revTree', { treeDataProvider: revTree }),
+    vscode.commands.registerCommand('geet.log.showRepoAtRevision', async (arg: unknown) => {
       const fromCtx =
         typeof arg === 'object' && arg !== null && 'sha' in arg ? arg.sha : undefined;
       const sha =
@@ -145,14 +145,14 @@ export function registerPhase04(context: vscode.ExtensionContext, core: Core): P
           : undefined) ?? core.repos[0];
       if (sha === undefined || !repo) return;
       await revTree.show({ repo, rev: sha, label: sha.slice(0, 7) });
-      await vscode.commands.executeCommand('gittree.revTree.focus');
+      await vscode.commands.executeCommand('geet.revTree.focus');
     }),
-    vscode.commands.registerCommand('gittree.revTree.close', () => revTree.close()),
+    vscode.commands.registerCommand('geet.revTree.close', () => revTree.close()),
     // P12-T8: palette access to the Console ring's clear.
-    vscode.commands.registerCommand('gittree.log.console.clear', () => core.commandLog.clear()),
+    vscode.commands.registerCommand('geet.log.console.clear', () => core.commandLog.clear()),
     // POST-P14af: a push notification's `Show Details` — IntelliJ's "Show
     // details in console". Internal: the Console is a tab, one click away.
-    vscode.commands.registerCommand('gittree.log.showConsole', () => logView.showTab('console')),
+    vscode.commands.registerCommand('geet.log.showConsole', () => logView.showTab('console')),
   );
 
   const registry: Phase04Registry = { logView, blameUi, revTree, revTreeFs };

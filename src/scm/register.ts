@@ -1,5 +1,5 @@
 /**
- * Phase 1 registration: `gittree-rev:` provider, change bars, hunk actions,
+ * Phase 1 registration: `geet-rev:` provider, change bars, hunk actions,
  * file ops, status bar + sync, explorer decorations. Single entry point per
  * master §0.6.
  *
@@ -42,7 +42,7 @@ export interface Phase01Registry {
    * unregistered (`bars` empty), Geet hid it (`visible: false`), or VS Code
    * is not rendering an item we did show (`visible: true` and still invisible —
    * status-bar crowding, or an entry the user hid from the status bar's own
-   * context menu). `gittree.debug.showState` prints this.
+   * context menu). `geet.debug.showState` prints this.
    */
   statusBarDiagnostics(): StatusBarDiagnostics;
 }
@@ -100,11 +100,11 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
 
   const statusBarMode = (): ResolvedStatusBarMode =>
     resolveStatusBarMode(
-      vscode.workspace.getConfiguration('gittree').get<StatusBarMode>('statusBar', 'auto'),
+      vscode.workspace.getConfiguration('geet').get<StatusBarMode>('statusBar', 'auto'),
       builtInGitPresent(),
     );
 
-  // gittree-rev: content provider (P1-T2 / master §2), refreshed on status
+  // geet-rev: content provider (P1-T2 / master §2), refreshed on status
   // changes so open diffs and gutter bars track index updates.
   const revProvider = new RevContentProvider(core);
   context.subscriptions.push(
@@ -205,7 +205,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
     // setting, and whether the built-in Git extension is drawing a readout.
     // `git.enabled` flipping is what makes `auto` change its mind.
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('gittree.statusBar') || e.affectsConfiguration('git.enabled')) {
+      if (e.affectsConfiguration('geet.statusBar') || e.affectsConfiguration('git.enabled')) {
         updateAll();
       }
     }),
@@ -217,7 +217,7 @@ export function registerPhase01(context: vscode.ExtensionContext, core: Core): P
   registerHunkActions(context, core);
   registerFileOps(context, core);
   registerSyncOps(context, core, statusBars);
-  // gittree.commit + acceptInputCommand are owned by Phase 3 (commitFlow),
+  // geet.commit + acceptInputCommand are owned by Phase 3 (commitFlow),
   // which supersedes the P1-T7 MVP over the same command ids.
   wireFileDecorations(context, core);
   // POST-P14cd: the marks on Geet's own Stashes and Conflicts rows, which

@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext): GeetApi {
 
   perf.activationSyncMs = performance.now() - activationStart;
   return {
-    getCore: () => (process.env['GITTREE_TEST'] === '1' ? corePromise : undefined),
+    getCore: () => (process.env['GEET_TEST'] === '1' ? corePromise : undefined),
     perf,
   };
 }
@@ -86,10 +86,10 @@ function registerPhases(
   registerDiffControls(context, core);
 }
 
-/** P0 contribution: `gittree.debug.showState` dumps model JSON to an untitled doc. */
+/** P0 contribution: `geet.debug.showState` dumps model JSON to an untitled doc. */
 function registerPhase00Debug(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.debug.showState', async () => {
+    vscode.commands.registerCommand('geet.debug.showState', async () => {
       const core = await corePromise;
       // The status-bar block leads: "the Geet branch widget is gone" is the
       // report this command gets opened for, and it is the only part of the
@@ -122,9 +122,9 @@ function registerPhase00Debug(context: vscode.ExtensionContext): void {
 
   // P0-T9 webview platform kit demo (theme + RPC + VirtualList showcase).
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.debug.webviewDemo', () => {
+    vscode.commands.registerCommand('geet.debug.webviewDemo', () => {
       const panel = vscode.window.createWebviewPanel(
-        'gittree.demo',
+        'geet.demo',
         vscode.l10n.t('Geet Webview Demo'),
         vscode.ViewColumn.Active,
         {

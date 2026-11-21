@@ -22,23 +22,23 @@ async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
   const extensionTestsPath = path.resolve(__dirname, './suite/index');
 
-  const repoA = FixtureRepo.create({ prefix: 'gittree-ws-repoA-' });
+  const repoA = FixtureRepo.create({ prefix: 'geet-ws-repoA-' });
   repoA.commit('initial', { 'README.md': '# repoA\n', 'src/a.ts': 'export const a = 1;\n' });
-  const repoB = FixtureRepo.create({ prefix: 'gittree-ws-repoB-' });
+  const repoB = FixtureRepo.create({ prefix: 'geet-ws-repoB-' });
   repoB.commit('initial', { 'README.md': '# repoB\n' });
   // repoC belongs to the Phase 3 commit-lifecycle suite.
-  const repoC = FixtureRepo.create({ prefix: 'gittree-ws-repoC-' });
+  const repoC = FixtureRepo.create({ prefix: 'geet-ws-repoC-' });
   repoC.commit('initial', { 'README.md': '# repoC\n', 'src/code.ts': 'export const one = 1;\n' });
   // repoD/repoE belong to the multi-root commit suite, which needs two repos
   // dirty at once and commits in both. Borrowing A/B/C for that would leave
   // commits behind in repos three other suites assert against.
-  const repoD = FixtureRepo.create({ prefix: 'gittree-ws-repoD-' });
+  const repoD = FixtureRepo.create({ prefix: 'geet-ws-repoD-' });
   repoD.commit('initial', { 'README.md': '# repoD\n', 'src/d.ts': 'export const d = 1;\n' });
-  const repoE = FixtureRepo.create({ prefix: 'gittree-ws-repoE-' });
+  const repoE = FixtureRepo.create({ prefix: 'geet-ws-repoE-' });
   repoE.commit('initial', { 'README.md': '# repoE\n', 'src/e.ts': 'export const e = 1;\n' });
 
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-itest-'));
-  const workspaceFile = path.join(scratch, 'gittree-itest.code-workspace');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-itest-'));
+  const workspaceFile = path.join(scratch, 'geet-itest.code-workspace');
   fs.writeFileSync(
     workspaceFile,
     JSON.stringify(
@@ -67,16 +67,16 @@ async function main(): Promise<void> {
         '--skip-release-notes',
       ],
       extensionTestsEnv: {
-        GITTREE_TEST: '1',
-        GITTREE_TEST_AUTOCONFIRM: '1',
-        GITTREE_TEST_REPO_A: repoA.root,
-        GITTREE_TEST_REPO_B: repoB.root,
-        GITTREE_TEST_REPO_C: repoC.root,
-        GITTREE_TEST_REPO_D: repoD.root,
-        GITTREE_TEST_REPO_E: repoE.root,
+        GEET_TEST: '1',
+        GEET_TEST_AUTOCONFIRM: '1',
+        GEET_TEST_REPO_A: repoA.root,
+        GEET_TEST_REPO_B: repoB.root,
+        GEET_TEST_REPO_C: repoC.root,
+        GEET_TEST_REPO_D: repoD.root,
+        GEET_TEST_REPO_E: repoE.root,
         // Local-iteration filter (mocha grep on suite/test titles). The full
         // suite remains the gate; this only narrows ad-hoc runs.
-        ...(process.env['GITTREE_TEST_ONLY'] ? { GITTREE_TEST_ONLY: process.env['GITTREE_TEST_ONLY'] } : {}),
+        ...(process.env['GEET_TEST_ONLY'] ? { GEET_TEST_ONLY: process.env['GEET_TEST_ONLY'] } : {}),
       },
     });
   } finally {

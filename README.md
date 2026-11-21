@@ -108,7 +108,7 @@ uncommitted lines marked, and jump from any line to its commit in the Log.
   such as GitHub Copilot's.
 - **Console.** Every git command Geet runs, with secrets redacted.
 - **VCS Operations Popup** (`` Alt+` ``): every action that applies right now.
-- **An IntelliJ keymap**, if you want one: `gittree.keymap.intellij`.
+- **An IntelliJ keymap**, if you want one: `geet.keymap.intellij`.
 
 ## Getting started
 

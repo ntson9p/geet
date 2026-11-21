@@ -20,7 +20,7 @@ export function registerOnboarding(
   telemetry?: Telemetry,
 ): OnboardingDebugHooks {
   context.subscriptions.push(
-    vscode.commands.registerCommand('gittree.openWalkthrough', () => {
+    vscode.commands.registerCommand('geet.openWalkthrough', () => {
       telemetry?.featureFirstUse('walkthrough');
       return vscode.commands.executeCommand(
         'workbench.action.openWalkthrough',
@@ -28,7 +28,7 @@ export function registerOnboarding(
         false,
       );
     }),
-    vscode.commands.registerCommand('gittree.generatePlayground', () => {
+    vscode.commands.registerCommand('geet.generatePlayground', () => {
       telemetry?.featureFirstUse('playground');
       return generatePlayground(core);
     }),

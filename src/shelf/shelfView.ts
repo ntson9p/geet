@@ -1,9 +1,9 @@
 /**
- * P7-T4 — Shelf UI: TreeView `gittree.shelf` (SCM container, the spec's
+ * P7-T4 — Shelf UI: TreeView `geet.shelf` (SCM container, the spec's
  * "Shelf tab"). Entry rows (name · relative time · N files · origin branch)
  * expand to file children whose click opens a before/after diff: left =
- * `gittree-rev:<baseSha>` content, right = the file's hunks applied to that
- * base IN MEMORY and served through the `gittree-shelf:` content provider —
+ * `geet-rev:<baseSha>` content, right = the file's hunks applied to that
+ * base IN MEMORY and served through the `geet-shelf:` content provider —
  * previewing a shelf never touches the worktree or index.
  */
 import * as vscode from 'vscode';
@@ -12,7 +12,7 @@ import { applyHunks, splitPatchFiles } from '../core/patch/patchParser';
 import { makeRevUri } from '../core/vdocs/revContentProvider';
 import type { ShelfFileMeta, ShelfMeta, ShelfStore } from './shelfStore';
 
-export const SHELF_SCHEME = 'gittree-shelf';
+export const SHELF_SCHEME = 'geet-shelf';
 
 interface ShelfQuery {
   repo: string;
@@ -32,7 +32,7 @@ export type ShelfNode =
 
 /** P11-T6 — the Show-already-unshelved toggle, shared by tree and tab. */
 export function isShowUnshelvedEnabled(): boolean {
-  return vscode.workspace.getConfiguration('gittree.shelf').get<boolean>('showUnshelved', false);
+  return vscode.workspace.getConfiguration('geet.shelf').get<boolean>('showUnshelved', false);
 }
 
 /** Serves the reconstructed post-shelve content of one file in one shelf. */
@@ -87,7 +87,7 @@ export function shelfDiffSides(
 ): { left: vscode.Uri; right: vscode.Uri; title: string } {
   const base = node.file.relPath.split('/').pop() ?? node.file.relPath;
   return {
-    // gittree-rev serves empty content for paths absent at the ref (added).
+    // geet-rev serves empty content for paths absent at the ref (added).
     left: makeRevUri(node.repo.root, node.file.relPath, node.meta.baseSha),
     right: makeShelfUri(node.repo.root, node.meta.id, node.file.relPath),
     title: vscode.l10n.t('{0} (Shelved: {1})', base, node.meta.name),
@@ -95,6 +95,6 @@ export function shelfDiffSides(
 }
 
 
-// P14-T2: ShelfViewProvider is gone with the `gittree.shelf` tree view. The
+// P14-T2: ShelfViewProvider is gone with the `geet.shelf` tree view. The
 // commit window's Shelf tab (P11-T6) renders the same stores via ShelfBridge;
 // the ShelfNode shape survives because shelfDiffSides still takes it.

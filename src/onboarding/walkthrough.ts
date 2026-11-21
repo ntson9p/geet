@@ -4,13 +4,14 @@
  */
 
 /** `contributes.walkthroughs[0].id` in package.json. */
-export const WALKTHROUGH = 'gittree.gettingStarted';
+export const WALKTHROUGH = 'geet.gettingStarted';
 
 /**
  * The extension ID is the running one's, never written down: it is
- * `<publisher>.<name>`, and both changed for the Marketplace (`gittree.gittree`
- * → `ntson9p.gittree`, POST-P14cr, → `ntson9p.geet`, POST-P14ct), which left the
- * old literal opening nothing.
+ * `<publisher>.<name>`, and both changed for the Marketplace (the publisher in
+ * POST-P14cr, the name with the rename to Geet in POST-P14ct), which left the
+ * old literal opening nothing. Not even this comment names an ID: a unit test
+ * (`marketplace.test.ts`) fails on any in src/.
  */
 export function walkthroughId(extensionId: string): string {
   return `${extensionId}#${WALKTHROUGH}`;

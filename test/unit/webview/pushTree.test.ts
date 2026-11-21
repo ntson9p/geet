@@ -139,7 +139,7 @@ describe('pushing', () => {
   });
 
   /**
-   * POST-P14cn: with `gittree.push.showDialog` off, the host pushes what this
+   * POST-P14cn: with `geet.push.showDialog` off, the host pushes what this
    * dialog would push had Push been pressed the moment it opened. The two are
    * separate code, so the same rows must give the same repositories and
    * targets: one tracking its upstream, one published to a new branch, one

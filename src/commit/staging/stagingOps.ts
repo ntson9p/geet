@@ -158,7 +158,7 @@ async function revertSelected(core: Core): Promise<void> {
 
 /**
  * Hunk CodeLenses on file documents that are the RIGHT side of a visible
- * index↔worktree diff (left side = gittree-rev). Decorations aren't
+ * index↔worktree diff (left side = geet-rev). Decorations aren't
  * clickable, so lenses carry the `>>` actions.
  */
 class HunkCodeLensProvider implements vscode.CodeLensProvider {
@@ -204,12 +204,12 @@ class HunkCodeLensProvider implements vscode.CodeLensProvider {
       const range = new vscode.Range(line, 0, line, 0);
       lenses.push(
         new vscode.CodeLens(range, {
-          command: 'gittree.stage.hunkAt',
+          command: 'geet.stage.hunkAt',
           title: vscode.l10n.t('Stage hunk ≫'),
           arguments: [doc.uri, c],
         }),
         new vscode.CodeLens(range, {
-          command: 'gittree.revert.hunkAt',
+          command: 'geet.revert.hunkAt',
           title: vscode.l10n.t('Revert hunk'),
           arguments: [doc.uri, c],
         }),
@@ -224,11 +224,11 @@ export function registerStagingOps(context: vscode.ExtensionContext, core: Core)
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   };
 
-  register('gittree.stage.selectedRanges', () => stageSelected(core));
-  register('gittree.unstage.selectedRanges', () => unstageSelected(core));
-  register('gittree.revert.selectedRanges', () => revertSelected(core));
+  register('geet.stage.selectedRanges', () => stageSelected(core));
+  register('geet.unstage.selectedRanges', () => unstageSelected(core));
+  register('geet.revert.selectedRanges', () => revertSelected(core));
 
-  register('gittree.stageAll', async (repoRoot) => {
+  register('geet.stageAll', async (repoRoot) => {
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? core.repos[0];
     if (!repo) return;
     await repo.queue.enqueue({
@@ -240,7 +240,7 @@ export function registerStagingOps(context: vscode.ExtensionContext, core: Core)
       },
     });
   });
-  register('gittree.unstageAll', async (repoRoot) => {
+  register('geet.unstageAll', async (repoRoot) => {
     const repo = (typeof repoRoot === 'string' ? core.getRepo(repoRoot) : undefined) ?? core.repos[0];
     if (!repo) return;
     await repo.queue.enqueue({
@@ -253,7 +253,7 @@ export function registerStagingOps(context: vscode.ExtensionContext, core: Core)
   });
 
   // Single-hunk lens targets.
-  register('gittree.stage.hunkAt', async (uri, change) => {
+  register('geet.stage.hunkAt', async (uri, change) => {
     if (!(uri instanceof vscode.Uri) || typeof change !== 'object' || change === null) return;
     const repo = core.repoForUri(uri);
     if (!repo) return;
@@ -279,7 +279,7 @@ export function registerStagingOps(context: vscode.ExtensionContext, core: Core)
     reportStageOutcome(outcome);
     lensProvider.fire();
   });
-  register('gittree.revert.hunkAt', async (uri, change) => {
+  register('geet.revert.hunkAt', async (uri, change) => {
     if (!(uri instanceof vscode.Uri) || typeof change !== 'object' || change === null) return;
     const repo = core.repoForUri(uri);
     if (!repo) return;

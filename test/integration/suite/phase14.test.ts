@@ -30,57 +30,57 @@ suite('P14 owning the SCM surface', () => {
 
   /**
    * Views Geet contributes to its own container, in manifest order.
-   * T2 removed `gittree.changelists` and `gittree.shelf`: the commit window's
+   * T2 removed `geet.changelists` and `geet.shelf`: the commit window's
    * change tree and Shelf tab supersede them.
    */
   const EXPECTED_VIEWS = [
-    'gittree.commit',
-    // POST-P14co: the Repositories panel, split from `gittree.branches`, which
+    'geet.commit',
+    // POST-P14co: the Repositories panel, split from `geet.branches`, which
     // keeps the filter and the branches (and its id) as the Branches panel.
-    'gittree.repositoryList',
+    'geet.repositoryList',
     // POST-P14u: the repository selector, and the Branches view that follows
-    // it. `gittree.branches` is now the repository-scoped hub; the
-    // all-repositories tree it replaced moved to `gittree.branchesLegacy`.
-    'gittree.repositories',
-    // 87798ad: `gittree.branches` became the webview (two search fields a tree
+    // it. `geet.branches` is now the repository-scoped hub; the
+    // all-repositories tree it replaced moved to `geet.branchesLegacy`.
+    'geet.repositories',
+    // 87798ad: `geet.branches` became the webview (two search fields a tree
     // cannot hold); the tree that drew the same rows moved to
-    // `gittree.branchesTree`, behind gittree.sidebar.extraViews.
-    'gittree.branches',
-    'gittree.branchesTree',
-    'gittree.branchesLegacy',
-    'gittree.worktrees',
-    'gittree.compare',
-    'gittree.localHistory',
-    'gittree.conflicts',
-    'gittree.stashes',
-    'gittree.revTree',
+    // `geet.branchesTree`, behind geet.sidebar.extraViews.
+    'geet.branches',
+    'geet.branchesTree',
+    'geet.branchesLegacy',
+    'geet.worktrees',
+    'geet.compare',
+    'geet.localHistory',
+    'geet.conflicts',
+    'geet.stashes',
+    'geet.revTree',
   ];
 
-  test('T1: an activitybar container "gittree" is contributed', () => {
+  test('T1: an activitybar container "geet" is contributed', () => {
     const containers = contributes()['viewsContainers'] as
       | { activitybar?: Array<{ id: string; title: string; icon: string }> }
       | undefined;
     const bar = containers?.activitybar ?? [];
-    const ours = bar.find((c) => c.id === 'gittree');
-    assert.ok(ours, `no "gittree" activitybar container, got ${bar.map((c) => c.id).join(', ')}`);
+    const ours = bar.find((c) => c.id === 'geet');
+    assert.ok(ours, `no "geet" activitybar container, got ${bar.map((c) => c.id).join(', ')}`);
     assert.ok(ours.icon.endsWith('.svg'), `activitybar icons must be an SVG path, got ${ours.icon}`);
   });
 
   test('T1: every view lives in the Geet container, none in VS Code\'s scm container', () => {
     const views = contributes()['views'] as Record<string, Array<{ id: string }>>;
-    assert.ok(views['gittree'], 'no views contributed to the gittree container');
+    assert.ok(views['geet'], 'no views contributed to the geet container');
     assert.strictEqual(
       views['scm'],
       undefined,
       'Geet still contributes views to VS Code\'s Source Control container',
     );
     assert.deepStrictEqual(
-      views['gittree'].map((v) => v.id),
+      views['geet'].map((v) => v.id),
       EXPECTED_VIEWS,
       'Geet container view set or order changed',
     );
     // The Git tool window stays in the panel — that is the §2A shape.
-    assert.deepStrictEqual((views['gittree-panel'] ?? []).map((v) => v.id), ['gittree.log']);
+    assert.deepStrictEqual((views['geet-panel'] ?? []).map((v) => v.id), ['geet.log']);
   });
 
   test('POST-P14n: the extra sidebar panes are gated on a setting, not a default', () => {
@@ -93,19 +93,19 @@ suite('P14 owning the SCM surface', () => {
       string,
       Array<{ id: string; visibility?: string; when?: string }>
     >;
-    const byId = new Map(views['gittree']!.map((v) => [v.id, v]));
+    const byId = new Map(views['geet']!.map((v) => [v.id, v]));
     for (const id of [
-      // POST-P14u: `gittree.branches` left this list by being promoted — it is
+      // POST-P14u: `geet.branches` left this list by being promoted — it is
       // the sidebar's Branches view now. What it used to draw is
-      // `gittree.branchesLegacy`, and that is still gated exactly as before.
-      'gittree.branchesLegacy',
-      'gittree.worktrees',
-      'gittree.localHistory',
-      'gittree.stashes',
+      // `geet.branchesLegacy`, and that is still gated exactly as before.
+      'geet.branchesLegacy',
+      'geet.worktrees',
+      'geet.localHistory',
+      'geet.stashes',
     ]) {
       const when = byId.get(id)?.when ?? '';
       assert.ok(
-        when.includes('config.gittree.sidebar.extraViews'),
+        when.includes('config.geet.sidebar.extraViews'),
         `${id} must be gated on the setting, not on a visibility default; when=${when}`,
       );
       // Turning the setting on has to SHOW the pane. `hidden` would mean it
@@ -113,13 +113,13 @@ suite('P14 owning the SCM surface', () => {
       assert.notStrictEqual(byId.get(id)?.visibility, 'hidden', `${id} must not also be hidden`);
     }
     // Local History is still revealed on demand and keeps its second clause,
-    // or `gittree.history.show` would silently do nothing with the setting off.
-    // (`gittree.branches.active` went with POST-P14u: the view it unlocked is
+    // or `geet.history.show` would silently do nothing with the setting off.
+    // (`geet.branches.active` went with POST-P14u: the view it unlocked is
     // now contributed unconditionally, so there is nothing left to unlock.)
-    assert.ok(byId.get('gittree.localHistory')?.when?.includes('gittree.localHistory.active'));
-    for (const view of views['gittree']!) {
+    assert.ok(byId.get('geet.localHistory')?.when?.includes('geet.localHistory.active'));
+    for (const view of views['geet']!) {
       assert.ok(
-        (view.when ?? '') !== 'gittree.branches.active',
+        (view.when ?? '') !== 'geet.branches.active',
         'a context key nothing arms would leave the view permanently hidden',
       );
     }
@@ -130,9 +130,9 @@ suite('P14 owning the SCM surface', () => {
      * bar cannot be the way in — Cursor has no status bar at all, and a user
      * who has just installed Geet has to find branches somewhere.
      */
-    const UNCONDITIONAL = ['gittree.commit', 'gittree.branches'];
+    const UNCONDITIONAL = ['geet.commit', 'geet.branches'];
     for (const id of UNCONDITIONAL) assert.strictEqual(byId.get(id)?.when, undefined, id);
-    for (const view of views['gittree']!) {
+    for (const view of views['geet']!) {
       const optional = view.visibility === 'hidden' || view.when !== undefined;
       assert.ok(
         UNCONDITIONAL.includes(view.id) || optional,
@@ -150,7 +150,7 @@ suite('P14 owning the SCM surface', () => {
     const core = await activateGeet();
     const stashView = (core.debugRegistry.get('phase07') as { stashView: vscode.TreeView<unknown> })
       .stashView;
-    const cfg = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('gittree');
+    const cfg = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration('geet');
     const setExtra = async (value: boolean | undefined): Promise<void> => {
       await cfg().update('sidebar.extraViews', value, vscode.ConfigurationTarget.Global);
       await waitFor(
@@ -161,7 +161,7 @@ suite('P14 owning the SCM surface', () => {
 
     try {
       await setExtra(true);
-      await vscode.commands.executeCommand('gittree.stashes.focus');
+      await vscode.commands.executeCommand('geet.stashes.focus');
       await waitFor(() => stashView.visible, 20_000);
       assert.strictEqual(stashView.visible, true, 'the pane must be showing before the gate closes');
 
@@ -182,22 +182,22 @@ suite('P14 owning the SCM surface', () => {
     this.timeout(60_000);
     // The gate's one real hazard: you cannot focus a view that is not
     // contributed, so `Show Local History` would have become a no-op. It arms
-    // `gittree.localHistory.active` first — IntelliJ's own model, where
+    // `geet.localHistory.active` first — IntelliJ's own model, where
     // `Show History` opens the window rather than leaving it standing open.
     const core = await activateGeet();
     const view = (core.debugRegistry.get('phase09') as { view: vscode.TreeView<unknown> }).view;
     assert.strictEqual(
-      vscode.workspace.getConfiguration('gittree').get<boolean>('sidebar.extraViews', false),
+      vscode.workspace.getConfiguration('geet').get<boolean>('sidebar.extraViews', false),
       false,
       'this test is about the default, off state',
     );
     try {
-      await vscode.commands.executeCommand('gittree.history.show');
+      await vscode.commands.executeCommand('geet.history.show');
       await waitFor(() => view.visible, 20_000);
       assert.strictEqual(view.visible, true, 'Show Local History must reveal the view');
     } finally {
       // The key is session-wide once armed; later suites share this window.
-      await vscode.commands.executeCommand('setContext', 'gittree.localHistory.active', false);
+      await vscode.commands.executeCommand('setContext', 'geet.localHistory.active', false);
     }
   });
 
@@ -205,8 +205,8 @@ suite('P14 owning the SCM surface', () => {
     this.timeout(30_000);
     // A container move is only real if the view still resolves from it; the
     // manifest assertions above cannot see that.
-    await vscode.commands.executeCommand('workbench.view.extension.gittree');
-    await vscode.commands.executeCommand('gittree.commit.focus');
+    await vscode.commands.executeCommand('workbench.view.extension.geet');
+    await vscode.commands.executeCommand('geet.commit.focus');
   });
 
   test('T2: the native commit surface is gone from the manifest', () => {
@@ -222,9 +222,9 @@ suite('P14 owning the SCM surface', () => {
     const settings = (c['configuration'] as Array<{ properties?: Record<string, unknown> }>).flatMap(
       (b) => Object.keys(b.properties ?? {}),
     );
-    assert.ok(!settings.includes('gittree.commit.window'), 'gittree.commit.window must be gone');
+    assert.ok(!settings.includes('geet.commit.window'), 'geet.commit.window must be gone');
     assert.ok(
-      settings.includes('gittree.commit.paradigm'),
+      settings.includes('geet.commit.paradigm'),
       'the paradigm setting is unrelated and must survive',
     );
 
@@ -232,7 +232,7 @@ suite('P14 owning the SCM surface', () => {
     for (const [name, arr] of Object.entries(menus)) {
       for (const e of arr as Array<{ when?: string }>) {
         assert.ok(
-          !String(e.when ?? '').includes('gittree.commitWindow'),
+          !String(e.when ?? '').includes('geet.commitWindow'),
           `${name} still references the retired commitWindow context key`,
         );
       }
@@ -261,7 +261,7 @@ suite('P14 owning the SCM surface', () => {
 
       // This is the whole point of T2: the changelists tree view is gone, so
       // the only caller left passes {repoRoot, listId} from the webview.
-      await vscode.commands.executeCommand('gittree.changelist.setActive', {
+      await vscode.commands.executeCommand('geet.changelist.setActive', {
         repoRoot: repo.root,
         listId: list.id,
       });
@@ -273,7 +273,7 @@ suite('P14 owning the SCM surface', () => {
 
       // An unresolvable repo must be a no-op, never a throw — a context object
       // can outlive the repo it named.
-      await vscode.commands.executeCommand('gittree.changelist.setActive', {
+      await vscode.commands.executeCommand('geet.changelist.setActive', {
         repoRoot: 'D:/no/such/repo',
         listId: list.id,
       });
@@ -312,8 +312,8 @@ suite('P14 owning the SCM surface', () => {
     const repo = core.repoForPath(workspaceRepoC())!;
     const root = repo.root;
 
-    await vscode.commands.executeCommand('workbench.view.extension.gittree');
-    await vscode.commands.executeCommand('gittree.commit.focus');
+    await vscode.commands.executeCommand('workbench.view.extension.geet');
+    await vscode.commands.executeCommand('geet.commit.focus');
     await waitFor(() => reg.commitWindow.isResolved, 15_000);
 
     // `SourceControl.count` used to carry this; the view badge replaces it.
@@ -336,16 +336,16 @@ suite('P14 owning the SCM surface', () => {
     }>;
     const ids = colors.map((x) => x.id).sort();
     const statusIds = [
-      'gittree.color.added',
-      'gittree.color.conflicted',
-      'gittree.color.deleted',
-      'gittree.color.ignored',
-      'gittree.color.modified',
-      'gittree.color.renamed',
-      'gittree.color.untracked',
+      'geet.color.added',
+      'geet.color.conflicted',
+      'geet.color.deleted',
+      'geet.color.ignored',
+      'geet.color.modified',
+      'geet.color.renamed',
+      'geet.color.untracked',
     ];
     assert.deepStrictEqual(
-      ids.filter((id) => id.startsWith('gittree.color.')),
+      ids.filter((id) => id.startsWith('geet.color.')),
       statusIds,
       'Geet must contribute its own status colours',
     );
@@ -354,16 +354,16 @@ suite('P14 owning the SCM surface', () => {
     assert.deepStrictEqual(
       ids,
       [
-        'gittree.blame.age1Background',
-        'gittree.blame.age2Background',
-        'gittree.blame.age3Background',
-        'gittree.blame.age4Background',
-        'gittree.blame.age5Background',
-        'gittree.blame.foreground',
-        'gittree.blame.uncommittedBackground',
+        'geet.blame.age1Background',
+        'geet.blame.age2Background',
+        'geet.blame.age3Background',
+        'geet.blame.age4Background',
+        'geet.blame.age5Background',
+        'geet.blame.foreground',
+        'geet.blame.uncommittedBackground',
         ...statusIds,
         // 7dcaae0: the borders a drag resizes, drawn between side bar sections.
-        'gittree.sectionBorder',
+        'geet.sectionBorder',
       ],
       'every contributed colour is accounted for',
     );
@@ -384,7 +384,7 @@ suite('P14 owning the SCM surface', () => {
     );
     // The setting only chose between the tri-editor and the `_open.mergeEditor`
     // internal-command bridge; the bridge is deleted, so the choice is gone.
-    assert.ok(!settings.includes('gittree.merge.ui'), 'gittree.merge.ui should be gone');
+    assert.ok(!settings.includes('geet.merge.ui'), 'geet.merge.ui should be gone');
   });
 
   test('T6: the coexistence machinery is gone and git.enabled is untouched', async function () {
@@ -393,9 +393,9 @@ suite('P14 owning the SCM surface', () => {
     const settings = (c['configuration'] as Array<{ properties?: Record<string, unknown> }>).flatMap(
       (b) => Object.keys(b.properties ?? {}),
     );
-    assert.ok(!settings.includes('gittree.mode'), 'gittree.mode should be gone');
+    assert.ok(!settings.includes('geet.mode'), 'geet.mode should be gone');
     assert.ok(
-      settings.includes('gittree.decorations.fileExplorer'),
+      settings.includes('geet.decorations.fileExplorer'),
       'the one thing the mode still gated needs a plain setting',
     );
 
@@ -481,14 +481,14 @@ suite('P14 owning the SCM surface', () => {
       // the top and let the first press find change one.
       const start = vscode.window.activeTextEditor!;
       start.selection = new vscode.Selection(0, 0, 0, 0);
-      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await vscode.commands.executeCommand('geet.diff.nextChange');
       await waitFor(() => (at()?.line ?? -1) === 3, 10_000);
 
       const visited: string[] = [];
       for (let step = 0; step < 12; step++) {
         const before = at()!;
         visited.push(`${before.title}:${before.line}`);
-        await vscode.commands.executeCommand('gittree.diff.nextChange');
+        await vscode.commands.executeCommand('geet.diff.nextChange');
         // Give a crossing time to open the next diff.
         await new Promise((r) => setTimeout(r, 250));
       }
@@ -649,12 +649,12 @@ suite('P14 owning the SCM surface', () => {
       await firstHunkOpen();
       const tabs = (): number => vscode.window.tabGroups.activeTabGroup.tabs.length;
 
-      await vscode.commands.executeCommand('gittree.diff.nextFile');
+      await vscode.commands.executeCommand('geet.diff.nextFile');
       await waitFor(() => at()?.title === 'p14t2.txt 2/3', 15_000);
       assert.strictEqual(tabs(), 1, 'a preview tab is replaced');
 
       await vscode.commands.executeCommand('workbench.action.keepEditor');
-      await vscode.commands.executeCommand('gittree.diff.nextFile');
+      await vscode.commands.executeCommand('geet.diff.nextFile');
       await waitFor(() => at()?.title === 'p14t3.txt 3/3', 15_000);
       assert.strictEqual(tabs(), 2, 'a tab the user kept stays');
       cleanup();
@@ -674,7 +674,7 @@ suite('P14 owning the SCM surface', () => {
       assert.deepStrictEqual(heard, ['+p14o1.txt']);
 
       // The file leaving is told before the one coming.
-      await vscode.commands.executeCommand('gittree.diff.nextFile');
+      await vscode.commands.executeCommand('geet.diff.nextFile');
       await waitFor(() => heard.length === 3, 15_000);
       assert.deepStrictEqual(heard.slice(1), ['-p14o1.txt', '+p14o2.txt']);
 
@@ -698,7 +698,7 @@ suite('P14 owning the SCM surface', () => {
       const names = ['p14g1.txt', 'p14g2.txt'];
       const { head, cleanup } = commitWalk(names);
       const log = ((await activateGeet()).debugRegistry.get('phase04') as Phase04Registry).logView;
-      await vscode.commands.executeCommand('gittree.log.focus');
+      await vscode.commands.executeCommand('geet.log.focus');
       await waitFor(() => log.currentSession !== undefined, 30_000);
       const before = log.logTabs.tabs;
       const inFront = log.logTabs.active;
@@ -717,7 +717,7 @@ suite('P14 owning the SCM surface', () => {
         assert.strictEqual(log.diffOnScreenOf(tab)?.sha, head);
         assert.strictEqual(log.diffOnScreenOf(inFront), undefined, 'only the tab it came from');
 
-        await vscode.commands.executeCommand('gittree.diff.nextFile');
+        await vscode.commands.executeCommand('geet.diff.nextFile');
         await waitFor(() => log.diffOnScreenOf(tab!)?.path === names[1], 15_000);
 
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -760,23 +760,23 @@ suite('P14 owning the SCM surface', () => {
       );
       await firstHunkOpen();
 
-      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await vscode.commands.executeCommand('geet.diff.nextChange');
       await new Promise((r) => setTimeout(r, 250));
       assert.strictEqual(at()?.line, 14);
-      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await vscode.commands.executeCommand('geet.diff.nextChange');
       await new Promise((r) => setTimeout(r, 250));
-      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await vscode.commands.executeCommand('geet.diff.nextChange');
       await waitFor(() => at()?.title === 'added 3/4', 15_000);
 
-      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await vscode.commands.executeCommand('geet.diff.nextChange');
       await new Promise((r) => setTimeout(r, 250));
-      await vscode.commands.executeCommand('gittree.diff.nextChange');
+      await vscode.commands.executeCommand('geet.diff.nextChange');
       await waitFor(() => at()?.title === 'deleted 4/4', 15_000);
 
       // The file arrows stop on it all the same: it is in the list.
-      await vscode.commands.executeCommand('gittree.diff.prevFile');
+      await vscode.commands.executeCommand('geet.diff.prevFile');
       await waitFor(() => at()?.title === 'added 3/4', 15_000);
-      await vscode.commands.executeCommand('gittree.diff.prevFile');
+      await vscode.commands.executeCommand('geet.diff.prevFile');
       await waitFor(() => at()?.title === 'renamed 2/4', 15_000);
       cleanup();
     });
@@ -796,7 +796,7 @@ suite('P14 owning the SCM surface', () => {
       ];
       await reg.sessions.open(entries, 0);
       // By name VS Code would hand this to its image viewer, which cannot read
-      // `gittree-rev:` and shows an error page with no toolbar.
+      // `geet-rev:` and shows an error page with no toolbar.
       await waitFor(() => vscode.window.activeTextEditor !== undefined, 15_000);
       const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
       assert.ok(tab?.input instanceof vscode.TabInputTextDiff);
@@ -825,7 +825,7 @@ suite('P14 owning the SCM surface', () => {
 
     test('the setting hands the arrows back', async function () {
       this.timeout(120_000);
-      const cfg = vscode.workspace.getConfiguration('gittree.diff');
+      const cfg = vscode.workspace.getConfiguration('geet.diff');
       const { entries, cleanup } = commitWalk(['p14o1.txt', 'p14o2.txt']);
       await cfg.update('goToNextFileAfterLastChange', false, vscode.ConfigurationTarget.Global);
       try {
@@ -967,7 +967,7 @@ suite('P14 owning the SCM surface', () => {
           // Every state carries it, for a view that starts again while the diff is up.
           assert.deepStrictEqual(commitWindow.buildState().diffOnScreen, { repoRoot: fsRoot, path: names[0] });
 
-          await vscode.commands.executeCommand('gittree.diff.nextFile');
+          await vscode.commands.executeCommand('geet.diff.nextFile');
           await waitFor(() => commitWindow.diffOnScreenFile?.path === names[1], 15_000);
 
           await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -992,7 +992,7 @@ suite('P14 owning the SCM surface', () => {
       const openRow = async (file: string): Promise<void> => {
         const node = compare.provider.fileNode(file);
         assert.ok(node, `${file} is not listed`);
-        await vscode.commands.executeCommand('gittree.compare.openFile', node);
+        await vscode.commands.executeCommand('geet.compare.openFile', node);
       };
 
       suiteSetup(async () => {
@@ -1021,7 +1021,7 @@ suite('P14 owning the SCM surface', () => {
 
       teardown(async () => {
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-        await vscode.commands.executeCommand('gittree.compare.close');
+        await vscode.commands.executeCommand('geet.compare.close');
         git('rm', '-q', '-f', '--ignore-unmatch', ...FILES);
         git('commit', '-m', 'p14 compare cleanup');
         git('branch', '-D', BASE);
@@ -1030,7 +1030,7 @@ suite('P14 owning the SCM surface', () => {
 
       test('Show Files Diff lists what differs and walks all of it in one tab', async function () {
         this.timeout(120_000);
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, BASE, current);
         assert.deepStrictEqual(listed(), ['p14c-gone.txt', 'p14c-mod.txt', 'p14c-moved.txt', 'p14c-new.txt']);
 
         // In the order the pane shows them, and straight past the rename with no change in it.
@@ -1048,7 +1048,7 @@ suite('P14 owning the SCM surface', () => {
 
       test('a branch moving on leaves the walk on what was listed, until Refresh', async function () {
         this.timeout(120_000);
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, BASE, current);
         await openRow('p14c-mod.txt');
         await waitFor(() => at()?.title.startsWith('p14c-mod.txt') === true, 15_000);
         const before = (onTab()?.input as vscode.TabInputTextDiff).modified;
@@ -1062,7 +1062,7 @@ suite('P14 owning the SCM surface', () => {
         assert.strictEqual(listed().length, 4, 'the list is what was read');
         assert.strictEqual((onTab()?.input as vscode.TabInputTextDiff).modified.toString(), before.toString());
 
-        await vscode.commands.executeCommand('gittree.compare.refresh');
+        await vscode.commands.executeCommand('geet.compare.refresh');
         assert.ok(listed().includes('p14c-later.txt'), 'read again, it has the new tip');
         // The file on screen keeps its place, and the walk now knows the longer list.
         assert.strictEqual(at()?.title.startsWith('p14c-mod.txt'), true);
@@ -1070,10 +1070,10 @@ suite('P14 owning the SCM surface', () => {
 
       test('several rows selected walk only those, and a folder stands for its files', async function () {
         this.timeout(120_000);
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, BASE, current);
         const mod = compare.provider.fileNode('p14c-mod.txt')!;
         const fresh = compare.provider.fileNode('p14c-new.txt')!;
-        await vscode.commands.executeCommand('gittree.compare.openChanges', mod, [mod, fresh]);
+        await vscode.commands.executeCommand('geet.compare.openChanges', mod, [mod, fresh]);
         await waitFor(() => at()?.title === `p14c-mod.txt (${BASE} ⟷ ${current}) 1/2`, 15_000);
 
         // One click on a row is back to the whole list.
@@ -1084,7 +1084,7 @@ suite('P14 owning the SCM surface', () => {
       test('Show Diff with Working Tree has the real file on the right', async function () {
         this.timeout(120_000);
         fs.writeFileSync(path.join(fsRoot, 'p14c-mod.txt'), body.replace('row 9\n', 'row 9 NOT COMMITTED\n'));
-        await vscode.commands.executeCommand('gittree.branches.diffWithWorkingTree', fsRoot, BASE);
+        await vscode.commands.executeCommand('geet.branches.diffWithWorkingTree', fsRoot, BASE);
         assert.strictEqual(compare.provider.state?.comparison.right, 'worktree');
         assert.deepStrictEqual(listed(), ['p14c-gone.txt', 'p14c-mod.txt', 'p14c-moved.txt', 'p14c-new.txt']);
 
@@ -1101,14 +1101,14 @@ suite('P14 owning the SCM surface', () => {
 
       test('no differences says so, and lists nothing', async function () {
         this.timeout(60_000);
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, current, current);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, current, current);
         assert.deepStrictEqual(listed(), []);
         assert.ok(compare.provider.state, 'read, with nothing in it');
       });
 
       test('the row of the file on screen is highlighted, and only while it is', async function () {
         this.timeout(120_000);
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, BASE, current);
         const label = (file: string): string | vscode.TreeItemLabel | undefined =>
           compare.provider.getTreeItem(compare.provider.fileNode(file)!).label;
         const lit = (file: string): boolean => typeof label(file) === 'object';
@@ -1122,21 +1122,21 @@ suite('P14 owning the SCM surface', () => {
         });
         assert.ok(!lit('p14c-mod.txt'));
 
-        await vscode.commands.executeCommand('gittree.diff.nextFile');
+        await vscode.commands.executeCommand('geet.diff.nextFile');
         await waitFor(() => lit('p14c-mod.txt'), 15_000);
         assert.ok(!lit('p14c-gone.txt'), 'one row at a time');
 
         // Read again, the same comparison keeps its mark.
-        await vscode.commands.executeCommand('gittree.compare.refresh');
+        await vscode.commands.executeCommand('geet.compare.refresh');
         assert.ok(lit('p14c-mod.txt'));
 
         // Another comparison is another list: the diff still up is not in it.
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, current, BASE);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, current, BASE);
         assert.strictEqual(compare.provider.showing, undefined);
         assert.ok(!lit('p14c-mod.txt'));
 
         // Back to the first, and the diff closed: nothing is lit.
-        await vscode.commands.executeCommand('gittree.compare.showFilesDiff', fsRoot, BASE, current);
+        await vscode.commands.executeCommand('geet.compare.showFilesDiff', fsRoot, BASE, current);
         await openRow('p14c-new.txt');
         await waitFor(() => lit('p14c-new.txt'), 15_000);
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -1147,14 +1147,14 @@ suite('P14 owning the SCM surface', () => {
     test('the diff toolbar controls are scoped to Geet diffs', () => {
       const menus = contributes()['menus'] as Record<string, Array<{ command?: string; when?: string }>>;
       const ours = (menus['editor/title'] ?? []).filter((e) =>
-        String(e.command ?? '').startsWith('gittree.diff.'),
+        String(e.command ?? '').startsWith('geet.diff.'),
       );
       assert.strictEqual(ours.length, 5, 'expected 2 file arrows + 3 view toggles');
       for (const e of ours) {
         // Unscoped, these would appear on every diff in the window, including
         // ones Geet knows nothing about.
         assert.match(String(e.when), /isInDiffEditor/u);
-        assert.match(String(e.when), /gittree\.diff\.active/u);
+        assert.match(String(e.when), /geet\.diff\.active/u);
       }
     });
   });
@@ -1265,11 +1265,11 @@ suite('P14 owning the SCM surface', () => {
      */
     async function setHoverActions(value: boolean | undefined): Promise<void> {
       await vscode.workspace
-        .getConfiguration('gittree')
+        .getConfiguration('geet')
         .update('changeBars.hoverActions', value, vscode.ConfigurationTarget.Global);
       await waitFor(
         () =>
-          vscode.workspace.getConfiguration('gittree').get<boolean>('changeBars.hoverActions') ===
+          vscode.workspace.getConfiguration('geet').get<boolean>('changeBars.hoverActions') ===
           (value ?? false),
         10_000,
       );
@@ -1278,11 +1278,11 @@ suite('P14 owning the SCM surface', () => {
     /** Put `changeBars.maxFileLines` back to its default and wait for it. */
     async function resetCutoff(): Promise<void> {
       await vscode.workspace
-        .getConfiguration('gittree')
+        .getConfiguration('geet')
         .update('changeBars.maxFileLines', undefined, vscode.ConfigurationTarget.Global);
       await waitFor(
         () =>
-          vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') ===
+          vscode.workspace.getConfiguration('geet').get<number>('changeBars.maxFileLines') ===
           20000,
         10_000,
       );
@@ -1331,7 +1331,7 @@ suite('P14 owning the SCM surface', () => {
     test('an untracked file gets no bars — it has no base to compare against', async function () {
       this.timeout(60_000);
       fs.writeFileSync(abs('p14untracked.txt'), 'brand new\n');
-      await vscode.commands.executeCommand('gittree.refresh');
+      await vscode.commands.executeCommand('geet.refresh');
       const painted = await paint('p14untracked.txt', 'brand new\n', { settle: 'empty' });
       assert.strictEqual(painted, undefined, 'untracked files must not report changes');
       fs.rmSync(abs('p14untracked.txt'));
@@ -1360,7 +1360,7 @@ suite('P14 owning the SCM surface', () => {
         // change-action command links.
         return (hovers ?? []).some((h) =>
           h.contents.some((c) =>
-            typeof c === 'string' ? false : c.value.includes('command:gittree.change.'),
+            typeof c === 'string' ? false : c.value.includes('command:geet.change.'),
           ),
         );
       };
@@ -1403,7 +1403,7 @@ suite('P14 owning the SCM surface', () => {
 
     test('a file over the line cutoff paints nothing rather than stalling', async function () {
       this.timeout(90_000);
-      const cfg = vscode.workspace.getConfiguration('gittree');
+      const cfg = vscode.workspace.getConfiguration('geet');
       const body = Array.from({ length: 40 }, (_, i) => `big ${i + 1}`).join('\n') + '\n';
       fs.writeFileSync(abs('p14big.txt'), body);
       git('add', 'p14big.txt');
@@ -1416,7 +1416,7 @@ suite('P14 owning the SCM surface', () => {
       await cfg.update('changeBars.maxFileLines', 100, vscode.ConfigurationTarget.Global);
       await waitFor(
         () =>
-          vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') === 100,
+          vscode.workspace.getConfiguration('geet').get<number>('changeBars.maxFileLines') === 100,
         10_000,
       );
       try {
@@ -1426,7 +1426,7 @@ suite('P14 owning the SCM surface', () => {
         await cfg.update('changeBars.maxFileLines', 10, vscode.ConfigurationTarget.Global);
         await waitFor(
           () =>
-            vscode.workspace.getConfiguration('gittree').get<number>('changeBars.maxFileLines') === 10,
+            vscode.workspace.getConfiguration('geet').get<number>('changeBars.maxFileLines') === 10,
           10_000,
         );
         assert.strictEqual(

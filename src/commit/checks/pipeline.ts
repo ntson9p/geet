@@ -28,11 +28,11 @@ export type CheckResult =
 export interface CommitCheck {
   id: string;
   label: string;
-  /** Setting under gittree.commit.checks.* gating this check. */
+  /** Setting under geet.commit.checks.* gating this check. */
   configKey: string;
   /**
    * P11-T5: an "Advanced Commit Check" (Analyze, TODO). When
-   * `gittree.commit.checks.deferAdvanced` is on these run *after* the commit
+   * `geet.commit.checks.deferAdvanced` is on these run *after* the commit
    * and report via notification — IntelliJ's "Failed checks will not prevent
    * a commit". Non-advanced checks (reformat/imports/cleanup) rewrite files,
    * so deferring them would commit the unformatted tree; they always gate.
@@ -49,7 +49,7 @@ export interface PipelineOutcome {
 }
 
 export function checksEnabled(configKey: string): boolean {
-  return vscode.workspace.getConfiguration('gittree.commit.checks').get<boolean>(configKey, false);
+  return vscode.workspace.getConfiguration('geet.commit.checks').get<boolean>(configKey, false);
 }
 
 export class CheckPipeline {
@@ -120,7 +120,7 @@ async function presentFailures(
   const review = vscode.l10n.t('Review…');
   const anyway = vscode.l10n.t('Commit Anyway');
 
-  const testChoice = process.env['GITTREE_TEST_CHECKS_CHOICE'];
+  const testChoice = process.env['GEET_TEST_CHECKS_CHOICE'];
   let picked: string | undefined;
   if (testChoice === 'review') picked = review;
   else if (testChoice === 'anyway') picked = anyway;
@@ -145,7 +145,7 @@ async function presentFailures(
 
 /** Gear UI (P3-T7 step 7): multi-select QuickPick persisted to settings. */
 export async function configureChecks(pipeline: CheckPipeline): Promise<void> {
-  const config = vscode.workspace.getConfiguration('gittree.commit.checks');
+  const config = vscode.workspace.getConfiguration('geet.commit.checks');
   const items = pipeline.all.map((check) => ({
     label: check.label,
     check,
@@ -158,6 +158,6 @@ export async function configureChecks(pipeline: CheckPipeline): Promise<void> {
   if (picked === undefined) return;
   const enabled = new Set(picked.map((p) => p.check.id));
   for (const check of pipeline.all) {
-    await writeSetting('gittree.commit.checks', check.configKey, enabled.has(check.id));
+    await writeSetting('geet.commit.checks', check.configKey, enabled.has(check.id));
   }
 }

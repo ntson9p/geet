@@ -8,7 +8,7 @@
  * TreeView cannot render folder rows for a flat changelist, so IntelliJ's
  * tick-what-you-commit model is unreachable natively. This reverses the master
  * §6 "webview commit dialog: rejected" decision; the escape hatch is
- * `gittree.commit.window: 'native'`, which restores the P3 surface intact.
+ * `geet.commit.window: 'native'`, which restores the P3 surface intact.
  *
  * The host owns all state. The webview renders what it is given and posts
  * intents back; every handler is idempotent so a rehydrate can re-send.
@@ -127,7 +127,7 @@ function filterRepoOf(repo: CommitRepoDto): CommitFilterRepoDto {
   };
 }
 
-const MESSAGE_KEY_PREFIX = 'gittree.commit.message.';
+const MESSAGE_KEY_PREFIX = 'geet.commit.message.';
 
 /** The one walk over this window's list: opening another replaces it. */
 const DIFF_SEQUENCE_ID = 'commit-window';
@@ -151,7 +151,7 @@ function classify(entry: StatusEntry | undefined): CommitChangeDto['kind'] {
 }
 
 export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
-  static readonly viewType = 'gittree.commit';
+  static readonly viewType = 'geet.commit';
 
   private view: vscode.WebviewView | undefined;
   private rpc: WebviewRpcHost | undefined;
@@ -192,13 +192,13 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       // which the palette commands and the settings file change too.
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (
-          e.affectsConfiguration('gittree.colors') ||
-          e.affectsConfiguration('gittree.log.graphPalette') ||
-          e.affectsConfiguration('gittree.log.dateFormat') ||
-          e.affectsConfiguration('gittree.commit.groupBy') ||
-          e.affectsConfiguration('gittree.commit.groupByDirectory') ||
+          e.affectsConfiguration('geet.colors') ||
+          e.affectsConfiguration('geet.log.graphPalette') ||
+          e.affectsConfiguration('geet.log.dateFormat') ||
+          e.affectsConfiguration('geet.commit.groupBy') ||
+          e.affectsConfiguration('geet.commit.groupByDirectory') ||
           // POST-P14cj: the Generate Commit Message button, shown or not.
-          e.affectsConfiguration('gittree.commit.messageGeneration.enabled') ||
+          e.affectsConfiguration('geet.commit.messageGeneration.enabled') ||
           e.affectsConfiguration('chat.disableAIFeatures')
         ) {
           this.push();
@@ -429,12 +429,12 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       ...(this.lastError !== undefined ? { error: this.lastError } : {}),
       colors: statusColorOverrides(),
       palette:
-        vscode.workspace.getConfiguration('gittree.log').get<string>('graphPalette') === 'colorBlind'
+        vscode.workspace.getConfiguration('geet.log').get<string>('graphPalette') === 'colorBlind'
           ? 'colorBlind'
           : 'default',
       groupBy: readCommitGroupBy(),
       groupByDirectory: readCommitGroupByDirectory(),
-      dateFormat: readDateFormat(vscode.workspace.getConfiguration('gittree.log').get<unknown>('dateFormat')),
+      dateFormat: readDateFormat(vscode.workspace.getConfiguration('geet.log').get<unknown>('dateFormat')),
       ...(this.diffOnScreen !== undefined ? { diffOnScreen: this.diffOnScreen } : {}),
       ...(generationOffered() ? { messageGeneration: this.generating !== undefined ? 'running' : 'idle' } : {}),
     };
@@ -560,7 +560,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     const session = p6?.getSession?.(repo.root);
     const node = session?.files().find((f) => f.path.replace(/\\/g, '/') === file.path);
     if (session === undefined || node === undefined) return false;
-    await vscode.commands.executeCommand('gittree.merge.open', { session, path: node.path, kind: node.kind });
+    await vscode.commands.executeCommand('geet.merge.open', { session, path: node.path, kind: node.kind });
     return true;
   }
 
@@ -953,7 +953,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
   private wire(rpc: WebviewRpcHost): void {
     rpc.on(COMMIT_METHODS.init, () => this.buildState());
     rpc.on(COMMIT_METHODS.refresh, async () => {
-      await vscode.commands.executeCommand('gittree.refresh');
+      await vscode.commands.executeCommand('geet.refresh');
       this.push();
     });
 
@@ -1012,7 +1012,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     // The Merge Conflicts row's Resolve: IntelliJ's link on that node.
     rpc.on(COMMIT_METHODS.resolveConflicts, async (raw) => {
       const p = (raw ?? {}) as { repoRoot?: string };
-      await vscode.commands.executeCommand('gittree.conflicts.resolve', p.repoRoot);
+      await vscode.commands.executeCommand('geet.conflicts.resolve', p.repoRoot);
     });
     // POST-P14bq: the keyboard's row, in the file manager (`revealKeyboardRow`).
     rpc.on(COMMIT_METHODS.reveal, async (raw) => {
@@ -1108,7 +1108,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     // keyboard on that repository's row.
     rpc.on(COMMIT_METHODS.revealRepository, async (raw) => {
       const root = (raw as { root?: unknown } | undefined)?.root;
-      if (typeof root === 'string') await vscode.commands.executeCommand('gittree.branches.revealRepository', root);
+      if (typeof root === 'string') await vscode.commands.executeCommand('geet.branches.revealRepository', root);
     });
 
     // POST-P14cj: Generate Commit Message. Answered at once: the state says
@@ -1137,7 +1137,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       await this.guard('rollback', async () => {
         for (const rel of p.paths) {
           await vscode.commands.executeCommand(
-            'gittree.rollbackFile',
+            'geet.rollbackFile',
             vscode.Uri.file(path.join(repo.root, rel)),
           );
         }
@@ -1149,16 +1149,16 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
       const repo = this.repoFor(p.repoRoot);
       if (!repo) return;
       // P11-T7: opens the Shelve Changes dialog. (Until T7 this executed
-      // 'gittree.shelve' — a command id that has never existed, so the
+      // 'geet.shelve' — a command id that has never existed, so the
       // toolbar button errored since T2. The dialog is also the fix.)
       await this.guard('shelve', async () => {
-        await vscode.commands.executeCommand('gittree.shelve.dialog', repo.root);
+        await vscode.commands.executeCommand('geet.shelve.dialog', repo.root);
       });
     });
 
     // P11-T4: the clock and Amend ▾ dropdowns render inside the webview; the
     // host only serves their data. The native QuickPick stays reachable via
-    // the `gittree.commit.showMessageHistory` command in both modes.
+    // the `geet.commit.showMessageHistory` command in both modes.
     rpc.on(COMMIT_METHODS.messageHistory, async (raw) => {
       const p = raw as { repoRoot: string };
       const repo = this.repoFor(p.repoRoot);
@@ -1174,7 +1174,7 @@ export class CommitWindowViewProvider implements vscode.WebviewViewProvider, vsc
     });
 
     // P11-T5: the gear popup renders inside the webview; the host serves and
-    // applies its state. The `gittree.commit.configureChecks` QuickPick stays
+    // applies its state. The `geet.commit.configureChecks` QuickPick stays
     // registered for native mode and the palette.
     rpc.on(COMMIT_METHODS.options, async (raw) => {
       const p = raw as { repoRoot: string };

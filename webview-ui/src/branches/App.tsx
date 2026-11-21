@@ -111,7 +111,7 @@ const rpc = new RpcClient();
  * Repositories panel, or the Branches panel (also a page that says nothing).
  */
 const ROLE: BranchPanelRole =
-  (window as { __gittreeInitialState?: Partial<BranchPanelInitialStateDto> }).__gittreeInitialState?.role ===
+  (window as { __geetInitialState?: Partial<BranchPanelInitialStateDto> }).__geetInitialState?.role ===
   'repositories'
     ? 'repositories'
     : 'branches';
@@ -120,7 +120,7 @@ const ROLE: BranchPanelRole =
 const LONG_MS = 10 * 60_000;
 /** Cards remembered; their facts cost git, and the panel re-asks when the refs move. */
 const DETAILS_KEPT = 40;
-const DRAG_MIME = 'application/x-gittree-branch';
+const DRAG_MIME = 'application/x-geet-branch';
 
 interface Persisted {
   /**
@@ -737,7 +737,7 @@ export function App() {
         // several, this menu could not say which it would act on; each
         // repository's own menu has it, and acts on that one.
         ...(single !== undefined
-          ? [item('revision', 'Checkout Tag or Revision…', () => runCommand('gittree.branches.checkoutRevision', single))]
+          ? [item('revision', 'Checkout Tag or Revision…', () => runCommand('geet.branches.checkoutRevision', single))]
           : []),
         // POST-P14ax: one branch in every repository in view, from a picker of them all.
         ...(model.scopeRepos.length > 1
@@ -752,7 +752,7 @@ export function App() {
               ),
             ]
           : []),
-        item('cleanup', 'Clean Up Branches…', () => runCommand('gittree.branches.cleanup', single), {
+        item('cleanup', 'Clean Up Branches…', () => runCommand('geet.branches.cleanup', single), {
           icon: 'trash',
         }),
         { kind: 'separator', id: 's2' },
@@ -1070,9 +1070,9 @@ export function App() {
    */
   const repoButtons = (repo: BranchPanelRepoDto, project: boolean) => ({
     updateTitle: project ? 'Update Project…' : 'Update Repository…',
-    onUpdate: () => runCommand(project ? 'gittree.update.dialog' : 'gittree.update.repository', repo.root),
-    onPush: () => runCommand('gittree.push.dialog', repo.root),
-    onFetch: () => runCommand('gittree.fetch', repo.root),
+    onUpdate: () => runCommand(project ? 'geet.update.dialog' : 'geet.update.repository', repo.root),
+    onPush: () => runCommand('geet.push.dialog', repo.root),
+    onFetch: () => runCommand('geet.fetch', repo.root),
     onMenu: (e: ReactMouseEvent<HTMLButtonElement>) => {
       const r = e.currentTarget.getBoundingClientRect();
       openRepoMenu(repo, { x: r.right, y: r.bottom });

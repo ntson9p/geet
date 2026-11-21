@@ -173,7 +173,7 @@ export class RecoveryWatch implements vscode.Disposable {
       recover,
     );
     if (choice === openHistory) {
-      await vscode.commands.executeCommand('gittree.history.show', event.repo.root);
+      await vscode.commands.executeCommand('geet.history.show', event.repo.root);
     } else if (choice === recover) {
       await this.recoverCommit(event.repo, event.oldSha);
     }

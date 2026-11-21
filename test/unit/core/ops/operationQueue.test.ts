@@ -148,7 +148,7 @@ describe('OperationQueue serialization', () => {
 describe('OperationQueue index.lock retry', () => {
   it('retries with growing backoff until the artificial lock is released', async () => {
     const q = makeQueue({ lockRetryBaseMs: 10 });
-    const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-lock-'));
+    const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-lock-'));
     const lockPath = path.join(lockDir, 'index.lock');
     fs.writeFileSync(lockPath, '');
     setTimeout(() => fs.rmSync(lockPath, { force: true }), 60);

@@ -135,8 +135,8 @@ describe('AskpassServer pipe protocol', () => {
         const child = spawn(process.execPath, [path.join(SHIM_DIR, 'askpass.cjs'), prompt], {
           env: {
             ...process.env,
-            GITTREE_ASKPASS_PIPE: server.pipe,
-            GITTREE_ASKPASS_TOKEN: server.authToken,
+            GEET_ASKPASS_PIPE: server.pipe,
+            GEET_ASKPASS_TOKEN: server.authToken,
           },
         });
         let stdout = '';

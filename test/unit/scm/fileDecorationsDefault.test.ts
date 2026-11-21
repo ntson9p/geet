@@ -15,7 +15,7 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'
 };
 const nls = JSON.parse(readFileSync(path.join(root, 'package.nls.json'), 'utf8')) as Record<string, string>;
 const setting = manifest.contributes.configuration
-  .map((section) => section.properties['gittree.decorations.fileExplorer'])
+  .map((section) => section.properties['geet.decorations.fileExplorer'])
   .find((s) => s !== undefined);
 
 describe('Geet file decorations (POST-P14bz)', () => {

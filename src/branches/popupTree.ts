@@ -39,7 +39,7 @@ export interface HubVerb {
 
 export const HUB_VERBS: readonly HubVerb[] = [
   {
-    command: 'gittree.update.dialog',
+    command: 'geet.update.dialog',
     label: 'Update Project…',
     accelerator: 'Ctrl+T',
     icon: 'arrow-down',
@@ -48,14 +48,14 @@ export const HUB_VERBS: readonly HubVerb[] = [
   },
   {
     // POST-P14bm: from each remote branch as it was last fetched.
-    command: 'gittree.update.withoutFetch',
+    command: 'geet.update.withoutFetch',
     label: 'Update Project Without Fetching…',
     icon: 'arrow-down',
     keywords: 'pull merge rebase update offline last fetched',
     group: 'project',
   },
   {
-    command: 'gittree.commit',
+    command: 'geet.commit',
     label: 'Commit…',
     accelerator: 'Ctrl+K',
     icon: 'git-commit',
@@ -63,7 +63,7 @@ export const HUB_VERBS: readonly HubVerb[] = [
     group: 'project',
   },
   {
-    command: 'gittree.push.dialog',
+    command: 'geet.push.dialog',
     label: 'Push…',
     accelerator: 'Ctrl+Shift+K',
     icon: 'arrow-up',
@@ -71,7 +71,7 @@ export const HUB_VERBS: readonly HubVerb[] = [
     group: 'project',
   },
   {
-    command: 'gittree.branch.new',
+    command: 'geet.branch.new',
     label: 'New Branch…',
     accelerator: 'Ctrl+Alt+N',
     icon: 'add',
@@ -79,7 +79,7 @@ export const HUB_VERBS: readonly HubVerb[] = [
     group: 'branch',
   },
   {
-    command: 'gittree.branches.checkoutRevision',
+    command: 'geet.branches.checkoutRevision',
     label: 'Checkout Tag or Revision…',
     icon: 'tag',
     keywords: 'checkout tag revision detach',
@@ -93,7 +93,7 @@ export const HUB_VERBS: readonly HubVerb[] = [
  * that repository's own Checkout.
  */
 export const PROJECT_CHECKOUT_VERB: HubVerb = {
-  command: 'gittree.branches.checkoutEverywhere',
+  command: 'geet.branches.checkoutEverywhere',
   label: 'Checkout Branch in All Repositories…',
   icon: 'arrow-swap',
   keywords: 'checkout switch branch all every repositories',
@@ -109,7 +109,7 @@ export const PROJECT_CHECKOUT_VERB: HubVerb = {
  */
 export function projectVerbs(repoCount: number): readonly HubVerb[] {
   if (repoCount <= 1) return HUB_VERBS;
-  return [...HUB_VERBS.filter((v) => v.command !== 'gittree.branches.checkoutRevision'), PROJECT_CHECKOUT_VERB];
+  return [...HUB_VERBS.filter((v) => v.command !== 'geet.branches.checkoutRevision'), PROJECT_CHECKOUT_VERB];
 }
 
 /**
@@ -150,7 +150,7 @@ export interface TreeContext {
 }
 
 /**
- * IntelliJ's **Show Tags** turned off (`gittree.branches.showTags`): the context
+ * IntelliJ's **Show Tags** turned off (`geet.branches.showTags`): the context
  * every branch surface builds from loses its tags, and with them the `Tags` and
  * `Common Tags` nodes, which are only drawn when non-empty, and the tag hits in
  * a search. Cutting them here, once, keeps the popup and both sidebar trees from

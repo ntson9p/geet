@@ -35,10 +35,10 @@ const settings = Object.assign({}, ...manifest.contributes.configuration.map((s)
   Setting
 >;
 
-const GENERATE = 'gittree.commit.generateMessage';
-const CHOOSE = 'gittree.commit.chooseMessageModel';
+const GENERATE = 'geet.commit.generateMessage';
+const CHOOSE = 'geet.commit.chooseMessageModel';
 /** Offered while Geet's setting is on and VS Code's AI features are not off. */
-const WHEN = 'config.gittree.commit.messageGeneration.enabled && !config.chat.disableAIFeatures';
+const WHEN = 'config.geet.commit.messageGeneration.enabled && !config.chat.disableAIFeatures';
 
 describe('Generate Commit Message, in the manifest', () => {
   it('has its command, named as VS Code names Copilot’s own, with the sparkle', () => {
@@ -66,9 +66,9 @@ describe('Generate Commit Message, in the manifest', () => {
   });
 
   it('is on by default, with no model named and no instructions', () => {
-    expect(settings['gittree.commit.messageGeneration.enabled']).toMatchObject({ type: 'boolean', default: true });
-    expect(settings['gittree.commit.messageGeneration.model']).toMatchObject({ type: 'string', default: '' });
-    expect(settings['gittree.commit.messageGeneration.instructions']).toMatchObject({
+    expect(settings['geet.commit.messageGeneration.enabled']).toMatchObject({ type: 'boolean', default: true });
+    expect(settings['geet.commit.messageGeneration.model']).toMatchObject({ type: 'string', default: '' });
+    expect(settings['geet.commit.messageGeneration.instructions']).toMatchObject({
       type: 'string',
       default: '',
       editPresentation: 'multilineText',
@@ -76,11 +76,11 @@ describe('Generate Commit Message, in the manifest', () => {
   });
 
   it('says in the setting itself that the changes are sent to the model, and what else hides the button', () => {
-    const enabled = text(settings['gittree.commit.messageGeneration.enabled']?.description);
+    const enabled = text(settings['geet.commit.messageGeneration.enabled']?.description);
     expect(enabled).toContain('those changes are sent to it');
     expect(enabled).toContain('chat.disableAIFeatures');
-    expect(text(settings['gittree.commit.messageGeneration.model']?.description)).toContain('vendor/id');
-    expect(text(settings['gittree.commit.messageGeneration.instructions']?.description)).toContain('$GIT_BRANCH_NAME');
+    expect(text(settings['geet.commit.messageGeneration.model']?.description)).toContain('vendor/id');
+    expect(text(settings['geet.commit.messageGeneration.instructions']?.description)).toContain('$GIT_BRANCH_NAME');
   });
 });
 
@@ -93,13 +93,13 @@ describe('Generate Commit Message, in the code', () => {
 
   it('reads the settings by the names the manifest gives them', () => {
     const generator = read('src/commit/generate/messageGenerator.ts');
-    expect(generator).toContain("const SECTION = 'gittree.commit.messageGeneration';");
+    expect(generator).toContain("const SECTION = 'geet.commit.messageGeneration';");
     for (const key of ['enabled', 'model', 'instructions']) {
       expect(generator, key).toContain(`'${key}'`);
-      expect(settings[`gittree.commit.messageGeneration.${key}`], key).toBeDefined();
+      expect(settings[`geet.commit.messageGeneration.${key}`], key).toBeDefined();
     }
     // The picker writes the choice where the setting is read from.
-    expect(generator).toContain("writeSetting('gittree', 'commit.messageGeneration.model'");
+    expect(generator).toContain("writeSetting('geet', 'commit.messageGeneration.model'");
     expect(generator).toContain("getConfiguration('chat').get<boolean>('disableAIFeatures')");
   });
 

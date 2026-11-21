@@ -331,7 +331,7 @@ describe('the dialog', () => {
 });
 
 /**
- * POST-P14cn: with `gittree.push.showDialog` off, a Push posts what the dialog
+ * POST-P14cn: with `geet.push.showDialog` off, a Push posts what the dialog
  * would post had Push been pressed the moment it opened, and opens the dialog
  * instead only when that push cannot go ahead (IntelliJ's
  * `GitPushAfterCommitDialog.shouldShow`: `!canPush`).

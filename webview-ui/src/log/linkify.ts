@@ -1,6 +1,6 @@
 /**
  * Commit-body linkification (P12-T4): URLs always, issue keys when the user
- * configured a pattern (`gittree.log.issuePattern` + `gittree.log.issueUrl`,
+ * configured a pattern (`geet.log.issuePattern` + `geet.log.issueUrl`,
  * `$0` in the URL is the matched key). Pure and unit-tested — the panel just
  * maps segments to <a>/<span>.
  */

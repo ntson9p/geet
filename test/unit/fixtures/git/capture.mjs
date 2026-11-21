@@ -26,7 +26,7 @@ const baseEnv = {
 };
 
 function mkRepo(name) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `gittree-cap-${name}-`));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `geet-cap-${name}-`));
   git(dir, 'init');
   git(dir, 'config', 'user.name', 'Åsa Ünicode');
   git(dir, 'config', 'user.email', 'asa@example.com');
@@ -139,7 +139,7 @@ const STATUS_ARGS = ['status', '--porcelain=v2', '-z', '--branch', '--untracked-
 
 // -------------------------------------------- status-ab + upstream-gone + refs
 {
-  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-cap-remote-'));
+  const remote = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-cap-remote-'));
   git(remote, 'init', '--bare');
   git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   const a = mkRepo('aheadbehind');
@@ -150,7 +150,7 @@ const STATUS_ARGS = ['status', '--porcelain=v2', '-z', '--branch', '--untracked-
   git(a, 'push', '-u', 'origin', 'main');
 
   // Second clone commits + pushes → A becomes behind 1 after fetch.
-  const b = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-cap-cloneb-'));
+  const b = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-cap-cloneb-'));
   git(b, 'clone', remote, 'b');
   const bRepo = path.join(b, 'b');
   git(bRepo, 'config', 'user.name', 'B User');

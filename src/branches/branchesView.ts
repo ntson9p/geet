@@ -20,7 +20,7 @@ export type BranchNode =
   | { kind: 'remote'; repo: RepoHandle; remote: string }
   | { kind: 'branch'; repo: RepoHandle; ref: RefInfo; favorite: boolean };
 
-const DND_MIME = 'application/vnd.code.tree.gittree.branches';
+const DND_MIME = 'application/vnd.code.tree.geet.branches';
 
 export class BranchesViewProvider
   implements vscode.TreeDataProvider<BranchNode>, vscode.TreeDragAndDropController<BranchNode>
@@ -203,7 +203,7 @@ export class BranchesViewProvider
     const rebase = vscode.l10n.t('$(git-branch) Rebase "{0}" onto "{1}"', target, source);
     const compare = vscode.l10n.t('$(diff) Compare "{0}" with "{1}"', source, target);
     const picked =
-      process.env['GITTREE_TEST_DROP_CHOICE'] === 'merge'
+      process.env['GEET_TEST_DROP_CHOICE'] === 'merge'
         ? merge
         : await vscode.window.showQuickPick([merge, rebase, compare], {
             placeHolder: vscode.l10n.t('Dropped "{0}" onto "{1}"', source, target),
@@ -239,7 +239,7 @@ export class BranchesViewProvider
       });
       notifySuccess(vscode.l10n.t('Checked out {0} and rebased it on {1}', target, source));
     } else {
-      await vscode.commands.executeCommand('gittree.branches.compareWithCurrent', repo.root, source);
+      await vscode.commands.executeCommand('geet.branches.compareWithCurrent', repo.root, source);
     }
   }
 }

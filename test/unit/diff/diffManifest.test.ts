@@ -111,7 +111,7 @@ const VSCODE_MENUS = new Set([
 ]);
 
 const editorTitle = manifest.contributes.menus['editor/title'] ?? [];
-const fileArrows = editorTitle.filter((e) => /^gittree\.diff\.(next|prev)File$/u.test(e.command ?? ''));
+const fileArrows = editorTitle.filter((e) => /^geet\.diff\.(next|prev)File$/u.test(e.command ?? ''));
 
 describe('the manifest', () => {
   it('names only menus VS Code has', () => {
@@ -127,7 +127,7 @@ describe('the manifest', () => {
 
 describe("the diff toolbar's file arrows", () => {
   it('are on the toolbar itself, not in its overflow menu', () => {
-    expect(fileArrows.map((e) => e.command)).toEqual(['gittree.diff.prevFile', 'gittree.diff.nextFile']);
+    expect(fileArrows.map((e) => e.command)).toEqual(['geet.diff.prevFile', 'geet.diff.nextFile']);
     for (const e of fileArrows) expect(e.group).toMatch(/^navigation@/u);
   });
 
@@ -136,26 +136,26 @@ describe("the diff toolbar's file arrows", () => {
   });
 
   it('show on Geet diffs only', () => {
-    for (const e of fileArrows) expect(e.when).toBe('isInDiffEditor && gittree.diff.active');
+    for (const e of fileArrows) expect(e.when).toBe('isInDiffEditor && geet.diff.active');
   });
 
   it('are greyed out at either end of the list', () => {
     const command = (id: string) => manifest.contributes.commands.find((c) => c.command === id);
-    expect(command('gittree.diff.prevFile')?.enablement).toBe('gittree.diff.hasPrevFile');
-    expect(command('gittree.diff.nextFile')?.enablement).toBe('gittree.diff.hasNextFile');
+    expect(command('geet.diff.prevFile')?.enablement).toBe('geet.diff.hasPrevFile');
+    expect(command('geet.diff.nextFile')?.enablement).toBe('geet.diff.hasNextFile');
   });
 
   it('use the wording IntelliJ does', () => {
-    expect(nls['gittree.command.diff.prevFile.title']).toBe('Compare Previous File');
-    expect(nls['gittree.command.diff.nextFile.title']).toBe('Compare Next File');
+    expect(nls['geet.command.diff.prevFile.title']).toBe('Compare Previous File');
+    expect(nls['geet.command.diff.nextFile.title']).toBe('Compare Next File');
   });
 
   it('have keys whatever the keymap: their tooltip shows the key either way', () => {
     // VS Code's tooltip ignores a binding's `when`, so a key behind
-    // `gittree.keymap.intellij` would be shown to people for whom it does nothing.
-    for (const id of ['gittree.diff.prevFile', 'gittree.diff.nextFile']) {
+    // `geet.keymap.intellij` would be shown to people for whom it does nothing.
+    for (const id of ['geet.diff.prevFile', 'geet.diff.nextFile']) {
       const binding = manifest.contributes.keybindings.find((k) => k.command === id);
-      expect(binding?.when).toBe('gittree.diff.active && editorTextFocus');
+      expect(binding?.when).toBe('geet.diff.active && editorTextFocus');
     }
   });
 });
@@ -166,15 +166,15 @@ describe("the Commit window row's Open Changes", () => {
 
   it('goes through the window, which knows the order and the selection', () => {
     const open = rowItems.find((e) => e.group === '1_open@1');
-    expect(open?.command).toBe('gittree.commit.openChanges');
-    expect(rowItems.map((e) => e.command)).not.toContain('gittree.openDiff');
+    expect(open?.command).toBe('geet.commit.openChanges');
+    expect(rowItems.map((e) => e.command)).not.toContain('geet.openDiff');
   });
 
   it('keeps its name, and stays out of the palette: it means nothing without a row', () => {
-    const command = manifest.contributes.commands.find((c) => c.command === 'gittree.commit.openChanges');
-    expect(command?.title).toBe('%gittree.command.openDiff.title%');
+    const command = manifest.contributes.commands.find((c) => c.command === 'geet.commit.openChanges');
+    expect(command?.title).toBe('%geet.command.openDiff.title%');
     const palette = manifest.contributes.menus['commandPalette'] ?? [];
-    expect(palette.find((e) => e.command === 'gittree.commit.openChanges')?.when).toBe('false');
+    expect(palette.find((e) => e.command === 'geet.commit.openChanges')?.when).toBe('false');
   });
 });
 
@@ -184,13 +184,13 @@ describe("taking over VS Code's own next and previous change", () => {
     // by doing the same thing.
     const changeArrows = Object.values(manifest.contributes.menus)
       .flat()
-      .filter((e) => /^gittree\.diff\.(next|prev)Change$/u.test(e.command ?? ''));
+      .filter((e) => /^geet\.diff\.(next|prev)Change$/u.test(e.command ?? ''));
     expect(changeArrows).toEqual([]);
   });
 
   it('can be turned off, and is on by default as in IntelliJ', () => {
     const setting = manifest.contributes.configuration
-      .map((c) => c.properties['gittree.diff.goToNextFileAfterLastChange'])
+      .map((c) => c.properties['geet.diff.goToNextFileAfterLastChange'])
       .find((p) => p !== undefined);
     expect(setting?.type).toBe('boolean');
     expect(setting?.default).toBe(true);
@@ -206,23 +206,23 @@ describe('the Compare pane in the manifest', () => {
   };
 
   it("takes IntelliJ's words for what it does", () => {
-    expect(title('gittree.compare.showFilesDiff')).toBe('Show Files Diff');
-    expect(title('gittree.compare.openChanges')).toBe('Show Diff');
+    expect(title('geet.compare.showFilesDiff')).toBe('Show Files Diff');
+    expect(title('geet.compare.openChanges')).toBe('Show Diff');
   });
 
   it('puts refresh, the multi-diff and close on its title bar', () => {
-    const onTitle = (manifest.contributes.menus['view/title'] ?? []).filter((e) => e.when === 'view == gittree.compare');
+    const onTitle = (manifest.contributes.menus['view/title'] ?? []).filter((e) => e.when === 'view == geet.compare');
     expect(onTitle.map((e) => e.command)).toEqual([
-      'gittree.compare.refresh',
-      'gittree.compare.openAll',
-      'gittree.compare.close',
+      'geet.compare.refresh',
+      'geet.compare.openAll',
+      'geet.compare.close',
     ]);
     for (const entry of onTitle) expect(entry.group).toMatch(/^navigation@/u);
   });
 
   it('offers Show Diff on its rows, for several selected or a folder', () => {
-    const onRow = (manifest.contributes.menus['view/item/context'] ?? []).filter((e) => e.when?.includes('gittree.compare'));
-    expect(onRow.map((e) => e.command)).toEqual(['gittree.compare.openChanges']);
+    const onRow = (manifest.contributes.menus['view/item/context'] ?? []).filter((e) => e.when?.includes('geet.compare'));
+    expect(onRow.map((e) => e.command)).toEqual(['geet.compare.openChanges']);
   });
 
   it('keeps what needs a row or a branch out of the palette', () => {
@@ -230,15 +230,15 @@ describe('the Compare pane in the manifest', () => {
       (manifest.contributes.menus['commandPalette'] ?? []).filter((e) => e.when === 'false').map((e) => e.command),
     );
     for (const command of [
-      'gittree.branches.compareWithCurrent',
-      'gittree.branches.diffWithWorkingTree',
-      'gittree.branches.compareInLog',
-      'gittree.compare.showFilesDiff',
-      'gittree.compare.openFile',
-      'gittree.compare.openChanges',
-      'gittree.compare.refresh',
-      'gittree.compare.openAll',
-      'gittree.compare.close',
+      'geet.branches.compareWithCurrent',
+      'geet.branches.diffWithWorkingTree',
+      'geet.branches.compareInLog',
+      'geet.compare.showFilesDiff',
+      'geet.compare.openFile',
+      'geet.compare.openChanges',
+      'geet.compare.refresh',
+      'geet.compare.openAll',
+      'geet.compare.close',
     ]) {
       expect(hidden.has(command), command).toBe(true);
     }

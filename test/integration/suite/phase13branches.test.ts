@@ -115,7 +115,7 @@ suite('P13 branches hub', () => {
       (i) => i.command !== undefined && (i.searchText ?? '').toLowerCase().includes('merge'),
     );
     assert.ok(hit, 'no verb matches "merge"');
-    assert.strictEqual(hit.command, 'gittree.update.dialog');
+    assert.strictEqual(hit.command, 'geet.update.dialog');
   });
 
   test('T5: folder rows fold a prefix, and drilling in scopes the list', () => {
@@ -246,19 +246,19 @@ suite('P13 branches hub', () => {
       core.repos.map((r) => gitWithRetry(r.root, ['rev-parse', '--abbrev-ref', 'HEAD']).trim());
     const before = headsOf();
     const saved = {
-      pick: process.env['GITTREE_TEST_REPO_PICK'],
-      revision: process.env['GITTREE_TEST_CHECKOUT_REVISION'],
+      pick: process.env['GEET_TEST_REPO_PICK'],
+      revision: process.env['GEET_TEST_CHECKOUT_REVISION'],
     };
-    process.env['GITTREE_TEST_CHECKOUT_REVISION'] = NAME;
+    process.env['GEET_TEST_CHECKOUT_REVISION'] = NAME;
     try {
       // Escape: nothing checked out anywhere — not the editor's repository, not the first.
-      process.env['GITTREE_TEST_REPO_PICK'] = 'cancel';
-      await vscode.commands.executeCommand('gittree.branches.checkoutRevision');
+      process.env['GEET_TEST_REPO_PICK'] = 'cancel';
+      await vscode.commands.executeCommand('geet.branches.checkoutRevision');
       assert.deepStrictEqual(headsOf(), before);
 
       // This repository picked: checked out here, and only here.
-      process.env['GITTREE_TEST_REPO_PICK'] = repoRoot;
-      await vscode.commands.executeCommand('gittree.branches.checkoutRevision');
+      process.env['GEET_TEST_REPO_PICK'] = repoRoot;
+      await vscode.commands.executeCommand('geet.branches.checkoutRevision');
       await waitFor(() => git('rev-parse', '--abbrev-ref', 'HEAD').trim() === NAME, 30_000);
       const after = headsOf();
       core.repos.forEach((r, i) => {
@@ -268,14 +268,14 @@ suite('P13 branches hub', () => {
       // Named, as a repository's own menu names it: no question — `cancel` would stop it.
       git('checkout', '-q', branch);
       await repo.refresher.refreshNow();
-      process.env['GITTREE_TEST_REPO_PICK'] = 'cancel';
-      await vscode.commands.executeCommand('gittree.branches.checkoutRevision', repoRoot);
+      process.env['GEET_TEST_REPO_PICK'] = 'cancel';
+      await vscode.commands.executeCommand('geet.branches.checkoutRevision', repoRoot);
       await waitFor(() => git('rev-parse', '--abbrev-ref', 'HEAD').trim() === NAME, 30_000);
     } finally {
-      if (saved.pick === undefined) delete process.env['GITTREE_TEST_REPO_PICK'];
-      else process.env['GITTREE_TEST_REPO_PICK'] = saved.pick;
-      if (saved.revision === undefined) delete process.env['GITTREE_TEST_CHECKOUT_REVISION'];
-      else process.env['GITTREE_TEST_CHECKOUT_REVISION'] = saved.revision;
+      if (saved.pick === undefined) delete process.env['GEET_TEST_REPO_PICK'];
+      else process.env['GEET_TEST_REPO_PICK'] = saved.pick;
+      if (saved.revision === undefined) delete process.env['GEET_TEST_CHECKOUT_REVISION'];
+      else process.env['GEET_TEST_CHECKOUT_REVISION'] = saved.revision;
       git('checkout', '-q', branch);
       git('branch', '-D', NAME);
       await repo.refresher.refreshNow();
@@ -288,14 +288,14 @@ suite('P13 branches hub', () => {
     // one call site, the tree's drag-and-drop handler.
     const all = await vscode.commands.getCommands(true);
     for (const id of [
-      'gittree.branch.mergeIntoCurrent',
-      'gittree.branch.checkoutAndRebase',
-      'gittree.branch.rebaseCurrentOnto',
-      'gittree.branch.newWorktree',
-      'gittree.branch.pullIntoCurrent',
-      'gittree.branch.deleteOnRemote',
-      'gittree.branch.new',
-      'gittree.branches.checkoutRevision',
+      'geet.branch.mergeIntoCurrent',
+      'geet.branch.checkoutAndRebase',
+      'geet.branch.rebaseCurrentOnto',
+      'geet.branch.newWorktree',
+      'geet.branch.pullIntoCurrent',
+      'geet.branch.deleteOnRemote',
+      'geet.branch.new',
+      'geet.branches.checkoutRevision',
     ]) {
       assert.ok(all.includes(id), `${id} is not registered`);
     }
@@ -311,7 +311,7 @@ suite('P13 branches hub', () => {
 
     try {
       await vscode.commands.executeCommand(
-        'gittree.branch.mergeIntoCurrent',
+        'geet.branch.mergeIntoCurrent',
         repo.root,
         'p13hub/mergeme',
       );
@@ -339,7 +339,7 @@ suite('P13 branches hub', () => {
     this.timeout(60_000);
     const before = git('rev-parse', 'HEAD').trim();
     // Merging the current branch into itself is not an applicable action.
-    await vscode.commands.executeCommand('gittree.branch.mergeIntoCurrent', repo.root, branch);
+    await vscode.commands.executeCommand('geet.branch.mergeIntoCurrent', repo.root, branch);
     assert.strictEqual(git('rev-parse', 'HEAD').trim(), before, 'nothing should have run');
   });
 
@@ -372,7 +372,7 @@ suite('P13 branches hub', () => {
 
     test('T7: the command is registered and bound to the hub', async () => {
       const all = await vscode.commands.getCommands(true);
-      assert.ok(all.includes('gittree.operationsPopup'), 'gittree.operationsPopup is missing');
+      assert.ok(all.includes('geet.operationsPopup'), 'geet.operationsPopup is missing');
     });
 
     test('T7: no item appears that would immediately fail its own precondition', async function () {
@@ -385,18 +385,18 @@ suite('P13 branches hub', () => {
       const commands = ops.buildItems(repo.root).map((i) => i.command);
       // A clean tree has nothing to commit, stash, shelve or roll back.
       for (const c of [
-        'gittree.commit',
-        'gittree.stash.dialog',
-        'gittree.shelve.dialog',
-        'gittree.rollback.dialog',
+        'geet.commit',
+        'geet.stash.dialog',
+        'geet.shelve.dialog',
+        'geet.rollback.dialog',
       ]) {
         assert.ok(!commands.includes(c), `${c} must not be offered on a clean tree`);
       }
       // No stash exists here either.
-      assert.ok(!commands.includes('gittree.unstash.dialog'));
+      assert.ok(!commands.includes('geet.unstash.dialog'));
       // But repository-level actions do apply.
-      assert.ok(commands.includes('gittree.merge.dialog'));
-      assert.ok(commands.includes('gittree.clone.dialog'));
+      assert.ok(commands.includes('geet.merge.dialog'));
+      assert.ok(commands.includes('geet.clone.dialog'));
     });
 
     test('T7: a dirty tree changes the item set', async function () {
@@ -408,10 +408,10 @@ suite('P13 branches hub', () => {
 
       const commands = ops.buildItems(repo.root).map((i) => i.command);
       for (const c of [
-        'gittree.commit',
-        'gittree.stash.dialog',
-        'gittree.shelve.dialog',
-        'gittree.rollback.dialog',
+        'geet.commit',
+        'geet.stash.dialog',
+        'geet.shelve.dialog',
+        'geet.rollback.dialog',
       ]) {
         assert.ok(commands.includes(c), `${c} should be offered on a dirty tree`);
       }
@@ -451,11 +451,11 @@ suite('P13 branches hub', () => {
 
         const items = ops.buildItems(repo.root);
         assert.strictEqual(items[0]?.group, 'inProgress', 'the in-progress group must be first');
-        assert.strictEqual(items[0]?.command, 'gittree.merge.continueOp');
+        assert.strictEqual(items[0]?.command, 'geet.merge.continueOp');
         const commands = items.map((i) => i.command);
-        assert.ok(commands.includes('gittree.merge.abortOp'));
+        assert.ok(commands.includes('geet.merge.abortOp'));
         // A merge has no "skip" — only a rebase does.
-        assert.ok(!commands.includes('gittree.rebase.skip'));
+        assert.ok(!commands.includes('geet.rebase.skip'));
       } finally {
         try {
           git('merge', '--abort');

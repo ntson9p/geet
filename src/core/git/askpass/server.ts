@@ -54,8 +54,8 @@ export class AskpassServer implements Disposable {
     const token = crypto.randomBytes(16).toString('hex');
     const pipePath =
       process.platform === 'win32'
-        ? `\\\\.\\pipe\\gittree-askpass-${nonce}`
-        : path.join(os.tmpdir(), `gittree-askpass-${nonce}.sock`);
+        ? `\\\\.\\pipe\\geet-askpass-${nonce}`
+        : path.join(os.tmpdir(), `geet-askpass-${nonce}.sock`);
     const trace = options.trace ?? (() => undefined);
 
     const server = net.createServer((socket) => {
@@ -133,10 +133,10 @@ export class AskpassServer implements Disposable {
   get env(): Record<string, string> {
     return {
       GIT_ASKPASS: path.join(this.options.shimDir, 'askpass.sh'),
-      GITTREE_ASKPASS_PIPE: this.pipePath,
-      GITTREE_ASKPASS_TOKEN: this.token,
+      GEET_ASKPASS_PIPE: this.pipePath,
+      GEET_ASKPASS_TOKEN: this.token,
       ELECTRON_RUN_AS_NODE: '1',
-      VSCODE_GITTREE_NODE: process.execPath,
+      VSCODE_GEET_NODE: process.execPath,
     };
   }
 

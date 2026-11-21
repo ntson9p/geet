@@ -34,8 +34,8 @@ interface Rig {
 }
 
 function rig(): Rig {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-hooks-repo-'));
-  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-hooks-store-'));
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-hooks-repo-'));
+  const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-hooks-store-'));
   cleanups.push(() => {
     try {
       fs.rmSync(repoRoot, { recursive: true, force: true, maxRetries: 3 });

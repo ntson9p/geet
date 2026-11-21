@@ -8,7 +8,7 @@ const roots: string[] = [];
 
 /** Builds a fake .git dir from a { relPath: content|null(dir) } spec. */
 function gitDir(spec: Record<string, string | null>): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gittree-op-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'geet-op-'));
   roots.push(dir);
   for (const [rel, content] of Object.entries(spec)) {
     const p = path.join(dir, rel);

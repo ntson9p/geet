@@ -313,7 +313,7 @@
 
 /* VS Code's divider between the Repositories panel and the Branches panel lies
    along this page's foot, as the one under the Commit view does: the same 2px
-   line in `gittree.sectionBorder` says where to grab it (POST-P14bu; commit.css's
+   line in `geet.sectionBorder` says where to grab it (POST-P14bu; commit.css's
    `.gt-commit-edge` says why 2px). It stands for the line the BRANCHES pane's
    header drew over the divider when the two were panes of one panel. No
    pointer events, so the divider still takes the drag; menus draw over it. */
@@ -323,7 +323,7 @@
   right: 0;
   bottom: 0;
   height: 0;
-  border-top: 2px solid var(--vscode-gittree-sectionBorder, transparent);
+  border-top: 2px solid var(--vscode-geet-sectionBorder, transparent);
   pointer-events: none;
   z-index: 2;
 }

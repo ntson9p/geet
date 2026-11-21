@@ -99,7 +99,7 @@ export class Core implements vscode.Disposable {
   }
 
   /**
-   * `context` is unused since P14-T6 removed the `gittree.mode` config
+   * `context` is unused since P14-T6 removed the `geet.mode` config
    * listener; kept in the signature because every caller passes it and the
    * next thing needing extension state will want it back.
    */
@@ -116,7 +116,7 @@ export class Core implements vscode.Disposable {
     // takes effect where the user changed it rather than on the next reload.
     this.store.add(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gittree.repositoryScan')) void this.queueRescan();
+        if (e.affectsConfiguration('geet.repositoryScan')) void this.queueRescan();
       }),
     );
 
@@ -181,7 +181,7 @@ export class Core implements vscode.Disposable {
   }
 
   private scanOptions(): ScanOptions {
-    const cfg = vscode.workspace.getConfiguration('gittree');
+    const cfg = vscode.workspace.getConfiguration('geet');
     return {
       maxDepth: cfg.get<number>('repositoryScan.maxDepth', 1),
       ignoredFolders: cfg.get<string[]>('repositoryScan.ignoredFolders', ['node_modules']),
@@ -302,7 +302,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   const output = vscode.window.createOutputChannel('Geet');
   context.subscriptions.push(output);
   const traceEnabled = (): boolean =>
-    vscode.workspace.getConfiguration('gittree').get<boolean>('trace', false);
+    vscode.workspace.getConfiguration('geet').get<boolean>('trace', false);
   // P10-T4: ring buffer of recent trace lines (kept even with tracing off) —
   // feeds the sanitized "Report issue" body; paths are hashed at report time.
   const traceTail: string[] = [];
@@ -325,7 +325,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
     trace(`askpass server failed to start: ${String(err)}`);
   }
   const applyTerminalAuth = (): void => {
-    const enabled = vscode.workspace.getConfiguration('gittree').get<boolean>('terminalAuth', false);
+    const enabled = vscode.workspace.getConfiguration('geet').get<boolean>('terminalAuth', false);
     const collection = context.environmentVariableCollection;
     collection.clear();
     if (enabled && askpass) {
@@ -338,7 +338,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   applyTerminalAuth();
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('gittree.terminalAuth')) applyTerminalAuth();
+      if (e.affectsConfiguration('geet.terminalAuth')) applyTerminalAuth();
     }),
   );
 
@@ -350,12 +350,12 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   // P12-T8: every git run lands (redacted) in the Console tab's ring. The
   // limit is read once at activation — resizing a ring live has churn for no
   // one, and the setting exists for constrained hosts, not live tuning.
-  const consoleLimit = cfg.get<number>('gittree.log.console.limit', 2000);
+  const consoleLimit = cfg.get<number>('geet.log.console.limit', 2000);
   const commandLog = new CommandLog(
     Number.isFinite(consoleLimit) && consoleLimit >= 100 ? Math.floor(consoleLimit) : 2000,
   );
   const executor = await createGitExecutor(
-    { gittreeGitPath: cfg.get<string | null>('gittree.gitPath') ?? undefined },
+    { geetGitPath: cfg.get<string | null>('geet.gitPath') ?? undefined },
     {
       trace: (l) => trace(`[exec] ${l}`),
       baseEnv: () => askpass?.env ?? {},
@@ -365,7 +365,7 @@ export async function createCore(context: vscode.ExtensionContext): Promise<Core
   if (!executor) {
     void vscode.window.showErrorMessage(
       vscode.l10n.t(
-        'Geet could not find a git installation. Set "gittree.gitPath" or install git.',
+        'Geet could not find a git installation. Set "geet.gitPath" or install git.',
       ),
     );
     return undefined;
