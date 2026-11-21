@@ -21,6 +21,10 @@ The first release on the Visual Studio Marketplace, as a **pre-release** (an odd
   `"[gittree-commit-message]"` block, any `gittree.…` colour under
   `workbench.colorCustomizations`) and in `keybindings.json` (commands and `when` clauses).
   VS Code marks a setting key it no longer knows, so the old ones are easy to find.
+- **Geet has a new icon:** a G with a commit at its heart. The G is seven eighths of a circle,
+  and its crossbar runs in to a hollow commit dot at the circle's centre. It is drawn as VS
+  Code's own icons are, so in the activity bar it sits beside Source Control as one of them;
+  the Marketplace icon is the same G on a rounded tile.
 - **The extension's ID is `ntson9p.geet`**; builds made before this one were
   `gittree.gittree`. VS Code keeps an extension's data under its ID, so after moving from such a
   build its changelists, commit message history and drafts start empty, and its shelved changes
