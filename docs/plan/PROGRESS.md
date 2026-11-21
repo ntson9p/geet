@@ -2671,3 +2671,14 @@ Testing (written, **not run**, by the owner's standing instruction):
   - every Help link names a file in `docs/` and a heading in it, by GitHub's anchor rule.
   - The new-issue link's test expects the new address.
 - **Integration:** `phase10.test.ts` expects the new address.
+
+POST-P14cv ✅ 2026-11-21 (branch `pre-publish`, from `main`): **CI's unit tests pass on Linux.** Asked whether the project was ready to publish, I read GitHub's CI for the first time. Every run since the first push (2026-11-16) had failed at `npm run check`'s unit tests on `ubuntu-latest`. So the Playwright, integration, perf and package jobs never ran on GitHub, and the release workflow, which runs the same gates before it publishes, would have published nothing. Typecheck and lint passed, and so did 2,407 of the 2,410 unit tests. The three failures were in the tests, not the code:
+- **`marketplace.test.ts`, the README's Git note:** README.md breaks that line after "Git", and the test wanted a space there. Both of the README's affiliation tests now take any whitespace.
+- **`marketplace.test.ts`, "no source file names one, old or new":** the comment above `walkthroughId` named the three extension IDs. It no longer does.
+- **`repoLabels.test.ts`, "handles backslash paths":** `node:path` splits on backslashes only on Windows, the one place a root has them. The test now runs only there. It had failed on Linux since it was written (POST-P14u).
+
+The two from POST-P14ct were written and never run, by the owner's standing instruction, so CI was their first run.
+
+Gates: typecheck (root, webview, integration) clean; lint clean.
+
+Testing: the change is to three tests; **not run**, by the owner's standing instruction. CI runs them on the owner's next push.

@@ -136,11 +136,13 @@ describe('the README, as the Marketplace page', () => {
   });
 
   it('says Geet is not affiliated with JetBrains', () => {
-    expect(readme).toMatch(/not affiliated with or endorsed by JetBrains/u);
+    // `\s+`: the README wraps its lines, so a space can be a line break.
+    expect(readme).toMatch(/not\s+affiliated\s+with\s+or\s+endorsed\s+by\s+JetBrains/u);
   });
 
   it('is titled "Geet for Git", and says Geet is not the Git project’s', () => {
     expect(readme.split('\n')[0]).toBe('# Geet for Git');
-    expect(readme).toMatch(/not affiliated with or endorsed by the Git project/u);
+    // README.md breaks this line after "Git" (POST-P14cv: it failed in CI).
+    expect(readme).toMatch(/not\s+affiliated\s+with\s+or\s+endorsed\s+by\s+the\s+Git\s+project/u);
   });
 });
