@@ -2918,3 +2918,15 @@ Testing (run, with the owner's go-ahead for this release work):
   - phase11 T2: waits for the ring;
   - setup's `gitWithRetry`: finishes a `checkout -b` the lock stopped, and lists git processes.
 - **Perf:** the memory benchmark measures the heap the session holds.
+
+POST-P14db ✅ 2026-11-22 (branch `release-0.1.1`, from `main`): **0.1.1, because 0.1.0 is already on the Marketplace.** The tag `v0.1.0` (on `21bfce0`, POST-P14da's merge) ran the release workflow. Every test passed on Windows, Linux and macOS, after one re-run of a Windows clean-up flake, and so did the package. The owner approved the deployment, and the publish step was refused: "ntson9p.geet v0.1.0 already exists".
+
+- **What the Marketplace has.** `vsce show` lists one version, 0.1.0, published 2026-11-21 at 02:21 UTC as a pre-release, its source link `git-tree`. I downloaded that VSIX and compared it with the repository: its icon is byte for byte the one at `0f20235`, the merge of `pre-publish`, from before the icon change. So the Marketplace has the 2026-11-21 build and none of POST-P14cz or POST-P14da. The Marketplace takes a version once.
+- **0.1.1.** It is still a pre-release (odd minor), in package.json and package-lock.json's root.
+- **The CHANGELOG says what each version holds:**
+  - 0.1.0 is dated 2026-11-21, when it went out, and no longer lists the new icon or the Local History fix;
+  - 0.1.1 has them, and the repository's new name in Geet's links.
+- **The Windows clean-up flake** that stopped the release run's first try (multiRoot's teardown: EPERM on a folder a watcher still held) is fixed here too. That clean-up and phase01's two now pass `maxRetries` to `rmSync`, as every other folder clean-up in the suites already did.
+- **The tag `v0.1.0`** pointed at `21bfce0`, which is not what was published. At the owner's word it now points at `0f20235`. The release run that the moved tag started was cancelled: the Marketplace already has 0.1.0.
+
+Gates: typecheck clean; lint clean; the docs and release unit suites, 53 passing; `npm run package`: `geet-0.1.1.vsix`, a pre-release, 48 files, 514.6 KB.
