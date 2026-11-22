@@ -13,11 +13,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ntson9p/git-tree.git"
+    "url": "https://github.com/ntson9p/geet.git"
   },
-  "homepage": "https://github.com/ntson9p/git-tree#readme",
+  "homepage": "https://github.com/ntson9p/geet#readme",
   "bugs": {
-    "url": "https://github.com/ntson9p/git-tree/issues"
+    "url": "https://github.com/ntson9p/geet/issues"
   },
   "engines": {
     "vscode": "^1.96.0"

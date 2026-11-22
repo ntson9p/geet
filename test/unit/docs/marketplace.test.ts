@@ -27,7 +27,7 @@ interface Manifest {
 }
 const pkg = JSON.parse(read('package.json')) as Manifest;
 const nls = JSON.parse(read('package.nls.json')) as Record<string, string>;
-const REPO = 'https://github.com/ntson9p/git-tree';
+const REPO = 'https://github.com/ntson9p/geet';
 
 describe('the Marketplace manifest', () => {
   it('is published as ntson9p.geet, listed as "Geet for Git"', () => {
