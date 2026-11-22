@@ -319,6 +319,15 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
 
   test('extension-host memory after a 100k-commit log session ≤ 150 MB (session delta)', async function () {
     this.timeout(300_000);
+    // The session's own growth, over a baseline taken just before it (PHASE-10's
+    // T1 note). It used to be taken when the suite loaded, before activation, so
+    // the delta also held every benchmark above (2k-file snapshots among them)
+    // and the compiling of all the code they ran. @vscode/test-electron 3 starts
+    // VS Code with --no-cached-data, so that compiling is no longer served from
+    // VS Code's code cache: 206–220 MB on CI, against 97–157 MB before. The
+    // suite-wide figure is still recorded.
+    globalThis.gc?.();
+    const sessionBaselineRss = process.memoryUsage().rss;
     // A real session: 5 pages (10k rows) streamed + laid out, details cached.
     const svc = new LogService(repoLog);
     const layout = new GraphLayout();
@@ -328,11 +337,13 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
     }
     globalThis.gc?.();
     const rss = process.memoryUsage().rss;
-    const deltaMb = (rss - baselineRss) / (1024 * 1024);
+    const deltaMb = (rss - sessionBaselineRss) / (1024 * 1024);
     results['memory100kLogSession'] = {
       rssMb: round(rss / (1024 * 1024)),
-      suiteBaselineRssMb: round(baselineRss / (1024 * 1024)),
+      preSessionRssMb: round(sessionBaselineRss / (1024 * 1024)),
       sessionDeltaMb: round(deltaMb),
+      suiteBaselineRssMb: round(baselineRss / (1024 * 1024)),
+      suiteDeltaMb: round((rss - baselineRss) / (1024 * 1024)),
     };
     assert.ok(
       deltaMb <= BUDGET.logSessionMemoryMb * NOISE,
