@@ -353,11 +353,17 @@ suite('P1 core SCM', () => {
     const core = await activateGeet();
     const reg = core.debugRegistry.get('phase03') as {
       messageBoxFor: (r: ReturnType<typeof core.repoForPath>) => { value: string };
+      changelistsFor: (r: NonNullable<ReturnType<typeof core.repoForPath>>) => { isChecked(relPath: string): boolean };
     };
-    const box = reg.messageBoxFor(core.repoForPath(repoRoot));
+    const repo = core.repoForPath(repoRoot)!;
+    const box = reg.messageBoxFor(repo);
     write('t7.txt', 'commit me\n');
     git('add', 't7.txt');
     await refresh();
+    // The commit takes what is ticked in the commit window, and a new file is
+    // ticked once the window has seen it. Committing before that finds "No
+    // checked files to commit." and HEAD never moves (macOS CI, once).
+    await waitFor(() => reg.changelistsFor(repo).isChecked('t7.txt'), 20_000);
     const before = git('rev-parse', 'HEAD').trim();
 
     // The commit flow gates on the check pipeline, and whether a check has a
