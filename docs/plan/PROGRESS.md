@@ -2859,7 +2859,7 @@ POST-P14da ✅ 2026-11-22 (branch `release-prep`, PR #5, from `main`): **Ready t
 - **The GitHub environment `marketplace`**, made with `gh api`:
   - the owner is the required reviewer, with self-review allowed since they are the only one;
   - deployments only from `v*` tags.
-- **CI on the PR.** The first run failed 9 of its 10 jobs. The second passed all 10. The third failed one test on macOS and one on Windows with git 2.36, both flakes, fixed below. The fourth passed all 10.
+- **CI on the PR.** The first run failed 9 of its 10 jobs. The second passed all 10. The third failed one test on macOS and one on Windows with git 2.36, both flakes, fixed below. The fourth passed all 10. The fifth failed one more macOS flake, also fixed below.
   - **macOS ran nothing.** From VS Code 1.110 the binary is `Contents/MacOS/Code`, and 1.147 dropped the old `Electron` name. `@vscode/test-electron` 2.5.2 still launched that name (spawn ENOENT). 3.1.0 reads the name from Info.plist. It needs Node 22.
   - **All systems:** VS Code 1.147 fills in packageJSON's `%key%` names from package.nls.json. The two-panels test compares the text now, either way.
   - **Linux and macOS:** P5's `rmrfGitDir` set every entry to 0o666, folders too. A folder without its x bit cannot be emptied, so three tests failed in their clean-up (ENOTEMPTY). It now changes files only.
@@ -2880,6 +2880,7 @@ POST-P14da ✅ 2026-11-22 (branch `release-prep`, PR #5, from `main`): **Ready t
   - **Windows with git 2.36:** HEAD and `.git/config` stayed locked through all ten of `gitWithRetry`'s tries in the first run.
     - In the third run, a `checkout -b` that the lock stopped had already made the branch, so its retry failed with "already exists". Such a retry now checks the branch out instead.
     - If the lock outlasts the tries again, the error lists the git processes still running.
+  - **macOS, fifth run: P0-T6's first test committed before its git dir watcher was listening.** On macOS `fs.watch` reports through an FSEvents stream that starts a moment after the call returns, and a change made before then is never reported. The suite's setup now touches FETCH_HEAD until the watcher reports it.
   - The actions in ci.yml are pinned to the same v5 commits as release.yml. v4 ran on the deprecated Node 20.
 - **The Marketplace page:** all 8 README images load from `github.com/ntson9p/geet/raw/HEAD/…`, and every relative link in the README exists.
 - **CHANGELOG:** 0.1.0 is dated 2026-11-22, the release day. Move the date if the tag goes out on another day.
@@ -2910,6 +2911,7 @@ Testing (run, with the owner's go-ahead for this release work):
 - **Integration:**
   - branchPanel: the view names, either way;
   - phase01 T7: waits for the tick;
+  - watchRefresh (P0-T6): waits for its watcher to be live;
   - phase05: `rmrfGitDir`;
   - phase09 T4: diagnostics on a miss;
   - phase10: the URL;
