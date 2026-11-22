@@ -102,5 +102,30 @@ export function gitWithRetry(cwd: string, args: readonly string[]): string {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400 * (attempt + 1));
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  // Still locked after 20 s (Windows with git 2.36 on CI): say which git
+  // processes were running then, since one of them is likely holding the file.
+  const message = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new Error(`${message}\ngit processes still running:\n${runningGitProcesses()}`);
+}
+
+/** The git processes running now, with their command lines, for a failure message. */
+function runningGitProcesses(): string {
+  try {
+    return process.platform === 'win32'
+      ? execFileSync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            "Get-CimInstance Win32_Process -Filter \"Name = 'git.exe'\" | ForEach-Object { \"$($_.ProcessId) $($_.CreationDate) $($_.CommandLine)\" }",
+          ],
+          { encoding: 'utf8', timeout: 15_000 },
+        )
+      : execFileSync('ps', ['-eo', 'pid,etime,args'], { encoding: 'utf8', timeout: 15_000 })
+          .split('\n')
+          .filter((line) => /\bgit\b/u.test(line))
+          .join('\n');
+  } catch (err) {
+    return `(could not list them: ${err instanceof Error ? err.message : String(err)})`;
+  }
 }
