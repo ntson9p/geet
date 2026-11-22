@@ -6,6 +6,20 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-22
+
+The first **stable** release on the Visual Studio Marketplace. It is 0.1.1 as it was. With
+only pre-releases published, VS Code's Install button said "Can't install release version
+of 'Geet for Git' extension because it has no release version" and offered the
+pre-release instead; now it installs this one.
+
+From here on, stable versions have an even minor (0.2.x, 0.4.x …) and pre-releases an odd
+one (0.3.x …), as
+[docs/releasing.md](https://github.com/ntson9p/geet/blob/main/docs/releasing.md) describes.
+What Geet does is in the [README](https://github.com/ntson9p/geet#readme), and what changed
+on the way here is in the
+[CHANGELOG](https://github.com/ntson9p/geet/blob/main/CHANGELOG.md)'s 0.1.x sections.
+
 ## [0.1.1] — 2026-11-22
 
 A **pre-release**, as 0.1.0 was.

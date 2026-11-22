@@ -11,8 +11,8 @@ Geet brings its own views, so it neither needs nor touches VS Code's
 built-in Git extension: leave that one on or turn it off, Geet works the
 same.
 
-> **Pre-release.** 0.1 is Geet's first public build. Try it on your
-> projects, and [tell us what breaks](https://github.com/ntson9p/geet/issues).
+> **New.** 0.2 is Geet's first stable release. Try it on your projects, and
+> [tell us what breaks](https://github.com/ntson9p/geet/issues).
 
 ## Highlights
 
