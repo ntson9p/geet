@@ -828,7 +828,7 @@ suite('Multi-root commit', () => {
       }
       for (const [r, rel] of made) {
         const top = rel.split('/')[0]!;
-        if (top !== rel) fs.rmSync(path.join(r.root, top), { recursive: true, force: true });
+        if (top !== rel) fs.rmSync(path.join(r.root, top), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       }
       made.length = 0;
       for (const r of core.repos) {

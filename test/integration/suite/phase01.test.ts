@@ -286,7 +286,7 @@ suite('P1 core SCM', () => {
       // records as the cause of cascading false failures.
       fs.rmSync(rootIgnore, { force: true });
       fs.rmSync(path.join(repoRoot, 'w-root.log'), { force: true });
-      fs.rmSync(pkgDir, { recursive: true, force: true });
+      fs.rmSync(pkgDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       await refresh();
     }
   });
@@ -340,7 +340,7 @@ suite('P1 core SCM', () => {
         { outcome: 'missing', path: path.join(root, 'reveal-me', 'not-there.txt') },
       ]);
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       reveals.clear();
       await refresh();
     }
