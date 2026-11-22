@@ -2783,3 +2783,64 @@ Testing (written, **not run**, by the owner's standing instruction):
 
   Its parsing was checked against the real files with a scratch script. The shipped-files list is now shared with the GitTree test. Changed: a comment in `walkthrough.test.ts`.
 - **Elsewhere:** the mechanical commit changed 112 test files: 65 unit, 31 integration, 2 perf, 1 fixture and 13 Playwright.
+
+POST-P14cz ✅ 2026-11-22 (branch `icon`, from `main`): **A new icon: a G with a commit at its heart.** The owner sent a sketch ("A G-shaped refresh icon, its head is an arrow, its tail is a hollow dot") and a screenshot of VS Code's Source Control icon, in the style they wanted. That screenshot is not the Git extension's icon, which is the orange Git logo (`extensions/git/resources/icons/git.png`). It is the `source-control` codicon on the active activity-bar tile of the Dark 2026 theme (`activityBar.activeBackground` `#313233` on `#191A1B`), at 1.25×. So the mark had to look like a codicon there, and the Marketplace icon like that tile.
+
+- **Chosen by the owner over three rounds.** Each round was a picture of the candidates, ranked, rendered beside the real codicons (VS Code's `codicon.ttf`) at 1×, 1.25× and 2× and as the Marketplace tile. Nothing was used before the owner approved it.
+  - **Round 1:** the sketch drawn as it is, a G whose line starts on a hollow dot and ends in an arrow. The owner corrected the head twice. First, it is the right angle of the G's stem and crossbar, not a chevron. Second, the curve must run into that corner, not into the stem halfway down. A drawing made before the second correction was committed here and replaced before anything was pushed.
+  - **Round 2:** four refined versions of the sketch, and four new ideas. The owner loved one of the new ideas, "Commit G": a G with no arrow, whose crossbar runs in to a hollow commit dot.
+  - **Round 3:** the owner asked for its curve to be part of one exact circle, and for the dot to sit at that circle's centre. Four versions differed in the gap, the dot and the size; the owner chose the first.
+- **The drawing**, `media/geet-mark.svg`, on the 24px grid the activity bar masks:
+  - one circle of radius 8.75, centred in the box at (12, 12). The curve runs anticlockwise from the top right (−45°) round to the circle's right-hand point: seven eighths of the circle, with the last eighth left open at the top right;
+  - the crossbar runs left from that point, at the centre's height, to the dot;
+  - the dot is a ring of radius 3.25 at the circle's centre. The crossbar stops on the ring's own line, so its round end joins the ring without poking into it;
+  - the line is 1.5 wide with round ends and joins: the codicons' weight at 24px;
+  - the ink is 19 × 19, centred. The round codicons (Refresh, Sync, History) are 18 × 18, and Source Control 18 × 24;
+  - **sharp at the owner's 125%:** the crossbar, the circle's four outer points and the ring's four each cover two whole device pixels. At 200% the circle's and the ring's are sharp too, and only the crossbar is soft. A layout sharp at both scales would have put the circle 0.75 off the centre, and the owner asked for it centred. Around a centre of 12, radii 8.75 and 3.25 are the sizes that do this.
+- **`media/geet-mark-solid.svg`:** the same line with the dot filled to its outer edge, as the old solid twin filled its dots. Nothing uses it, as before.
+- **`media/icon.svg`:** the mark ×4 on a 128 tile with corners of 16. Those are the active tile's proportions: 32px with 4px corners, measured in 1.146. The colours are the owner's screenshot's: a `#313233` tile and a `#ededed` line. Before, the tile was `#111111` with corners of 28. The Marketplace banner stays `#111111`, and the tile now shows on it.
+- **`media/icon.png`** is from `webview-ui/tests/capture.spec.ts` (`GEET_CAPTURE=1`), run with a scratch config that has no dev server.
+- **"Dot tucked in", kept for later.** The owner liked round 2's second version too, and asked to keep it so Geet can switch to it. It is in `docs/icon-alternatives/dot-tucked-in/`:
+  - the same four files, drawn the same way, so switching is copying them over `media/`; the folder's README says what else to change;
+  - `capture.spec.ts` now renders each kept `icon.svg` to its `icon.png` as well;
+  - it is in `docs/`, which the VSIX leaves out, not in `media/`, because `commitMessageLanguage.test.ts` holds that nothing under `media/` is left out of the package.
+- **The README's screenshots:** `hero.png` and `merge.png` show the activity bar, so `npm run screenshots -- --only hero,merge` retook them. In `merge.png` only the icon changed.
+  - The first `hero.png` caught TypeScript still starting ("Initializing 'web/tsconfig.json'" in the status bar), as the one on `main` had. Two more runs of `--only hero --no-build` came out byte-identical to each other, with TypeScript started.
+  - Those two also show the diff from its top, which is what the scene means: it presses Ctrl+Home 800 ms after the diff opens. In the image on `main`, and in an earlier retake, the key came too early and the diff stayed on its first change ("Ln 12" in the status bar). So the editor part of `hero.png` changed too.
+  - The dot on the status bar's bell comes and goes between runs, and is not in the final image.
+- **CHANGELOG:** a line in 0.1.0's rename section.
+
+**Checked:**
+- `icon.png`: 256 × 256 RGBA, transparent corners. The crossbar is 12px of the line's colour with no partial pixels.
+- **The 24px mark, drawn as VS Code 1.146 draws an extension's icon** (a CSS mask), read pixel by pixel:
+  - at 1.25×, the crossbar, the circle's outer points and the ring's each fall on two pixels, 83–100% ink, with at most 8% spilling into a third;
+  - at 2×, the circle's and the ring's fall on three, and the crossbar on four (50%, 100%, 100%, 50%).
+- **The VSIX** (`npm run package`): 48 files, 514 KB, the four media files among them and nothing from `docs/icon-alternatives/`.
+- **Real VS Code 1.146.0, the VSIX installed as a user installs it, theme Dark 2026** (`scratchpad/icon2/drive-icon.mjs`):
+  - the activity bar draws the G at the codicons' weight, selected and not, at 2× and at 1.25×;
+  - at 1.25×, read pixel by pixel, the real window matches the mock. The item sits at 7.8, 227.8 CSS px, but VS Code puts the 24px box on whole device pixels. The crossbar is two full rows with nothing above or below them, and the circle's and the ring's outer points take two pixels each;
+  - the Extensions list and Geet's page show the tile; the page loads the 256px PNG at 128.
+
+Gates: typecheck clean; lint clean.
+
+Testing (written, **not run**, by the owner's standing instruction):
+- **Unit:** `icon.test.ts` (12), rewritten for this drawing:
+  - the activity bar shows the mark;
+  - the mark is drawn as VS Code's icons are: a 24 box, 1.5 round lines;
+  - its curve is part of one exact circle, and the hollow dot sits at that circle's centre;
+  - the circle, and so the dot, is centred in the 24 box;
+  - the curve runs seven eighths of the way round, anticlockwise from the top right to the right;
+  - the crossbar runs in at the centre's height, from the circle's edge to the dot;
+  - its straight edges fall on whole device pixels at 125%, and the circles' at 200% too;
+  - the solid mark is the same line with the dot filled;
+  - the Marketplace icon is the mark ×4, 16 in from a 128 tile with corners of 16;
+  - `icon.png` is 256 square with transparent corners;
+  - it is in the tile's colour and the line's, sampled on the dot's ring and in its middle;
+  - its crossbar is 12px of the line's colour, with no partial pixels.
+- **Unit:** new `iconAlternatives.test.ts` (2, then 6 for each kept icon):
+  - "Dot tucked in" is kept, and `docs/` is left out of the VSIX;
+  - each kept icon has the four files `media/` has, and the README describes it;
+  - its mark opens as the live mark does: one line and one hollow dot;
+  - its solid mark and its Marketplace icon are its mark, and its PNG is its SVG at 256px.
+
+  The SVG reading of both was checked against the real files, and their PNG reading against the real PNGs, with scratch scripts.
