@@ -261,19 +261,19 @@ suite('P9 local history — restore UX & destruction detection', () => {
     } catch (err) {
       const watch = reg.recovery as unknown as {
         watchers: unknown[];
-        offsets: Map<string, number>;
+        tails: Map<string, { offset: number }>;
         dirtyByRepo: Map<string, boolean>;
       };
       const queue = repo.queue as unknown as { lastMutationEnd: number; mutationRunning: boolean };
       const logsHead = path.join(logsDir, 'HEAD');
-      const tail = fs.readFileSync(logsHead, 'utf8').trimEnd().split('\n').slice(-2);
+      const last = fs.readFileSync(logsHead, 'utf8').trimEnd().split('\n').slice(-2);
       throw new Error(
         [
           err instanceof Error ? err.message : String(err),
           `the test's own watcher saw: [${seen.join(', ')}]`,
-          `watchers: ${watch.watchers.length}; offset ${watch.offsets.get(repo.root)} of ${fs.statSync(logsHead).size} bytes`,
-          `self-inflicted now: ${repo.queue.isSelfInflicted(Date.now())}; last mutation ended ${Date.now() - queue.lastMutationEnd} ms ago; running: ${queue.mutationRunning}`,
-          `dirty: ${watch.dirtyByRepo.get(repo.root)}; reflog tail: ${JSON.stringify(tail)}`,
+          `watchers: ${watch.watchers.length}; read up to ${watch.tails.get(repo.root)?.offset} of ${fs.statSync(logsHead).size} bytes`,
+          `a mutation running: ${queue.mutationRunning}; the last one ended ${Date.now() - queue.lastMutationEnd} ms ago`,
+          `dirty: ${watch.dirtyByRepo.get(repo.root)}; the reflog's last lines: ${JSON.stringify(last)}`,
         ].join('\n'),
       );
     } finally {
