@@ -1,7 +1,7 @@
 # Releasing Geet
 
 Geet is published to the Visual Studio Marketplace as **Geet for Git**, `ntson9p.geet`
-(publisher `ntson9p`), from **github.com/ntson9p/git-tree**. The Marketplace takes a display
+(publisher `ntson9p`), from **github.com/ntson9p/geet**. The Marketplace takes a display
 name only once, ignoring spaces and case: "GitTree", the name before, was refused because of
 an older "Git Tree". The pipeline is
 [.github/workflows/release.yml](../.github/workflows/release.yml): pushing a `v*` tag tests,
@@ -116,7 +116,7 @@ job and environment because a policy names one environment.
    | --- | --- |
    | Policy name | anything, e.g. `release` |
    | Repository owner | `ntson9p` |
-   | Repository | `git-tree` |
+   | Repository | `geet` |
    | Workflow | `release.yml` |
    | Environment | `marketplace` |
 

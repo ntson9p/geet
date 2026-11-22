@@ -2844,3 +2844,77 @@ Testing (written, **not run**, by the owner's standing instruction):
   - its solid mark and its Marketplace icon are its mark, and its PNG is its SVG at 256px.
 
   The SVG reading of both was checked against the real files, and their PNG reading against the real PNGs, with scratch scripts.
+
+POST-P14da ✅ 2026-11-22 (branch `release-prep`, PR #5, from `main`): **Ready to publish: CI green on Windows, Linux and macOS, and the repository renamed to geet.** The owner asked for "all the things needed to get me ready to publish this updated version of Geet to VSCode Marketplace". They had made the repository public and renamed it from `git-tree` to `geet`. CI had failed on every run since the first push, and the release workflow publishes only after integration and perf pass on all three systems, so no release could get through. With the owner's go-ahead, I pushed this branch and opened the PR so CI could run it. I also ran the suites as needed and created the GitHub environment.
+
+- **The repository's new name** is now used everywhere the repository is named:
+  - package.json's repository, homepage and bugs. vsce rewrites the README's images and links to the repository named there.
+  - `errorUx.ts`'s docs links and Report Issue.
+  - The README.
+  - docs/releasing.md and its Trusted Publishing table (Repository `geet`). `releaseWorkflow.test.ts` holds the table to package.json.
+  - release.yml's header.
+  - The tests that name the URL.
+
+  The local `origin` points at the new URL. The history keeps the old name.
+- **The GitHub environment `marketplace`**, made with `gh api`:
+  - the owner is the required reviewer, with self-review allowed since they are the only one;
+  - deployments only from `v*` tags.
+- **CI on the PR.** The first run failed 9 of its 10 jobs. The second passed all 10. The third failed one test on macOS and one on Windows with git 2.36, both flakes, fixed below. The fourth passed all 10. The fifth failed one more macOS flake, also fixed below.
+  - **macOS ran nothing.** From VS Code 1.110 the binary is `Contents/MacOS/Code`, and 1.147 dropped the old `Electron` name. `@vscode/test-electron` 2.5.2 still launched that name (spawn ENOENT). 3.1.0 reads the name from Info.plist. It needs Node 22.
+  - **All systems:** VS Code 1.147 fills in packageJSON's `%key%` names from package.nls.json. The two-panels test compares the text now, either way.
+  - **Linux and macOS:** P5's `rmrfGitDir` set every entry to 0o666, folders too. A folder without its x bit cannot be emptied, so three tests failed in their clean-up (ENOTEMPTY). It now changes files only.
+  - **Linux:** P11's commit put its message in the history ring after the next test had committed. The test waits for it now.
+  - **A real bug on Linux and macOS: Local History missed an external `git reset --hard`.** Any reflog change seen less than a second after one of Geet's mutations counted as Geet's own. The test's diagnostics showed that the change was seen and read, and that the last mutation had ended about 1 s before.
+    - Geet's own lines are now told apart by where they are in `.git/logs/HEAD`, not by when they came (`ReflogTail`, vscode-free).
+    - While one of Geet's mutations runs, new lines are left unread.
+    - When it finishes (`onDidFinishMutation`), everything written so far is skipped. The queue settles and fires that event in one synchronous step, and its git has exited.
+    - Whatever comes after is external, however soon.
+    - An external write during one of Geet's mutations still counts as Geet's, as before.
+    - CHANGELOG: under 0.1.0's "Fixed — bugs the test suites found".
+  - **git 2.36 would not build on Linux.** Newer compilers default to C23, where its `unreachable()` is a macro, so it is now built as gnu17.
+  - **Perf on every system:** the 150 MB budget for a 100k-commit log session's memory failed, at 206–220 MB. It measured RSS from when the suite loaded, which counted activation, every benchmark before it, and the compiling of their code. VS Code no longer served that compiling from its code cache once test-electron 3 started it with `--no-cached-data`.
+    - Measured from just before the session, RSS gave 2–6 MB, because the session reused memory freed before it.
+    - The budget now bounds what the session holds: the V8 heap after a full collection, before and after, with the rows and layout still held. `gc()` comes from `--expose-gc` set at run time.
+    - The RSS figures are still recorded. docs/perf.md says what changed, and no longer says the CI job has never run.
+  - **macOS, third run: P1 T7 committed before the commit window had ticked the new file.** The flow found "No checked files to commit.", and HEAD never moved. The test now waits for the tick, as P11's tests do.
+  - **Windows with git 2.36:** HEAD and `.git/config` stayed locked through all ten of `gitWithRetry`'s tries in the first run.
+    - In the third run, a `checkout -b` that the lock stopped had already made the branch, so its retry failed with "already exists". Such a retry now checks the branch out instead.
+    - If the lock outlasts the tries again, the error lists the git processes still running.
+  - **macOS, fifth run: P0-T6's first test committed before its git dir watcher was listening.** On macOS `fs.watch` reports through an FSEvents stream that starts a moment after the call returns, and a change made before then is never reported. The suite's setup now touches FETCH_HEAD until the watcher reports it.
+  - The actions in ci.yml are pinned to the same v5 commits as release.yml. v4 ran on the deprecated Node 20.
+- **The Marketplace page:** all 8 README images load from `github.com/ntson9p/geet/raw/HEAD/…`, and every relative link in the README exists.
+- **CHANGELOG:** 0.1.0 is dated 2026-11-22, the release day. Move the date if the tag goes out on another day.
+
+**Checked:**
+- **CI on PR #5, fourth run, all 10 jobs green:**
+  - integration: 453 passing with the system git on Windows, Linux and macOS; 452 with git 2.36 on Windows and Linux, which skip one more test by git version;
+  - perf on all three systems; the log session holds 6.6 MB on macOS, 6.6 MB on Linux and 8.7 MB on Windows.
+- **Locally, on Windows with VS Code 1.147.0 through test-electron 3.1.0:**
+  - the four changed integration suites: 54 passing;
+  - the perf suite: the session holds 6.8 MB.
+  - Status refresh p95 came out at 537 ms against 400 ms. That was the laptop under load: the 2k-file snapshot took 48 s here, against about 4 s on CI, and CI passed it on all three systems.
+- `npm audit`: 0 vulnerabilities. `npm audit signatures`: 413 verified.
+
+**Left to the owner:**
+1. Create the publisher `ntson9p` at marketplace.visualstudio.com/manage, if not done yet.
+2. Create the Trusted Publishing policy: owner `ntson9p`, repository `geet`, workflow `release.yml`, environment `marketplace`.
+3. Merge PR #5.
+4. Push the tag `v0.1.0`. It is a pre-release, because its minor is odd.
+5. Approve the `marketplace` deployment.
+
+Gates: typecheck clean; lint clean.
+
+Testing (run, with the owner's go-ahead for this release work):
+- **Unit:**
+  - new `reflogTail.test.ts` (6); the Local History unit suites: 45 passing;
+  - `errorUx.test.ts` and `marketplace.test.ts` name the new URL.
+- **Integration:**
+  - branchPanel: the view names, either way;
+  - phase01 T7: waits for the tick;
+  - watchRefresh (P0-T6): waits for its watcher to be live;
+  - phase05: `rmrfGitDir`;
+  - phase09 T4: diagnostics on a miss;
+  - phase10: the URL;
+  - phase11 T2: waits for the ring;
+  - setup's `gitWithRetry`: finishes a `checkout -b` the lock stopped, and lists git processes.
+- **Perf:** the memory benchmark measures the heap the session holds.

@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../core/core';
 import { Emitter, type Event } from '../core/util/events';
 import { classifyReflogSubject, parseReflogLine, type DestructionKind } from './reflogParse';
+import { ReflogTail } from './reflogTail';
 import { showInfo } from '../ui/notices';
 
 export interface DestructionEvent {
@@ -27,7 +28,7 @@ export class RecoveryWatch implements vscode.Disposable {
   private readonly _onDidDetect = new Emitter<DestructionEvent>();
   readonly onDidDetectDestruction: Event<DestructionEvent> = this._onDidDetect.event;
   private readonly watchers: fs.FSWatcher[] = [];
-  private readonly offsets = new Map<string, number>();
+  private readonly tails = new Map<string, ReflogTail>();
   private readonly dirtyByRepo = new Map<string, boolean>();
   private readonly hintShown = new Set<string>();
   private disposed = false;
@@ -62,11 +63,11 @@ export class RecoveryWatch implements vscode.Disposable {
 
   private attach(repo: RepoHandle): void {
     const logsHead = path.join(repo.dirs.gitDir, 'logs', 'HEAD');
-    try {
-      this.offsets.set(repo.root, fs.existsSync(logsHead) ? fs.statSync(logsHead).size : 0);
-    } catch {
-      this.offsets.set(repo.root, 0);
-    }
+    const tail = new ReflogTail(sizeOf(logsHead));
+    this.tails.set(repo.root, tail);
+    // What Geet's own mutations wrote is announced by the hint path, not the
+    // toast: skipped when each finishes, all of it written by then.
+    repo.disposables.add(repo.queue.onDidFinishMutation(() => tail.ownUpTo(sizeOf(logsHead))));
     // Track dirty state so we can judge danger at event time.
     repo.disposables.add(
       repo.model.onDidChange((sections) => {
@@ -93,20 +94,16 @@ export class RecoveryWatch implements vscode.Disposable {
 
   private async onHeadLogChange(repo: RepoHandle, logsHead: string): Promise<void> {
     if (this.disposed) return;
+    const tail = this.tails.get(repo.root);
+    if (!tail) return;
     let text: string;
-    let size: number;
     try {
-      const stat = fs.statSync(logsHead);
-      size = stat.size;
-      const from = Math.min(this.offsets.get(repo.root) ?? 0, size);
-      if (size <= from) {
-        this.offsets.set(repo.root, size);
-        return;
-      }
+      const range = tail.takeExternal(fs.statSync(logsHead).size, repo.queue.isMutationActive);
+      if (!range) return;
       const fd = fs.openSync(logsHead, 'r');
       try {
-        const buf = Buffer.alloc(size - from);
-        fs.readSync(fd, buf, 0, buf.length, from);
+        const buf = Buffer.alloc(range.to - range.from);
+        fs.readSync(fd, buf, 0, buf.length, range.from);
         text = buf.toString('utf8');
       } finally {
         fs.closeSync(fd);
@@ -114,10 +111,6 @@ export class RecoveryWatch implements vscode.Disposable {
     } catch {
       return;
     }
-    this.offsets.set(repo.root, size);
-
-    // Our own operations are announced by the hint path, not the toast.
-    if (repo.queue.isSelfInflicted(Date.now())) return;
 
     for (const line of text.split('\n')) {
       if (line.trim().length === 0) continue;
@@ -216,5 +209,14 @@ export class RecoveryWatch implements vscode.Disposable {
     this.disposed = true;
     for (const w of this.watchers) w.close();
     this._onDidDetect.dispose();
+  }
+}
+
+/** The file's size in bytes, or 0 when it is not there (yet). */
+function sizeOf(file: string): number {
+  try {
+    return fs.statSync(file).size;
+  } catch {
+    return 0;
   }
 }

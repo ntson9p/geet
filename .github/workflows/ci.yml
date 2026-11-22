@@ -10,8 +10,8 @@ jobs:
     name: check (typecheck + lint + unit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -37,8 +37,8 @@ jobs:
             git: '2.36'
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -60,7 +60,9 @@ jobs:
           curl -fsSLO https://mirrors.edge.kernel.org/pub/software/scm/git/git-2.36.6.tar.gz
           tar -xzf git-2.36.6.tar.gz
           cd git-2.36.6
-          make -j"$(nproc)" prefix=/opt/pinned-git NO_TCLTK=1 NO_GETTEXT=1 install
+          # git 2.36 has a function named unreachable(), which C23 (newer
+          # compilers' default) turns into a macro: build it as gnu17 C.
+          make -j"$(nproc)" prefix=/opt/pinned-git NO_TCLTK=1 NO_GETTEXT=1 CFLAGS="-O2 -std=gnu17" install
           echo '/opt/pinned-git/bin' >> "$GITHUB_PATH"
 
       - name: Report git version
@@ -83,8 +85,8 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -101,15 +103,15 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run build
       - run: npm run package
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: geet-vsix
           path: '*.vsix'

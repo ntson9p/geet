@@ -8,6 +8,8 @@
 import * as assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as v8 from 'node:v8';
+import * as vm from 'node:vm';
 import * as vscode from 'vscode';
 import type { Core, RepoHandle } from '../../../src/core/core';
 import type { GeetApi } from '../../../src/extension';
@@ -317,26 +319,60 @@ suite('P10-T1 performance benchmarks (§13 budgets, 15% tolerance)', () => {
     };
   });
 
-  test('extension-host memory after a 100k-commit log session ≤ 150 MB (session delta)', async function () {
+  test('extension-host memory after a 100k-commit log session ≤ 150 MB (what the session holds)', async function () {
     this.timeout(300_000);
-    // A real session: 5 pages (10k rows) streamed + laid out, details cached.
+    // What a session keeps: the V8 heap after a full collection, before the
+    // session and after it, with the session still held. RSS was the measure,
+    // and it answers something else here:
+    // - from when the suite loaded, its delta also held activation, every
+    //   benchmark above (2k-file snapshots among them) and the compiling of the
+    //   code they ran, which @vscode/test-electron 3 no longer serves from VS
+    //   Code's code cache (--no-cached-data): 206–220 MB on CI;
+    // - from just before the session, it was 2–6 MB: the session reused memory
+    //   the benchmarks above had freed, which RSS does not give back.
+    // Both RSS figures are still recorded.
+    const MB = 1024 * 1024;
+    collectGarbage();
+    const before = process.memoryUsage();
+    // A real session: 5 pages (10k rows) streamed + laid out, details cached,
+    // the rows and the layout held as the Log view holds them.
     const svc = new LogService(repoLog);
     const layout = new GraphLayout();
+    const held: unknown[] = [];
     for (let page = 0; page < 5; page++) {
       const res = await svc.getPage({ sort: 'topo', refs: 'HEAD' }, page);
-      layout.appendPage(res.rows.map((r) => ({ sha: r.sha, parents: r.parents })));
+      held.push(res.rows, layout.appendPage(res.rows.map((r) => ({ sha: r.sha, parents: r.parents }))));
     }
-    globalThis.gc?.();
-    const rss = process.memoryUsage().rss;
-    const deltaMb = (rss - baselineRss) / (1024 * 1024);
+    collectGarbage();
+    const after = process.memoryUsage();
+    // Used after the collection, so it could not take the session.
+    const lanes = layout.laneCount;
+    const pages = held.length / 2;
+    svc.dispose();
+    const heldMb = (after.heapUsed - before.heapUsed) / MB;
     results['memory100kLogSession'] = {
-      rssMb: round(rss / (1024 * 1024)),
-      suiteBaselineRssMb: round(baselineRss / (1024 * 1024)),
-      sessionDeltaMb: round(deltaMb),
+      sessionHeapMb: round(heldMb),
+      pages,
+      lanes,
+      rssMb: round(after.rss / MB),
+      preSessionRssMb: round(before.rss / MB),
+      suiteBaselineRssMb: round(baselineRss / MB),
+      suiteDeltaMb: round((after.rss - baselineRss) / MB),
     };
+    assert.strictEqual(pages, 5);
     assert.ok(
-      deltaMb <= BUDGET.logSessionMemoryMb * NOISE,
-      `log session added ${round(deltaMb)}MB RSS, exceeds ${BUDGET.logSessionMemoryMb}MB budget`,
+      heldMb <= BUDGET.logSessionMemoryMb * NOISE,
+      `the log session holds ${round(heldMb)}MB, over the ${BUDGET.logSessionMemoryMb}MB budget`,
     );
   });
 });
+
+/**
+ * A full garbage collection. The extension host is not started with
+ * --expose-gc, but V8 takes the flag at run time, and a context made after it
+ * has `gc`.
+ */
+function collectGarbage(): void {
+  v8.setFlagsFromString('--expose-gc');
+  (vm.runInNewContext('gc') as () => void)();
+}

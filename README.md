@@ -12,7 +12,7 @@ built-in Git extension: leave that one on or turn it off, Geet works the
 same.
 
 > **Pre-release.** 0.1 is Geet's first public build. Try it on your
-> projects, and [tell us what breaks](https://github.com/ntson9p/git-tree/issues).
+> projects, and [tell us what breaks](https://github.com/ntson9p/geet/issues).
 
 ## Highlights
 

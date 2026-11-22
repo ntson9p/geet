@@ -96,11 +96,49 @@ export function gitWithRetry(cwd: string, args: readonly string[]): string {
     } catch (err) {
       lastErr = err;
       const text = String(err);
+      // A try the lock stopped can have made the branch before failing to move
+      // HEAD to it (Windows with git 2.36 on CI). Making it again fails, so the
+      // retry finishes the job: checking out the branch it made.
+      const branch = createdBranch(args);
+      if (attempt > 0 && branch !== undefined && /already exists/u.test(text)) {
+        return gitWithRetry(cwd, ['checkout', branch]);
+      }
       if (!/Permission denied|Another git process|unable to write|could not write/i.test(text)) {
         throw err;
       }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400 * (attempt + 1));
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  // Still locked after 20 s (Windows with git 2.36 on CI): say which git
+  // processes were running then, since one of them is likely holding the file.
+  const message = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  throw new Error(`${message}\ngit processes still running:\n${runningGitProcesses()}`);
+}
+
+/** The branch `git checkout -b <name>` or `git switch -c <name>` makes, if `args` is one of them. */
+function createdBranch(args: readonly string[]): string | undefined {
+  const [command, flag, name] = args;
+  return (command === 'checkout' && flag === '-b') || (command === 'switch' && flag === '-c') ? name : undefined;
+}
+
+/** The git processes running now, with their command lines, for a failure message. */
+function runningGitProcesses(): string {
+  try {
+    return process.platform === 'win32'
+      ? execFileSync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            "Get-CimInstance Win32_Process -Filter \"Name = 'git.exe'\" | ForEach-Object { \"$($_.ProcessId) $($_.CreationDate) $($_.CommandLine)\" }",
+          ],
+          { encoding: 'utf8', timeout: 15_000 },
+        )
+      : execFileSync('ps', ['-eo', 'pid,etime,args'], { encoding: 'utf8', timeout: 15_000 })
+          .split('\n')
+          .filter((line) => /\bgit\b/u.test(line))
+          .join('\n');
+  } catch (err) {
+    return `(could not list them: ${err instanceof Error ? err.message : String(err)})`;
+  }
 }

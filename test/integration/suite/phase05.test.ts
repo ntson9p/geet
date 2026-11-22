@@ -127,10 +127,14 @@ suite('P5 history rewriting — rebase engine', () => {
   function rmrfGitDir(dir: string): void {
     try {
       for (const entry of fs.readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
+        const file = path.join(dir, entry);
         try {
-          fs.chmodSync(path.join(dir, entry), 0o666);
+          // Git's objects are read-only, which Windows will not delete. Files only:
+          // on Linux and macOS a folder at 0o666 has lost its x bit, and nothing
+          // in it can be deleted then (ENOTEMPTY).
+          if (fs.lstatSync(file).isFile()) fs.chmodSync(file, 0o666);
         } catch {
-          // directories / already gone
+          // already gone
         }
       }
     } catch {

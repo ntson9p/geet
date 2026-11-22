@@ -15,9 +15,9 @@ npm run test:webview  # includes the scroll frame-time spec (webview-ui/tests/pe
 the machine — a concurrent Playwright run inflated log first paint ~1.5× and
 tripped its budget spuriously. CI runners are isolated by construction.
 
-The CI `perf` job (`.github/workflows/ci.yml`) runs the suite on all three OSes.
-It has never executed: the repository has no remote by project-owner decision, so
-the recorded evidence is the local runs below.
+The CI `perf` job (`.github/workflows/ci.yml`) runs the suite on all three OSes,
+and the release workflow publishes only after it passes there. The results below
+are local runs, from before the repository was on GitHub.
 
 ## Results — 2026-08-24, Windows 11, local — **Phase 14 close** (P14-T8)
 
@@ -118,7 +118,19 @@ Notes:
   would surface as missed frames. Layout cost itself is bounded separately by the
   P4-T2 vitest benchmark (100k commits < 400 ms).
 - The memory row bounds the log session's RSS *delta*; the absolute number
-  includes the VS Code extension-host baseline.
+  includes the VS Code extension-host baseline. **Since POST-P14da it bounds what
+  the session holds instead:** the V8 heap after a full collection, before the
+  session and after it, with its rows and layout still held (`sessionHeapMb`).
+  RSS stopped answering the question:
+  - from when the suite loaded, the delta also counted activation, every
+    benchmark run before it, and the compiling of their code, which VS Code no
+    longer served from its code cache once `@vscode/test-electron` 3 started it
+    with `--no-cached-data`: 206–220 MB on CI;
+  - from just before the session, it was 2–6 MB, because the session reused
+    memory the benchmarks before it had freed, which RSS does not give back.
+
+  The RSS figures are still recorded (`rssMb`, `preSessionRssMb`,
+  `suiteDeltaMb`). The first local run held 6.8 MB for the 10k rows.
 - Log first paint is dominated by git itself streaming the first 2 000 records
   (~525 of ~540 ms); parsing + layout account for the rest.
 

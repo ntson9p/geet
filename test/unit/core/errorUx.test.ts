@@ -70,7 +70,7 @@ describe('buildIssueBody / newIssueUrl', () => {
 
   it('url-encodes the whole body into the new-issue link', () => {
     const url = newIssueUrl(info());
-    expect(url).toMatch(/^https:\/\/github\.com\/ntson9p\/git-tree\/issues\/new\?/);
+    expect(url).toMatch(/^https:\/\/github\.com\/ntson9p\/geet\/issues\/new\?/);
     expect(decodeURIComponent(url)).not.toMatch(/secret-project/);
   });
 });

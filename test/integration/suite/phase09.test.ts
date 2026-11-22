@@ -241,15 +241,44 @@ suite('P9 local history — restore UX & destruction detection', () => {
       });
     });
 
+    // A watcher of the test's own on the same folder: if detection misses (it did
+    // once, on Linux CI), the failure says whether the reflog's change was seen at all.
+    const logsDir = path.join(repo.dirs.gitDir, 'logs');
+    const seen: string[] = [];
+    const probe = fs.watch(logsDir, { persistent: false }, (evt, name) => seen.push(`${evt} ${String(name)}`));
+
     // External destruction — bypasses the OperationQueue entirely.
     git('reset', '--hard', 'HEAD~1');
 
-    const event = await Promise.race([
-      detected,
-      new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error('destruction not detected within 20s')), 20_000),
-      ),
-    ]);
+    let event: DestructionEvent;
+    try {
+      event = await Promise.race([
+        detected,
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error('destruction not detected within 20s')), 20_000),
+        ),
+      ]);
+    } catch (err) {
+      const watch = reg.recovery as unknown as {
+        watchers: unknown[];
+        tails: Map<string, { offset: number }>;
+        dirtyByRepo: Map<string, boolean>;
+      };
+      const queue = repo.queue as unknown as { lastMutationEnd: number; mutationRunning: boolean };
+      const logsHead = path.join(logsDir, 'HEAD');
+      const last = fs.readFileSync(logsHead, 'utf8').trimEnd().split('\n').slice(-2);
+      throw new Error(
+        [
+          err instanceof Error ? err.message : String(err),
+          `the test's own watcher saw: [${seen.join(', ')}]`,
+          `watchers: ${watch.watchers.length}; read up to ${watch.tails.get(repo.root)?.offset} of ${fs.statSync(logsHead).size} bytes`,
+          `a mutation running: ${queue.mutationRunning}; the last one ended ${Date.now() - queue.lastMutationEnd} ms ago`,
+          `dirty: ${watch.dirtyByRepo.get(repo.root)}; the reflog's last lines: ${JSON.stringify(last)}`,
+        ].join('\n'),
+      );
+    } finally {
+      probe.close();
+    }
     assert.strictEqual(event.kind, 'reset');
     assert.strictEqual(event.oldSha, lostSha, 'event oldSha should be the lost commit');
     assert.strictEqual(event.hadDirtyFiles, true, 'dirty worktree not recorded');

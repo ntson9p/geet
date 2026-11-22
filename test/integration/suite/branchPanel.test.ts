@@ -900,15 +900,20 @@ suite('new-way-4 Branches panel', () => {
     const ids = views.map((v) => v.id);
     const repositories = views.find((v) => v.id === 'geet.repositoryList');
     const branches = views.find((v) => v.id === 'geet.branches');
+    // VS Code 1.147 hands packageJSON over with its `%key%` placeholders already
+    // filled in from package.nls.json; 1.146 and before hand over the placeholders.
+    const nls = JSON.parse(fs.readFileSync(path.join(ext.extensionPath, 'package.nls.json'), 'utf8')) as Record<string, string>;
+    const named = (name: string | undefined): string | undefined =>
+      name?.replace(/^%(.+)%$/u, (placeholder, key: string) => nls[key] ?? placeholder);
     // Webviews both; the Repositories panel right under the Commit window,
     // and only where there is more than one repository to list.
     assert.deepStrictEqual(
-      { type: repositories?.type, when: repositories?.when, name: repositories?.name },
-      { type: 'webview', when: 'geet.multiRepo', name: '%geet.view.repositoryList.name%' },
+      { type: repositories?.type, when: repositories?.when, name: named(repositories?.name) },
+      { type: 'webview', when: 'geet.multiRepo', name: 'Repositories' },
     );
     assert.deepStrictEqual(
-      { type: branches?.type, when: branches?.when, name: branches?.name },
-      { type: 'webview', when: undefined, name: '%geet.view.branches.name%' },
+      { type: branches?.type, when: branches?.when, name: named(branches?.name) },
+      { type: 'webview', when: undefined, name: 'Branches' },
     );
     assert.strictEqual(ids.indexOf('geet.repositoryList'), ids.indexOf('geet.commit') + 1);
     assert.ok(ids.indexOf('geet.repositoryList') < ids.indexOf('geet.branches'));

@@ -49,6 +49,20 @@ suite('P0-T6 watchers → refresher → model', () => {
     refresher = new StatusRefresher({ repo, gitDir: dirs.gitDir, git: counting, model, queue });
     watcher = new GitDirWatcher(dirs);
     watcher.onDidChange((e) => refresher.poke('gitdir', e.ts));
+    // On macOS fs.watch reports through an FSEvents stream that starts a moment
+    // after the call returns, and a change made before then is never reported:
+    // the first test's commit went unseen once on CI. Touch FETCH_HEAD (fetch's
+    // scratch file, which git reads only to pull) until the watcher reports it.
+    let live = false;
+    const probe = watcher.onDidChange((e) => {
+      if (e.relPath === 'FETCH_HEAD') live = true;
+    });
+    for (let i = 0; i < 50 && !live; i++) {
+      fs.writeFileSync(path.join(dirs.gitDir, 'FETCH_HEAD'), '');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    probe.dispose();
+    assert.ok(live, 'the git dir watcher never reported a change');
     await refresher.refreshNow();
   });
 

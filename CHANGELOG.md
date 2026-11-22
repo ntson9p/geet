@@ -6,7 +6,7 @@ pre-release convention (odd minor = pre-release).
 
 ## [Unreleased]
 
-## [0.1.0] — 2026-11-19
+## [0.1.0] — 2026-11-22
 
 The first release on the Visual Studio Marketplace, as a **pre-release** (an odd minor; see
 [docs/releasing.md](docs/releasing.md)). Everything below came after 0.0.1.
@@ -204,6 +204,9 @@ setting counts only while `geet.push.showDialog` is on.
 - **Dates without the system's patterns** (another platform, or Windows' unreadable) give the
   time as the language's own short time: `03:45` in English (UK), as IntelliJ's
   `DateFormat.SHORT` does. ICU 78 (Node 24's) wrote `3:45`.
+- **Local History notices a `git reset --hard` run outside Geet right after one of Geet's own
+  operations.** For a second after each of them, a change to the branch was taken for Geet's
+  own, so such a reset brought no offer to restore files or recover the commit.
 
 ### Security — development tools updated; `npm audit` finds nothing
 

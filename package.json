@@ -13,11 +13,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ntson9p/git-tree.git"
+    "url": "https://github.com/ntson9p/geet.git"
   },
-  "homepage": "https://github.com/ntson9p/git-tree#readme",
+  "homepage": "https://github.com/ntson9p/geet#readme",
   "bugs": {
-    "url": "https://github.com/ntson9p/git-tree/issues"
+    "url": "https://github.com/ntson9p/geet/issues"
   },
   "engines": {
     "vscode": "^1.96.0"
@@ -4282,7 +4282,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.17.0",
     "@types/vscode": "1.96.0",
-    "@vscode/test-electron": "^2.4.1",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.25.0",
     "eslint": "^9.20.0",

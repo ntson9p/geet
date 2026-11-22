@@ -1,6 +1,6 @@
 # Release pipeline (P10-T5; readied for its first run in POST-P14cr; Trusted
 # Publishing in POST-P14cx). It publishes to the Visual Studio Marketplace as
-# `ntson9p.geet`, from github.com/ntson9p/git-tree; docs/releasing.md has the
+# `ntson9p.geet`, from github.com/ntson9p/geet; docs/releasing.md has the
 # one-time set-up (publisher, the Trusted Publishing policy, the environment)
 # and a release's steps.
 #

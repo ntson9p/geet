@@ -219,6 +219,19 @@ suite('P11 commit tool window', () => {
     assert.strictEqual(git('log', '-1', '--format=%s').trim(), 'p11 commit from the tool window');
     // Post-commit clear goes through the same box.
     assert.strictEqual(reg.commitWindow.getMessage(repo), '');
+    // The message goes into the history ring after the clear, and the T4 test
+    // below reads it there. On Linux CI the next test committed before it had
+    // landed, and it never showed up in the ring: wait for it here.
+    let ring: string[] = [];
+    for (const deadline = Date.now() + 10_000; ; ) {
+      ring = (await reg.history.entries(repo)).map((e) => e.message);
+      if (ring.includes('p11 commit from the tool window') || Date.now() > deadline) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.ok(
+      ring.includes('p11 commit from the tool window'),
+      `the commit's message never reached the history ring: ${ring.map((m) => JSON.stringify(m)).join(', ')}`,
+    );
   });
 
   /**
