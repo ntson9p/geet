@@ -2927,6 +2927,6 @@ POST-P14db ✅ 2026-11-22 (branch `release-0.1.1`, from `main`): **0.1.1, becaus
   - 0.1.0 is dated 2026-11-21, when it went out, and no longer lists the new icon or the Local History fix;
   - 0.1.1 has them, and the repository's new name in Geet's links.
 - **The Windows clean-up flake** that stopped the release run's first try (multiRoot's teardown: EPERM on a folder a watcher still held) is fixed here too. That clean-up and phase01's two now pass `maxRetries` to `rmSync`, as every other folder clean-up in the suites already did.
-- **The tag `v0.1.0`** still points at `21bfce0`, which is not what was published (`0f20235`); the owner decides whether to move it.
+- **The tag `v0.1.0`** pointed at `21bfce0`, which is not what was published. At the owner's word it now points at `0f20235`. The release run that the moved tag started was cancelled: the Marketplace already has 0.1.0.
 
 Gates: typecheck clean; lint clean; the docs and release unit suites, 53 passing; `npm run package`: `geet-0.1.1.vsix`, a pre-release, 48 files, 514.6 KB.
