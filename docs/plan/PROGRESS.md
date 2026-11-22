@@ -2930,3 +2930,11 @@ POST-P14db ✅ 2026-11-22 (branch `release-0.1.1`, from `main`): **0.1.1, becaus
 - **The tag `v0.1.0`** pointed at `21bfce0`, which is not what was published. At the owner's word it now points at `0f20235`. The release run that the moved tag started was cancelled: the Marketplace already has 0.1.0.
 
 Gates: typecheck clean; lint clean; the docs and release unit suites, 53 passing; `npm run package`: `geet-0.1.1.vsix`, a pre-release, 48 files, 514.6 KB.
+
+POST-P14dc ✅ 2026-11-22 (branch `release-0.2.0`, from `main`): **0.2.0, the first stable release.** 0.1.1 went out to the Marketplace. Installing it from VS Code then showed "Can't install release version of 'Geet for Git' extension because it has no release version", with *Install Pre-Release* or *Cancel*. VS Code's Install asks for a release first, and 0.1.0 and 0.1.1 were both pre-releases (odd minor, docs/releasing.md). The owner chose to publish the same code as stable 0.2.0, the next even minor.
+
+- package.json and package-lock.json's root: 0.2.0. `npm run package` packages it without `--pre-release`. The release workflow then also makes the GitHub Release, with the changelog section and the VSIX.
+- CHANGELOG `## [0.2.0]`: the first stable release, 0.1.1 as it was, and why. It is also the GitHub Release's notes (`scripts/extractChangelog.mjs`), so its links are absolute.
+- README: the note at the top said "**Pre-release.** 0.1 is Geet's first public build"; it now says 0.2 is the first stable release.
+
+Gates: typecheck clean; lint clean; the docs and release unit suites pass; `npm run package`: a stable `geet-0.2.0.vsix`.

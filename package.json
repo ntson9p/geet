@@ -2,7 +2,7 @@
   "name": "geet",
   "displayName": "Geet for Git",
   "description": "IntelliJ-grade Git integration for VS Code: changelists, log graph, interactive rebase, 3-pane merge, shelve, and local history.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "ntson9p",
   "license": "MIT",
   "private": true,
